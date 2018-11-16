@@ -139,7 +139,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
-    DEFINE_BYVAL_RW_PROPERTY(i64, Revision);
+    DEFINE_BYVAL_RW_PROPERTY(ui64, AttributesRevision);
+    DEFINE_BYVAL_RW_PROPERTY(ui64, ContentRevision);
 
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
@@ -148,6 +149,8 @@ public:
 
     explicit TCypressNodeBase(const TVersionedNodeId& id);
     virtual ~TCypressNodeBase();
+
+    ui64 GetRevision() const;
 
     TCypressNodeDynamicData* GetDynamicData() const;
 

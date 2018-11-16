@@ -103,7 +103,8 @@ struct IVersionedColumnReader
      */
     virtual void ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
-        TRange<std::pair<ui32, ui32>> timestampIndexRanges) = 0;
+        TRange<std::pair<ui32, ui32>> timestampIndexRanges,
+        bool produceAllVersions) = 0;
 
 
     //! Read values for compaction.

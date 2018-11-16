@@ -159,7 +159,7 @@ public:
         }
 
         LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, "
-            "FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v ReadSessionId: %v)",
+            "FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v, ReadSessionId: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             FoundRowCount_,

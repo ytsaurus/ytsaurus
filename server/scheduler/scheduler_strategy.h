@@ -26,6 +26,7 @@ struct ISchedulerStrategyHost
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
+    virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     virtual TInstant GetConnectionTime() const = 0;

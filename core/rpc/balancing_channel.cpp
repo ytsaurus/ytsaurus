@@ -237,6 +237,7 @@ private:
                     << rspOrError;
                 LOG_DEBUG(error);
                 BanPeer(address, error, Owner_->Config_->HardBackoffTime);
+                InvalidatePeer(address);
             }
 
             DoRun();

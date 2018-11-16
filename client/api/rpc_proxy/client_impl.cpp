@@ -78,16 +78,21 @@ TClient::TClient(
     , ChannelPool_(channelPool)
     , Channel_(CreateCredentialsInjectingChannel(CreateDynamicChannel(channelPool), clientOptions))
     , ClientOptions_(clientOptions)
-    , TableMountCache_(
-        CreateTableMountCache(
-            Connection_->GetConfig()->TableMountCache,
-            Channel_,
-            RpcProxyClientLogger,
-            Connection_->GetConfig()->RpcTimeout))
 { }
 
 const ITableMountCachePtr& TClient::GetTableMountCache()
 {
+    if (!TableMountCacheInitialized_.load()) {
+        auto guard = Guard(TableMountCacheSpinLock_);
+        if (!TableMountCache_) {
+            TableMountCache_ = CreateTableMountCache(
+                Connection_->GetConfig()->TableMountCache,
+                Channel_,
+                RpcProxyClientLogger,
+                Connection_->GetConfig()->RpcTimeout);
+        }
+        TableMountCacheInitialized_.store(true);
+    }
     return TableMountCache_;
 }
 

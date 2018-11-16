@@ -258,8 +258,7 @@ public:
         // Check is skipped if trees configuration did not change.
         bool skipTreesConfigurationCheck = treeIdsToAdd.empty() && treeIdsToRemove.empty();
 
-        if (!skipTreesConfigurationCheck)
-        {
+        if (!skipTreesConfigurationCheck) {
             if (!CheckTreesConfiguration(idToTree, &errors)) {
                 auto error = TError("Error updating pool trees")
                     << std::move(errors);
@@ -1084,12 +1083,13 @@ private:
 
         for (const auto& pair : nodeIdToTreeSet) {
             const auto& nodeId = pair.first;
-            const auto& trees  = pair.second;
-            if (trees.size() > 1) {
-                errors->emplace_back("Cannot update fair-share trees since there is node that "
-                    "belongs to multiple trees (NodeId: %v, MatchedTrees: %v)",
-                    nodeId,
-                    trees);
+            const auto& treeIds  = pair.second;
+            if (treeIds.size() > 1) {
+                errors->emplace_back(
+                    TError("Cannot update fair-share trees since there is node that belongs to multiple trees")
+                        << TErrorAttribute("node_id", nodeId)
+                        << TErrorAttribute("matched_trees", treeIds)
+                        << TErrorAttribute("node_address", Host->GetExecNodeAddress(nodeId)));
                 return false;
             }
         }

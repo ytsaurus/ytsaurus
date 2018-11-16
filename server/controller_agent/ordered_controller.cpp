@@ -151,11 +151,6 @@ protected:
             Persist(context, ChunkPool_);
         }
 
-        virtual bool SupportsInputPathYson() const override
-        {
-            return true;
-        }
-
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedTask, 0xaba78384);
 

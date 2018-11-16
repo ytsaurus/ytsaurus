@@ -76,6 +76,11 @@ struct TSchedulerStrategyHostMock
     {
         return {};
     }
+    
+    virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override
+    {
+        Y_UNREACHABLE();
+    }
 
     virtual void ValidatePoolPermission(
         const NYPath::TYPath& path,
@@ -423,7 +428,10 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     for (int i = 0; i < 150; ++i) {
         auto jobId = TGuid::Create();
         jobIds.push_back(jobId);
-        operationElementX->OnJobStarted(jobId, jobResources.ToJobResources());
+        operationElementX->OnJobStarted(
+            jobId,
+            jobResources.ToJobResources(),
+            /* precommitedResources */ ZeroJobResources());
     }
 
     auto dynamicAttributes = TDynamicAttributesList(2);

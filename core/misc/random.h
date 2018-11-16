@@ -26,12 +26,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TForwardIterator, class TOutputIterator>
+// TGenerator is supposed to implement operator(), which returns
+// uniformly-distributed integers in the range [0, #max) given argument #max.
+template <class TForwardIterator, class TOutputIterator, class TGenerator>
 TOutputIterator RandomSampleN(
     TForwardIterator begin,
     TForwardIterator end,
     TOutputIterator output,
-    size_t n);
+    size_t n,
+    TGenerator&& generator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

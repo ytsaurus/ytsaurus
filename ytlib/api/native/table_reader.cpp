@@ -479,7 +479,10 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     {
         LOG_INFO("Requesting table schema");
 
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = client->GetMasterChannelOrThrow(
+            EMasterChannelKind::Follower,
+            CellTagFromId(objectId));
+
         TObjectServiceProxy proxy(channel);
 
         auto req = TYPathProxy::Get(objectIdPath + "/@");

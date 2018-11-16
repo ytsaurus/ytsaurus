@@ -148,33 +148,33 @@ private:
     /*!
      *  If the job is running, aborts it.
      */
-    void AbortJob(IJobPtr job);
+    void AbortJob(const IJobPtr& job);
 
-    void FailJob(IJobPtr job);
+    void FailJob(const IJobPtr& job);
 
     //! Interrupts a job.
     /*!
      *  If the job is running, interrupts it.
      */
-    void InterruptJob(IJobPtr job);
+    void InterruptJob(const IJobPtr& job);
 
     //! Removes the job from the map.
     /*!
      *  It is illegal to call #Remove before the job is stopped.
      */
-    void RemoveJob(IJobPtr job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext);
+    void RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext);
 
     TJobFactory GetFactory(EJobType type) const;
 
     void ScheduleStart();
 
-    void OnWaitingJobTimeout(TWeakPtr<IJob> weakJob);
+    void OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob);
 
     void OnResourcesUpdated(
-        TWeakPtr<IJob> job,
+        const TWeakPtr<IJob>& job,
         const TNodeResources& resourceDelta);
 
-    void OnPortsReleased(TWeakPtr<IJob> job);
+    void OnPortsReleased(const TWeakPtr<IJob>& job);
 
     void StartWaitingJobs();
 
@@ -201,6 +201,8 @@ private:
     const TNodeMemoryTracker* GetUserMemoryUsageTracker() const;
     const TNodeMemoryTracker* GetSystemMemoryUsageTracker() const;
 
+    i64 GetUserJobsFreeMemoryWatermark() const;
+
     TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> GetJobsByOrigin() const;
 };
 
@@ -209,14 +211,14 @@ private:
 TJobController::TImpl::TImpl(
     TJobControllerConfigPtr config,
     TBootstrap* bootstrap)
-    : Config_(config)
+    : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
     , ResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/resource_limits")
     , ResourceUsageProfiler_(Profiler.GetPathPrefix() + "/resource_usage")
 {
-    YCHECK(config);
-    YCHECK(bootstrap);
+    YCHECK(Config_);
+    YCHECK(Bootstrap_);
 
     for (int index = 0; index < Config_->PortCount; ++index) {
         FreePorts_.insert(Config_->StartPort + index);
@@ -320,12 +322,12 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
         userTracker->GetLimit(EMemoryCategory::UserJobs),
         // NB: The sum of per-category limits can be greater than the total memory limit.
         // Therefore we need bound memory limit by actually available memory.
-        userTracker->GetUsed(EMemoryCategory::UserJobs) + userTracker->GetTotalFree()));
+        userTracker->GetUsed(EMemoryCategory::UserJobs) + userTracker->GetTotalFree() - GetUserJobsFreeMemoryWatermark()));
 
     const auto* systemTracker = GetSystemMemoryUsageTracker();
     result.set_system_memory(std::min(
         systemTracker->GetLimit(EMemoryCategory::SystemJobs),
-        systemTracker->GetUsed(EMemoryCategory::SystemJobs) + systemTracker->GetTotalFree()));
+        systemTracker->GetUsed(EMemoryCategory::SystemJobs) + systemTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
 
     auto maybeCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
     if (maybeCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
@@ -495,6 +497,13 @@ void TJobController::TImpl::StartWaitingJobs()
         }
 
         if (jobResources.user_memory() > 0) {
+            bool reachedWatermark = GetUserMemoryUsageTracker()->GetTotalFree() <= GetUserJobsFreeMemoryWatermark();
+            if (reachedWatermark) {
+                LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark (JobId: %v)",
+                   job->GetId());
+                continue;
+            }
+
             auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
@@ -504,6 +513,13 @@ void TJobController::TImpl::StartWaitingJobs()
         }
 
         if (jobResources.system_memory() > 0) {
+            bool reachedWatermark = GetSystemMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
+            if (reachedWatermark) {
+                LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark (JobId: %v)",
+                    job->GetId());
+                continue;
+            }
+
             auto error = GetSystemMemoryUsageTracker()->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
@@ -574,7 +590,7 @@ IJobPtr TJobController::TImpl::CreateJob(
     return job;
 }
 
-void TJobController::TImpl::OnWaitingJobTimeout(TWeakPtr<IJob> weakJob)
+void TJobController::TImpl::OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob)
 {
     auto strongJob = weakJob.Lock();
     if (!strongJob) {
@@ -597,7 +613,7 @@ void TJobController::TImpl::ScheduleStart()
     }
 }
 
-void TJobController::TImpl::AbortJob(IJobPtr job)
+void TJobController::TImpl::AbortJob(const IJobPtr& job)
 {
     LOG_INFO("Job abort requested (JobId: %v)",
         job->GetId());
@@ -605,7 +621,7 @@ void TJobController::TImpl::AbortJob(IJobPtr job)
     job->Abort(TError(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler"));
 }
 
-void TJobController::TImpl::FailJob(IJobPtr job)
+void TJobController::TImpl::FailJob(const IJobPtr& job)
 {
     LOG_INFO("Job fail requested (JobId: %v)",
         job->GetId());
@@ -617,7 +633,7 @@ void TJobController::TImpl::FailJob(IJobPtr job)
     }
 }
 
-void TJobController::TImpl::InterruptJob(IJobPtr job)
+void TJobController::TImpl::InterruptJob(const IJobPtr& job)
 {
     LOG_INFO("Job interrupt requested (JobId: %v)",
         job->GetId());
@@ -629,7 +645,7 @@ void TJobController::TImpl::InterruptJob(IJobPtr job)
     }
 }
 
-void TJobController::TImpl::RemoveJob(IJobPtr job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext)
+void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext)
 {
     YCHECK(job->GetPhase() >= EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
@@ -654,7 +670,7 @@ void TJobController::TImpl::RemoveJob(IJobPtr job, bool archiveJobSpec, bool arc
     LOG_INFO("Job removed (JobId: %v)", job->GetId());
 }
 
-void TJobController::TImpl::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources& resourceDelta)
+void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& job, const TNodeResources& resourceDelta)
 {
     if (!CheckResourceUsageDelta(resourceDelta)) {
         auto job_ = job.Lock();
@@ -673,7 +689,7 @@ void TJobController::TImpl::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeRe
     }
 }
 
-void TJobController::TImpl::OnPortsReleased(TWeakPtr<IJob> job)
+void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& job)
 {
     auto job_ = job.Lock();
     if (job_) {
@@ -694,6 +710,11 @@ bool TJobController::TImpl::CheckResourceUsageDelta(const TNodeResources& delta)
     #undef XX
 
     if (delta.user_memory() > 0) {
+        bool reachedWatermark = GetUserMemoryUsageTracker()->GetTotalFree() <= GetUserJobsFreeMemoryWatermark();
+        if (reachedWatermark) {
+            return false;
+        }
+
         auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, delta.user_memory());
         if (!error.IsOK()) {
             return false;
@@ -1150,6 +1171,13 @@ const TNodeMemoryTracker* TJobController::TImpl::GetSystemMemoryUsageTracker() c
     return Bootstrap_->GetMemoryUsageTracker();
 }
 
+i64 TJobController::TImpl::GetUserJobsFreeMemoryWatermark() const
+{
+    return Bootstrap_->GetExecSlotManager()->ExternalJobMemory()
+        ? 0
+        : Config_->FreeMemoryWatermark;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobController::TJobController(
@@ -1170,7 +1198,7 @@ void TJobController::RegisterFactory(
     EJobType type,
     TJobFactory factory)
 {
-    Impl_->RegisterFactory(type, factory);
+    Impl_->RegisterFactory(type, std::move(factory));
 }
 
 IJobPtr TJobController::FindJob(const TJobId& jobId) const

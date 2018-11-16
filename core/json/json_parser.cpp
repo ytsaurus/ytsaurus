@@ -117,7 +117,6 @@ public:
     {
         YCHECK(Type_ != EYsonType::MapFragment);
 
-        // TODO(ignat): Exception in constructor -- bad idea?
         if (Config_->Format == EJsonFormat::Pretty && Type_ == EYsonType::ListFragment) {
             THROW_ERROR_EXCEPTION("Pretty JSON format is not supported for list fragments");
         }
@@ -147,10 +146,35 @@ public:
         Buffer_ = TSharedMutableRef::Allocate<TJsonParserBufferTag>(Config_->BufferSize, false);
     }
 
-    void Read(TStringBuf data);
-    void Finish();
+    void Read(TStringBuf data)
+    {
+        if (yajl_parse(
+            YajlHandle_.get(),
+            reinterpret_cast<const unsigned char*>(data.Data()),
+            data.Size()) == yajl_status_error)
+        {
+            OnError(data.Data(), data.Size());
+        }
+    }
 
-    void Parse(IInputStream* input);
+    void Finish()
+    {
+        if (yajl_complete_parse(YajlHandle_.get()) == yajl_status_error) {
+            OnError(nullptr, 0);
+        }
+    }
+
+    void Parse(IInputStream* input)
+    {
+        while (true) {
+            auto readLength = input->Read(Buffer_.Begin(), Config_->BufferSize);
+            if (readLength == 0) {
+                break;
+            }
+            Read(TStringBuf(Buffer_.begin(), readLength));
+        }
+        Finish();
+    }
 
 private:
     IYsonConsumer* const Consumer_;
@@ -163,50 +187,18 @@ private:
 
     std::unique_ptr<yajl_handle_t, decltype(&yajl_free)> YajlHandle_;
 
-    void OnError(const char* data, int len);
-};
-
-void TJsonParser::TImpl::OnError(const char* data, int len)
-{
-    unsigned char* errorMessage = yajl_get_error(
-        YajlHandle_.get(),
-        1,
-        reinterpret_cast<const unsigned char*>(data),
-        len);
-    auto error = TError("Error parsing JSON") << TError((char*) errorMessage);
-    yajl_free_error(YajlHandle_.get(), errorMessage);
-    THROW_ERROR_EXCEPTION(error);
-}
-
-void TJsonParser::TImpl::Read(TStringBuf data)
-{
-    if (yajl_parse(
-        YajlHandle_.get(),
-        reinterpret_cast<const unsigned char*>(data.Data()),
-        data.Size()) == yajl_status_error)
+    void OnError(const char* data, int len)
     {
-        OnError(data.Data(), data.Size());
+        unsigned char* errorMessage = yajl_get_error(
+            YajlHandle_.get(),
+            1,
+            reinterpret_cast<const unsigned char*>(data),
+            len);
+        auto error = TError("Error parsing JSON") << TError((char*) errorMessage);
+        yajl_free_error(YajlHandle_.get(), errorMessage);
+        THROW_ERROR_EXCEPTION(error);
     }
-}
-
-void TJsonParser::TImpl::Finish()
-{
-    if (yajl_complete_parse(YajlHandle_.get()) == yajl_status_error) {
-        OnError(nullptr, 0);
-    }
-}
-
-void TJsonParser::TImpl::Parse(IInputStream* input)
-{
-    while (true) {
-        auto readLength = input->Read(Buffer_.Begin(), Config_->BufferSize);
-        if (readLength == 0) {
-            break;
-        }
-        Read(TStringBuf(Buffer_.begin(), readLength));
-    }
-    Finish();
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

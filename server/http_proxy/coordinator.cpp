@@ -85,7 +85,9 @@ TCoordinator::TCoordinator(
         Config_->HeartbeatInterval))
 {
     Self_ = New<TProxyEntry>();
-    Self_->Endpoint = Format("%v:%d", NNet::GetLocalHostName(), config->Port);
+    Self_->Endpoint = Config_->PublicFqdn
+        ? *Config_->PublicFqdn
+        : Format("%v:%d", NNet::GetLocalHostName(), config->Port);
     Self_->Role = "data";
 }
 

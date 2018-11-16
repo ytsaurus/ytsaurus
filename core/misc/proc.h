@@ -40,7 +40,7 @@ TMemoryUsage GetProcessMemoryUsage(int pid = -1);
 
 ui64 GetProcessCumulativeMajorPageFaults(int pid = -1);
 
-int GetCurrentThreadId();
+size_t GetCurrentThreadId();
 
 void ChownChmodDirectoriesRecursively(
     const TString& path,

@@ -3,6 +3,41 @@
 #include <util/system/compiler.h>
 
 namespace NYT {
+namespace NYTAlloc {
+
+////////////////////////////////////////////////////////////////////////////////
+// YTAlloc public API
+
+void* Allocate(size_t size)
+{
+    return AllocateInline(size);
+}
+
+void* AllocatePageAligned(size_t size)
+{
+    return AllocatePageAlignedInline(size);
+}
+
+void Free(void* ptr)
+{
+    FreeInline(ptr);
+}
+
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
+
+size_t GetAllocationSize(void* ptr)
+{
+    return GetAllocationSizeInline(ptr);
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTAlloc
+} // namespace NYT
+
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Memory tags API bridge
@@ -44,12 +79,12 @@ using namespace NYT::NYTAlloc;
 
 extern "C" YTALLOC_WEAK void* malloc(size_t size)
 {
-    return YTAlloc(size);
+    return AllocateInline(size);
 }
 
 extern "C" YTALLOC_WEAK void* valloc(size_t size)
 {
-    return YTAllocPageAligned(size);
+    return AllocatePageAlignedInline(size);
 }
 
 extern "C" YTALLOC_WEAK void* aligned_alloc(size_t alignment, size_t size)
@@ -60,9 +95,9 @@ extern "C" YTALLOC_WEAK void* aligned_alloc(size_t alignment, size_t size)
     YCHECK(alignment <= PageSize);
     if (alignment <= 16) {
         // Proper alignment here is automatic.
-        return YTAlloc(size);
+        return Allocate(size);
     } else {
-        return YTAllocPageAligned(size);
+        return AllocatePageAligned(size);
     }
 }
 
@@ -89,7 +124,7 @@ extern "C" void* __libc_memalign(size_t alignment, size_t size)
 
 extern "C" YTALLOC_WEAK void free(void* ptr)
 {
-    YTFree(ptr);
+    FreeInline(ptr);
 }
 
 extern "C" YTALLOC_WEAK void* calloc(size_t n, size_t elemSize)
@@ -100,31 +135,31 @@ extern "C" YTALLOC_WEAK void* calloc(size_t n, size_t elemSize)
         return nullptr;
     }
 
-    void* result = YTAlloc(size);
+    void* result = Allocate(size);
     ::memset(result, 0, size);
     return result;
 }
 
 extern "C" YTALLOC_WEAK void cfree(void* ptr)
 {
-    YTFree(ptr);
+    Free(ptr);
 }
 
 extern "C" YTALLOC_WEAK void* realloc(void* oldPtr, size_t newSize)
 {
     if (!oldPtr) {
-        return YTAlloc(newSize);
+        return Allocate(newSize);
     }
 
     if (newSize == 0) {
-        YTFree(oldPtr);
+        Free(oldPtr);
         return nullptr;
     }
 
-    void* newPtr = YTAlloc(newSize);
-    size_t oldSize = YTGetSize(oldPtr);
+    void* newPtr = Allocate(newSize);
+    size_t oldSize = GetAllocationSize(oldPtr);
     ::memcpy(newPtr, oldPtr, std::min(oldSize, newSize));
-    YTFree(oldPtr);
+    Free(oldPtr);
     return newPtr;
 }
 

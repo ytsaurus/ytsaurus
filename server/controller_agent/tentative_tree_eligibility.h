@@ -54,6 +54,8 @@ public:
         const TString& treeId,
         bool tentative);
 
+    std::vector<TString> FindAndBanSlowTentativeTrees();
+
 private:
     using TDurationSummary = TAvgSummary<TDuration>;
 
@@ -70,6 +72,7 @@ private:
 
     // Number of started/finished jobs per pool tree.
     THashMap<TString, int> StartedJobsPerPoolTree_;
+    THashMap<TString, TInstant> LastStartJobTimePerPoolTree_;
     THashMap<TString, THashMap<EJobState, int>> FinishedJobsPerStatePerPoolTree_;
 
     THashSet<TString> BannedTrees_;
@@ -79,6 +82,8 @@ private:
     // For documentation on the meaning of parameters, see
     // TTentativeTreeEligibilityConfig::{SampleJobCount,MaxTentativeJobDurationRatio,MinJobDuration} respectively.
     TTentativeTreeEligibility(int sampleJobCount, double maxTentativeJobDurationRatio, TDuration minJobDuration);
+
+    TDuration GetTentativeTreeAverageJobDuration(const TString& treeId) const;
 
     void UpdateDurations(const TJobSummary& jobSummary, const TString& treeId, bool tentative);
 

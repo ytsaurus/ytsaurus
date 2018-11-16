@@ -12,6 +12,7 @@
 #include <yt/server/data_node/artifact.h>
 #include <yt/server/data_node/chunk.h>
 #include <yt/server/data_node/chunk_cache.h>
+#include <yt/server/data_node/location.h>
 #include <yt/server/data_node/master_connector.h>
 #include <yt/server/data_node/volume_manager.h>
 
@@ -1009,7 +1010,7 @@ private:
 
         SetJobPhase(EJobPhase::Finished);
 
-        LOG_INFO("Job finalized (JobState: %v)");
+        LOG_INFO("Job finalized (JobState: %v)", GetState());
 
         Bootstrap_->GetExecSlotManager()->OnJobFinished(GetState());
     }
@@ -1196,13 +1197,17 @@ private:
 
             const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
             auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, nodeDirectory, TrafficMeter_)
-                .Apply(BIND([fileName = artifact.Name] (const TErrorOr<IChunkPtr>& chunkOrError) {
+                .Apply(BIND([=, fileName = artifact.Name, this_ = MakeStrong(this)] (const TErrorOr<IChunkPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
                         "Failed to prepare user file %Qv",
                         fileName);
 
-                    return chunkOrError
-                        .Value();
+                    const auto& chunk = chunkOrError.Value();
+                    LOG_INFO("Artifact chunk ready (FileName: %v, LocationId: %v, ChunkId: %v)",
+                        fileName,
+                        chunk->GetLocation()->GetId(),
+                        chunk->GetId());
+                    return chunk;
                 }));
 
             asyncChunks.push_back(asyncChunk);

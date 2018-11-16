@@ -239,6 +239,10 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
         Config->OperationBuildProgressPeriod))
+    , CheckTentativeTreeEligibilityExecutor_(New<TPeriodicExecutor>(
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        BIND(&TThis::CheckTentativeTreeEligibility, MakeWeak(this)),
+        Config->CheckTentativeTreeEligibilityPeriod))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -821,6 +825,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         AnalyzeOperationProgressExecutor->Start();
         MinNeededResourcesSanityCheckExecutor->Start();
         MaxAvailableExecNodeResourcesUpdateExecutor->Start();
+        CheckTentativeTreeEligibilityExecutor_->Start();
 
         auto jobSplitterConfig = GetJobSplitterConfig();
         if (jobSplitterConfig) {
@@ -929,6 +934,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     AnalyzeOperationProgressExecutor->Start();
     MinNeededResourcesSanityCheckExecutor->Start();
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
+    CheckTentativeTreeEligibilityExecutor_->Start();
 
     for (const auto& pair : JobletMap) {
         const auto& joblet = pair.second;
@@ -1989,14 +1995,14 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             jobSummary->SplitJobCount);
     }
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet, taskResult);
+    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
     }
 
     if (!abandoned) {
-        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation || jobSummary->ExecDuration.Get({}) > Config->MinJobDurationToArchiveJobSpec) && 
+        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation || jobSummary->ExecDuration.Get({}) > Config->MinJobDurationToArchiveJobSpec) &&
            JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
         {
             ++JobSpecCompletedArchiveCount_;
@@ -2005,7 +2011,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     // We want to know row count before moving jobSummary to ProcessFinishedJobResult.
-    TNullable<i64> maybeRowCount; 
+    TNullable<i64> maybeRowCount;
     if (RowCountLimitTableIndex) {
         maybeRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
     }
@@ -2075,7 +2081,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobStatistics(joblet, *jobSummary);
 
     auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet, taskResult);
+    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
@@ -2165,7 +2171,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
-    MaybeBanInTentativeTree(joblet, taskResult);
+    MaybeBanInTentativeTree(joblet->TreeId, taskResult.BanTree);
 
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
@@ -2316,9 +2322,6 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
         {
             const auto& schedulerResultExt = summary.Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             fluent.Item("core_infos").Value(schedulerResultExt.core_infos());
-        })
-        .DoIf(static_cast<bool>(job->InputPaths), [&] (TFluentMap fluent) {
-            fluent.Item("input_paths").Value(job->InputPaths);
         });
 }
 
@@ -3679,22 +3682,22 @@ bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
     return Spec_->TentativePoolTrees.has(treeId);
 }
 
-void TOperationControllerBase::MaybeBanInTentativeTree(const TJobletPtr& joblet, const TJobFinishedResult& result)
+void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId, bool shouldBan)
 {
-    if (!result.BanTree) {
+    if (!shouldBan) {
         return;
     }
 
-    if (!BannedTreeIds_.insert(joblet->TreeId).second) {
+    if (!BannedTreeIds_.insert(treeId).second) {
         return;
     }
 
     Host->OnOperationBannedInTentativeTree(
-        joblet->TreeId,
-        GetJobIdsByTreeId(joblet->TreeId));
+        treeId,
+        GetJobIdsByTreeId(treeId));
 
     auto error = TError("Operation was banned from tentative tree")
-        << TErrorAttribute("tree_id", joblet->TreeId);
+        << TErrorAttribute("tree_id", treeId);
     SetOperationAlert(EOperationAlertType::OperationBannedInTentativeTree, error);
 }
 
@@ -4034,8 +4037,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         summary->ArchiveJobSpec = true;
     }
 
-    auto inputPaths = BuildInputPathYson(joblet);
-    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
+    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.Reset();
@@ -4563,7 +4565,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 LOG_DEBUG("Columns are renamed (Path: %v, NewSchema: %v)",
                     table->Path,
                     table->Schema);
-            } 
+            }
         }
     }
 }
@@ -6549,6 +6551,19 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
     fluent.GetConsumer()->OnRaw(CachedRunningJobsYson_);
 }
 
+void TOperationControllerBase::CheckTentativeTreeEligibility()
+{
+    THashSet<TString> treeIds;
+    for (const auto& task : Tasks) {
+        for (const auto& treeId : task->FindAndBanSlowTentativeTrees()) {
+            treeIds.insert(treeId);
+        }
+    }
+    for (const auto& treeId : treeIds) {
+        MaybeBanInTentativeTree(treeId, /* shouldBan */ true);
+    }
+}
+
 TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet)
 {
     return joblet->Task->BuildJobSpecProto(joblet);
@@ -6745,21 +6760,6 @@ void TOperationControllerBase::LogProgress(bool force)
         NextLogProgressDeadline = now + LogProgressBackoff;
         LOG_DEBUG("Progress: %v", GetLoggingProgress());
     }
-}
-
-TYsonString TOperationControllerBase::BuildInputPathYson(const TJobletPtr& joblet) const
-{
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
-
-    if (!joblet->Task->SupportsInputPathYson()) {
-        return TYsonString();
-    }
-
-    return BuildInputPaths(
-        GetInputTablePaths(),
-        joblet->InputStripeList,
-        OperationType,
-        joblet->JobType);
 }
 
 void TOperationControllerBase::BuildJobSplitterInfo(TFluentMap fluent) const
@@ -7158,9 +7158,9 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
     for (const auto& table : InputTables_) {
         if (table->SchemaMode != OutputTables_[0]->TableUploadOptions.SchemaMode) {
             THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes")
-                << TErrorAttribute("input_table1_path", table->GetPath())
+                << TErrorAttribute("input_table1_path", table->Path.GetPath())
                 << TErrorAttribute("input_table1_schema_mode", table->SchemaMode)
-                << TErrorAttribute("input_table2_path", InputTables_[0]->GetPath())
+                << TErrorAttribute("input_table2_path", InputTables_[0]->Path.GetPath())
                 << TErrorAttribute("input_table2_schema_mode", InputTables_[0]->SchemaMode);
         }
     }

@@ -167,61 +167,46 @@ void TTabletTrackerImpl::ScanCells()
 
     auto moveDescriptors = balancer->GetTabletCellMoveDescriptors();
 
+    TReqReassignPeers request;
+
     {
-        TReqRevokePeers request;
-        const TTabletCell* requestCell = nullptr;
-        auto commit = [&] (const TTabletCell* cell) {
-            if (cell != requestCell) {
-                if (requestCell) {
-                    CreateMutation(hydraManager, request)
-                        ->CommitAndLog(Logger);
-                }
-                request = TReqRevokePeers();
-                requestCell = cell;
-                if (cell) {
-                    ToProto(request.mutable_cell_id(), cell->GetId());
-                }
-            }
-        };
+        TReqRevokePeers* revocation;
+        const TTabletCell* cell = nullptr;
 
         for (const auto& moveDescriptor : moveDescriptors) {
             if (moveDescriptor.Source || !moveDescriptor.Target) {
-                commit(moveDescriptor.Cell);
-                request.add_peer_ids(moveDescriptor.PeerId);
+                if (moveDescriptor.Cell != cell) {
+                    cell = moveDescriptor.Cell;
+                    revocation = request.add_revocations();
+                    ToProto(revocation->mutable_cell_id(), cell->GetId());
+                }
+
+                revocation->add_peer_ids(moveDescriptor.PeerId);
             }
         }
-
-        commit(nullptr);
     }
 
     {
-        TReqAssignPeers request;
-        const TTabletCell* requestCell = nullptr;
-        auto commit = [&] (const TTabletCell* cell) {
-            if (cell != requestCell) {
-                if (requestCell) {
-                    CreateMutation(hydraManager, request)
-                        ->CommitAndLog(Logger);
-                }
-                request = TReqAssignPeers();
-                requestCell = cell;
-                if (cell) {
-                    ToProto(request.mutable_cell_id(), cell->GetId());
-                }
-            }
-        };
+        TReqAssignPeers* assignment;
+        const TTabletCell* cell = nullptr;
 
         for (const auto& moveDescriptor : moveDescriptors) {
             if (moveDescriptor.Target) {
-                commit(moveDescriptor.Cell);
-                auto* peerInfo = request.add_peer_infos();
+                if (moveDescriptor.Cell != cell) {
+                    cell = moveDescriptor.Cell;
+                    assignment = request.add_assignments();
+                    ToProto(assignment->mutable_cell_id(), cell->GetId());
+                }
+
+                auto* peerInfo = assignment->add_peer_infos();
                 peerInfo->set_peer_id(moveDescriptor.PeerId);
                 ToProto(peerInfo->mutable_node_descriptor(), moveDescriptor.Target->GetDescriptor());
             }
         }
-
-        commit(nullptr);
     }
+
+    CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger);
 }
 
 void TTabletTrackerImpl::ScheduleLeaderReassignment(TTabletCell* cell)
@@ -311,7 +296,7 @@ void TTabletTrackerImpl::SchedulePeerRevocation(TTabletCell* cell, ITabletCellBa
         auto error = IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), Config_->PeerRevocationTimeout);
 
         if (!error.IsOK()) {
-            LOG_DEBUG(error, "Schedule peer revokation (CellId: %v, PeerId: %v, Address: %v)",
+            LOG_DEBUG(error, "Schedule peer revocation (CellId: %v, PeerId: %v, Address: %v)",
                 cell->GetId(),
                 peerId,
                 peer.Descriptor.GetDefaultAddress());

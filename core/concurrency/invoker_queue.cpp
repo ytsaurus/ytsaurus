@@ -233,6 +233,7 @@ TInvokerQueue::TInvokerQueue(
     , TotalTimeCounter("/time/total", tagIds)
 {
     Profiler.SetEnabled(enableProfiling);
+    Y_UNUSED(EnableLogging);
 }
 
 TInvokerQueue::~TInvokerQueue() = default;
@@ -263,7 +264,6 @@ void TInvokerQueue::Invoke(TClosure callback)
 
     auto index = Profiler.Increment(EnqueuedCounter);
 
-    (void)EnableLogging;
     LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
         callback.GetHandle());
 

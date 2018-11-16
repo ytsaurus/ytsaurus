@@ -798,7 +798,11 @@ void TFairShareTree::RegisterJobs(const TOperationId& operationId, const std::ve
 
     const auto& element = FindOperationElement(operationId);
     for (const auto& job : jobs) {
-        element->OnJobStarted(job->GetId(), job->ResourceUsage(), /* force */ true);
+        element->OnJobStarted(
+            job->GetId(),
+            job->ResourceUsage(),
+            /* precommittedResources */ ZeroJobResources(),
+            /* force */ true);
     }
 }
 

@@ -22,7 +22,7 @@ INodePtr ConvertAuthFromLegacyConfig(const INodePtr& legacyConfig)
         grant = ConvertToNode("");
     }
 
-    return BuildYsonNodeFluently().BeginMap()
+    auto config = BuildYsonNodeFluently().BeginMap()
         .Item("auth").BeginMap()
             .Item("enable_authentication").Value(legacyAuthentication->GetChild("enable"))
             .Item("blackbox_service").BeginMap().EndMap()
@@ -32,6 +32,17 @@ INodePtr ConvertAuthFromLegacyConfig(const INodePtr& legacyConfig)
             .EndMap()
             .Item("blackbox_cookie_authenticator").BeginMap().EndMap()
         .EndMap().EndMap();
+
+    auto csrfSecret = legacyAuthentication->FindChild("csrf_secret");
+    if (csrfSecret) {
+        config->AsMap()->AddChild("csrf_secret", CloneNode(csrfSecret));
+    }
+
+    auto csrfTokenTtl = legacyAuthentication->FindChild("csrf_token_ttl");
+    if (csrfTokenTtl) {
+        config->AsMap()->AddChild("csrf_token_ttl", CloneNode(csrfTokenTtl));
+    }
+    return config;
 }
 
 INodePtr ConvertHttpsFromLegacyConfig(const INodePtr& legacyConfig)

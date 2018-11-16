@@ -58,6 +58,7 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
         protoDataSource->set_timestamp(dataSource.GetTimestamp());
     }
 
+    protoDataSource->set_foreign(dataSource.GetForeign());
     ToProto(protoDataSource->mutable_column_rename_descriptors(), dataSource.ColumnRenameDescriptors());
 }
 
@@ -92,6 +93,10 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
 
     if (protoDataSource.has_timestamp()) {
         dataSource->SetTimestamp(protoDataSource.timestamp());
+    }
+
+    if (protoDataSource.has_foreign()) {
+        dataSource->SetForeign(protoDataSource.foreign());
     }
 
     dataSource->ColumnRenameDescriptors() = FromProto<TColumnRenameDescriptors>(protoDataSource.column_rename_descriptors());

@@ -10,7 +10,7 @@ namespace NYT {
 /*!
  *  Things to keep in mind:
  *  - Capacity is doubled each time it is exhausted and is never shrinked back.
- *  - Iteration is supported but iterator movement involve calling |move_forward| and |move_backward|.
+ *  - Iteration is supported but iterator movements involve calling |move_forward| and |move_backward|.
  *  - |T| must be nothrow move constructable.
  */
 template <class T, class TAllocator = std::allocator<T>>
@@ -201,11 +201,13 @@ public:
     }
 
     template <class... TArgs>
-    void emplace(TArgs&&... args)
+    T* emplace(TArgs&&... args)
     {
         BeforePush();
-        new(Tail_) T(std::forward<TArgs>(args)...);
+        auto* ptr = Tail_;
+        new (ptr) T(std::forward<TArgs>(args)...);
         AfterPush();
+        return ptr;
     }
 
     void pop()

@@ -1323,26 +1323,10 @@ public:
         }
     }
 
-    void ChargeUserRead(
-        TUser* user,
-        int requestCount,
-        TDuration requestTime)
+    void ChargeUser(TUser* user, const TUserWorkload& workload)
     {
-        RequestTracker_->ChargeUserRead(
-            user,
-            requestCount,
-            requestTime);
-    }
-
-    void ChargeUserWrite(
-        TUser* user,
-        int requestCount,
-        TDuration requestTime)
-    {
-        RequestTracker_->ChargeUserWrite(
-            user,
-            requestCount,
-            requestTime);
+        RequestTracker_->ChargeUser(user, workload);
+        UserCharged_.Fire(user, workload);
     }
 
     TFuture<void> ThrottleUser(TUser* user, int requestCount)
@@ -1369,6 +1353,8 @@ public:
     {
         RequestTracker_->DecreaseRequestQueueSize(user);
     }
+
+    DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 
 private:
     friend class TAccountTypeHandler;
@@ -2882,20 +2868,9 @@ void TSecurityManager::ValidateUserAccess(TUser* user)
     Impl_->ValidateUserAccess(user);
 }
 
-void TSecurityManager::ChargeUserRead(
-    TUser* user,
-    int requestCount,
-    TDuration requestTime)
+void TSecurityManager::ChargeUser(TUser* user, const TUserWorkload& workload)
 {
-    Impl_->ChargeUserRead(user, requestCount, requestTime);
-}
-
-void TSecurityManager::ChargeUserWrite(
-    TUser* user,
-    int requestCount,
-    TDuration requestTime)
-{
-    Impl_->ChargeUserWrite(user, requestCount, requestTime);
+    return Impl_->ChargeUser(user, workload);
 }
 
 TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount)
@@ -2926,6 +2901,7 @@ void TSecurityManager::DecreaseRequestQueueSize(TUser* user)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
+DELEGATE_SIGNAL(TSecurityManager, void(TUser*, const TUserWorkload&), UserCharged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,4 +1,5 @@
 import pytest
+import __builtin__
 
 import os
 import os.path
@@ -12,6 +13,8 @@ from yt.yson import YsonList
 from flaky import flaky
 
 from random import randint, shuffle
+
+from math import isnan
 
 ##################################################################
 
@@ -827,6 +830,77 @@ class TestQuery(YTEnvSetup):
         expected = data[0:1]
         actual = select_rows("* from [//tmp/t] where a = null")
         assert actual == expected
+
+    def test_nan(self):
+        sync_create_cells(1)
+
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "a", "type": "double", "sort_order": "ascending"},
+                    {"name": "b", "type": "double"}]
+            })
+
+        sync_mount_table("//tmp/t")
+
+        nan = float("nan")
+        str_nan = "(1.0 / 0 - 1.0 / 0)"
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"a": nan, "b": 1.0}])
+        data = [{"a" : 1.0, "b" : nan}, {"a" : 2.0, "b" : 2.0}, {"a": 3.0}]
+        insert_rows("//tmp/t", data)
+
+        def _isnan(x):
+            return isinstance(x, float) and isnan(x)
+
+        # Comparison that respects NaN == NaN and YsonEntity == nothing.
+        def _compare(lhs, rhs):
+            if (isinstance(lhs, list) or isinstance(lhs, tuple)):
+                return len(lhs) == len(rhs) and all(_compare(x, y) for x, y in zip(lhs, rhs))
+            elif isinstance(lhs, dict):
+                for key in __builtin__.set(lhs.keys()).union(rhs.keys()):
+                    lhs_value = lhs.get(key)
+                    if isinstance(lhs_value, yson.YsonEntity):
+                        lhs_value = None
+                    rhs_value = rhs.get(key)
+                    if isinstance(rhs_value, yson.YsonEntity):
+                        rhs_value = None
+                    if not _compare(lhs_value, rhs_value):
+                        return False
+                return True
+            else:
+                if _isnan(lhs):
+                    return _isnan(rhs)
+                return lhs == rhs
+
+        assert _compare(select_rows("* from [//tmp/t]"), data)
+        assert _compare(select_rows("* from [//tmp/t] where is_nan(b)"), data[:1])
+        assert _compare(select_rows("* from [//tmp/t] where is_null(b)"), data[2:])
+        with pytest.raises(YtError):
+            select_rows("* from [//tmp/t] where b > 0")
+        assert _compare(select_rows("* from [//tmp/t] where if(is_nan(b), false, b > 0)"), data[1:2])
+
+        assert all(
+            _isnan(x.values()[0])
+            for x
+            in select_rows("if(true, {}, 1) from [//tmp/t]".format(str_nan)))
+        with pytest.raises(YtError):
+            select_rows("* from [//tmp/t] where b = {}".format(str_nan))
+        with pytest.raises(YtError):
+            select_rows("* from [//tmp/t] where b = if(true, {}, 0)".format(str_nan))
+        with pytest.raises(YtError):
+            select_rows("{} > 1 from [//tmp/t]".format(str_nan))
+        with pytest.raises(YtError):
+            select_rows("if({}, 0, 1) from [//tmp/t]".format(str_nan))
+        with pytest.raises(YtError):
+            select_rows("if(true, {}, 0) > 1 from [//tmp/t]".format(str_nan))
+
+        assert select_rows("is_nan({}) from [//tmp/t]".format(str_nan))[0].values()[0] == True
+        assert select_rows("is_nan({}) from [//tmp/t]".format("123"))[0].values()[0] == False
+        assert select_rows("is_nan({}) from [//tmp/t]".format("#"))[0].values()[0] == False
 
     def test_bad_limits(self):
         sync_create_cells(1)

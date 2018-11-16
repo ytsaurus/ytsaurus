@@ -633,9 +633,13 @@ private:
         int splitJobCount)
     {
         i64 dataWeight = 0;
-        for (const auto& dataSlice : unreadInputDataSlices) {
+        for (auto& dataSlice : unreadInputDataSlices) {
+            // NB(psushin): this is important, since we prune trivial limits from slices when serializing to proto.
+            // Here we restore them back.   
+            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
             dataWeight += dataSlice->GetDataWeight();
         }
+
         for (const auto& dataSlice : foreignInputDataSlices) {
             dataWeight += dataSlice->GetDataWeight();
         }
@@ -673,6 +677,7 @@ private:
             true /* inSplit */,
             0 /* retryIndex */,
             Logger);
+
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
             YCHECK(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());

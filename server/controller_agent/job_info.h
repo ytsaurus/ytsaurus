@@ -125,11 +125,9 @@ struct TFinishedJobInfo
 
     TFinishedJobInfo(
         const TJobletPtr& joblet,
-        TJobSummary summary,
-        NYson::TYsonString inputPaths);
+        TJobSummary summary);
 
     TJobSummary Summary;
-    NYson::TYsonString InputPaths;
 
     virtual void Persist(const TPersistenceContext& context) override;
 };

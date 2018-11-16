@@ -530,6 +530,8 @@ public:
 
     TDuration OperationBuildProgressPeriod;
 
+    TDuration CheckTentativeTreeEligibilityPeriod;
+
     TDuration TaskUpdatePeriod;
 
     //! Max available exec node resources are updated not more often then this period.

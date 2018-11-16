@@ -44,7 +44,10 @@
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
+#include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/ytlib/chunk_client/medium_directory.pb.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -59,6 +62,7 @@
 #include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/ytlib/job_proxy/helpers.h>
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
 #include <yt/ytlib/job_prober_client/public.h>
@@ -156,6 +160,7 @@ using namespace NJobTrackerClient;
 using NChunkClient::TChunkReaderStatistics;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
+using NChunkClient::TDataSliceDescriptor;
 using NNodeTrackerClient::CreateNodeChannelFactory;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::TNetworkPreferenceList;
@@ -169,8 +174,6 @@ using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplic
 DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 DECLARE_REFCOUNTED_CLASS(TClient)
 DECLARE_REFCOUNTED_CLASS(TTransaction)
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -411,7 +414,8 @@ public:
             Connection_,
             Options_.GetUser(),
             Connection_->GetTimestampProvider(),
-            Connection_->GetCellDirectory());
+            Connection_->GetCellDirectory(),
+            Connection_->GetDownedCellTracker());
 
         FunctionImplCache_ = CreateFunctionImplCache(
             Connection_->GetConfig()->FunctionImplCache,
@@ -819,6 +823,10 @@ public:
     IMPLEMENT_METHOD(IAsyncZeroCopyInputStreamPtr, GetJobInput, (
         const TJobId& jobId,
         const TGetJobInputOptions& options),
+        (jobId, options))
+    IMPLEMENT_METHOD(TYsonString, GetJobInputPaths, (
+        const TJobId& jobId,
+        const TGetJobInputPathsOptions& options),
         (jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
         const TOperationId& operationId,
@@ -4405,6 +4413,178 @@ private:
         auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
         jobInputReader->Open();
         return jobInputReader;
+    }
+
+    TYsonString DoGetJobInputPaths(
+        const TJobId& jobId,
+        const TGetJobInputPathsOptions& /*options*/)
+    {
+        NJobTrackerClient::NProto::TJobSpec jobSpec;
+        if (auto jobSpecFromProxy = GetJobSpecFromJobNode(jobId)) {
+            jobSpec.Swap(jobSpecFromProxy.GetPtr());
+        } else {
+            jobSpec = GetJobSpecFromArchive(jobId);
+        }
+
+        ValidateJobAcl(jobId, jobSpec);
+
+        auto schedulerJobSpecExt = jobSpec.GetExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        auto maybeDataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
+        if (!maybeDataSourceDirectoryExt) {
+            THROW_ERROR_EXCEPTION("Cannot build job input paths; job is either too old or has intermediate input")
+                << TErrorAttribute("job_id", jobId);
+        }
+
+        const auto& dataSourceDirectoryExt = *maybeDataSourceDirectoryExt;
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+
+        for (const auto& dataSource : dataSourceDirectory->DataSources()) {
+            if (!dataSource.GetPath()) {
+                THROW_ERROR_EXCEPTION("Cannot build job input paths; job has intermediate input")
+                   << TErrorAttribute("job_id", jobId);
+            }
+        }
+
+        std::vector<std::vector<TDataSliceDescriptor>> slicesByTable(dataSourceDirectory->DataSources().size());
+        for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
+            auto dataSliceDescriptors = NJobProxy::UnpackDataSliceDescriptors(inputSpec);
+            for (const auto& slice : dataSliceDescriptors) {
+                slicesByTable[slice.GetDataSourceIndex()].push_back(slice);
+            }
+        }
+
+        for (const auto& inputSpec : schedulerJobSpecExt.foreign_input_table_specs()) {
+            auto dataSliceDescriptors = NJobProxy::UnpackDataSliceDescriptors(inputSpec);
+            for (const auto& slice : dataSliceDescriptors) {
+                slicesByTable[slice.GetDataSourceIndex()].push_back(slice);
+            }
+        }
+
+        auto compareAbsoluteReadLimits = [] (const TReadLimit& lhs, const TReadLimit& rhs) -> bool {
+            YCHECK(lhs.HasRowIndex() == rhs.HasRowIndex());
+
+            if (lhs.HasRowIndex() && lhs.GetRowIndex() != rhs.GetRowIndex()) {
+                return lhs.GetRowIndex() < rhs.GetRowIndex();
+            }
+
+            if (lhs.HasKey() && rhs.HasKey()) {
+                return lhs.GetKey() < rhs.GetKey();
+            } else if (lhs.HasKey()) {
+                // rhs is less
+                return false;
+            } else if (rhs.HasKey()) {
+                // lhs is less
+                return true;
+            } else {
+                // These read limits are effectively equal.
+                return false;
+            }
+        };
+
+        auto canMergeSlices = [] (const TDataSliceDescriptor& lhs, const TDataSliceDescriptor& rhs, bool versioned) {
+            if (lhs.GetRangeIndex() != rhs.GetRangeIndex()) {
+                return false;
+            }
+
+            auto lhsUpperLimit = GetAbsoluteUpperReadLimit(lhs, versioned);
+            auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
+
+            YCHECK(lhsUpperLimit.HasRowIndex() == rhsLowerLimit.HasRowIndex());
+            if (lhsUpperLimit.HasRowIndex() && lhsUpperLimit.GetRowIndex() != rhsLowerLimit.GetRowIndex()) {
+                return false;
+            }
+
+            if (lhsUpperLimit.HasKey() != rhsLowerLimit.HasKey()) {
+                return false;
+            }
+
+            if (lhsUpperLimit.HasKey() && lhsUpperLimit.GetKey() < rhsLowerLimit.GetKey()) {
+                return false;
+            }
+
+            return true;
+        };
+
+        std::vector<std::vector<std::pair<TDataSliceDescriptor, TDataSliceDescriptor>>> rangesByTable(dataSourceDirectory->DataSources().size());
+        for (int tableIndex = 0; tableIndex < dataSourceDirectory->DataSources().size(); ++tableIndex) {
+            bool versioned = dataSourceDirectory->DataSources()[tableIndex].GetType() == EDataSourceType::VersionedTable;
+            auto& tableSlices = slicesByTable[tableIndex];
+            std::sort(
+                tableSlices.begin(),
+                tableSlices.end(),
+                [&] (const TDataSliceDescriptor& lhs, const TDataSliceDescriptor& rhs) {
+                    if (lhs.GetRangeIndex() != rhs.GetRangeIndex()) {
+                        return lhs.GetRangeIndex() < rhs.GetRangeIndex();
+                    }
+
+                    auto lhsLowerLimit = GetAbsoluteLowerReadLimit(lhs, versioned);
+                    auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
+
+                    return compareAbsoluteReadLimits(lhsLowerLimit, rhsLowerLimit);
+                });
+
+            int firstSlice = 0;
+            while (firstSlice < static_cast<int>(tableSlices.size())) {
+                int lastSlice = firstSlice + 1;
+                while (lastSlice < static_cast<int>(tableSlices.size())) {
+                    if (!canMergeSlices(tableSlices[lastSlice - 1], tableSlices[lastSlice], versioned)) {
+                        break;
+                    }
+                    ++lastSlice;
+                }
+                rangesByTable[tableIndex].emplace_back(
+                    tableSlices[firstSlice],
+                    tableSlices[lastSlice - 1]);
+
+                firstSlice = lastSlice;
+            }
+        }
+
+        auto buildSliceLimit = [](const TReadLimit& limit, TFluentAny fluent) {
+            fluent.BeginMap()
+                  .DoIf(limit.HasRowIndex(), [&] (TFluentMap fluent) {
+                      fluent
+                          .Item("row_index").Value(limit.GetRowIndex());
+                  })
+                  .DoIf(limit.HasKey(), [&] (TFluentMap fluent) {
+                      fluent
+                          .Item("key").Value(limit.GetKey());
+                  })
+                  .EndMap();
+        };
+
+        return BuildYsonStringFluently(EYsonFormat::Pretty)
+            .DoListFor(rangesByTable, [&] (TFluentList fluent, const std::vector<std::pair<TDataSliceDescriptor, TDataSliceDescriptor>>& tableRanges) {
+                fluent
+                    .DoIf(!tableRanges.empty(), [&] (TFluentList fluent) {
+                        int dataSourceIndex = tableRanges[0].first.GetDataSourceIndex();
+                        const auto& dataSource =  dataSourceDirectory->DataSources()[dataSourceIndex];
+                        bool versioned = dataSource.GetType() == EDataSourceType::VersionedTable;
+                        fluent
+                            .Item()
+                                .BeginAttributes()
+                            .DoIf(dataSource.GetForeign(), [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("foreign").Value(true);
+                            })
+                            .Item("ranges")
+                            .DoListFor(tableRanges, [&] (TFluentList fluent, const std::pair<TDataSliceDescriptor, TDataSliceDescriptor>& range) {
+                                fluent
+                                    .Item()
+                                    .BeginMap()
+                                    .Item("lower_limit").Do(BIND(
+                                        buildSliceLimit,
+                                        GetAbsoluteLowerReadLimit(range.first, versioned)))
+                                    .Item("upper_limit").Do(BIND(
+                                        buildSliceLimit,
+                                        GetAbsoluteUpperReadLimit(range.second, versioned)))
+                                    .EndMap();
+                            })
+                            .EndAttributes()
+                            .Value(dataSource.GetPath());
+                    });
+            });
     }
 
     TSharedRef DoGetJobStderrFromNode(

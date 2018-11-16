@@ -139,7 +139,8 @@ public:
 
     void SetModified(
         TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction,
+        EModificationType modificationType);
 
     void SetAccessed(TCypressNodeBase* trunkNode);
 

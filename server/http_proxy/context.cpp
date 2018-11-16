@@ -260,18 +260,13 @@ bool TContext::TryParseUser()
     // NB: This function is the only thing protecting cluster from
     // unauthorized requests. Please write code without bugs.
 
-    auto asyncAuth = Api_->GetHttpAuthenticator()->Authenticate(Request_);
-    if (!asyncAuth) {
-        Response_->SetStatus(EStatusCode::Unauthorized);
-        ReplyFakeError("Failed to identify user credentials");
-        return false;
-    }
-
-    auto authResult = WaitFor(asyncAuth);
+    auto authResult = Api_->GetHttpAuthenticator()->Authenticate(Request_);
     if (!authResult.IsOK()) {
         LOG_DEBUG(authResult, "Authentication error");
 
         if (authResult.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
+            Response_->SetStatus(EStatusCode::Unauthorized);
+        } else if (authResult.FindMatching(NRpc::EErrorCode::InvalidCsrfToken)) {
             Response_->SetStatus(EStatusCode::Unauthorized);
         } else {
             Response_->SetStatus(EStatusCode::InternalServerError);
@@ -413,15 +408,6 @@ bool TContext::TryGetHeaderFormat()
 
 bool TContext::TryGetInputFormat()
 {
-    auto contentTypeHeader = Request_->GetHeaders()->Find("Content-Type");
-    if (contentTypeHeader) {
-        auto contentType = StripString(*contentTypeHeader);
-        InputFormat_ = MimeTypeToFormat(contentType);
-        if (InputFormat_) {
-            return true;
-        }
-    }
-
     try {
         auto header = GatherHeader(Request_->GetHeaders(), "X-YT-Input-Format");
         if (header) {
@@ -431,6 +417,15 @@ bool TContext::TryGetInputFormat()
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse X-YT-Input-Format header")
             << ex;
+    }
+
+    auto contentTypeHeader = Request_->GetHeaders()->Find("Content-Type");
+    if (contentTypeHeader) {
+        auto contentType = StripString(*contentTypeHeader);
+        InputFormat_ = MimeTypeToFormat(contentType);
+        if (InputFormat_) {
+            return true;
+        }
     }
 
     InputFormat_ = GetDefaultFormatForDataType(Descriptor_->InputType);
@@ -465,14 +460,6 @@ bool TContext::TryGetOutputFormat()
         return true;
     }
 
-    auto acceptHeader = Request_->GetHeaders()->Find("Accept");
-    if (acceptHeader) {
-        auto acceptedType = GetBestAcceptedType(Descriptor_->OutputType, StripString(*acceptHeader));
-        if (acceptedType) {
-            OutputFormat_ = MimeTypeToFormat(*acceptedType);
-        }
-    }
-
     try {
         auto header = GatherHeader(Request_->GetHeaders(), "X-YT-Output-Format");
         if (header) {
@@ -482,6 +469,14 @@ bool TContext::TryGetOutputFormat()
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse X-YT-Output-Format header")
             << ex;
+    }
+
+    auto acceptHeader = Request_->GetHeaders()->Find("Accept");
+    if (acceptHeader) {
+        auto acceptedType = GetBestAcceptedType(Descriptor_->OutputType, StripString(*acceptHeader));
+        if (acceptedType) {
+            OutputFormat_ = MimeTypeToFormat(*acceptedType);
+        }
     }
 
     if (!OutputFormat_) {
@@ -590,7 +585,10 @@ void TContext::SetContentDispositionAndMimeType()
     TString disposition = "attachment";
     if (Descriptor_->Heavy) {
         TString filename;
-        if (Descriptor_->CommandName == "download" || Descriptor_->CommandName == "read_table") {
+        if (Descriptor_->CommandName == "download" ||
+            Descriptor_->CommandName == "read_table" ||
+            Descriptor_->CommandName == "read_file"
+        ) {
             if (auto path = DriverRequest_.Parameters->FindChild("path")) {
                 filename = "yt_" + path->GetValue<TString>();
             }
@@ -621,7 +619,7 @@ void TContext::SetContentDispositionAndMimeType()
         }
 
         for (size_t i = 0; i < filename.size(); ++i) {
-            if (!std::isalnum(filename[i])) {
+            if (!std::isalnum(filename[i]) && filename[i] != '.') {
                 filename[i] = '_';
             }
         }
@@ -780,7 +778,20 @@ void TContext::Run()
 
 void TContext::Finalize()
 {
+    try {
+        while (true) {
+            auto chunk = WaitFor(Request_->Read())
+                .ValueOrThrow();
+
+            if (!chunk || chunk.Empty()) {
+                break;
+            }
+        }
+    } catch (const std::exception& ex) { }
+
     if (!Response_->IsHeadersFlushed()) {
+        Response_->GetHeaders()->Remove("Trailer");
+
         if (Error_.FindMatching(NSecurityClient::EErrorCode::UserBanned)) {
             Response_->SetStatus(EStatusCode::Forbidden);
             Api_->PutUserIntoBanCache(DriverRequest_.AuthenticatedUser);
@@ -791,6 +802,7 @@ void TContext::Finalize()
 
         if (!Error_.IsOK()) {
             Response_->GetHeaders()->Remove("Content-Encoding");
+            Response_->GetHeaders()->Remove("Vary");
             
             FillYTErrorHeaders(Response_, Error_);
             DispatchJson([&] (auto producer) {

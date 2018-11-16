@@ -38,6 +38,8 @@ DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizerConfig)
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizerConfig)
 
+DECLARE_REFCOUNTED_CLASS(TCellTracker)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHiveClient

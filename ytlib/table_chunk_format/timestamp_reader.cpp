@@ -95,6 +95,9 @@ void TTimestampSegmentReader::SkipToRowIndex(i64 rowIndex)
     }
 
     TimestampIndexRange_ = std::make_pair(adjustedLowerWriteIndex, adjustedUpperWriteIndex);
+
+    FullWriteTimestampIndexRange_ = {writeIndex - lowerWriteIndex, upperWriteIndex - lowerWriteIndex};
+    FullDeleteTimestampIndexRange_ = {deleteIndex - lowerDeleteIndex, upperDeleteIndex - lowerDeleteIndex};
 }
 
 ui32 TTimestampSegmentReader::GetWriteTimestampCount(i64 rowIndex) const

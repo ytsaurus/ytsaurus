@@ -57,8 +57,9 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
 
 TString ToString(const TTabletAction& action)
 {
-    return Format("ActionId: %v, Kind: %v, KeepFinished: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, Cells: %v, PivotKeys: %v",
+    return Format("ActionId: %v, State: %v, Kind: %v, KeepFinished: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, Cells: %v, PivotKeys: %v",
         action.GetId(),
+        action.GetState(),
         action.GetKind(),
         action.GetKeepFinished(),
         action.GetSkipFreezing(),

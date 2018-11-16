@@ -178,6 +178,7 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraReassignPeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetLeadingPeer, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraStartPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAbortPrerequisiteTransaction, Unretained(this)));
@@ -810,6 +811,38 @@ public:
                 Y_UNREACHABLE();
         }
 
+        auto* action = DoCreateTabletAction(
+            hintId,
+            kind,
+            ETabletActionState::Preparing,
+            tablets,
+            cells,
+            pivotKeys,
+            tabletCount,
+            freeze,
+            skipFreezing,
+            keepFinished);
+
+        OnTabletActionStateChanged(action);
+        return action;
+    }
+
+    TTabletAction* DoCreateTabletAction(
+        const TObjectId& hintId,
+        ETabletActionKind kind,
+        ETabletActionState state,
+        const std::vector<TTablet*>& tablets,
+        const std::vector<TTabletCell*>& cells,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const TNullable<int>& tabletCount,
+        bool freeze,
+        bool skipFreezing,
+        bool keepFinished)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YCHECK(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletAction, hintId);
         auto actionHolder = std::make_unique<TTabletAction>(id);
@@ -818,13 +851,22 @@ public:
 
         for (auto* tablet : tablets) {
             tablet->SetAction(action);
+
+            if (state == ETabletActionState::Orphaned) {
+                // Orphaned action can be created during mount if tablet cells are not available.
+                // User can't create orphaned action directly because primary master need to know about mount.
+                YCHECK(tablet->GetState() == ETabletState::Unmounted);
+                tablet->SetExpectedState(freeze
+                    ? ETabletState::Frozen
+                    : ETabletState::Mounted);
+            }
         }
         for (auto* cell : cells) {
             cell->Actions().insert(action);
         }
 
         action->SetKind(kind);
-        action->SetState(ETabletActionState::Preparing);
+        action->SetState(state);
         action->Tablets() = std::move(tablets);
         action->TabletCells() = std::move(cells);
         action->PivotKeys() = std::move(pivotKeys);
@@ -835,8 +877,6 @@ public:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action created (%v)",
             *action);
-
-        OnTabletActionStateChanged(action);
 
         return action;
     }
@@ -1051,6 +1091,11 @@ public:
 
     void OnTabletActionDisturbed(TTabletAction* action, const TError& error)
     {
+        // Take care of a rare case when tablet action has been already removed (cf. YT-9754).
+        if (!IsObjectAlive(action)) {
+            return;
+        }
+
         if (action->Tablets().empty()) {
             action->Error() = error.Sanitize();
             ChangeTabletActionState(action, ETabletActionState::Failed);
@@ -1318,7 +1363,7 @@ public:
                 if (!action->Error().IsOK()) {
                     ChangeTabletActionState(action, ETabletActionState::Failed, false);
                 }
-                // No break intentionaly.
+                // No break intentionally.
             case ETabletActionState::Failed: {
                 if (!action->GetKeepFinished()) {
                     UnbindTabletAction(action);
@@ -1668,6 +1713,14 @@ public:
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
             auto* cell = pair.second;
+
+            YCHECK(tablet->GetState() == ETabletState::Unmounted);
+
+            if (!IsCellActive(cell)) {
+                MountViaTabletAction(tablet, freeze);
+                continue;
+            }
+
             int tabletIndex = tablet->GetIndex();
             const auto& chunkLists = table->GetChunkList()->Children();
             YCHECK(allTablets.size() == chunkLists.size());
@@ -1676,7 +1729,6 @@ public:
             YCHECK(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
 
-            YCHECK(tablet->GetState() == ETabletState::Unmounted);
             tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
             tablet->SetInMemoryMode(inMemoryMode);
 
@@ -1779,6 +1831,23 @@ public:
         }
 
         CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
+    }
+
+    void MountViaTabletAction(
+        TTablet* tablet,
+        bool freeze)
+    {
+        DoCreateTabletAction(
+            TObjectId(),
+            ETabletActionKind::Move,
+            ETabletActionState::Orphaned,
+            std::vector<TTablet*>{tablet},
+            std::vector<TTabletCell*>{},
+            std::vector<NTableClient::TOwningKey>{},
+            TNullable<int>(),
+            freeze,
+            false,
+            false);
     }
 
     void PrepareUnmountTable(
@@ -1888,9 +1957,6 @@ public:
         {
             THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
         }
-
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
     }
 
     void RemountTable(
@@ -2180,11 +2246,6 @@ public:
 
         if (table->IsReplicated() && !table->IsEmpty()) {
             THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
-        }
-
-        // Temporary disable reshard due to bug YT-8142.
-        if (!table->IsPhysicallySorted() && !table->IsEmpty()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard non-empty ordered table");
         }
 
         if (newTabletCount <= 0) {
@@ -2488,13 +2549,10 @@ public:
         const auto& oldTabletChunkTrees = oldRootChunkList->Children();
 
         auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
-        const auto& newTabletChunkTrees = newRootChunkList->Children();
 
-        // Update tablet chunk lists.
-        chunkManager->AttachToChunkList(
-            newRootChunkList,
-            oldTabletChunkTrees.data(),
-            oldTabletChunkTrees.data() + firstTabletIndex);
+        // Create new tablet chunk lists.
+        std::vector<TChunkTree*> newTabletChunkTrees;
+        newTabletChunkTrees.reserve(newTabletCount);
         for (int index = 0; index < newTabletCount; ++index) {
             auto* tabletChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
                 ? EChunkListKind::SortedDynamicTablet
@@ -2502,14 +2560,10 @@ public:
             if (table->IsPhysicallySorted()) {
                 tabletChunkList->SetPivotKey(pivotKeys[index]);
             }
-
-            chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
+            newTabletChunkTrees.push_back(tabletChunkList);
         }
-        chunkManager->AttachToChunkList(
-            newRootChunkList,
-            oldTabletChunkTrees.data() + lastTabletIndex + 1,
-            oldTabletChunkTrees.data() + oldTabletChunkTrees.size());
 
+        // Initialize new tablet chunk lists.
         if (table->IsPhysicallySorted()) {
             std::vector<TChunk*> chunks;
 
@@ -2534,7 +2588,7 @@ public:
                 for (auto it = range.first; it != range.second; ++it) {
                     auto* tablet = *it;
                     chunkManager->AttachToChunkList(
-                        newTabletChunkTrees[tablet->GetIndex()]->AsChunkList(),
+                        newTabletChunkTrees[tablet->GetIndex() - firstTabletIndex]->AsChunkList(),
                         chunk);
                 }
             }
@@ -2551,17 +2605,30 @@ public:
                 }
             };
             for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
-                auto* chunkList = newTabletChunkTrees[index]->AsChunkList();
+                auto* chunkList = newTabletChunkTrees[index - firstTabletIndex]->AsChunkList();
                 auto* oldChunkList = oldTabletChunkTrees[index]->AsChunkList();
                 attachChunksToChunkList(chunkList, index, index);
                 chunkList->Statistics().LogicalRowCount = oldChunkList->Statistics().LogicalRowCount;
                 chunkList->Statistics().LogicalChunkCount = oldChunkList->Statistics().LogicalChunkCount;
             }
             if (oldTabletCount > newTabletCount) {
-                auto* chunkList = newTabletChunkTrees[firstTabletIndex + newTabletCount - 1]->AsChunkList();
+                auto* chunkList = newTabletChunkTrees[newTabletCount - 1]->AsChunkList();
                 attachChunksToChunkList(chunkList, firstTabletIndex + newTabletCount, lastTabletIndex);
             }
         }
+
+        // Update tablet chunk lists.
+        chunkManager->AttachToChunkList(
+            newRootChunkList,
+            oldTabletChunkTrees.data(),
+            oldTabletChunkTrees.data() + firstTabletIndex);
+        chunkManager->AttachToChunkList(
+            newRootChunkList,
+            newTabletChunkTrees);
+        chunkManager->AttachToChunkList(
+            newRootChunkList,
+            oldTabletChunkTrees.data() + lastTabletIndex + 1,
+            oldTabletChunkTrees.data() + oldTabletChunkTrees.size());
 
         // Replace root chunk list.
         table->SetChunkList(newRootChunkList);
@@ -4068,6 +4135,21 @@ private:
         ReconfigureCell(cell);
     }
 
+    void HydraReassignPeers(TReqReassignPeers* request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (auto& revocation : *request->mutable_revocations()) {
+            HydraRevokePeers(&revocation);
+        }
+
+        for (auto& assignment : *request->mutable_assignments()) {
+            HydraAssignPeers(&assignment);
+        }
+
+        // NB: Send individual revoke and assign requests to secondary masters to support old tablet tracker.
+    }
+
     void HydraSetLeadingPeer(TReqSetLeadingPeer* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -4779,7 +4861,7 @@ private:
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetModified(table, nullptr);
+        cypressManager->SetModified(table, nullptr, EModificationType::Content);
 
         // Collect all changes first.
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -5166,9 +5248,7 @@ private:
             }
         }
         if (cellKeys.empty()) {
-            // NB: Changed ycheck to throw when it was triggered inside tablet action.
-            THROW_ERROR_EXCEPTION("No tablet cells in bundle %Qv",
-                table->GetTabletCellBundle()->GetName());
+            cellKeys.push_back(TCellKey{0, nullptr});
         }
         std::sort(cellKeys.begin(), cellKeys.end());
 

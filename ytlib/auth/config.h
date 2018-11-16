@@ -157,6 +157,8 @@ DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto DefaultCsrfTokenTtl = TDuration::Days(7);
+
 class TBlackboxCookieAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -165,9 +167,17 @@ public:
     {
         RegisterParameter("domain", Domain)
             .Default("yt.yandex-team.ru");
+
+        RegisterParameter("csrf_secret", CsrfSecret)
+            .Default();
+        RegisterParameter("csrf_token_ttl", CsrfTokenTtl)
+            .Default(DefaultCsrfTokenTtl);
     }
 
     TString Domain;
+
+    TNullable<TString> CsrfSecret;
+    TDuration CsrfTokenTtl;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
@@ -220,6 +230,26 @@ public:
             .Optional();
         RegisterParameter("blackbox_ticket_authenticator", BlackboxTicketAuthenticator)
             .Optional();
+    }
+
+    TString GetCsrfSecret() const
+    {
+        if (BlackboxCookieAuthenticator &&
+            BlackboxCookieAuthenticator->CsrfSecret)
+        {
+            return *BlackboxCookieAuthenticator->CsrfSecret;
+        }
+
+        return "";
+    }
+
+    TInstant GetCsrfTokenExpirationTime() const
+    {
+        if (BlackboxCookieAuthenticator) {
+            return TInstant::Now() - BlackboxCookieAuthenticator->CsrfTokenTtl;
+        }
+
+        return TInstant::Now() - DefaultCsrfTokenTtl;
     }
 };
 

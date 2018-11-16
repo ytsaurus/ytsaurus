@@ -107,6 +107,16 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
     return attributeKeys;
 }
 
+const std::vector<TString>& TArchiveOperationRequest::GetProgressAttributeKeys()
+{
+    static const std::vector<TString> attributeKeys = {
+        "progress",
+        "brief_progress",
+    };
+
+    return attributeKeys;
+}
+
 void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictionary& attributes)
 {
     Id = TOperationId::FromString(attributes.Get<TString>("key"));
@@ -145,7 +155,10 @@ std::vector<TString> GetPools(const TYsonString& runtimeParameters)
 
     std::vector<TString> pools;
     for (const auto& pair : schedulingOptionsNode->AsMap()->GetChildren()) {
-        pools.push_back(pair.second->AsMap()->GetChild("pool")->GetValue<TString>());
+        auto poolNode = pair.second->AsMap()->FindChild("pool");
+        if (poolNode) { // COMPAT(renadeen): remove this check when everything will be on 19.4
+            pools.push_back(poolNode->GetValue<TString>());
+        }
     }
 
     return pools;

@@ -1126,13 +1126,24 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TNodeId> result;
-        for (const auto& pair : NodeIdToTags_) {
-            if (filter.CanSchedule(pair.second)) {
-                result.push_back(pair.first);
+        for (const auto& pair : NodeIdToInfo_) {
+            auto nodeId = pair.first;
+            const auto& execNode = pair.second;
+            if (filter.CanSchedule(execNode.Tags)) {
+                result.push_back(nodeId);
             }
         }
 
         return result;
+    }
+
+    virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto it = NodeIdToInfo_.find(nodeId);
+        YCHECK(it != NodeIdToInfo_.end());
+        return it->second.Address;
     }
 
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const
@@ -1175,11 +1186,11 @@ public:
             BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
                 // NOTE: If node is unregistered from node shard before it becomes online
                 // then its id can be missing in the map.
-                auto it = NodeIdToTags_.find(nodeId);
-                if (it == NodeIdToTags_.end()) {
+                auto it = NodeIdToInfo_.find(nodeId);
+                if (it == NodeIdToInfo_.end()) {
                     LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
                 } else {
-                    NodeIdToTags_.erase(it);
+                    NodeIdToInfo_.erase(it);
                     LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
                 }
             }));
@@ -1194,14 +1205,14 @@ public:
 
         Strategy_->ValidateNodeTags(tags);
 
-        auto it = NodeIdToTags_.find(nodeId);
-        if (it == NodeIdToTags_.end()) {
-            YCHECK(NodeIdToTags_.emplace(nodeId, tags).second);
+        auto it = NodeIdToInfo_.find(nodeId);
+        if (it == NodeIdToInfo_.end()) {
+            YCHECK(NodeIdToInfo_.emplace(nodeId, TExecNodeInfo{tags, nodeAddress}).second);
             LOG_INFO("Node is registered at scheduler (Address: %v, Tags: %v)",
                 nodeAddress,
                 tags);
         } else {
-            it->second = tags;
+            it->second = TExecNodeInfo{tags, nodeAddress};
             LOG_INFO("Node tags were updated at scheduler (Address: %v, NewTags: %v)",
                 nodeAddress,
                 tags);
@@ -1261,18 +1272,11 @@ private:
     TBootstrap* const Bootstrap_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
-    std::atomic<bool> IsConnected_ = {false};
-
-    //! Ordinal number of this scheduler incarnation. It is used
-    //! to discard late callbacks that are submitted by still
-    //! running controllers.
-    //! This field is incremented on each OnMasterConnected and
-    //! should be accessed only from scheduler control thread.
-    int SchedulerIncarnation_ = -1;
+    std::atomic<bool> Connected_ = {false};
 
     TOperationsCleanerPtr OperationsCleaner_;
 
-    TActionQueuePtr OrchidActionQueue_ = New<TActionQueue>("OrchidWorker");
+    const TActionQueuePtr OrchidActionQueue_ = New<TActionQueue>("OrchidWorker");
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1319,7 +1323,19 @@ private:
     std::vector<TNodeShardPtr> NodeShards_;
     std::vector<IInvokerPtr> CancelableNodeShardInvokers_;
 
-    THashMap<TNodeId, THashSet<TString>> NodeIdToTags_;
+    struct TExecNodeInfo
+    {
+        THashSet<TString> Tags;
+        TString Address;
+    };
+
+    struct TOperationProgress
+    {
+        NYson::TYsonString Progress;
+        NYson::TYsonString BriefProgress;
+    };
+
+    THashMap<TNodeId, TExecNodeInfo> NodeIdToInfo_;
 
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
@@ -1634,7 +1650,7 @@ private:
 
     void DoCleanup()
     {
-        NodeIdToTags_.clear();
+        NodeIdToInfo_.clear();
 
         {
             auto error = TError("Master disconnected");
@@ -2517,12 +2533,10 @@ private:
             }
 
             // Should be called before commit in controller.
-            auto operationInfoOrError = WaitFor(RequestOperationInfoFromControllerAgent(operation));
-            if (!operationInfoOrError.IsOK()) {
-                LOG_INFO(operationInfoOrError, "Failed to get operation info from controller agent "
-                    "during operation completion (OperationId: %v)",
-                    operation->GetId());
-            }
+            auto operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
+                .AsyncVia(GetControlInvoker(EControlQueue::Operation))
+                .Run())
+                .ValueOrThrow();
 
             {
                 const auto& controller = operation->GetController();
@@ -2539,9 +2553,7 @@ private:
             YCHECK(operation->GetState() == EOperationState::Completing);
             SetOperationFinalState(operation, EOperationState::Completed, TError());
 
-            SubmitOperationToCleaner(
-                operation,
-                operationInfoOrError.IsOK() ? operationInfoOrError.Value() : nullptr);
+            SubmitOperationToCleaner(operation, operationProgress);
 
             // Second flush: ensure that state is changed to Completed.
             {
@@ -2646,41 +2658,64 @@ private:
             operation->GetId());
     }
 
-    TFuture<TControllerAgentServiceProxy::TRspGetOperationInfoPtr> RequestOperationInfoFromControllerAgent(
-        const TOperationPtr& operation) const
+    TOperationProgress RequestOperationProgress(const TOperationPtr& operation) const
     {
         auto agent = operation->FindAgent();
-        YCHECK(agent);
 
-        NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
-        auto req = proxy.GetOperationInfo();
-        req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
-        ToProto(req->mutable_operation_id(), operation->GetId());
+        if (agent) {
+            NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
+            auto req = proxy.GetOperationInfo();
+            req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
+            ToProto(req->mutable_operation_id(), operation->GetId());
+            auto rspOrError = WaitFor(req->Invoke());
+            if (rspOrError.IsOK()) {
+                auto rsp = rspOrError.Value();
+                TOperationProgress result;
+                // TODO(asaitgalin): Can we build map in controller instead of map fragment?
+                result.Progress = BuildYsonStringFluently()
+                    .BeginMap()
+                        .Items(TYsonString(rsp->progress(), EYsonType::MapFragment))
+                    .EndMap();
+                result.BriefProgress = BuildYsonStringFluently()
+                    .BeginMap()
+                        .Items(TYsonString(rsp->brief_progress(), EYsonType::MapFragment))
+                    .EndMap();
+                return result;
+            } else {
+                LOG_INFO(rspOrError, "Failed to get operation info from controller agent (OperationId: %v)",
+                    operation->GetId());
+            }
+        }
 
-        return req->Invoke();
+        // If we failed to get progress from controller then we try to fetch it from Cypress.
+        {
+            auto attributesOrError = WaitFor(MasterConnector_->GetOperationNodeProgressAttributes(operation));
+            if (attributesOrError.IsOK()) {
+                auto attributes = ConvertToAttributes(attributesOrError.Value());
+
+                TOperationProgress result;
+                result.Progress = attributes->FindYson("progress");
+                result.BriefProgress = attributes->FindYson("brief_progress");
+                return result;
+            } else {
+                LOG_INFO(attributesOrError, "Failed to get operation progress from Cypress (OperationId: %v)",
+                    operation->GetId());
+            }
+        }
+
+        return TOperationProgress();
     }
 
     void SubmitOperationToCleaner(
         const TOperationPtr& operation,
-        TControllerAgentServiceProxy::TRspGetOperationInfoPtr operationInfo) const
+        const TOperationProgress& operationProgress) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         TArchiveOperationRequest archivationReq;
         archivationReq.InitializeFromOperation(operation);
-        if (operationInfo) {
-            // TODO(asaitgalin): Can we build map in controller instead of
-            // map fragment?
-            archivationReq.Progress = BuildYsonStringFluently()
-                .BeginMap()
-                    .Items(TYsonString(operationInfo->progress(), EYsonType::MapFragment))
-                .EndMap();
-
-            archivationReq.BriefProgress = BuildYsonStringFluently()
-                .BeginMap()
-                    .Items(TYsonString(operationInfo->brief_progress(), EYsonType::MapFragment))
-                .EndMap();
-        }
+        archivationReq.Progress = operationProgress.Progress;
+        archivationReq.BriefProgress = operationProgress.BriefProgress;
 
         OperationsCleaner_->SubmitForArchivation(std::move(archivationReq));
     }
@@ -2728,17 +2763,10 @@ private:
             Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
         }
 
-        TControllerAgentServiceProxy::TRspGetOperationInfoPtr operationInfo;
-        if (operation->FindAgent()) {
-            auto operationInfoOrError = WaitFor(RequestOperationInfoFromControllerAgent(operation));
-            if (operationInfoOrError.IsOK()) {
-                operationInfo = operationInfoOrError.Value();
-            } else {
-                LOG_INFO(operationInfoOrError, "Failed to get operation info from controller agent "
-                    "during operation termination (OperationId: %v)",
-                    operation->GetId());
-            }
-        }
+        auto operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
+            .AsyncVia(GetControlInvoker(EControlQueue::Operation))
+            .Run())
+            .ValueOrThrow();
 
         const auto& controller = operation->GetController();
         if (controller) {
@@ -2787,7 +2815,7 @@ private:
             }
         }
 
-        SubmitOperationToCleaner(operation, operationInfo);
+        SubmitOperationToCleaner(operation, operationProgress);
 
         if (controller) {
             // Notify controller that it is going to be disposed.

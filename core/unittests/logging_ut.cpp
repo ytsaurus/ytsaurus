@@ -96,7 +96,7 @@ TEST_F(TLoggingTest, ReloadsOnSigHup)
     kill(getpid(), SIGHUP);
 
     LOG_INFO("Awaking logging thread");
-    Sleep(TDuration::MilliSeconds(100)); // In sleep() we trust.
+    Sleep(TDuration::Seconds(1)); // In sleep() we trust.
 
     int newVersion = TLogManager::Get()->GetVersion();
 

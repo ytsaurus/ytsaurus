@@ -360,9 +360,10 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(TMutationRequest&& request)
     }
 
     NTracing::TNullTraceContextGuard guard;
-    
+    auto commitStartTime = GetInstant();
+
     if (LoggingSuspended_) {
-        PendingMutations_.emplace_back(std::move(request));
+        PendingMutations_.emplace_back(std::move(request), commitStartTime);
         return PendingMutations_.back().CommitPromise;
     }
 
@@ -372,6 +373,7 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(TMutationRequest&& request)
     TFuture<void> localFlushResult;
     TFuture<TMutationResponse> commitResult;
     const auto& loggedRequest = DecoratedAutomaton_->LogLeaderMutation(
+        commitStartTime,
         std::move(request),
         &recordData,
         &localFlushResult,
@@ -443,6 +445,7 @@ void TLeaderCommitter::ResumeLogging()
         TFuture<void> localFlushResult;
         TFuture<TMutationResponse> commitResult;
         const auto& loggedMutation = DecoratedAutomaton_->LogLeaderMutation(
+            pendingMutation.Timestamp,
             std::move(pendingMutation.Request),
             &recordData,
             &localFlushResult,

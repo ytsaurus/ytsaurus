@@ -42,6 +42,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetJobInputPathsCommand
+    : public TTypedCommand<NApi::TGetJobInputPathsOptions>
+{
+public:
+    TGetJobInputPathsCommand();
+
+private:
+    NJobTrackerClient::TJobId JobId;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetJobStderrCommand
     : public TTypedCommand<NApi::TGetJobStderrOptions>
 {

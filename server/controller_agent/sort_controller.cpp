@@ -428,11 +428,6 @@ protected:
             }
         }
 
-        virtual bool SupportsInputPathYson() const override
-        {
-            return true;
-        }
-
         void OnExecNodesUpdated()
         {
             if (DataBalancer_) {
@@ -645,11 +640,6 @@ protected:
         virtual int GetTotalJobCount() const override
         {
             return IsActive() ? TTask::GetTotalJobCount() : 0;
-        }
-
-        virtual bool SupportsInputPathYson() const override
-        {
-            return false;
         }
 
     protected:

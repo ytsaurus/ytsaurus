@@ -1384,6 +1384,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                     }
                     break;
                 case EValueType::Double:
+                    CheckNaN(builder, lhsData, rhsData);
                     switch (opcode) {
                         CMP_OP(Equal, FCmpUEQ)
                         CMP_OP(NotEqual, FCmpUNE)

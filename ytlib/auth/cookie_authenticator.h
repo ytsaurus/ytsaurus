@@ -11,8 +11,8 @@ namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString SignCsrfToken(const TString& userId, const TString& key, TDuration now);
-bool CheckCsrfToken(const TString& csrfToken, const TString& userId, const TString& key, TInstant expirationTime);
+TString SignCsrfToken(const TString& userId, const TString& key, TInstant now);
+TError CheckCsrfToken(const TString& csrfToken, const TString& userId, const TString& key, TInstant expirationTime);
 
 ////////////////////////////////////////////////////////////////////////////////
 

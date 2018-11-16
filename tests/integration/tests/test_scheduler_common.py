@@ -217,6 +217,11 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
             jobs = get(op.get_path() + "/@progress/jobs", default=None)
             if jobs is None:
                 return False
+            # Progress is updates by controller, but abort is initiated by scheduler after job was scheduled.
+            # Therefore races are possible.
+            if jobs["running"] > 0:
+                return False
+
             assert jobs["running"] == 0
             assert jobs["completed"]["total"] == 0
             return jobs["aborted"]["non_scheduled"]["scheduling_timeout"] > 0
@@ -1709,8 +1714,7 @@ class TestJobRevival(TestJobRevivalBase):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "operations_update_period": 100,
-            "static_orchid_cache_update_period": 100,
-            "job_revival_abort_timeout": 2000,
+            "static_orchid_cache_update_period": 100
         },
         "cluster_connection" : {
             "transaction_manager": {
@@ -1925,8 +1929,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "lock_transaction_timeout": 3000,
-            "operations_update_period": 100,
-            "job_revival_abort_timeout": 2000,
+            "operations_update_period": 100
         },
         "cluster_connection" : {
             "transaction_manager": {
@@ -3120,7 +3123,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    def test_job_spec_failed(self):
+    def test_get_job_spec_failed(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
@@ -3137,10 +3140,12 @@ class TestGetJobSpecFailed(YTEnvSetup):
             },
             dont_track=True)
 
-        time.sleep(2.0)
-
-        jobs = get(op.get_path() + "/controller_orchid/progress/jobs", verbose=False)
-        assert jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
+        def check():
+            jobs = get(op.get_path() + "/controller_orchid/progress/jobs", default=None)
+            if jobs is None:
+                return False
+            return jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
+        wait(check)
 
 ##################################################################
 
