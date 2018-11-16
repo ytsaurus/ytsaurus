@@ -12,6 +12,8 @@
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
+#include <mapreduce/yt/node/node_io.h>
+
 #include <library/unittest/registar.h>
 
 #include <util/random/fast.h>
@@ -910,25 +912,6 @@ Y_UNIT_TEST_SUITE(TableIo) {
             ++counter;
         }
         UNIT_ASSERT_VALUES_EQUAL(counter, numRows);
-    }
-
-    Y_UNIT_TEST(RetrylessWriterAndLockedTable)
-    {
-        auto client = CreateTestClient();
-        auto path = TRichYPath("//testing/table");
-        auto lockingWriter = client->CreateTableWriter<TNode>(path);
-        lockingWriter->AddRow(TNode()("key", "kluch"));
-
-        auto retrylessWriter = client->CreateTableWriter<TNode>(path, TTableWriterOptions().SingleHttpRequest(true));
-        auto writeMuchData = [&retrylessWriter] {
-            TString row = "0123456789ABCDEF"; // 16 bytes
-            for (int i = 0; i < (5 << 20); ++i) { // 5M * 16B = 80MB > 64MB
-                retrylessWriter->AddRow(TNode()("key", row));
-            }
-        };
-        UNIT_ASSERT_EXCEPTION(writeMuchData(), yexception);
-        UNIT_ASSERT_NO_EXCEPTION(retrylessWriter->Finish()); // It's already finished
-        UNIT_ASSERT_NO_EXCEPTION(lockingWriter->Finish());
     }
 
     void TestCompressionCodec(EEncoding encoding)
