@@ -901,16 +901,26 @@ TBooleanFormula MakeBooleanFormula(const TString& formula)
 
 TBooleanFormula operator&(const TBooleanFormula& lhs, const TBooleanFormula& rhs)
 {
+    if (lhs.IsEmpty()) {
+        return rhs;
+    }
     return MakeBooleanFormula(Format("(%v) & (%v)", lhs.GetFormula(), rhs.GetFormula()));
 }
 
 TBooleanFormula operator|(const TBooleanFormula& lhs, const TBooleanFormula& rhs)
 {
+    if (lhs.IsEmpty()) {
+        return lhs;
+    }
     return MakeBooleanFormula(Format("(%v) | (%v)", lhs.GetFormula(), rhs.GetFormula()));
 }
 
 TBooleanFormula operator!(const TBooleanFormula& formula)
 {
+    if (formula.IsEmpty()) {
+        // TODO: introduce false literal.
+        return MakeBooleanFormula("false");
+    }
     return MakeBooleanFormula(Format("!(%v)", formula.GetFormula()));
 }
 

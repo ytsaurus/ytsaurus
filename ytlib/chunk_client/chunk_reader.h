@@ -40,9 +40,9 @@ struct IChunkReader
         const TNullable<i64>& estimatedSize = Null) = 0;
 
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
-    virtual TFuture<NProto::TChunkMeta> GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        const TNullable<int>& partitionTag = Null,
+        TNullable<int> partitionTag = Null,
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 
     virtual TChunkId GetChunkId() const = 0;

@@ -21,7 +21,7 @@
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/mailbox.h>
 #include <yt/server/hive/helpers.h>
-#include <yt/server/hive/hive_manager.pb.h>
+#include <yt/server/hive/proto/hive_manager.pb.h>
 
 #include <yt/server/hydra/mutation.h>
 

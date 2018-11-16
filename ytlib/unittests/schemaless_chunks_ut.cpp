@@ -216,12 +216,12 @@ protected:
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
         MemoryReader_ = CreateMemoryReader(
-            std::move(memoryWriter->GetChunkMeta()),
-            std::move(memoryWriter->GetBlocks()));
+            memoryWriter->GetChunkMeta(),
+            memoryWriter->GetBlocks());
 
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
         ChunkSpec_.set_table_row_index(42);
-        ChunkMeta_ = New<TColumnarChunkMeta>(memoryWriter->GetChunkMeta());
+        ChunkMeta_ = New<TColumnarChunkMeta>(*memoryWriter->GetChunkMeta());
     }
 
     static void InitNameTable(TNameTablePtr nameTable, int idShift = 0)
@@ -529,8 +529,8 @@ protected:
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
         MemoryReader_ = CreateMemoryReader(
-            std::move(memoryWriter->GetChunkMeta()),
-            std::move(memoryWriter->GetBlocks()));
+            memoryWriter->GetChunkMeta(),
+            memoryWriter->GetBlocks());
 
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
         ChunkSpec_.set_table_row_index(42);

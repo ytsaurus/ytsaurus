@@ -140,7 +140,7 @@ private:
                 .AsyncVia(NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run(
                     FromProto<TChunkId>(request->chunk_id(index)),
-                    request->chunk_meta(index),
+                    New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta(index))),
                     tabletSnapshot);
 
             WaitFor(asyncResult)

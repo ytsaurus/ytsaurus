@@ -12,7 +12,10 @@
 #include <yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/core/misc/finally.h>
+
 #include <yt/core/ytree/convert.h>
+
+#include <yt/core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NHttp {
@@ -138,7 +141,7 @@ private:
         }
     }
 
-    bool HandleRequest(const THttpInputPtr& request, THttpOutputPtr& response)
+    bool HandleRequest(const THttpInputPtr& request, const THttpOutputPtr& response)
     {
         response->SetStatus(EStatusCode::InternalServerError);
 
@@ -150,7 +153,7 @@ private:
 
             const auto& path = request->GetUrl().Path;
 
-            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7ReqId: %v, L7RealIP: %v, UserAgent: %Qv)",
+            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7RequestId: %v, L7RealIP: %v, UserAgent: %v)",
                 request->GetConnectionId(),
                 request->GetRequestId(),
                 request->GetMethod(),
@@ -162,9 +165,25 @@ private:
             auto handler = Handlers_.Match(path);
             if (handler) {
                 closeResponse = false;
+
                 if (request->IsExpecting100Continue()) {
                     response->Flush100Continue();
                 }
+
+                NTracing::TTraceContext traceContext(
+                    GetTraceId(request),
+                    GetSpanId(request),
+                    GetParentSpanId(request));
+                if (!traceContext.IsEnabled()) {
+                    traceContext = NTracing::CreateRootTraceContext(false);
+                }
+
+                NTracing::TTraceContextGuard traceContextGuard(traceContext);
+
+                SetTraceId(response, traceContext.GetTraceId());
+                SetSpanId(response, traceContext.GetSpanId());
+                SetParentSpanId(response, traceContext.GetParentSpanId());
+
                 handler->HandleRequest(request, response);
 
                 LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",

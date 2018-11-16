@@ -57,8 +57,8 @@ struct ISession
 
     //! Starts the session.
     /*!
-     *  Returns the flag indicating that the session is persistenly started.
-     *  For blob chunks this happens immediately (and the actualy opening happens in backgound).
+     *  Returns the flag indicating that the session is persistently started.
+     *  For blob chunks this happens immediately (and the actually opening happens in backgound).
      *  For journal chunks this happens when append record is flushed into the multiplexed changelog.
      */
     virtual TFuture<void> Start() = 0;
@@ -68,8 +68,8 @@ struct ISession
 
     //! Finishes the session.
     virtual TFuture<IChunkPtr> Finish(
-        const NChunkClient::NProto::TChunkMeta* chunkMeta,
-        const TNullable<int>& blockCount) = 0;
+        const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
+        TNullable<int> blockCount) = 0;
 
     //! Puts a contiguous range of blocks into the window.
     virtual TFuture<void> PutBlocks(

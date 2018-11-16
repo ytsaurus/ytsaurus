@@ -52,7 +52,7 @@ private:
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
 
-    NChunkClient::NProto::TChunkMeta ChunkMeta_;
+    NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
     const int PartitionTag_;
 

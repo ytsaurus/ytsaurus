@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/misc/protobuf_helpers.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -47,7 +49,7 @@ TFuture<void> TMemoryWriter::GetReadyEvent()
     return VoidFuture;
 }
 
-TFuture<void> TMemoryWriter::Close(const TChunkMeta& chunkMeta)
+TFuture<void> TMemoryWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
 {
     YCHECK(Open_);
     YCHECK(!Closed_);
@@ -95,7 +97,7 @@ std::vector<TBlock>& TMemoryWriter::GetBlocks()
     return Blocks_;
 }
 
-NProto::TChunkMeta& TMemoryWriter::GetChunkMeta()
+TRefCountedChunkMetaPtr TMemoryWriter::GetChunkMeta()
 {
     YCHECK(Open_);
     YCHECK(Closed_);

@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/async_stream.h>
 
 #include <yt/core/actions/callback.h>
@@ -11,6 +10,7 @@
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/nullable.h>
+#include <yt/core/misc/string.h>
 
 #include <yt/core/net/public.h>
 
@@ -199,7 +199,7 @@ private:
         SmallVector<TString, 1> Values;
     };
 
-    THashMap<TString, TEntry> Raw_;
+    THashMap<TString, TEntry, TCaseInsensitiveStringHasher, TCaseInsensitiveStringEqualityComparer> NameToEntry_;
 
     void ValidateValue(TStringBuf header, TStringBuf value);
 };

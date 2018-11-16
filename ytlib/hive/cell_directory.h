@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/election/public.h>
 
-#include <yt/ytlib/hive/cell_directory.pb.h>
+#include <yt/ytlib/hive/proto/cell_directory.pb.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/public.h>

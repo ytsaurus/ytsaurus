@@ -40,9 +40,9 @@ public:
         const std::vector<IChunkReaderAllowingRepairPtr>& readers,
         const TLogger& logger);
 
-    TFuture<TChunkMeta> GetMeta(
+    TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        const TNullable<int>& partitionTag,
+        TNullable<int> partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -67,9 +67,9 @@ public:
 private:
     void CheckSlowReaders();
 
-    TChunkMeta GetMetaAsync(
+    TRefCountedChunkMetaPtr GetMetaAsync(
         const TClientBlockReadOptions& options,
-        const TNullable<int>& partitionTag,
+        TNullable<int> partitionTag,
         const TNullable<std::vector<int>>& extensionTags);
 
     const TErasureReaderConfigPtr Config_;
@@ -236,9 +236,9 @@ TRepairingReader::TRepairingReader(
     }
 }
 
-TFuture<TChunkMeta> TRepairingReader::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TRepairingReader::GetMeta(
     const TClientBlockReadOptions& options,
-    const TNullable<int>& partitionTag,
+    TNullable<int> partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
     YCHECK(!partitionTag);
@@ -370,9 +370,9 @@ TError TRepairingReader::CheckPartReaderIsSlow(int partIndex, i64 bytesReceived,
     }
 }
 
-TChunkMeta TRepairingReader::GetMetaAsync(
+TRefCountedChunkMetaPtr TRepairingReader::GetMetaAsync(
     const TClientBlockReadOptions& options,
-    const TNullable<int>& partitionTag,
+    TNullable<int> partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
     std::vector<TError> errors;

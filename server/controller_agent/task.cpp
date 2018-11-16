@@ -599,10 +599,10 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     // So better keep it simple and wait for the snapshot.
 
     if (joblet->StderrTableChunkListId) {
-        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId}, true /* unstageRecursively */, false /* waitForSnapshot */);
+        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId}, true /* unstageRecursively */, true /* waitForSnapshot */);
     }
     if (joblet->CoreTableChunkListId) {
-        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId}, true /* unstageRecursively */, false /* waitForSnapshot */);
+        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId}, true /* unstageRecursively */, true /* waitForSnapshot */);
     }
 
     ReinstallJob(

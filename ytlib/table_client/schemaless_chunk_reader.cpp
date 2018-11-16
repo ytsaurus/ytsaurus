@@ -90,7 +90,7 @@ TColumnarChunkMetaPtr DownloadChunkMeta(
     auto chunkMeta = WaitFor(asynChunkMeta)
         .ValueOrThrow();
 
-    return New<TColumnarChunkMeta>(std::move(chunkMeta));
+    return New<TColumnarChunkMeta>(*chunkMeta);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

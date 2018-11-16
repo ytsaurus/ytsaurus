@@ -269,7 +269,7 @@ bool TContext::TryParseUser()
         } else if (authResult.FindMatching(NRpc::EErrorCode::InvalidCsrfToken)) {
             Response_->SetStatus(EStatusCode::Unauthorized);
         } else {
-            Response_->SetStatus(EStatusCode::InternalServerError);
+            Response_->SetStatus(EStatusCode::ServiceUnavailable);
         }
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
@@ -778,16 +778,18 @@ void TContext::Run()
 
 void TContext::Finalize()
 {
-    try {
-        while (true) {
-            auto chunk = WaitFor(Request_->Read())
-                .ValueOrThrow();
+    if (IsWrapperBuggy(Request_)) {
+        try {
+            while (true) {
+                auto chunk = WaitFor(Request_->Read())
+                    .ValueOrThrow();
 
-            if (!chunk || chunk.Empty()) {
-                break;
+                if (!chunk || chunk.Empty()) {
+                    break;
+                }
             }
-        }
-    } catch (const std::exception& ex) { }
+        } catch (const std::exception& ex) { }
+    }
 
     if (!Response_->IsHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");

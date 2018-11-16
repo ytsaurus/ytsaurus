@@ -47,7 +47,7 @@ public:
         const TNullable<TNodeDescriptor>& source) override
     {
         if (type == EBlockType::CompressedData) {
-            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
             chunkBlockManager->PutCachedBlock(id, data, source);
         } else {
             UnderlyingCache_->Put(id, type, data, source);
@@ -59,7 +59,7 @@ public:
         EBlockType type) override
     {
         if (type == EBlockType::CompressedData) {
-            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
             if (auto cachedBlock = chunkBlockManager->FindCachedBlock(id)) {
                 auto block = cachedBlock->GetData();
                 block.BlockOrigin = EBlockOrigin::Cache;

@@ -186,7 +186,7 @@ public:
         return Check(Underlying_->GetReadyEvent());
     }
 
-    virtual TFuture<void> Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) override
+    virtual TFuture<void> Close(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta) override
     {
         return Check(Underlying_->Close(chunkMeta));
     }
@@ -444,7 +444,7 @@ private:
 
 
     void OnChunkCreated(
-        TCacheLocationPtr location,
+        const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
         Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
@@ -454,7 +454,7 @@ private:
     }
 
     void OnChunkDestroyed(
-        TCacheLocationPtr location,
+        const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
         location->GetWritePoolInvoker()->Invoke(BIND(
@@ -472,7 +472,7 @@ private:
         TCacheLocationPtr location,
         const TArtifactKey& key,
         const TChunkDescriptor& descriptor,
-        const NChunkClient::NProto::TChunkMeta* meta = nullptr)
+        const NChunkClient::TRefCountedChunkMetaPtr meta = nullptr)
     {
         auto chunk = New<TCachedBlobChunk>(
             Bootstrap_,
@@ -487,7 +487,7 @@ private:
     }
 
     void RegisterChunk(
-        TCacheLocationPtr location,
+        const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
         const auto& chunkId = descriptor.Id;
@@ -662,7 +662,7 @@ private:
                 .ValueOrThrow();
 
             // Download all blocks.
-            auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
+            auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta->extensions());
             int blockCount = blocksExt.blocks_size();
             std::vector<TBlockFetcher::TBlockInfo> blocks;
             blocks.reserve(blockCount);
@@ -713,7 +713,7 @@ private:
 
             TChunkDescriptor descriptor(chunkId);
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
-            auto chunk = CreateChunk(location, key, descriptor, &chunkMeta);
+            auto chunk = CreateChunk(location, key, descriptor, chunkMeta);
             cookie.EndInsert(chunk);
 
             ChunkAdded_.Fire(chunk);
@@ -947,7 +947,7 @@ private:
         return CreateChunk(location, key, descriptor);
     }
 
-    TNullable<TArtifactKey> TryParseArtifactMeta(TCacheLocationPtr location, const TChunkId& chunkId)
+    TNullable<TArtifactKey> TryParseArtifactMeta(const TCacheLocationPtr& location, TChunkId chunkId)
     {
         if (!IsArtifactChunkId(chunkId)) {
             return TArtifactKey(chunkId);

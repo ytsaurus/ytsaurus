@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/hive/hive_manager.pb.h>
+#include <yt/server/hive/proto/hive_manager.pb.h>
 
 #include <yt/server/hydra/entity_map.h>
 #include <yt/server/hydra/public.h>

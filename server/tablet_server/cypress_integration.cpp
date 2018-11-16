@@ -148,6 +148,11 @@ private:
         return tabletManager->Tablets().GetSize();
     }
 
+    bool NeedSuppressUpstreamSync() const override
+    {
+        return false;
+    }
+
 protected:
     virtual TYPath GetWellKnownPath() const override
     {
@@ -245,6 +250,11 @@ private:
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         return tabletManager->TabletActions().GetSize();
+    }
+
+    bool NeedSuppressUpstreamSync() const override
+    {
+        return false;
     }
 
 protected:

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/cell_node/public.h>
+
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/core/misc/error.h>
@@ -16,7 +18,9 @@ class TBlobReaderCache
     : public TRefCounted
 {
 public:
-    explicit TBlobReaderCache(TDataNodeConfigPtr config);
+    TBlobReaderCache(
+        TDataNodeConfigPtr config,
+        NCellNode::TBootstrap* bootstrap);
     ~TBlobReaderCache();
 
     //! Returns a (cached) blob chunk reader.
@@ -28,13 +32,13 @@ public:
      *  
      *  This method throws on failure.
      */
-    NChunkClient::TFileReaderPtr GetReader(IChunkPtr chunk);
+    NChunkClient::TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk);
 
     //! Evicts the reader from the cache thus hopefully closing the files.
     /*!
-     *  NB: Do not make it TChunkPtr since it is called from TCachedBlobChunk dtor.
+     *  NB: Do not make #chunk a smartpointer since #EvictReader is called from TCachedBlobChunk dtor.
      */
-    void EvictReader(IChunk* chunk);
+    void EvictReader(TBlobChunkBase* chunk);
 
 private:
     class TCachedReader;

@@ -17,23 +17,19 @@ const TTraceContext NullTraceContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static ui64 GenerateId()
+namespace  {
+
+TSpanId GenerateTraceId(bool verbose)
 {
-    auto guid = TGuid::Create();
-    return
-        (static_cast<ui64>(guid.Parts32[1]) << 32) +
-        (guid.Parts32[1] ^ guid.Parts32[3]);
+    return (RandomNumber<ui64>() & ~1ULL) | (verbose ? 1 : 0);
 }
 
-static TSpanId GenerateTraceId()
+TSpanId GenerateSpanId()
 {
-    return GenerateId();
+    return RandomNumber<ui64>();
 }
 
-static TSpanId GenerateSpanId()
-{
-    return GenerateId();
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,12 +38,18 @@ TTraceContext TTraceContext::CreateChild() const
     return TTraceContext(TraceId_, GenerateSpanId(), SpanId_);
 }
 
-TString ToString(const TTraceContext& context)
+void FormatValue(TStringBuilder* builder, const TTraceContext& context, TStringBuf /*spec*/)
 {
-    return Format("%08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
+    builder->AppendFormat("%08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
         context.GetTraceId(),
         context.GetSpanId(),
         context.GetParentSpanId());
+}
+
+
+TString ToString(const TTraceContext& context)
+{
+    return ToStringViaBuilder(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +66,7 @@ const TTraceContext& GetCurrentTraceContext()
     return stack.empty() ? NullTraceContext : stack.back();
 }
 
-bool IsTracingEnabled()
+bool IsVerboseTracing()
 {
     return GetCurrentTraceContext().IsEnabled();
 }
@@ -91,10 +93,10 @@ TTraceContext CreateChildTraceContext()
         : NullTraceContext;
 }
 
-TTraceContext CreateRootTraceContext()
+TTraceContext CreateRootTraceContext(bool verbose)
 {
     return TTraceContext(
-        GenerateTraceId(),
+        GenerateTraceId(verbose),
         GenerateSpanId(),
         InvalidSpanId);
 }
@@ -213,7 +215,7 @@ void TraceEvent(
     const TString& spanName,
     const TString& annotationName)
 {
-    if (context.IsEnabled()) {
+    if (context.IsVerbose()) {
         TTraceManager::Get()->Enqueue(
             context,
             serviceName,
@@ -227,7 +229,7 @@ void TraceEvent(
     const TString& annotationKey,
     const TString& annotationValue)
 {
-    if (context.IsEnabled()) {
+    if (context.IsVerbose()) {
         TTraceManager::Get()->Enqueue(
             context,
             annotationKey,

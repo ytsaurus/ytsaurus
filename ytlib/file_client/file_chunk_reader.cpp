@@ -12,11 +12,13 @@
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/io_engine.h>
+
+#include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -175,23 +177,23 @@ private:
         LOG_INFO("Chunk meta received");
         const auto& meta = metaOrError.Value();
 
-        auto type = EChunkType(meta.type());
+        auto type = EChunkType(meta->type());
         if (type != EChunkType::File) {
             THROW_ERROR_EXCEPTION("Invalid chunk type: expected %Qlv, actual %Qlv",
                 EChunkType::File,
                 type);
         }
 
-        if (meta.version() != FormatVersion) {
+        if (meta->version() != FormatVersion) {
             THROW_ERROR_EXCEPTION("Invalid file chunk format version: expected %v, actual %v",
                 FormatVersion,
-                meta.version());
+                meta->version());
         }
 
         std::vector<TBlockFetcher::TBlockInfo> blockSequence;
 
         // COMPAT(psushin): new file chunk meta!
-        auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(meta.extensions());
+        auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(meta->extensions());
 
         i64 selectedSize = 0;
         int blockIndex = 0;
@@ -222,7 +224,7 @@ private:
             }
         } else {
             // Old chunk.
-            auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
+            auto blocksExt = GetProtoExtension<TBlocksExt>(meta->extensions());
             blockCount = blocksExt.blocks_size();
 
             blockSequence.reserve(blockCount);
@@ -240,7 +242,7 @@ private:
             blockIndex,
             selectedSize);
 
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta.extensions());
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
 
         SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
             Config_,

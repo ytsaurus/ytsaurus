@@ -1,6 +1,8 @@
 #include "string.h"
 #include "error.h"
 
+#include <util/string/ascii.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -329,6 +331,31 @@ TString DecodeEnumValue(TStringBuf value)
 TString EncodeEnumValue(TStringBuf value)
 {
     return CamelCaseToUnderscoreCase(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TCaseInsensitiveStringHasher::operator()(TStringBuf arg) const
+{
+    auto compute = [&] (char* buffer) {
+        for (size_t index = 0; index < arg.length(); ++index) {
+            buffer[index] = AsciiToLower(arg[index]);
+        }
+        return TString::hashVal(buffer, arg.length());
+    };
+    const size_t SmallSize = 256;
+    if (arg.length() <= SmallSize) {
+        std::array<char, SmallSize> stackBuffer;
+        return compute(stackBuffer.data());
+    } else {
+        std::unique_ptr<char[]> heapBuffer(new char[arg.length()]);
+        return compute(heapBuffer.get());
+    }
+}
+
+bool TCaseInsensitiveStringEqualityComparer::operator()(TStringBuf lhs, TStringBuf rhs) const
+{
+    return AsciiEqualsIgnoreCase(lhs, rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

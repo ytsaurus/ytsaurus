@@ -81,7 +81,7 @@ TEST_P(TWriteFileChunkTest, Simple)
     EXPECT_TRUE(CheckBlock(tmpFile, block4));
     EXPECT_TRUE(CheckBlock(tmpFile, block5));
 
-    writer->Close(NChunkClient::NProto::TChunkMeta())
+    writer->Close(New<NChunkClient::TRefCountedChunkMeta>())
         .Get()
         .ThrowOnError();
 

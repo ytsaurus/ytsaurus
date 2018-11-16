@@ -64,10 +64,10 @@ public:
         return MakeFuture(std::move(blocks));
     }
 
-    virtual TFuture<NProto::TChunkMeta> GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& /*options*/,
-        const TNullable<int>& partitionTag,
-        const TNullable<std::vector<int>>& extensionTags) override
+        TNullable<int> /*partitionTag*/,
+        const TNullable<std::vector<int>>& /*extensionTags*/) override
     {
         // Cache-based readers shouldn't ask meta from chunk reader.
         Y_UNREACHABLE();

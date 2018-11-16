@@ -182,9 +182,9 @@ public:
         int blockCount,
         const TNullable<i64>& estimatedSize) override;
 
-    virtual TFuture<NProto::TChunkMeta> GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        const TNullable<int>& partitionTag,
+        TNullable<int> partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TChunkId GetChunkId() const override
@@ -1758,7 +1758,7 @@ public:
         Promise_.TrySet(TError("Reader terminated"));
     }
 
-    TFuture<NProto::TChunkMeta> Run()
+    TFuture<TRefCountedChunkMetaPtr> Run()
     {
         StartTimestamp_ = TInstant::Now();
         TotalBytesReceived_ = 0;
@@ -1771,7 +1771,7 @@ private:
     const TNullable<std::vector<int>> ExtensionTags_;
 
     //! Promise representing the session.
-    TPromise<NProto::TChunkMeta> Promise_ = NewPromise<NProto::TChunkMeta>();
+    TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
 
     virtual bool IsCanceled() const override
     {
@@ -1861,14 +1861,14 @@ private:
             }
 
             TotalBytesReceived_ += rsp->ByteSize();
-            OnSessionSucceeded(rsp->chunk_meta());
+            OnSessionSucceeded(std::move(*rsp->mutable_chunk_meta()));
         }
     }
 
-    void OnSessionSucceeded(const NProto::TChunkMeta& chunkMeta)
+    void OnSessionSucceeded(NProto::TChunkMeta&& chunkMeta)
     {
         LOG_DEBUG("Chunk meta obtained");
-        Promise_.TrySet(chunkMeta);
+        Promise_.TrySet(New<TRefCountedChunkMeta>(std::move(chunkMeta)));
     }
 
     virtual void OnSessionFailed(bool fatal) override
@@ -1889,9 +1889,9 @@ private:
     }
 };
 
-TFuture<NProto::TChunkMeta> TReplicationReader::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
     const TClientBlockReadOptions& options,
-    const TNullable<int>& partitionTag,
+    TNullable<int> partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();

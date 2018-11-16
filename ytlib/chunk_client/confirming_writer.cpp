@@ -118,7 +118,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override
+    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override
     {
         YCHECK(Initialized_);
         YCHECK(OpenFuture_.IsSet());
@@ -188,7 +188,7 @@ private:
     TSessionId SessionId_;
     TFuture<void> OpenFuture_;
 
-    NProto::TChunkMeta ChunkMeta_;
+    TRefCountedChunkMetaPtr ChunkMeta_;
     NProto::TDataStatistics DataStatistics_;
 
     NLogging::TLogger Logger;
@@ -275,10 +275,10 @@ private:
             TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
         };
 
-        auto masterChunkMeta = ChunkMeta_;
+        NChunkClient::NProto::TChunkMeta masterChunkMeta(*ChunkMeta_);
         FilterProtoExtensions(
             masterChunkMeta.mutable_extensions(),
-            ChunkMeta_.extensions(),
+            ChunkMeta_->extensions(),
             masterMetaTags);
 
         // Sanity check.
@@ -294,7 +294,7 @@ private:
         auto* req = batchReq->add_confirm_chunk_subrequests();
         ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
         *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
-        *req->mutable_chunk_meta() = masterChunkMeta;
+        req->mutable_chunk_meta()->Swap(&masterChunkMeta);
         req->set_request_statistics(true);
         ToProto(req->mutable_replicas(), replicas);
 
