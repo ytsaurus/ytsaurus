@@ -141,6 +141,9 @@ public:
     //! Period of ban from the moment of operation saturation in tentative tree.
     TDuration TentativeTreeSaturationDeactivationPeriod;
 
+    //! Enables infer of weight from effective min share ratios (if weight is not implicitly specified); inferred weight is this number mupltiplied by min share ratio.
+    TNullable<double> InferWeightFromMinShareRatioMultiplier;
+
     TFairShareStrategyTreeConfig();
 };
 
