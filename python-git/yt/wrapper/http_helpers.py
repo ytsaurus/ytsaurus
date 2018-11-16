@@ -178,7 +178,7 @@ def _process_request_backoff(current_time, client):
         _get_session(client=client).last_request_time = now_seconds
 
 def _raise_for_status(response, request_info):
-    if response.status_code == 503:
+    if response.status_code in (500, 503):
         raise YtProxyUnavailable(response)
     if response.status_code == 401:
         raise YtTokenError(
