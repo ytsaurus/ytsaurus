@@ -110,7 +110,7 @@ public:
     EPacketType GetPacketType() const;
     EPacketFlags GetPacketFlags() const;
     const TPacketId& GetPacketId() const;
-    TSharedRefArray GetMessage() const;
+    TSharedRefArray GrabMessage() const;
     size_t GetPacketSize() const;
 
 private:
@@ -142,7 +142,8 @@ public:
 
     static size_t GetPacketSize(
         EPacketType type,
-        const TSharedRefArray& message);
+        const TSharedRefArray& message,
+        size_t payloadSize);
 
     bool Start(
         EPacketType type,

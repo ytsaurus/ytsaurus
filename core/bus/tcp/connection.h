@@ -90,12 +90,14 @@ private:
         TQueuedMessage(TSharedRefArray message, const TSendOptions& options)
             : Promise(options.TrackingLevel != EDeliveryTrackingLevel::None ? NewPromise<void>() : Null)
             , Message(std::move(message))
+            , PayloadSize(GetByteSize(Message))
             , Options(options)
             , PacketId(TPacketId::Create())
         { }
 
         TPromise<void> Promise;
         TSharedRefArray Message;
+        size_t PayloadSize;
         TSendOptions Options;
         TPacketId PacketId;
     };
@@ -108,13 +110,15 @@ private:
             int checksummedPartCount,
             const TPacketId& packetId,
             TSharedRefArray message,
-            size_t size)
+            size_t payloadSize,
+            size_t packetSize)
             : Type(type)
             , Flags(flags)
             , ChecksummedPartCount(checksummedPartCount)
             , PacketId(packetId)
             , Message(std::move(message))
-            , Size(size)
+            , PayloadSize(payloadSize)
+            , PacketSize(packetSize)
         { }
 
         EPacketType Type;
@@ -122,7 +126,8 @@ private:
         int ChecksummedPartCount;
         TPacketId PacketId;
         TSharedRefArray Message;
-        size_t Size;
+        size_t PayloadSize;
+        size_t PacketSize;
     };
 
     struct TUnackedMessage
@@ -180,6 +185,7 @@ private:
     std::atomic<bool> HasUnsentData_ = {false};
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
+    std::atomic<size_t> PendingOutPayloadBytes_ = {0};
 
     TPacketDecoder Decoder_;
     NProfiling::TCpuDuration ReadStallTimeout_;
@@ -235,12 +241,13 @@ private:
     bool OnAckPacketReceived();
     bool OnMessagePacketReceived();
 
-    size_t EnqueuePacket(
+    TPacket* EnqueuePacket(
         EPacketType type,
         EPacketFlags flags,
         int checksummedPartCount,
         const TPacketId& packetId,
-        TSharedRefArray message = TSharedRefArray());
+        TSharedRefArray message = TSharedRefArray(),
+        size_t payloadSize = 0);
     void OnSocketWrite();
     bool HasUnsentData() const;
     bool WriteFragments(size_t* bytesWritten);

@@ -171,17 +171,18 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
     for (const auto& inputTable : inputTables) {
         auto dataSource = (inputTable->IsDynamic && inputTable->Schema.IsSorted())
             ? MakeVersionedDataSource(
-                inputTable->GetPath(),
+                inputTable->Path.GetPath(),
                 inputTable->Schema,
                 inputTable->Path.GetColumns(),
                 inputTable->Path.GetTimestamp().Get(AsyncLastCommittedTimestamp),
                 inputTable->ColumnRenameDescriptors)
             : MakeUnversionedDataSource(
-                inputTable->GetPath(),
+                inputTable->Path.GetPath(),
                 inputTable->Schema,
                 inputTable->Path.GetColumns(),
                 inputTable->ColumnRenameDescriptors);
 
+        dataSource.SetForeign(inputTable->IsForeign());
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
 

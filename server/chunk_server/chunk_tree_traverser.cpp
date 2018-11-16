@@ -26,6 +26,7 @@ namespace NChunkServer {
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NChunkClient;
 using namespace NTableClient;
 
@@ -848,7 +849,7 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->FindUserByName(UserName_);
         if (IsObjectAlive(user)) {
-            securityManager->ChargeUserRead(user, 0, time);
+            securityManager->ChargeUser(user, {EUserWorkloadType::Read, 0, time});
         }
     }
 

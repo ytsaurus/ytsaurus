@@ -124,36 +124,45 @@ private:
 
             // Check for known exceptions to retry.
             if (result) {
-                auto exception = result->AsMap()->FindChild("exception");
-                if (exception && exception->GetType() == ENodeType::Map) {
-                    auto exceptionId = exception->AsMap()->FindChild("id");
-                    if (exceptionId) {
-                        auto value = ConvertTo<int>(exceptionId);
-                        // See https://doc.yandex-team.ru/blackbox/concepts/blackboxErrors.xml
-                        switch (EBlackboxException(value)) {
-                            case EBlackboxException::Ok:
-                                return result;
-                            case EBlackboxException::DBFetchFailed:
-                            case EBlackboxException::DBException:
-                                LOG_WARNING(
-                                    "Blackbox has raised an exception, backing off (CallId: %v, Attempt: %v)",
-                                    callId,
-                                    attempt);
-                                break;
-                            default:
-                                LOG_WARNING(
-                                    "Blackbox has raised an exception (CallId: %v, Attempt: %v)",
-                                    callId,
-                                    attempt);
-                                AuthProfiler.Increment(BlackboxCallFatalErrors_);
-                                THROW_ERROR_EXCEPTION("Blackbox has raised an exception")
-                                    << TErrorAttribute("call_id", callId)
-                                    << TErrorAttribute("attempt", attempt);
-                        }
-                    }
-                } else {
+                auto exceptionNode = result->AsMap()->FindChild("exception");
+                if (!exceptionNode || exceptionNode->GetType() != ENodeType::Map) {
                     // No exception information, go as-is.
                     return result;
+                }
+
+                auto exceptionIdNode = exceptionNode->AsMap()->FindChild("id");
+                if (!exceptionIdNode || exceptionIdNode->GetType() != ENodeType::Int64) {
+                    // No exception information, go as-is.
+                    return result;
+                }
+
+                auto errorNode = result->AsMap()->FindChild("error");
+                auto blackboxError =
+                    errorNode && errorNode->GetType() == ENodeType::String
+                    ? TError(errorNode->GetValue<TString>())
+                    : TError("Blackbox did not provide any human-readable error details");
+
+                // See https://doc.yandex-team.ru/blackbox/concepts/blackboxErrors.xml
+                switch (EBlackboxException(exceptionIdNode->GetValue<i64>())) {
+                    case EBlackboxException::Ok:
+                        return result;
+                    case EBlackboxException::DBFetchFailed:
+                    case EBlackboxException::DBException:
+                        LOG_WARNING(blackboxError,
+                            "Blackbox has raised an exception, backing off (CallId: %v, Attempt: %v)",
+                            callId,
+                            attempt);
+                        break;
+                    default:
+                        LOG_WARNING(blackboxError,
+                            "Blackbox has raised an exception (CallId: %v, Attempt: %v)",
+                            callId,
+                            attempt);
+                        AuthProfiler.Increment(BlackboxCallFatalErrors_);
+                        THROW_ERROR_EXCEPTION("Blackbox has raised an exception")
+                            << TErrorAttribute("call_id", callId)
+                            << TErrorAttribute("attempt", attempt)
+                            << blackboxError;
                 }
             }
 
@@ -161,6 +170,7 @@ private:
             if (now > deadline) {
                 break;
             }
+
             Sleep(std::min(Config_->BackoffTimeout, deadline - now));
         }
 

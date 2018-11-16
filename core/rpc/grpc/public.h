@@ -23,6 +23,7 @@ extern const char* const UserAgentMetadataKey;
 extern const char* const AuthTokenMetadataKey;
 extern const char* const AuthSessionIdMetadataKey;
 extern const char* const AuthSslSessionIdMetadataKey;
+extern const char* const AuthUserTicketMetadataKey;
 extern const char* const ErrorMetadataKey;
 extern const char* const MessageBodySizeMetadataKey;
 extern const char* const ProtocolVersionMetadataKey;

@@ -146,14 +146,11 @@ public:
 
     virtual EJobType GetJobType() const = 0;
 
-    //! This method shows if the jobs of this task have an "input_paths" attribute
-    //! in Cypress. This depends on if this task gets it input directly from the
-    //! input tables or from the intermediate data.
-    virtual bool SupportsInputPathYson() const = 0;
-
     //! Return a chunk mapping that is used to substitute input chunks when job spec is built.
     //! Base implementation returns task's own mapping.
     virtual TInputChunkMappingPtr GetChunkMapping() const;
+
+    std::vector<TString> FindAndBanSlowTentativeTrees();
 
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 

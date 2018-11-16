@@ -2155,6 +2155,30 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         node = get("#{0}/@peers/0/address".format(cell))
         assert get("#{0}/@peers/0/address".format(cell), driver=driver) == node
 
+    @pytest.mark.parametrize("freeze", [False, True])
+    def test_mount_orphaned(self, freeze):
+        self._create_sorted_table("//tmp/t")
+        cells = sync_create_cells(1)
+
+        requests = []
+        requests.append(make_batch_request("remove", path="#" + cells[0]))
+        requests.append(make_batch_request("mount_table", path="//tmp/t", cell_id=cells[0], freeze=freeze))
+        rsps = execute_batch(requests)
+        assert len(rsps[1]) == 0
+
+        assert get("//tmp/t/@tablet_state") == "transient"
+        assert get("//tmp/t/@tablets/0/state") == "unmounted"
+
+        actions = get("//sys/tablet_actions")
+        assert len(actions) == 1
+        assert get("#{0}/@state".format(list(actions)[0])) == "orphaned"
+
+        sync_create_cells(1)
+        expected_state = "frozen" if freeze  else "mounted"
+        wait_for_tablet_state("//tmp/t", expected_state)
+        assert get("//tmp/t/@tablets/0/state") == expected_state
+
+
 class TestTabletActionsMulticell(TestTabletActions):
     NUM_SECONDARY_MASTER_CELLS = 2
 

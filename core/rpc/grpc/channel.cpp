@@ -178,6 +178,9 @@ private:
                 if (credentialsExt.has_ssl_session_id()) {
                     InitialMetadataBuilder_.Add(AuthSslSessionIdMetadataKey, credentialsExt.ssl_session_id());
                 }
+                if (credentialsExt.has_user_ticket()) {
+                    InitialMetadataBuilder_.Add(AuthUserTicketMetadataKey, credentialsExt.user_ticket());
+                }
             }
 
             RequestBody_ = Request_->Serialize();

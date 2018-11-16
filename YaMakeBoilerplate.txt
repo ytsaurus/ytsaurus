@@ -8,6 +8,7 @@ SET(PROTO_NAMESPACE ${YT_ROOT})
 
 SET(YT_ARCADIA_CXXFLAGS
   -Wno-sign-compare
+  -Wno-unused-private-field
   -Wno-unused-function
   -Wno-unused-parameter
   -Wno-unused-value
@@ -16,6 +17,7 @@ SET(YT_ARCADIA_CXXFLAGS
   -Wno-switch
   -Wno-type-limits
   -Wno-missing-braces
+  -Wno-missing-field-initializers
   -DYT_IN_ARCADIA
 )
 

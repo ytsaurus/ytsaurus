@@ -139,6 +139,7 @@ public:
     TJobResources GetTotalResourceUsageWithPrecommit();
     TJobMetrics GetJobMetrics();
 
+    void CommitResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
     void IncreaseResourceUsage(const TJobResources& delta);
     void IncreaseResourceUsagePrecommit(const TJobResources& delta);
     bool TryIncreaseResourceUsagePrecommit(
@@ -146,6 +147,7 @@ public:
         const TJobResources& resourceLimits,
         const TJobResources& resourceDemand,
         const TJobResources& resourceDiscount,
+        bool checkDemand,
         TJobResources* availableResourceLimitsOutput);
     void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
@@ -256,18 +258,24 @@ public:
     TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
     TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
 
+    void CommitLocalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
     void IncreaseLocalResourceUsage(const TJobResources& delta);
     void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
     bool TryIncreaseLocalResourceUsagePrecommit(
         const TJobResources& delta,
         const TFairShareContext& context,
+        bool checkDemand,
         TJobResources* availableResourceLimitsOutput);
 
+    void CommitHierarchicalResourceUsage(
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
-    void IncreaseHierarchicalResourceUsagePrecommit(const TJobResources& delta);
+    void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
     bool TryIncreaseHierarchicalResourceUsagePrecommit(
         const TJobResources& delta,
         const TFairShareContext& context,
+        bool checkDemand,
         TJobResources* availableResourceLimitsOutput);
 
     void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
@@ -816,7 +824,11 @@ public:
 
     TString GetUserName() const;
 
-    void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force = false);
+    void OnJobStarted(
+        const TJobId& jobId,
+        const TJobResources& resourceUsage,
+        const TJobResources& precommittedResources,
+        bool force = false);
     void OnJobFinished(const TJobId& jobId);
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
@@ -859,13 +871,12 @@ private:
 
     void FinishScheduleJob(
         bool enableBackoff,
-        NProfiling::TCpuInstant now,
-        const TJobResources& minNeededResources);
+        NProfiling::TCpuInstant now);
 
     NControllerAgent::TScheduleJobResultPtr DoScheduleJob(
         TFairShareContext* context,
         const TJobResources& availableResources,
-        const TJobResources& minNeededResources);
+        TJobResources* precommittedResources);
 
     TJobResources ComputeResourceDemand() const;
     TJobResources ComputeResourceLimits() const;

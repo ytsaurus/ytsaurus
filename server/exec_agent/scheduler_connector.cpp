@@ -48,11 +48,6 @@ TSchedulerConnector::TSchedulerConnector(
 
 void TSchedulerConnector::Start()
 {
-    auto now = TInstant::Now();
-    LastSentHeartbeatTime_ = now;
-    LastThrottledHeartbeatTime_ = now;
-    LastFullyProcessedHeartbeatTime_ = now;
-
     HeartbeatExecutor_ = New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
@@ -72,12 +67,12 @@ void TSchedulerConnector::Start()
 
 void TSchedulerConnector::SendHeartbeat()
 {
-    auto masterConnector = Bootstrap_->GetMasterConnector();
+    const auto& masterConnector = Bootstrap_->GetMasterConnector();
     if (!masterConnector->IsConnected()) {
         return;
     }
 
-    if (TInstant::Now() < std::max(LastFailedHeartbeatTime_, LastThrottledHeartbeatTime_) + Config_->UnsuccessHeartbeatBackoffTime) {
+    if (TInstant::Now() < std::max(LastFailedHeartbeatTime_, LastThrottledHeartbeatTime_) + FailedHeartbeatBackoffTime_) {
         LOG_INFO("Skipping heartbeat");
         return;
     }
@@ -88,8 +83,8 @@ void TSchedulerConnector::SendHeartbeat()
     auto req = proxy.Heartbeat();
     req->SetCodec(NCompression::ECodec::Lz4);
 
-    auto jobController = Bootstrap_->GetJobController();
-    auto masterConnection = client->GetNativeConnection();
+    const auto& jobController = Bootstrap_->GetJobController();
+    const auto masterConnection = client->GetNativeConnection();
     jobController->PrepareHeartbeatRequest(
         masterConnection->GetPrimaryMasterCellTag(),
         EObjectType::SchedulerJob,
@@ -98,40 +93,46 @@ void TSchedulerConnector::SendHeartbeat()
     LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
         FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_info()));
 
-    auto timeBetweenSentHeartbeats = TInstant::Now() - LastSentHeartbeatTime_;
-    Profiler.Update(
-        TimeBetweenSentHeartbeatsCounter_,
-        timeBetweenSentHeartbeats.MilliSeconds());
+    auto profileInterval = [&] (TInstant lastTime, NProfiling::TAggregateGauge& counter) {
+        if (lastTime != TInstant::Zero()) {
+            auto delta = TInstant::Now() - lastTime;
+            Profiler.Update(counter, NProfiling::DurationToValue(delta));
+        }
+    };
 
+    profileInterval(LastSentHeartbeatTime_, TimeBetweenSentHeartbeatsCounter_);
     LastSentHeartbeatTime_ = TInstant::Now();
 
     auto rspOrError = WaitFor(req->Invoke());
 
     if (!rspOrError.IsOK()) {
         LastFailedHeartbeatTime_ = TInstant::Now();
-        LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler");
+        if (FailedHeartbeatBackoffTime_ == TDuration::Zero()) {
+            FailedHeartbeatBackoffTime_ = Config_->FailedHeartbeatBackoffStartTime;
+        } else {
+            FailedHeartbeatBackoffTime_ = std::min(
+                FailedHeartbeatBackoffTime_ * Config_->FailedHeartbeatBackoffMultiplier,
+                Config_->FailedHeartbeatBackoffMaxTime);
+        }
+        LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler (BackoffTime: %v)",
+            FailedHeartbeatBackoffTime_);
         return;
     }
 
     LOG_INFO("Successfully reported heartbeat to scheduler");
 
+    FailedHeartbeatBackoffTime_ = TDuration::Zero();
+
+    profileInterval(std::max(LastFullyProcessedHeartbeatTime_, LastThrottledHeartbeatTime_), TimeBetweenAcknowledgedHeartbeatsCounter_);
+
     const auto& rsp = rspOrError.Value();
-
-    auto now = TInstant::Now();
-    auto timeBetweenAcknowledgedHeartbeats = now - std::max(LastFullyProcessedHeartbeatTime_, LastThrottledHeartbeatTime_);
-    Profiler.Update(
-        TimeBetweenAcknowledgedHeartbeatsCounter_,
-        timeBetweenAcknowledgedHeartbeats.MilliSeconds());
-
     if (rsp->scheduling_skipped()) {
-        LastThrottledHeartbeatTime_ = now;
+        LastThrottledHeartbeatTime_ = TInstant::Now();
     } else {
-        auto timeBetweenFullyProcessedHeartbeats = now - LastFullyProcessedHeartbeatTime_;
-        Profiler.Update(
-            TimeBetweenFullyProcessedHeartbeatsCounter_,
-            timeBetweenFullyProcessedHeartbeats.MilliSeconds());
-        LastFullyProcessedHeartbeatTime_ = now;
+        profileInterval(LastFullyProcessedHeartbeatTime_, TimeBetweenFullyProcessedHeartbeatsCounter_);
+        LastFullyProcessedHeartbeatTime_ = TInstant::Now();
     }
+
     const auto& reporter = Bootstrap_->GetStatisticsReporter();
     if (rsp->has_enable_job_reporter()) {
         reporter->SetEnabled(rsp->enable_job_reporter());

@@ -420,7 +420,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     const auto& resourceLimits = request->resource_limits();
     const auto& resourceUsage = request->resource_usage();
 
-    context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v, JobCount: %v, Confirmation: {C: %v, U: %v}",
+    context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, JobCount: %v, Confirmation: {C: %v, U: %v}",
         nodeId,
         descriptor.GetDefaultAddress(),
         FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits), request->disk_info()),
@@ -534,7 +534,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
         const auto statistics = schedulingContext->GetSchedulingStatistics();
         context->SetResponseInfo(
-            "NodeId: %v, Address: %v, "
+            "NodeId: %v, NodeAddress: %v, "
             "StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
             "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
@@ -595,7 +595,7 @@ void TNodeShard::UpdateExecNodeDescriptors()
 
     {
         TWriterGuard guard(CachedExecNodeDescriptorsLock_);
-        CachedExecNodeDescriptors_ = result;
+        std::swap(CachedExecNodeDescriptors_, result);
     }
 }
 
@@ -606,7 +606,7 @@ void TNodeShard::UpdateNodeState(const TExecNodePtr& node, ENodeState newState, 
     node->SetRegistrationError(error);
 
     if (oldState != newState) {
-        LOG_INFO("Node state changed (NodeId: %v, Address: %v, State: %v -> %v)",
+        LOG_INFO("Node state changed (NodeId: %v, NodeAddress: %v, State: %v -> %v)",
             node->GetId(),
             node->NodeDescriptor().GetDefaultAddress(),
             oldState,
@@ -638,7 +638,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto newState = attributes.Get<ENodeState>("state");
         auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
 
-        LOG_DEBUG("Handling node attributes (NodeId: %v, Address: %v, ObjectId: %v, NewState: %v)",
+        LOG_DEBUG("Handling node attributes (NodeId: %v, NodeAddress: %v, ObjectId: %v, NewState: %v)",
             nodeId,
             address,
             objectId,
@@ -648,7 +648,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         if (IdToNode_.find(nodeId) == IdToNode_.end()) {
             if (newState == ENodeState::Online) {
-                LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, Address: %v)",
+                LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
                     nodeId,
                     address);
             }
@@ -1047,14 +1047,19 @@ void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archi
     // could have been unregistered.
     auto nodeId = NodeIdFromJobId(jobId);
     if (auto execNode = FindNodeByJob(jobId)) {
-        LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v)",
+        LOG_DEBUG("Job released and will be reremoved (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v)",
             jobId,
             nodeId,
             execNode->GetDefaultAddress(),
             archiveJobSpec,
             archiveStderr,
             archiveFailContext);
-        execNode->JobsToRemove().emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext});
+        execNode->JobsToRemove().push_back({
+            jobId,
+            archiveJobSpec,
+            archiveStderr,
+            archiveFailContext
+        });
     } else {
         LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
             jobId,
@@ -1415,7 +1420,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     const auto& nodeAddress = node->GetDefaultAddress();
 
     if (!node->UnconfirmedJobIds().empty()) {
-        LOG_DEBUG("Asking node to include stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
+        LOG_DEBUG("Requesting node to include stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
             nodeId,
             nodeAddress);
         ToProto(response->mutable_jobs_to_confirm(), node->UnconfirmedJobIds());
@@ -1431,21 +1436,16 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     {
         for (const auto& jobToRemove : node->JobsToRemove()) {
-            const auto& jobId = jobToRemove.JobId;
-            auto archiveJobSpec = jobToRemove.ArchiveJobSpec;
-            auto archiveStderr = jobToRemove.ArchiveStderr;
-            auto archiveFailContext = jobToRemove.ArchiveFailContext;
-
-            LOG_DEBUG("Asking node to remove job "
+            LOG_DEBUG("Requesting node to remove job "
                 "(JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v)",
-                jobId,
+                jobToRemove.JobId,
                 nodeId,
                 nodeAddress,
-                archiveJobSpec,
-                archiveStderr,
-                archiveFailContext);
-            RemoveRecentlyFinishedJob(jobId);
-            ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext});
+                jobToRemove.ArchiveJobSpec,
+                jobToRemove.ArchiveStderr,
+                jobToRemove.ArchiveFailContext);
+            RemoveRecentlyFinishedJob(jobToRemove.JobId);
+            ToProto(response->add_jobs_to_remove(), jobToRemove);
         }
         node->JobsToRemove().clear();
     }

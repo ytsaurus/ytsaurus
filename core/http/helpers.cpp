@@ -236,6 +236,16 @@ TNullable<TString> GetBalancerRealIP(const IRequestPtr& req)
     return {};
 }
 
+TNullable<TString> GetUserAgent(const IRequestPtr& req)
+{
+    auto headers = req->GetHeaders();
+    auto userAgent = headers->Find("User-Agent");
+    if (userAgent) {
+        return *userAgent;
+    }
+    return {};
+}
+
 void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer)
 {
     rsp->GetHeaders()->Set("Content-Type", "application/json");

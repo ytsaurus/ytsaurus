@@ -131,11 +131,6 @@ public:
             return result;
         }
 
-        virtual bool SupportsInputPathYson() const override
-        {
-            return true;
-        }
-
     private:
         TUnorderedControllerBase* Controller;
 

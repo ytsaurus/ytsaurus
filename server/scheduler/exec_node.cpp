@@ -38,15 +38,13 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
 {
     TReaderGuard guard(SpinLock_);
 
-    return TExecNodeDescriptor{
+    return TExecNodeDescriptor(
         Id_,
         GetDefaultAddress(),
         IOWeight_,
         ResourceUsage_,
         ResourceLimits_,
-        GetMaxAvailableDiskSpace(DiskInfo_),
-        Tags_
-    };
+        Tags_);
 }
 
 void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)
@@ -102,14 +100,12 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     double ioWeight,
     const TJobResources& resourceUsage,
     const TJobResources& resourceLimits,
-    i64 maxDiskSpace,
     const THashSet<TString>& tags)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)
     , ResourceUsage(resourceUsage)
     , ResourceLimits(resourceLimits)
-    , MaxDiskSpace(maxDiskSpace)
     , Tags(tags)
 { }
 

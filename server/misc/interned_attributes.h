@@ -18,6 +18,7 @@
     XX(Annotations, annotations) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
+    XX(AttributesRevision, attributes_revision) \
     XX(Available, available) \
     XX(AvailableSpace, available_space) \
     XX(AvailableSpacePerMedium, available_space_per_medium) \
@@ -53,6 +54,7 @@
     XX(Config, config) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
+    XX(ContentRevision, content_revision) \
     XX(CountByHealth, count_by_health) \
     XX(CreationTime, creation_time) \
     XX(CurrentCommitRevision, current_commit_revision) \

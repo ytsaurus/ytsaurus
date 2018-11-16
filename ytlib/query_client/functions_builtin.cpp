@@ -266,6 +266,55 @@ public:
 
 };
 
+class TIsNaNCodegen
+    : public IFunctionCodegen
+{
+public:
+    virtual TCodegenExpression Profile(
+        TCGVariables* variables,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> literalArgs,
+        std::vector<EValueType> argumentTypes,
+        EValueType type,
+        const TString& name,
+        llvm::FoldingSetNodeID* id) const override
+    {
+        YCHECK(argIds.size() == 1);
+
+        return [
+            MOVE(argIds),
+            type,
+            name
+        ] (TCGExprContext& builder) {
+            auto argValue = CodegenFragment(builder, argIds[0]);
+            Value* data = CodegenFragment(builder, argIds[0]).GetTypedData(builder);
+            if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder->getFalse(),
+                    nullptr,
+                    builder->CreateAnd(
+                        builder->CreateNot(argValue.GetIsNull(builder)),
+                        builder->CreateFCmpUNO(data, data)),
+                    type);
+            } else {
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder->getFalse(),
+                    nullptr,
+                    builder->CreateFCmpUNO(data, data),
+                    type);
+            }
+        };
+    }
+
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    {
+        return false;
+    }
+
+};
+
 class TUserCastCodegen
     : public IFunctionCodegen
 {
@@ -687,6 +736,16 @@ void RegisterBuiltinFunctions(
 
     if (functionProfilers) {
         functionProfilers->emplace("is_null", New<NBuiltins::TIsNullCodegen>());
+    }
+
+    if (typeInferrers) {
+        typeInferrers->emplace("is_nan", New<TFunctionTypeInferrer>(
+            std::vector<TType>{EValueType::Double},
+            EValueType::Boolean));
+    }
+
+    if (functionProfilers) {
+        functionProfilers->emplace("is_nan", New<NBuiltins::TIsNaNCodegen>());
     }
 
     auto typeArg = 0;

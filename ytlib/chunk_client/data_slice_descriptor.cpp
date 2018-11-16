@@ -2,6 +2,8 @@
 #include "chunk_spec.h"
 #include "helpers.h"
 
+#include <yt/client/chunk_client/read_limit.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -45,6 +47,79 @@ int TDataSliceDescriptor::GetDataSourceIndex() const
     return ChunkSpecs.empty()
         ? 0
         : ChunkSpecs.front().table_index();
+}
+
+int TDataSliceDescriptor::GetRangeIndex() const
+{
+    return ChunkSpecs.empty()
+       ? 0
+       : ChunkSpecs.front().range_index();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned)
+{
+    TReadLimit result;
+
+    if (versioned) {
+        for (const auto& chunkSpec : descriptor.ChunkSpecs) {
+            TReadLimit readLimit;
+            FromProto(&readLimit, chunkSpec.lower_limit());
+            YCHECK(!readLimit.HasRowIndex());
+
+            if (readLimit.HasKey() && (!result.HasKey() || result.GetKey() > readLimit.GetKey())) {
+                result.SetKey(readLimit.GetKey());
+            }
+        }
+    } else {
+        const auto& chunkSpec = descriptor.GetSingleChunk();
+        TReadLimit readLimit;
+        FromProto(&readLimit, chunkSpec.lower_limit());
+        if (readLimit.HasRowIndex()) {
+            result.SetRowIndex(readLimit.GetRowIndex() + chunkSpec.table_row_index());
+        } else {
+            result.SetRowIndex(chunkSpec.table_row_index());
+        }
+
+        if (readLimit.HasKey()) {
+            result.SetKey(readLimit.GetKey());
+        };
+    }
+
+    return result;
+}
+
+TReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, bool versioned)
+{
+    TReadLimit result;
+
+    if (versioned) {
+        for (const auto& chunkSpec : descriptor.ChunkSpecs) {
+            TReadLimit readLimit;
+            FromProto(&readLimit, chunkSpec.upper_limit());
+            YCHECK(!readLimit.HasRowIndex());
+
+            if (readLimit.HasKey() && (!result.HasKey() || result.GetKey() < readLimit.GetKey())) {
+                result.SetKey(readLimit.GetKey());
+            }
+        }
+    } else {
+        const auto& chunkSpec = descriptor.GetSingleChunk();
+        TReadLimit readLimit;
+        FromProto(&readLimit, chunkSpec.upper_limit());
+        if (readLimit.HasRowIndex()) {
+            result.SetRowIndex(readLimit.GetRowIndex() + chunkSpec.table_row_index());
+        } else {
+            result.SetRowIndex(chunkSpec.table_row_index() + chunkSpec.row_count_override());
+        }
+
+        if (readLimit.HasKey()) {
+            result.SetKey(readLimit.GetKey());
+        };
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

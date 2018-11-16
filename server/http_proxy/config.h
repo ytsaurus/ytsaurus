@@ -28,6 +28,8 @@ public:
     bool Enable;
     bool Announce;
 
+    TNullable<TString> PublicFqdn;
+
     TDuration HeartbeatInterval;
     TDuration DeathAge;
 
@@ -44,6 +46,9 @@ public:
             .Default(false);
         RegisterParameter("announce", Announce)
             .Default(true);
+
+        RegisterParameter("public_fqdn", PublicFqdn)
+            .Default();
 
         RegisterParameter("heartbeat_interval", HeartbeatInterval)
             .Default(TDuration::Seconds(5));

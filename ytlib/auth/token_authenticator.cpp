@@ -177,12 +177,7 @@ public:
             tokenHash,
             userIP);
 
-        TString path;
-        if (!Config_->Secure) {
-            path = Config_->RootPath + "/" + ToYPathLiteral(credentials.Token);
-        } else {
-            path = Config_->RootPath + "/" + GetCryptoHash(credentials.Token);
-        }
+        auto path = Config_->RootPath + "/" + ToYPathLiteral(Config_->Secure ? tokenHash : token);
         return Client_->GetNode(path)
             .Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallResult,
@@ -352,7 +347,7 @@ public:
     virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
         static const auto Realm = TString("noop");
-        TAuthenticationResult result{NRpc::RootUserName, Realm, Null};
+        TAuthenticationResult result{NRpc::RootUserName, Realm};
         return MakeFuture<TAuthenticationResult>(result);
     }
 };

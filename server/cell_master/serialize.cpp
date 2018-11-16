@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 810;
+    return 812;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -89,7 +89,9 @@ bool ValidateSnapshotVersion(int version)
         version == 807 || // savrus: Add tablet cell health to tablet cell statistics
         version == 808 || // savrus: Forward start prerequisite transaction to secondary master
         version == 809 || // shakurov: Persist requisition update requests
-        version == 810;   // ignat: Persist transaction deadline
+        version == 810 || // ignat: Persist transaction deadline
+        version == 811 || // aozeritsky: Add attributes_revision, content_revision
+        version == 812;   // savrus: add reassign peer mutation
 }
 
 ////////////////////////////////////////////////////////////////////////////////

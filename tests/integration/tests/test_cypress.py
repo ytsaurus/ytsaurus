@@ -1755,6 +1755,32 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             create("sorted_dynamic_tablet_store", "//tmp/s")
 
+
+    def test_attributes_content_revision(self):
+        create("map_node", "//tmp/test_node")
+        revision = get("//tmp/test_node/@revision")
+        attributes_revision = get("//tmp/test_node/@attributes_revision")
+        content_revision = get("//tmp/test_node/@content_revision")
+
+        assert revision == attributes_revision
+        assert revision == content_revision
+
+        set("//tmp/test_node/@user_attribute1", "value1")
+        revision = get("//tmp/test_node/@revision")
+        attributes_revision = get("//tmp/test_node/@attributes_revision")
+        content_revision = get("//tmp/test_node/@content_revision")
+
+        assert revision == attributes_revision
+        assert revision > content_revision
+
+        set("//tmp/test_node", {"hello": "world", "list":[0,"a",{}], "n": 1})
+        revision = get("//tmp/test_node/@revision")
+        attributes_revision = get("//tmp/test_node/@attributes_revision")
+        content_revision = get("//tmp/test_node/@content_revision")
+
+        assert revision > attributes_revision
+        assert revision == content_revision
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):

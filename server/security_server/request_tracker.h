@@ -27,15 +27,9 @@ public:
     void Start();
     void Stop();
 
-    void ChargeUserRead(
+    void ChargeUser(
         TUser* user,
-        int requestCount,
-        TDuration requestTime);
-
-    void ChargeUserWrite(
-        TUser* user,
-        int requestCount,
-        TDuration requestTime);
+        const TUserWorkload& workload);
 
     TFuture<void> ThrottleUser(
         TUser* user,
@@ -68,13 +62,13 @@ private:
 
     void DoChargeUser(
         TUser* user,
-        int requestCount,
-        TDuration readRequestTime,
-        TDuration writeRequestTime);
+        const TUserWorkload& workload);
     void Reset();
     void OnFlush();
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TRequestTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 

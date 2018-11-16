@@ -309,6 +309,12 @@ void THttpInput::SetRequestId(TGuid requestId)
     RequestId_ = requestId;
 }
 
+bool THttpInput::IsExpecting100Continue() const
+{
+    auto expectHeader = Headers_->Find("Expect");
+    return expectHeader && *expectHeader == "100-continue";
+}
+
 bool THttpInput::IsSafeToReuse() const
 {
     return SafeToReuse_;
@@ -399,7 +405,7 @@ void THttpInput::FinishMessage()
 
     auto stats = Connection_->GetReadStatistics();
     if (MessageType_ == EMessageType::Request) {
-        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %d, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
+        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %v, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
             RequestId_,
             GetReadByteCount(),
             stats.IdleDuration - StartStatistics_.IdleDuration,
@@ -479,7 +485,7 @@ void THttpInput::MaybeLogSlowProgress()
 {
     auto now = TInstant::Now();
     if (LastProgressLogTime_ + Config_->BodyReadIdleTimeout < now) {
-        LOG_DEBUG("Reading HTTP message (RequestId: %v, BytesIn: %d)",
+        LOG_DEBUG("Reading HTTP message (RequestId: %v, BytesIn: %v)",
             RequestId_,
             GetReadByteCount());
         LastProgressLogTime_ = now;
@@ -661,6 +667,17 @@ TSharedRef THttpOutput::GetChunkHeader(size_t size)
     return TSharedRef::FromString(Format("%X\r\n", size));
 }
 
+void THttpOutput::Flush100Continue()
+{
+    if (HeadersFlushed_) {
+        THROW_ERROR_EXCEPTION("Cannot send 100 Continue after headers");
+    }
+
+    Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
+    WaitFor(Connection_->Write(Http100Continue).Apply(OnWriteFinish_))
+        .ThrowOnError();
+}
+
 TFuture<void> THttpOutput::Write(const TSharedRef& data)
 {
     if (MessageFinished_) {
@@ -755,7 +772,7 @@ void THttpOutput::OnWriteFinish()
     auto now = TInstant::Now();
     auto stats = Connection_->GetWriteStatistics();
     if (LastProgressLogTime_ + Config_->WriteIdleTimeout < now) {
-        LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %d, IdleDuration: %v, BusyDuration: %v)",
+        LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %v, IdleDuration: %v, BusyDuration: %v)",
             RequestId_,
             GetWriteByteCount(),
             stats.IdleDuration - StartStatistics_.IdleDuration,
@@ -788,6 +805,7 @@ const THashSet<TString> THttpOutput::FilteredHeaders_ = {
     "host"
 };
 
+const TSharedRef THttpOutput::Http100Continue = TSharedRef::FromString("HTTP/1.1 100 Continue\r\n\r\n");
 const TSharedRef THttpOutput::CrLf = TSharedRef::FromString("\r\n");
 const TSharedRef THttpOutput::ZeroCrLf = TSharedRef::FromString("0\r\n");
 const TSharedRef THttpOutput::ZeroCrLfCrLf = TSharedRef::FromString("0\r\n\r\n");

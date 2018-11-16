@@ -28,6 +28,7 @@ class TDataSource
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Foreign, false);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TString>, Path);
     DEFINE_BYREF_RW_PROPERTY(TNullable<NTableClient::TTableSchema>, Schema);
     DEFINE_BYREF_RW_PROPERTY(TNullable<std::vector<TString>>, Columns);

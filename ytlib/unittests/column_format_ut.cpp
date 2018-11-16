@@ -140,7 +140,8 @@ void TVersionedColumnTestBase::Validate(
     Reader_->SkipToRowIndex(beginRowIndex);
     Reader_->ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow>(actual.data(), actual.size()),
-        MakeRange(timestampIndexRanges));
+        MakeRange(timestampIndexRanges),
+        false);
 
 
     ASSERT_EQ(expected.size(), actual.size());

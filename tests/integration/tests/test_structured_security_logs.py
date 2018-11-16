@@ -6,7 +6,7 @@ import os
 import time
 
 
-class TestLogging(YTEnvSetup):
+class TestStructuredSecurityLogs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
 
@@ -19,23 +19,19 @@ class TestLogging(YTEnvSetup):
         remove_member("some_user", "some_group")
         remove_user("some_user")
         remove_group("some_group")
-        time.sleep(self.LOG_WRITE_WAIT_TIME)
 
-        log = self.load_structured_master_log()
-
-        self.assert_log_event(log, {"event": "group_created", "name": "some_group"})
-        self.assert_log_event(log, {"event": "user_created", "name": "some_user"})
-        self.assert_log_event(log, {"event": "member_added", "group_name": "some_group", "member_type": "user", "member_name": "some_user"})
-        self.assert_log_event(log, {"event": "member_removed", "group_name": "some_group", "member_type": "user", "member_name": "some_user"})
-        self.assert_log_event(log, {"event": "user_destroyed", "name": "some_user"})
-        self.assert_log_event(log, {"event": "group_destroyed", "name": "some_group"})
+        self.wait_log_event({"event": "group_created", "name": "some_group"})
+        self.wait_log_event({"event": "user_created", "name": "some_user"})
+        self.wait_log_event({"event": "member_added", "group_name": "some_group", "member_type": "user", "member_name": "some_user"})
+        self.wait_log_event({"event": "member_removed", "group_name": "some_group", "member_type": "user", "member_name": "some_user"})
+        self.wait_log_event({"event": "user_destroyed", "name": "some_user"})
+        self.wait_log_event({"event": "group_destroyed", "name": "some_group"})
 
     def test_acd_update(self):
         create("table", "//tmp/test_table")
         set("//tmp/test_table/@acl", [{"permissions": ["read"], "action": "allow", "subjects": ["root"]}])
-        time.sleep(self.LOG_WRITE_WAIT_TIME)
 
-        self.assert_log_event(self.load_structured_master_log(), {
+        self.wait_log_event({
             "event": "object_acd_updated",
             "attribute": "acl",
             "value": [{"permissions": ["read"], "action": "allow", "subjects": ["root"]}]
@@ -53,15 +49,15 @@ class TestLogging(YTEnvSetup):
 
     def load_structured_master_log(self):
         log_path = self.path_to_run + "/logs/master-0-0.json.log"
-        assert os.path.exists(log_path)
+        wait(lambda: os.path.exists(log_path), "Cannot find master's structured log")
         log = []
         with open(log_path, 'r') as f:
             for line in f:
                 log.append(json.loads(line))
         return log
 
-    def assert_log_event(self, log, expected_event):
-        found = False
+    def log_contains_event(self, expected_event):
+        log = self.load_structured_master_log()
         for event in log:
             match = True
             for key in expected_event:
@@ -69,6 +65,10 @@ class TestLogging(YTEnvSetup):
                     match = False
                     break
             if match:
-                found = True
+                return True
 
-        assert found, "Event {} is not presented in log {}".format(expected_event, log)
+        return False
+
+    def wait_log_event(self, expected_event):
+        wait(lambda: self.log_contains_event(expected_event),
+             lambda: "Event {} is not presented in log {}".format(expected_event, self.load_structured_master_log()))

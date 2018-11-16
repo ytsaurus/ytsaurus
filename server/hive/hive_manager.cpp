@@ -107,6 +107,7 @@ public:
         , SelfCellId_(selfCellId)
         , Config_(config)
         , CellDirectory_(cellDirectory)
+        , AutomatonInvoker_(automatonInvoker)
         , HydraManager_(hydraManager)
     {
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
@@ -135,7 +136,7 @@ public:
             "HiveManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        OrchidService_ = CreateOrchidService(automatonInvoker);
+        OrchidService_ = CreateOrchidService();
     }
 
     IServicePtr GetRpcService()
@@ -257,6 +258,7 @@ private:
     const TCellId SelfCellId_;
     const THiveManagerConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
+    const IInvokerPtr AutomatonInvoker_;
     const IHydraManagerPtr HydraManager_;
 
     IYPathServicePtr OrchidService_;
@@ -1339,11 +1341,12 @@ private:
     }
 
 
-    IYPathServicePtr CreateOrchidService(IInvokerPtr automatonInvoker)
+    IYPathServicePtr CreateOrchidService()
     {
+        auto invoker = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonInvoker_);
         auto producer = BIND(&TImpl::BuildOrchidYson, MakeWeak(this));
         return IYPathService::FromProducer(producer, TDuration::Seconds(1))
-            ->Via(automatonInvoker);
+            ->Via(invoker);
     }
 
     void BuildOrchidYson(IYsonConsumer* consumer)

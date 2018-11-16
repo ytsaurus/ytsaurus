@@ -735,7 +735,7 @@ void ValidateAnyValue(TStringBuf yson)
     ParseYsonStringBuffer(yson, EYsonType::Node, &validator);
 }
 
-void ValidateDynamicValue(const TUnversionedValue& value)
+void ValidateDynamicValue(const TUnversionedValue& value, bool isKey)
 {
     switch (value.Type) {
         case EValueType::String:
@@ -756,8 +756,8 @@ void ValidateDynamicValue(const TUnversionedValue& value)
             break;
 
         case EValueType::Double:
-            if (std::isnan(value.Data.Double)) {
-                THROW_ERROR_EXCEPTION("Value of type \"double\" is not a number");
+            if (isKey && std::isnan(value.Data.Double)) {
+                THROW_ERROR_EXCEPTION("Key of type \"double\" cannot be NaN");
             }
             break;
 
@@ -1085,13 +1085,13 @@ void ValidateStaticValue(const TUnversionedValue& value)
 void ValidateDataValue(const TUnversionedValue& value)
 {
     ValidateDataValueType(value.Type);
-    ValidateDynamicValue(value);
+    ValidateDynamicValue(value, /*isKey*/ false);
 }
 
 void ValidateKeyValue(const TUnversionedValue& value)
 {
     ValidateKeyValueType(value.Type);
-    ValidateDynamicValue(value);
+    ValidateDynamicValue(value, /*isKey*/ true);
 }
 
 void ValidateRowValueCount(int count)

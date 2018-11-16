@@ -50,14 +50,11 @@ class TAccessControlDescriptor;
 
 struct TPermissionCheckResult;
 
-class TSecurityManagerConfig;
-typedef TIntrusivePtr<TSecurityManagerConfig> TSecurityManagerConfigPtr;
+struct TUserWorkload;
 
-class TSecurityManager;
-typedef TIntrusivePtr<TSecurityManager> TSecurityManagerPtr;
-
-class TRequestTracker;
-typedef TIntrusivePtr<TRequestTracker> TRequestTrackerPtr;
+DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TSecurityManager)
+DECLARE_REFCOUNTED_CLASS(TRequestTracker)
 
 DEFINE_ENUM(EAccessControlEvent,
     (UserCreated)
@@ -74,6 +71,11 @@ DEFINE_ENUM(EAccessControlEvent,
 DEFINE_ENUM(EAccessDeniedReason,
     (DeniedByAce)
     (NoAllowingAce)
+);
+
+DEFINE_ENUM(EUserWorkloadType,
+    (Read)
+    (Write)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

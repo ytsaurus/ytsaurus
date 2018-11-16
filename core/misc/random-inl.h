@@ -43,18 +43,19 @@ T TRandomGenerator::Generate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TForwardIterator, class TOutputIterator>
+template <class TForwardIterator, class TOutputIterator, class TGenerator>
 TOutputIterator RandomSampleN(
     TForwardIterator begin,
     TForwardIterator end,
     TOutputIterator output,
-    size_t n)
+    size_t n,
+    TGenerator&& generator)
 {
     size_t remaining = std::distance(begin, end);
     size_t m = Min(n, remaining);
 
     while (m > 0) {
-        if ((std::rand() % remaining) < m) {
+        if (generator(remaining) < m) {
             *output = *begin;
             ++output;
             --m;

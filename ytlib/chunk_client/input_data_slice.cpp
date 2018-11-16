@@ -86,15 +86,6 @@ TInputChunkPtr TInputDataSlice::GetSingleUnversionedChunkOrThrow() const
     return ChunkSlices[0]->GetInputChunk();
 }
 
-TInputDataSlice::TChunkSignature TInputDataSlice::GetChunkSignature() const
-{
-    TChunkSignature result;
-    for (const auto& chunkSlice : ChunkSlices) {
-        result.emplace_back(chunkSlice->GetInputChunk());
-    }
-    return result;
-}
-
 bool TInputDataSlice::IsTrivial() const
 {
     return Type == EDataSourceType::UnversionedTable && ChunkSlices.size() == 1;
@@ -128,19 +119,6 @@ TString ToString(const TInputDataSlicePtr& dataSlice)
         dataSlice->LowerLimit(),
         dataSlice->UpperLimit(),
         dataSlice->ChunkSlices);
-}
-
-void ToProto(
-    NProto::TDataSliceDescriptor* dataSliceDescriptor,
-    TInputDataSlicePtr inputDataSlice)
-{
-    for (const auto& slice : inputDataSlice->ChunkSlices) {
-        auto* chunk = dataSliceDescriptor->add_chunks();
-        ToProto(chunk, slice, inputDataSlice->Type);
-        if (inputDataSlice->Tag) {
-            chunk->set_data_slice_tag(*inputDataSlice->Tag);
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

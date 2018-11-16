@@ -8,7 +8,7 @@ import "yt/client/chunk_client/proto/read_limit.proto";
 // Describes a portion of TChunkSpec.
 message TChunkSlice
 {
-    // required int32 deprected = 1;
+    // required int32 deprecated = 1;
 
     // Lower boundary, inclusive.
     required TReadLimit lower_limit = 2;

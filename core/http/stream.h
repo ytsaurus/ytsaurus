@@ -113,6 +113,8 @@ public:
 
     virtual i64 GetReadByteCount() const override;
 
+    bool IsExpecting100Continue() const;
+
     bool IsSafeToReuse() const;
     void Reset();
 
@@ -181,6 +183,8 @@ public:
 
     virtual const THeadersPtr& GetTrailers() override;
 
+    void Flush100Continue();
+
     void WriteRequest(EMethod method, const TString& path);
     TNullable<EStatusCode> GetStatus() const override;
     virtual void SetStatus(EStatusCode status) override;
@@ -238,6 +242,7 @@ private:
 
     static TSharedRef GetChunkHeader(size_t size);
 
+    static const TSharedRef Http100Continue;
     static const TSharedRef CrLf;
     static const TSharedRef ZeroCrLf;
     static const TSharedRef ZeroCrLfCrLf;

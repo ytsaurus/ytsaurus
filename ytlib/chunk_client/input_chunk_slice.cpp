@@ -467,14 +467,40 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
     ToProto(chunkSpec, inputSlice->GetInputChunk(), dataSourceType);
 
     if (!IsTrivial(inputSlice->LowerLimit())) {
-        ToProto(chunkSpec->mutable_lower_limit(), inputSlice->LowerLimit());
+        // NB(psushin): if lower limit key is less than min chunk key, we can eliminate it from job spec.
+        // Moreover, it is important for GetJobInputPaths handle to work properly.
+        bool pruneKeyLimit = inputSlice->LowerLimit().Key
+            && inputSlice->GetInputChunk()->BoundaryKeys()
+            && inputSlice->LowerLimit().Key <= inputSlice->GetInputChunk()->BoundaryKeys()->MinKey;
+
+        if (pruneKeyLimit && inputSlice->LowerLimit().RowIndex) {
+            TInputSliceLimit inputSliceLimit;
+            inputSliceLimit.RowIndex = inputSlice->LowerLimit().RowIndex;
+            ToProto(chunkSpec->mutable_lower_limit(), inputSliceLimit);
+        } else if (!pruneKeyLimit) {
+            ToProto(chunkSpec->mutable_lower_limit(), inputSlice->LowerLimit());
+        }
     }
 
     if (!IsTrivial(inputSlice->UpperLimit())) {
-        ToProto(chunkSpec->mutable_upper_limit(), inputSlice->UpperLimit());
+        // NB(psushin): if upper limit key is greater than max chunk key, we can eliminate it from job spec.
+        // Moreover, it is important for GetJobInputPaths handle to work properly.
+        bool pruneKeyLimit = inputSlice->UpperLimit().Key
+            && inputSlice->GetInputChunk()->BoundaryKeys()
+            && inputSlice->UpperLimit().Key > inputSlice->GetInputChunk()->BoundaryKeys()->MaxKey;
+
+        if (pruneKeyLimit && inputSlice->UpperLimit().RowIndex) {
+            TInputSliceLimit inputSliceLimit;
+            inputSliceLimit.RowIndex = inputSlice->UpperLimit().RowIndex;
+            ToProto(chunkSpec->mutable_upper_limit(), inputSliceLimit);
+        } else if (!pruneKeyLimit) {
+            ToProto(chunkSpec->mutable_upper_limit(), inputSlice->UpperLimit());
+        }
     }
 
     chunkSpec->set_data_weight_override(inputSlice->GetDataWeight());
+
+    // NB(psushin): always setting row_count_override is important for GetJobInputPaths handle to work properly.
     chunkSpec->set_row_count_override(inputSlice->GetRowCount());
 }
 

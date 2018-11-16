@@ -85,6 +85,30 @@ TEST_P(TReadWriteTest, Simple)
     EXPECT_EQ(::memcmp(readData.Begin(), data.Begin() + 7, readData.Size()), 0);
 }
 
+TEST_P(TReadWriteTest, ReadAll)
+{
+    const auto& args = GetParam();
+    const auto& type = std::get<0>(args);
+    const auto config = NYTree::ConvertTo<NYTree::INodePtr>(
+        NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
+
+    auto engine = CreateIOEngine(type, config);
+    TString fName = GenerateRandomFileName("IOEngineTestReadAll");
+
+    engine->ReadAll(fName);
+
+    auto data = Allocate(124097);
+    ::memset(data.Begin(), 0xdeadbeaf, data.Size());
+
+    TFile file(fName, WrOnly | CreateAlways);
+    file.Pwrite(data.Begin(), data.Size(), 0);
+    file.Close();
+
+    auto readData = engine->ReadAll(fName).Get().ValueOrThrow();
+
+    EXPECT_EQ(::memcmp(readData.Begin(), data.Begin(), readData.Size()), 0);
+}
+
 INSTANTIATE_TEST_CASE_P(
     TReadWriteTest,
     TReadWriteTest,

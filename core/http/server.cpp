@@ -150,17 +150,21 @@ private:
 
             const auto& path = request->GetUrl().Path;
 
-            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7ReqId: %v, L7RealIP: %v)",
+            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7ReqId: %v, L7RealIP: %v, UserAgent: %Qv)",
                 request->GetConnectionId(),
                 request->GetRequestId(),
                 request->GetMethod(),
                 path,
                 GetBalancerRequestId(request),
-                GetBalancerRealIP(request));
+                GetBalancerRealIP(request),
+                GetUserAgent(request));
 
             auto handler = Handlers_.Match(path);
             if (handler) {
                 closeResponse = false;
+                if (request->IsExpecting100Continue()) {
+                    response->Flush100Continue();
+                }
                 handler->HandleRequest(request, response);
 
                 LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",

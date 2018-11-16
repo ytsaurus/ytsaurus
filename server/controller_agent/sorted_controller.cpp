@@ -171,11 +171,6 @@ protected:
             Persist(context, ChunkPool_);
         }
 
-        virtual bool SupportsInputPathYson() const override
-        {
-            return true;
-        }
-
     protected:
         TSortedControllerBase* Controller_;
 

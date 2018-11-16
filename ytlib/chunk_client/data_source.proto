@@ -7,15 +7,16 @@ import "yt/client/table_client/proto/chunk_meta.proto";
 message TDataSource
 {
     required int32 type = 1;
-    //! This field is used when the data source is a part of the data source directory.
+    //! This field is used when the data source is a part of the user job spec files.
     optional NTableClient.NProto.TTableSchemaExt table_schema = 2;
     optional uint64 timestamp = 3;
     optional string path = 4;
     optional bool has_column_filter = 5 [default = false];
     repeated string columns = 6;
-    //! This field is used when the data source is a part of the user job spec files.
+    //! This field is used when the data source is a part of the data source directory.
     optional int32 table_schema_id = 7;
     repeated NTableClient.NProto.TColumnRenameDescriptor column_rename_descriptors = 8;
+    optional bool foreign = 9;
 }
 
 message TDataSourceDirectoryExt

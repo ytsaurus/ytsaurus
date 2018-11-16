@@ -991,6 +991,8 @@ private:
     TSpinLock ProgressLock_;
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
+    const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
+
     int StderrCount_ = 0;
     int JobNodeCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
@@ -1110,8 +1112,6 @@ private:
 
     static EJobState GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state);
 
-    NYson::TYsonString BuildInputPathYson(const TJobletPtr& joblet) const;
-
     void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
     void BuildStateYson(NYTree::TFluentAny fluent) const;
 
@@ -1137,10 +1137,12 @@ private:
 
     void UpdateSuspiciousJobsYson();
 
+    void CheckTentativeTreeEligibility();
+
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
     bool IsTreeTentative(const TString& treeId) const;
-    void MaybeBanInTentativeTree(const TJobletPtr& joblet, const TJobFinishedResult& result);
+    void MaybeBanInTentativeTree(const TString& treeId, bool shouldBan);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
