@@ -217,6 +217,8 @@ public:
         RegisterShutdown();
         InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
+        InitTLazyYsonMapType();
+
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();
         TLazyYsonIterator::InitType();
@@ -671,7 +673,6 @@ private:
 
 static PyObject* init_module()
 {
-    NYT::NPython::InitTLazyYsonMapType();
     static NYT::NPython::TYsonModule* yson = new NYT::NPython::TYsonModule;
     return yson->module().ptr();
 }
