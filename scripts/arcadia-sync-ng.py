@@ -129,7 +129,11 @@ class LocalSvn(object):
 
 def verify_recent_svn_revision_merged(git, git_svn_id):
     svn_url = get_svn_url_for_git_svn_remote(git, git_svn_id)
-    recent_revision = svn_get_last_modified_revision(Svn(), svn_url)
+    svn = Svn()
+    recent_revision = svn_get_last_modified_revision(svn, svn_url)
+    if "yt:git_commit:" in svn_get_log_message(svn, svn_url, recent_revision):
+        # Recent revision is our push so everything is ok
+        return
     svn_url = get_svn_url_for_git_svn_remote(git, git_svn_id)
     git_log_pattern = "^git-svn-id: {}@{}".format(svn_url, recent_revision)
     log = git.call("log", "--grep", git_log_pattern)
@@ -143,6 +147,13 @@ def svn_get_last_modified_revision(svn, url):
     commit_lst = tree.findall("entry/commit")
     assert len(commit_lst) == 1
     return commit_lst[0].get("revision")
+
+def svn_get_log_message(svn, url, revision):
+    xml_svn_info = svn.call("log", "--xml", url, "--revision", str(revision))
+    tree = ElementTree.fromstring(xml_svn_info)
+    msg_list = tree.findall("logentry/msg")
+    assert len(msg_list) == 1
+    return msg_list[0].text
 
 def local_svn_iter_changed_files(local_svn, relpath):
     return (status for status in local_svn.iter_status(relpath) if status.status not in ("normal", "unversioned"))
