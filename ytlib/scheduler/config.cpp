@@ -42,7 +42,7 @@ const TNullable<TString>& TPoolName::GetParentPool() const
 TPoolName TPoolName::FromString(const TString& value)
 {
     std::vector<TString> parts;
-    SplitStringTo(value, DELIMITER, &parts);
+    StringSplitter(value).Split(DELIMITER).AddTo(&parts);
     switch (parts.size()) {
         case 1:
             return TPoolName(value, Null);
