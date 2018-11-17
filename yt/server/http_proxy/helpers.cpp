@@ -243,7 +243,7 @@ TNullable<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent)
 {
     TPythonWrapperVersion version;
     if (re2::RE2::PartialMatch(
-        userAgent,
+        userAgent.c_str(),
         PythonWrapperPattern,
         &version.Major,
         &version.Minor,
