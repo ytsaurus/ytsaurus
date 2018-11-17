@@ -137,6 +137,11 @@ void TFinishedJobInfo::Persist(const TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, Summary);
 
+    if (context.IsLoad() && context.GetVersion() <= 300024) {
+        NYson::TYsonString inputPaths;
+        Persist(context, inputPaths);
+    }
+
     TJobInfoBase::Persist(context);
 }
 
