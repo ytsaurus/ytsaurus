@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from .helpers import TEST_DIR
+from .helpers import TEST_DIR, set_config_option
 
 from yt.wrapper.common import parse_bool
 import yt.json_wrapper as json
@@ -474,6 +474,17 @@ class TestCypressCommands(object):
         finally:
             yt.config["transaction_use_signal_if_ping_failed"] = False
             yt.config["proxy"]["request_timeout"] = old_request_timeout
+
+    def test_ping_failed_mode_pass(self):
+        new_client = yt.YtClient(token=yt.config["token"], config=yt.config.config)
+
+        with set_config_option("ping_failed_mode", "pass"):
+            try:
+                with yt.Transaction() as tx:
+                    new_client.abort_transaction(tx.transaction_id)
+                    time.sleep(5.0)
+            except yt.YtResponseError as err:
+                assert err.is_no_such_transaction()
 
     def test_lock(self, yt_env):
         dir = TEST_DIR + "/dir"
