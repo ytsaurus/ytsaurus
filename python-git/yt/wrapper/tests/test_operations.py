@@ -72,7 +72,7 @@ class CreateModulesArchive(object):
     def __call__(self, tempfiles_manager=None, custom_python_used=False):
         return create_modules_archive_default(tempfiles_manager, custom_python_used, None)
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperations(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
@@ -1343,6 +1343,9 @@ print(op.id)
             assert remove_asan_warning(stderrs[0]["stderr"]) == "AAA\n"
 
     def test_list_operations(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
         assert yt.list_operations()["operations"] == []
 
         table = TEST_DIR + "/table"

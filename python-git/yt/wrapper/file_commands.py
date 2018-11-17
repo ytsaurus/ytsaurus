@@ -1,6 +1,7 @@
 import yt.logger as logger
 from .config import get_config, get_option, get_backend_type
 from .common import require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value
+from .driver import _create_http_client_from_rpc
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .http_helpers import get_api_commands
 from .heavy_commands import make_write_request, make_read_request
@@ -118,6 +119,9 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
     :param int length: length in bytes of desired part of input file, all file without offset by default.
     :return: some stream over downloaded file, string generator by default.
     """
+    if get_config(client)["backend"] == "rpc":
+        client = _create_http_client_from_rpc(client, "read_file")
+
     path = FilePath(path, client=client)
     params = {"path": path}
     set_param(params, "file_reader", file_reader)
@@ -189,6 +193,8 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     :param bool force_create: unconditionally create file and ignores exsting file.
     :param bool compute_md5: compute md5 of file content.
     """
+    if get_config(client)["backend"] == "rpc":
+        client = _create_http_client_from_rpc(client, "write_file")
 
     if force_create is None:
         force_create = True
