@@ -19,6 +19,14 @@ import os
 
 _sigusr_received = False
 
+def _get_ping_failed_mode(client):
+    if get_config(client)["ping_failed_mode"] is not None:
+        return get_config(client)["ping_failed_mode"]
+    if get_config(client)["transaction_use_signal_if_ping_failed"]:
+        return "send_signal"
+    else:
+        return "interrupt_main"
+
 def _set_sigusr_received(value):
     global _sigusr_received
     _sigusr_received = value
@@ -104,7 +112,7 @@ class Transaction(object):
         else:
             self._started = False
 
-        if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
+        if _get_ping_failed_mode(self._client) == "send_signal":
             _set_sigusr_received(False)
             self._old_sigusr_handler = signal.signal(signal.SIGUSR1, _sigusr_handler)
 
@@ -209,7 +217,7 @@ class Transaction(object):
             self._used_with_statement = True
 
             self._stack.pop()
-            if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
+            if _get_ping_failed_mode(self._client) == "send_signal":
                 signal.signal(signal.SIGUSR1, self._old_sigusr_handler)
             transaction_id, ping_ancestor_transactions = self._stack.get()
             set_command_param("transaction_id", transaction_id, self._client)
@@ -240,6 +248,11 @@ class PingTransaction(Thread):
         self.step = min(self.delay, get_config(client)["transaction_sleep_period"] / 1000.0) # in seconds
         self._client = client
 
+        ping_failed_mode = _get_ping_failed_mode(self._client)
+        if ping_failed_mode not in ("interrupt_main", "send_signal", "pass"):
+            raise YtError("Incorrect ping failed mode {}, expects one of "
+                          "(\"interrupt_main\", \"send_signal\", \"pass\")".format(ping_failed_mode))
+
     def __enter__(self):
         self.start()
         return self
@@ -265,10 +278,13 @@ class PingTransaction(Thread):
                 self.failed = True
                 if self.interrupt_on_failed:
                     logger.exception("Ping failed")
-                    if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
+                    ping_failed_mode = _get_ping_failed_mode(self._client)
+                    if ping_failed_mode == "send_signal":
                         os.kill(os.getpid(), signal.SIGUSR1)
-                    else:
+                    elif ping_failed_mode == "interrupt_main":
                         interrupt_main()
+                    else: # ping_failed_mode == "pass":
+                        pass
                 else:
                     logger.exception("Failed to ping transaction %s, pinger stopped", self.transaction)
                     return

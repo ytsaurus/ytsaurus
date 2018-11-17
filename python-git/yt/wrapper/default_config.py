@@ -403,13 +403,18 @@ default_config = {
     "transaction_timeout": 30 * 1000,
     # How often wake up to determine whether transaction need to be pinged.
     "transaction_sleep_period": 100,
+
+    # Deprecated!
     # Use signal (SIGUSR1) instead of KeyboardInterrupt in main thread if ping failed.
     # Signal is sent to main thread and YtTransactionPingError is raised inside
     # signal handler. The error is processed inside __exit__ block: it will be thrown
     # out to user, all transactions in nested context managers will be aborted.
     # Be careful! If Transaction is created not in main thread this will cause
     # error "ValueError: signal only works in main thread".
-    "transaction_use_signal_if_ping_failed": False,
+    "transaction_use_signal_if_ping_failed": None,
+
+    # interrupt_main (default), send_signal or pass.
+    "ping_failed_mode": None,
 
     # Default value of raw option in read, write, select, insert, lookup, delete.
     "default_value_of_raw_option": False,
