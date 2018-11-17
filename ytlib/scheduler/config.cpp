@@ -5,6 +5,7 @@
 #include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <util/string/split.h>
+#include <util/string/iterator.h>
 
 namespace NYT {
 namespace NScheduler {
