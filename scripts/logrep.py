@@ -4,75 +4,112 @@
 import argparse
 import collections
 import datetime
+import gzip
 import json
 import logging
 import os
+import Queue
 import re
-import sys
-import subprocess
-import gzip
 import socket
+import subprocess
+import sys
+import threading
 
-EPILOG = """\
-SERVER FORMATS
-  logrep supports multiple ways of server specification
-
-  <host>
-    you can specify host
-    e.g. `m01-sas.hahn.yt.yandex.net'
-
-  master@<cluster>
-  /<cluster>/primary_master
-    resolved to primary master on specified cluser.
-    e.g. `/hahn/master'
-
-  /<cluster>/scheduler
-    resolved to active scheduler on specified cluster.
-    e.g. `/hume/scheduler'
-
-  /<cluster>/<operation-id>
-    depending on application you provided this pattern is resolved
-    either to active scheduler or to controller-agent responsible for this operation
-    e.g. `/freud/7bd986a4-5a28ac83-3fe03e8-b7d2476b'
-
-  /<cluster>/<service>/<pattern>
-    select machine group that is responsible for <service> and choose the machine that matches <pattern>
-    if multiple machine matches pattern logrep reports error
-    (example: `m01-man.hume.yt.yandex.net` and  `m02-man.hume.yt.yandex.net` both match /home/master/0`)
-    supported services:
-      - primary_master
-      - master : same as `primary_master'
-      - secondary_master
-      - scheduler
-      - controller-agent
-    e.g. /hahn/master/00
-
-TIME FORMATS
- logrep supports multiple ways of specifying time
-    now - use current moment (current log file will be grepped)
-    HH:MM:SS (e.g. 12:23:00) - today's date is used
-    YYYY-MM-DD HH:MM:SS' (e.g. 2018-11-09 05:10:43)
-    DD MMM YYYY HH:MM:SS (e.g. 16 Nov 2018 13:56:14)
-"""
+# NOTE: we should not import nonstandard libraries here because this script is being uploaded to remote server
+# which might miss such library
 
 FQDN = socket.getfqdn()
 
 OPERATION_GUID_TYPE = 1000
 JOB_GUID_TYPE = 900
+CHUNK_GUID_TYPE = 100
 
 GUID_RE = re.compile("^[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+$")
-GUID_PAIR_RE = re.compile("^([a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+):([a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+)$")
 LOG_FILE_NAME_RE = re.compile(r"^(?P<app_and_host>[^.]+)[.]debug[.]log([.](?P<log_index>\d+))?([.]gz)?$")
 
-LogName = collections.namedtuple("LogName", ["application", "host", "log_index"])
+ParsedLogName = collections.namedtuple("ParsedLogName", ["log_prefix", "host", "log_index"])
 
 logging.basicConfig(format="%(asctime)s\t" + FQDN + "\t%(levelname)s: %(message)s", level=logging.INFO)
+
+ServiceInfo = collections.namedtuple("ServiceInfo", [
+    "name",
+    "list_func_name",
+    "application_name",
+])
+
+SERVICE_TABLE = [
+    ServiceInfo("controller-agent", "get_controller_agent_list", "ytserver-controller-agent"),
+    ServiceInfo("master", "get_master_list", "ytserver-master"),
+    ServiceInfo("node", "get_node_list", "ytserver-node"),
+    ServiceInfo("primary-master", "get_primary_master_list", "ytserver-master"),
+    ServiceInfo("proxy", "get_proxy_list", "ytserver-http-proxy"),
+    ServiceInfo("rpc-proxy", "get_rpc_proxy_list", "ytserver-proxy"),
+    ServiceInfo("scheduler", "get_scheduler_list", "ytserver-scheduler"),
+    ServiceInfo("secondary-master", "get_secondary_master_list", "ytserver-master"),
+]
+SERVICE_MAP = {info.name: info for info in SERVICE_TABLE}
+
+
+ApplicationInfo = collections.namedtuple("ApplicationInfo", ["name", "log_dir_name", "log_prefix"])
+APPLICATION_TABLE = [
+    ApplicationInfo("ytserver-controller-agent", "controller-agent", "controller-agent"),
+    ApplicationInfo("ytserver-http-proxy", "proxy", "http-proxy"),
+    ApplicationInfo("ytserver-master", "master", "master"),
+    ApplicationInfo("ytserver-node", "node", "node"),
+    ApplicationInfo("ytserver-proxy", "rpc-proxy", "proxy"),
+    ApplicationInfo("ytserver-scheduler", "scheduler", "scheduler"),
+]
+APPLICATION_MAP = {info.name: info for info in APPLICATION_TABLE}
+
+assert all(service.application_name in APPLICATION_MAP for service in SERVICE_TABLE)
+
+LOG_PREFIX_MAP = {info.log_prefix: info for info in APPLICATION_TABLE}
+LOG_DIR_NAME_MAP = {info.log_dir_name : info for info in APPLICATION_TABLE}
+
+
+def list_known_services():
+    return [service.name for service in SERVICE_TABLE]
+
+
+def get_application_by_log_prefix(log_prefix):
+    if log_prefix not in LOG_PREFIX_MAP:
+        return None
+    return LOG_PREFIX_MAP[log_prefix].name
+
+
+def get_application_by_log_dir_name(log_dir_name):
+    suffix = "-logs"
+    if log_dir_name.endswith(suffix):
+        log_dir_name = log_dir_name[:-len(suffix)]
+    if log_dir_name not in LOG_DIR_NAME_MAP:
+        return None
+    return LOG_DIR_NAME_MAP[log_dir_name].name
 
 
 class LogrepError(RuntimeError):
     def __init__(self, *args, **kwargs):
         RuntimeError.__init__(self, *args, **kwargs)
         self.epilog = kwargs.get("epilog", "Error occurred, exiting...")
+
+    def __str__(self):
+        res = RuntimeError.__str__(self)
+        if res.endswith("\n"):
+            res = res[:-1]
+        return res
+
+
+def guid_type_name(guid_type):
+    return {
+        OPERATION_GUID_TYPE: "OperationId",
+        JOB_GUID_TYPE: "JobId",
+        CHUNK_GUID_TYPE: "ChunkId",
+    }[guid_type]
+
+
+def cell_id_from_guid(guid):
+    assert GUID_RE.match(guid)
+    part = int(guid.split("-")[2], 16)
+    return part >> 16
 
 
 def shell_quote(s):
@@ -88,17 +125,21 @@ def parse_log_filename(filename):
     m = LOG_FILE_NAME_RE.match(filename)
     if not m:
         return None
-    application = m.group("app_and_host")
+    app_and_host = m.group("app_and_host")
     hostname = FQDN.split(".")[0]
     expected_suffix = "-" + hostname
-    if application.endswith(expected_suffix):
-        application = application[:-len(expected_suffix)]
+    if app_and_host.endswith(expected_suffix):
+        app_and_host = app_and_host[:-len(expected_suffix)]
     index = m.group("log_index")
     index = int(index) if index else 0
-    return LogName(application, hostname, index)
+    return ParsedLogName(app_and_host, hostname, index)
 
 
-class Task(object):
+AsyncTaskOutput = collections.namedtuple("AsyncTaskOutput", ["file", "line"])
+AsyncTaskCompleted = collections.namedtuple("AsyncTaskCompleted", ["instance_description", "return_code", "stderr_tail"])
+
+
+class GrepTask(object):
     @staticmethod
     def _datetime_to_str(arg):
         if isinstance(arg, datetime.datetime):
@@ -108,12 +149,12 @@ class Task(object):
         else:
             raise TypeError("arg has type: {}".format(type(arg)))
 
-    def __init__(self, pattern, server, start_time, end_time, application=None):
+    def __init__(self, pattern, host, start_time, end_time, application=None):
         self.pattern = pattern
         self.start_time = self._datetime_to_str(start_time)
         self.end_time = self._datetime_to_str(end_time)
         self.application = application
-        self.server = server
+        self.host = host
 
     @staticmethod
     def try_switch_to_server_task_mode():
@@ -121,7 +162,7 @@ class Task(object):
             task_str = os.environ.get("LOGR_TASK", None)
             if task_str is None:
                 return None
-            task = Task._load(task_str)
+            task = GrepTask._load(task_str)
             task._local_run_impl()
         except LogrepError as e:
             print >>sys.stderr, str(e)
@@ -129,25 +170,75 @@ class Task(object):
         exit(0)
 
     def remote_run(self):
-        with open(__file__, "r") as srcf:
-            logging.info("connecting to {}".format(self.server))
-            retcode = subprocess.call(
+        with open(__file__, "r") as source_file:
+            logging.info("connecting to {}".format(self.host))
+            return_code = subprocess.call(
                 [
                     "ssh",
                     "-o", "StrictHostKeyChecking=no",
-                    self.server,
-                    "LOGR_TASK={} python /dev/stdin".format(
+                    self.host,
+                    "LOGR_TASK={} python -".format(
                         shell_quote(self._save())
                     )
                 ],
-                stdin=srcf
+                stdin=source_file
             )
-            if retcode != 0:
+            if return_code != 0:
                 raise LogrepError("Remote process exited with nonzero exit code.")
 
+    def async_remote_run(self, queue):
+        with open(__file__, "r") as source_file:
+            logging.info("connecting to {}".format(self.host))
+            p = subprocess.Popen(
+                [
+                    "ssh",
+                    "-o", "StrictHostKeyChecking=no",
+                    self.host,
+                    "LOGR_TASK={} python -".format(
+                        shell_quote(self._save())
+                    )
+                ],
+                stdin=source_file,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+        stderr_tail = collections.deque(maxlen=5)
+
+        def stderr_reader():
+            for line in p.stderr:
+                line = line.rstrip("\n")
+                stderr_tail.append(line)
+                line = "{host} stderr: {line}".format(host=self.host, line=line)
+                queue.put(AsyncTaskOutput(sys.stderr, line))
+
+        def stdout_reader():
+            for line in p.stdout:
+                line = "{line} - {application}@{host}".format(
+                    application=self.application,
+                    host=self.host,
+                    line=line.rstrip("\n")
+                )
+                queue.put(AsyncTaskOutput(sys.stdout, line))
+        stdout_thread = threading.Thread(target=stdout_reader)
+        stdout_thread.start()
+        stderr_thread = threading.Thread(target=stderr_reader)
+        stderr_thread.start()
+
+        def process_watch():
+            p.wait()
+            stdout_thread.join()
+            stderr_thread.join()
+            description = "{application}@{address}".format(address=self.host, application=self.application)
+            queue.put(AsyncTaskCompleted(description, p.returncode, stderr_tail))
+
+        watch_thread = threading.Thread(target=process_watch)
+        watch_thread.setDaemon(True)
+        watch_thread.start()
+
     def _local_run_impl(self):
-        actual_application = chdir_to_application_logs(self.application)
-        file_to_grep_list = find_files_to_grep(actual_application, self.start_time, self.end_time)
+        chdir_to_application_logs(self.application)
+        file_to_grep_list = find_files_to_grep(self.application, self.start_time, self.end_time)
         if not file_to_grep_list:
             raise LogrepError("Cannot find log files for time interval: {} - {}".format(self.start_time, self.end_time))
 
@@ -166,13 +257,13 @@ class Task(object):
                 "start_time": self.start_time,
                 "end_time": self.end_time,
                 "application": self.application,
-                "server": self.server
+                "host": self.host
             }
         )
 
     @classmethod
     def _load(cls, s):
-        return Task(**json.loads(s))
+        return GrepTask(**json.loads(s))
 
 
 #
@@ -191,33 +282,28 @@ def chdir_to_application_logs(application):
             parsed = parse_log_filename(name)
             if parsed is None:
                 continue
-            log_dirs[parsed.application] = "."
+            cur_app = get_application_by_log_prefix(parsed.log_prefix)
+            if cur_app is not None:
+                log_dirs[cur_app] = "."
     else:
         for name in os.listdir("."):
             if name.endswith("-logs") and os.path.isdir(name):
-                log_dirs[name[:-len("-logs")]] = name
+                cur_app = get_application_by_log_dir_name(name)
+                if cur_app is not None:
+                    log_dirs[cur_app] = name
 
     if not log_dirs:
         raise LogrepError("Cannot find any application logs on this server.")
 
-    if application is None:
-        if len(log_dirs) == 1:
-            application = next(iter(log_dirs))
-        else:
-            raise LogrepError(
-                "Please specify application which logs to grep. Applications found on this server:\n"
-                "{}".format(item_per_line(sorted(log_dirs), indent=2))
-            )
-    elif application not in log_dirs:
+    if application not in log_dirs:
         raise LogrepError(
-            "Application: {application} is not found on server. Available applications on this server:\n"
+            "Service: {application} is not found on server. Available applications on this server:\n"
             "{available_applications}\n".format(
                 application=application,
                 available_applications=item_per_line(sorted(log_dirs), indent=2)
             )
         )
     os.chdir(log_dirs[application])
-    return application
 
 
 def find_files_to_grep(application, start_time_str, end_time_str):
@@ -261,19 +347,24 @@ def find_files_to_grep(application, start_time_str, end_time_str):
             end_idx = 0
         return log_list[begin_idx:end_idx]
 
+    expected_log_prefix = APPLICATION_MAP[application].log_prefix
     log_file_list = []
     if os.path.exists("archive"):
         for filename in os.listdir("archive"):
             if ".debug.log" not in filename:
                 continue
+            if not filename.startswith(expected_log_prefix):
+                continue
             log_file_list.append(os.path.join("archive", filename))
         log_file_list.sort()
     current_logs = []
-    for name in os.listdir("."):
-        parsed = parse_log_filename(name)
-        if parsed is None or parsed.application != application:
+    for filename in os.listdir("."):
+        if not filename.startswith(expected_log_prefix):
             continue
-        current_logs.append((parsed.log_index, name))
+        parsed = parse_log_filename(filename)
+        if parsed is None:
+            continue
+        current_logs.append((parsed.log_index, filename))
     log_file_list += (f for _, f in sorted(current_logs, reverse=True))
     return pick_files(log_file_list)
 
@@ -312,217 +403,519 @@ def parse_time(time_str):
 
 
 #
-# Server resolving
+# Instance resolving
 #
 
-def resolve_server(server_str, application):
-    if not server_str.startswith("/"):
-        return server_str
-
-    import yt.wrapper
-    get_uuid_type = yt.wrapper.common.object_type_from_uuid
-    cant_resolve_error = LogrepError("Cannot resolve server for: {}".format(server_str))
-
-    def ensure_guid_is_of_type(guid, expected_type):
-        if yt.wrapper.common.object_type_from_uuid(guid) != expected_type:
-            type_str = {
-                OPERATION_GUID_TYPE: "OperationId",
-                JOB_GUID_TYPE: "JobId"
-            }[guid]
-            raise LogrepError("Guid {} is not {}".format(
-                guid,
-                type_str
-            ))
-
-    if not re.match(r"^(/[^/]+)+$", server_str):
-        raise cant_resolve_error
-
-    components = server_str.strip("/").split("/")
-    if len(components) <= 1:
-        raise cant_resolve_error
-
-    cluster = components[0]
-    client = yt.wrapper.YtClient(cluster)
-
-    if len(components) == 2:
-        if GUID_RE.match(components[1]):
-            operation_id = components[1]
-            ensure_guid_is_of_type(operation_id, OPERATION_GUID_TYPE)
-            return resolve_server_for_operation(client, operation_id, application)
-        if components[1] in ["master", "primary_master"]:
-            return resolve_primary_master(client)
-        if components[1] == "scheduler":
-            return resolve_active_scheduler(client)
-    if len(components) == 3:
-        if GUID_RE.match(components[1]) and GUID_RE.match(components[2]):
-            operation_id = components[1]
-            ensure_guid_is_of_type(operation_id, OPERATION_GUID_TYPE)
-            job_id = components[2]
-            ensure_guid_is_of_type(job_id, JOB_GUID_TYPE)
-            return resolve_server_for_job(client, operation_id, job_id, application)
-
-        list_servers_method = {
-            "master": lambda: list_servers_by_path(client, "//sys/primary_masters"),
-            "primary_master":  lambda: list_servers_by_path(client, "//sys/primary_masters"),
-            "secondary_master": lambda: list_secondary_masters(client),
-            "scheduler":  lambda: list_servers_by_path(client, "//sys/scheduler/instances"),
-            "controller_agent":  lambda: list_servers_by_path(client, "//sys/controller_agents/instances"),
-            "node": lambda: list_servers_by_path(client, "//sys/nodes"),
-        }
-        if components[1] in list_servers_method:
-            pattern = components[2]
-            all_nodes = list_servers_method[components[1]]()
-            result = []
-            for node in all_nodes:
-                if pattern in node:
-                    result.append(node)
-            if not result:
-                raise LogrepError(
-                    "Cannot find {group} server at {cluster} that matches '{pattern}'.\n"
-                    "List of all {group} servers:\n"
-                    "{all_servers}\n".format(
-                        group=components[1],
-                        pattern=pattern,
-                        cluster=cluster,
-                        all_servers=item_per_line(all_nodes, indent=2)
-                    )
-                )
-            if len(result) > 1:
-                raise LogrepError(
-                    "Multiple {group} servers at {cluster} matches '{pattern}':\n"
-                    "{result}\n".format(
-                        group=components[1],
-                        pattern=pattern,
-                        cluster=cluster,
-                        result=item_per_line(result, indent=2)
-                    )
-                )
-            return result[0]
-
-    raise cant_resolve_error
+Instance = collections.namedtuple("Instance", ["address", "application", "attributes"])
 
 
-def list_secondary_masters(client):
+def resolve_instance(instance_str):
+    from yt.wrapper import YtClient
+
+    if re.match(r"^(/[^/]+)+$", instance_str):
+        components = instance_str.strip("/").split("/")
+        if len(components) < 2:
+            raise LogrepError(
+                "Cannot resolve instance `{}': instance must start with /<cluster>/<service>".format(instance_str)
+            )
+        cluster, service = components[:2]
+        client = YtClient(cluster)
+        return resolve_service(client, service, components[2:])
+    elif instance_str.count("@") == 1:
+        application, address = instance_str.split("@")
+        return [Instance(address, application, [])]
+    else:
+        raise LogrepError("Cannot resolve instance `{}'".format(instance_str))
+
+
+def resolve_service(client, service_name, selector_list):
+    from yt.wrapper.common import object_type_from_uuid
+
+    if service_name not in SERVICE_MAP:
+        raise LogrepError(
+            "Unknown service: {service}\n"
+            "List of known services:\n"
+            "{known_services}\n"
+            .format(service=service_name, known_services=item_per_line(list_known_services(), indent=2))
+        )
+    service_info = SERVICE_MAP[service_name]
+    instance_list = globals()[service_info.list_func_name](client)
+    application = service_info.application_name
+
+    node_job_id_selector = NodeJobIdSelector(client)
+    for selector in selector_list:
+        filter_func = None
+        if selector.startswith("@"):
+            def filter_func(x):
+                return instance_match_attribute(x, selector[1:])
+        elif selector.startswith("#") or GUID_RE.match(selector):
+            if selector.startswith("#"):
+                n = selector.strip("#")
+                if not GUID_RE.match(n):
+                    raise LogrepError("Bad guid selector: {}".format(selector))
+                selector = n
+            guid = selector
+            guid_type = object_type_from_uuid(guid)
+            if guid_type not in [OPERATION_GUID_TYPE, JOB_GUID_TYPE, CHUNK_GUID_TYPE]:
+                raise LogrepError("Don't know what to do with guid of unknown type")
+            if guid_type == OPERATION_GUID_TYPE:
+                if application == "ytserver-scheduler":
+                    def filter_func(x):
+                        return instance_match_attribute(x, "active")
+                elif application == "ytserver-controller-agent":
+                    filter_func = AddressInSet({get_controller_agent_for_operation(client, guid)})
+                elif application == "ytserver-node":
+                    filter_func = node_job_id_selector.get_operation_id_filter(guid)
+            elif guid_type == JOB_GUID_TYPE:
+                if application == "ytserver-scheduler":
+                    def filter_func(x):
+                        return instance_match_attribute(x, "active")
+                elif application == "ytserver-node":
+                    filter_func = node_job_id_selector.get_job_id_filter(guid)
+            elif guid_type == CHUNK_GUID_TYPE:
+                if application == "ytserver-master":
+                    attribute = "secondary:{cell:x}".format(cell=cell_id_from_guid(guid))
+
+                    def filter_func(x):
+                        return instance_match_attribute(instance, attribute)
+                elif application == "ytserver-node":
+                    filter_func = NodeChunkIdFilter(client, guid)
+            if filter_func is None:
+                def filter_func(_x):
+                    return True
+                logging.warn("{guid_type} selector {guid} has no effect on service {service}".format(
+                    guid_type=guid_type_name(guid_type),
+                    guid=selector,
+                    service=service_name
+                ))
+        else:
+            def filter_func(x):
+                return selector in parse_address(x.address).host
+
+        instance_list = [instance for instance in instance_list if filter_func(instance)]
+
+    return instance_list
+
+
+class AddressInSet(object):
+    def __init__(self, iterable):
+        self.filter_set = frozenset(iterable)
+
+    def __call__(self, x):
+        return x.address in self.filter_set
+
+
+class NodeChunkIdFilter(object):
+    def __init__(self, client, chunk_id):
+        info = client.get("#{}/@".format(chunk_id), attributes=["stored_replicas", "last_seen_replicas"])
+        self.stored_replicas = {str(r): r.attributes.get("medium", "") for r in info["stored_replicas"]}
+        self.last_seen_replicas = frozenset(str(r) for r in info["last_seen_replicas"])
+
+    def __call__(self, instance):
+        if instance.application != "ytserver-node":
+            return instance
+
+        ok = False
+        medium = self.stored_replicas.get(instance.address, None)
+        if medium is not None:
+            instance.attributes.append("stored:{}".format(medium))
+            ok = True
+        if instance.address in self.last_seen_replicas:
+            instance.attributes.append("last-seen")
+            ok = True
+        return ok
+
+
+class NodeJobIdSelector(object):
+    def __init__(self, client):
+        self.client = client
+        self.operation_id = None
+
+    def get_operation_id_filter(self, operation_id):
+        self.operation_id = operation_id
+        return lambda x: True
+
+    def get_job_id_filter(self, job_id):
+        if self.operation_id is None:
+            raise LogrepError(
+                "Cannot apply JobId selector `{}' because OperationId selector must be applied before.".format(job_id)
+            )
+        return AddressInSet({
+            get_node_for_job_id(self.client, self.operation_id, job_id)
+        })
+
+
+def instance_match_attribute(instance, attr_pattern):
+    return any(attr_pattern in attr for attr in instance.attributes)
+
+
+def get_master_list(client):
+    return get_primary_master_list(client) + get_secondary_master_list(client)
+
+
+def get_primary_master_list(client):
+    address_list = client.list("//sys/primary_masters")
+
+    req_map = {}
+    for address in address_list:
+        req_map[address] = "//sys/primary_masters/{address}/orchid/monitoring/hydra/state".format(address=address)
+
+    rsp_map = batch_get(client, req_map)
     result = []
-    for some_id in client.list("//sys/secondary_masters"):
-        result += [get_host_from_host_port(h) for h in client.list("//sys/secondary_masters/{}".format(some_id))]
+    for address, hydra_state in rsp_map.iteritems():
+        result.append(Instance(address, "ytserver-master", [hydra_state, "primary"]))
     return result
 
 
-def list_servers_by_path(client, path):
-    return [get_host_from_host_port(h) for h in client.list(path)]
+def get_secondary_master_list(client):
+    cell_id_map = client.get("//sys/secondary_masters")
+
+    master_to_cell_id = {}
+    req_map = {}
+    for cell_id in cell_id_map:
+        for address in cell_id_map[cell_id]:
+            req_map[address] = (
+                "//sys/secondary_masters/{cell_id}/{address}/orchid/monitoring/hydra/state"
+                .format(cell_id=cell_id, address=address)
+            )
+            master_to_cell_id[address] = int(cell_id)
+
+    rsp_map = batch_get(client, req_map)
+    result = []
+    for address, state in rsp_map.iteritems():
+        master_type = "secondary:{:x}".format(master_to_cell_id[address])
+        result.append(Instance(address, "ytserver-master", [state, master_type]))
+    return result
 
 
-def resolve_server_for_operation(client, operation_id, application):
-    supported_applications = (
-        "Supported applications:\n"
-        "  scheduler\n"
-        "  controller-agent\n"
-    )
-    if application is None:
-        raise LogrepError(
-            "You must specify application to autoresolve server for operation-id.\n" + supported_applications
+def get_scheduler_list(client):
+    address_list = client.list("//sys/scheduler/instances")
+
+    req_map = {}
+    for address in address_list:
+        req_map[address] = (
+            "//sys/scheduler/instances/{address}/orchid/scheduler/connected".format(address=address)
         )
-    if application == "scheduler":
-        return resolve_active_scheduler(client)
-    elif application == "controller-agent":
-        r = client.get_operation(operation_id)
-        address = r.get("controller_agent_address", None)
-        if address is None:
-            raise LogrepError("Cannot resolve controller agent for operation: {}".format(operation_id))
-        host, _port = address.split(":")
-        return host
-    else:
-        raise LogrepError("Unsupported application: {}\n".format(application) + supported_applications)
+
+    rsp_map = batch_get(client, req_map)
+    result = []
+    for address, is_connected in rsp_map.iteritems():
+        active_attr = "active" if is_connected else "standby"
+        result.append(Instance(address, "ytserver-scheduler", [active_attr]))
+    return result
 
 
-def resolve_active_scheduler(client):
-    host, _port = client.get("//sys/scheduler/@addresses/default").split(":")
-    return host
+def get_controller_agent_list(client):
+    address_list = client.list("//sys/controller_agents/instances")
+
+    req_map = {}
+    for address in address_list:
+        req_map[address] = (
+            "//sys/controller_agents/instances/{address}/orchid/controller_agent/connected".format(address=address)
+        )
+
+    rsp_map = batch_get(client, req_map)
+    result = []
+    for address, is_connected in rsp_map.iteritems():
+        active_attr = "active" if is_connected else "standby"
+        result.append(Instance(address, "ytserver-controller-agent", [active_attr]))
+    return result
 
 
-def resolve_primary_master(client):
-    master_list = client.list("//sys/primary_masters")
+def get_node_list(client):
+    address_list = client.list("//sys/nodes")
+    result = []
+    for address in address_list:
+        result.append(Instance(address, "ytserver-node", []))
+    return result
 
+
+def get_proxy_list(client):
+    address_list = client.list("//sys/proxies")
+    result = []
+    for address in address_list:
+        result.append(Instance(address, "ytserver-http-proxy", []))
+    return result
+
+
+def get_rpc_proxy_list(client):
+    address_list = client.list("//sys/rpc_proxies")
+    result = []
+    for address in address_list:
+        result.append(Instance(address, "ytserver-proxy", []))
+    return result
+
+
+def batch_get(client, req_map):
     batch_client = client.create_batch_client(raise_errors=True)
     rsp_map = {}
-    for master in master_list:
-        rsp_map[master] = batch_client.get("//sys/primary_masters/" + master + "/orchid/monitoring/hydra/state")
+    for k, path in req_map.iteritems():
+        rsp_map[k] = batch_client.get(path)
     batch_client.commit_batch()
-    for master, rsp in rsp_map.iteritems():
-        if rsp.get_result() == "leading":
-            return get_host_from_host_port(master)
-    else:
-        raise LogrepError("Failed to find leading primary master")
+
+    for k, v in rsp_map.iteritems():
+        rsp_map[k] = v.get_result()
+
+    return rsp_map
 
 
-def get_host_from_host_port(host_port):
-    host, _port = host_port.split(":")
-    return host
+def get_controller_agent_for_operation(client, operation_id):
+    operation_attrs = client.get_operation(operation_id)
+    address = operation_attrs.get("controller_agent_address", None)
+    if address is None:
+        raise LogrepError("Cannot find controller_agent in attributes of operation {}".format(operation_id))
+    return address
 
 
-def resolve_server_for_job(client, operation_id, job_id, application):
-    supported_applications = (
-        "Supported applications:\n"
-        "  node\n"
-    )
-    if application is None:
-        raise LogrepError(
-            "You must specify application to autoresolve server for job-id.\n" + supported_applications
+def get_node_for_job_id(client, operation_id, job_id):
+    job_info = client.get_job(operation_id, job_id)
+    address = job_info["address"]
+    return address
+
+
+ParsedAddress = collections.namedtuple("ParsedAddress", ["host", "port"])
+
+
+def parse_address(address):
+    if not isinstance(address, str):
+        raise TypeError
+    if ":" in address:
+        return ParsedAddress(*address.rsplit(":", 1))
+    return ParsedAddress(address, None)
+
+
+#
+# Subcommands
+#
+
+def subcommand_list(instance_list, args):
+    for instance in sorted(instance_list):
+        attributes = " ".join(instance.attributes)
+        print "{address}\t{application_name}\t{attributes}".format(
+            address=instance.address,
+            application_name=instance.application,
+            attributes=attributes
         )
-    elif application == "node":
-        job_info = client.get_job(operation_id, job_id)
-        json.dumps(job_info, indent=2)
-        host, _port = job_info["address"].split(":")
-        return host
-    else:
-        raise LogrepError("Unsupported application: {}\n".format(application) + supported_applications)
 
 
-def main():
-    Task.try_switch_to_server_task_mode()
+def verify_instance_is_single(instance_list):
+    if len(instance_list) > 1:
+        instance_list_str = item_per_line((instance.address for instance in instance_list[:10]), indent=2)
+        if len(instance_list) > 10:
+            instance_list_str += "  ...\n"
+        raise LogrepError(
+            "You must select exactly one instance. Currently you selected:\n"
+            + instance_list_str
+        )
+    if len(instance_list) == 0:
+        raise LogrepError(
+            "You must select exactly one instance. Currently selected no instance."
+        )
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, epilog=EPILOG)
-    parser.add_argument("-s", "--server", help="server to use", required=True)
-    parser.add_argument(
-        "-t", "--time", "--start-time",
-        help="start of time interval to grep (check TIME FORMATS below)",
-        required=True
-    )
-    parser.add_argument(
-        "-e", "--end-time",
-        help="end of time interval to grep, equals start interval by default (check TIME FORMATS below)"
-    )
-    parser.add_argument(
-        "-a", "--application",
-        help="application which logs we want to grep (can be omitted if there is only one application on the server)"
-    )
 
-    parser.add_argument("pattern", help="pattern we are searching for")
-    args = parser.parse_args()
-
-    dt = datetime.timedelta(seconds=10)
+def args_get_time_interval(args):
     start_time = parse_time(args.time)
-
     if args.end_time is None:
         end_time = start_time
     else:
         end_time = parse_time(args.end_time)
 
+    dt = datetime.timedelta(seconds=10)
     start_time -= dt
     end_time += dt
+    return start_time, end_time
 
-    server = resolve_server(args.server, args.application)
 
-    task = Task(
+def subcommand_grep(instance_list, args):
+    start_time, end_time = args_get_time_interval(args)
+
+    verify_instance_is_single(instance_list)
+    instance, = instance_list
+
+    host = parse_address(instance.address).host
+    task = GrepTask(
         pattern=args.pattern,
-        server=server,
+        host=host,
         start_time=start_time,
         end_time=end_time,
-        application=args.application
+        application=instance.application
     )
 
     task.remote_run()
+
+
+def subcommand_pgrep(instance_list, args):
+    if not instance_list:
+        LogrepError("No no instance is selected")
+
+    if args.instance_limit and len(instance_list) > args.instance_limit:
+        raise LogrepError(
+            "Too many instances is selected.\n"
+            "Currently selected: {}\n"
+            "Current limit: {}\n"
+            .format(len(instance_list), args.instance_limit)
+        )
+
+    start_time, end_time = args_get_time_interval(args)
+
+    queue = Queue.Queue()
+
+    process_list = []
+    for instance in instance_list:
+        host = parse_address(instance.address).host
+        task = GrepTask(
+            pattern=args.pattern,
+            host=host,
+            start_time=start_time,
+            end_time=end_time,
+            application=instance.application,
+        )
+
+        process_list.append(task.async_remote_run(queue))
+
+    completed_list = []
+    while len(completed_list) != len(instance_list):
+        item = queue.get()
+        if isinstance(item, AsyncTaskCompleted):
+            completed_list.append(item)
+        elif isinstance(item, AsyncTaskOutput):
+            print >>item.file, item.line
+        else:
+            raise AssertionError("Unknown item in queue: {}".format(item))
+
+    completed_list.sort()
+    ok = 0
+    err_list = []
+    for item in completed_list:
+        if item.return_code == 0:
+            ok += 1
+            logging.info("Grep task {description} completed successfully".format(description=item.instance_description))
+        else:
+            err_list.append(
+                "Grep task {description} exitted with error code: {code}\n"
+                "Stderr tail:\n"
+                "{stderr_tail}\n"
+                .format(
+                    code=item.return_code,
+                    description=item.instance_description,
+                    stderr_tail=item_per_line(item.stderr_tail, indent=2)
+                )
+            )
+    if err_list:
+        raise LogrepError(
+            "".join(err_list)
+        )
+    else:
+        logging.info("Successfully grepped {} instances".format(len(completed_list)))
+
+
+def subcommand_ssh(instance_list, _args):
+    verify_instance_is_single(instance_list)
+    instance, = instance_list
+    host = parse_address(instance.address).host
+    logging.info("ssh to {}".format(host))
+    os.execlp("ssh", "ssh", host)
+
+
+EPILOG = """\
+INSTANCE SELECTORS
+ Instance selector must start with /<cluster>/<service>. Check RECOGNIZED SERVICES for the list of accepted services.
+ 
+ /@<attr-filter>
+ Select instances that have attribute that match <attr-filter> (substring matching is used).
+ 
+ /<guid>
+ Select instances responsible for object. Each service treats object differently. If service doesn't know about object
+ no filter is applied.
+ 
+   /<operation-id> scheduler
+   Select active scheduler
+   
+   /<operation-id> controller-agent
+   Select controller agent responsible for operation
+   
+   /<operation-id>/<job-id> node
+   Select node responsible for this job id.
+
+RECOGNIZED SERVICES
+{list_of_known_services}
+
+TIME FORMATS
+ logrep supports multiple ways of specifying time
+    now - use current moment (current log file will be grepped)
+    HH:MM:SS (e.g. 12:23:00) - today's date is used
+    YYYY-MM-DD HH:MM:SS' (e.g. 2018-11-09 05:10:43)
+    DD MMM YYYY HH:MM:SS (e.g. 16 Nov 2018 13:56:14)
+""".format(
+    list_of_known_services=item_per_line((info.name for info in SERVICE_TABLE), indent=2)
+)
+
+
+def main():
+    GrepTask.try_switch_to_server_task_mode()
+
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, epilog=EPILOG)
+    parser.set_defaults(subcommand=subcommand_list)
+    parser.add_argument("instance", nargs="+", help="instances to work with")
+
+    action_group = parser.add_mutually_exclusive_group()
+    action_group.add_argument(
+        "--ssh",
+        help="ssh to selected instance",
+        action="store_const",
+        dest="subcommand",
+        const=subcommand_ssh
+    )
+
+    class GrepAction(argparse.Action):
+        def __init__(self, option_strings, dest, subcommand=None, **kwargs):
+            argparse.Action.__init__(self, option_strings, dest, **kwargs)
+            self.subcommand = subcommand
+
+        def __call__(self, parser, namespace, values, option_string):
+            setattr(namespace, "pattern", values)
+            setattr(namespace, "subcommand", self.subcommand)
+
+    grep_group = action_group.add_argument_group()
+    grep_group.add_argument(
+        "--grep",
+        help="grep logs on selected instance",
+        action=GrepAction,
+        subcommand=subcommand_grep,
+    )
+
+    pgrep_group = action_group.add_argument_group()
+    pgrep_group.add_argument(
+        "--pgrep",
+        help="grep logs on several selected instances in parallel",
+        action=GrepAction,
+        subcommand=subcommand_pgrep,
+    )
+
+    parser.add_argument(
+        "-t", "--time", "--start-time",
+        default="now",
+        help="start of time interval to grep (check TIME FORMATS below)"
+    )
+    parser.add_argument(
+        "-e", "--end-time",
+        help="end of time interval to grep, equals start interval by default (check TIME FORMATS below)"
+    )
+
+    pgrep_group.add_argument(
+        "--instance-limit",
+        type=int,
+        default=10,
+        help="limit for the number of selected instances"
+    )
+
+    args = parser.parse_args()
+
+    instance_list = []
+    for instance_description in args.instance:
+        instance_list += resolve_instance(instance_description)
+
+    args.subcommand(instance_list, args)
 
 
 if __name__ == "__main__":
