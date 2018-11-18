@@ -16,6 +16,9 @@ PYTHON_PACKAGE_LIST = [
     "six",
     "tornado",
     "distro",
+    "urllib3",
+    "chardet",
+    "certifi",
 ]
 
 
