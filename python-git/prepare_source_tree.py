@@ -18,7 +18,7 @@ PYTHON_PACKAGE_LIST = [
     "distro",
     "urllib3",
     "chardet",
-    "certifi",
+    "idna",
 ]
 
 
