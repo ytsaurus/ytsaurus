@@ -2788,7 +2788,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (!AvailableExecNodesObserved_ && !foundMatching) {
-        OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv in trees %v",
+        OnOperationFailed(TError(
+            EErrorCode::NoOnlineNodeToScheduleJob,
+            "No online nodes match operation scheduling tag filter %Qv in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
             GetKeys(PoolTreeToSchedulingTagFilter_)));
         return;
@@ -3174,7 +3176,9 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
         const auto& neededResources = task->GetMinNeededResources();
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
             OnOperationFailed(
-                TError("No online node can satisfy the resource demand")
+                TError(
+                    EErrorCode::NoOnlineNodeToScheduleJob,
+                    "No online node can satisfy the resource demand")
                     << TErrorAttribute("task_name", task->GetTitle())
                     << TErrorAttribute("needed_resources", neededResources.ToJobResources())
                     << TErrorAttribute("max_available_resources", *CachedMaxAvailableExecNodeResources_));

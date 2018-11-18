@@ -650,7 +650,9 @@ void TTask::DoCheckResourceDemandSanity(
     if (!Dominates(*TaskHost_->CachedMaxAvailableExecNodeResources(), neededResources.ToJobResources())) {
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
-            TError("No online node can satisfy the resource demand")
+            TError(
+                EErrorCode::NoOnlineNodeToScheduleJob,
+                "No online node can satisfy the resource demand")
                 << TErrorAttribute("task_name", GetTitle())
                 << TErrorAttribute("needed_resources", neededResources.ToJobResources()));
     }
