@@ -13,6 +13,7 @@ foreach(package_name "requests" "argcomplete" "certifi" "tornado"
                      "urllib3" "chardet" "idna")
   file(
     REMOVE_RECURSE
+    ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/${package_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/${package_name}*
     ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/${package_name}*.py
   )
