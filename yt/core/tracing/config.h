@@ -19,6 +19,9 @@ public:
     //! If |Null| then push is disabled.
     TNullable<TString> Address;
 
+    //! Timeout for push requests.
+    TDuration RpcTimeout;
+
     //! Maximum number of trace events per batch.
     int MaxBatchSize;
 
@@ -34,6 +37,8 @@ public:
     TTraceManagerConfig()
     {
         RegisterParameter("address", Address)
+            .Default();
+        RegisterParameter("rpc_timeout", RpcTimeout)
             .Default();
         RegisterParameter("max_batch_size", MaxBatchSize)
             .Default(100);

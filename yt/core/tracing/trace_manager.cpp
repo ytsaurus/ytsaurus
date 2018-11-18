@@ -88,8 +88,9 @@ public:
         const TString& spanName,
         const TString& annotationName)
     {
-        if (!IsEnqueueEnabled(context))
+        if (!IsEnqueueEnabled(context)) {
             return;
+        }
 
         NProto::TTraceEvent event;
         event.set_trace_id(context.GetTraceId());
@@ -107,8 +108,9 @@ public:
         const TString& annotationKey,
         const TString& annotationValue)
     {
-        if (!IsEnqueueEnabled(context))
+        if (!IsEnqueueEnabled(context)) {
             return;
+        }
 
         NProto::TTraceEvent event;
         event.set_trace_id(context.GetTraceId());
@@ -177,10 +179,10 @@ private:
                     EventCount_->CancelWait();
                 }
 
-                CurrentBatch_.push_back(event);
+                CurrentBatch_.push_back(std::move(event));
                 ++eventsProcessed;
 
-                if (IsPushEnabled() && CurrentBatch_.size() >= Config_->MaxBatchSize) {
+                if (CurrentBatch_.size() >= Config_->MaxBatchSize) {
                     PushBatch();
                 }
             }))
@@ -204,22 +206,25 @@ private:
 
     void PushBatch()
     {
+        if (CurrentBatch_.empty()) {
+            return;
+        }
+
         if (!IsPushEnabled()) {
             CurrentBatch_.clear();
             return;
         }
 
-        if (CurrentBatch_.empty())
-            return;
-
         TTraceServiceProxy proxy(Channel_);
         auto req = proxy.SendBatch();
+        req->SetTimeout(Config_->RpcTimeout);
         *req->mutable_endpoint() = Endpoint_;
         for (const auto& event : CurrentBatch_) {
             *req->add_events() = event;
         }
 
-        LOG_DEBUG("Pushed %v events to proxy", CurrentBatch_.size());
+        LOG_DEBUG("Events sent proxy (Count: %v)",
+            CurrentBatch_.size());
 
         req->Invoke();
         CurrentBatch_.clear();
@@ -253,8 +258,11 @@ private:
                 event.parent_span_id());
         }
 
+        // XXX(babenko): queuing is temporarily disabled
+#if 0
         EventQueue_.Enqueue(event);
         EventCount_->NotifyOne();
+#endif
     }
 
     NProto::TEndpoint GetLocalEndpoint()
