@@ -469,7 +469,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
     if (!IsTrivial(inputSlice->LowerLimit())) {
         // NB(psushin): if lower limit key is less than min chunk key, we can eliminate it from job spec.
         // Moreover, it is important for GetJobInputPaths handle to work properly.
-        bool pruneKeyLimit = inputSlice->LowerLimit().Key
+        bool pruneKeyLimit = dataSourceType == EDataSourceType::UnversionedTable
+            && inputSlice->LowerLimit().Key
             && inputSlice->GetInputChunk()->BoundaryKeys()
             && inputSlice->LowerLimit().Key <= inputSlice->GetInputChunk()->BoundaryKeys()->MinKey;
 
@@ -485,7 +486,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
     if (!IsTrivial(inputSlice->UpperLimit())) {
         // NB(psushin): if upper limit key is greater than max chunk key, we can eliminate it from job spec.
         // Moreover, it is important for GetJobInputPaths handle to work properly.
-        bool pruneKeyLimit = inputSlice->UpperLimit().Key
+        bool pruneKeyLimit = dataSourceType == EDataSourceType::UnversionedTable
+            && inputSlice->UpperLimit().Key
             && inputSlice->GetInputChunk()->BoundaryKeys()
             && inputSlice->UpperLimit().Key > inputSlice->GetInputChunk()->BoundaryKeys()->MaxKey;
 
