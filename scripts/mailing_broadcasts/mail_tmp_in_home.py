@@ -47,14 +47,14 @@ mail_body_template = u"""
 
 def make_stat(output_path, cluster):
 
-    def get_disk(path):
+    def get_disk_and_chunks(path):
         try:
             attrs = yt.get(path + '/@')
         except:
-            return 0
+            return 0, 0
         if attrs["type"] != "map_node":
-            return attrs["resource_usage"]["disk_space"]
-        return 0
+            return attrs["resource_usage"]["disk_space"], attrs["resource_usage"]["chunk_count"]
+        return 0, 0
 
     yt.config["proxy"]["url"] = cluster
     rx = re.compile("//home/[^/]+")
@@ -72,15 +72,19 @@ def make_stat(output_path, cluster):
 
             if prefix in result:
                 result[prefix]["paths"].append(folder)
-                result[prefix]["disk_space"] += get_disk(folder)
+                pair = get_disk_and_chunks(folder)
+                result[prefix]["disk_space"] += pair[0]
+                result[prefix]["chunk_count"] += pair[1]
                 continue
 
             account = yt.get(prefix + "/@account")
             responsibles = yt.get("//sys/accounts/" + account + "/@responsibles") if yt.exists("//sys/accounts/" + account + "/@responsibles") else []
+            pair = get_disk_and_chunks(folder)
             result[prefix] = {
                 "account": account,
                 "paths": [folder],
-                "disk_space": get_disk(folder),
+                "disk_space": pair[0],
+                "chunk_count": pair[1],
                 "responsibles": responsibles
             }
         except:
