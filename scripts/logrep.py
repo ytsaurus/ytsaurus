@@ -4,12 +4,15 @@
 import argparse
 import collections
 import datetime
+import errno
 import gzip
+import hashlib
 import json
 import logging
 import os
 import Queue
 import re
+import signal
 import socket
 import subprocess
 import sys
@@ -20,9 +23,9 @@ import threading
 
 FQDN = socket.getfqdn()
 
-OPERATION_GUID_TYPE = 1000
-JOB_GUID_TYPE = 900
 CHUNK_GUID_TYPE = 100
+JOB_GUID_TYPE = 900
+OPERATION_GUID_TYPE = 1000
 
 GUID_RE = re.compile("^[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+-[a-fA-F0-9]+$")
 LOG_FILE_NAME_RE = re.compile(r"^(?P<app_and_host>[^.]+)[.]debug[.]log([.](?P<log_index>\d+))?([.]gz)?$")
@@ -49,15 +52,22 @@ SERVICE_TABLE = [
 ]
 SERVICE_MAP = {info.name: info for info in SERVICE_TABLE}
 
+CONTAINER_RE_TEMPLATE = r"^ISS-AGENT.*_yt_.*_{service}_.*/iss_hook_start$"
 
-ApplicationInfo = collections.namedtuple("ApplicationInfo", ["name", "log_dir_name", "log_prefix"])
+ApplicationInfo = collections.namedtuple("ApplicationInfo", ["name", "log_dir_name", "log_prefix", "container_re"])
 APPLICATION_TABLE = [
-    ApplicationInfo("ytserver-controller-agent", "controller-agent", "controller-agent"),
-    ApplicationInfo("ytserver-http-proxy", "proxy", "http-proxy"),
-    ApplicationInfo("ytserver-master", "master", "master"),
-    ApplicationInfo("ytserver-node", "node", "node"),
-    ApplicationInfo("ytserver-proxy", "rpc-proxy", "proxy"),
-    ApplicationInfo("ytserver-scheduler", "scheduler", "scheduler"),
+    ApplicationInfo("ytserver-controller-agent", "controller-agent", "controller-agent",
+                    CONTAINER_RE_TEMPLATE.format(service="controller_agent")),
+    ApplicationInfo("ytserver-http-proxy", "proxy", "http-proxy",
+                    CONTAINER_RE_TEMPLATE.format(service="proxies")),
+    ApplicationInfo("ytserver-master", "master", "master",
+                    CONTAINER_RE_TEMPLATE.format(service="masters")),
+    ApplicationInfo("ytserver-node", "node", "node",
+                    CONTAINER_RE_TEMPLATE.format(service="nodes")),
+    ApplicationInfo("ytserver-proxy", "rpc-proxy", "proxy",
+                    CONTAINER_RE_TEMPLATE.format(service="rpc_proxies")),
+    ApplicationInfo("ytserver-scheduler", "scheduler", "scheduler",
+                    CONTAINER_RE_TEMPLATE.format(service="schedulers")),
 ]
 APPLICATION_MAP = {info.name: info for info in APPLICATION_TABLE}
 
@@ -65,6 +75,10 @@ assert all(service.application_name in APPLICATION_MAP for service in SERVICE_TA
 
 LOG_PREFIX_MAP = {info.log_prefix: info for info in APPLICATION_TABLE}
 LOG_DIR_NAME_MAP = {info.log_dir_name : info for info in APPLICATION_TABLE}
+
+SSH_OPTS = [
+    "-o", "StrictHostKeyChecking=no",
+]
 
 
 def list_known_services():
@@ -116,7 +130,7 @@ def shell_quote(s):
     return "'" + s.replace("'", "'\\''") + "'"
 
 
-def item_per_line(items, indent=0):
+def indented_lines(items, indent=0):
     indent_str = " " * indent
     return "".join(indent_str + item + "\n" for item in items)
 
@@ -139,7 +153,70 @@ AsyncTaskOutput = collections.namedtuple("AsyncTaskOutput", ["file", "line"])
 AsyncTaskCompleted = collections.namedtuple("AsyncTaskCompleted", ["instance_description", "return_code", "stderr_tail"])
 
 
-class GrepTask(object):
+def reset_signals():
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+
+class RemoteTask(object):
+    def save(self):
+        raise NotImplementedError("This method must be implemented in subclass")
+
+    @staticmethod
+    def try_switch_to_remote_task_mode():
+        remote_task_class = os.environ.get("LOGREP_REMOTE_TASK_CLASS", None)
+        if remote_task_class is not None:
+            args = json.loads(os.environ["LOGREP_REMOTE_TASK_ARGS"])
+            task = globals()[remote_task_class](**args)
+            try:
+                task.run()
+            except LogrepError as e:
+                print >>sys.stderr, str(e)
+                exit(1)
+            exit(0)
+
+    def popen_on_remote_machine(self, host, **kwargs):
+        logging.info("connecting to {}".format(host))
+        with open(__file__) as source_file:
+            return subprocess.Popen(
+                ["ssh", host] + SSH_OPTS + [
+                    "LOGREP_REMOTE_TASK_CLASS={} LOGREP_REMOTE_TASK_ARGS={} stdbuf -oL -eL python -".format(
+                        self.__class__.__name__,
+                        shell_quote(self.save())
+                    )
+                ],
+                stdin=source_file,
+                preexec_fn=reset_signals,
+                **kwargs
+            )
+
+    def exec_on_remote_machine(self, host, allocate_terminal=False):
+        logging.info("copying script to {}".format(host))
+        with open(__file__, "r") as source_file:
+            hash_value = hashlib.md5(source_file.read()).hexdigest()
+        remote_file_name = "/tmp/logrep_{}.py".format(hash_value)
+        subprocess.check_call(
+            ["scp"] + SSH_OPTS + [__file__, "{}:{}".format(host, remote_file_name)]
+        )
+        logging.info("ssh to {}".format(host))
+        cmd = ["ssh", self.host] + SSH_OPTS
+        if allocate_terminal:
+            cmd += ["-t"]
+        cmd += [
+            "LOGREP_REMOTE_TASK_CLASS={} LOGREP_REMOTE_TASK_ARGS={} python {}".format(
+                self.__class__.__name__,
+                shell_quote(self.save()),
+                remote_file_name
+            )
+        ]
+        reset_signals()
+        os.execlp(
+            "ssh",
+            *cmd
+        )
+
+
+class GrepTask(RemoteTask):
     @staticmethod
     def _datetime_to_str(arg):
         if isinstance(arg, datetime.datetime):
@@ -156,53 +233,11 @@ class GrepTask(object):
         self.application = application
         self.host = host
 
-    @staticmethod
-    def try_switch_to_server_task_mode():
-        try:
-            task_str = os.environ.get("LOGR_TASK", None)
-            if task_str is None:
-                return None
-            task = GrepTask._load(task_str)
-            task._local_run_impl()
-        except LogrepError as e:
-            print >>sys.stderr, str(e)
-            exit(1)
-        exit(0)
-
     def remote_run(self):
-        with open(__file__, "r") as source_file:
-            logging.info("connecting to {}".format(self.host))
-            return_code = subprocess.call(
-                [
-                    "ssh",
-                    "-o", "StrictHostKeyChecking=no",
-                    self.host,
-                    "LOGR_TASK={} python -".format(
-                        shell_quote(self._save())
-                    )
-                ],
-                stdin=source_file
-            )
-            if return_code != 0:
-                raise LogrepError("Remote process exited with nonzero exit code.")
+        self.exec_on_remote_machine(self.host)
 
     def async_remote_run(self, queue):
-        with open(__file__, "r") as source_file:
-            logging.info("connecting to {}".format(self.host))
-            p = subprocess.Popen(
-                [
-                    "ssh",
-                    "-o", "StrictHostKeyChecking=no",
-                    self.host,
-                    "LOGR_TASK={} python -".format(
-                        shell_quote(self._save())
-                    )
-                ],
-                stdin=source_file,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
+        p = self.popen_on_remote_machine(self.host, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         stderr_tail = collections.deque(maxlen=5)
 
         def stderr_reader():
@@ -236,7 +271,7 @@ class GrepTask(object):
         watch_thread.setDaemon(True)
         watch_thread.start()
 
-    def _local_run_impl(self):
+    def run(self):
         chdir_to_application_logs(self.application)
         file_to_grep_list = find_files_to_grep(self.application, self.start_time, self.end_time)
         if not file_to_grep_list:
@@ -248,9 +283,14 @@ class GrepTask(object):
         cmd = ["zfgrep", self.pattern] + file_to_grep_list
         logging.info("running {}".format(" ".join(map(shell_quote, cmd))))
 
-        subprocess.call(["stdbuf", "-oL"] + cmd)
+        cmd = ["stdbuf", "-oL", "-eL"] + cmd
 
-    def _save(self):
+        code = subprocess.call(cmd, preexec_fn=reset_signals())
+        if code <= 1:
+            exit(0)
+        exit(code)
+
+    def save(self):
         return json.dumps(
             {
                 "pattern": self.pattern,
@@ -261,9 +301,57 @@ class GrepTask(object):
             }
         )
 
-    @classmethod
-    def _load(cls, s):
-        return GrepTask(**json.loads(s))
+
+class SshTask(RemoteTask):
+    def __init__(self, host, application):
+        self.host = host
+        self.application = application
+
+    def save(self):
+        return json.dumps(
+            {
+                "application": self.application,
+                "host": self.host,
+            }
+        )
+
+    def remote_run(self):
+        self.exec_on_remote_machine(self.host, allocate_terminal=True)
+
+    def run(self):
+        def exec_default_shell():
+            logging.info("Launching default login shell")
+            os.execlp("bash", "bash", "-l")
+        application_info = APPLICATION_MAP[self.application]
+        if application_info.container_re is None:
+            exec_default_shell()
+        container_re = re.compile(application_info.container_re)
+
+        try:
+            active_containers = subprocess.check_output(["portoctl", "list", "-r"])
+        except OSError, subprocess.CalledProcessError:
+            exec_default_shell()
+
+        matched = []
+        for line in active_containers.strip("\n").split("\n"):
+            container_id, _ = line.split(None, 1)
+            if container_re.match(container_id):
+                matched.append((container_id, line))
+        if len(matched) == 0:
+            logging.warning("Cannot find {application} container".format(application=self.application))
+            sys.stdout.write(active_containers)
+            sys.stdout.flush()
+            exec_default_shell()
+
+        if len(matched) > 1:
+            logging.warning("Found multiple containers:")
+            for _, line in matched:
+                print >>sys.stderr, line
+            exec_default_shell()
+
+        (container_id, _), = matched
+        logging.info("Launching: sudo portoctcl shell {}".format(container_id))
+        os.execlp("sudo", "sudo", "portoctl", "shell", container_id)
 
 
 #
@@ -300,7 +388,7 @@ def chdir_to_application_logs(application):
             "Service: {application} is not found on server. Available applications on this server:\n"
             "{available_applications}\n".format(
                 application=application,
-                available_applications=item_per_line(sorted(log_dirs), indent=2)
+                available_applications=indented_lines(sorted(log_dirs), indent=2)
             )
         )
     os.chdir(log_dirs[application])
@@ -436,7 +524,7 @@ def resolve_service(client, service_name, selector_list):
             "Unknown service: {service}\n"
             "List of known services:\n"
             "{known_services}\n"
-            .format(service=service_name, known_services=item_per_line(list_known_services(), indent=2))
+            .format(service=service_name, known_services=indented_lines(list_known_services(), indent=2))
         )
     service_info = SERVICE_MAP[service_name]
     instance_list = globals()[service_info.list_func_name](client)
@@ -700,7 +788,7 @@ def subcommand_list(instance_list, args):
 
 def verify_instance_is_single(instance_list):
     if len(instance_list) > 1:
-        instance_list_str = item_per_line((instance.address for instance in instance_list[:10]), indent=2)
+        instance_list_str = indented_lines((instance.address for instance in instance_list[:10]), indent=2)
         if len(instance_list) > 10:
             instance_list_str += "  ...\n"
         raise LogrepError(
@@ -798,7 +886,7 @@ def subcommand_pgrep(instance_list, args):
                 .format(
                     code=item.return_code,
                     description=item.instance_description,
-                    stderr_tail=item_per_line(item.stderr_tail, indent=2)
+                    stderr_tail=indented_lines(item.stderr_tail, indent=2)
                 )
             )
     if err_list:
@@ -813,8 +901,12 @@ def subcommand_ssh(instance_list, _args):
     verify_instance_is_single(instance_list)
     instance, = instance_list
     host = parse_address(instance.address).host
+    for fd, name in enumerate(["stdin", "stdout", "stderr"]):
+        if not os.isatty(fd):
+            raise LogrepError("Cannot launch ssh session, {} is not a tty.".format(name))
+
     logging.info("ssh to {}".format(host))
-    os.execlp("ssh", "ssh", host)
+    SshTask(host, instance.application).remote_run()
 
 
 EPILOG = """\
@@ -847,12 +939,12 @@ TIME FORMATS
     YYYY-MM-DD HH:MM:SS' (e.g. 2018-11-09 05:10:43)
     DD MMM YYYY HH:MM:SS (e.g. 16 Nov 2018 13:56:14)
 """.format(
-    list_of_known_services=item_per_line((info.name for info in SERVICE_TABLE), indent=2)
+    list_of_known_services=indented_lines((info.name for info in SERVICE_TABLE), indent=2)
 )
 
 
 def main():
-    GrepTask.try_switch_to_server_task_mode()
+    RemoteTask.try_switch_to_remote_task_mode()
 
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, epilog=EPILOG)
     parser.set_defaults(subcommand=subcommand_list)
@@ -927,4 +1019,7 @@ if __name__ == "__main__":
             if e.epilog:
                 print >>sys.stderr, e.epilog
             exit(1)
+        except IOError as e:
+            if e.errno != errno.EPIPE:
+                raise
     run()
