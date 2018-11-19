@@ -1346,7 +1346,7 @@ private:
 
     NApi::ITransactionPtr GetSyncReplicaTransaction(
         const TTableReplicaInfoPtr& replicaInfo,
-        bool* clusterDirectorySynched)
+        bool* clusterDirectorySynced)
     {
         auto it = ClusterNameToSyncReplicaTransaction_.find(replicaInfo->ClusterName);
         if (it != ClusterNameToSyncReplicaTransaction_.end()) {
@@ -1356,11 +1356,11 @@ private:
         const auto& clusterDirectory = Client_->GetNativeConnection()->GetClusterDirectory();
         auto connection = clusterDirectory->FindConnection(replicaInfo->ClusterName);
         if (!connection) {
-            if (!*clusterDirectorySynched) {
+            if (!*clusterDirectorySynced) {
                 LOG_DEBUG("Replica cluster is not known; synchronizing cluster directory");
                 WaitFor(Client_->GetNativeConnection()->GetClusterDirectorySynchronizer()->Sync())
                     .ThrowOnError();
-                *clusterDirectorySynched = true;
+                *clusterDirectorySynced = true;
             }
             connection = clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
         }
@@ -1438,7 +1438,7 @@ private:
 
     void PrepareRequests()
     {
-        bool clusterDirectorySynched = false;
+        bool clusterDirectorySynced = false;
 
         // Tables with local sync replicas pose a problem since modifications in such tables
         // induce more modifications that need to be taken care of.
@@ -1455,7 +1455,7 @@ private:
             std::swap(PendingSessions_, pendingSessions);
 
             for (const auto& tableSession : pendingSessions) {
-                tableSession->RegisterSyncReplicas(&clusterDirectorySynched);
+                tableSession->RegisterSyncReplicas(&clusterDirectorySynced);
             }
 
             for (auto* request : pendingRequests) {
