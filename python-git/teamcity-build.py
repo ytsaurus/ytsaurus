@@ -122,6 +122,12 @@ def prepare(options):
         rmtree(options.working_directory)
     mkdirp(options.working_directory)
 
+    if os.path.exists(get_ya_cache_dir(options)) and parse_yes_no_bool(os.environ.get("BUILD_CLEAN_YA_CACHE_DIR", "YES")):
+        teamcity_message("Cleaning ya cache...")
+        # We temorary use sudo rmtree, since due to a bug we have root owned files in ya cache dir on some machines.
+        sudo_rmtree(get_ya_cache_dir(options))
+    mkdirp(get_ya_cache_dir(options))
+
     if os.path.exists(options.sandbox_directory):
         sudo_rmtree(options.sandbox_directory)
     mkdirp(options.sandbox_directory)
