@@ -23,7 +23,7 @@ PYTHON_PACKAGE_LIST = [
 
 
 def rm_rf(path):
-    "remove recursive"
+    """remove recursive"""
     if os.path.isdir(path):
         shutil.rmtree(path)
     else:
@@ -31,7 +31,7 @@ def rm_rf(path):
 
 
 def cp_r(path, dest_dir):
-    "copy recursive"
+    """copy recursive"""
     assert os.path.isdir(dest_dir)
     if os.path.isdir(path):
         shutil.copytree(path, os.path.join(dest_dir, os.path.basename(path)))
@@ -83,10 +83,7 @@ def prepare_python_source_tree(python_root):
 
 def main():
     parser = argparse.ArgumentParser()
-
     parser.add_argument("--python-root", default=os.path.dirname(os.path.abspath(__file__)))
-    parser.add_argument("--fake-dependency")
-
     args = parser.parse_args()
 
     prepare_python_source_tree(python_root=args.python_root)
