@@ -626,7 +626,6 @@ private:
         TRetryPolicyIgnoringLockConflicts retryPolicy(LockConflictRetryCount);
         auto maybePath = GetFileFromCache(
             Auth_,
-            Options_.FileStorageTransactionId_,
             md5Signature,
             GetCachePath(),
             TGetFileFromCacheOptions(),
@@ -637,13 +636,13 @@ private:
 
         TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
 
-        Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, NT_FILE,
+        Create(Auth_, TTransactionId(), uniquePath, NT_FILE,
             TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true));
 
         {
-            TFileWriter writer(uniquePath, Auth_, Options_.FileStorageTransactionId_,
+            TFileWriter writer(uniquePath, Auth_, TTransactionId(),
                 TFileWriterOptions().ComputeMD5(true));
             itemToUpload.CreateInputStream()->ReadAll(writer);
             writer.Finish();
@@ -651,14 +650,13 @@ private:
 
         auto cachePath = PutFileToCache(
             Auth_,
-            Options_.FileStorageTransactionId_,
             uniquePath,
             md5Signature,
             GetCachePath(),
             TPutFileToCacheOptions(),
             &retryPolicy);
 
-        Remove(Auth_, Options_.FileStorageTransactionId_, uniquePath, TRemoveOptions().Force(true));
+        Remove(Auth_, TTransactionId(), uniquePath, TRemoveOptions().Force(true));
 
         return cachePath;
     }

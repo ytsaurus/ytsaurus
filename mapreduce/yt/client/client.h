@@ -390,6 +390,17 @@ public:
         const TJobId& jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) override;
 
+    TMaybe<TYPath> GetFileFromCache(
+        const TString& md5Signature,
+        const TYPath& cachePath,
+        const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions()) override;
+
+    TYPath PutFileToCache(
+        const TYPath& filePath,
+        const TString& md5Signature,
+        const TYPath& cachePath,
+        const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) override;
+
     // Helper methods
     TYtPoller& GetYtPoller();
 

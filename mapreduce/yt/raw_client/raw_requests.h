@@ -159,7 +159,6 @@ TIntrusivePtr<IFileReader> GetJobStderr(
 
 TMaybe<TYPath> GetFileFromCache(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TString& md5Signature,
     const TYPath& cachePath,
     const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions(),
@@ -167,7 +166,6 @@ TMaybe<TYPath> GetFileFromCache(
 
 TYPath PutFileToCache(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,

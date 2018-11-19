@@ -102,5 +102,4 @@ Y_UNIT_TEST_SUITE(FileIo)
 
         UNIT_ASSERT_VALUES_EQUAL(result, fileData.SubStr(offset, length));
     }
-
 }

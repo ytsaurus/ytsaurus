@@ -534,10 +534,6 @@ struct TAlterTableReplicaOptions
     FLUENT_FIELD_OPTION(ETableReplicaMode, Mode);
 };
 
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TGetFileFromCacheOptions
 {
     using TSelf = TGetFileFromCacheOptions;
@@ -548,7 +544,4 @@ struct TPutFileToCacheOptions
     using TSelf = TPutFileToCacheOptions;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
 } // namespace NYT

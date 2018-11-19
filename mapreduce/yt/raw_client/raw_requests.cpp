@@ -562,14 +562,12 @@ IFileReaderPtr GetJobStderr(
 
 TMaybe<TYPath> GetFileFromCache(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TString& md5Signature,
     const TYPath& cachePath,
     const TGetFileFromCacheOptions& /* options */,
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("GET", "get_file_from_cache");
-    header.AddTransactionId(transactionId);
     header.AddParameter("md5", md5Signature);
     header.AddParameter("cache_path", cachePath);
 
@@ -580,7 +578,6 @@ TMaybe<TYPath> GetFileFromCache(
 
 TYPath PutFileToCache(
     const TAuth& auth,
-    const TTransactionId& transactionId,
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,
@@ -588,7 +585,6 @@ TYPath PutFileToCache(
     IRetryPolicy* retryPolicy)
 {
     THttpHeader header("POST", "put_file_to_cache");
-    header.AddTransactionId(transactionId);
     header.AddPath(filePath);
     header.AddParameter("md5", md5Signature);
     header.AddParameter("cache_path", cachePath);
