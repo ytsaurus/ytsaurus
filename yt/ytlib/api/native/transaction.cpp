@@ -2,23 +2,26 @@
 #include "connection.h"
 #include "config.h"
 
-#include <yt/ytlib/api/native/tablet_helpers.h>
-
 #include <yt/client/transaction_client/timestamp_provider.h>
-#include <yt/ytlib/transaction_client/transaction_manager.h>
-#include <yt/ytlib/transaction_client/action.h>
-#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/tablet_client/helpers.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
-#include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
+
+#include <yt/ytlib/api/native/tablet_helpers.h>
+
+#include <yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/transaction_client/action.h>
+#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
+
+#include <yt/ytlib/tablet_client/tablet_service_proxy.h>
+
 #include <yt/ytlib/table_client/row_merger.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
@@ -69,7 +72,6 @@ public:
         NLogging::TLogger logger)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , CommitInvoker_(CreateSerializedInvoker(Client_->GetConnection()->GetInvoker()))
         , Logger(logger.AddTag("TransactionId: %v, ConnectionCellTag: %v",
             GetId(),
             Client_->GetConnection()->GetCellTag()))
@@ -134,7 +136,7 @@ public:
 
         State_ = ETransactionState::Commit;
         return BIND(&TTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(CommitInvoker_)
+            .AsyncVia(GetThreadPoolInvoker())
             .Run(options);
     }
 
@@ -177,7 +179,7 @@ public:
         LOG_DEBUG("Preparing transaction");
         State_ = ETransactionState::Prepare;
         return BIND(&TTransaction::DoPrepare, MakeStrong(this))
-            .AsyncVia(CommitInvoker_)
+            .AsyncVia(GetThreadPoolInvoker())
             .Run();
     }
 
@@ -194,7 +196,7 @@ public:
         LOG_DEBUG("Flushing transaction");
         State_ = ETransactionState::Flush;
         return BIND(&TTransaction::DoFlush, MakeStrong(this))
-            .AsyncVia(CommitInvoker_)
+            .AsyncVia(GetThreadPoolInvoker())
             .Run();
     }
 
@@ -528,7 +530,6 @@ private:
     const IClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
 
-    const IInvokerPtr CommitInvoker_;
     const NLogging::TLogger Logger;
 
     struct TNativeTransactionBufferTag
@@ -1107,7 +1108,7 @@ private:
                 return;
             }
 
-            const auto& batch = Batches_[InvokeBatchIndex_];
+            const auto& batch = Batches_[InvokeBatchIndex_++];
 
             auto transaction = Transaction_.Lock();
             if (!transaction) {
@@ -1154,17 +1155,23 @@ private:
                 req->versioned(),
                 TableSession_->GetUpstreamReplicaId());
 
+            // NB: OnResponse is trivial for the last batch; otherwise use thread pool invoker.
+            auto invoker = InvokeBatchIndex_ == Batches_.size()
+                ? GetSyncInvoker()
+                : transaction->GetThreadPoolInvoker();
             req->Invoke().Subscribe(
                 BIND(&TTabletCommitSession::OnResponse, MakeStrong(this))
-                    .Via(transaction->CommitInvoker_));
+                    .Via(std::move(invoker)));
         }
 
         void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
         {
             if (!rspOrError.IsOK()) {
-                LOG_DEBUG(rspOrError, "Error sending transaction rows");
-                TableMountCache_->InvalidateOnError(rspOrError);
-                InvokePromise_.Set(rspOrError);
+                auto error = TError("Error sending transaction rows")
+                    << rspOrError;
+                LOG_DEBUG(error);
+                TableMountCache_->InvalidateOnError(error);
+                InvokePromise_.Set(error);
                 return;
             }
 
@@ -1178,7 +1185,6 @@ private:
                 Batches_.size());
 
             owner->Transaction_->ConfirmParticipant(TabletInfo_->CellId);
-            ++InvokeBatchIndex_;
             InvokeNextBatch();
         }
     };
@@ -1190,7 +1196,7 @@ private:
         : public TIntrinsicRefCounted
     {
     public:
-        TCellCommitSession(TTransactionPtr transaction, const TCellId& cellId)
+        TCellCommitSession(const TTransactionPtr& transaction, TCellId cellId)
             : Transaction_(transaction)
             , CellId_(cellId)
             , Logger(NLogging::TLogger(transaction->Logger)
@@ -1199,18 +1205,21 @@ private:
 
         void RegisterRequests(int count)
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            RequestsTotal_ += count;
             RequestsRemaining_ += count;
         }
 
         TTransactionSignature AllocateRequestSignature()
         {
-            YCHECK(--RequestsRemaining_ >= 0);
-            if (RequestsRemaining_ == 0) {
-                return FinalTransactionSignature - CurrentSignature_;
-            } else {
-                ++CurrentSignature_;
-                return 1;
-            }
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            auto remaining = --RequestsRemaining_;
+            YCHECK(remaining >= 0);
+            return remaining == 0
+                ? FinalTransactionSignature - InitialTransactionSignature - RequestsTotal_.load()
+                : 1;
         }
 
         void RegisterAction(const TTransactionActionData& data)
@@ -1248,19 +1257,19 @@ private:
             }
 
             return asyncResult.Apply(
-                BIND(&TCellCommitSession::OnResponse, MakeStrong(this))
-                    .AsyncVia(transaction->CommitInvoker_));
+                // NB: OnResponse is trivial; need no invoker here.
+                BIND(&TCellCommitSession::OnResponse, MakeStrong(this)));
         }
 
     private:
         const TWeakPtr<TTransaction> Transaction_;
         const TCellId CellId_;
+        const NLogging::TLogger Logger;
 
         std::vector<TTransactionActionData> Actions_;
-        TTransactionSignature CurrentSignature_ = InitialTransactionSignature;
-        int RequestsRemaining_ = 0;
 
-        const NLogging::TLogger Logger;
+        std::atomic<int> RequestsTotal_ = {0};
+        std::atomic<int> RequestsRemaining_ = {0};
 
 
         TFuture<void> SendTabletActions(const TTransactionPtr& owner, const IChannelPtr& channel)
@@ -1287,8 +1296,10 @@ private:
         void OnResponse(const TError& result)
         {
             if (!result.IsOK()) {
-                LOG_DEBUG(result, "Error sending transaction actions");
-                THROW_ERROR result;
+                auto error = TError("Error sending transaction actions")
+                    << result;
+                LOG_DEBUG(error);
+                THROW_ERROR(error);
             }
 
             auto transaction = Transaction_.Lock();
@@ -1313,6 +1324,11 @@ private:
     //! Caches mappings from name table ids to schema ids.
     THashMap<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
 
+
+    IInvokerPtr GetThreadPoolInvoker()
+    {
+        return Client_->GetConnection()->GetInvoker();
+    }
 
     const TNameTableToSchemaIdMapping& GetColumnIdMapping(
         const TTableMountInfoPtr& tableInfo,
@@ -1449,14 +1465,14 @@ private:
 
         for (const auto& pair : TabletIdToSession_) {
             const auto& tabletSession = pair.second;
-            const auto& cellId = tabletSession->GetCellId();
+            auto cellId = tabletSession->GetCellId();
             int requestCount = tabletSession->Prepare();
             auto cellSession = GetOrCreateCellCommitSession(cellId);
             cellSession->RegisterRequests(requestCount);
         }
 
-        for (auto& pair : CellIdToSession_) {
-            const auto& cellId = pair.first;
+        for (const auto& pair : CellIdToSession_) {
+            auto cellId = pair.first;
             Transaction_->RegisterParticipant(cellId);
         }
 
@@ -1468,7 +1484,7 @@ private:
                     State_);
             }
             YCHECK(State_ == ETransactionState::Prepare || State_ == ETransactionState::Commit);
-            YCHECK(Prepared_ == false);
+            YCHECK(!Prepared_);
             Prepared_ = true;
         }
     }
@@ -1481,13 +1497,13 @@ private:
 
         for (const auto& pair : TabletIdToSession_) {
             const auto& session = pair.second;
-            const auto& cellId = session->GetCellId();
+            auto cellId = session->GetCellId();
             auto channel = Client_->GetCellChannelOrThrow(cellId);
             asyncResults.push_back(session->Invoke(std::move(channel)));
         }
 
-        for (auto& pair : CellIdToSession_) {
-            const auto& cellId = pair.first;
+        for (const auto& pair : CellIdToSession_) {
+            auto cellId = pair.first;
             const auto& session = pair.second;
             auto channel = Client_->GetCellChannelOrThrow(cellId);
             asyncResults.push_back(session->Invoke(std::move(channel)));
@@ -1514,7 +1530,6 @@ private:
     TTransactionCommitResult DoCommit(const TTransactionCommitOptions& options)
     {
         try {
-
             // Gather participants.
             {
                 PrepareRequests();
@@ -1528,7 +1543,7 @@ private:
                     .ValueOrThrow();
 
                 for (const auto& prepareResult : prepareResults) {
-                    for (const auto& cellId : prepareResult.ParticipantCellIds) {
+                    for (auto cellId : prepareResult.ParticipantCellIds) {
                         Transaction_->RegisterParticipant(cellId);
                     }
                 }
@@ -1558,7 +1573,7 @@ private:
 
                 for (const auto& flushResult : flushResults) {
                     asyncRequestResults.push_back(flushResult.AsyncResult);
-                    for (const auto& cellId : flushResult.ParticipantCellIds) {
+                    for (auto cellId : flushResult.ParticipantCellIds) {
                         Transaction_->ConfirmParticipant(cellId);
                     }
                 }
