@@ -5351,7 +5351,7 @@ private:
         auto transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            LOG_INFO("XXX: Prerequisite transaction not found on secondary master (CellId: %v, TransactionId: %v)",
+            LOG_INFO("Prerequisite transaction is not found on secondary master (CellId: %v, TransactionId: %v)",
                 cellId,
                 transactionId);
             return;
