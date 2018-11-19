@@ -7,6 +7,8 @@
 
 #include <library/threading/future/async.h>
 
+#include <library/digest/md5/md5.h>
+
 #include <util/generic/guid.h>
 #include <util/string/cast.h>
 #include <util/thread/queue.h>
@@ -393,5 +395,25 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         for (auto& f : results) {
             f.Wait();
         }
+    }
+
+    Y_UNIT_TEST(FileCache)
+    {
+        auto client = CreateTestClient();
+        TString content = "Hello world!";
+        TYPath cachePath = "//tmp/yt_wrapper/file_storage";
+
+        {
+            auto writer = client->CreateFileWriter("//testing/file", TFileWriterOptions().ComputeMD5(true));
+            *writer << content;
+            writer->Finish();
+        }
+
+        auto md5 = MD5::Calc(content);
+        auto pathInCache = client->PutFileToCache("//testing/file", md5, cachePath);
+
+        auto maybePath = client->GetFileFromCache(md5, cachePath);
+        UNIT_ASSERT(maybePath.Defined());
+        UNIT_ASSERT_VALUES_EQUAL(content, client->CreateFileReader(*maybePath)->ReadAll());
     }
 }

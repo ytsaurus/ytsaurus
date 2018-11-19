@@ -940,6 +940,23 @@ IFileReaderPtr TClient::GetJobStderr(
     return NYT::NDetail::GetJobStderr(Auth_, operationId, jobId, options);
 }
 
+TMaybe<TYPath> TClient::GetFileFromCache(
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TGetFileFromCacheOptions& options)
+{
+    return NYT::NDetail::GetFileFromCache(Auth_, md5Signature, cachePath, options);
+}
+
+TYPath TClient::PutFileToCache(
+    const TYPath& filePath,
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TPutFileToCacheOptions& options)
+{
+    return NYT::NDetail::PutFileToCache(Auth_, filePath, md5Signature, cachePath, options);
+}
+
 TYtPoller& TClient::GetYtPoller()
 {
     auto g = Guard(YtPollerLock_);

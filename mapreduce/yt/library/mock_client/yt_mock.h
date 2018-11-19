@@ -88,6 +88,9 @@ namespace NTesting {
         MOCK_METHOD3(GetJobFailContext, IFileReaderPtr(const TOperationId&, const TJobId&, const TGetJobFailContextOptions&));
         MOCK_METHOD3(GetJobStderr, IFileReaderPtr(const TOperationId&, const TJobId&, const TGetJobStderrOptions&));
 
+        MOCK_METHOD3(GetFileFromCache, TMaybe<TYPath>(const TString& md5Signature, const TYPath& cachePath, const TGetFileFromCacheOptions&));
+        MOCK_METHOD4(PutFileToCache, TYPath(const TYPath&, const TString& md5Signature, const TYPath& cachePath, const TPutFileToCacheOptions&));
+
         MOCK_METHOD0(GetParentClient, IClientPtr());
     };
 
