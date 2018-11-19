@@ -281,6 +281,9 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for job_id in jobs:
             assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
 
+    # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
+    # and in this case we can successfully schedule job for the next operation in queue.
+    @flaky(max_runs=3)
     def test_fifo_default(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out1")
@@ -311,6 +314,9 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur < next
 
+    # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
+    # and in this case we can successfully schedule job for the next operation in queue.
+    @flaky(max_runs=3)
     def test_fifo_by_pending_job_count(self):
         op_count = 3
 
