@@ -571,8 +571,7 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
-    @pytest.mark.parametrize("enable_tablet_cell_balancer", [True, False])
-    def test_cell_bundle_distribution(self, enable_tablet_cell_balancer):
+    def _test_cell_bundle_distribution(self, enable_tablet_cell_balancer):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
         create_tablet_cell_bundle("custom")
@@ -620,6 +619,13 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         for node in nodes[:len(nodes)/2]:
             set("//sys/nodes/{0}/@disable_tablet_cells".format(node), False)
         _check(nodes, 1, 1)
+
+    def test_cell_bundle_distribution_new(self):
+        self._test_cell_bundle_distribution(True)
+
+    @flaky(max_runs=5)
+    def test_cell_bundle_distribution_new(self):
+        self._test_cell_bundle_distribution(False)
 
     def test_cell_bundle_options(self):
         set("//sys/schemas/tablet_cell_bundle/@options", {
