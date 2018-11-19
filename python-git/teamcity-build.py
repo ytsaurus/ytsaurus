@@ -10,7 +10,8 @@ from teamcity import (build_step, teamcity_main, teamcity_message, teamcity_inte
 
 from helpers import (mkdirp, run, run_captured, cwd, rm_content,
                      rmtree, parse_yes_no_bool, ChildHasNonZeroExitCode,
-                     postprocess_junit_xml, sudo_rmtree, kill_by_name)
+                     postprocess_junit_xml, sudo_rmtree, kill_by_name,
+                     set_yt_binaries_suid_bit)
 
 from pytest_helpers import (copy_artifacts, find_core_dumps_with_report,
                             copy_failed_tests_and_report_stderrs, prepare_python_bindings)
@@ -219,11 +220,8 @@ def slow_build(options):
 
 @build_step
 @skip_step_if_tests_are_disabled
-def set_ytserver_permissions(options):
-    for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
-        path = os.path.join(get_bin_dir(options), binary)
-        run(["sudo", "chown", "root", path])
-        run(["sudo", "chmod", "4755", path])
+def set_suid_bit(options):
+    set_yt_binaries_suid_bit(bin_dir=get_bin_dir(options))
 
 @build_step
 @skip_step_if_tests_are_disabled
