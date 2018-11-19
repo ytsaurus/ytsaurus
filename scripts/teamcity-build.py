@@ -4,19 +4,41 @@ import sys
 # TODO(asaitgalin): Maybe replace it with PYTHONPATH=... in teamcity command?
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "python"))
 
-from teamcity import (build_step, cleanup_step, teamcity_main,
-                      teamcity_message, teamcity_interact,
-                      StepFailedWithNonCriticalError)
+from teamcity import (
+    build_step,
+    cleanup_step,
+    teamcity_main,
+    teamcity_message,
+    teamcity_interact,
+    StepFailedWithNonCriticalError,
+)
 
-from helpers import (mkdirp, run, run_captured, cwd,
-                     kill_by_name, sudo_rmtree, ls, get_size,
-                     rmtree, rm_content, clear_system_tmp,
-                     format_yes_no, parse_yes_no_bool, cleanup_cgroups,
-                     ChildHasNonZeroExitCode)
+from helpers import (
+    ChildHasNonZeroExitCode,
+    cleanup_cgroups,
+    clear_system_tmp,
+    cwd,
+    format_yes_no,
+    get_size,
+    kill_by_name,
+    ls,
+    mkdirp,
+    parse_yes_no_bool,
+    rm_content,
+    rmtree,
+    run,
+    run_captured,
+    sudo_rmtree,
+)
 
-from pytest_helpers import (get_sandbox_dirs, save_failed_test,
-                            find_core_dumps_with_report, copy_artifacts,
-                            prepare_python_bindings)
+from pytest_helpers import (
+    archive_core_dumps_if_any,
+    get_sandbox_dirs,
+    save_failed_test,
+    find_core_dumps_with_report,
+    copy_artifacts,
+    prepare_python_bindings,
+)
 
 from datetime import datetime
 
@@ -76,20 +98,11 @@ def process_core_dumps(options, suite_name, suite_path):
     sandbox_archive = os.path.join(options.failed_tests_path,
         "__".join([options.btid, options.build_number, suite_name]))
 
-    # Prepare artifact paths.
-    artifact_path = os.path.join(sandbox_archive, "artifacts")
-    artifacts = copy_artifacts(options.working_directory, artifact_path, dry_run=True)
+    return archive_core_dumps_if_any(
+        core_dump_search_dir_list=[suite_path, options.core_path],
+        working_directory=options.working_directory,
+        archive_dir=sandbox_archive)
 
-    search_paths = [suite_path]
-    if hasattr(options, "core_path"):
-        search_paths.append(options.core_path)
-
-    if find_core_dumps_with_report(suite_name, search_paths, artifacts, sandbox_archive):
-        # Copy artifacts if cores are present.
-        copy_artifacts(options.working_directory, artifact_path)
-        return True
-
-    return False
 
 def only_for_projects(*projects):
     def decorator(func):
