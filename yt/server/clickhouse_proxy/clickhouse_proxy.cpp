@@ -84,7 +84,7 @@ public:
                 InstanceHost_,
                 InstanceHttpPort_);
 
-            auto body = Req_->ReadBody();
+            auto body = Req_->ReadAll();
             if (!body) {
                 ReplyWithError(EStatusCode::BadRequest, TError("Body should not be empty"));
                 return;

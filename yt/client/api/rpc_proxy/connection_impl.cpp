@@ -96,7 +96,8 @@ std::vector<TString> GetRpcProxiesFromHttp(
             << ParseYTError(rsp);
     }
 
-    auto node = ConvertTo<INodePtr>(TYsonString{ToString(rsp->ReadBody())});
+    auto body = rsp->ReadAll();
+    auto node = ConvertTo<INodePtr>(TYsonString(ToString(body)));
     node = node->AsMap()->FindChild("proxies");
     return ConvertTo<std::vector<TString>>(node);
 }

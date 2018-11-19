@@ -222,8 +222,6 @@ struct IRequest
 
     virtual const NNet::TNetworkAddress& GetRemoteAddress() const = 0;
 
-    virtual TSharedRef ReadBody() = 0;
-
     virtual TGuid GetConnectionId() const = 0;
     virtual TGuid GetRequestId() const = 0;
     virtual i64 GetReadByteCount() const = 0;
@@ -254,16 +252,11 @@ DEFINE_REFCOUNTED_TYPE(IResponseWriter)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IResponse
-    : public virtual TRefCounted
-    , public virtual NConcurrency::IAsyncZeroCopyInputStream
+    : public virtual NConcurrency::IAsyncZeroCopyInputStream
 {
     virtual EStatusCode GetStatusCode() = 0;
-
     virtual const THeadersPtr& GetHeaders() = 0;
-
     virtual const THeadersPtr& GetTrailers() = 0;
-
-    virtual TSharedRef ReadBody() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IResponse)

@@ -19,6 +19,9 @@ DECLARE_REFCOUNTED_CLASS(TCypressTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingCypressTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingBlackboxCookieAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TDefaultSecretVaultServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TDefaultSecretVaultServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TBatchingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TAuthenticationManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TAuthenticationManager)
 
@@ -28,6 +31,8 @@ DECLARE_REFCOUNTED_STRUCT(ITvmService)
 DECLARE_REFCOUNTED_STRUCT(ICookieAuthenticator)
 DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator)
 DECLARE_REFCOUNTED_STRUCT(ITicketAuthenticator)
+
+DECLARE_REFCOUNTED_STRUCT(ISecretVaultService)
 
 ////////////////////////////////////////////////////////////////////////////////
 

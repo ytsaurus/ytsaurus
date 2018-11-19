@@ -46,7 +46,7 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
         rsp->SetStatus(EStatusCode::OK);
         ProtectCsrfToken(rsp);
 
-        TString csrfSecret = Config_->GetCsrfSecret();
+        auto csrfSecret = Config_->GetCsrfSecret();
         auto csrfToken = SignCsrfToken(result.Value().Login, csrfSecret, TInstant::Now());
 
         ReplyJson(rsp, [&] (NYson::IYsonConsumer* consumer) {

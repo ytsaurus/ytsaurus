@@ -554,7 +554,7 @@ void TContext::CaptureParameters()
     }
 
     if (Request_->GetMethod() == EMethod::Post) {
-        auto body = Request_->ReadBody();
+        auto body = Request_->ReadAll();
         if (body.Size() == 0) {
             return;
         }

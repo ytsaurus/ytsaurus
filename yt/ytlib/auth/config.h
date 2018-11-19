@@ -6,6 +6,10 @@
 
 #include <yt/core/misc/config.h>
 
+#include <yt/core/concurrency/config.h>
+
+#include <yt/core/https/config.h>
+
 namespace NYT {
 namespace NAuth {
 
@@ -15,6 +19,15 @@ class TDefaultBlackboxServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TString Host;
+    int Port;
+    bool Secure;
+
+    TDuration RequestTimeout;
+    TDuration AttemptTimeout;
+    TDuration BackoffTimeout;
+    bool UseLowercaseLogin;
+
     TDefaultBlackboxServiceConfig()
     {
         RegisterParameter("host", Host)
@@ -32,15 +45,6 @@ public:
         RegisterParameter("use_lowercase_login", UseLowercaseLogin)
             .Default(true);
     }
-
-    TString Host;
-    ui16 Port;
-    bool Secure;
-
-    TDuration RequestTimeout;
-    TDuration AttemptTimeout;
-    TDuration BackoffTimeout;
-    bool UseLowercaseLogin;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
@@ -51,6 +55,11 @@ class TDefaultTvmServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    int Port;
+    TString Token;
+
+    TDuration RequestTimeout;
+
     TDefaultTvmServiceConfig()
     {
         RegisterParameter("port", Port);
@@ -58,11 +67,6 @@ public:
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(3));
     }
-
-    ui16 Port;
-    TString Token;
-
-    TDuration RequestTimeout;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultTvmServiceConfig)
@@ -82,15 +86,15 @@ class TBlackboxTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TString Scope;
+    bool EnableScopeCheck;
+
     TBlackboxTokenAuthenticatorConfig()
     {
         RegisterParameter("scope", Scope);
         RegisterParameter("enable_scope_check", EnableScopeCheck)
             .Default(true);
     }
-
-    TString Scope;
-    bool EnableScopeCheck;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
@@ -127,6 +131,11 @@ class TCypressTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    NYPath::TYPath RootPath;
+    TString Realm;
+
+    bool Secure;
+
     TCypressTokenAuthenticatorConfig()
     {
         RegisterParameter("root_path", RootPath)
@@ -137,11 +146,6 @@ public:
         RegisterParameter("secure", Secure)
             .Default(false);
     }
-
-    NYPath::TYPath RootPath;
-    TString Realm;
-
-    bool Secure;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
@@ -197,6 +201,62 @@ DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDefaultSecretVaultServiceConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    TString Host;
+    int Port;
+    NHttps::TClientConfigPtr HttpClient;
+    TDuration RequestTimeout;
+    TString VaultServiceId;
+
+    TDefaultSecretVaultServiceConfig()
+    {
+        RegisterParameter("host", Host)
+            .Default("vault-api.passport.yandex.net");
+        RegisterParameter("port", Port)
+            .Default(443);
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
+        RegisterParameter("request_timeout", RequestTimeout)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("vault_service_id", VaultServiceId)
+            .Default("yav");
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDefaultSecretVaultServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBatchingSecretVaultServiceConfig
+    : public TDefaultSecretVaultServiceConfig
+{
+public:
+    TDuration BatchDelay;
+    int MaxSubrequestsPerRequest;
+    NConcurrency::TThroughputThrottlerConfigPtr RequestsThrottler;
+
+    TBatchingSecretVaultServiceConfig()
+    {
+        RegisterParameter("batch_delay", BatchDelay)
+            .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("max_subrequests_per_request", MaxSubrequestsPerRequest)
+            .Default(100);
+        RegisterParameter("requests_throttler", RequestsThrottler)
+            .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            RequestsThrottler->Limit = 100;
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBatchingSecretVaultServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAuthenticationManagerConfig
     : public virtual NYT::NYTree::TYsonSerializable
 {
@@ -240,7 +300,7 @@ public:
             return *BlackboxCookieAuthenticator->CsrfSecret;
         }
 
-        return "";
+        return TString();
     }
 
     TInstant GetCsrfTokenExpirationTime() const

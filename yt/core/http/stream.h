@@ -101,7 +101,6 @@ public:
     virtual const THeadersPtr& GetTrailers() override;
 
     virtual TFuture<TSharedRef> Read() override;
-    virtual TSharedRef ReadBody() override;
 
     virtual const NNet::TNetworkAddress& GetRemoteAddress() const override;
 
