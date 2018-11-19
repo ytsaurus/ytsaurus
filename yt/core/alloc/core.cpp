@@ -63,6 +63,8 @@
 #define PARANOID
 #endif
 
+#define PARANOID
+
 #ifdef PARANOID
 #define PARANOID_CHECK(condition) YCHECK(condition)
 #else
