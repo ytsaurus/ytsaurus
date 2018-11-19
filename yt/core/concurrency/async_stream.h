@@ -114,6 +114,15 @@ struct IAsyncZeroCopyInputStream
      *  A sane implementation must guarantee that it returns blocks of sensible size.
      */
     virtual TFuture<TSharedRef> Read() = 0;
+
+    // Extension methods
+
+    //! Reads all content from the stream by iteratively calling #Read until the stream is exhausted.
+    /*!
+     *  \note
+     *  May (and typically will) cause fiber context switch.
+     */
+    TSharedRef ReadAll();
 };
 
 DEFINE_REFCOUNTED_TYPE(IAsyncZeroCopyInputStream)

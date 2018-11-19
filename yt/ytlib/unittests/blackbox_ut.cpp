@@ -97,8 +97,7 @@ protected:
     {
         return CreateDefaultBlackboxService(
             CreateDefaultBlackboxServiceConfig(),
-            GetSyncInvoker()
-        );
+            GetSyncInvoker());
     }
 
     TString HttpResponse(int code, TString body)

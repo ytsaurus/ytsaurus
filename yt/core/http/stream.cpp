@@ -7,6 +7,7 @@
 #include <yt/core/misc/finally.h>
 
 #include <util/generic/buffer.h>
+
 #include <util/string/escape.h>
 
 namespace NYT {
@@ -419,25 +420,6 @@ TFuture<TSharedRef> THttpInput::Read()
     return BIND(&THttpInput::DoRead, MakeStrong(this))
         .AsyncVia(ReadInvoker_)
         .Run();
-}
-
-TSharedRef THttpInput::ReadBody()
-{
-    std::vector<TSharedRef> chunks;
-
-    // TODO(prime@): Add hard limit on body size.
-    while (true) {
-        auto chunk = WaitFor(Read())
-            .ValueOrThrow();
-
-        if (chunk.Empty()) {
-            break;
-        }
-
-        chunks.emplace_back(TSharedRef::MakeCopy<THttpParserTag>(chunk));
-    }
-
-    return MergeRefsToRef<THttpParserTag>(std::move(chunks));
 }
 
 i64 THttpInput::GetReadByteCount() const

@@ -98,7 +98,7 @@ TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers)
     } else {
         static const TString BodySource("body");
         source = BodySource;
-        errorJson = ToString(rsp->ReadBody());
+        errorJson = ToString(rsp->ReadAll());
     }
 
     TStringInput errorJsonInput(errorJson);
