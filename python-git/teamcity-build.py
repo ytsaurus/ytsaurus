@@ -50,15 +50,6 @@ def skip_step_if_tests_are_disabled(func):
         return func(options)
     return wrapper
 
-def iter_enabled_python_versions(options):
-    if options.build_enable_python_2_6:
-        yield "2.6"
-
-    if options.build_enable_python_2_7:
-        yield "2.7"
-
-    if options.build_enable_python_3_4:
-        yield "3.4"
 
 @build_step
 def prepare(options):
@@ -189,7 +180,7 @@ def configure(options):
 
 @build_step
 @skip_step_if_tests_are_disabled
-def fast_build(options):
+def build(options):
     if options.build_system == "cmake":
         cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
         try:
@@ -216,18 +207,12 @@ def fast_build(options):
 
         run(args, env=env)
 
-@build_step
-@skip_step_if_tests_are_disabled
-def slow_build(options):
-    if options.build_system == "cmake":
-        run(["make"], cwd=options.yt_build_directory)
-    else:
-        teamcity_message("Step slow_build is skipped for ya build")
 
 @build_step
 @skip_step_if_tests_are_disabled
 def set_suid_bit(options):
     set_yt_binaries_suid_bit(bin_dir=get_bin_dir(options))
+
 
 @build_step
 @skip_step_if_tests_are_disabled
