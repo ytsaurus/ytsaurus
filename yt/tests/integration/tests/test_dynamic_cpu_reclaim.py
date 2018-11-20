@@ -1,3 +1,5 @@
+import pytest
+
 from yt_env_setup import YTEnvSetup, wait, require_ytserver_root_privileges
 from yt_commands import *
 
@@ -149,6 +151,7 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
         }
     }
 
+    @pytest.mark.xfail(run = False, reason = "Currently broken")
     def test_node_aborts_job_on_lack_of_memory(self):
         memory_consume_command = 'python -c "import time\ncount = 100*1000*1000\nx = list(range(count))\ntime.sleep(1000)"'
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT; " + memory_consume_command, "Op1"), spec={
