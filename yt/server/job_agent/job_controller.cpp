@@ -440,6 +440,10 @@ void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimits
     ResourceLimitsOverrides_ = resourceLimits;
     if (ResourceLimitsOverrides_.has_user_memory()) {
         GetUserMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::UserJobs, ResourceLimitsOverrides_.user_memory());
+    } else {
+        GetUserMemoryUsageTracker()->SetCategoryLimit(
+            EMemoryCategory::UserJobs,
+            Config_->ResourceLimits->UserMemory);
     }
 
     if (ResourceLimitsOverrides_.has_system_memory()) {
