@@ -4373,7 +4373,7 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %v, CellId: %v, Frozen: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %llx, CellId: %v, Frozen: %v)",
             table->GetId(),
             tablet->GetId(),
             tablet->GetMountRevision(),
@@ -4847,7 +4847,7 @@ private:
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Invalid mount revision on tablet stores update commit; ignored "
-                "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
+                "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %llx, ActualMountRevision: %llx)",
                 tabletId,
                 transaction->GetId(),
                 mountRevision,
