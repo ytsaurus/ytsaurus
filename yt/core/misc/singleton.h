@@ -9,32 +9,19 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TIntrusivePtr<T> RefCountedSingleton()
-{
-    static std::atomic<T*> instance;
-    auto* relaxedInstance = instance.load(std::memory_order_acquire);
+TIntrusivePtr<T> RefCountedSingleton();
 
-    if (Y_LIKELY(relaxedInstance)) {
-        return relaxedInstance;
-    }
+#define DECLARE_IMMORTAL_SINGLETON_FRIEND() \
+	template <class T>                      \
+    friend T* ::NYT::ImmortalSingleton();
 
-    static TSpinLock spinLock;
-    static TIntrusivePtr<T> holder;
-
-    auto guard = Guard(spinLock);
-
-    auto* orderedInstance = instance.load();
-    if (orderedInstance) {
-        return orderedInstance;
-    }
-
-    YCHECK(!holder);
-    holder = New<T>();
-    instance.store(holder.Get());
-
-    return holder;
-}
+template <class T>
+T* ImmortalSingleton();
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define SINGLETON_INL_H_
+#include "singleton-inl.h"
+#undef SINGLETON_INL_H_
