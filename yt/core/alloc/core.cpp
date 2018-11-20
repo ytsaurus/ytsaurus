@@ -3154,7 +3154,7 @@ void TThreadManager::DestroyThread(void*)
 {
     TSmallAllocator::PurgeCaches();
 
-    auto* state = ThreadState_;
+    TThreadState* state = ThreadState_;
     ThreadState_ = nullptr;
     ThreadStateDestroyed_ = true;
 
