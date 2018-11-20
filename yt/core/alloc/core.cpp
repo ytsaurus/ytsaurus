@@ -1857,44 +1857,6 @@ TBox<TStatisticsManager> StatisticsManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
-{
-    if (Y_LIKELY(ThreadState_)) {
-        return ThreadState_;
-    }
-
-    if (ThreadStateDestroyed_) {
-        return nullptr;
-    }
-
-    InitializeGlobals();
-
-    // InitializeGlobals must not allocate.
-    YCHECK(!ThreadState_);
-    ThreadState_ = ThreadManager->AllocateThreadState();
-
-    return ThreadState_;
-}
-
-void TThreadManager::DestroyThread(void*)
-{
-    {
-        auto guard = GuardWithTiming(ThreadManager->ThreadRegistryLock_);
-        ThreadManager->UnrefThreadState(ThreadState_);
-    }
-    ThreadState_ = nullptr;
-    ThreadStateDestroyed_ = true;
-}
-
-void TThreadManager::DestroyThreadState(TThreadState* state)
-{
-    StatisticsManager->AccumulateLocalCounters(state);
-    ThreadRegistry_.Remove(state);
-    ThreadStatePool_.Free(state);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void* TSystemAllocator::Allocate(size_t size)
 {
     auto rawSize = GetRawBlobSize<TSystemBlobHeader>(size);
@@ -2091,16 +2053,15 @@ public:
 
     void PutOne(void* ptr)
     {
-        PARANOID_CHECK(Size_ == 0);
-        Ptrs_[Size_] = ptr;
-        Size_ = 1;
+        PutMany(&ptr, 1);
     }
 
-    void PutAll(void** ptrs)
+    void PutMany(void** ptrs, size_t count)
     {
         PARANOID_CHECK(Size_ == 0);
-        ::memcpy(Ptrs_.data(), ptrs, ChunksPerGroup * sizeof(void*));
-        Size_ = ChunksPerGroup;
+        PARANOID_CHECK(count <= ChunksPerGroup);
+        ::memcpy(Ptrs_.data(), ptrs, count * sizeof(void*));
+        Size_ = count;
     }
 
 private:
@@ -2138,7 +2099,7 @@ public:
         auto* group = GroupPool_.Allocate(state);
 
         auto& chunkPtrPtr = state->SmallBlobCache[Kind_].RankToCachedChunkPtr[rank];
-        group->PutAll(chunkPtrPtr - ChunksPerGroup + 1);
+        group->PutMany(chunkPtrPtr - ChunksPerGroup + 1, ChunksPerGroup);
         chunkPtrPtr -= ChunksPerGroup;
         ::memset(chunkPtrPtr + 1, 0, sizeof(void*) * ChunksPerGroup);
 
@@ -2155,6 +2116,29 @@ public:
         auto& groups = RankToChunkGroups_[rank];
         PARANOID_CHECK(!group->IsEmpty());
         groups.Put(&GlobalShardedState_, group);
+    }
+
+    void MoveAllToGlobal(TThreadState* state, size_t rank)
+    {
+        auto& chunkPtrPtr = state->SmallBlobCache[Kind_].RankToCachedChunkPtr[rank];
+        while (true) {
+            size_t count = 0;
+            while (count < ChunksPerGroup && *chunkPtrPtr != reinterpret_cast<void*>(TThreadState::LeftSentinel)) {
+                --chunkPtrPtr;
+                ++count;
+            }
+
+            if (count == 0) {
+                break;
+            }
+
+            auto* group = GroupPool_.Allocate(state);
+            group->PutMany(chunkPtrPtr + 1, count);
+            ::memset(chunkPtrPtr + 1, 0, sizeof(void*) * count);
+
+            auto& groups = RankToChunkGroups_[rank];
+            groups.Put(state, group);
+        }
     }
 
 private:
@@ -2240,7 +2224,22 @@ public:
         return size;
     }
 
+    static void PurgeCaches()
+    {
+        DoPurgeCaches<EAllocationKind::Untagged>();
+        DoPurgeCaches<EAllocationKind::Tagged>();
+    }
+
 private:
+    template <EAllocationKind Kind>
+    static void DoPurgeCaches()
+    {
+        auto* state = TThreadManager::GetThreadState();
+        for (size_t rank = 0; rank < SmallRankCount; ++rank) {
+            (*GlobalSmallChunkCaches)[Kind]->MoveAllToGlobal(state, rank);
+        }
+    }
+
     template <EAllocationKind Kind>
     static void* AllocateGlobal(TMemoryTag tag, size_t size, size_t rank)
     {
@@ -3135,6 +3134,48 @@ private:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
+{
+    if (Y_LIKELY(ThreadState_)) {
+        return ThreadState_;
+    }
+
+    if (ThreadStateDestroyed_) {
+        return nullptr;
+    }
+
+    InitializeGlobals();
+
+    // InitializeGlobals must not allocate.
+    YCHECK(!ThreadState_);
+    ThreadState_ = ThreadManager->AllocateThreadState();
+
+    return ThreadState_;
+}
+
+void TThreadManager::DestroyThread(void*)
+{
+    TSmallAllocator::PurgeCaches();
+
+    auto* state = ThreadState_;
+    ThreadState_ = nullptr;
+    ThreadStateDestroyed_ = true;
+
+    {
+        auto guard = GuardWithTiming(ThreadManager->ThreadRegistryLock_);
+        ThreadManager->UnrefThreadState(state);
+    }
+}
+
+void TThreadManager::DestroyThreadState(TThreadState* state)
+{
+    StatisticsManager->AccumulateLocalCounters(state);
+    ThreadRegistry_.Remove(state);
+    ThreadStatePool_.Free(state);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
