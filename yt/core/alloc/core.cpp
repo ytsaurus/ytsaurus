@@ -731,18 +731,11 @@ public:
     explicit TTimingGuard(ETimingEventType eventType, size_t size = 0)
         : EventType_(eventType)
         , Size_(size)
-        // Sadly, TWallTimer cannot be used prior to all statics being initialized.
-        , StartTime_(ConfigurationManager->IsLoggingEnabled() ? NProfiling::GetCpuInstant() : 0)
     { }
 
     ~TTimingGuard()
     {
-        if (StartTime_ == 0) {
-            return;
-        }
-
-        auto endTime = NProfiling::GetCpuInstant();
-        auto duration = NProfiling::CpuDurationToDuration(endTime - StartTime_);
+        auto duration = Timer_.GetElapsedTime();
         if (duration > ConfigurationManager->GetSlowCallWarningThreshold()) {
             TimingManager->EnqueueEvent(EventType_, duration, Size_);
         };
@@ -751,7 +744,8 @@ public:
 private:
     const ETimingEventType EventType_;
     const size_t Size_;
-    const NProfiling::TCpuInstant StartTime_;
+
+    NProfiling::TWallTimer Timer_;
 };
 
 template <class T>
