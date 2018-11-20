@@ -1822,7 +1822,6 @@ void TNodeShard::ProcessScheduledJobs(
 {
     auto* response = &rpcContext->Response();
 
-    std::vector<TFuture<TSharedRef>> asyncJobSpecs;
     for (const auto& job : schedulingContext->StartedJobs()) {
         auto* operationState = FindOperationState(job->GetOperationId());
         if (!operationState) {

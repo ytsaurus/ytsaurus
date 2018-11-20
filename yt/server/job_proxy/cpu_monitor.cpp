@@ -9,18 +9,18 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCpuMonitor::TCpuMonitor(
-    TJobCpuMonitorConfigPtr config,
+    NScheduler::TJobCpuMonitorConfigPtr config,
     IInvokerPtr invoker,
-    const double hardCpuLimit,
-    TJobProxy* jobProxy)
-    : HardLimit_(hardCpuLimit)
-    , SoftLimit_(hardCpuLimit)
-    , Config_(std::move(config))
+    TJobProxy* jobProxy,
+    const double hardCpuLimit)
+    : Config_(std::move(config))
     , MonitoringExecutor_(New<NConcurrency::TPeriodicExecutor>(
         invoker,
         BIND(&TCpuMonitor::DoCheck, MakeWeak(this)),
         Config_->CheckPeriod))
     , JobProxy_(jobProxy)
+    , HardLimit_(hardCpuLimit)
+    , SoftLimit_(hardCpuLimit)
     , Logger("CpuMonitor")
 { }
 
