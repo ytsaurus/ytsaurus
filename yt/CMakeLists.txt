@@ -41,12 +41,6 @@ else()
   message(STATUS "Omitting experiments from build (YT_BUILD_ENABLE_EXPERIMENTS = OFF)")
 endif()
 
-if(YT_BUILD_ENABLE_NODEJS)
-  add_subdirectory(nodejs)
-else()
-  message(STATUS "Omitting NodeJS bindings from build (YT_BUILD_ENABLE_NODEJS = OFF)")
-endif()
-
 if (YT_BUILD_ENABLE_CPP_TESTS)
   add_subdirectory(tests/cpp)
 endif()
