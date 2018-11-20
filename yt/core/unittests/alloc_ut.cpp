@@ -2,6 +2,8 @@
 
 #include <yt/core/alloc/alloc.h>
 
+#include <thread>
+
 namespace NYT {
 namespace NYTAlloc {
 namespace {
@@ -82,6 +84,49 @@ TEST(TYTAllocTest, AroundLargeBlobThreshold)
         void* ptr = YTAlloc(size);
         YTFree(ptr);
     }
+}
+
+TEST(TYTAllocTest, PerThreadCacheReclaim)
+{
+    const int N = 1000;
+    const int M = 200;
+    const size_t S = 16_KB;
+
+    auto getBytesCommitted = [] {
+        static_assert(NYTAlloc::SmallRankCount >= 23, "SmallRankCount is too small");
+        return NYTAlloc::GetSmallArenaCounters()[22][NYTAlloc::ESmallArenaCounter::BytesCommitted];
+    };
+
+    auto bytesBefore = getBytesCommitted();
+    fprintf(stderr, "bytesBefore = %" PRISZT"\n", bytesBefore);
+
+    char sum = 0;
+    for (int i = 0; i < N; i++) {
+        std::thread t([&] {
+            std::vector<char*> ptrs;
+            for (int j = 0; j < M; ++j) {
+                auto* ptr = new char[S];
+                ptrs.push_back(ptr);
+
+                // To prevent allocations from being opitmized out.
+                ::memset(ptr, 0, S);
+                for (size_t k = 0; k < S; ++k) {
+                    sum += ptr[k];
+                }
+            }
+            for (int j = 0; j < M; ++j) {
+                delete[] ptrs[j];
+            }
+        });
+        t.join();
+    }
+
+
+    auto bytesAfter = getBytesCommitted();
+    fprintf(stderr, "bytesAfter = %" PRISZT"\n", bytesAfter);
+
+    EXPECT_GT(bytesAfter, bytesBefore);
+    EXPECT_LE(bytesAfter, bytesBefore + 4_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
