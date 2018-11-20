@@ -125,7 +125,7 @@ TEST(TYTAllocTest, PerThreadCacheReclaim)
     auto bytesAfter = getBytesCommitted();
     fprintf(stderr, "bytesAfter = %" PRISZT"\n", bytesAfter);
 
-    EXPECT_GT(bytesAfter, bytesBefore);
+    EXPECT_GE(bytesAfter, bytesBefore);
     EXPECT_LE(bytesAfter, bytesBefore + 4_MB);
 }
 
