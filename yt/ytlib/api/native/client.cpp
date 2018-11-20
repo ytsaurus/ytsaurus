@@ -2201,7 +2201,7 @@ private:
         auto fetcher = New<TColumnarStatisticsFetcher>(
             options.FetcherConfig,
             nodeDirectory,
-            GetCurrentInvoker(),
+            CreateSerializedInvoker(GetCurrentInvoker()),
             nullptr /* scraper */,
             this,
             Logger);
