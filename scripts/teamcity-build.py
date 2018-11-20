@@ -48,7 +48,6 @@ MB = 1024 * KB
 GB = 1024 * MB
 TB = 1024 * GB
 
-NODEJS_RESOURCE = "sbr:629132696"
 INTEGRATION_TESTS_PARALLELISM = 4
 PYTHON_TESTS_PARALLELISM = 6
 YP_TESTS_PARALLELISM = 6
@@ -69,7 +68,6 @@ except:
 def yt_processes_cleanup():
     kill_by_name("^ytserver")
     kill_by_name("^node")
-    kill_by_name("^run_proxy")
 
 def comma_separated_set(s):
     return set(el for el in s.split(",") if el)
@@ -106,9 +104,6 @@ def only_for_projects(*projects):
 
 def get_artifacts_dir(options):
     return os.path.join(options.working_directory, "ARTIFACTS")
-
-def get_node_modules_dir(options):
-    return os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
 
 def get_bin_dir(options):
     return os.path.join(options.working_directory, "bin")
@@ -162,12 +157,6 @@ def get_git_depth(options):
         capture_output=True)
     return run_result.stdout.rstrip("\n")
 
-def get_http_proxy_nanny_tar_ya_package(options):
-    with cwd(get_artifacts_dir(options)):
-        generated_package_list = glob.glob("yandex-yt-http-proxy-nanny*.tar")
-        assert len(generated_package_list) == 1, "Expected exactly one package, actual: {0}".format(generated_package_list)
-        return os.path.realpath(generated_package_list[0])
-
 def ya_make_env(options):
     return {
         "YA_CACHE_DIR": get_ya_cache_dir(options),
@@ -207,7 +196,6 @@ def prepare(options, build_context):
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
 
-    options.build_enable_nodejs = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
     options.build_enable_python_2_6 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_6", "YES"))
     options.build_enable_python_2_7 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
     options.build_enable_python_3_4 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_3_4", "YES"))
@@ -320,7 +308,6 @@ def configure(options, build_context):
                 "-DYT_BUILD_NUMBER={0}".format(options.build_number),
                 "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:10]),
                 "-DYT_BUILD_USERNAME=", # Empty string is used intentionally to suppress username in version identifier.
-                "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs)),
                 "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6)),
                 "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
                 "-DYT_BUILD_ENABLE_PYTHON_3_4={0}".format(format_yes_no(options.build_enable_python_3_4)),
@@ -509,29 +496,8 @@ def package_common_packages(options, build_context):
     if options.build_system != "ya":
         return
 
-    PackageTask = collections.namedtuple(
-        "PackageTask", [
-            "package_file",
-            "ya_package_args"])
-
-    PACKAGE_TASK_LIST = [
-        PackageTask(
-            "yandex-yt-http-proxy-nanny.json",
-            ("--tar", "--no-compression")),
-    ]
     artifacts_dir = get_artifacts_dir(options)
     os.mkdir(artifacts_dir)
-    with cwd(artifacts_dir):
-        for package_task in PACKAGE_TASK_LIST:
-            package_file = os.path.join(get_bin_dir(options), package_task.package_file)
-            args = [
-                get_ya(options), "package", package_file,
-                "--custom-version", build_context["yt_version"],
-            ]
-            args += package_task.ya_package_args
-            args += ya_make_args(options)
-            run(args, env=ya_make_env(options))
-
     build_python_packages = os.path.join(options.checkout_directory, "scripts", "build-python-packages.py")
     run([
         build_python_packages,
@@ -574,7 +540,9 @@ def package(options, build_context):
                         try:
                             package_name = json.load(inf)["meta"]["name"]
                         except KeyError:
-                            RuntimeError("Bad package file {0}, cannot find /meta/name key".format(package_file))
+                            raise RuntimeError("Bad package file {0}, cannot find /meta/name key".format(package_file))
+                        except ValueError:
+                            raise RuntimeError("Bad package file {0}".format(package_file))
                     args = [
                         get_ya(options), "package", package_file,
                         "--custom-version", build_context["yt_version"],
@@ -622,31 +590,6 @@ def package_yp(options, build_context):
         run(["./resign.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python", "yandex-yp-python"))
         run(["./build_yandex_yp.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python"))
 
-
-@build_step
-def run_prepare_node_modules(options, build_context):
-    nodejs_source = os.path.join(options.checkout_directory, "yt", "nodejs")
-    nodejs_build = os.path.join(options.working_directory, "yt", "nodejs")
-
-    if options.build_system == "cmake":
-        yt_node_binary_path = os.path.join(nodejs_source, "lib", "ytnode.node")
-        run(["rm", "-f", yt_node_binary_path])
-        run(["ln", "-s", os.path.join(nodejs_build, "ytnode.node"), yt_node_binary_path])
-
-        with cwd(nodejs_build):
-            if os.path.exists("node_modules"):
-                rmtree("node_modules")
-            run(["npm", "install"])
-
-        link_path = os.path.join(nodejs_build, "node_modules", "yt")
-        run(["rm", "-f", link_path])
-        run(["ln", "-s", nodejs_source, link_path])
-    else:
-        assert options.build_system == "ya"
-        mkdirp(nodejs_build)
-        with tarfile.open(get_http_proxy_nanny_tar_ya_package(options)) as http_proxy_tar:
-            http_proxy_tar.extractall(path=nodejs_build)
-        assert os.path.exists(get_node_modules_dir(options))
 
 @build_step
 def run_sandbox_upload(options, build_context):
@@ -713,32 +656,6 @@ def run_sandbox_upload(options, build_context):
             os.path.basename(binary_distribution_folder),
             os.path.dirname(binary_distribution_folder))
     sandbox_ctx["upload_urls"]["yt_binaries"] = rbtorrent
-
-    tmp_dir = os.path.join(options.working_directory, "tmp_package_build")
-    mkdirp(tmp_dir)
-    # Nodejs package
-    if options.build_system == "cmake":
-        nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "node_modules.tar")
-        nodejs_build = os.path.join(options.working_directory, "debian/yandex-yt-http-proxy/usr/lib/node_modules")
-        with cwd(tmp_dir):
-            sky_get(NODEJS_RESOURCE)
-            nodejs_path = os.path.realpath("node")
-            if not os.path.exists(nodejs_path):
-                raise RuntimeError("nodejs resource does not contain 'node' directory")
-        with tarfile.open(nodejs_tar, "w", dereference=True) as tar:
-            tar.add(nodejs_build, arcname="/node_modules", recursive=True)
-            tar.add(nodejs_path, arcname="/node", recursive=True)
-
-        rbtorrent = sky_share("node_modules.tar", build_context["sandbox_upload_root"])
-        sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
-    else:
-        assert options.build_system == "ya"
-        ya_nodejs_tar = os.path.join(build_context["sandbox_upload_root"],  "ya_node_modules.tar")
-        os.symlink(get_http_proxy_nanny_tar_ya_package(options), ya_nodejs_tar)
-
-        rbtorrent = sky_share("ya_node_modules.tar", build_context["sandbox_upload_root"])
-        sandbox_ctx["upload_urls"]["node_modules"] = rbtorrent
-    shutil.rmtree(tmp_dir)
 
     sandbox_ctx["git_commit"] = options.build_vcs_number
     sandbox_ctx["git_branch"] = options.git_branch
@@ -819,29 +736,6 @@ def run_unit_tests(options, build_context):
         rmtree(sandbox_current)
 
 
-@build_step
-@only_for_projects("yt")
-def run_javascript_tests(options, build_context):
-    if not options.build_enable_nodejs or options.disable_tests:
-        return
-
-    if options.build_system == "cmake":
-        tests_path = "{0}/yt/nodejs".format(options.working_directory)
-    else:
-        assert options.build_system == "ya"
-        tests_path = get_bin_dir(options)
-
-    try:
-        run(
-            ["./run_tests.sh", "-R", "xunit"],
-            cwd=tests_path,
-            env={"MOCHA_OUTPUT_FILE": "{0}/junit_nodejs_run_tests.xml".format(options.working_directory)})
-    except ChildHasNonZeroExitCode as err:
-        raise StepFailedWithNonCriticalError(str(err))
-    finally:
-        process_core_dumps(options, "javascript", tests_path)
-
-
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
     yt_processes_cleanup()
 
@@ -871,7 +765,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
     if env is None:
         env = {}
 
-    env["PATH"] = "{0}:{1}/yt/nodejs:/usr/sbin:{2}".format(get_bin_dir(options), options.working_directory, os.environ.get("PATH", ""))
+    env["PATH"] = "{0}:/usr/sbin:{1}".format(get_bin_dir(options), os.environ.get("PATH", ""))
     env["PYTHONPATH"] = "{0}/python:{0}/yp/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
     env["TESTS_SANDBOX"] = sandbox_current
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
@@ -981,14 +875,10 @@ def run_yp_integration_tests(options, build_context):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", str(YP_TESTS_PARALLELISM)])
 
-    node_path = get_node_modules_dir(options)
     for python_version in iter_enabled_python_versions(options):
         if python_version not in {"2.7", "3.4"}:
             continue
         run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
-           env={
-               "NODE_PATH": node_path
-           },
            python_version=python_version,
            pytest_args=pytest_args)
 
@@ -1006,13 +896,11 @@ def run_python_libraries_tests(options, build_context):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", str(PYTHON_TESTS_PARALLELISM)])
 
-    node_path = get_node_modules_dir(options)
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
                pytest_args=pytest_args,
                env={
                    "TESTS_JOB_CONTROL": "1",
                    "YT_ENABLE_REQUEST_LOGGING": "1",
-                   "NODE_PATH": node_path
                 })
 
 @build_step
