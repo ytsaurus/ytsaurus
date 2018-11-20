@@ -179,7 +179,7 @@ private:
     void StartWaitingJobs();
 
     //! Compares new usage with resource limits. Detects resource overdraft.
-    bool CheckResourceUsageDelta(const TNodeResources& delta);
+    bool CheckMemoryOverdraft(const TNodeResources& delta);
 
     //! Returns |true| if a job with given #jobResources can be started.
     //! Takes special care with ReplicationDataSize and RepairDataSize enabling
@@ -672,7 +672,7 @@ void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, b
 
 void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& job, const TNodeResources& resourceDelta)
 {
-    if (!CheckResourceUsageDelta(resourceDelta)) {
+    if (!CheckMemoryOverdraft(resourceDelta)) {
         auto job_ = job.Lock();
         if (job_) {
             job_->Abort(TError(
@@ -699,15 +699,11 @@ void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& job)
     }
 }
 
-bool TJobController::TImpl::CheckResourceUsageDelta(const TNodeResources& delta)
+bool TJobController::TImpl::CheckMemoryOverdraft(const TNodeResources& delta)
 {
-    // Nonincreasing resources cannot lead to overdraft.
-    auto nodeLimits = GetResourceLimits();
-    auto newUsage = GetResourceUsage() + delta;
-
-    #define XX(name, Name) if (delta.name() > 0 && nodeLimits.name() < newUsage.name()) { return false; }
-    ITERATE_NODE_RESOURCES(XX)
-    #undef XX
+    // Only cpu and user_memory can be increased.
+    // Network decreases by design. Cpu increasing is handled in AdjustResources.
+    // Others are not reported by job proxy (see TSupervisorService::UpdateResourceUsage).
 
     if (delta.user_memory() > 0) {
         bool reachedWatermark = GetUserMemoryUsageTracker()->GetTotalFree() <= GetUserJobsFreeMemoryWatermark();
@@ -1003,7 +999,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         // COMPAT(babenko)
         return address
             ? channelFactory->CreateChannel(address)
-            : Bootstrap_->GetMasterClient()->GetSchedulerChannel();
+            : client->GetSchedulerChannel();
     };
 
     std::vector<TFuture<void>> asyncResults;

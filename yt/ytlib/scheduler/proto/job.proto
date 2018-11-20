@@ -209,6 +209,8 @@ message TSchedulerJobSpecExt
     optional bool abort_job_if_account_limit_exceeded = 20;
 
     optional string acl = 21;
+
+    optional string job_cpu_monitor_config = 22;
 }
 
 message TSchedulerJobResultExt

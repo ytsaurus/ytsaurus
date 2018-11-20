@@ -611,10 +611,10 @@ def events_on_fs():
         _events_on_fs = JobEvents(create_tmpdir("eventdir"))
     return _events_on_fs
 
-def with_breakpoint(cmd):
+def with_breakpoint(cmd, breakpoint_name="default"):
     if "BREAKPOINT" not in cmd:
         raise ValueError("Command doesn't have BREAKPOINT: {0}".format(cmd))
-    result = cmd.replace("BREAKPOINT", events_on_fs().breakpoint_cmd(), 1)
+    result = cmd.replace("BREAKPOINT", events_on_fs().breakpoint_cmd(breakpoint_name), 1)
     if "BREAKPOINT" in result:
         raise ValueError("Command has multiple BREAKPOINT: {0}".format(cmd))
     return result

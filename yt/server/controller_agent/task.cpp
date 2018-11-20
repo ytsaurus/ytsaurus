@@ -887,6 +887,12 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             ApproximateSizesBoostFactor));
     }
 
+    auto operationWithUserJobSpec = dynamic_cast<TOperationWithUserJobSpec*>(TaskHost_->GetSpec().Get());
+    auto jobCpuMonitorConfig = operationWithUserJobSpec
+        ? operationWithUserJobSpec->JobCpuMonitor
+        : New<TJobCpuMonitorConfig>();
+    schedulerJobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(jobCpuMonitorConfig).GetData());
+
     if (schedulerJobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
         TaskHost_->OnOperationFailed(TError(
             NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded,

@@ -1178,6 +1178,10 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             PreemptJob(job, operationElement, context);
         }
     }
+
+    if (!Dominates(context->SchedulingContext->ResourceLimits(), context->SchedulingContext->ResourceUsage())) {
+        LOG_INFO("Resource usage exceeds node resorce limits even after preemption.");
+    }
 }
 
 void TFairShareTree::DoScheduleJobs(

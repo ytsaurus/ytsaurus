@@ -586,6 +586,8 @@ public:
     TNullable<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
 
+    TJobCpuMonitorConfigPtr JobCpuMonitor;
+
     TOperationWithUserJobSpec();
 };
 
@@ -1068,6 +1070,34 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobCpuMonitorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableCpuReclaim;
+
+    TDuration CheckPeriod;
+
+    double SmoothingFactor;
+
+    double RelativeUpperBound;
+    double RelativeLowerBound;
+
+    double IncreaseCoefficient;
+    double DecreaseCoefficient;
+
+    int VoteWindowSize;
+    int VoteDecisionThreshold;
+
+    double MinCpuLimit;
+
+    TJobCpuMonitorConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
