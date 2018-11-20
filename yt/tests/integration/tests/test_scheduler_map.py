@@ -585,6 +585,7 @@ print row + table_index
             release_breakpoint(job_id=job_id)
 
         wait(lambda : op.get_job_count("completed") == 2)
+        wait(lambda: exists(operation_path + "/controller_orchid"))
 
         live_preview_data1 = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0")
         live_preview_data2 = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/1")
