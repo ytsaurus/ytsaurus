@@ -110,16 +110,18 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
 
         if (!disableCsrfTokenCheck) {
             auto csrfTokenHeader = request->GetHeaders()->Find("X-Csrf-Token");
-            if (csrfTokenHeader) {
-                auto error = CheckCsrfToken(
-                    Strip(*csrfTokenHeader),
-                    authResult.Value().Login,
-                    Config_->GetCsrfSecret(),
-                    Config_->GetCsrfTokenExpirationTime());
+            if (!csrfTokenHeader) {
+                return TError(NRpc::EErrorCode::InvalidCredentials, "CSRF token is missing");
+            }
 
-                if (!error.IsOK()) {
-                    return error;
-                }
+            auto error = CheckCsrfToken(
+                Strip(*csrfTokenHeader),
+                authResult.Value().Login,
+                Config_->GetCsrfSecret(),
+                Config_->GetCsrfTokenExpirationTime());
+
+            if (!error.IsOK()) {
+                return error;
             }
         }
 
