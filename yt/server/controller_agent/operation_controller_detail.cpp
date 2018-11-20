@@ -251,6 +251,10 @@ TOperationControllerBase::TOperationControllerBase(
     UserTransaction = UserTransactionId
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
+
+    LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
+        OperationType,
+        static_cast<void*>(this));
 }
 
 void TOperationControllerBase::BuildMemoryUsageYson(TFluentAny fluent) const
