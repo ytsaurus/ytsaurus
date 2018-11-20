@@ -582,7 +582,7 @@ class YTInstance(object):
                 freezer_cgroups.append(cgroup_path)
 
         for freezer_path in freezer_cgroups:
-            with open(os.path.join(cgroup_path, "tasks")) as f:
+            with open(os.path.join(freezer_path, "tasks")) as f:
                 for line in f:
                     pid = int(line)
                     # Stopping process activity. This prevents
@@ -590,7 +590,7 @@ class YTInstance(object):
                     os.kill(pid, signal.SIGSTOP)
 
         for freezer_path in freezer_cgroups:
-            with open(os.path.join(cgroup_path, "tasks")) as f:
+            with open(os.path.join(freezer_path, "tasks")) as f:
                 for line in f:
                     pid = int(line)
                     # Stopping process activity. This prevents
