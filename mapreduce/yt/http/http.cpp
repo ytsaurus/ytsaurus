@@ -588,7 +588,7 @@ THttpRequest::~THttpRequest()
     }
 
     if (keepAlive && Input && Input->IsExhausted()) {
-        // We should return to the pool only connections were HTTP response was fully read.
+        // We should return to the pool only connections where HTTP response was fully read.
         // Otherwise next reader might read our remaining data and misinterpret them (YT-6510).
         TConnectionPool::Get()->Release(Connection);
     } else {
