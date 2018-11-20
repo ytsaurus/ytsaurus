@@ -1,5 +1,6 @@
 from yt_commands import *
 from yt_env_setup import YTEnvSetup, unix_only
+
 import yt.yson as yson
 
 import pytest
@@ -189,6 +190,26 @@ class TestWebJsonFormat(YTEnvSetup):
         output = json.loads(read_table(TABLE_PATH, output_format=format_))
 
         assert "incomplete_columns" in output and output["incomplete_columns"] == "true"
+
+    # NB! Expect to have |null| value in the output for every not presented in the data schema column.
+    @unix_only
+    def test_read_table_schema_column_null_values(self):
+        schema = get_schema(strict=False)
+        create("table", TABLE_PATH, attributes={"schema": schema})
+
+        missed_schema_column = "int64_column"
+
+        rows = copy.deepcopy(ROWS)
+        for row in rows:
+            row.pop(missed_schema_column)
+        write_table(TABLE_PATH, rows)
+
+        format_ = get_web_json_format(100500, 100500)
+        output = json.loads(read_table(TABLE_PATH, output_format=format_))
+
+        assert len(output["rows"]) > 0
+        assert all(missed_schema_column in row for row in output["rows"])
+        assert missed_schema_column in output["all_column_names"]
 
     @unix_only
     def test_select_rows_from_sorted_dynamic_table(self):
