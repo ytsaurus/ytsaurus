@@ -26,6 +26,7 @@
 #include <yt/client/formats/config.h>
 #include <yt/client/formats/parser.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/misc/finally.h>
 
 namespace NYT {
@@ -311,8 +312,25 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     }
 
     auto transaction = AttachTransaction(context, false);
+
+    static auto keepAliveSpace = TSharedRef::FromString(" ");
+    auto keepAliveCallback = [context] () {
+        auto error = WaitFor(context->Request().OutputStream->Write(keepAliveSpace));
+        // Ignore errors here. If user closed connection, it must be handled on the upper layer.
+        Y_UNUSED(error);
+    };
+
+    auto keepAliveExecutor = New<TPeriodicExecutor>(
+        GetSyncInvoker(),
+        BIND(keepAliveCallback),
+        TDuration::MilliSeconds(100));
+    keepAliveExecutor->Start();
+
     auto allStatistics = WaitFor(context->GetClient()->GetColumnarStatistics(Paths, Options))
         .ValueOrThrow();
+
+    WaitFor(keepAliveExecutor->Stop())
+        .ThrowOnError();
 
     YCHECK(allStatistics.size() == Paths.size());
     for (int index = 0; index < allStatistics.size(); ++index) {
