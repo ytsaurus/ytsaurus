@@ -24,6 +24,7 @@ import threading
 FQDN = socket.getfqdn()
 
 CHUNK_GUID_TYPE = 100
+ERASURE_CHUNK_GUID_TYPE = 102
 JOB_GUID_TYPE = 900
 OPERATION_GUID_TYPE = 1000
 
@@ -117,6 +118,7 @@ def guid_type_name(guid_type):
         OPERATION_GUID_TYPE: "OperationId",
         JOB_GUID_TYPE: "JobId",
         CHUNK_GUID_TYPE: "ChunkId",
+        ERASURE_CHUNK_GUID_TYPE: "ErasureChunkId"
     }[guid_type]
 
 
@@ -544,8 +546,8 @@ def resolve_service(client, service_name, selector_list):
                 selector = n
             guid = selector
             guid_type = object_type_from_uuid(guid)
-            if guid_type not in [OPERATION_GUID_TYPE, JOB_GUID_TYPE, CHUNK_GUID_TYPE]:
-                raise LogrepError("Don't know what to do with guid of unknown type")
+            if guid_type not in [OPERATION_GUID_TYPE, JOB_GUID_TYPE, CHUNK_GUID_TYPE, ERASURE_CHUNK_GUID_TYPE]:
+                raise LogrepError("Don't know what to do with guid of unknown type: {}".format(guid_type))
             if guid_type == OPERATION_GUID_TYPE:
                 if application == "ytserver-scheduler":
                     def filter_func(x):
@@ -560,7 +562,7 @@ def resolve_service(client, service_name, selector_list):
                         return instance_match_attribute(x, "active")
                 elif application == "ytserver-node":
                     filter_func = node_job_id_selector.get_job_id_filter(guid)
-            elif guid_type == CHUNK_GUID_TYPE:
+            elif guid_type in [CHUNK_GUID_TYPE, ERASURE_CHUNK_GUID_TYPE]:
                 if application == "ytserver-master":
                     attribute = "secondary:{cell:x}".format(cell=cell_id_from_guid(guid))
 
@@ -711,10 +713,15 @@ def get_controller_agent_list(client):
 
 
 def get_node_list(client):
-    address_list = client.list("//sys/nodes")
+    node_attributes = ["state", "rack"]
+    address_list = client.list("//sys/nodes", attributes=node_attributes)
     result = []
     for address in address_list:
-        result.append(Instance(address, "ytserver-node", []))
+        attrs = [
+            "{}:{}".format(attr, address.attributes.get(attr, "<unknown>"))
+            for attr in node_attributes
+        ]
+        result.append(Instance(str(address), "ytserver-node", attrs))
     return result
 
 
