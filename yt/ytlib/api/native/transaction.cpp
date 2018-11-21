@@ -1215,10 +1215,10 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto remaining = RequestsRemaining_--;
-            YCHECK(remaining >= 1);
-            return remaining == 1
-                ? FinalTransactionSignature - InitialTransactionSignature - RequestsTotal_.load()
+            auto remaining = --RequestsRemaining_;
+            YCHECK(remaining >= 0);
+            return remaining == 0
+                ? FinalTransactionSignature - InitialTransactionSignature - RequestsTotal_.load() + 1
                 : 1;
         }
 
