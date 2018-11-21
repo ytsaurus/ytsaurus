@@ -1792,12 +1792,12 @@ int TOperationElementSharedState::GetScheduledJobCount() const
     return ScheduledJobCount_;
 }
 
-TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
+TNullable<TJobResources> TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
     if (!Enabled_ && !force) {
-        return ZeroJobResources();
+        return Null;
     }
 
     LastScheduleJobSuccessTime_ = TInstant::Now();
@@ -1932,12 +1932,12 @@ void TOperationElement::Enable()
     return SharedState_->Enable();
 }
 
-TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
+TNullable<TJobResources> TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
     if (!Enabled_) {
-        return ZeroJobResources();
+        return Null;
     }
 
     auto it = JobPropertiesMap_.find(jobId);
@@ -2296,11 +2296,11 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     context->TotalScheduleJobDuration += scheduleJobDuration;
     context->ExecScheduleJobDuration += scheduleJobResult->Duration;
 
-    for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        context->FailedScheduleJob[reason] += scheduleJobResult->Failed[reason];
-    }
-
     if (!scheduleJobResult->StartDescriptor) {
+        for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+            context->FailedScheduleJob[reason] += scheduleJobResult->Failed[reason];
+        }
+
         ++context->ScheduleJobFailureCount;
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
@@ -2315,8 +2315,14 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     }
 
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
+    if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits)) {
+        Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
+        disableOperationElement(EDeactivationReason::OperationDisabled);
+        FinishScheduleJob(/*enableBackoff*/ false, now, minNeededResources);
+        return false;
+    }
+
     context->SchedulingContext->ResourceUsage() += startDescriptor.ResourceLimits;
-    OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits);
     context->SchedulingContext->StartJob(
         GetTreeId(),
         OperationId_,
@@ -2528,15 +2534,19 @@ TString TOperationElement::GetUserName() const
     return Operation_->GetAuthenticatedUser();
 }
 
-void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
+bool TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
     // XXX(ignat): remove before deploy on production clusters.
     LOG_DEBUG("Adding job to strategy (JobId: %v)", jobId);
 
     auto delta = SharedState_->AddJob(jobId, resourceUsage, force);
-    IncreaseHierarchicalResourceUsage(delta);
-
-    UpdatePreemptableJobsList();
+    if (delta) {
+        IncreaseHierarchicalResourceUsage(*delta);
+        UpdatePreemptableJobsList();
+        return true;
+    } else {
+        return false;
+    }
 }
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
@@ -2545,9 +2555,10 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
     LOG_DEBUG("Removing job from strategy (JobId: %v)", jobId);
 
     auto delta = SharedState_->RemoveJob(jobId);
-    IncreaseHierarchicalResourceUsage(-delta);
-
-    UpdatePreemptableJobsList();
+    if (delta) {
+        IncreaseHierarchicalResourceUsage(-(*delta));
+        UpdatePreemptableJobsList();
+    }
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
