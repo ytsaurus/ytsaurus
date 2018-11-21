@@ -656,22 +656,6 @@ def instance_match_attribute(instance, attr_pattern):
     return any(attr_pattern in attr for attr in instance.attributes)
 
 
-def parse_address_list(address_list):
-    for address in address_list:
-        attrs = []
-        if "rack" in address.attributes:
-            "rack:{}".format(address.attributes["rack"])
-
-        banned = address.attributes.get("banned", None)
-        if banned and banned != "false":
-            attrs.append("banned:{}".format(banned))
-        state = address.attributes.get("state", "online")
-        if state != "online":
-            attrs.append("state:{}".format(state))
-
-        yield str(address), attrs
-
-
 def parse_state_attribute(address):
     state = address.attributes.get("state", "online")
     if state != "online":
@@ -685,7 +669,7 @@ def parse_banned_attribute(address):
 
 
 def parse_rack_attribute(address):
-    yield address.attributes.get("rack", "<unknown>")
+    yield "rack:{}".format(address.attributes.get("rack", "<unknown>"))
 
 
 def get_master_list(client):
@@ -794,8 +778,8 @@ def get_proxy_list(client):
 def get_rpc_proxy_list(client):
     address_list = client.list("//sys/rpc_proxies")
     result = []
-    for address, attributes in parse_address_list(address_list):
-        result.append(Instance(address, "ytserver-proxy", attributes))
+    for address in address_list:
+        result.append(Instance(address, "ytserver-proxy", []))
     return result
 
 
@@ -1035,14 +1019,6 @@ def main():
     parser.add_argument("instance", nargs="+", help="instances to work with")
 
     action_group = parser.add_mutually_exclusive_group()
-    list_group = action_group.add_argument_group()
-    list_group.add_argument(
-        "--short",
-        help="print only host names when listing instances",
-        action="store_true",
-        default=False,
-    )
-
 
     action_group.add_argument(
         "--ssh",
@@ -1061,37 +1037,50 @@ def main():
             setattr(namespace, "pattern", values)
             setattr(namespace, "subcommand", self.subcommand)
 
-    grep_group = action_group.add_argument_group()
-    grep_group.add_argument(
+    action_group.add_argument(
         "--grep",
         help="grep logs on selected instance (single instance must be selected)",
         action=GrepAction,
         subcommand=subcommand_grep,
     )
 
-    pgrep_group = action_group.add_argument_group()
-    pgrep_group.add_argument(
+    action_group.add_argument(
         "--pgrep",
         help="grep logs on several selected instances in parallel",
         action=GrepAction,
         subcommand=subcommand_pgrep,
     )
+    
+    list_group = parser.add_argument_group("list instances arguments:")
 
-    parser.add_argument(
+    list_group.add_argument(
+        "--short",
+        help="print only host names when listing instances",
+        action="store_true",
+        default=False,
+    )
+
+    grep_pgrep_group = parser.add_argument_group("grep / pgrep arguments:")
+
+    grep_pgrep_group.add_argument(
         "-t", "--time", "--start-time",
         default="now",
         help="start of time interval to grep (check TIME FORMATS below)"
     )
-    parser.add_argument(
+    grep_pgrep_group.add_argument(
         "-e", "--end-time",
         help="end of time interval to grep, equals start interval by default (check TIME FORMATS below)"
     )
 
+    pgrep_group = parser.add_argument_group("pgrep only arguments:")
     pgrep_group.add_argument(
         "--instance-limit",
         type=int,
         default=10,
-        help="limit for the number of selected instances"
+        help=(
+            "limit for the number of selected instances "
+            "(pgrep will fail if number of selected instance exeeds this limit, default limit: 10)"
+        )
     )
 
     args = parser.parse_args()
