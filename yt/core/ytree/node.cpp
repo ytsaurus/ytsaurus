@@ -75,7 +75,7 @@ int IListNode::AdjustChildIndex(int index) const
 
 void Serialize(INode& value, IYsonConsumer* consumer)
 {
-    VisitTree(&value, consumer, Null /*attributeKeys*/, true /*stable*/);
+    VisitTree(&value, consumer, true /*stable*/, Null /*attributeKeys*/);
 }
 
 void Deserialize(INodePtr& value, const INodePtr& node)
@@ -107,8 +107,8 @@ TYsonString ConvertToYsonStringStable(const INodePtr& node)
     VisitTree(
         node,
         &writer,
-        Null,
-        true); // truth matters :)
+        true, // truth matters :)
+        Null);
     writer.Flush();
     return TYsonString(stream.Str());
 }
