@@ -1003,7 +1003,7 @@ private:
     TSpinLock SpinLock_;
     std::vector<TLayerPtr> Layers_;
 
-    int ActiveCount_= 0;
+    int ActiveCount_= 1;
     bool Evicted_ = false;
 
     void OnLayerEvicted();
@@ -1025,10 +1025,10 @@ class TLayeredVolume
     : public IVolume
 {
 public:
-    explicit TLayeredVolume(TVolumeStatePtr volumeState)
+    TLayeredVolume(TVolumeStatePtr volumeState, bool isLocked)
         : VolumeState_(std::move(volumeState))
     {
-        if (!VolumeState_->TryAcquireLock()) {
+        if (!isLocked && !VolumeState_->TryAcquireLock()) {
             THROW_ERROR_EXCEPTION("Failed to lock volume state, volume is waiting to be destroyed");
         }
     }
@@ -1087,7 +1087,7 @@ public:
         auto volumeKey = TVolumeKey(layers);
         auto tag = TGuid::Create();
 
-        auto createVolume = BIND([=] (const TVolumeStatePtr& volumeState) {
+        auto createVolume = [=] (bool isLocked, const TVolumeStatePtr& volumeState) {
             for (const auto& layer : volumeState->GetLayers()) {
                 LayerCache_->Touch(layer);
             }
@@ -1096,8 +1096,8 @@ public:
                 tag,
                 volumeState->GetPath());
 
-            return New<TLayeredVolume>(volumeState);
-        });
+            return New<TLayeredVolume>(volumeState, isLocked);
+        };
 
         TPromise<TVolumeStatePtr> promise;
         {
@@ -1113,7 +1113,7 @@ public:
                     it->second.Tag);
 
                 return it->second.VolumeFuture
-                    .Apply(createVolume)
+                    .Apply(BIND(createVolume, false))
                     .As<IVolumePtr>();
             } else {
                 LOG_DEBUG("Volume is not cached, will be created (Tag: %v)",
@@ -1147,7 +1147,7 @@ public:
         // This promise is intentionally uncancelable. If we decide to abort job cancel job preparation
         // this volume will hopefully be reused by another job.
         return promise.ToFuture()
-            .Apply(createVolume)
+            .Apply(BIND(createVolume, true))
             .As<IVolumePtr>();
     }
 
