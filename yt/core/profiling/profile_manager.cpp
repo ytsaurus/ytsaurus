@@ -398,7 +398,27 @@ private:
         storedSample.MetricType = queuedSample.MetricType;
 
         if (!bucket->AddSample(storedSample)) {
-            LOG_DEBUG("Profiling sample dropped (Path: %v)", queuedSample.Path);
+            // TODO(ignat): add formatter for THashMap and friends.
+            TStringBuilder builder;
+            builder.AppendChar('[');
+            {
+                TGuard<TForkAwareSpinLock> guard(TagSpinLock);
+                for (size_t index = 0; index < storedSample.TagIds.size(); ++index) {
+                    auto tagId = storedSample.TagIds[index];
+                    const auto& tag = GetTag(tagId);
+                    builder.AppendChar('(');
+                    builder.AppendString(tag.Key);
+                    builder.AppendChar(':');
+                    builder.AppendChar(' ');
+                    builder.AppendString(tag.Value);
+                    builder.AppendChar(')');
+                    if (index + 1 < storedSample.TagIds.size()) {
+                        builder.AppendChar(',');
+                    }
+                }
+            }
+            builder.AppendChar(']');
+            LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)", queuedSample.Path, builder.Flush());
             ProfilingProfiler.Increment(DroppedCounter);
         }
         bucket->TrimSamples(MaxKeepInterval);
