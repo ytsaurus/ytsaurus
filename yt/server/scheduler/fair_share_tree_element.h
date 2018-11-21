@@ -580,8 +580,8 @@ public:
 
     int GetScheduledJobCount() const;
 
-    TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
-    TJobResources RemoveJob(const TJobId& jobId);
+    TNullable<TJobResources> AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
+    TNullable<TJobResources> RemoveJob(const TJobId& jobId);
 
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
@@ -816,7 +816,7 @@ public:
 
     TString GetUserName() const;
 
-    void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force = false);
+    bool OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force = false);
     void OnJobFinished(const TJobId& jobId);
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
