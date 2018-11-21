@@ -282,7 +282,7 @@ class GrepTask(RemoteTask):
         for f in file_to_grep_list:
             logging.info("would grep {}".format(f))
 
-        cmd = ["zfgrep", self.pattern] + file_to_grep_list
+        cmd = ["zfgrep", "--no-filename", self.pattern] + file_to_grep_list
         logging.info("running {}".format(" ".join(map(shell_quote, cmd))))
 
         cmd = ["stdbuf", "-oL", "-eL"] + cmd
@@ -475,9 +475,12 @@ def get_first_file_line(filename):
 def parse_time(time_str):
     if time_str == "now":
         return datetime.datetime.now()
-    elif re.match("\d\d:\d\d:\d\d", time_str):
+    elif re.match("\d\d:\d\d:\d\d", time_str) or re.match("\d\d:\d\d"):
         now = datetime.datetime.now()
-        parsed = datetime.datetime.strptime(time_str, "%H:%M:%S")
+        if len(time_str) == 5:
+            parsed = datetime.datetime.strptime(time_str, "%H:%M")
+        else:
+            parsed = datetime.datetime.strptime(time_str, "%H:%M:%S")
         result = now.replace(hour=parsed.hour, minute=parsed.minute, second=parsed.second, microsecond=0)
         if result > now:
             raise LogrepError("Date {0} is in the future".format(result))
@@ -535,6 +538,14 @@ def resolve_service(client, service_name, selector_list):
     node_job_id_selector = NodeJobIdSelector(client)
     for selector in selector_list:
         filter_func = None
+        not_count = 0
+        for c in selector:
+            if c != "!":
+                break
+            not_count += 1
+        if not_count:
+            selector = selector[not_count:]
+
         if selector.startswith("@"):
             def filter_func(x):
                 return instance_match_attribute(x, selector[1:])
@@ -582,6 +593,11 @@ def resolve_service(client, service_name, selector_list):
             def filter_func(x):
                 return selector in parse_address(x.address).host
 
+        if not_count % 2 == 1:
+            old_filter_func = filter_func
+
+            def filter_func(x):
+                return not old_filter_func(x)
         instance_list = [instance for instance in instance_list if filter_func(instance)]
 
     return instance_list
@@ -598,6 +614,7 @@ class AddressInSet(object):
 class NodeChunkIdFilter(object):
     def __init__(self, client, chunk_id):
         info = client.get("#{}/@".format(chunk_id), attributes=["stored_replicas", "last_seen_replicas"])
+        self.chunk_id = chunk_id
         self.stored_replicas = {str(r): r.attributes.get("medium", "") for r in info["stored_replicas"]}
         self.last_seen_replicas = frozenset(str(r) for r in info["last_seen_replicas"])
 
@@ -608,10 +625,10 @@ class NodeChunkIdFilter(object):
         ok = False
         medium = self.stored_replicas.get(instance.address, None)
         if medium is not None:
-            instance.attributes.append("stored:{}".format(medium))
+            instance.attributes.append("{}:stored:{}".format(self.chunk_id, medium))
             ok = True
         if instance.address in self.last_seen_replicas:
-            instance.attributes.append("last-seen")
+            instance.attributes.append("{}:last-seen".format(self.chunk_id))
             ok = True
         return ok
 
@@ -639,6 +656,38 @@ def instance_match_attribute(instance, attr_pattern):
     return any(attr_pattern in attr for attr in instance.attributes)
 
 
+def parse_address_list(address_list):
+    for address in address_list:
+        attrs = []
+        if "rack" in address.attributes:
+            "rack:{}".format(address.attributes["rack"])
+
+        banned = address.attributes.get("banned", None)
+        if banned and banned != "false":
+            attrs.append("banned:{}".format(banned))
+        state = address.attributes.get("state", "online")
+        if state != "online":
+            attrs.append("state:{}".format(state))
+
+        yield str(address), attrs
+
+
+def parse_state_attribute(address):
+    state = address.attributes.get("state", "online")
+    if state != "online":
+        yield "state:{}".format(state)
+
+
+def parse_banned_attribute(address):
+    banned = address.attributes.get("banned", None)
+    if banned and banned != "false":
+        yield "banned:{}".format(banned)
+
+
+def parse_rack_attribute(address):
+    yield address.attributes.get("rack", "<unknown>")
+
+
 def get_master_list(client):
     return get_primary_master_list(client) + get_secondary_master_list(client)
 
@@ -652,8 +701,12 @@ def get_primary_master_list(client):
 
     rsp_map = batch_get(client, req_map)
     result = []
-    for address, hydra_state in rsp_map.iteritems():
-        result.append(Instance(address, "ytserver-master", [hydra_state, "primary"]))
+    for address in address_list:
+        attributes = [
+            "primary",
+            rsp_map[address],
+        ]
+        result.append(Instance(address, "ytserver-master", attributes))
     return result
 
 
@@ -690,8 +743,10 @@ def get_scheduler_list(client):
     rsp_map = batch_get(client, req_map)
     result = []
     for address, is_connected in rsp_map.iteritems():
-        active_attr = "active" if is_connected else "standby"
-        result.append(Instance(address, "ytserver-scheduler", [active_attr]))
+        attributes = [
+            "active" if is_connected else "standby"
+        ]
+        result.append(Instance(address, "ytserver-scheduler", attributes))
     return result
 
 
@@ -707,37 +762,40 @@ def get_controller_agent_list(client):
     rsp_map = batch_get(client, req_map)
     result = []
     for address, is_connected in rsp_map.iteritems():
-        active_attr = "active" if is_connected else "standby"
-        result.append(Instance(address, "ytserver-controller-agent", [active_attr]))
+        attributes = [
+            "active" if is_connected else "standby"
+        ]
+        result.append(Instance(address, "ytserver-controller-agent", attributes))
     return result
 
 
 def get_node_list(client):
-    node_attributes = ["state", "rack"]
-    address_list = client.list("//sys/nodes", attributes=node_attributes)
+    address_list = client.list("//sys/nodes", attributes=["state", "rack", "banned"])
     result = []
     for address in address_list:
-        attrs = [
-            "{}:{}".format(attr, address.attributes.get(attr, "<unknown>"))
-            for attr in node_attributes
-        ]
-        result.append(Instance(str(address), "ytserver-node", attrs))
+        attributes = []
+        attributes += parse_rack_attribute(address)
+        attributes += parse_state_attribute(address)
+        attributes += parse_banned_attribute(address)
+        result.append(Instance(str(address), "ytserver-node", attributes))
     return result
 
 
 def get_proxy_list(client):
-    address_list = client.list("//sys/proxies")
+    address_list = client.list("//sys/proxies", attributes=["banned"])
     result = []
     for address in address_list:
-        result.append(Instance(address, "ytserver-http-proxy", []))
+        attributes = []
+        attributes += parse_banned_attribute(address)
+        result.append(Instance(str(address), "ytserver-http-proxy", attributes))
     return result
 
 
 def get_rpc_proxy_list(client):
     address_list = client.list("//sys/rpc_proxies")
     result = []
-    for address in address_list:
-        result.append(Instance(address, "ytserver-proxy", []))
+    for address, attributes in parse_address_list(address_list):
+        result.append(Instance(address, "ytserver-proxy", attributes))
     return result
 
 
@@ -786,11 +844,14 @@ def parse_address(address):
 def subcommand_list(instance_list, args):
     for instance in sorted(instance_list):
         attributes = " ".join(instance.attributes)
-        print "{address}\t{application_name}\t{attributes}".format(
-            address=instance.address,
-            application_name=instance.application,
-            attributes=attributes
-        )
+        if args.short:
+            print parse_address(instance.address).host
+        else:
+            print "{address}\t{application_name}\t{attributes}".format(
+                address=instance.address,
+                application_name=instance.application,
+                attributes=attributes
+            )
 
 
 def verify_instance_is_single(instance_list):
@@ -936,15 +997,31 @@ INSTANCE SELECTORS
    /<operation-id>/<job-id> node
    Select node responsible for this job id.
 
+   /<chunk-id> master
+   Select secondary master respobsible for this chunk.
+
+   /<chunk-id> node
+   Select nodes respobsible for this chunk.
+   This selector also adds attributes
+     - <chunk-id>:last-seen
+     - <chunk-id>:stored:<medium>
+   for selected logs.
+
+ /!<selector>
+ Invert selector.
+
 RECOGNIZED SERVICES
 {list_of_known_services}
 
 TIME FORMATS
  logrep supports multiple ways of specifying time
     now - use current moment (current log file will be grepped)
+    HH:MM (e.g. 14:30) - today's date is used
     HH:MM:SS (e.g. 12:23:00) - today's date is used
     YYYY-MM-DD HH:MM:SS' (e.g. 2018-11-09 05:10:43)
     DD MMM YYYY HH:MM:SS (e.g. 16 Nov 2018 13:56:14)
+
+Check https://ya.cc/4Waoc for examples of usage.
 """.format(
     list_of_known_services=indented_lines((info.name for info in SERVICE_TABLE), indent=2)
 )
@@ -958,9 +1035,18 @@ def main():
     parser.add_argument("instance", nargs="+", help="instances to work with")
 
     action_group = parser.add_mutually_exclusive_group()
+    list_group = action_group.add_argument_group()
+    list_group.add_argument(
+        "--short",
+        help="print only host names when listing instances",
+        action="store_true",
+        default=False,
+    )
+
+
     action_group.add_argument(
         "--ssh",
-        help="ssh to selected instance",
+        help="ssh to selected instance (single instance must be selected)",
         action="store_const",
         dest="subcommand",
         const=subcommand_ssh
@@ -978,7 +1064,7 @@ def main():
     grep_group = action_group.add_argument_group()
     grep_group.add_argument(
         "--grep",
-        help="grep logs on selected instance",
+        help="grep logs on selected instance (single instance must be selected)",
         action=GrepAction,
         subcommand=subcommand_grep,
     )
