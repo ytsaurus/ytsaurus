@@ -325,6 +325,8 @@ message TWorkload {
     // Поля ComputeResources и CommandLine заменены на контейнер Start
     // Данный контейнер содержит ограничения для запуска основной команды и саму команду
     TUtilityContainer Start = 11;
+
+    TDestroyPolicy DestroyPolicy = 12;
 }
 
 // Mutable поля Workload
@@ -349,6 +351,26 @@ message TStopPolicy {
     }
 
     // Количестно попыток выполнить gracefully stop перед тем, как убить процесс
+    // Должно быть > 0
+    uint32 MaxTries = 3;
+}
+
+// При удалении ворклоуда из спеки
+// будет вызван destroy hook, который должен выполнить gracefully завершение контейнера start
+// Если после завершения destroy hook контейнер start находится в состоянии dead или stopped, то он будет уничтожен,
+// иначе destroy hook будет перезапускаться до тех пор, пока контейнер start не перейдет в одно из этих состояний
+// Если destroy hook был запущен MaxTries раз, но так и не перевел start в состоянии dead или stopped, то start будет немедленно убит
+// Если destroy hook выполняется при помощи контейнера и завершился с НУЛЕВЫМ кодом возврата, но start не в состоянии dead или stopped,
+// то start будет немедленно убит
+// ВАЖНО: удаление ворклоуда должно происходить уже после возможного выполнения stop hook, а то они начнут одновременно выполнятся,
+// что может привезти к гонке на юзер логике.
+message TDestroyPolicy {
+    oneof Policy {
+        TUtilityContainer Destroy = 1;
+        THttpGet HttpDestroy = 2;
+    }
+
+    // Количестно попыток выполнить gracefully destroy перед тем, как убить процесс
     // Должно быть > 0
     uint32 MaxTries = 3;
 }
@@ -616,6 +638,8 @@ message TWorkloadStatus {
 
     TStopStatus StopStatus = 14;
 
+    TDestroyStatus DestroyStatus = 15;
+
     TReadinessStatus ReadinessStatus = 6;
 
     TLivenessStatus LivenessStatus = 10;
@@ -682,6 +706,13 @@ message TStopStatus {
     oneof Status {
         TContainerStatus ContainerStatus = 1;
         THttpGetStatus HttpStopStatus = 2;
+    }
+}
+
+message TDestroyStatus {
+    oneof Status {
+        TContainerStatus ContainerStatus = 1;
+        THttpGetStatus HttpDestroyStatus = 2;
     }
 }
 
