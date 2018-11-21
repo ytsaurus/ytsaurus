@@ -313,6 +313,8 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
 
     auto transaction = AttachTransaction(context, false);
 
+    // NB(psushin): This keepalive is an ugly hack for a long-running command with structured output - YT-9713.
+    // Remove once framing is implemented - YT-9838.
     static auto keepAliveSpace = TSharedRef::FromString(" ");
     auto keepAliveCallback = [context] () {
         auto error = WaitFor(context->Request().OutputStream->Write(keepAliveSpace));
