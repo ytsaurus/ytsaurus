@@ -24,11 +24,11 @@ class TTreeVisitor
 public:
     TTreeVisitor(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
-        bool stable)
+        bool stable,
+        const TNullable<std::vector<TString>>& attributeKeys)
         : Consumer(consumer)
-        , AttributeKeys(attributeKeys)
         , Stable_(stable)
+        , AttributeKeys(attributeKeys)
     { }
 
     void Visit(const INodePtr& root)
@@ -38,8 +38,8 @@ public:
 
 private:
     IAsyncYsonConsumer* const Consumer;
-    const TNullable<std::vector<TString>> AttributeKeys;
     const bool Stable_;
+    const TNullable<std::vector<TString>> AttributeKeys;
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
@@ -150,27 +150,27 @@ private:
 void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
-    const TNullable<std::vector<TString>>& attributeKeys,
-    bool stable)
+    bool stable,
+    const TNullable<std::vector<TString>>& attributeKeys)
 {
     TAsyncYsonConsumerAdapter adapter(consumer);
     VisitTree(
         std::move(root),
         &adapter,
-        attributeKeys,
-        stable);
+        stable,
+        attributeKeys);
 }
 
 void VisitTree(
     INodePtr root,
     IAsyncYsonConsumer* consumer,
-    const TNullable<std::vector<TString>>& attributeKeys,
-    bool stable)
+    bool stable,
+    const TNullable<std::vector<TString>>& attributeKeys)
 {
     TTreeVisitor treeVisitor(
         consumer,
-        attributeKeys,
-        stable);
+        stable,
+        attributeKeys);
     treeVisitor.Visit(root);
 }
 

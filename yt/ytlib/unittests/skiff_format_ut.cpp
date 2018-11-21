@@ -47,11 +47,11 @@ TString ConvertToSkiffSchemaShortDebugString(INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ConvertToYsonTextStringStable(INodePtr node)
+TString ConvertToYsonTextStringStable(const INodePtr& node)
 {
     TStringStream out;
     TYsonWriter writer(&out, EYsonFormat::Text);
-    VisitTree(node, &writer, Null, true);
+    VisitTree(node, &writer, true, Null);
     writer.Flush();
     return out.Str();
 }

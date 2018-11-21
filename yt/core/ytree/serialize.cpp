@@ -244,7 +244,7 @@ void DeserializeProtobufMessage(
     TString wireBytes;
     StringOutputStream outputStream(&wireBytes);
     auto protobufWriter = CreateProtobufWriter(&outputStream, type);
-    VisitTree(node, protobufWriter.get());
+    VisitTree(node, protobufWriter.get(), true);
     if (!message.ParseFromArray(wireBytes.data(), wireBytes.size())) {
         THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
             message.GetTypeName());
