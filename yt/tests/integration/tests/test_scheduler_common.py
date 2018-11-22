@@ -2676,6 +2676,12 @@ class TestSchedulerGpu(YTEnvSetup):
         assert len(jobs) == 1
         assert jobs.values()[0]["address"] == gpu_node
 
+    def test_min_share_resources(self):
+        create("map_node", "//sys/pools/gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
+        gpu_pool_orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools/gpu_pool"
+        wait(lambda: exists(gpu_pool_orchid_path))
+        wait(lambda: get(gpu_pool_orchid_path + "/min_share_resources/gpu") == 1)
+        wait(lambda: get(gpu_pool_orchid_path + "/recursive_min_share_ratio") == 1.0)
 
 ##################################################################
 
