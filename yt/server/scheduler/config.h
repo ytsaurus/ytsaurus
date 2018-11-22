@@ -37,6 +37,7 @@ DEFINE_ENUM(EDeactivationReason,
     (MinNeededResourcesUnsatisfied)
     (ResourceLimitsExceeded)
     (SaturatedInTentativeTree)
+    (OperationDisabled)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
