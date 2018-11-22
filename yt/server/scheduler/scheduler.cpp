@@ -204,6 +204,9 @@ public:
         }
 
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+            if (type <= EJobType::SchedulerFirst || type >= EJobType::SchedulerLast) {
+                continue;
+            }
             JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("job_type", FormatEnum(type));
         }
 
@@ -1456,6 +1459,9 @@ private:
         }
 
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+            if (type <= EJobType::SchedulerFirst || type >= EJobType::SchedulerLast) {
+                continue;
+            }
             for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
                 TTagIdList commonTags = {JobStateToTag_[state], JobTypeToTag_[type]};
                 if (state == EJobState::Aborted) {
