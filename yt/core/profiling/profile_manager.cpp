@@ -167,13 +167,15 @@ private:
         typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
         //! Adds a new sample to the bucket inserting in at an appropriate position.
-        bool AddSample(const TStoredSample& sample)
+        int AddSample(const TStoredSample& sample)
         {
-            auto& lastTime = LastSampleTime[sample.TagIds];
-            if (lastTime && sample.Time < lastTime + SampleRateLimit) {
-                return false;
+            auto& rateLimit = RateLimits[sample.TagIds];
+            if (rateLimit.first && sample.Time < rateLimit.first + SampleRateLimit) {
+                ++rateLimit.second;
+                return rateLimit.second;
             }
-            lastTime = sample.Time;
+            rateLimit.first = sample.Time;
+            rateLimit.second = 0;
 
             // Samples are ordered by time.
             // Search for an appropriate insertion point starting from the the back,
@@ -183,7 +185,7 @@ private:
                 --index;
             }
             Samples.insert(Samples.begin() + index, sample);
-            return true;
+            return 0;
         }
 
         //! Removes the oldest samples keeping [minTime,maxTime] interval no larger than #maxKeepInterval.
@@ -220,7 +222,7 @@ private:
 
     private:
         std::deque<TStoredSample> Samples;
-        std::map<TTagIdList, TInstant> LastSampleTime;
+        std::map<TTagIdList, std::pair<TInstant, int>> RateLimits;
 
         virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
         {
@@ -397,7 +399,7 @@ private:
         storedSample.TagIds = queuedSample.TagIds;
         storedSample.MetricType = queuedSample.MetricType;
 
-        if (!bucket->AddSample(storedSample)) {
+        if (bucket->AddSample(storedSample) == 1) {
             // TODO(ignat): add formatter for THashMap and friends.
             TStringBuilder builder;
             builder.AppendChar('[');
