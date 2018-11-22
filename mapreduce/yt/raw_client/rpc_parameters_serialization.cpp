@@ -118,6 +118,9 @@ TNode SerializeParamsForSet(
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, path);
     result["recursive"] = options.Recursive_;
+    if (options.Force_) {
+        result["force"] = *options.Force_;
+    }
     return result;
 }
 
