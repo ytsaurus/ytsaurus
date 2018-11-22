@@ -6012,12 +6012,6 @@ private:
                     stderrSize = stderrNode->Attributes().Get<i64>("uncompressed_data_size");
                 }
 
-                if (options.WithSpec) {
-                    if (*options.WithSpec == (state == EJobState::Running)) {
-                        continue;
-                    }
-                }
-
                 if (options.WithStderr) {
                     if (*options.WithStderr && stderrSize <= 0) {
                         continue;
@@ -6103,12 +6097,6 @@ private:
 
                 auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
 
-                if (options.WithSpec) {
-                    if (*options.WithSpec == (state == EJobState::Running)) {
-                        continue;
-                    }
-                }
-
                 if (options.WithStderr) {
                     if (*options.WithStderr && stderrSize <= 0) {
                         continue;
@@ -6130,6 +6118,7 @@ private:
                 job.State = state;
                 job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
                 job.Address = address;
+                job.HasSpec = true;
                 job.Progress = values->GetChild("progress")->AsDouble()->GetValue();
                 if (stderrSize > 0) {
                     job.StderrSize = stderrSize;
