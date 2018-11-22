@@ -34,8 +34,7 @@ public:
         RegisterParameter("memory", Memory);
         RegisterParameter("cpu", Cpu);
         RegisterParameter("network", Network);
-        RegisterParameter("user_slots", UserSlots)
-            .GreaterThan(0);
+        RegisterParameter("user_slots", UserSlots);
     }
 };
 
@@ -74,6 +73,8 @@ public:
 
     int ThreadCount;
 
+    bool ShiftOperationsToStart;
+
     TSchedulerSimulatorConfig()
     {
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
@@ -99,6 +100,9 @@ public:
         RegisterParameter("thread_count", ThreadCount)
             .Default(2)
             .GreaterThan(0);
+
+        RegisterParameter("shift_operations_to_start", ShiftOperationsToStart)
+            .Default(false);
     }
 };
 
