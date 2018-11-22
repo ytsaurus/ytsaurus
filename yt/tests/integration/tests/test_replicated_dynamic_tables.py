@@ -7,6 +7,7 @@ from yt_commands import *
 from time import sleep
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal, wait
+from yt.wrapper import YtResponseError
 
 from flaky import flaky
 
@@ -1174,8 +1175,7 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
             assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 10}]
             errors = get("//tmp/t/@replicas/{}/errors".format(replica_id))
             assert len(errors) == 1
-            assert errors[0]["message"] == 'Access denied: "write" permission is not allowed by any matching ACE'
-
+            assert YtResponseError(errors[0]).is_access_denied()
 
         set("//sys/@config/enable_safe_mode", False, driver=self.replica_driver)
 
