@@ -4491,7 +4491,7 @@ private:
             auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
 
             YCHECK(lhsUpperLimit.HasRowIndex() == rhsLowerLimit.HasRowIndex());
-            if (lhsUpperLimit.HasRowIndex() && lhsUpperLimit.GetRowIndex() != rhsLowerLimit.GetRowIndex()) {
+            if (lhsUpperLimit.HasRowIndex() && lhsUpperLimit.GetRowIndex() < rhsLowerLimit.GetRowIndex()) {
                 return false;
             }
 
