@@ -218,7 +218,7 @@ TInputChunkSlice::TInputChunkSlice(
     }
     UpperLimit_.MergeUpperRowIndex(upperRowIndex);
 
-    OverrideSize(*UpperLimit_.RowIndex - *LowerLimit_.RowIndex, dataWeight * inputChunk->GetColumnSelectivityFactor());
+    OverrideSize(*UpperLimit_.RowIndex - *LowerLimit_.RowIndex, std::max<i64>(1, dataWeight * inputChunk->GetColumnSelectivityFactor()));
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -234,7 +234,7 @@ TInputChunkSlice::TInputChunkSlice(
 
     if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
         YCHECK((protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override()));
-        OverrideSize(protoChunkSlice.row_count_override(), protoChunkSlice.data_weight_override() * inputChunk->GetColumnSelectivityFactor());
+        OverrideSize(protoChunkSlice.row_count_override(), std::max<i64>(1, protoChunkSlice.data_weight_override() * inputChunk->GetColumnSelectivityFactor()));
     }
 }
 
@@ -251,7 +251,7 @@ TInputChunkSlice::TInputChunkSlice(
 
     if (protoChunkSpec.has_row_count_override() || protoChunkSpec.has_data_weight_override()) {
         YCHECK((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
-        OverrideSize(protoChunkSpec.row_count_override(), protoChunkSpec.data_weight_override() * inputChunk->GetColumnSelectivityFactor());
+        OverrideSize(protoChunkSpec.row_count_override(), std::max<i64>(1, protoChunkSpec.data_weight_override() * inputChunk->GetColumnSelectivityFactor()));
     }
 }
 
