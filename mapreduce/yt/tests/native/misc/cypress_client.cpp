@@ -159,13 +159,21 @@ Y_UNIT_TEST_SUITE(CypressClient) {
             UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/node"), node);
         }
 
-        // TODO(levysotsky) Uncomment after next YT <-> Arcadia sync
-        //{
-        //    TNode node("Recursive");
-        //    UNIT_ASSERT_EXCEPTION(client->Set("//testing/node/with/some/path", node), yexception);
-        //    client->Set("//testing/node/with/some/path", node, TSetOptions().Recursive(true));
-        //    UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/node/with/some/path"), node);
-        //}
+        {
+            TNode node("Recursive");
+            UNIT_ASSERT_EXCEPTION(client->Set("//testing/node/with/some/path", node), yexception);
+            client->Set("//testing/node/with/some/path", node, TSetOptions().Recursive(true));
+            UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/node/with/some/path"), node);
+        }
+        {
+            auto node = TNode()("key", "value");
+            client->Remove("//testing/node", TRemoveOptions().Force(true).Recursive(true));
+            client->Create("//testing/node", ENodeType::NT_MAP);
+            // TODO(levysotsky): Uncomment when set will be forbidden by default.
+            // UNIT_ASSERT_EXCEPTION(client->Set("//testing/node", node), yexception);
+            client->Set("//testing/node", node, TSetOptions().Force(true));
+            UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/node"), node);
+        }
 
         auto tx = client->StartTransaction();
         tx->Set("//testing/tx_node", TNode(10050));

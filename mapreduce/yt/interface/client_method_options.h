@@ -69,6 +69,9 @@ struct TSetOptions
 
     // Create all nonexistent intermediate nodes in the path.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
+
+    // Allow setting any nodes, not only attribute and document ones.
+    FLUENT_FIELD_OPTION(bool, Force);
 };
 
 // https://wiki.yandex-team.ru/yt/userdoc/api/#list
