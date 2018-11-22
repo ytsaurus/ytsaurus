@@ -1258,19 +1258,36 @@ def wait_for_chunk_replicator(driver=None):
     print >>sys.stderr, "Waiting for chunk replicator to become enabled..."
     wait(lambda: get("//sys/@chunk_replicator_enabled", driver=driver))
 
+def get_cluster_drivers(primary_driver=None):
+    if primary_driver is None:
+        return clusters_drivers["primary"]
+    for drivers in clusters_drivers.values():
+        if drivers[0] == primary_driver:
+            return drivers
+    raise "Failed to get cluster drivers"
+
 def wait_for_cells(cell_ids=None, driver=None):
     print >>sys.stderr, "Waiting for tablet cells to become healthy..."
-    def get_cells():
+    
+    def get_cells(driver):
         cells = ls("//sys/tablet_cells", attributes=["health", "id", "peers"], driver=driver)
-        if cell_ids == None:
+        if cell_ids is None:
             return cells
         return [cell for cell in cells if cell.attributes["id"] in cell_ids]
 
-    def check_cells():
-        cells = get_cells()
+    def check_cells(driver):
+        cells = get_cells(driver=driver)
         for cell in cells:
             if cell.attributes["health"] != "good":
                 return False
+        return True
+
+    for driver in get_cluster_drivers(driver):
+        wait(lambda: check_cells(driver=driver))
+
+    def check_orchid():
+        cells = get_cells(driver=driver)
+        for cell in cells:
             node = cell.attributes["peers"][0]["address"]
             try:
                 if not exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
@@ -1278,8 +1295,7 @@ def wait_for_cells(cell_ids=None, driver=None):
             except YtResponseError:
                 return False
         return True
-
-    wait(check_cells)
+    wait(check_orchid)
 
 def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
     cell_ids = []
