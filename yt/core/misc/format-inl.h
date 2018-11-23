@@ -236,6 +236,27 @@ void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter&
     builder->AppendChar(']');
 }
 
+template <class TRange, class TFormatter>
+void FormatKeyValueRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, ui32 limit = ui32(-1))
+{
+    builder->AppendChar('[');
+    ui32 i = 0;
+    for (const auto& item : range) {
+        if (i > 0) {
+            builder->AppendString(DefaultJoinToStringDelimiter);
+        }
+        if (i == limit) {
+            builder->AppendString(DefaultRangeEllipsisFormat);
+            break;
+        }
+        formatter(builder, item.first);
+        builder->AppendString(DefaultKeyValueDelimiter);
+        formatter(builder, item.second);
+        ++i;
+    }
+    builder->AppendChar(']');
+}
+
 // TFormattableRange
 template <class TRange, class TFormatter>
 struct TValueFormatter<TFormattableRange<TRange, TFormatter>>
@@ -296,6 +317,26 @@ struct TValueFormatter<std::set<T>>
     }
 };
 
+// std::map
+template <class K, class V>
+struct TValueFormatter<std::map<K, V>>
+{
+    static void Do(TStringBuilder* builder, const std::map<K, V>& collection, TStringBuf /*format*/)
+    {
+        FormatKeyValueRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// std::multimap
+template <class K, class V>
+struct TValueFormatter<std::multimap<K, V>>
+{
+    static void Do(TStringBuilder* builder, const std::multimap<K, V>& collection, TStringBuf /*format*/)
+    {
+        FormatKeyValueRange(builder, collection, TDefaultFormatter());
+    }
+};
+
 // THashSet
 template <class T>
 struct TValueFormatter<THashSet<T>>
@@ -303,6 +344,26 @@ struct TValueFormatter<THashSet<T>>
     static void Do(TStringBuilder* builder, const THashSet<T>& collection, TStringBuf /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// THashMap
+template <class K, class V>
+struct TValueFormatter<THashMap<K, V>>
+{
+    static void Do(TStringBuilder* builder, const THashMap<K, V>& collection, TStringBuf /*format*/)
+    {
+        FormatKeyValueRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// THashMultiMap
+template <class K, class V>
+struct TValueFormatter<THashMultiMap<K, V>>
+{
+    static void Do(TStringBuilder* builder, const THashMultiMap<K, V>& collection, TStringBuf /*format*/)
+    {
+        FormatKeyValueRange(builder, collection, TDefaultFormatter());
     }
 };
 
