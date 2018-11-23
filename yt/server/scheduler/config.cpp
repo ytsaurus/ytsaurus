@@ -175,6 +175,9 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("operations_without_tentative_pool_trees", OperationsWithoutTentativePoolTrees)
         .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy});
+
+    RegisterParameter("default_tentative_pool_trees", DefaultTentativePoolTrees)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

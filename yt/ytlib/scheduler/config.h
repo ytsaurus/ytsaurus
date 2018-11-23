@@ -238,7 +238,10 @@ public:
     //! Operation's job will be scheduled to these pool trees as long as they're
     //! not much slower than those in other (non-tentative) trees.
     //! If TentativePoolTrees is not empty, PoolTrees must not be empty, too.
-    THashSet<TString> TentativePoolTrees;
+    TNullable<THashSet<TString>> TentativePoolTrees;
+
+    //! Enables using default tentative pool trees from scheduler config. It has effect only if TentativePoolTrees is not specified.
+    bool UseDefaultTentativePoolTrees;
 
     // Config for tentative pool tree eligibility - the part of the scheduler that decides
     // whether a job should (or shouldn't) be launched in a pool tree marked as tentative.

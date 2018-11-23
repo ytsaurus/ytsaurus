@@ -1149,6 +1149,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default();
     RegisterParameter("tentative_pool_trees", TentativePoolTrees)
         .Default();
+    RegisterParameter("use_default_tentative_pool_trees", UseDefaultTentativePoolTrees)
+        .Default(false);
     RegisterParameter("tentative_tree_eligibility", TentativeTreeEligibility)
         .DefaultNew();
     RegisterParameter("update_preemptable_jobs_list_logging_period", UpdatePreemptableJobsListLoggingPeriod)
