@@ -1281,7 +1281,6 @@ def wait_for_cells(cell_ids=None, driver=None):
             if cell.attributes["health"] != "good":
                 return False
         return True
-
     for driver in get_cluster_drivers(driver):
         wait(lambda: check_cells(driver=driver))
 
