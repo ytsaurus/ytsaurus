@@ -5130,7 +5130,7 @@ private:
             "suspended",
         };
 
-        static const THashSet<TString> RequiredAttrbiutes = {"id", "start_time"};
+        static const THashSet<TString> RequiredAttributes = {"id", "start_time"};
 
         static const THashSet<TString> DefaultAttributes = {
             "authenticated_user",
@@ -5147,7 +5147,7 @@ private:
 
         static const THashSet<TString> IgnoredAttributes = {};
 
-        auto requestedAttributes = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttrbiutes, DefaultAttributes, IgnoredAttributes);
+        auto requestedAttributes = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
         bool areAllRequestedAttributesLight = std::all_of(
             requestedAttributes.begin(),
@@ -5433,7 +5433,7 @@ private:
             keys.push_back(key);
         }
 
-        static const THashSet<TString> RequiredAttrbiutes = {"id", "start_time", "brief_progress"};
+        static const THashSet<TString> RequiredAttributes = {"id", "start_time", "brief_progress"};
         static const THashSet<TString> DefaultAttributes = {
             "authenticated_user",
             "brief_progress",
@@ -5447,7 +5447,7 @@ private:
         };
         static const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
 
-        auto attributesToRequest = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttrbiutes, DefaultAttributes, IgnoredAttributes);
+        auto attributesToRequest = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
         bool needBriefProgress = !options.Attributes || options.Attributes->has("brief_progress");
 
         std::vector<int> columns;
