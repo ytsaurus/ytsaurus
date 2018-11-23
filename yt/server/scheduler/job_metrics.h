@@ -29,10 +29,18 @@ class TJobMetrics
 public:
     DEFINE_BYVAL_RW_PROPERTY(i64, DiskReads);
     DEFINE_BYVAL_RW_PROPERTY(i64, DiskWrites);
+
+    // TODO(ignat): make separate tag for job state.
     DEFINE_BYVAL_RW_PROPERTY(i64, TimeCompleted);
     DEFINE_BYVAL_RW_PROPERTY(i64, TimeAborted);
+
     DEFINE_BYVAL_RW_PROPERTY(i64, SmoothedCpuUsage);
     DEFINE_BYVAL_RW_PROPERTY(i64, PreemptableCpu);
+
+    DEFINE_BYVAL_RW_PROPERTY(i64, TotalTime);
+    DEFINE_BYVAL_RW_PROPERTY(i64, ExecTime);
+    DEFINE_BYVAL_RW_PROPERTY(i64, PrepareTime);
+    DEFINE_BYVAL_RW_PROPERTY(i64, ArtifactsDownloadTime);
 
 public:
     static TJobMetrics FromJobTrackerStatistics(
