@@ -2516,6 +2516,35 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     events.notify_event("continue_job_{0}".format(job_id))
                     tentative_job_count += 1
 
+    def test_use_default_tentative_pool_trees(self):
+        other_node_list = self._prepare_pool_trees()
+
+        set("//sys/scheduler/config/default_tentative_pool_trees", ["other"], recursive=True)
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/config/default_tentative_pool_trees"))
+
+        try:
+            spec = self._create_spec()
+            spec["pool_trees"].remove("other")
+            spec["use_default_tentative_pool_trees"] = True
+
+            create("table", "//tmp/t_in")
+            write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
+            create("table", "//tmp/t_out")
+
+            events = events_on_fs()
+            op = map(
+                command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec=spec,
+                dont_track=True)
+
+            op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
+            wait(lambda: exists(op_pool_trees_path + "other"))
+
+        finally:
+            remove("//sys/scheduler/config/default_tentative_pool_trees")
+
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

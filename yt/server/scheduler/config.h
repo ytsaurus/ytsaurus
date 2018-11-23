@@ -182,6 +182,9 @@ public:
     //! List of operation types, which have disabled tentative pool trees option.
     THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
 
+    //! Tentative pool trees used by default for operations that specified 'UseDefaultTentativePoolTrees' options.
+    THashSet<TString> DefaultTentativePoolTrees;
+
     TFairShareStrategyConfig();
 };
 
