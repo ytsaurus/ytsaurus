@@ -26,6 +26,7 @@ public:
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
     const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
     const NAuth::ITicketAuthenticatorPtr& GetTicketAuthenticator() const;
+    const NAuth::ITvmServicePtr& GetTvmService() const;
 
 private:
     class TImpl;

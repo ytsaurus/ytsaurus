@@ -36,6 +36,7 @@ DECLARE_REFCOUNTED_STRUCT(ISecretVaultService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Enum item names cannot be changed.
 DEFINE_ENUM(EBlackboxStatus,
     ((Valid)    (0))
     ((NeedReset)(1))
@@ -45,6 +46,7 @@ DEFINE_ENUM(EBlackboxStatus,
     ((Invalid)  (5))
 );
 
+// NB: Enum item names cannot be changed.
 DEFINE_ENUM(EBlackboxException,
     ((Ok)                (0))
     ((Unknown)           (1))
@@ -52,6 +54,15 @@ DEFINE_ENUM(EBlackboxException,
     ((DBFetchFailed)     (9))
     ((DBException)      (10))
     ((AccessDenied)     (21))
+);
+
+// NB: Enum item names cannot be changed.
+DEFINE_ENUM(ESecretVaultErrorCode,
+    ((UnknownError)           (18000))
+    ((MalformedResponse)      (18001))
+    ((NonExistentEntityError) (18002))
+    ((DelegationAccessError)  (18003))
+    ((DelegationTokenRevoked) (18004))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
