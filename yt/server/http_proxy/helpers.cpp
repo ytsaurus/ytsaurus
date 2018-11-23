@@ -99,7 +99,7 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
     INodePtr current = root;
     std::function<void(const INodePtr&)> linkBack;
 
-    const int MaxListSize = 128;
+    const int MaxListSize = 1024;
     for (size_t i = 0; i < at.size(); ++i) {
         i64 intValue = 0;
         if (at[i] == "" || TryFromString(at[i], intValue)) {

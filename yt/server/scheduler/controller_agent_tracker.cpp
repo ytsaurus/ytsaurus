@@ -205,7 +205,9 @@ public:
         YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->MaterializeOperation();
-        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
+        // Materialize can last infinitely long if input chunks are unavailable.
+        // Therefore we set large timeout.
+        req->SetTimeout(TDuration::Days(30));
         ToProto(req->mutable_operation_id(), OperationId_);
         return InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).Apply(
             BIND([] (const TControllerAgentServiceProxy::TRspMaterializeOperationPtr& rsp) {
