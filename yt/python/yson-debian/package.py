@@ -1,12 +1,16 @@
+#!/usr/bin/env python
+# -*- encoding: utf-8 -*-
+
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "python"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../scripts/teamcity-build/python"))
 
 from teamcity import teamcity_message
 from helpers import (mkdirp, run, run_captured, cwd, rmtree)
 
 import argparse
+import contextlib
 import gzip
 import re
 import requests
@@ -39,7 +43,51 @@ def clean_path(path):
         rmtree(path)
     mkdirp(path)
 
-def build_package(yt_install_directory, yt_build_directory, checkout_directory, working_directory, goals, repositories, codename, enable_dbg, module_name):
+def create_if_missing(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    return directory
+
+class PackagingContext(object):
+    def __init__(self, module_name, checkout_directory, working_directory, codename):
+        self.module_name = module_name
+        self.checkout_directory = checkout_directory
+        self.working_directory = working_directory
+        self.codename = codename
+
+    @property
+    def yson_debian_directory(self):
+        return os.path.join(self.checkout_directory, "yt/python/yson-debian")
+
+    @property
+    def install_directory(self):
+        return create_if_missing(os.path.join(self.working_directory, "install"))
+
+    def package_work_directory(self, package_name, debug=False):
+        package_dir = os.path.join(self.working_directory, "package_" + package_name.replace("-", "_"))
+        return create_if_missing(package_dir)
+
+
+@contextlib.contextmanager
+def packaging_context(module_name, checkout_directory, working_directory=None, keep_tmp_files=False):
+    if working_directory is None:
+        working_directory = os.getcwd()
+    tmp_dir = tempfile.mkdtemp(dir=working_directory)
+    codename = re.sub(r"^Codename:\s*", "", run_captured(["lsb_release", "-c"]))
+    ctx = PackagingContext(module_name, checkout_directory, tmp_dir, codename)
+    try:
+        yield ctx
+    finally:
+        if not keep_tmp_files:
+            shutil.rmtree(tmp_dir)
+
+def build_targets(
+    ctx,
+    targets,
+    repositories,
+    enable_dbg,
+    upload=False,
+):
     def find_library(path, library_name):
         for root, dirs, files in os.walk(path):
             for name in files:
@@ -76,36 +124,31 @@ def build_package(yt_install_directory, yt_build_directory, checkout_directory, 
 
         return versions
 
-    def build_package(package_dir, package_name, build_dir, python_suffix, build_wheel, debug, is_skynet):
-        library = find_library(yt_install_directory, "yson_lib.so")
+    def build_package(package_name, build_dir, python_suffix, build_wheel, debug, is_skynet):
+        library = find_library(ctx.install_directory, "yson_lib.so")
         deb_build_options = ""
         if debug:
             debug_library = os.path.join(os.path.dirname(library), "yson_lib.dbg.so")
-            if yt_build_directory is None:
-                shutil.copy(library, debug_library)
-            else:
-                shutil.move(library, debug_library)
+            shutil.copy(library, debug_library)
             library = debug_library
             package_name += "-dbg"
             deb_build_options = "nostrip"
         else:
-            copy_content(os.path.join(build_dir, module_name), os.path.dirname(library))
+            copy_content(os.path.join(build_dir, ctx.module_name), os.path.dirname(library))
 
         if python_suffix == "3":
             # See: https://www.python.org/dev/peps/pep-3149/#pep-384
             library_with_suffix = "{0}.abi3.so".format(library[:-3])
-            if yt_build_directory is None:
-                shutil.copy(library, library_with_suffix)
-            else:
-                shutil.move(library, library_with_suffix)
+            shutil.copy(library, library_with_suffix)
             library = library_with_suffix
 
-        shutil.copy(library, os.path.join(build_dir, module_name))
+        shutil.copy(library, os.path.join(build_dir, ctx.module_name))
         if not debug and enable_dbg:
-            with cwd(build_dir + "-dbg", module_name):
+            with cwd(build_dir + "-dbg", ctx.module_name):
                 # See: https://sourceware.org/gdb/onlinedocs/gdb/Separate-Debug-Files.html
-                library_name = "yson_lib.dbg.abi3.so" if python_suffix == "3" else "yson_lib.dbg.so"
-                run(["objcopy", "--add-gnu-debuglink={0}".format(library_name), library])
+                debug_library_name = "yson_lib.dbg.abi3.so" if python_suffix == "3" else "yson_lib.dbg.so"
+                run(["strip", "--remove-section=.gnu_debuglink", library])
+                run(["objcopy", "--add-gnu-debuglink={0}".format(debug_library_name), library])
 
         # FOR DEBUGGING
         #print >>sys.stderr, "BUILD_DIR CONTENT"
@@ -133,8 +176,8 @@ def build_package(yt_install_directory, yt_build_directory, checkout_directory, 
         with cwd(build_dir):
             package_version = run_captured(
                 "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
-            commit_hash = run_captured(["git", "rev-parse", "--short", "HEAD"], cwd=checkout_directory).strip()
-            with open(os.path.join(module_name, "version.py"), "w") as fout:
+            commit_hash = run_captured(["git", "rev-parse", "--short", "HEAD"], cwd=ctx.checkout_directory).strip()
+            with open(os.path.join(ctx.module_name, "version.py"), "w") as fout:
                 fout.write('VERSION = "{0}"\n'.format(package_version))
                 fout.write('COMMIT = "{0}"\n'.format(commit_hash))
 
@@ -151,7 +194,8 @@ def build_package(yt_install_directory, yt_build_directory, checkout_directory, 
                 args = [python, "setup.py", "bdist_wheel"]
                 if python_suffix == "3":
                     args += ["--py-limited-api", "cp34"]
-                args += ["upload", "-r", "yandex"]
+                if upload:
+                    args += ["upload", "-r", "yandex"]
                 run(args, env=env)
 
             repositories_to_upload = []
@@ -162,16 +206,12 @@ def build_package(yt_install_directory, yt_build_directory, checkout_directory, 
                 else:
                     repositories_to_upload.append(repository)
 
-            if not repositories_to_upload:
-                teamcity_message("No repositories to upload, skip building package {0}".format(package_name))
-                return
-
             teamcity_message("Building package {0}".format(package_name))
 
             run(["dch", "-r", package_version, "'Resigned by teamcity'"])
             interpreter = "python2" if not python_suffix else "python3"
             dpkg_buildpackage_env = {
-                "SOURCE_DIR": yt_install_directory,
+                "SOURCE_DIR": ctx.install_directory,
                 "DEB_BUILD_OPTIONS": deb_build_options,
                 "PYBUILD_DEST_INTERPRETER": interpreter,
                 "PYBUILD_PACKAGE_NAME": package_name
@@ -179,69 +219,99 @@ def build_package(yt_install_directory, yt_build_directory, checkout_directory, 
 
             run(["dpkg-buildpackage", "-b"], env=dpkg_buildpackage_env)
 
+            package_dir = os.path.dirname(build_dir)
             changes_files = filter(lambda file: file.endswith(".changes"), os.listdir(package_dir))
             assert len(changes_files) == 1
             changes_file = os.path.join(package_dir, changes_files[0])
-            for repository in repositories_to_upload:
-                run(["dupload", "--to", repository, "--nomail", "--force", changes_file])
+            if upload:
+                for repository in repositories_to_upload:
+                    run(["dupload", "--to", repository, "--nomail", "--force", changes_file])
 
             os.remove(changes_file)
 
-    def build_goal(goal, package_name, python_suffix=None, build_wheel=False, is_skynet=False):
+    def build_goal(yson_lib_so_path, package_name, python_suffix=None, build_wheel=False, is_skynet=False):
         teamcity_message("Preparing package {0}(-dbg) to build".format(package_name))
-        package_dir = os.path.join(working_directory, "package_" + package_name.replace("-", "_"))
+        package_dir = ctx.package_work_directory(package_name)
         build_dir = os.path.join(package_dir, "build")
 
         # Hack for skynet python.
         if is_skynet:
-            package_path = os.path.join(checkout_directory, "yandex-yt-python-yson")
+            package_path = os.path.join(ctx.yson_debian_directory, "yandex-yt-python-yson")
             assert os.path.exists(package_path)
         else:
-            package_path = os.path.join(checkout_directory, package_name)
+            package_path = os.path.join(ctx.yson_debian_directory, package_name)
 
         if not os.path.exists(package_path):
-            package_path = os.path.join(checkout_directory, "yandex-yt-python-any-yson")
+            package_path = os.path.join(ctx.yson_debian_directory, "yandex-yt-python-any-yson")
 
-        def prepare(build_dir, cmake_options):
+        def prepare(build_dir):
             clean_path(build_dir)
             copy_content(package_path, build_dir)
+            copy_element(ctx.yson_debian_directory, build_dir, "debian/changelog")
 
-            copy_element(checkout_directory, build_dir, "debian/changelog")
-            copy_element(checkout_directory, build_dir, module_name)
+            copy_element(ctx.yson_debian_directory, build_dir, ctx.module_name)
 
-            if yt_build_directory is None:
-                return
-
-            shutil.rmtree(yt_install_directory)
-            run([
-                    "cmake",
-                    "-DCOMPONENT=" + goal + "-shared",
-                ] +
-                cmake_options +
-                [
-                    "-P",
-                    os.path.join(yt_build_directory, "cmake_install.cmake")
-                ],
-                cwd=yt_build_directory)
+            shutil.rmtree(ctx.install_directory)
+            yson_lib_install_dir = os.path.join(ctx.install_directory, "lib/pyshared-{0}/yt_yson_bindings".format(
+                {
+                    "": "2-7",
+                    "3": "3-4",
+                }[python_suffix]
+            ))
+            os.makedirs(yson_lib_install_dir)
+            shutil.copy(yson_lib_so_path, yson_lib_install_dir)
 
         if enable_dbg:
-            prepare(build_dir + "-dbg", ["-DCMAKE_INSTALL_DO_STRIP=OFF"])
-            build_package(package_dir, package_name, build_dir + "-dbg", python_suffix, build_wheel=False, debug=True, is_skynet=is_skynet)
+            prepare(build_dir + "-dbg")
+            build_package(
+                package_name,
+                build_dir + "-dbg",
+                python_suffix,
+                build_wheel=False,
+                debug=True,
+                is_skynet=is_skynet
+            )
 
-        prepare(build_dir, [])
-        build_package(package_dir, package_name, build_dir, python_suffix, build_wheel=build_wheel, debug=False, is_skynet=is_skynet)
+        prepare(build_dir)
+        build_package(
+            package_name,
+            build_dir,
+            python_suffix,
+            build_wheel=build_wheel,
+            debug=False,
+            is_skynet=is_skynet
+        )
 
-    for goal in goals:
-        python_suffix = goal.split("-")[2]
+    for target_key, yson_lib_so_path in targets.iteritems():
+        python_suffix = target_key.split("-")[2]
         if python_suffix in ("2", "skynet"):
             python_suffix = ""
-        is_skynet_python = (codename == "precise" and goal == "yt-python-skynet-yson")
-        is_native_python = \
-            codename in ["precise", "trusty"] and goal in ("yt-python-2-7-yson", "yt-python-3-4-yson")
+        is_skynet_python = (
+            ctx.codename == "precise"
+            and target_key == "yt-python-skynet-yson"
+        )
+        is_native_python = (
+            ctx.codename in ["precise", "trusty"]
+            and target_key in ["yt-python-2-7-yson", "yt-python-3-4-yson"]
+        )
 
-        #if not is_skynet_python:
-        build_goal(goal, "yandex-" + goal, python_suffix=python_suffix)
+        # First of all we want to build packages
+        #  - yandex-yt-python-2-7-yson,
+        #  - yandex-yt-python-3-4-yson,
+        #  - yandex-yt-python-skynet-yson
+        # we don't build these packages for pip.
+        build_goal(
+            yson_lib_so_path,
+            "yandex-" + target_key,
+            python_suffix=python_suffix,
+            build_wheel=False,
+            is_skynet=is_skynet_python
+        )
 
+        # Then we want packages
+        #  - yandex-yt-python-yson,
+        #  - yandex-yt-python3-4-yson,
+        # we don't build these packages for pip.
         if is_native_python or is_skynet_python:
             # Wheels are tagged only with interpreter type and platform (e.g. win32, macosx, etc.)
             # and not linux distribution aware. To preserve binary compatibility with as many
@@ -249,42 +319,59 @@ def build_package(yt_install_directory, yt_build_directory, checkout_directory, 
             # distribution (since all new distributions have backward compatibility).
             # See PEP-425, PEP-513 and https://github.com/pypa/manylinux for more details.
             # This is why oldest distributions are chosen - precise.
-            build_wheel = codename == "precise"
-            build_goal(goal, "yandex-yt-python{0}-yson".format(python_suffix),
-                       python_suffix=python_suffix, build_wheel=build_wheel, is_skynet=is_skynet_python)
+            build_wheel = ctx.codename == "precise"
+            build_goal(
+                yson_lib_so_path,
+                "yandex-yt-python{0}-yson".format(python_suffix),
+                python_suffix=python_suffix,
+                build_wheel=build_wheel,
+                is_skynet=is_skynet_python
+            )
 
 def main():
     parser = argparse.ArgumentParser(description="YT Build package locally")
 
-    parser.add_argument("--yt-install-directory", action="store", required=True)
-    parser.add_argument("--yt-build-directory", action="store")
-    parser.add_argument("--goal", nargs="+")
+    parser.add_argument("--working-directory", action="store")
     parser.add_argument("--repository", nargs="*")
+    parser.add_argument("--enable-dbg", action="store_true", default=False)
+    parser.add_argument(
+        "--no-upload",
+        action="store_false",
+        dest="upload",
+        default=True,
+        help="Do not upload packages (useful for debugging with --keep-tmp-files)"
+    )
+    parser.add_argument(
+        "--keep-tmp-files",
+        action="store_true",
+        default=False,
+        help="Keep tmp files (useful for debugging with --no-upload)"
+    )
+    parser.add_argument("target", nargs="+")
 
     args = parser.parse_args()
 
     if args.repository is None:
         args.repository = []
 
-    checkout_directory = os.path.abspath(os.path.dirname(__file__))
-    working_directory = tempfile.mkdtemp(dir=checkout_directory)
-    codename = re.sub(r"^Codename:\s*", "", run_captured(["lsb_release", "-c"]))
+    pattern = "^(yt-python-[^:]*-yson):(.*)$"
+    target_map = {}
+    for goal in args.target:
+        m = re.match(pattern, goal)
+        if not m:
+            raise RuntimeError("Incorrect target {0}, it should match {1}".format(goal, pattern))
+        target_map[m.group(1)] = m.group(2)
 
-    pattern = "^yt-python-.*-yson$"
-    for goal in args.goal:
-        if not re.match(pattern, goal):
-            raise RuntimeError("Incorrect goal {0}, it should match {1}".format(goal, pattern))
-
-    build_package(
-        yt_install_directory=args.yt_install_directory,
-        yt_build_directory=args.yt_build_directory,
-        checkout_directory=checkout_directory,
-        working_directory=working_directory,
-        goals=args.goal,
-        repositories=args.repository,
-        codename=codename,
-        enable_dbg=False,
-        module_name="yt_yson_bindings")
+    checkout_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+    module_name="yt_yson_bindings"
+    with packaging_context(module_name, checkout_directory, args.working_directory, keep_tmp_files=args.keep_tmp_files) as ctx:
+        build_targets(
+            ctx,
+            targets=target_map,
+            repositories=args.repository,
+            enable_dbg=args.enable_dbg,
+            upload=args.upload
+        )
 
 if __name__ == "__main__":
     main()
