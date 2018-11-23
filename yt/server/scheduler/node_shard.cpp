@@ -1474,7 +1474,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         YCHECK(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
         // Skip jobs that are not issued by the scheduler.
-        if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast) {
+        if (jobType < FirstSchedulerJobType || jobType > LastSchedulerJobType) {
             continue;
         }
 
