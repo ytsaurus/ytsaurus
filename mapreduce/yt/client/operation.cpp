@@ -446,22 +446,19 @@ private:
     TStringBuf Data_;
 };
 
-
 class TJobPreparer
     : private TNonCopyable
 {
 public:
     TJobPreparer(
-        const TAuth& auth,
-        const TTransactionId& transactionId,
+        TOperationPreparer& operationPreparer,
         const TString& commandLineName,
         const TUserJobSpec& spec,
         IJob* job,
         size_t outputTableCount,
         const TVector<TSmallJobFile>& smallFileList,
         const TOperationOptions& options)
-        : Auth_(auth)
-        , TransactionId_(transactionId)
+        : OperationPreparer_(operationPreparer)
         , Spec_(spec)
         , Options_(options)
     {
@@ -478,7 +475,7 @@ public:
         Y_ASSERT(!jobBinary.Is<TJobBinaryDefault>());
 
         CreateStorage();
-        auto cypressFileList = CanonizePaths(auth, spec.Files_);
+        auto cypressFileList = CanonizePaths(OperationPreparer_.GetAuth(), spec.Files_);
         for (const auto& file : cypressFileList) {
             UseFileInCypress(file);
         }
@@ -494,7 +491,7 @@ public:
         }
 
         TString binaryPathInsideJob;
-        if (UseLocalModeOptimization(auth) && jobBinary.Is<TJobBinaryLocalPath>()) {
+        if (UseLocalModeOptimization(OperationPreparer_.GetAuth()) && jobBinary.Is<TJobBinaryLocalPath>()) {
             binaryPathInsideJob = TFsPath(jobBinary.As<TJobBinaryLocalPath>().Path).RealPath();
         } else {
             UploadBinary(jobBinary);
@@ -554,8 +551,7 @@ public:
     }
 
 private:
-    TAuth Auth_;
-    TTransactionId TransactionId_;
+    TOperationPreparer& OperationPreparer_;
     TUserJobSpec Spec_;
     TOperationOptions Options_;
 
@@ -578,7 +574,7 @@ private:
 
     void CreateStorage() const
     {
-        NYT::NDetail::Create(Auth_, Options_.FileStorageTransactionId_, GetCachePath(), NT_MAP,
+        NYT::NDetail::Create(OperationPreparer_.GetAuth(), Options_.FileStorageTransactionId_, GetCachePath(), NT_MAP,
             TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true));
@@ -606,11 +602,11 @@ private:
     TString UploadToRandomPath(const IItemToUpload& itemToUpload) const
     {
         TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
-        Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, NT_FILE, TCreateOptions()
+        Create(OperationPreparer_.GetAuth(), Options_.FileStorageTransactionId_, uniquePath, NT_FILE, TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true));
         {
-            TFileWriter writer(uniquePath, Auth_, Options_.FileStorageTransactionId_);
+            TFileWriter writer(uniquePath, OperationPreparer_.GetAuth(), Options_.FileStorageTransactionId_);
             itemToUpload.CreateInputStream()->ReadAll(writer);
             writer.Finish();
         }
@@ -625,7 +621,7 @@ private:
         constexpr int LockConflictRetryCount = 30;
         TRetryPolicyIgnoringLockConflicts retryPolicy(LockConflictRetryCount);
         auto maybePath = GetFileFromCache(
-            Auth_,
+            OperationPreparer_.GetAuth(),
             md5Signature,
             GetCachePath(),
             TGetFileFromCacheOptions(),
@@ -636,27 +632,27 @@ private:
 
         TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
 
-        Create(Auth_, TTransactionId(), uniquePath, NT_FILE,
+        Create(OperationPreparer_.GetAuth(), TTransactionId(), uniquePath, NT_FILE,
             TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true));
 
         {
-            TFileWriter writer(uniquePath, Auth_, TTransactionId(),
+            TFileWriter writer(uniquePath, OperationPreparer_.GetAuth(), TTransactionId(),
                 TFileWriterOptions().ComputeMD5(true));
             itemToUpload.CreateInputStream()->ReadAll(writer);
             writer.Finish();
         }
 
         auto cachePath = PutFileToCache(
-            Auth_,
+            OperationPreparer_.GetAuth(),
             uniquePath,
             md5Signature,
             GetCachePath(),
             TPutFileToCacheOptions(),
             &retryPolicy);
 
-        Remove(Auth_, TTransactionId(), uniquePath, TRemoveOptions().Force(true));
+        Remove(OperationPreparer_.GetAuth(), TTransactionId(), uniquePath, TRemoveOptions().Force(true));
 
         return cachePath;
     }
@@ -677,12 +673,16 @@ private:
 
     void UseFileInCypress(const TRichYPath& file)
     {
-        if (!Exists(Auth_, TransactionId_, file.Path_)) {
+        if (!Exists(OperationPreparer_.GetAuth(), OperationPreparer_.GetTransactionId(), file.Path_)) {
             ythrow yexception() << "File " << file.Path_ << " does not exist";
         }
 
         if (ShouldMountSandbox()) {
-            auto size = Get(Auth_, TransactionId_, file.Path_ + "/@uncompressed_data_size").AsInt64();
+            auto size = Get(
+                OperationPreparer_.GetAuth(),
+                OperationPreparer_.GetTransactionId(),
+                file.Path_ + "/@uncompressed_data_size")
+                .AsInt64();
 
             TotalFileSize_ += RoundUpFileSize(static_cast<ui64>(size));
         }
@@ -862,31 +862,6 @@ void VerifyIntermediateDesc(const TMultiFormatDesc& desc, const TStringBuf& text
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TOperationId StartOperation(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TString& operationType,
-    const TString& ysonSpec,
-    bool useStartOperationRequest = false)
-{
-    THttpHeader header("POST", (useStartOperationRequest ? "start_op" : operationType));
-    if (useStartOperationRequest) {
-        header.AddParameter("operation_type", operationType);
-    }
-    header.AddTransactionId(transactionId);
-    header.AddMutationId();
-
-    TOperationId operationId = ParseGuidFromResponse(
-        RetryRequest(auth, header, TStringBuf(ysonSpec), false, true));
-
-    LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",
-        ~GetGuidAsString(operationId), ~operationType, ~auth.ServerName, ~GetGuidAsString(operationId));
-
-    TOperationExecutionTimeTracker::Get()->Start(operationId);
-
-    return operationId;
-}
 
 EOperationBriefState CheckOperation(
     const TAuth& auth,
@@ -1221,24 +1196,22 @@ void LogYPath(const TOperationId& opId, const TRichYPath& output, const char* ty
 
 template <typename T>
 TOperationId DoExecuteMap(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TSimpleOperationIo& operationIo,
     const TMapOperationSpecBase<T>& spec,
     IJob* mapper,
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, auth);
+        CreateDebugOutputTables(spec, preparer.GetAuth());
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(auth, transactionId, operationIo.Inputs);
-        CreateOutputTables(auth, transactionId, operationIo.Outputs);
+        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Inputs);
+        CreateOutputTables(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Outputs);
     }
 
     TJobPreparer map(
-        auth,
-        transactionId,
+        preparer,
         "--yt-map",
         spec.MapperSpec_,
         mapper,
@@ -1271,9 +1244,7 @@ TOperationId DoExecuteMap(
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = StartOperation(
-        auth,
-        transactionId,
+    auto operationId = preparer.StartOperation(
         "map",
         MergeSpec(specNode, options));
 
@@ -1285,32 +1256,28 @@ TOperationId DoExecuteMap(
 }
 
 TOperationId ExecuteMap(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TMapOperationSpec& spec,
     IJob* mapper,
     const TOperationOptions& options)
 {
     return DoExecuteMap(
-        auth,
-        transactionId,
-        CreateSimpleOperationIo(auth, transactionId, spec, options, /* allowSkiff = */ true),
+        preparer,
+        CreateSimpleOperationIo(preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ true),
         spec,
         mapper,
         options);
 }
 
 TOperationId ExecuteRawMap(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TRawMapOperationSpec& spec,
     IRawJob* mapper,
     const TOperationOptions& options)
 {
     return DoExecuteMap(
-        auth,
-        transactionId,
-        CreateSimpleOperationIo(auth, spec),
+        preparer,
+        CreateSimpleOperationIo(preparer.GetAuth(), spec),
         spec,
         mapper,
         options);
@@ -1320,24 +1287,22 @@ TOperationId ExecuteRawMap(
 
 template <typename T>
 TOperationId DoExecuteReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TSimpleOperationIo& operationIo,
     const TReduceOperationSpecBase<T>& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, auth);
+        CreateDebugOutputTables(spec, preparer.GetAuth());
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(auth, transactionId, operationIo.Inputs);
-        CreateOutputTables(auth, transactionId, operationIo.Outputs);
+        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Inputs);
+        CreateOutputTables(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Outputs);
     }
 
     TJobPreparer reduce(
-        auth,
-        transactionId,
+        preparer,
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
@@ -1379,9 +1344,7 @@ TOperationId DoExecuteReduce(
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = StartOperation(
-        auth,
-        transactionId,
+    auto operationId = preparer.StartOperation(
         "reduce",
         MergeSpec(specNode, options));
 
@@ -1393,32 +1356,28 @@ TOperationId DoExecuteReduce(
 }
 
 TOperationId ExecuteReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TReduceOperationSpec& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
     return DoExecuteReduce(
-        auth,
-        transactionId,
-        CreateSimpleOperationIo(auth, transactionId, spec, options, /* allowSkiff = */ false),
+        preparer,
+        CreateSimpleOperationIo(preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
         spec,
         reducer,
         options);
 }
 
 TOperationId ExecuteRawReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TRawReduceOperationSpec& spec,
     IRawJob* mapper,
     const TOperationOptions& options)
 {
     return DoExecuteReduce(
-        auth,
-        transactionId,
-        CreateSimpleOperationIo(auth, spec),
+        preparer,
+        CreateSimpleOperationIo(preparer.GetAuth(), spec),
         spec,
         mapper,
         options);
@@ -1428,24 +1387,22 @@ TOperationId ExecuteRawReduce(
 
 template <typename T>
 TOperationId DoExecuteJoinReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TSimpleOperationIo& operationIo,
     const TJoinReduceOperationSpecBase<T>& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, auth);
+        CreateDebugOutputTables(spec, preparer.GetAuth());
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(auth, transactionId, operationIo.Inputs);
-        CreateOutputTables(auth, transactionId, operationIo.Outputs);
+        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Inputs);
+        CreateOutputTables(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Outputs);
     }
 
     TJobPreparer reduce(
-        auth,
-        transactionId,
+        preparer,
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
@@ -1480,9 +1437,7 @@ TOperationId DoExecuteJoinReduce(
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = StartOperation(
-        auth,
-        transactionId,
+    auto operationId = preparer.StartOperation(
         "join_reduce",
         MergeSpec(specNode, options));
 
@@ -1494,32 +1449,28 @@ TOperationId DoExecuteJoinReduce(
 }
 
 TOperationId ExecuteJoinReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TJoinReduceOperationSpec& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
     return DoExecuteJoinReduce(
-        auth,
-        transactionId,
-        CreateSimpleOperationIo(auth, transactionId, spec, options, /* allowSkiff = */ false),
+        preparer,
+        CreateSimpleOperationIo(preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
         spec,
         reducer,
         options);
 }
 
 TOperationId ExecuteRawJoinReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TRawJoinReduceOperationSpec& spec,
     IRawJob* mapper,
     const TOperationOptions& options)
 {
     return DoExecuteJoinReduce(
-        auth,
-        transactionId,
-        CreateSimpleOperationIo(auth, spec),
+        preparer,
+        CreateSimpleOperationIo(preparer.GetAuth(), spec),
         spec,
         mapper,
         options);
@@ -1529,8 +1480,7 @@ TOperationId ExecuteRawJoinReduce(
 
 template <typename T>
 TOperationId DoExecuteMapReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TMapReduceOperationIo& operationIo,
     const TMapReduceOperationSpecBase<T>& spec,
     IJob* mapper,
@@ -1543,11 +1493,11 @@ TOperationId DoExecuteMapReduce(
     allOutputs.insert(allOutputs.end(), operationIo.Outputs.begin(), operationIo.Outputs.end());
 
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, auth);
+        CreateDebugOutputTables(spec, preparer.GetAuth());
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(auth, transactionId, operationIo.Inputs);
-        CreateOutputTables(auth, transactionId, allOutputs);
+        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), operationIo.Inputs);
+        CreateOutputTables(preparer.GetAuth(), preparer.GetTransactionId(), allOutputs);
     }
 
     TKeyColumns sortBy = spec.SortBy_;
@@ -1561,8 +1511,7 @@ TOperationId DoExecuteMapReduce(
     const bool hasCombiner = reduceCombiner != nullptr;
 
     TJobPreparer reduce(
-        auth,
-        transactionId,
+        preparer,
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
@@ -1576,8 +1525,7 @@ TOperationId DoExecuteMapReduce(
     .BeginMap().Item("spec").BeginMap()
         .DoIf(hasMapper, [&] (TFluentMap fluent) {
             TJobPreparer map(
-                auth,
-                transactionId,
+                preparer,
                 "--yt-map",
                 spec.MapperSpec_,
                 mapper,
@@ -1596,8 +1544,7 @@ TOperationId DoExecuteMapReduce(
         })
         .DoIf(hasCombiner, [&] (TFluentMap fluent) {
             TJobPreparer combine(
-                auth,
-                transactionId,
+                preparer,
                 "--yt-reduce",
                 spec.ReduceCombinerSpec_,
                 reduceCombiner,
@@ -1662,9 +1609,7 @@ TOperationId DoExecuteMapReduce(
     BuildIntermediateDataReplicationFactorPart(spec, &specNode["spec"]);
     BuildDataSizePerSortJobPart(spec, &specNode["spec"]);
 
-    auto operationId = StartOperation(
-        auth,
-        transactionId,
+    auto operationId = preparer.StartOperation(
         "map_reduce",
         MergeSpec(specNode, options));
 
@@ -1678,8 +1623,7 @@ TOperationId DoExecuteMapReduce(
 }
 
 TOperationId ExecuteMapReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TMapReduceOperationSpec& spec_,
     IJob* mapper,
     IJob* reduceCombiner,
@@ -1723,9 +1667,9 @@ TOperationId ExecuteMapReduce(
     }
 
     TMapReduceOperationIo operationIo;
-    operationIo.Inputs = CanonizePaths(auth, spec.Inputs_);
-    operationIo.MapOutputs = CanonizePaths(auth, spec.MapOutputs_);
-    operationIo.Outputs = CanonizePaths(auth, spec.Outputs_);
+    operationIo.Inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
+    operationIo.MapOutputs = CanonizePaths(preparer.GetAuth(), spec.MapOutputs_);
+    operationIo.Outputs = CanonizePaths(preparer.GetAuth(), spec.Outputs_);
 
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");
@@ -1753,9 +1697,9 @@ TOperationId ExecuteMapReduce(
 
     if (mapper) {
         auto nodeReaderFormat = NodeReaderFormatFromHintAndGlobalConfig(spec.MapperFormatHints_);
-        TFormatDescImpl inputDescImpl(auth, transactionId, mapInputDesc, operationIo.Inputs, options,
+        TFormatDescImpl inputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), mapInputDesc, operationIo.Inputs, options,
             nodeReaderFormat, /* allowFormatFromTableAttribute = */ true);
-        TFormatDescImpl outputDescImpl(auth, transactionId, mapOutputDesc, operationIo.MapOutputs, options,
+        TFormatDescImpl outputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), mapOutputDesc, operationIo.MapOutputs, options,
             ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
         operationIo.MapperJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
         operationIo.MapperInputFormat = inputDescImpl.GetFormat();
@@ -1774,9 +1718,9 @@ TOperationId ExecuteMapReduce(
     if (reduceCombiner) {
         const bool isFirstStep = !mapper;
         auto inputs = isFirstStep ? operationIo.Inputs : TVector<TRichYPath>();
-        TFormatDescImpl inputDescImpl(auth, transactionId, reduceCombinerInputDesc, inputs, options,
+        TFormatDescImpl inputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), reduceCombinerInputDesc, inputs, options,
             ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ isFirstStep);
-        TFormatDescImpl outputDescImpl(auth, transactionId, reduceCombinerOutputDesc, /* tables = */ {}, options,
+        TFormatDescImpl outputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), reduceCombinerOutputDesc, /* tables = */ {}, options,
             ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
         operationIo.ReduceCombinerJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
         operationIo.ReduceCombinerInputFormat = inputDescImpl.GetFormat();
@@ -1798,9 +1742,9 @@ TOperationId ExecuteMapReduce(
 
     const bool isFirstStep = (!mapper && !reduceCombiner);
     auto inputs = isFirstStep ? operationIo.Inputs : TVector<TRichYPath>();
-    TFormatDescImpl inputDescImpl(auth, transactionId, reduceInputDesc, inputs, options,
+    TFormatDescImpl inputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), reduceInputDesc, inputs, options,
         ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ isFirstStep);
-    TFormatDescImpl outputDescImpl(auth, transactionId, reduceOutputDesc, operationIo.Outputs, options,
+    TFormatDescImpl outputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), reduceOutputDesc, operationIo.Outputs, options,
         ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
     operationIo.ReducerJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
     operationIo.ReducerInputFormat = inputDescImpl.GetFormat();
@@ -1820,8 +1764,7 @@ TOperationId ExecuteMapReduce(
     }
 
     return DoExecuteMapReduce(
-        auth,
-        transactionId,
+        preparer,
         operationIo,
         spec,
         mapper,
@@ -1831,8 +1774,7 @@ TOperationId ExecuteMapReduce(
 }
 
 TOperationId ExecuteRawMapReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TRawMapReduceOperationSpec& spec,
     IRawJob* mapper,
     IRawJob* reduceCombiner,
@@ -1840,9 +1782,9 @@ TOperationId ExecuteRawMapReduce(
     const TOperationOptions& options)
 {
     TMapReduceOperationIo operationIo;
-    operationIo.Inputs = CanonizePaths(auth, spec.GetInputs());
-    operationIo.MapOutputs = CanonizePaths(auth, spec.GetMapOutputs());
-    operationIo.Outputs = CanonizePaths(auth, spec.GetOutputs());
+    operationIo.Inputs = CanonizePaths(preparer.GetAuth(), spec.GetInputs());
+    operationIo.MapOutputs = CanonizePaths(preparer.GetAuth(), spec.GetMapOutputs());
+    operationIo.Outputs = CanonizePaths(preparer.GetAuth(), spec.GetOutputs());
 
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");
@@ -1871,8 +1813,7 @@ TOperationId ExecuteRawMapReduce(
     operationIo.ReducerOutputFormat = getFormatOrDefault(spec.ReducerOutputFormat_, spec.ReducerFormat_, "reducer output format");
 
     return DoExecuteMapReduce(
-        auth,
-        transactionId,
+        preparer,
         operationIo,
         spec,
         mapper,
@@ -1882,17 +1823,16 @@ TOperationId ExecuteRawMapReduce(
 }
 
 TOperationId ExecuteSort(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
-    auto inputs = CanonizePaths(auth, spec.Inputs_);
-    auto output = CanonizePath(auth, spec.Output_);
+    auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
+    auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(auth, transactionId, inputs);
-        CreateOutputTable(auth, transactionId, output);
+        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), inputs);
+        CreateOutputTable(preparer.GetAuth(), preparer.GetTransactionId(), output);
     }
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1907,9 +1847,7 @@ TOperationId ExecuteSort(
     BuildPartitionJobCountOperationPart(spec, &specNode["spec"]);
     BuildIntermediateDataReplicationFactorPart(spec, &specNode["spec"]);
 
-    auto operationId = StartOperation(
-        auth,
-        transactionId,
+    auto operationId = preparer.StartOperation(
         "sort",
         MergeSpec(specNode, options));
 
@@ -1920,17 +1858,16 @@ TOperationId ExecuteSort(
 }
 
 TOperationId ExecuteMerge(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
-    auto inputs = CanonizePaths(auth, spec.Inputs_);
-    auto output = CanonizePath(auth, spec.Output_);
+    auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
+    auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(auth, transactionId, inputs);
-        CreateOutputTable(auth, transactionId, output);
+        CheckInputTablesExist(preparer.GetAuth(), preparer.GetTransactionId(), inputs);
+        CreateOutputTable(preparer.GetAuth(), preparer.GetTransactionId(), output);
     }
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1946,9 +1883,7 @@ TOperationId ExecuteMerge(
 
     BuildJobCountOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = StartOperation(
-        auth,
-        transactionId,
+    auto operationId = preparer.StartOperation(
         "merge",
         MergeSpec(specNode, options));
 
@@ -1959,12 +1894,11 @@ TOperationId ExecuteMerge(
 }
 
 TOperationId ExecuteErase(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
 {
-    auto tablePath = CanonizePath(auth, spec.TablePath_);
+    auto tablePath = CanonizePath(preparer.GetAuth(), spec.TablePath_);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
@@ -1973,9 +1907,7 @@ TOperationId ExecuteErase(
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
-    auto operationId = StartOperation(
-        auth,
-        transactionId,
+    auto operationId = preparer.StartOperation(
         "erase",
         MergeSpec(specNode, options));
 
@@ -1985,16 +1917,14 @@ TOperationId ExecuteErase(
 }
 
 TOperationId ExecuteVanilla(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options)
 {
 
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         TJobPreparer jobPreparer(
-            auth,
-            transactionId,
+            preparer,
             "--yt-map",
             task.Spec_,
             task.Job_.Get(),
@@ -2022,9 +1952,7 @@ TOperationId ExecuteVanilla(
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = StartOperation(
-        auth,
-        transactionId,
+    auto operationId = preparer.StartOperation(
         "vanilla",
         MergeSpec(specNode, options),
         /* useStartOperationRequest = */ true);
@@ -2411,6 +2339,46 @@ TJobAttributes TOperation::GetJob(const TJobId& jobId, const TGetJobOptions& opt
 TListJobsResult TOperation::ListJobs(const TListJobsOptions& options)
 {
     return Impl_->ListJobs(options);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationPreparer::TOperationPreparer(TClientPtr client, TTransactionId transactionId)
+    : Client_(std::move(client))
+    , TransactionId_(transactionId)
+{ }
+
+const TAuth& TOperationPreparer::GetAuth() const
+{
+    return Client_->GetAuth();
+}
+
+TTransactionId TOperationPreparer::GetTransactionId() const
+{
+    return TransactionId_;
+}
+
+TOperationId TOperationPreparer::StartOperation(
+    const TString& operationType,
+    const TString& ysonSpec,
+    bool useStartOperationRequest)
+{
+    THttpHeader header("POST", (useStartOperationRequest ? "start_op" : operationType));
+    if (useStartOperationRequest) {
+        header.AddParameter("operation_type", operationType);
+    }
+    header.AddTransactionId(TransactionId_);
+    header.AddMutationId();
+
+    TOperationId operationId = ParseGuidFromResponse(
+        RetryRequest(Client_->GetAuth(), header, TStringBuf(ysonSpec), false, true));
+
+    LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",
+        ~GetGuidAsString(operationId), ~operationType, ~GetAuth().ServerName, ~GetGuidAsString(operationId));
+
+    TOperationExecutionTimeTracker::Get()->Start(operationId);
+
+    return operationId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

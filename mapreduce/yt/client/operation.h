@@ -8,6 +8,7 @@
 
 namespace NYT {
 
+class TPingableTransaction;
 struct TAuth;
 
 namespace NDetail {
@@ -48,51 +49,64 @@ using TOperationPtr = ::TIntrusivePtr<TOperation>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOperationPreparer
+{
+public:
+    TOperationPreparer(TClientPtr client, TTransactionId transactionId);
+
+    const TAuth& GetAuth() const;
+    TTransactionId GetTransactionId() const;
+
+    TOperationId StartOperation(
+        const TString& operationType,
+        const TString& ysonSpec,
+        bool useStartOperationRequest = false);
+
+private:
+    TClientPtr Client_;
+    TTransactionId TransactionId_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationId ExecuteMap(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TMapOperationSpec& spec,
     IJob* mapper,
     const TOperationOptions& options);
 
 TOperationId ExecuteRawMap(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TRawMapOperationSpec& spec,
     IRawJob* mapper,
     const TOperationOptions& options);
 
 TOperationId ExecuteReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TReduceOperationSpec& spec,
     IJob* reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteRawReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TRawReduceOperationSpec& spec,
     IRawJob* reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteJoinReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TJoinReduceOperationSpec& spec,
     IJob* reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteRawJoinReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TRawJoinReduceOperationSpec& spec,
     IRawJob* reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteMapReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TMapReduceOperationSpec& spec,
     IJob* mapper,
     IJob* reduceCombiner,
@@ -104,8 +118,7 @@ TOperationId ExecuteMapReduce(
     const TOperationOptions& options);
 
 TOperationId ExecuteRawMapReduce(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TRawMapReduceOperationSpec& spec,
     IRawJob* mapper,
     IRawJob* reduceCombiner,
@@ -113,26 +126,22 @@ TOperationId ExecuteRawMapReduce(
     const TOperationOptions& options);
 
 TOperationId ExecuteSort(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TSortOperationSpec& spec,
     const TOperationOptions& options);
 
 TOperationId ExecuteMerge(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TMergeOperationSpec& spec,
     const TOperationOptions& options);
 
 TOperationId ExecuteErase(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TEraseOperationSpec& spec,
     const TOperationOptions& options);
 
 TOperationId ExecuteVanilla(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
+    TOperationPreparer& preparer,
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options);
 
