@@ -202,7 +202,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDefaultSecretVaultServiceConfig
-    : public NYT::NYTree::TYsonSerializable
+    : public virtual NYT::NYTree::TYsonSerializable
 {
 public:
     TString Host;
@@ -231,7 +231,7 @@ DEFINE_REFCOUNTED_TYPE(TDefaultSecretVaultServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBatchingSecretVaultServiceConfig
-    : public TDefaultSecretVaultServiceConfig
+    : public virtual NYT::NYTree::TYsonSerializable
 {
 public:
     TDuration BatchDelay;
@@ -243,7 +243,8 @@ public:
         RegisterParameter("batch_delay", BatchDelay)
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("max_subrequests_per_request", MaxSubrequestsPerRequest)
-            .Default(100);
+            .Default(100)
+            .GreaterThan(0);
         RegisterParameter("requests_throttler", RequestsThrottler)
             .DefaultNew();
 

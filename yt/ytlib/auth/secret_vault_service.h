@@ -31,7 +31,7 @@ struct ISecretVaultService
         const std::vector<TSecretSubrequest>& subrequests) = 0;
 };
 
-DECLARE_REFCOUNTED_TYPE(ISecretVaultService)
+DEFINE_REFCOUNTED_TYPE(ISecretVaultService)
 
 ////////////////////////////////////////////////////////////////////////////////
 

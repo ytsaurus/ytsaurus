@@ -102,7 +102,7 @@ private:
             rootNode = builder->EndTree()->AsMap();
         } catch (const std::exception& ex) {
             auto error = TError(
-                // XXX(babenko): error code
+                ESecretVaultErrorCode::MalformedResponse,
                 "Error parsing Vault response")
                 << TErrorAttribute("call_id", callId)
                 << ex;
@@ -154,7 +154,7 @@ private:
             return subresponses;
         } catch (const std::exception& ex) {
             auto error = TError(
-                // XXX(babenko): error code
+                ESecretVaultErrorCode::MalformedResponse,
                 "Error parsing Vault response")
                 << TErrorAttribute("call_id", callId)
                 << ex;
@@ -163,19 +163,29 @@ private:
         }
     }
 
+    static ESecretVaultErrorCode ParseErrorCode(TStringBuf codeString)
+    {
+        ESecretVaultErrorCode code;
+        if (!TEnumTraits<ESecretVaultErrorCode>::FindValueByLiteral(codeString, &code)) {
+            code = ESecretVaultErrorCode::UnknownError;
+        }
+        return code;
+    }
+
     static TError GetErrorFromResponse(const IMapNodePtr& node)
     {
-        static const auto StatusKey("status");
-        auto statusNode = node->GetChild(StatusKey);
-
-        static const auto OKValue("ok");
-        auto statusString = statusNode->GetValue<TString>();
+        static const TString StatusKey("status");
+        static const TString OKValue("ok");
+        auto statusString = node->GetChild(StatusKey)->GetValue<TString>();
         if (statusString == OKValue) {
             return {};
         }
 
-        // XXX(babenko): error code
-        return TError("Vault error")
+        static const TString CodeKey("code");
+        auto codeString = node->GetChild(CodeKey)->GetValue<TString>();
+        auto code = ParseErrorCode(codeString);
+
+        return TError(code, "Vault error")
             << TErrorAttribute("status", statusString);
     }
 

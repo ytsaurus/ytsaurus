@@ -36,9 +36,8 @@ public:
                 invoker);
         }
 
-        ITvmServicePtr tvmService;
         if (config->TvmService) {
-            tvmService = CreateCachingTvmService(
+            TvmService_ = CreateCachingTvmService(
                 CreateDefaultTvmService(
                     config->TvmService,
                     invoker),
@@ -73,11 +72,11 @@ public:
                 CreateCookieAuthenticatorWrapper(CookieAuthenticator_));
         }
 
-        if (blackboxService && tvmService && config->BlackboxTicketAuthenticator) {
+        if (blackboxService && TvmService_  && config->BlackboxTicketAuthenticator) {
             TicketAuthenticator_ = CreateBlackboxTicketAuthenticator(
                 config->BlackboxTicketAuthenticator,
                 blackboxService,
-                tvmService);
+                TvmService_ );
             rpcAuthenticators.push_back(
                 CreateTicketAuthenticatorWrapper(TicketAuthenticator_));
         }
@@ -118,7 +117,13 @@ public:
         return TicketAuthenticator_;
     }
 
+    const ITvmServicePtr& GetTvmService() const
+    {
+        return TvmService_;
+    }
+
 private:
+    ITvmServicePtr TvmService_;
     NRpc::IAuthenticatorPtr RpcAuthenticator_;
     ITokenAuthenticatorPtr TokenAuthenticator_;
     ICookieAuthenticatorPtr CookieAuthenticator_;
@@ -155,6 +160,11 @@ const ICookieAuthenticatorPtr& TAuthenticationManager::GetCookieAuthenticator() 
 const ITicketAuthenticatorPtr& TAuthenticationManager::GetTicketAuthenticator() const
 {
     return Impl_->GetTicketAuthenticator();
+}
+
+const ITvmServicePtr& TAuthenticationManager::GetTvmService() const
+{
+    return Impl_->GetTvmService();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

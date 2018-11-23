@@ -10,7 +10,7 @@ namespace NAuth {
 ////////////////////////////////////////////////////////////////////////////////
 
 ISecretVaultServicePtr CreateDefaultSecretVaultService(
-    TDefaultSecretVaultServiceConfig config,
+    TDefaultSecretVaultServiceConfigPtr config,
     ITvmServicePtr tvmService,
     NConcurrency::IPollerPtr poller);
 
