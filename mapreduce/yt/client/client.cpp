@@ -255,9 +255,9 @@ IOperationPtr TClientBase::DoMap(
     IJob* mapper,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteMap(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         mapper,
         options);
@@ -269,9 +269,9 @@ IOperationPtr TClientBase::RawMap(
     ::TIntrusivePtr<IRawJob> mapper,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteRawMap(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         mapper.Get(),
         options);
@@ -283,9 +283,9 @@ IOperationPtr TClientBase::DoReduce(
     IJob* reducer,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteReduce(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         reducer,
         options);
@@ -297,9 +297,9 @@ IOperationPtr TClientBase::RawReduce(
     ::TIntrusivePtr<IRawJob> reducer,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteRawReduce(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         reducer.Get(),
         options);
@@ -311,9 +311,9 @@ IOperationPtr TClientBase::DoJoinReduce(
     IJob* reducer,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteJoinReduce(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         reducer,
         options);
@@ -325,9 +325,9 @@ IOperationPtr TClientBase::RawJoinReduce(
     ::TIntrusivePtr<IRawJob> reducer,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteRawJoinReduce(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         reducer.Get(),
         options);
@@ -345,9 +345,9 @@ IOperationPtr TClientBase::DoMapReduce(
     const TMultiFormatDesc& inputReducerDesc,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteMapReduce(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         mapper,
         reduceCombiner,
@@ -367,9 +367,9 @@ IOperationPtr TClientBase::RawMapReduce(
     ::TIntrusivePtr<IRawJob> reducer,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteRawMapReduce(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         mapper.Get(),
         reduceCombiner.Get(),
@@ -382,9 +382,9 @@ IOperationPtr TClientBase::Sort(
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteSort(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
@@ -394,9 +394,9 @@ IOperationPtr TClientBase::Merge(
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteMerge(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
@@ -406,9 +406,9 @@ IOperationPtr TClientBase::Erase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteErase(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
@@ -418,9 +418,9 @@ IOperationPtr TClientBase::RunVanilla(
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options)
 {
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteVanilla(
-        Auth_,
-        TransactionId_,
+        preparer,
         spec,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
