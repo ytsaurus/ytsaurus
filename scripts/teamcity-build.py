@@ -341,6 +341,7 @@ def configure(options, build_context):
         assert options.build_system == "ya"
         teamcity_message("Ya build doesn't require configuration")
 
+
 @build_step
 def build(options, build_context):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
@@ -348,33 +349,26 @@ def build(options, build_context):
         run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
     else:
         assert options.build_system == "ya"
-        ya = get_ya(options)
-
-        common_args = ["-T"]
-        common_args += ya_make_args(options)
-        common_args += ya_make_definition_args(options)
+        python_version_list = list(iter_enabled_python_versions(options)) + ["skynet"]
+        env = ya_make_env(options)
+        yall = os.path.join(options.checkout_directory, "yall")
+        args = [
+            yall,
+            "-T",
+            "--yall-cmake-like-install", options.working_directory,
+            "--yall-python-version-list", ",".join(python_version_list),
+        ]
+        args += ya_make_args(options)
+        args += ya_make_definition_args(options)
         if options.build_enable_ya_yt_store:
-            common_args += ya_make_yt_store_args(options)
+            env["YT_TOKEN"] = os.environ["TEAMCITY_YT_TOKEN"]
+            args += [
+                "--yall-enable-dist-cache",
+                "--yall-dist-cache-put",
+                "--yall-dist-cache-no-auto-token",
+            ]
+        run(args, env=env, cwd=options.checkout_directory)
 
-        args = [ya, "make", "buildall"] + common_args
-        args += ["--install", get_bin_dir(options)]
-        if options.use_asan:
-            args += ["--sanitize=address"]
-
-        # We don't want our token to appear in teamcity logs, so we save it to file
-        # that will be shortly removed
-        with temporary_yt_token_file(options):
-            run(args,
-                cwd=options.checkout_directory,
-                env=ya_make_env(options))
-
-            for python_version in iter_enabled_python_versions(options):
-                args = [ya, "make", "buildall/system-python"] + common_args
-                args += ["-DUSE_SYSTEM_PYTHON=" + python_version]
-                args += ["--install", get_lib_dir_for_python(options, python_version)]
-                run(args,
-                    cwd=options.checkout_directory,
-                    env=ya_make_env(options))
 
 @build_step
 def gather_build_info(options, build_context):
