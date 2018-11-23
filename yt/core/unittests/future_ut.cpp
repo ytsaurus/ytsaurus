@@ -782,6 +782,17 @@ TEST_F(TFutureTest, OnCanceledAbanbon)
     EXPECT_FALSE(called);
 }
 
+TString OnCallResult(const TErrorOr<int>& callResult)
+{
+    THROW_ERROR_EXCEPTION("Call failed");
+}
+
+TEST_F(TFutureTest, LTOCrash)
+{
+    auto future = MakeFuture<int>(0);
+    auto nextFuture = future.Apply(BIND(OnCallResult));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
