@@ -25,6 +25,10 @@ message TJobMetrics
     optional int64 time_aborted = 4;
     optional double smoothed_cpu_usage = 5;
     optional double preemptable_cpu = 6;
+    optional int64 total_time = 7;
+    optional int64 exec_time = 8;
+    optional int64 prepare_time = 9;
+    optional int64 artifacts_download_time = 10;
 }
 
 message TTreeTaggedJobMetrics
