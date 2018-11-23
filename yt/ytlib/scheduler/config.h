@@ -81,6 +81,7 @@ public:
     TNullable<double> Cpu;
     TNullable<int> Network;
     TNullable<i64> Memory;
+    TNullable<int> Gpu;
 
     TResourceLimitsConfig();
 };
