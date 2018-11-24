@@ -129,9 +129,7 @@ class ListOperationsSetup(YTEnvSetup):
         create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)
         create("map_node", "//sys/pool_trees/other/pool_no_running", ignore_existing=True)
         set("//sys/pool_trees/other/pool_no_running/@max_running_operation_count", 0)
-
-        wait(lambda: exists(
-            "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info".format(pool_tree)))
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
 
         # Create users and groups.
         for i in range(1,6):
