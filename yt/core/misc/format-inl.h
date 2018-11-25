@@ -212,47 +212,47 @@ template <class TRange, class TFormatter>
 TFormattableRange<TRange, TFormatter> MakeShrunkFormattableRange(
     const TRange& range,
     const TFormatter& formatter,
-    ui32 limit)
+    size_t limit)
 {
     return TFormattableRange<TRange, TFormatter>{range, formatter, limit};
 }
 
 template <class TRange, class TFormatter>
-void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, ui32 limit = ui32(-1))
+void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, size_t limit = std::numeric_limits<size_t>::max())
 {
     builder->AppendChar('[');
-    ui32 i = 0;
+    size_t index = 0;
     for (const auto& item : range) {
-        if (i > 0) {
+        if (index > 0) {
             builder->AppendString(DefaultJoinToStringDelimiter);
         }
-        if (i == limit) {
+        if (index == limit) {
             builder->AppendString(DefaultRangeEllipsisFormat);
             break;
         }
         formatter(builder, item);
-        ++i;
+        ++index;
     }
     builder->AppendChar(']');
 }
 
 template <class TRange, class TFormatter>
-void FormatKeyValueRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, ui32 limit = ui32(-1))
+void FormatKeyValueRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, size_t limit = std::numeric_limits<size_t>::max())
 {
     builder->AppendChar('{');
-    ui32 i = 0;
+    size_t index = 0;
     for (const auto& item : range) {
-        if (i > 0) {
+        if (index > 0) {
             builder->AppendString(DefaultJoinToStringDelimiter);
         }
-        if (i == limit) {
+        if (index == limit) {
             builder->AppendString(DefaultRangeEllipsisFormat);
             break;
         }
         formatter(builder, item.first);
         builder->AppendString(DefaultKeyValueDelimiter);
         formatter(builder, item.second);
-        ++i;
+        ++index;
     }
     builder->AppendChar('}');
 }
