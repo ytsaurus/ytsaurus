@@ -414,7 +414,7 @@ private:
 
         TError result;
         TRACE_CHILD("Driver", request.CommandName) {
-            LOG_INFO("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            LOG_DEBUG("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
@@ -423,16 +423,17 @@ private:
                 executeCallback.Run(context);
             } catch (const std::exception& ex) {
                 result = TError(ex);
+                result = TError(ex);
             }
         }
 
         if (result.IsOK()) {
-            LOG_INFO("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            LOG_DEBUG("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
         } else {
-            LOG_INFO(result, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            LOG_DEBUG(result, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
