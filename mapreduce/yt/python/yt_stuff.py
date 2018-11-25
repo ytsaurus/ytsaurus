@@ -55,13 +55,34 @@ def disable_gzip_crc_check():
 
 
 class YtConfig(object):
-    def __init__(self, fqdn=None, yt_id=None, proxy_port=None, node_count=None, node_config=None,
-                 scheduler_config=None, master_config=None, proxy_config=None, yt_path=None,
-                 save_all_logs=None, yt_work_dir=None, keep_yt_work_dir=None, ram_drive_path=None,
-                 local_cypress_dir=None, wait_tablet_cell_initialization=None, jobs_memory_limit=None,
-                 jobs_cpu_limit=None, jobs_user_slot_count=None, forbid_chunk_storage_in_tmpfs=None,
-                 node_chunk_store_quota=None, yt_version=None, cell_tag=None, python_binary=None,
-                 enable_debug_logging=None, enable_rpc_proxy=None, controller_agent_config=None):
+    def __init__(self,
+                 fqdn=None,
+                 yt_id=None,
+                 yt_path=None,
+                 yt_work_dir=None,
+                 keep_yt_work_dir=None,
+                 proxy_port=None,
+                 master_config=None,
+                 node_config=None,
+                 proxy_config=None,
+                 scheduler_config=None,
+                 controller_agent_config=None,
+                 node_count=None,
+                 save_all_logs=None,
+                 ram_drive_path=None,
+                 local_cypress_dir=None,
+                 wait_tablet_cell_initialization=None,
+                 jobs_memory_limit=None,
+                 jobs_cpu_limit=None,
+                 jobs_user_slot_count=None,
+                 forbid_chunk_storage_in_tmpfs=None,
+                 node_chunk_store_quota=None,
+                 yt_version=None,
+                 cell_tag=None,
+                 python_binary=None,
+                 enable_debug_logging=None,
+                 enable_rpc_proxy=None):
+
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
 
