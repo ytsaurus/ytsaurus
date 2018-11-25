@@ -11,9 +11,8 @@ import yatest.common
 TEST_PROGRAM = yatest.common.binary_path('mapreduce/yt/tests/native/check_initialized/test_program/test_program')
 
 def test_check_initialized(yt_stuff):
-    yt_wrapper = yt_stuff.get_yt_wrapper()
     try:
-        process = yatest.common.execute(
+        yatest.common.execute(
             [TEST_PROGRAM],
             check_exit_code=True,
             collect_cores=False,
