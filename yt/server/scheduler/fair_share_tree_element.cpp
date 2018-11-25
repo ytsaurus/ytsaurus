@@ -2394,6 +2394,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits, precommittedResources)) {
         Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
         disableOperationElement(EDeactivationReason::OperationDisabled);
+        DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
         FinishScheduleJob(/*enableBackoff*/ false, now);
         return false;
     }
