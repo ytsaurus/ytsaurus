@@ -65,7 +65,7 @@ def check_transaction_will_die(yt_client, title, timeout):
     raise RuntimeError, "Transaction {0} lives longer than {1} seconds".format(transaction_path, timeout)
 
 def test_abort_operations_and_transactions_on_operation_fail(yt_stuff):
-    yt_client = yt_stuff.get_yt_wrapper()
+    yt_client = yt_stuff.get_yt_client()
 
     yatest.common.execute(
         # Argument has no meaning for program
@@ -92,7 +92,7 @@ def test_abort_operations_and_transactions_on_operation_fail(yt_stuff):
     check_transaction_will_die(yt_client, "test-operation-fail", 5)
 
 def test_abort_operations_and_transactions_on_signal(yt_stuff):
-    yt_client = yt_stuff.get_yt_wrapper()
+    yt_client = yt_stuff.get_yt_client()
 
     process = yatest.common.execute(
         # Argument has no meaning for program

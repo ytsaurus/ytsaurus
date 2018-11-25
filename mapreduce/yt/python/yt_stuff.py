@@ -492,9 +492,6 @@ class YtStuff(object):
         self._log("Local YT was started with id=%s", self.yt_id)
         return True
 
-    def get_yt_wrapper(self):
-        return self.yt_wrapper
-
     def get_yt_client(self):
         return self.yt_client
 

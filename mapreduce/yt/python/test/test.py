@@ -16,8 +16,8 @@ def test_fixture(yt_stuff):
 
 
 def test_yt_wrapper(yt_stuff):
-    yt_wrapper = yt_stuff.get_yt_wrapper()
-    assert not yt_wrapper.exists("//hello/world/path")
+    yt_client = yt_stuff.get_yt_client()
+    assert not yt_client.exists("//hello/world/path")
 
 
 def test_scheme(yt_stuff):
