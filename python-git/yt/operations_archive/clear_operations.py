@@ -161,6 +161,8 @@ class OperationArchiver(object):
             value_columns.append("unrecognized_spec")
         if self.version >= 22:
             value_columns.append("runtime_parameters")
+        if self.version >= 27:
+            value_columns.append("slot_index_per_pool_tree")
 
         by_id_row = {}
         for key in index_columns + value_columns:
