@@ -408,7 +408,9 @@ private:
                     tags.insert(std::make_pair(tag.Key, tag.Value));
                 }
             }
-            LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)", queuedSample.Path, tags);
+            LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)",
+                queuedSample.Path,
+                tags);
             ProfilingProfiler.Increment(DroppedCounter);
         }
         bucket->TrimSamples(MaxKeepInterval);
