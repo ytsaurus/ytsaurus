@@ -1275,6 +1275,21 @@ def wait_for_cells(cell_ids=None, driver=None):
             return cells
         return [cell for cell in cells if cell.attributes["id"] in cell_ids]
 
+    def check_orchid():
+        cells = get_cells(driver=driver)
+        for cell in cells:
+            peer = cell.attributes["peers"][0]
+            if "address" not in peer:
+                return False
+            node = peer["address"]
+            try:
+                if not exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
+                    return False
+            except YtResponseError:
+                return False
+        return True
+    wait(check_orchid)
+
     def check_cells(driver):
         cells = get_cells(driver=driver)
         for cell in cells:
@@ -1283,18 +1298,6 @@ def wait_for_cells(cell_ids=None, driver=None):
         return True
     for driver in get_cluster_drivers(driver):
         wait(lambda: check_cells(driver=driver))
-
-    def check_orchid():
-        cells = get_cells(driver=driver)
-        for cell in cells:
-            node = cell.attributes["peers"][0]["address"]
-            try:
-                if not exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
-                    return False
-            except YtResponseError:
-                return False
-        return True
-    wait(check_orchid)
 
 def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
     cell_ids = []

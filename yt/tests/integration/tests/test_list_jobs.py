@@ -444,8 +444,6 @@ class TestListJobs(YTEnvSetup):
 
         clear_metadata_caches()
 
-        time.sleep(1) # master must notice that cells are down
-
         wait_for_cells()
 
         mount_table("//sys/operations_archive/jobs")
