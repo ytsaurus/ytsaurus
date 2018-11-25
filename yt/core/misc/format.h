@@ -69,7 +69,7 @@ struct TFormattableRange
 {
     TRange Range;
     TFormatter Formatter;
-    ui32 Limit = ui32(-1);
+    size_t Limit = std::numeric_limits<size_t>::max();
 };
 
 //! Annotates a given #range with #formatter to be applied to each item.
@@ -84,7 +84,7 @@ template <class TRange, class TFormatter>
 TFormattableRange<TRange, TFormatter> MakeShrunkFormattableRange(
     const TRange& range,
     const TFormatter& formatter,
-    ui32 limit);
+    size_t limit);
 
 ////////////////////////////////////////////////////////////////////////////////
 
