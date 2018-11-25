@@ -239,7 +239,7 @@ void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter&
 template <class TRange, class TFormatter>
 void FormatKeyValueRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, ui32 limit = ui32(-1))
 {
-    builder->AppendChar('[');
+    builder->AppendChar('{');
     ui32 i = 0;
     for (const auto& item : range) {
         if (i > 0) {
@@ -254,7 +254,7 @@ void FormatKeyValueRange(TStringBuilder* builder, const TRange& range, const TFo
         formatter(builder, item.second);
         ++i;
     }
-    builder->AppendChar(']');
+    builder->AppendChar('}');
 }
 
 // TFormattableRange
