@@ -371,7 +371,9 @@ TSimpleOperationIo CreateSimpleOperationIo(
     ApplyFormatHints(&outputFormat, outputDesc.GetRowType(), spec.OutputFormatHints_);
 
     auto outputPaths = CanonizePaths(auth, spec.Outputs_);
-    if (options.InferOutputSchema_.GetOrElse(false) && spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO) {
+    if (options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema) &&
+        spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO)
+    {
         FillMissingSchemas(&outputPaths, spec.GetOutputDesc().ProtoDescriptors);
     }
 
@@ -1703,7 +1705,9 @@ TOperationId ExecuteMapReduce(
     operationIo.MapOutputs = CanonizePaths(preparer.GetAuth(), spec.MapOutputs_);
     operationIo.Outputs = CanonizePaths(preparer.GetAuth(), spec.Outputs_);
 
-    if (options.InferOutputSchema_.GetOrElse(false) && spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO) {
+    if (options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema) &&
+        spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO)
+    {
         FillMissingSchemas(&operationIo.Outputs, spec.GetOutputDesc().ProtoDescriptors);
     }
 

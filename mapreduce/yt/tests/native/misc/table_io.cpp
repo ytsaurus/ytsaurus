@@ -1064,14 +1064,20 @@ Y_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT(abortedRequestCount >= 10);
     }
 
-    Y_UNIT_TEST(ProtobufSchemaInferring)
+    void TestProtobufSchemaInferring(bool setWriterOptions)
     {
+        TTableWriterOptions options;
+        TConfigSaverGuard configGuard;
+        if (setWriterOptions) {
+            options.InferSchema(true);
+        } else {
+            TConfig::Get()->InferTableSchema = true;
+        }
+
         auto client = CreateTestClient();
 
         {
-            auto writer = client->CreateTableWriter<TRowVer2>(
-                "//testing/table",
-                TTableWriterOptions().InferSchema(true));
+            auto writer = client->CreateTableWriter<TRowVer2>("//testing/table", options);
             TRowVer2 row;
             row.SetString_1("abc");
             row.SetUint32_2(40 + 2);
@@ -1087,6 +1093,16 @@ Y_UNIT_TEST_SUITE(TableIo) {
             .Add(TNode()("name", "String_1")("type", "string")("required", false))
             .Add(TNode()("name", "Uint32_2")("type", "uint32")("required", false))
             .Add(TNode()("name", "Fixed64_3")("type", "uint64")("required", false)));
+    }
+
+    Y_UNIT_TEST(ProtobufSchemaInferring_Config)
+    {
+        TestProtobufSchemaInferring(false);
+    }
+
+    Y_UNIT_TEST(ProtobufSchemaInferring_Options)
+    {
+        TestProtobufSchemaInferring(true);
     }
 }
 

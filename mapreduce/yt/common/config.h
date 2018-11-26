@@ -71,6 +71,11 @@ struct TConfig
     TString RemoteTempFilesDirectory;
     TString RemoteTempTablesDirectory;
 
+    //
+    // Infer schemas for nonexstent tables from typed rows (e.g. protobuf)
+    // when writing from operation or client writer.
+    // This options can be overriden in TOperationOptions and TTableWriterOptions.
+    bool InferTableSchema;
 
     bool UseClientProtobuf;
     ENodeReaderFormat NodeReaderFormat;

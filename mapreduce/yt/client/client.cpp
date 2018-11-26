@@ -563,7 +563,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     descriptors.push_back(prototype->GetDescriptor());
 
     auto pathWithSchema = path;
-    if (options.InferSchema_.GetOrElse(false) && !path.Schema_) {
+    if (options.InferSchema_.GetOrElse(TConfig::Get()->InferTableSchema) && !path.Schema_) {
         pathWithSchema.Schema(CreateTableSchema(*prototype->GetDescriptor()));
     }
 
