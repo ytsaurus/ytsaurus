@@ -20,7 +20,7 @@ pushd "$PACKAGE_NAME"
 if [ -n "$1" ]; then
     VERSION="$1"
 else
-    VERSION="$(dpkg-parsechangelog | grep Version | awk '{print $2}')"
+    VERSION="$(dpkg-parsechangelog | grep '^Version' | awk '{print $2}')"
 fi
 
 if [ -n "$ARCADIA_DIR" ]; then
