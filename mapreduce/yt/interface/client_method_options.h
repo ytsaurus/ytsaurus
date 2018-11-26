@@ -316,6 +316,12 @@ struct TTableWriterOptions
     //
     // Has no effect when used with raw-writer.
     FLUENT_FIELD_OPTION(TFormatHints, FormatHints);
+
+    // Try to infer schema of inexistent table from the type of written rows.
+    //
+    // NOTE: Default values for this option may differ depending on the row type.
+    // For protobuf it's currently false by default.
+    FLUENT_FIELD_OPTION(bool, InferSchema);
 };
 
 // https://wiki.yandex-team.ru/yt/userdoc/api/#starttx
