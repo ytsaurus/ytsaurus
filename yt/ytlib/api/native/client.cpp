@@ -3813,6 +3813,7 @@ private:
         "events",
         "memory_usage",
         "suspended",
+        "slot_index_per_pool_tree",
     };
 
     // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
@@ -4106,6 +4107,7 @@ private:
                     SET_ITEM_INSTANT_VALUE("finish_time")
                     SET_ITEM_YSON_STRING_VALUE("result")
                     SET_ITEM_YSON_STRING_VALUE("events")
+                    SET_ITEM_YSON_STRING_VALUE("slot_index_per_pool_tree")
                 .EndMap();
 #undef SET_ITEM_STRING_VALUE
 #undef SET_ITEM_YSON_STRING_VALUE
@@ -5083,6 +5085,10 @@ private:
             operation.Result = nodeAttributes.FindYson("result");
         }
 
+        if (!attributes || attributes->has("slot_index_per_pool_tree")) {
+            operation.SlotIndexPerPoolTree = nodeAttributes.FindYson("slot_index_per_pool_tree");
+        }
+
         return operation;
     }
 
@@ -5563,6 +5569,10 @@ private:
             }
             if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Result)) {
                 operation.Result = getYson(row[*indexOrNull]);
+            }
+
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.SlotIndexPerPoolTree)) {
+                operation.SlotIndexPerPoolTree = getYson(row[*indexOrNull]);
             }
 
             idToOperation.emplace(*operation.Id, std::move(operation));

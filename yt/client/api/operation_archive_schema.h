@@ -35,6 +35,7 @@ struct TOrderedByIdTableDescriptor
         const int UnrecognizedSpec;
         const int FullSpec;
         const int RuntimeParameters;
+        const int SlotIndexPerPoolTree;
     };
 
     const NTableClient::TNameTablePtr NameTable;

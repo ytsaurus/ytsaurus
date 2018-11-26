@@ -159,6 +159,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
                 "spec",
                 "unrecognized_spec",
                 "full_spec",
+                "slot_index_per_pool_tree",
             ]
             return {key: attrs[key] for key in PROPER_ATTRS if key in attrs}
 

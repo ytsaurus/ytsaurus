@@ -27,7 +27,6 @@ struct TArchiveOperationRequest
     NYson::TYsonString Result;
     NYson::TYsonString Events;
     NYson::TYsonString Alerts;
-    TNullable<int> SlotIndex;
     // Archive version >= 17
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
@@ -35,6 +34,8 @@ struct TArchiveOperationRequest
     NYson::TYsonString RuntimeParameters;
     // Archive version >= 26
     TNullable<TString> Alias;
+    // Archive version >= 27
+    NYson::TYsonString SlotIndexPerPoolTree;
 
     void InitializeFromOperation(const TOperationPtr& operation);
 
