@@ -2,8 +2,8 @@ from .config import get_config, get_option, set_option, get_backend_type
 from .common import require, get_value, total_seconds, generate_uuid
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
-                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut,
-                     YtRetriableError, YtNoSuchTransaction, hide_token)
+                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
+                     YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, hide_token)
 from .command import parse_commands
 
 import yt.logger as logger
@@ -49,7 +49,8 @@ def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
     from yt.packages.requests import HTTPError, ConnectionError, Timeout
     return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
-            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded,
+            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded,
+            YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
             YtRequestTimedOut, YtRetriableError)
 
 @add_metaclass(ABCMeta)
