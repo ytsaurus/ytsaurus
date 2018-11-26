@@ -403,7 +403,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             session->Blocks[entry.LocalIndex] = std::move(block);
             entry.Cached = true;
         } else if (options.FetchFromDisk && options.PopulateCache) {
-            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             entry.Cookie = chunkBlockManager->BeginInsertCachedBlock(blockId);
             if (!entry.Cookie.IsActive()) {
                 entry.Cached = true;
