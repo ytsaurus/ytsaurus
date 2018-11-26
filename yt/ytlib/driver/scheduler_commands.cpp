@@ -214,8 +214,11 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
             .DoIf(operation.Result.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("result").Value(operation.Result);
             })
-            .DoIf(operation.Events.operator bool(), [&] (TFluentMap fluent) {
+            .DoIf(operation.Events.operator bool(), [&](TFluentMap fluent) {
                 fluent.Item("events").Value(operation.Events);
+            })
+            .DoIf(operation.SlotIndexPerPoolTree.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("slot_index_per_pool_tree").Value(operation.SlotIndexPerPoolTree);
             });
     };
 

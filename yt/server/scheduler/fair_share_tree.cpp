@@ -1407,7 +1407,6 @@ bool TFairShareTree::TryAllocatePoolSlotIndex(const TString& poolName, int slotI
 
 void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
 {
-    auto it = PoolToSpareSlotIndices.find(poolName);
     auto slotIndex = state->GetHost()->FindSlotIndex(TreeId);
 
     if (slotIndex) {
@@ -1420,6 +1419,7 @@ void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperatio
             *slotIndex);
     }
 
+    auto it = PoolToSpareSlotIndices.find(poolName);
     if (it == PoolToSpareSlotIndices.end() || it->second.empty()) {
         auto minUnusedIndexIt = PoolToMinUnusedSlotIndex.find(poolName);
         YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex.end());
