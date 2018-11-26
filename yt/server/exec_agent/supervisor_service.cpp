@@ -172,6 +172,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
 
     job->SetResourceUsage(resourceUsage);
 
+    if (job->GetPhase() >= EJobPhase::WaitingAbort) {
+        THROW_ERROR_EXCEPTION("Cannot update resource usage for job in %Qlv phase", job->GetPhase());
+    }
+
     context->Reply();
 }
 

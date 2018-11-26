@@ -693,6 +693,9 @@ void TJobProxy::OnResourcesUpdated(i64 memoryReserve, const TError& error)
 {
     if (!error.IsOK()) {
         LOG_ERROR(error, "Failed to update resource usage");
+        if (Job_) {
+            Job_->Cleanup();
+        }
         Exit(EJobProxyExitCode::ResourcesUpdateFailed);
     }
 
