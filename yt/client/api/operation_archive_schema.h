@@ -31,7 +31,7 @@ struct TOrderedByIdTableDescriptor
         const int Result;
         const int Events;
         const int Alerts;
-        const int SlotIndex;
+        const int SlotIndex; // TODO(renadeen): delete this column when version with this comment will be on every cluster
         const int UnrecognizedSpec;
         const int FullSpec;
         const int RuntimeParameters;
