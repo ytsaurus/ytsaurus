@@ -182,6 +182,8 @@ TConfig::TConfig()
     RemoteTempTablesDirectory = GetEnv("YT_TEMP_TABLES_STORAGE",
         "//tmp/yt_wrapper/table_storage");
 
+    InferTableSchema = false;
+
     UseClientProtobuf = GetBool("YT_USE_CLIENT_PROTOBUF", false);
     NodeReaderFormat = ENodeReaderFormat::Auto;
 

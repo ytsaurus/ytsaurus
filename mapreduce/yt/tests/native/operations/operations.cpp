@@ -2567,8 +2567,16 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
 
-    Y_UNIT_TEST(ProtobufSchemaInferring)
+    void TestProtobufSchemaInferring(bool setOperationOptions)
     {
+        TOperationOptions options;
+        TConfigSaverGuard configGuard;
+        if (setOperationOptions) {
+            options.InferOutputSchema(true);
+        } else {
+            TConfig::Get()->InferTableSchema = true;
+        }
+
         auto client = CreateTestClient();
         {
             auto writer = client->CreateTableWriter<TUrlRow>("//testing/input");
@@ -2594,7 +2602,7 @@ Y_UNIT_TEST_SUITE(Operations)
                 .AddInput<TUrlRow>("//testing/input")
                 .AddOutput<TUrlRow>("//testing/map_output"),
             new TUrlRowIdMapper,
-            TOperationOptions().InferOutputSchema(true));
+            options);
 
         checkSchema(client->Get("//testing/map_output/@schema"));
 
@@ -2605,12 +2613,20 @@ Y_UNIT_TEST_SUITE(Operations)
                 .ReduceBy("Host"),
             new TUrlRowIdMapper,
             new TUrlRowIdReducer,
-            TOperationOptions().InferOutputSchema(true));
+            options);
 
         checkSchema(client->Get("//testing/mapreduce_output/@schema"));
     }
 
+    Y_UNIT_TEST(ProtobufSchemaInferring_Config)
+    {
+        TestProtobufSchemaInferring(false);
+    }
 
+    Y_UNIT_TEST(ProtobufSchemaInferring_Options)
+    {
+        TestProtobufSchemaInferring(true);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
