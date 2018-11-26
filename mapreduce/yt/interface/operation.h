@@ -1222,6 +1222,12 @@ struct TOperationOptions
     // Ensure output tables exist before starting operation.
     // If set to false, it is caller's responsibility to ensure output tables exist.
     FLUENT_FIELD_DEFAULT(bool, CreateOutputTables, true);
+
+    // Try to infer schema of inexistent table from the type of written rows.
+    //
+    // NOTE: Default values for this option may differ depending on the row type.
+    // For protobuf it's currently false by default.
+    FLUENT_FIELD_OPTION(bool, InferOutputSchema);
 };
 
 struct IOperationClient

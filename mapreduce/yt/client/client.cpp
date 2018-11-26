@@ -38,6 +38,8 @@
 
 #include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
 
+#include <mapreduce/yt/library/table_schema/protobuf.h>
+
 #include <library/json/json_reader.h>
 
 #include <util/generic/algorithm.h>
@@ -560,17 +562,22 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     TVector<const ::google::protobuf::Descriptor*> descriptors;
     descriptors.push_back(prototype->GetDescriptor());
 
+    auto pathWithSchema = path;
+    if (options.InferSchema_.GetOrElse(false) && !path.Schema_) {
+        pathWithSchema.Schema(CreateTableSchema(*prototype->GetDescriptor()));
+    }
+
     if (TConfig::Get()->UseClientProtobuf) {
         auto format = TFormat::YsonBinary();
         ApplyFormatHints<TNode>(&format, options.FormatHints_);
         return new TProtoTableWriter(
-            CreateClientWriter(path, format, options),
+            CreateClientWriter(pathWithSchema, format, options),
             std::move(descriptors));
     } else {
         auto format = TFormat::Protobuf({prototype->GetDescriptor()});
         ApplyFormatHints<::google::protobuf::Message>(&format, options.FormatHints_);
         return new TLenvalProtoTableWriter(
-            CreateClientWriter(path, format, options),
+            CreateClientWriter(pathWithSchema, format, options),
             std::move(descriptors));
     }
 }

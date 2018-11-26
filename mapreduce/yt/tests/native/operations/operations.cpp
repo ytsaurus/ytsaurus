@@ -89,6 +89,33 @@ REGISTER_REDUCER(TIdReducer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUrlRowIdMapper : public IMapper<TTableReader<TUrlRow>, TTableWriter<TUrlRow>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            writer->AddRow(reader->GetRow());
+        }
+    }
+};
+REGISTER_MAPPER(TUrlRowIdMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUrlRowIdReducer : public IReducer<TTableReader<TUrlRow>, TTableWriter<TUrlRow>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            writer->AddRow(reader->GetRow());
+        }
+    }
+};
+REGISTER_REDUCER(TUrlRowIdReducer);
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TAlwaysFailingMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
@@ -2539,6 +2566,51 @@ Y_UNIT_TEST_SUITE(Operations)
         auto actual = ReadTable(client, "//testing/output");
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
+
+    Y_UNIT_TEST(ProtobufSchemaInferring)
+    {
+        auto client = CreateTestClient();
+        {
+            auto writer = client->CreateTableWriter<TUrlRow>("//testing/input");
+            TUrlRow row;
+            row.SetHost("build01-myt.yandex.net");
+            row.SetPath("~/.virmc");
+            row.SetHttpCode(3213);
+            writer->AddRow(row);
+            writer->Finish();
+        }
+
+        auto checkSchema = [] (TNode schema) {
+            schema.ClearAttributes();
+            UNIT_ASSERT_VALUES_EQUAL(schema,
+                TNode()
+                .Add(TNode()("name", "Host")("type", "string")("required", false))
+                .Add(TNode()("name", "Path")("type", "string")("required", false))
+                .Add(TNode()("name", "HttpCode")("type", "int32")("required", false)));
+        };
+
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TUrlRow>("//testing/input")
+                .AddOutput<TUrlRow>("//testing/map_output"),
+            new TUrlRowIdMapper,
+            TOperationOptions().InferOutputSchema(true));
+
+        checkSchema(client->Get("//testing/map_output/@schema"));
+
+        client->MapReduce(
+            TMapReduceOperationSpec()
+                .AddInput<TUrlRow>("//testing/input")
+                .AddOutput<TUrlRow>("//testing/mapreduce_output")
+                .ReduceBy("Host"),
+            new TUrlRowIdMapper,
+            new TUrlRowIdReducer,
+            TOperationOptions().InferOutputSchema(true));
+
+        checkSchema(client->Get("//testing/mapreduce_output/@schema"));
+    }
+
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

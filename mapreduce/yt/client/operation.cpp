@@ -43,6 +43,8 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
+#include <mapreduce/yt/library/table_schema/protobuf.h>
+
 #include <util/folder/path.h>
 #include <util/stream/buffer.h>
 #include <util/stream/file.h>
@@ -316,6 +318,18 @@ ENodeReaderFormat NodeReaderFormatFromHintAndGlobalConfig(const TUserJobFormatHi
     return result;
 }
 
+void FillMissingSchemas(TVector<TRichYPath>* paths, const TVector<const ::google::protobuf::Descriptor*>& descriptors)
+{
+    Y_ENSURE(paths->size() == descriptors.size());
+    for (size_t i = 0; i != paths->size(); ++i) {
+        auto& path = (*paths)[i];
+        if (path.Schema_) {
+            continue;
+        }
+        path.Schema(CreateTableSchema(*descriptors[i]));
+    }
+}
+
 template <class TSpec>
 TSimpleOperationIo CreateSimpleOperationIo(
     const TAuth& auth,
@@ -332,10 +346,23 @@ TSimpleOperationIo CreateSimpleOperationIo(
         ? NodeReaderFormatFromHintAndGlobalConfig(spec)
         : ENodeReaderFormat::Yson;
 
-    TFormatDescImpl inputDesc(auth, transactionId, spec.GetInputDesc(), spec.Inputs_, options,
-        nodeReaderFormat, /* allowFormatFromTableAttribute = */ true);
-    TFormatDescImpl outputDesc(auth, transactionId, spec.GetOutputDesc(), spec.Outputs_, options,
-        ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
+    TFormatDescImpl inputDesc(
+        auth,
+        transactionId,
+        spec.GetInputDesc(),
+        spec.Inputs_,
+        options,
+        nodeReaderFormat,
+        /* allowFormatFromTableAttribute = */ true);
+
+    TFormatDescImpl outputDesc(
+        auth,
+        transactionId,
+        spec.GetOutputDesc(),
+        spec.Outputs_,
+        options,
+        ENodeReaderFormat::Yson,
+        /* allowFormatFromTableAttribute = */ false);
 
     TFormat inputFormat = inputDesc.GetFormat();
     TFormat outputFormat = outputDesc.GetFormat();
@@ -343,9 +370,14 @@ TSimpleOperationIo CreateSimpleOperationIo(
     ApplyFormatHints(&inputFormat, inputDesc.GetRowType(), spec.InputFormatHints_);
     ApplyFormatHints(&outputFormat, outputDesc.GetRowType(), spec.OutputFormatHints_);
 
+    auto outputPaths = CanonizePaths(auth, spec.Outputs_);
+    if (options.InferOutputSchema_.GetOrElse(false) && spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO) {
+        FillMissingSchemas(&outputPaths, spec.GetOutputDesc().ProtoDescriptors);
+    }
+
     return TSimpleOperationIo {
         CanonizePaths(auth, spec.Inputs_),
-        CanonizePaths(auth, spec.Outputs_),
+        outputPaths,
 
         inputFormat,
         outputFormat,
@@ -1670,6 +1702,10 @@ TOperationId ExecuteMapReduce(
     operationIo.Inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
     operationIo.MapOutputs = CanonizePaths(preparer.GetAuth(), spec.MapOutputs_);
     operationIo.Outputs = CanonizePaths(preparer.GetAuth(), spec.Outputs_);
+
+    if (options.InferOutputSchema_.GetOrElse(false) && spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO) {
+        FillMissingSchemas(&operationIo.Outputs, spec.GetOutputDesc().ProtoDescriptors);
+    }
 
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");
