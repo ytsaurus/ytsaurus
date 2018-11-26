@@ -174,14 +174,7 @@ void TTabletTrackerImpl::ScanCells()
         const TTabletCell* cell = nullptr;
 
         for (const auto& moveDescriptor : moveDescriptors) {
-            const auto* source = moveDescriptor.Source;
-            const auto* target = moveDescriptor.Target;
-
-            if (!target && IsDecommissioned(source, cell->GetCellBundle()->NodeTagFilter())) {
-                continue;
-            }
-
-            if (source || !target) {
+            if (moveDescriptor.Source || !moveDescriptor.Target) {
                 if (moveDescriptor.Cell != cell) {
                     cell = moveDescriptor.Cell;
                     revocation = request.add_revocations();
@@ -347,33 +340,6 @@ TError TTabletTrackerImpl::IsFailed(
     }
 
     return TError("Node is not assigned");
-}
-
-bool TTabletTrackerImpl::IsDecommissioned(
-    const TNode* node,
-    const TBooleanFormula& nodeTagFilter)
-{
-    if (!node) {
-        return false;
-    }
-
-    if (node->GetBanned()) {
-        return false;
-    }
-
-    if (!nodeTagFilter.IsSatisfiedBy(node->Tags())) {
-        return false;
-    }
-
-    if (node->GetDecommissioned()) {
-        return true;
-    }
-
-    if (node->GetDisableTabletCells()) {
-        return true;
-    }
-
-    return false;
 }
 
 int TTabletTrackerImpl::FindGoodPeer(const TTabletCell* cell)
