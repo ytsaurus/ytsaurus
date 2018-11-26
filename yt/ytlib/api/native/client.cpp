@@ -4994,15 +4994,14 @@ private:
 
         bool FilterByFailedJobs(const TYsonString& briefProgress)
         {
-            if (!briefProgress) {
-                return !Options.WithFailedJobs || !*Options.WithFailedJobs;
+            bool hasFailedJobs = false;
+            if (briefProgress) {
+                auto briefProgressMapNode = ConvertToNode(briefProgress)->AsMap();
+                auto jobsNode = briefProgressMapNode->FindChild("jobs");
+                hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
             }
-
-            auto briefProgressMapNode = ConvertToNode(briefProgress)->AsMap();
-            auto jobsNode = briefProgressMapNode->FindChild("jobs");
-            bool hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
             FailedJobsCount += hasFailedJobs;
-            return !Options.WithFailedJobs || *Options.WithFailedJobs == hasFailedJobs;
+            return !Options.WithFailedJobs || (*Options.WithFailedJobs == hasFailedJobs);
         }
     };
 

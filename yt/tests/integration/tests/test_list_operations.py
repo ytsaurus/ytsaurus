@@ -371,12 +371,12 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
 
     def test_no_filters(self, read_from):
         res = list_operations(include_archive=self.include_archive)
-        assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
-        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
-        assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1}
-        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 1}
+        assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1, "pool_no_running": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "user5": 1}
+        assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1, "pending": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 2}
         assert res["failed_jobs_count"] == 1
-        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
+        assert [op["id"] for op in res["operations"]] == [self.op6.id, self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
     def test_owned_by_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user3", read_from=read_from)
@@ -405,6 +405,8 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
         assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 2}
         if self.check_failed_jobs_count:
             assert res["failed_jobs_count"] == 1
+        for x in res["operations"]:
+            print(x)
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
 
         res = list_operations(include_archive=self.include_archive, with_failed_jobs=False, read_from=read_from)
