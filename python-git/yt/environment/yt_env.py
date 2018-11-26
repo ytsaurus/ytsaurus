@@ -311,6 +311,7 @@ class YTInstance(object):
                 cgroup_path = self._get_cgroup_path(cgroup_type)
                 makedirp(cgroup_path)
                 self._all_cgroups.append(cgroup_path)
+                logger.info("Registered cgroup {0}".format(cgroup_path))
 
     def _prepare_directories(self):
         master_dirs = []
@@ -582,11 +583,13 @@ class YTInstance(object):
                 freezer_cgroups.append(cgroup_path)
 
         for freezer_path in freezer_cgroups:
+            logger.info("Checking tasks in {}".format(freezer_path))
             with open(os.path.join(freezer_path, "tasks")) as f:
                 for line in f:
                     pid = int(line)
                     # Stopping process activity. This prevents
                     # forking of new processes, for example.
+                    logger.info("Sending SIGSTOP to {}".format(pid))
                     os.kill(pid, signal.SIGSTOP)
 
         for freezer_path in freezer_cgroups:
@@ -595,6 +598,7 @@ class YTInstance(object):
                     pid = int(line)
                     # Stopping process activity. This prevents
                     # forking of new processes, for example.
+                    logger.info("Sending SIGKILL to {}".format(pid))
                     os.kill(pid, signal.SIGKILL)
 
         for cgroup_path in self._all_cgroups:
@@ -603,6 +607,7 @@ class YTInstance(object):
                     inner_cgroup_path = os.path.join(dirpath, dirname)
                     for iter in xrange(5):
                         try:
+                            logger.info("Removing {}".format(inner_cgroup_path))
                             os.rmdir(inner_cgroup_path)
                             break
                         except OSError:
@@ -617,6 +622,7 @@ class YTInstance(object):
             try:
                 # NB(psushin): sometimes cgroups still remain busy.
                 # We don't want to fail tests in this case.
+                logger.info("Removing {}".format(cgroup_path))
                 os.rmdir(cgroup_path)
             except OSError:
                 logger.exception("Failed to remove cgroup dir {0}".format(cgroup_path))
