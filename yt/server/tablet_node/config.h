@@ -115,6 +115,7 @@ public:
     TString ProfilingTag;
 
     bool EnableCompactionAndPartitioning;
+    bool EnableStoreRotation;
 
     bool MergeRowsOnFlush;
 
@@ -261,6 +262,9 @@ public:
             .Optional();
 
         RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
+            .Default(true);
+
+        RegisterParameter("enable_store_rotation", EnableStoreRotation)
             .Default(true);
 
         RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)

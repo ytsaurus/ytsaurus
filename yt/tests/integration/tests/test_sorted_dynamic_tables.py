@@ -485,7 +485,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_overflow_row_data_weight(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@enable_store_rotation", False)
         set("//tmp/t/@max_dynamic_store_row_data_weight", 100)
         sync_mount_table("//tmp/t")
         rows = [{"key": 0, "value": "A" * 100}]

@@ -728,6 +728,7 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
 
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
 
         # Create several versions such that their total weight exceeds
@@ -746,6 +747,7 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         sync_unfreeze_table("//tmp/t")
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
         remount_table("//tmp/t")
 
         # Compaction fails with "Versioned row data weight is too large".
