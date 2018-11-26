@@ -271,6 +271,8 @@ bool TContext::TryParseUser()
         } else {
             Response_->SetStatus(EStatusCode::ServiceUnavailable);
         }
+
+        FillYTErrorHeaders(Response_, TError(authResult));
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .Value(TError(authResult));
