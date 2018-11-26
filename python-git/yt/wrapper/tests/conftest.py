@@ -242,7 +242,7 @@ class YtTestEnvironment(object):
 
 def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
-    if mode == "native":
+    if mode in ("native", "native_multicell"):
         config["backend"] = "native"
     elif mode == "rpc":
         config["backend"] = "rpc"
