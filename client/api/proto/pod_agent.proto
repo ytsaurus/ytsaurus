@@ -216,13 +216,16 @@ message TRootfsVolume {
 
 message TFileStorage {
     // Квота на размер
+    // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
     uint64 QuotaBytes = 1;
 }
 
 message TGenericVolume {
-    // Свойства porto volumes, задаваемые непосредственно.
-    // Список доступных свойств смотри так: `portoctl --help`
-    map<string, string> Properties = 3 [(NYT.NYson.NProto.yson_map) = true];
+    reserved 1,2,3;
+
+    // Квота на размер
+    // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
+    uint64 QuotaBytes = 5;
 
     // Слои, из которых собирается volume
     //NOTE: Валидация ids в списке должны быть уникальные
