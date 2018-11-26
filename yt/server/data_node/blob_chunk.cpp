@@ -124,6 +124,7 @@ TFuture<void> TBlobChunkBase::ReadBlocksExt(const TBlockReadOptions& options)
         return Null;
     }
 
+    TPromise<void> promise;
     {
         TWriterGuard guard(CachedBlocksExtLock_);
         if (HasCachedBlocksExt_) {
@@ -132,14 +133,22 @@ TFuture<void> TBlobChunkBase::ReadBlocksExt(const TBlockReadOptions& options)
         if (CachedBlocksExtPromise_) {
             return CachedBlocksExtPromise_;
         }
-        CachedBlocksExtPromise_ = NewPromise<void>();
+        promise = CachedBlocksExtPromise_ = NewPromise<void>();
     }
 
-    CachedBlocksExtPromise_.SetFrom(
-        ReadMeta(options).Apply(
-            BIND(&TBlobChunkBase::SetBlocksExt, MakeStrong(this))));
+    ReadMeta(options)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
+            if (result.IsOK()) {
+                SetBlocksExt(result.Value());
+            } else {
+                TWriterGuard guard(CachedBlocksExtLock_);
+                YCHECK(!HasCachedBlocksExt_);
+                CachedBlocksExtPromise_.Reset();
+            }
+            promise.Set(result);
+        }));
 
-    return CachedBlocksExtPromise_.ToFuture();
+    return promise.ToFuture();
 }
 
 void TBlobChunkBase::SetBlocksExt(const TRefCountedChunkMetaPtr& meta)
