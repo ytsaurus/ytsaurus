@@ -238,7 +238,7 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     if not is_one_small_blob and is_stream_compressed:
         enable_retries = False
 
-    if get_config(client)["write_parallel"]["enable"] and not is_stream_compressed:
+    if get_config(client)["write_parallel"]["enable"] and not is_stream_compressed and not compute_md5:
         force_create = True
         make_parallel_write_request(
             "write_file",
