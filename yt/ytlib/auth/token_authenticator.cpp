@@ -134,7 +134,7 @@ private:
             }
             if (!matchedScope) {
                 AuthProfiler.Increment(TokenScopeCheckErrors_);
-                return TError("Token does not provide a valid scope")
+                return TError(NRpc::EErrorCode::InvalidCredentials, "Token does not provide a valid scope")
                     << TErrorAttribute("scope", oauthScope.Value());
             }
         }
