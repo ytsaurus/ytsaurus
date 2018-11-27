@@ -92,6 +92,8 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> LastCommitTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
+    std::atomic<TInstant> ModificationTime = {TInstant::Now()};
+    std::atomic<TInstant> AccessTime = {TInstant::FromValue(0)};
     std::atomic<i64> DynamicMemoryPoolSize = {0};
     TEnumIndexedVector<TAtomicObject<TError>, NTabletClient::ETabletBackgroundActivity> Errors;
 };

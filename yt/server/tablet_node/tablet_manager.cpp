@@ -261,6 +261,8 @@ public:
         ValidateReadTimestamp(timestamp);
         ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
+        tabletSnapshot->RuntimeData->AccessTime = TInstant::Now();
+
         while (!reader->IsFinished()) {
             ExecuteSingleRead(
                 tabletSnapshot,
@@ -296,6 +298,8 @@ public:
         if (atomicity == EAtomicity::None) {
             ValidateClientTimestamp(transactionId);
         }
+
+        tabletSnapshot->RuntimeData->ModificationTime = TInstant::Now();
 
         while (!reader->IsFinished()) {
             // NB: No yielding beyond this point.
