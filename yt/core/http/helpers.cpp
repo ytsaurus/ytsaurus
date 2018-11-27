@@ -173,12 +173,12 @@ static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
     "X-YT-Omit-Trailers",
 });
 
-bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
+bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp, bool disableOriginCheck)
 {
     auto origin = req->GetHeaders()->Find("Origin");
     if (origin) {
         auto url = ParseUrl(*origin);
-        bool allow = url.Host == "localhost" || url.Host.EndsWith(".yandex-team.ru");
+        bool allow = disableOriginCheck || url.Host == "localhost" || url.Host.EndsWith(".yandex-team.ru");
         if (allow) {
             rsp->GetHeaders()->Add(AccessControlAllowCredentialsHeaderName, "true");
             rsp->GetHeaders()->Add(AccessControlAllowOriginHeaderName, *origin);

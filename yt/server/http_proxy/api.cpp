@@ -203,7 +203,7 @@ void TApi::HandleRequest(
     const IRequestPtr& req,
     const IResponseWriterPtr& rsp)
 {
-    if (MaybeHandleCors(req, rsp)) {
+    if (MaybeHandleCors(req, rsp, Config_->DisableCorsCheck)) {
         return;
     }
 
