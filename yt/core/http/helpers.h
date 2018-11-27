@@ -22,7 +22,7 @@ TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers = false);
 //! translates it into HTTP error.
 IHttpHandlerPtr WrapYTException(IHttpHandlerPtr underlying);
 
-bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp);
+bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp, bool disableOriginCheck = false);
 
 THashMap<TString, TString> ParseCookies(TStringBuf cookies);
 

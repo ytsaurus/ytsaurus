@@ -83,6 +83,7 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
             .Item("coordinator").Value(legacyConfig->AsMap()->GetChild("coordination"))
             .Item("logging").Value(proxy->GetChild("logging"))
             .Item("driver").Value(proxy->GetChild("driver"))
+            .Item("api").BeginMap().EndMap()
             .DoIf(static_cast<bool>(redirect), [&] (auto fluent) {
                 fluent.Item("ui_redirect_url").Value(redirect);
             })
@@ -94,6 +95,10 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
         
     if (auto node = legacyConfig->AsMap()->FindChild("cypress_annotations")) {
         config->AsMap()->AddChild("cypress_annotations", CloneNode(node));
+    }
+
+    if (auto node = legacyConfig->AsMap()->FindChild("disable_cors_check")) {
+        config->AsMap()->GetChild("api")->AsMap()->AddChild("disable_cors_check", CloneNode(node));
     }
 
     if (auto node = proxy->FindChild("address_resolver")) {
