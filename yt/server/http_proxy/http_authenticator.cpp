@@ -108,7 +108,7 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
             return authResult;
         }
 
-        if (!disableCsrfTokenCheck) {
+        if (request->GetMethod() != EMethod::Get && !disableCsrfTokenCheck) {
             auto csrfTokenHeader = request->GetHeaders()->Find("X-Csrf-Token");
             if (!csrfTokenHeader) {
                 return TError(NRpc::EErrorCode::InvalidCredentials, "CSRF token is missing");
