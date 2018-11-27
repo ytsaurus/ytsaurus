@@ -350,4 +350,51 @@ Y_UNIT_TEST_SUITE(TabletClient) {
         client->UnmountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
+
+    Y_UNIT_TEST(TestVersionedLookup)
+    {
+        TTabletFixture fixture;
+        auto client = fixture.Client();
+        const TString tablePath = "//testing/test-versioned-lookup";
+        CreateTestTable(client, tablePath);
+        client->MountTable(tablePath);
+        WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
+
+        const TString values[] = {"one0", "one1", "one2"};
+
+        client->InsertRows(tablePath, {TNode()("key", 1)("value", values[0])});
+        client->InsertRows(tablePath, {TNode()("key", 1)("value", values[1])});
+
+        {
+            auto result = client->LookupRows(tablePath, {TNode()("key", 1)}, TLookupRowsOptions().Versioned(true))[0];
+            auto writeTs = result.GetAttributes().AsMap().at("write_timestamps");
+            auto deleteTs = result.GetAttributes().AsMap().at("delete_timestamps");
+            UNIT_ASSERT_VALUES_EQUAL(writeTs.Size(), 2);
+            UNIT_ASSERT_VALUES_EQUAL(deleteTs.Size(), 0);
+            int valueIdx = 1;
+            for (const auto& value : result["value"].AsList()) {
+                UNIT_ASSERT_VALUES_EQUAL(values[valueIdx], value.AsString());
+                --valueIdx;
+            }
+        }
+
+        client->DeleteRows(tablePath, {TNode()("key", 1)});
+        client->InsertRows(tablePath, {TNode()("key", 1)("value", values[2])});
+
+        {
+            auto result = client->LookupRows(tablePath, {TNode()("key", 1)}, TLookupRowsOptions().Versioned(true))[0];
+            auto writeTs = result.GetAttributes().AsMap().at("write_timestamps");
+            auto deleteTs = result.GetAttributes().AsMap().at("delete_timestamps");
+            UNIT_ASSERT_VALUES_EQUAL(writeTs.Size(), 3);
+            UNIT_ASSERT_VALUES_EQUAL(deleteTs.Size(), 1);
+            int valueIdx = 2;
+            for (const auto& value : result["value"].AsList()) {
+                UNIT_ASSERT_VALUES_EQUAL(values[valueIdx], value.AsString());
+                --valueIdx;
+            }
+        }
+
+        client->UnmountTable(tablePath);
+        WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
+    }
 }

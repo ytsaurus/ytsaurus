@@ -201,6 +201,7 @@ cdef extern from "mapreduce/yt/interface/client_method_options.h" namespace "NYT
         TLookupRowsOptions Timeout(TDuration)
         TLookupRowsOptions Columns(TVector[TString])
         TLookupRowsOptions KeepMissingRows(bint)
+        TLookupRowsOptions Versioned(bint)
 
     cdef cppclass TCreateClientOptions:
         TCreateClientOptions() except +
@@ -414,13 +415,15 @@ cdef class Client:
             rows = cython.operator.dereference(self._client).SelectRows(cquery, opts)
         return [_TNode_to_pyobj(row) for row in rows]
 
-    def lookup_rows(self, path, keys, timeout=None, columns=None, keep_missing_rows=False):
+    def lookup_rows(self, path, keys, timeout=None, columns=None, keep_missing_rows=False, versioned=False):
         cdef TLookupRowsOptions opts
         if timeout is not None:
             opts.Timeout(TDuration.MilliSeconds(<int>timeout))
         if columns is not None:
             opts.Columns(columns)
         opts.KeepMissingRows(<bint>keep_missing_rows)
+        if versioned is not None:
+            opts.Versioned(<bint>versioned)
         cdef TString cpath = _to_TString(path)
         cdef TVector[TNode] ckeys = _pyobj_to_TNode(keys).AsList()
         with nogil:
