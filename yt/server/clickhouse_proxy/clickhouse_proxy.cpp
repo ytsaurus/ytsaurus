@@ -60,6 +60,8 @@ public:
         NHttp::IResponsePtr response;
 
         try {
+            CgiParameters_ = TCgiParameters(Req_->GetUrl().RawQuery);
+
             ProcessHeaders();
 
             if (!Client_) {
@@ -69,7 +71,6 @@ public:
 
             Authenticate();
 
-            CgiParameters_ = TCgiParameters(Req_->GetUrl().RawQuery);
             CliqueId_ = CgiParameters_.Get("database");
             if (CliqueId_.StartsWith("*")) {
                 ResolveAlias();
@@ -90,7 +91,7 @@ public:
             }
 
             auto headers = Req_->GetHeaders()->Duplicate();
-            headers->RemoveOrThrow("Authorization");
+            headers->Remove("Authorization");
             headers->Add("X-Yt-User", User_);
             headers->Add("X-Clickhouse-User", User_);
 
@@ -163,21 +164,10 @@ private:
         CgiParameters_.ReplaceUnescaped("database", CliqueId_);
     }
 
-    void ProcessHeaders()
-    {
-        if (Req_->GetMethod() != NHttp::EMethod::Post) {
-            ReplyWithError(EStatusCode::MethodNotAllowed, TError("Only POST requests are allowed"));
-            return;
-        }
-
-        const auto* authorization = Req_->GetHeaders()->Find("Authorization");
-        if (!authorization || authorization->empty()) {
-            ReplyWithError(EStatusCode::Unauthorized, TError("Authorization header missing"));
-            return;
-        }
-
+    void ParseTokenFromAuthorizationHeader(const TString& authorization) {
+        LOG_INFO("Parsing token from Authorization header");
         // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
-        auto authorizationTypeAndCredentials = SplitString(*authorization, " ", 2);
+        auto authorizationTypeAndCredentials = SplitString(authorization, " ", 2);
         const auto& authorizationType = authorizationTypeAndCredentials[0];
         if (authorizationType == "OAuth" && authorizationTypeAndCredentials.size() == 2) {
             Token_ = authorizationTypeAndCredentials[1];
@@ -197,11 +187,34 @@ private:
             ReplyWithError(
                 EStatusCode::Unauthorized,
                 TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
-                    authorizationType,
-                    authorizationTypeAndCredentials.size()));
+                       authorizationType,
+                       authorizationTypeAndCredentials.size()));
             return;
         }
         LOG_INFO("Token parsed (AuthorizationType: %v)", authorizationType);
+
+    }
+
+    void ProcessHeaders()
+    {
+        if (Req_->GetMethod() != NHttp::EMethod::Post) {
+            ReplyWithError(EStatusCode::MethodNotAllowed, TError("Only POST requests are allowed"));
+            return;
+        }
+
+        const auto* authorization = Req_->GetHeaders()->Find("Authorization");
+        if (authorization && !authorization->empty()) {
+            ParseTokenFromAuthorizationHeader(*authorization);
+        } else if (CgiParameters_.Has("password")) {
+            Token_ = CgiParameters_.Get("password");
+            CgiParameters_.Erase("password");
+            CgiParameters_.Erase("user");
+        } else {
+            ReplyWithError(EStatusCode::Unauthorized,
+                TError("Authorization should be perfomed either by setting `Authorization` header (`Basic` or `OAuth` schemes) "
+                       "or `password` CGI parameter"));
+            return;
+        }
 
         const auto* host = Req_->GetHeaders()->Find("Host");
         if (!host) {
