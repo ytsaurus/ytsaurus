@@ -49,7 +49,7 @@ TJoblet::TJoblet()
 { }
 
 TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId, bool treeIsTentative)
-    : Task(std::move(task))
+    : Task(task)
     , JobIndex(jobIndex)
     , TaskJobIndex(taskJobIndex)
     , TreeId(treeId)
