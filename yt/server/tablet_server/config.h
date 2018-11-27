@@ -170,6 +170,8 @@ public:
     //! Throttler for table statistics gossip.
     NConcurrency::TThroughputThrottlerConfigPtr TableStatisticsGossipThrottler;
 
+    bool EnableUpdateStatisticsOnHeartbeat;
+
     TDynamicTablesMulticellGossipConfig()
     {
         RegisterParameter("tablet_cell_statistics_gossip_period", TabletCellStatisticsGossipPeriod)
@@ -178,6 +180,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("table_statistics_gossip_throttler", TableStatisticsGossipThrottler)
             .DefaultNew();
+        RegisterParameter("enable_update_statistics_on_heartbeat", EnableUpdateStatisticsOnHeartbeat)
+            .Default(true);
     }
 };
 

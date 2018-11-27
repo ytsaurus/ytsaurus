@@ -768,6 +768,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->RuntimeData->LastWriteTimestamp);
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
             protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
+            protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->RuntimeData->ModificationTime));
+            protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->RuntimeData->AccessTime));
 
             ToProto(protoTabletInfo->mutable_errors(), tabletSnapshot->RuntimeData->Errors);
 

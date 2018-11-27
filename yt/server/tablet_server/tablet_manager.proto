@@ -163,6 +163,8 @@ message TReqUpdateTableStatistics
         required NYT.NProto.TGuid table_id = 1;
         optional NChunkClient.NProto.TDataStatistics data_statistics = 2;
         optional NSecurityServer.NProto.TClusterResources tablet_resource_usage = 3;
+        optional uint64 modification_time = 4;
+        optional uint64 access_time = 5;
     }
 
     repeated TEntry entries = 1;

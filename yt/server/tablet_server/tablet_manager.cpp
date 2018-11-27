@@ -3077,6 +3077,8 @@ private:
     {
         TNullable<TDataStatistics> DataStatistics;
         TNullable<TClusterResources> TabletResourceUsage;
+        TNullable<TInstant> ModificationTime; // TODO: persist ?
+        TNullable<TInstant> AccessTime;
 
         void Persist(NCellMaster::TPersistenceContext& context)
         {
@@ -3104,6 +3106,7 @@ private:
     bool RecomputeTabletErrorCount_ = false;
     bool RecomputeExpectedTabletStates_ = false;
     bool ValidateAllTablesUnmounted_ = false;
+    bool EnableUpdateStatisticsOnHeartbeat_ = true;
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
@@ -3132,6 +3135,7 @@ private:
             if (TableStatisticsGossipExecutor_) {
                 TableStatisticsGossipExecutor_->SetPeriod(gossipConfig->TableStatisticsGossipPeriod);
             }
+            EnableUpdateStatisticsOnHeartbeat_ = gossipConfig->EnableUpdateStatisticsOnHeartbeat;
         }
     }
 
@@ -3512,6 +3516,8 @@ private:
             if (updateDataStatistics) {
                 statistics.DataStatistics = table->SnapshotStatistics();
             }
+            statistics.ModificationTime = table->GetModificationTime();
+            statistics.AccessTime = table->GetAccessTime();
 
             TableStatisticsUpdates_.Push(std::make_pair(table->GetId(), statistics));
         }
@@ -3544,6 +3550,8 @@ private:
         ToProto(entry->mutable_table_id(), table->GetId());
         ToProto(entry->mutable_data_statistics(), table->SnapshotStatistics());
         ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
+        entry->set_modification_time(ToProto<ui64>(table->GetModificationTime()));
+        entry->set_access_time(ToProto<ui64>(table->GetAccessTime()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(req, PrimaryMasterCellTag);
@@ -3571,6 +3579,12 @@ private:
             }
             if (statistics.TabletResourceUsage) {
                 ToProto(entry->mutable_tablet_resource_usage(), *statistics.TabletResourceUsage);
+            }
+            if (statistics.ModificationTime) {
+                entry->set_modification_time(ToProto<ui64>(*statistics.ModificationTime));
+            }
+            if (statistics.AccessTime) {
+                entry->set_access_time(ToProto<ui64>(*statistics.AccessTime));
             }
         }
 
@@ -3613,6 +3627,18 @@ private:
             if (entry.has_data_statistics()) {
                 YCHECK(table->IsDynamic());
                 table->SnapshotStatistics() = entry.data_statistics();
+            }
+
+            if (entry.has_modification_time()) {
+                table->SetModificationTime(std::max(
+                    table->GetModificationTime(),
+                    FromProto<TInstant>(entry.modification_time())));
+            }
+
+            if (entry.has_access_time()) {
+                table->SetAccessTime(std::max(
+                    table->GetAccessTime(),
+                    FromProto<TInstant>(entry.access_time())));
             }
         }
 
@@ -3946,6 +3972,8 @@ private:
 
         // Copy tablet statistics, update performance counters and table replica statistics.
         auto now = TInstant::Now();
+        THashSet<TTableNode*> tables;
+
         for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto* tablet = FindTablet(tabletId);
@@ -3976,6 +4004,21 @@ private:
                 table->SetLastCommitTimestamp(std::max(
                     table->GetLastCommitTimestamp(),
                     tablet->NodeStatistics().last_commit_timestamp()));
+
+
+                if (tablet->NodeStatistics().has_modification_time()) {
+                    table->SetModificationTime(std::max(
+                        table->GetModificationTime(),
+                        FromProto<TInstant>(tablet->NodeStatistics().modification_time())));
+                }
+
+                if (tablet->NodeStatistics().has_access_time()) {
+                    table->SetAccessTime(std::max(
+                        table->GetAccessTime(),
+                        FromProto<TInstant>(tablet->NodeStatistics().access_time())));
+                }
+
+                tables.insert(table);
             }
 
             auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
@@ -4019,6 +4062,12 @@ private:
             }
 
             TabletBalancer_->OnTabletHeartbeat(tablet);
+        }
+
+        if (EnableUpdateStatisticsOnHeartbeat_) {
+            for (auto* table : tables) {
+                ScheduleTableStatisticsUpdate(table);
+            }
         }
     }
 

@@ -960,6 +960,31 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=2, target_cell_ids=[cells[1], cells[2]])
         assert [None, cells[1], cells[2]] == [tablet.get("cell_id") for tablet in get("//tmp/t/@tablets")]
 
+    @skip_if_rpc_driver_backend
+    def test_modification_access_time(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "test"}]
+        time_before = get("//tmp/t/@modification_time")
+        insert_rows("//tmp/t", rows)
+        wait(lambda: get("//tmp/t/@modification_time") != time_before)
+        time_after = get("//tmp/t/@modification_time")
+        assert time_after > time_before
+
+        time_before = get("//tmp/t/@access_time")
+        keys = [{"key": r["key"]} for r in rows]
+        assert lookup_rows("//tmp/t", keys) == rows
+        wait(lambda: get("//tmp/t/@access_time") != time_before)
+        time_after = get("//tmp/t/@access_time")
+        assert time_after > time_before
+
+        time_before = time_after
+        select_rows("* from [//tmp/t]")
+        wait(lambda: get("//tmp/t/@access_time") != time_before)
+        time_after = get("//tmp/t/@access_time")
+        assert time_after > time_before
 
 ##################################################################
 
@@ -2183,7 +2208,6 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         expected_state = "frozen" if freeze  else "mounted"
         wait_for_tablet_state("//tmp/t", expected_state)
         assert get("//tmp/t/@tablets/0/state") == expected_state
-
 
 class TestTabletActionsMulticell(TestTabletActions):
     NUM_SECONDARY_MASTER_CELLS = 2
