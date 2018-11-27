@@ -143,7 +143,7 @@ def get_lib_dir_for_python(options, python_version):
         "lib",
         "pyshared-" + python_version.replace(".", "-"))
 
-def iter_enabled_python_versions(options):
+def iter_enabled_python_versions(options, enable_skynet=False):
     if options.build_enable_python_2_6:
         yield "2.6"
 
@@ -152,6 +152,9 @@ def iter_enabled_python_versions(options):
 
     if options.build_enable_python_3_4:
         yield "3.4"
+
+    if enable_skynet:
+        yield "skynet"
 
 def get_ya(options):
     return os.path.join(options.checkout_directory, "ya")
@@ -216,6 +219,7 @@ def prepare(options, build_context):
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
     options.build_enable_ya_yt_store = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_YA_YT_STORE", "NO"))
     options.package_enable_python_yp = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_PYTHON_YP", "NO"))
+    options.package_enable_yson_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_YSON_BINDINGS", "NO"))
 
     options.use_asan = parse_yes_no_bool(os.environ.get("USE_ASAN", "NO"))
     assert not options.use_asan or options.build_system == "ya", "ASAN build is enabled only for --build-system=ya"
@@ -244,6 +248,7 @@ def prepare(options, build_context):
     options.codename = codename
     extra_repositories = filter(lambda x: x != "", map(str.strip, os.environ.get("EXTRA_REPOSITORIES", "").split(",")))
     options.repositories = ["yt-" + codename] + extra_repositories
+    options.yson_bindings_repositories = ["yt-" + codename, "yandex-" + codename]
 
     if options.build_system != "ya":
         # Now determine the compiler.
@@ -349,14 +354,13 @@ def build(options, build_context):
         run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
     else:
         assert options.build_system == "ya"
-        python_version_list = list(iter_enabled_python_versions(options)) + ["skynet"]
         env = ya_make_env(options)
         yall = os.path.join(options.checkout_directory, "yall")
         args = [
             yall,
             "-T",
             "--yall-cmake-like-install", options.working_directory,
-            "--yall-python-version-list", ",".join(python_version_list),
+            "--yall-python-version-list", ",".join(iter_enabled_python_versions(options, enable_skynet=True)),
         ]
         args += ya_make_args(options)
         args += ya_make_definition_args(options)
@@ -374,6 +378,7 @@ def build(options, build_context):
 def gather_build_info(options, build_context):
     build_context["yt_version"] = run_captured([os.path.join(get_bin_dir(options), "ytserver-master"), "--version"]).strip()
     build_context["build_time"] = datetime.now().isoformat()
+
 
 @build_step
 def set_suid_bit(options, build_context):
@@ -743,6 +748,29 @@ def run_unit_tests(options, build_context):
         rmtree(sandbox_current)
 
 
+@build_step
+@only_for_projects("yt")
+def package_yson_bindings(options, build_context):
+    if not options.package or not options.package_enable_yson_bingings:
+        teamcity_message("Skipping packaging yson_bindings")
+        return
+
+    package_py = os.path.join(options.checkout_directory, "yt/python/yson-debian/package.py")
+    args = [
+        package_py,
+        "--working-directory", options.working_directory,
+        "--enable-dbg",
+        "--repositories", ",".join(options.yson_bindings_repositories),
+    ]
+
+    for python_version in iter_enabled_python_versions(options, enable_skynet=True):
+        args += ["yt-python-{version}-yson:{working_directory}/lib/pyshared-{version}/yson_lib.so".format(
+            working_directory=options.working_directory,
+            version=python_version.replace(".", "-")
+        )]
+    run(args, cwd=options.working_directory)
+
+
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
     yt_processes_cleanup()
 
@@ -923,6 +951,7 @@ def run_perl_tests(options, build_context):
         teamcity_message("Perl tests are skipped since they don't play well with ASAN")
         return
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
+
 
 def log_sandbox_upload(options, build_context, task_id):
     client = requests.Session()

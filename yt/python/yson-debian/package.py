@@ -328,11 +328,14 @@ def build_targets(
                 is_skynet=is_skynet_python
             )
 
+def coma_separated_list(val):
+    return val.strip(",").split(",")
+
 def main():
     parser = argparse.ArgumentParser(description="YT Build package locally")
 
     parser.add_argument("--working-directory", action="store")
-    parser.add_argument("--repository", nargs="*")
+    parser.add_argument("--repositories", type=coma_separated_list, default=[], help="coma separated list of repositories to upload")
     parser.add_argument("--enable-dbg", action="store_true", default=False)
     parser.add_argument(
         "--no-upload",
@@ -351,9 +354,6 @@ def main():
 
     args = parser.parse_args()
 
-    if args.repository is None:
-        args.repository = []
-
     pattern = "^(yt-python-[^:]*-yson):(.*)$"
     target_map = {}
     for goal in args.target:
@@ -368,7 +368,7 @@ def main():
         build_targets(
             ctx,
             targets=target_map,
-            repositories=args.repository,
+            repositories=args.repositories,
             enable_dbg=args.enable_dbg,
             upload=args.upload
         )
