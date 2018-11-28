@@ -278,7 +278,7 @@ TUnversionedRow BuildOrderedByIdTableRow(
         builder.AddValue(MakeUnversionedAnyValue(request.RuntimeParameters.GetData(), index.RuntimeParameters));
     }
 
-    if (version >= 27) {
+    if (version >= 27 && request.SlotIndexPerPoolTree) {
         builder.AddValue(MakeUnversionedAnyValue(request.SlotIndexPerPoolTree.GetData(), index.SlotIndexPerPoolTree));
     }
 
