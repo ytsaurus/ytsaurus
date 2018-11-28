@@ -1329,14 +1329,21 @@ public:
         UserCharged_.Fire(user, workload);
     }
 
-    TFuture<void> ThrottleUser(TUser* user, int requestCount)
+    TFuture<void> ThrottleUser(TUser* user, int requestCount, EUserWorkloadType workloadType)
     {
-        return RequestTracker_->ThrottleUser(user, requestCount);
+        switch (workloadType) {
+            case EUserWorkloadType::Read:
+                return RequestTracker_->ThrottleUserReadRequest(user, requestCount);
+            case EUserWorkloadType::Write:
+                return RequestTracker_->ThrottleUserWriteRequest(user, requestCount);
+            default:
+                Y_UNREACHABLE();
+        }
     }
 
-    void SetUserRequestRateLimit(TUser* user, int limit)
+    void SetUserReadRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
     {
-        RequestTracker_->SetUserRequestRateLimit(user, limit);
+        RequestTracker_->SetUserRequestRateLimit(user, limit, type);
     }
 
     void SetUserRequestQueueSizeLimit(TUser* user, int limit)
@@ -2068,7 +2075,8 @@ private:
 
         // root
         if (EnsureBuiltinUserInitialized(RootUser_, RootUserId_, RootUserName)) {
-            RootUser_->SetRequestRateLimit(1000000);
+            RootUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            RootUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             RootUser_->SetRequestQueueSizeLimit(1000000);
         }
 
@@ -2077,19 +2085,22 @@ private:
 
         if (EnsureBuiltinUserInitialized(JobUser_, JobUserId_, JobUserName)) {
             // job
-            JobUser_->SetRequestRateLimit(1000000);
+            JobUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            JobUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             JobUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // scheduler
         if (EnsureBuiltinUserInitialized(SchedulerUser_, SchedulerUserId_, SchedulerUserName)) {
-            SchedulerUser_->SetRequestRateLimit(1000000);
+            SchedulerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            SchedulerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             SchedulerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // replicator
         if (EnsureBuiltinUserInitialized(ReplicatorUser_, ReplicatorUserId_, ReplicatorUserName)) {
-            ReplicatorUser_->SetRequestRateLimit(1000000);
+            ReplicatorUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            ReplicatorUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             ReplicatorUser_->SetRequestQueueSizeLimit(1000000);
         }
 
@@ -2098,13 +2109,15 @@ private:
 
         // file cache
         if (EnsureBuiltinUserInitialized(FileCacheUser_, FileCacheUserId_, FileCacheUserName)) {
-            FileCacheUser_->SetRequestRateLimit(1000000);
+            FileCacheUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            FileCacheUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             FileCacheUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // operations cleaner
         if (EnsureBuiltinUserInitialized(OperationsCleanerUser_, OperationsCleanerUserId_, OperationsCleanerUserName)) {
-            OperationsCleanerUser_->SetRequestRateLimit(1000000);
+            OperationsCleanerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            OperationsCleanerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             OperationsCleanerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
@@ -2873,14 +2886,14 @@ void TSecurityManager::ChargeUser(TUser* user, const TUserWorkload& workload)
     return Impl_->ChargeUser(user, workload);
 }
 
-TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount)
+TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount, EUserWorkloadType workloadType)
 {
-    return Impl_->ThrottleUser(user, requestCount);
+    return Impl_->ThrottleUser(user, requestCount, workloadType);
 }
 
-void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit)
+void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
 {
-    Impl_->SetUserRequestRateLimit(user, limit);
+    Impl_->SetUserReadRequestRateLimit(user, limit, type);
 }
 
 void TSecurityManager::SetUserRequestQueueSizeLimit(TUser* user, int limit)

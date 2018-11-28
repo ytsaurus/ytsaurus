@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 814;
+    return 815;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -93,7 +93,8 @@ bool ValidateSnapshotVersion(int version)
         version == 811 || // aozeritsky: Add attributes_revision, content_revision
         version == 812 || // savrus: add reassign peer mutation
         version == 813 || // aozeritsky: YT-9775: master-master protocol change
-        version == 814;   // aozeritsky
+        version == 814 || // aozeritsky
+        version == 815;   // aozeritsky: Add read_request_rate_limit and write_request_rate_limit
 }
 
 ////////////////////////////////////////////////////////////////////////////////
