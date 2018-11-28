@@ -476,9 +476,12 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    // Patch writer configs to ignore upload replication factor for erasure chunk parts.
     auto partConfig = NYTree::CloneYsonSerializable(config);
+    // Ignore upload replication factor for erasure chunk parts.
     partConfig->UploadReplicationFactor = 1;
+    // Don't prefer local host: if the latter is unhealthy and cannot start writing a chunk
+    // we have no way of retrying the allocation.
+    partConfig->PreferLocalHost = false;
 
     auto replicas = AllocateWriteTargets(
         client,
