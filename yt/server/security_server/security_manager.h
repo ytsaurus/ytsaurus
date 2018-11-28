@@ -271,10 +271,11 @@ public:
     //! Enforces request rate limits.
     TFuture<void> ThrottleUser(
         TUser* user,
-        int requestCount);
+        int requestCount,
+        EUserWorkloadType workloadType);
 
     //! Updates the user request rate limit.
-    void SetUserRequestRateLimit(TUser* user, int limit);
+    void SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type);
 
     //! Updates the user request queue size limit.
     void SetUserRequestQueueSizeLimit(TUser* user, int limit);
