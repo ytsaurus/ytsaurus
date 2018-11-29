@@ -354,7 +354,7 @@ void TGarbageCollector::CheckEmpty()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (CollectPromise_ && Zombies_.empty()) {
+    if (Zombies_.empty() && CollectPromise_ && !CollectPromise_.IsSet()) {
         LOG_DEBUG_UNLESS(IsRecovery(), "Zombie queue is empty");
         CollectPromise_.Set();
     }
