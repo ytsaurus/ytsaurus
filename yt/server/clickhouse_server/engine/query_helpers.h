@@ -11,6 +11,8 @@ namespace NEngine {
 
 DB::ASTTableExpression* GetFirstTableExpression(DB::ASTSelectQuery& select);
 
+std::vector<DB::ASTTableExpression*> GetAllTableExpressions(DB::ASTSelectQuery& select);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NEngine

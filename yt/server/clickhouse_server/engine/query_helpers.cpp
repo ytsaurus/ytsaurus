@@ -30,6 +30,27 @@ ASTTableExpression* GetFirstTableExpression(ASTSelectQuery& select)
     return static_cast<ASTTableExpression *>(tablesElement.table_expression.get());
 }
 
+std::vector<ASTTableExpression*> GetAllTableExpressions(ASTSelectQuery& select)
+{
+    if (!select.tables) {
+        return {};
+    }
+
+    std::vector<ASTTableExpression*> result;
+
+    const auto& tablesInSelectQuery = static_cast<const ASTTablesInSelectQuery &>(*select.tables);
+    for (const auto& tableInSelectQuery : tablesInSelectQuery.children) {
+        const auto& tablesElement = static_cast<const ASTTablesInSelectQueryElement &>(*tableInSelectQuery);
+        if (!tablesElement.table_expression) {
+            continue;
+        }
+
+        result.emplace_back(static_cast<ASTTableExpression *>(tablesElement.table_expression.get()));
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NEngine
