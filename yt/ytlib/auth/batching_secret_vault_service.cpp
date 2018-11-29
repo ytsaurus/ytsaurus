@@ -17,26 +17,25 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//static const auto& Logger = AuthLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBatchingSecretVaultService
     : public ISecretVaultService
 {
 public:
     TBatchingSecretVaultService(
         TBatchingSecretVaultServiceConfigPtr config,
-        ISecretVaultServicePtr underlying)
+        ISecretVaultServicePtr underlying,
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , Underlying_(std::move(underlying))
+        , Profiler_(std::move(profiler))
         , TickExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             BIND(&TBatchingSecretVaultService::OnTick, MakeWeak(this)),
             Config_->BatchDelay))
         , RequestThrottler_(CreateReconfigurableThroughputThrottler(
-            // TODO(babenko): profiling
-            Config_->RequestsThrottler))
+            Config_->RequestsThrottler,
+            NLogging::TLogger(),
+            NProfiling::TProfiler(Profiler_.GetPathPrefix() + "/request_throttler")))
     {
         TickExecutor_->Start();
     }
@@ -55,20 +54,32 @@ public:
 private:
     const TBatchingSecretVaultServiceConfigPtr Config_;
     const ISecretVaultServicePtr Underlying_;
+    const NProfiling::TProfiler Profiler_;
 
     const TPeriodicExecutorPtr TickExecutor_;
     const IThroughputThrottlerPtr RequestThrottler_;
 
     TSpinLock SpinLock_;
 
-    using TQueueItem = std::pair<TSecretSubrequest, TPromise<TSecretSubresponse>>;
+    struct TQueueItem
+    {
+        TSecretSubrequest Subrequest;
+        TPromise<TSecretSubresponse> Promise;
+        TInstant EnqueueTime;
+    };
     std::queue<TQueueItem> SubrequestQueue_;
+
+    NProfiling::TAggregateGauge BatchingLatencyGauge_{"/batching_latency"};
 
 
     TFuture<TSecretSubresponse> DoGetSecret(const TSecretSubrequest& subrequest, TGuard<TSpinLock>& guard)
     {
         auto promise = NewPromise<TSecretSubresponse>();
-        SubrequestQueue_.emplace(subrequest, std::move(promise));
+        SubrequestQueue_.push(TQueueItem{
+            subrequest,
+            promise,
+            TInstant::Now()
+        });
         return promise.ToFuture();
     }
 
@@ -89,7 +100,7 @@ private:
             std::vector<TQueueItem> items;
             {
                 auto guard = Guard(SpinLock_);
-                while (static_cast<int>(items.size()) < Config_->MaxSubrequestsPerRequest) {
+                while (!SubrequestQueue_.empty() && static_cast<int>(items.size()) < Config_->MaxSubrequestsPerRequest) {
                     items.push_back(SubrequestQueue_.front());
                     SubrequestQueue_.pop();
                 }
@@ -101,8 +112,10 @@ private:
 
             std::vector<TSecretSubrequest> subrequests;
             subrequests.reserve(items.size());
+            auto now = TInstant::Now();
             for (const auto& item : items) {
-                subrequests.push_back(item.first);
+                subrequests.push_back(item.Subrequest);
+                Profiler_.Update(BatchingLatencyGauge_, NProfiling::DurationToValue(now - item.EnqueueTime));
             }
 
             Underlying_->GetSecrets(subrequests).Subscribe(
@@ -111,11 +124,11 @@ private:
                         const auto& subresponses = result.Value();
                         for (size_t index = 0; index < items.size(); ++index) {
                             auto& item = items[index];
-                            item.second.Set(subresponses[index]);
+                            item.Promise.Set(subresponses[index]);
                         }
                     } else {
                         for (auto& item : items) {
-                            item.second.Set(TError(result));
+                            item.Promise.Set(TError(result));
                         }
                     }
                 }));
@@ -125,11 +138,13 @@ private:
 
 ISecretVaultServicePtr CreateBatchingSecretVaultService(
     TBatchingSecretVaultServiceConfigPtr config,
-    ISecretVaultServicePtr underlying)
+    ISecretVaultServicePtr underlying,
+    NProfiling::TProfiler profiler)
 {
     return New<TBatchingSecretVaultService>(
         std::move(config),
-        std::move(underlying));
+        std::move(underlying),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

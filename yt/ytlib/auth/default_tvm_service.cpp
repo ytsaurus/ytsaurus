@@ -8,19 +8,19 @@
 
 #include <yt/core/ytree/ypath_client.h>
 
+#include <yt/core/ypath/token.h>
+
 #include <library/http/simple/http_client.h>
 
 namespace NYT {
 namespace NAuth {
 
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = AuthLogger;
-static const TString Host("localhost");
-static const TString ErrorKey("error");
-static const TString TicketKey("ticket");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,8 +73,13 @@ private:
                 << TErrorAttribute("message", errorNode->GetValue<TString>());
         }
 
-        static const TString TicketPath("/blackbox/ticket");
-        return GetNodeByYPath(result, TicketPath)->GetValue<TString>();
+        try {
+            auto ticketPath = "/" + ToYPathLiteral(serviceId) + "/ticket";
+            return GetNodeByYPath(result, ticketPath)->GetValue<TString>();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing TVM daemon reply")
+                << ex;
+        }
     }
 
     INodePtr DoCallOnce(
@@ -93,6 +98,7 @@ private:
 
         {
             auto timeout = deadline - TInstant::Now();
+            static const TString Host("localhost");
             TSimpleHttpClient httpClient(Host, Config_->Port, timeout, timeout);
             TSimpleHttpClient::THeaders headers{
                 {"Authorization", Config_->Token}

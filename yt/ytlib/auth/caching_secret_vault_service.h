@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/core/concurrency/public.h>
 
 namespace NYT {
 namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISecretVaultServicePtr CreateBatchingSecretVaultService(
-    TBatchingSecretVaultServiceConfigPtr config,
+ISecretVaultServicePtr CreateCachingSecretVaultService(
+    TCachingSecretVaultServiceConfigPtr config,
     ISecretVaultServicePtr underlying,
     NProfiling::TProfiler profiler = {});
 

@@ -55,6 +55,7 @@ class TDefaultTvmServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TString Host;
     int Port;
     TString Token;
 
@@ -62,6 +63,8 @@ public:
 
     TDefaultTvmServiceConfig()
     {
+        RegisterParameter("host", Host)
+            .Default("localhost");
         RegisterParameter("port", Port);
         RegisterParameter("token", Token);
         RegisterParameter("request_timeout", RequestTimeout)
@@ -118,9 +121,26 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxTicketAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCachingTokenAuthenticatorConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TAsyncExpiringCacheConfigPtr Cache;
+
+    TCachingTokenAuthenticatorConfig()
+    {
+        RegisterParameter("cache", Cache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachingBlackboxTokenAuthenticatorConfig
     : public TBlackboxTokenAuthenticatorConfig
-    , public TAsyncExpiringCacheConfig
+    , public TCachingTokenAuthenticatorConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxTokenAuthenticatorConfig)
@@ -153,8 +173,8 @@ DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachingCypressTokenAuthenticatorConfig
-    : public TCypressTokenAuthenticatorConfig
-    , public TAsyncExpiringCacheConfig
+    : public TCachingTokenAuthenticatorConfig
+    , public TCypressTokenAuthenticatorConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
@@ -167,6 +187,11 @@ class TBlackboxCookieAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TString Domain;
+
+    TNullable<TString> CsrfSecret;
+    TDuration CsrfTokenTtl;
+
     TBlackboxCookieAuthenticatorConfig()
     {
         RegisterParameter("domain", Domain)
@@ -177,25 +202,33 @@ public:
         RegisterParameter("csrf_token_ttl", CsrfTokenTtl)
             .Default(DefaultCsrfTokenTtl);
     }
-
-    TString Domain;
-
-    TNullable<TString> CsrfSecret;
-    TDuration CsrfTokenTtl;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingBlackboxCookieAuthenticatorConfig
-    : public TBlackboxCookieAuthenticatorConfig
-    , public TAsyncExpiringCacheConfig
+class TCachingCookieAuthenticatorConfig
+    : public virtual NYTree::TYsonSerializable
 {
 public:
-    TCachingBlackboxCookieAuthenticatorConfig()
-    { }
+    TAsyncExpiringCacheConfigPtr Cache;
+
+    TCachingCookieAuthenticatorConfig()
+    {
+        RegisterParameter("cache", Cache)
+            .DefaultNew();
+    }
 };
+
+DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingBlackboxCookieAuthenticatorConfig
+    : public TBlackboxCookieAuthenticatorConfig
+    , public TCachingCookieAuthenticatorConfig
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
 
@@ -217,8 +250,7 @@ public:
             .Default("vault-api.passport.yandex.net");
         RegisterParameter("port", Port)
             .Default(443);
-        RegisterParameter("http_client", HttpClient)
-            .DefaultNew();
+        RegisterParameter("http_client", HttpClient);
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(3));
         RegisterParameter("vault_service_id", VaultServiceId)
@@ -255,6 +287,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TBatchingSecretVaultServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingSecretVaultServiceConfig
+    : public TAsyncExpiringCacheConfig
+{
+public:
+    TAsyncExpiringCacheConfigPtr Cache;
+
+    TCachingSecretVaultServiceConfig()
+    {
+        RegisterParameter("cache", Cache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingSecretVaultServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
