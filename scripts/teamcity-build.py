@@ -28,6 +28,7 @@ from helpers import (
     rmtree,
     run,
     run_captured,
+    run_parallel,
     sudo_rmtree,
 )
 
@@ -55,11 +56,13 @@ import re
 import resource
 import shutil
 import socket
+import sys
 import tarfile
 import tempfile
 import urlparse
 import xml.etree.ElementTree as etree
 import xml.parsers.expat
+
 
 import urllib3
 urllib3.disable_warnings()
@@ -519,7 +522,6 @@ def package_common_packages(options, build_context):
         "--work-dir", options.working_directory,
     ])
 
-
 @build_step
 @only_for_projects("yt")
 def package(options, build_context):
@@ -546,6 +548,8 @@ def package(options, build_context):
             ]
             artifacts_dir = get_artifacts_dir(options)
             with cwd(artifacts_dir):
+                tasks = []
+                package_names = []
                 for package_file in PACKAGE_LIST:
                     package_file = os.path.join(get_bin_dir(options), package_file)
                     with open(package_file) as inf:
@@ -559,10 +563,16 @@ def package(options, build_context):
                         get_ya(options), "package", package_file,
                         "--custom-version", build_context["yt_version"],
                         "--debian", "--strip", "--create-dbg",
-                        "-zlow"
+                        "-zlow",
                     ]
                     args += ya_make_args(options)
-                    run(args, env=ya_make_env(options))
+                    tasks.append(dict(
+                        args=args,
+                        env=ya_make_env(options),
+                    ))
+                    package_names.append(package_name)
+                run_parallel(tasks, parallelism=len(tasks), timeout=10 * 60)
+                for package_name in package_names:
                     expected_tar = "{}.{}.tar.gz".format(
                         package_name,
                         build_context["yt_version"])
@@ -570,7 +580,6 @@ def package(options, build_context):
                     with tarfile.open(expected_tar) as tarf:
                         tarf.extractall(path=artifacts_dir)
                     teamcity_message("Archive {} is extracted".format(expected_tar))
-
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
         teamcity_interact("setParameter", name="yt.package_version", value=build_context["yt_version"])
