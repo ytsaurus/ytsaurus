@@ -6,6 +6,7 @@
 #include <yt/contrib/aio/aio_abi.h>
 
 #include <sys/syscall.h>
+
 #include <unistd.h>
 #endif
 
@@ -147,7 +148,11 @@ public:
     using TConfig = TThreadedIOEngineConfig;
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
-    TThreadedIOEngine(TConfigPtr config, const TString& locationId, const TProfiler& profiler, const NLogging::TLogger& logger)
+    TThreadedIOEngine(
+        TConfigPtr config,
+        const TString& locationId,
+        const TProfiler& profiler,
+        const NLogging::TLogger& logger)
         : Config_(std::move(config))
         , ReadThreadPool_(New<TThreadPool>(Config_->ReadThreadCount, Format("DiskIOR:%v", locationId)))
         , WriteThreadPool_(New<TThreadPool>(Config_->WriteThreadCount, Format("DiskIOW:%v", locationId)))
@@ -159,20 +164,25 @@ public:
     { }
 
     virtual TFuture<std::shared_ptr<TFileHandle>> Open(
-        const TString& fName, EOpenMode oMode, i64 priority) override
+        const TString& fileName,
+        EOpenMode mode,
+        i64 priority) override
     {
-        const auto& invoker = (oMode & RdOnly)
+        const auto& invoker = (mode & RdOnly)
             ? ReadInvoker_
             : WriteInvoker_;
 
-        return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fName, oMode)
+        return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fileName, mode)
             .AsyncVia(CreateFixedPriorityInvoker(invoker, priority))
             .Run();
     }
 
-    virtual TFuture<void> Close(const std::shared_ptr<TFileHandle>& fh, i64 newSize, bool flush)
+    virtual TFuture<void> Close(
+        const std::shared_ptr<TFileHandle>& handle,
+        i64 newSize,
+        bool flush)
     {
-        return BIND(&TThreadedIOEngine::DoClose, MakeStrong(this), fh, newSize, flush)
+        return BIND(&TThreadedIOEngine::DoClose, MakeStrong(this), handle, newSize, flush)
             .AsyncVia(WriteInvoker_)
             .Run();
     }
@@ -185,45 +195,65 @@ public:
     }
 
     virtual TFuture<TSharedMutableRef> Pread(
-        const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset, i64 priority) override
+        const std::shared_ptr<TFileHandle>& handle,
+        size_t len,
+        i64 offset,
+        i64 priority) override
     {
         TWallTimer timer;
-        return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), fh, len, offset, timer)
+        return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), handle, len, offset, timer)
+            .AsyncVia(CreateFixedPriorityInvoker(ReadInvoker_, priority))
+            .Run();
+    }
+
+    virtual TFuture<TSharedMutableRef> ReadAll(
+        const TString& fileName,
+        i64 priority = std::numeric_limits<i64>::max()) override
+    {
+        TWallTimer timer;
+        return BIND(&TThreadedIOEngine::DoReadAll, MakeStrong(this), fileName, timer)
             .AsyncVia(CreateFixedPriorityInvoker(ReadInvoker_, priority))
             .Run();
     }
 
     virtual TFuture<void> Pwrite(
-        const std::shared_ptr<TFileHandle>& fh, const TSharedRef& data, i64 offset, i64 priority) override
+        const std::shared_ptr<TFileHandle>& handle,
+        const TSharedRef& data,
+        i64 offset,
+        i64 priority) override
     {
         TWallTimer timer;
 
-        auto useDirectIO = UseDirectIO_ || IsDirectAligned(fh);
+        auto useDirectIO = UseDirectIO_ || IsDirectAligned(handle);
         YCHECK(!useDirectIO || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
         YCHECK(!useDirectIO || IsAligned(data.Size(), Alignment_));
         YCHECK(!useDirectIO || IsAligned(offset, Alignment_));
-        return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset, timer)
+        return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), handle, data, offset, timer)
             .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
             .Run();
     }
 
-    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh, i64 priority) override
+    virtual TFuture<bool> FlushData(
+        const std::shared_ptr<TFileHandle>& handle,
+        i64 priority) override
     {
         if (UseDirectIO_) {
             return TrueFuture;
         } else {
-            return BIND(&TThreadedIOEngine::DoFlushData, MakeStrong(this), fh)
+            return BIND(&TThreadedIOEngine::DoFlushData, MakeStrong(this), handle)
                 .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
                 .Run();
         }
     }
 
-    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh, i64 priority) override
+    virtual TFuture<bool> Flush(
+        const std::shared_ptr<TFileHandle>& handle,
+        i64 priority) override
     {
         if (UseDirectIO_) {
             return TrueFuture;
         } else {
-            return BIND(&TThreadedIOEngine::DoFlush, MakeStrong(this), fh)
+            return BIND(&TThreadedIOEngine::DoFlush, MakeStrong(this), handle)
                 .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
                 .Run();
         }
@@ -259,36 +289,36 @@ private:
     NProfiling::TSimpleGauge SickGauge_{"/sick"};
     NProfiling::TSimpleGauge SickEventsCount_{"/sick_events"};
 
-    bool IsDirectAligned(const std::shared_ptr<TFileHandle>& fh)
+    bool IsDirectAligned(const std::shared_ptr<TFileHandle>& handle)
     {
 #ifdef _linux_
-        const long flags = ::fcntl(*fh, F_GETFL);
+        const long flags = ::fcntl(*handle, F_GETFL);
         return flags & O_DIRECT;
 #else
         return false;
 #endif
     }
 
-    bool DoFlushData(const std::shared_ptr<TFileHandle>& fh)
+    bool DoFlushData(const std::shared_ptr<TFileHandle>& handle)
     {
-        return fh->FlushData();
+        return handle->FlushData();
     }
 
-    bool DoFlush(const std::shared_ptr<TFileHandle>& fh)
+    bool DoFlush(const std::shared_ptr<TFileHandle>& handle)
     {
-        return fh->Flush();
+        return handle->Flush();
     }
 
-    void DoClose(const std::shared_ptr<TFileHandle>& fh, i64 newSize, bool flush)
+    void DoClose(const std::shared_ptr<TFileHandle>& handle, i64 newSize, bool flush)
     {
         NFS::ExpectIOErrors([&]() {
             if (newSize >= 0) {
-                fh->Resize(newSize);
+                handle->Resize(newSize);
             }
             if (flush) {
-                fh->Flush();
+                handle->Flush();
             }
-            fh->Close();
+            handle->Close();
         });
     }
 
@@ -299,22 +329,23 @@ private:
         });
     }
 
-    std::shared_ptr<TFileHandle> DoOpen(const TString& fName, EOpenMode oMode)
+    std::shared_ptr<TFileHandle> DoOpen(const TString& fileName, EOpenMode mode)
     {
-        auto fh = std::make_shared<TFileHandle>(fName, oMode);
-        if (!fh->IsOpen()) {
+        auto handle = std::make_shared<TFileHandle>(fileName, mode);
+        if (!handle->IsOpen()) {
             THROW_ERROR_EXCEPTION(
                 "Cannot open %Qv with mode %v",
-                fName,
-                oMode) << TError::FromSystem();
+                fileName,
+                mode)
+                << TError::FromSystem();
         }
-        if (UseDirectIO_ || oMode & DirectAligned) {
-            fh->SetDirect();
+        if (UseDirectIO_ || mode & DirectAligned) {
+            handle->SetDirect();
         }
-        return fh;
+        return handle;
     }
 
-    TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& fh, size_t numBytes, i64 offset, TWallTimer timer)
+    TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& handle, size_t numBytes, i64 offset, TWallTimer timer)
     {
         AddReadWaitTimeSample(timer.GetElapsedTime());
 
@@ -322,7 +353,7 @@ private:
         i64 from = offset;
         i64 to = offset + numBytes;
 
-        bool useDirectIO = UseDirectIO_ || IsDirectAligned(fh);
+        bool useDirectIO = UseDirectIO_ || IsDirectAligned(handle);
 
         if (useDirectIO) {
             data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
@@ -341,7 +372,7 @@ private:
         NFS::ExpectIOErrors([&]() {
             while (readPortion > 0) {
                 const i32 toRead = static_cast<i32>(Min(MaxBytesPerRead, readPortion));
-                const i32 reallyRead = fh->Pread(buf, toRead, from);
+                const i32 reallyRead = handle->Pread(buf, toRead, from);
 
                 if (reallyRead < 0) {
                     // TODO(aozeritsky): ythrow is placed here consciously.
@@ -361,7 +392,7 @@ private:
 
                 if (useDirectIO && reallyRead < toRead) {
                     if (reallyRead != ::AlignUp<i32>(reallyRead, Alignment_)) {
-                        if (from == fh->GetLength()) {
+                        if (from == handle->GetLength()) {
                             break;
                         } else {
                             THROW_ERROR_EXCEPTION("Unaligned pread")
@@ -378,7 +409,19 @@ private:
         return data.Slice(delta, delta + Min(result, numBytes));
     }
 
-    void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedRef& data, i64 offset, TWallTimer timer)
+    TSharedMutableRef DoReadAll(const TString& fileName, TWallTimer timer)
+    {
+        AddReadWaitTimeSample(timer.GetElapsedTime());
+
+        EOpenMode mode = OpenExisting | RdOnly | Seq | CloseOnExec;
+
+        auto file = DoOpen(fileName, mode);
+        auto data = DoPread(file, file->GetLength(), 0, timer);
+        DoClose(file, -1, false);
+        return data;
+    }
+
+    void DoPwrite(const std::shared_ptr<TFileHandle>& handle, const TSharedRef& data, i64 offset, TWallTimer timer)
     {
         AddWriteWaitTimeSample(timer.GetElapsedTime());
 
@@ -388,7 +431,7 @@ private:
         NFS::ExpectIOErrors([&]() {
             while (numBytes) {
                 const i32 toWrite = static_cast<i32>(Min(MaxBytesPerRead, numBytes));
-                const i32 reallyWritten = fh->Pwrite(buf, toWrite, offset);
+                const i32 reallyWritten = handle->Pwrite(buf, toWrite, offset);
 
                 if (reallyWritten < 0) {
                     ythrow TFileError();
@@ -532,12 +575,12 @@ class TAioReadOperation
 {
 public:
     TAioReadOperation(
-        const std::shared_ptr<TFileHandle>& fh,
+        const std::shared_ptr<TFileHandle>& handle,
         size_t len,
         i64 offset,
         i64 alignment)
         : Data_(TSharedMutableRef::Allocate<TAioEngineDataBufferTag>(len + 3 * alignment, true))
-        , FH_(fh)
+        , FH_(handle)
         , Length_(len)
         , Offset_(offset)
         , From_(::AlignDown(offset, alignment))
@@ -548,7 +591,7 @@ public:
 
         memset(static_cast<iocb*>(this), 0, sizeof(iocb));
 
-        aio_fildes = static_cast<FHANDLE>(*fh);
+        aio_fildes = static_cast<FHANDLE>(*handle);
         aio_lio_opcode = IOCB_CMD_PREAD;
 
         aio_buf = reinterpret_cast<ui64>(Data_.Begin());
@@ -597,16 +640,16 @@ class TAioWriteOperation
 {
 public:
     TAioWriteOperation(
-        const std::shared_ptr<TFileHandle>& fh,
+        const std::shared_ptr<TFileHandle>& handle,
         const TSharedRef& data,
         i64 offset,
         i64 alignment)
         : Data_(data)
-        , Fh_(fh)
+        , Fh_(handle)
     {
         memset(static_cast<iocb*>(this), 0, sizeof(iocb));
 
-        aio_fildes = static_cast<FHANDLE>(*fh);
+        aio_fildes = static_cast<FHANDLE>(*handle);
         aio_lio_opcode = IOCB_CMD_PWRITE;
 
         aio_buf = reinterpret_cast<ui64>(Data_.Begin());
@@ -670,7 +713,8 @@ public:
     {
         auto ret = io_setup(MaxQueueSize_, &Ctx_);
         if (ret < 0) {
-            THROW_ERROR_EXCEPTION("Cannot initialize AIO") << TError::FromSystem();
+            THROW_ERROR_EXCEPTION("Cannot initialize AIO")
+                << TError::FromSystem();
         }
 
         Start();
@@ -683,34 +727,34 @@ public:
     }
 
     virtual TFuture<TSharedMutableRef> Pread(
-        const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset, i64 priority) override
+        const std::shared_ptr<TFileHandle>& handle, size_t len, i64 offset, i64 priority) override
     {
-        auto op = New<TAioReadOperation>(fh, len, offset, Alignment_);
+        auto op = New<TAioReadOperation>(handle, len, offset, Alignment_);
         Submit(op);
         return op->Result();
     }
 
     virtual TFuture<void> Pwrite(
-        const std::shared_ptr<TFileHandle>& fh, const TSharedRef& data, i64 offset, i64 priority) override
+        const std::shared_ptr<TFileHandle>& handle, const TSharedRef& data, i64 offset, i64 priority) override
     {
-        auto op = New<TAioWriteOperation>(fh, data, offset, Alignment_);
+        auto op = New<TAioWriteOperation>(handle, data, offset, Alignment_);
         Submit(op);
         return op->Result();
     }
 
-    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh, i64 priority) override
+    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& handle, i64 priority) override
     {
         return TrueFuture;
     }
 
-    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh, i64 priority) override
+    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& handle, i64 priority) override
     {
         return TrueFuture;
     }
 
-    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fName, EOpenMode oMode, i64 priority) override
+    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fileName, EOpenMode mode, i64 priority) override
     {
-        return BIND(&TAioEngine::DoOpen, MakeStrong(this), fName, oMode)
+        return BIND(&TAioEngine::DoOpen, MakeStrong(this), fileName, mode)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
     }
@@ -720,9 +764,9 @@ public:
         return false;
     }
 
-    virtual TFuture<void> Close(const std::shared_ptr<TFileHandle>& fh, i64 newSize, bool /*flush*/)
+    virtual TFuture<void> Close(const std::shared_ptr<TFileHandle>& handle, i64 newSize, bool /*flush*/)
     {
-        return BIND(&TAioEngine::DoClose, MakeStrong(this), fh, newSize)
+        return BIND(&TAioEngine::DoClose, MakeStrong(this), handle, newSize)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
     }
@@ -730,6 +774,13 @@ public:
     virtual TFuture<void> FlushDirectory(const TString& path)
     {
         return BIND(&TAioEngine::DoFlushDirectory, MakeStrong(this), path)
+            .AsyncVia(ThreadPool_->GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<TSharedMutableRef> ReadAll(const TString& fileName, i64 priority)
+    {
+        return BIND(&TAioEngine::DoReadAll, MakeStrong(this), fileName, priority)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
     }
@@ -748,26 +799,33 @@ private:
     TThread Thread_;
     const TThreadPoolPtr ThreadPool_;
 
-    std::shared_ptr<TFileHandle> DoOpen(const TString& fName, EOpenMode oMode)
+    std::shared_ptr<TFileHandle> DoOpen(const TString& fileName, EOpenMode mode)
     {
-        auto fh = std::make_shared<TFileHandle>(fName, oMode);
-        if (!fh->IsOpen()) {
+        auto handle = std::make_shared<TFileHandle>(fileName, mode);
+        if (!handle->IsOpen()) {
             THROW_ERROR_EXCEPTION(
                 "Cannot open %Qv with mode %v",
-                fName,
-                oMode) << TError::FromSystem();
+                fileName,
+                mode)
+                << TError::FromSystem();
         }
-        fh->SetDirect();
-        return fh;
+        handle->SetDirect();
+        return handle;
     }
 
-    void DoClose(const std::shared_ptr<TFileHandle>& fh, i64 newSize)
+    TFuture<TSharedMutableRef> DoReadAll(const TString& fileName, i64 priority)
+    {
+        auto file = DoOpen(fileName, OpenExisting | RdOnly | Seq | CloseOnExec);
+        return Pread(file, file->GetLength(), 0, priority);
+    }
+
+    void DoClose(const std::shared_ptr<TFileHandle>& handle, i64 newSize)
     {
         NFS::ExpectIOErrors([&]() {
             if (newSize >= 0) {
-                fh->Resize(newSize);
+                handle->Resize(newSize);
             }
-            fh->Close();
+            handle->Close();
         });
     }
 
@@ -808,13 +866,13 @@ private:
         }
     }
 
-    static void* StaticLoop(void * self)
+    static void* StaticLoop(void* self)
     {
         reinterpret_cast<TAioEngine*>(self)->Loop();
         return nullptr;
     }
 
-    int GetEvents(io_event * events)
+    int GetEvents(io_event* events)
     {
         int ret;
         while ((ret = io_getevents(Ctx_, 1, MaxQueueSize_, events, nullptr)) < 0 && errno == EINTR)
@@ -849,7 +907,8 @@ private:
         if (ret < 0) {
             ythrow TSystemError(LastSystemError());
         } else if (ret != 1) {
-            THROW_ERROR_EXCEPTION("Unexpected return code from io_submit") << TErrorAttribute("code", ret);
+            THROW_ERROR_EXCEPTION("Unexpected return code from io_submit")
+                << TErrorAttribute("code", ret);
         }
     }
 
@@ -876,20 +935,26 @@ private:
 
 #endif
 
-template <typename T, typename ...Params>
-IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig, Params ...params)
+template <typename T, typename... TParams>
+IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig, TParams... params)
 {
-    typename T::TConfigPtr config = New<typename T::TConfig>();
+    auto config = New<typename T::TConfig>();
     config->SetDefaults();
     if (ioConfig) {
         config->Load(ioConfig);
     }
 
-    return New<T>(std::move(config), params...);
+    return New<T>(std::move(config), std::forward<TParams>(params)...);
 }
 
-IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConfig, const TString& locationId, const TProfiler& profiler, const NLogging::TLogger& logger){
-    switch (ioType) {
+IIOEnginePtr CreateIOEngine(
+    EIOEngineType engineType,
+    const NYTree::INodePtr& ioConfig,
+    const TString& locationId,
+    const TProfiler& profiler,
+    const NLogging::TLogger& logger)
+{
+    switch (engineType) {
         case EIOEngineType::ThreadPool:
             return CreateIOEngine<TThreadedIOEngine>(ioConfig, locationId, profiler, logger);
 #ifdef _linux_
@@ -897,7 +962,7 @@ IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConf
             return CreateIOEngine<TAioEngine>(ioConfig, locationId, profiler);
 #endif
         default:
-            THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv", ioType);
+            THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv", engineType);
     }
 }
 
