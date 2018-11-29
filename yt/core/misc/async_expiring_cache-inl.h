@@ -29,8 +29,11 @@ bool TAsyncExpiringCache<TKey, TValue>::TEntry::IsExpired(NProfiling::TCpuInstan
 }
 
 template <class TKey, class TValue>
-TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(TAsyncExpiringCacheConfigPtr config)
+TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
+    TAsyncExpiringCacheConfigPtr config,
+    NProfiling::TProfiler profiler)
     : Config_(std::move(config))
+    , Profiler_(std::move(profiler))
 { }
 
 template <class TKey, class TValue>
@@ -45,6 +48,7 @@ TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
         if (it != Map_.end()) {
             const auto& entry = it->second;
             if (!entry->IsExpired(now)) {
+                Profiler_.Increment(HitCounter_);
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                 return entry->Promise;
             }
@@ -62,11 +66,13 @@ TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
                 NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
                 Map_.erase(it);
             } else {
+                Profiler_.Increment(HitCounter_);
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                 return entry->Promise;
             }
         }
 
+        Profiler_.Increment(MissedCounter_);
         auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
         auto entry = New<TEntry>(accessDeadline);
         auto promise = entry->Promise;
@@ -96,6 +102,7 @@ TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiri
             if (it != Map_.end()) {
                 const auto& entry = it->second;
                 if (!entry->IsExpired(now)) {
+                    Profiler_.Increment(HitCounter_);
                     results[index] = entry->Promise;
                     entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                     continue;
@@ -121,11 +128,14 @@ TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiri
                     NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
                     Map_.erase(it);
                 } else {
+                    Profiler_.Increment(HitCounter_);
                     results[index] = entry->Promise;
                     entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                     continue;
                 }
             }
+
+            Profiler_.Increment(MissedCounter_);
 
             auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
             auto entry = New<TEntry>(accessDeadline);
