@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/misc/hash.h>
+
 namespace NYT {
 namespace NAuth {
 
@@ -18,6 +20,23 @@ struct ISecretVaultService
         TString SecretVersion;
         TString DelegationToken;
         TString Signature;
+
+        bool operator == (const TSecretSubrequest& other) const
+        {
+            return
+                std::tie(SecretId, SecretVersion, DelegationToken, Signature) ==
+                std::tie(other.SecretId, other.SecretVersion, other.DelegationToken, other.Signature);
+        }
+
+        operator size_t() const
+        {
+            size_t hash = 0;
+            HashCombine(hash, SecretId);
+            HashCombine(hash, SecretVersion);
+            HashCombine(hash, DelegationToken);
+            HashCombine(hash, Signature);
+            return hash;
+        }
     };
 
     struct TSecretSubresponse
@@ -37,3 +56,4 @@ DEFINE_REFCOUNTED_TYPE(ISecretVaultService)
 
 } // namespace NAuth
 } // namespace NYT
+

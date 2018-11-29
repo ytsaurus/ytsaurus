@@ -40,9 +40,11 @@ public:
     TDefaultSecretVaultService(
         TDefaultSecretVaultServiceConfigPtr config,
         ITvmServicePtr tvmService,
-        IPollerPtr poller)
+        IPollerPtr poller,
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , TvmService_(std::move(tvmService))
+        , Profiler_(std::move(profiler))
         , HttpClient_(NHttps::CreateClient(Config_->HttpClient, std::move(poller)))
     { }
 
@@ -58,7 +60,20 @@ public:
 private:
     const TDefaultSecretVaultServiceConfigPtr Config_;
     const ITvmServicePtr TvmService_;
+    const NProfiling::TProfiler Profiler_;
+
     const NHttp::IClientPtr HttpClient_;
+
+
+    NProfiling::TAggregateGauge SubrequestsPerRequestGauge_{"/subrequests_per_request"};
+    NProfiling::TMonotonicCounter RequestCountCounter_{"/request_count"};
+    NProfiling::TMonotonicCounter SubrequestCountCounter_{"/subrequest_count"};
+    NProfiling::TAggregateGauge CallTimeGauge_{"/call_time"};
+    NProfiling::TMonotonicCounter SuccessfulCallCountCounter_{"/successful_call_count"};
+    NProfiling::TMonotonicCounter FailedCallCountCounter_{"/failed_call_count"};
+    NProfiling::TMonotonicCounter SuccessfulSubrequestCountCounter_{"/successful_subrequest_count"};
+    NProfiling::TMonotonicCounter FailedSubrequestCountCounter_{"/failed_subrequest_count"};
+
 
     TFuture<std::vector<TErrorOrSecretSubresponse>> OnTvmCallResult(const std::vector<TSecretSubrequest>& subrequests, const TString& vaultTicket)
     {
@@ -68,17 +83,31 @@ private:
             subrequests.size(),
             callId);
 
+        Profiler_.Increment(RequestCountCounter_);
+        Profiler_.Increment(SubrequestCountCounter_, subrequests.size());
+        Profiler_.Update(SubrequestsPerRequestGauge_, subrequests.size());
+
+        auto url = Format("https://%v:%v/1/tokens/", Config_->Host, Config_->Port);
         auto body = MakeRequestBody(vaultTicket, subrequests);
-        return HttpClient_->Post("/1/tokens", std::move(body))
+        static const auto Headers = MakeRequestHeaders();
+        NProfiling::TWallTimer timer;
+        return HttpClient_->Post(url, body, Headers)
             .Apply(BIND(
                 &TDefaultSecretVaultService::OnVaultCallResult,
                 MakeStrong(this),
-                callId));
+                callId,
+                timer));
     }
 
-    std::vector<TErrorOrSecretSubresponse> OnVaultCallResult(const TGuid& callId, const NHttp::IResponsePtr& rsp)
+    std::vector<TErrorOrSecretSubresponse> OnVaultCallResult(
+        const TGuid& callId,
+        const NProfiling::TWallTimer& timer,
+        const NHttp::IResponsePtr& rsp)
     {
+        Profiler_.Update(CallTimeGauge_, timer.GetElapsedValue());
+
         if (rsp->GetStatusCode() != EStatusCode::OK) {
+            Profiler_.Increment(FailedCallCountCounter_);
             auto error = TError("Vault HTTP call returned an error")
                 << TErrorAttribute("call_id", callId)
                 << TErrorAttribute("status_code", rsp->GetStatusCode());
@@ -101,6 +130,7 @@ private:
             ParseJson(&stream, builder.get());
             rootNode = builder->EndTree()->AsMap();
         } catch (const std::exception& ex) {
+            Profiler_.Increment(FailedCallCountCounter_);
             auto error = TError(
                 ESecretVaultErrorCode::MalformedResponse,
                 "Error parsing Vault response")
@@ -111,7 +141,11 @@ private:
         }
 
         auto responseError = GetErrorFromResponse(rootNode);
-        THROW_ERROR_EXCEPTION_IF_FAILED(responseError);
+        if (!responseError.IsOK()) {
+            Profiler_.Increment(FailedCallCountCounter_);
+            LOG_DEBUG(responseError);
+            THROW_ERROR(responseError);
+        }
 
         try {
             static const TString SecretsKey("secrets");
@@ -146,6 +180,10 @@ private:
                 subresponses.push_back(subresponse);
             }
 
+            Profiler_.Increment(SuccessfulCallCountCounter_);
+            Profiler_.Increment(SuccessfulSubrequestCountCounter_, successCount);
+            Profiler_.Increment(FailedSubrequestCountCounter_, errorCount);
+
             LOG_DEBUG("Secrets retrieved from Vault (CallId: %v, SuccessCount: %v, ErrorCount: %v)",
                 callId,
                 successCount,
@@ -153,6 +191,7 @@ private:
 
             return subresponses;
         } catch (const std::exception& ex) {
+            Profiler_.Increment(FailedCallCountCounter_);
             auto error = TError(
                 ESecretVaultErrorCode::MalformedResponse,
                 "Error parsing Vault response")
@@ -185,8 +224,20 @@ private:
         auto codeString = node->GetChild(CodeKey)->GetValue<TString>();
         auto code = ParseErrorCode(codeString);
 
-        return TError(code, "Vault error")
-            << TErrorAttribute("status", statusString);
+        static const TString MessageKey("message");
+        auto messageNode = node->FindChild(MessageKey);
+        return TError(
+            code,
+            messageNode ? messageNode->GetValue<TString>() : "Vault error")
+            << TErrorAttribute("status", statusString)
+            << TErrorAttribute("code", codeString);
+    }
+
+    static THeadersPtr MakeRequestHeaders()
+    {
+        auto headers = New<THeaders>();
+        headers->Add("Content-Type", "application/json");
+        return headers;
     }
 
     TSharedRef MakeRequestBody(const TString& vaultTicket, const std::vector<TSecretSubrequest>& subrequests)
@@ -199,7 +250,7 @@ private:
                 .Item("tokenized_requests").DoListFor(subrequests, [&] (auto fluent, const auto& subrequest) {
                     fluent
                         .Item().BeginMap()
-                            .Item("service_token").Value(vaultTicket)
+                            .Item("service_ticket").Value(vaultTicket)
                             .Item("token").Value(subrequest.DelegationToken)
                             .Item("signature").Value(subrequest.Signature)
                             .Item("secret_uuid").Value(subrequest.SecretId)
@@ -215,12 +266,14 @@ private:
 ISecretVaultServicePtr CreateDefaultSecretVaultService(
     TDefaultSecretVaultServiceConfigPtr config,
     ITvmServicePtr tvmService,
-    IPollerPtr poller)
+    IPollerPtr poller,
+    NProfiling::TProfiler profiler)
 {
     return New<TDefaultSecretVaultService>(
         std::move(config),
         std::move(tvmService),
-        std::move(poller));
+        std::move(poller),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

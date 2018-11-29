@@ -4,6 +4,8 @@
 
 #include <yt/core/concurrency/public.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT {
 namespace NAuth {
 
@@ -12,7 +14,8 @@ namespace NAuth {
 ISecretVaultServicePtr CreateDefaultSecretVaultService(
     TDefaultSecretVaultServiceConfigPtr config,
     ITvmServicePtr tvmService,
-    NConcurrency::IPollerPtr poller);
+    NConcurrency::IPollerPtr poller,
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

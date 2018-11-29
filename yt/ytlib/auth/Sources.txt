@@ -7,7 +7,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/token_authenticator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ticket_authenticator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/default_secret_vault_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/caching_secret_vault_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/batching_secret_vault_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dummy_secret_vault_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/private.cpp
 )

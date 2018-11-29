@@ -33,7 +33,7 @@ ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
     NApi::IClientPtr client);
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
-    TAsyncExpiringCacheConfigPtr config,
+    TCachingTokenAuthenticatorConfigPtr config,
     ITokenAuthenticatorPtr authenticator);
 
 ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
