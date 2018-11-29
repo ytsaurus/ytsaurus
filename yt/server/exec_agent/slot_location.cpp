@@ -304,17 +304,33 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
             THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
                 << ex;
         }
-
-        try {
-            EnsureNotInUse(targetPath);
-            NFS::SetExecutableMode(targetPath, executable);
-            NFS::MakeSymbolicLink(targetPath, linkPath);
-        } catch (const std::exception& ex) {
+        
+        auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
             // Job will be aborted.
             auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
                 << ex;
             Disable(error);
             THROW_ERROR error;
+        };
+
+        try {
+            EnsureNotInUse(targetPath);
+            NFS::SetExecutableMode(targetPath, executable);
+            NFS::MakeSymbolicLink(targetPath, linkPath);
+        } catch (const TErrorException& ex) {
+            if (IsInsideTmpfs(targetPath) && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
+                THROW_ERROR_EXCEPTION("Failed to make a symlink for file %Qv into sandbox %v: tmpfs is too small",
+                    targetPath,
+                    sandboxPath) << ex;
+            } else if (SlotsWithQuota_.find(slotIndex) != SlotsWithQuota_.end() && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
+                THROW_ERROR_EXCEPTION("Failed to make a symlink for file %Qv into sandbox %v: disk space limit is too small",
+                    targetPath,
+                    sandboxPath) << ex;
+            } else {
+                logErrorAndDisableLocation(ex);
+            }
+        } catch (const std::exception& ex) {
+            logErrorAndDisableLocation(ex);
         }
     })
     .AsyncVia(LocationQueue_->GetInvoker())
