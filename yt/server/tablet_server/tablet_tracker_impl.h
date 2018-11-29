@@ -41,6 +41,9 @@ private:
         const TTabletCell::TPeer& peer,
         const TBooleanFormula& nodeTagFilter,
         TDuration timeout);
+    bool IsDecommissioned(
+        const NNodeTrackerServer::TNode* node,
+        const TBooleanFormula& nodeTagFilter);
     static int FindGoodPeer(const TTabletCell* cell);
 };
 
