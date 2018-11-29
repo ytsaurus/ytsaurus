@@ -24,6 +24,7 @@ import socket
 import shutil
 import sys
 import getpass
+import random
 from collections import defaultdict, namedtuple
 from threading import RLock
 from itertools import count
@@ -214,7 +215,8 @@ class YTInstance(object):
         if not has_rpc_proxy and rpc_proxy_count > 0:
             rpc_proxy_count = 0
 
-        self._uuid = generate_uuid()
+        self._random_generator = random.Random(random.SystemRandom().random())
+        self._uuid = generate_uuid(self._random_generator)
         self._lock = RLock()
 
         self.path = os.path.realpath(os.path.abspath(path))
@@ -363,6 +365,7 @@ class YTInstance(object):
                              node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port,
                              enable_master_cache, modify_configs_func, enable_structured_master_logging):
         logger.info("Preparing cluster instance as follows:")
+        logger.info("  uuid               %s", self._uuid)
         logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes              %d", self.node_count)
         logger.info("  schedulers         %d", self.scheduler_count)
