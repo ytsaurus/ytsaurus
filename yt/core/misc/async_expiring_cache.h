@@ -6,7 +6,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <atomic>
 
@@ -19,9 +19,11 @@ class TAsyncExpiringCache
     : public virtual TRefCounted
 {
 public:
-    typedef typename TFutureCombineTraits<TValue>::TCombinedVector TCombinedValue;
+    using TCombinedValue = typename TFutureCombineTraits<TValue>::TCombinedVector;
 
-    explicit TAsyncExpiringCache(TAsyncExpiringCacheConfigPtr config);
+    explicit TAsyncExpiringCache(
+        TAsyncExpiringCacheConfigPtr config,
+        NProfiling::TProfiler profiler = {});
 
     TFuture<TValue> Get(const TKey& key);
     TFuture<TCombinedValue> Get(const std::vector<TKey>& keys);
@@ -36,6 +38,7 @@ protected:
 
 private:
     const TAsyncExpiringCacheConfigPtr Config_;
+    const NProfiling::TProfiler Profiler_;
 
     struct TEntry
         : public TRefCounted
@@ -61,6 +64,9 @@ private:
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
     THashMap<TKey, TIntrusivePtr<TEntry>> Map_;
+
+    NProfiling::TMonotonicCounter HitCounter_{"/hit"};
+    NProfiling::TMonotonicCounter MissedCounter_{"/missed"};
 
     void SetResult(const TWeakPtr<TEntry>& entry, const TKey& key, const TErrorOr<TValue>& valueOrError);
     void InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys);
