@@ -16,6 +16,8 @@ YT_BUILD_PYTHON_VERSION
   Use specified version of python to run tests.
 """
 
+from __future__ import print_function
+
 import os
 import sys
 import logging
@@ -57,12 +59,12 @@ def main():
 
     ya_build = os.path.join(repo_root, "ya-build")
     if not os.path.exists(ya_build) and "-h" not in sys.argv[1:] and "--help" not in sys.argv[1:]:
-        print >>sys.stderr, "ya-build directory cannot be found in repo root, tests are going to fail"
-        print >>sys.stderr, "Please run (from repo root directory ):"
-        print >>sys.stderr, "  $ {repo_root}/yall --install {ya_build}".format(repo_root=repo_root, ya_build=ya_build)
-        print >>sys.stderr, "More convenient way is to configure yall so it will always use this install directory."
-        print >>sys.stderr, "  https://wiki.yandex-team.ru/yt/internal/ya/"
-        print >>sys.stderr, "ERROR occurred. Exiting..."
+        print("ya-build directory cannot be found in repo root, tests are going to fail", file=sys.stderr)
+        print("Please run (from repo root directory ):", file=sys.stderr)
+        print("  $ {repo_root}/yall --install {ya_build}".format(repo_root=repo_root, ya_build=ya_build), file=sys.stderr)
+        print("More convenient way is to configure yall so it will always use this install directory.", file=sys.stderr)
+        print("  https://wiki.yandex-team.ru/yt/internal/ya/", file=sys.stderr)
+        print("ERROR occurred. Exiting...", file=sys.stderr)
         exit(1)
 
     if parse_bool(os.environ.get("RUN_PY_TEST_SET_SUID_BIT", "")):
@@ -82,9 +84,9 @@ def main():
     build_python_version = os.environ.get("YT_BUILD_PYTHON_VERSION", "2.7")
     python = "python{}".format(build_python_version)
     if sys.argv[1:2] in [["--help"], ["-h"]]:
-        print __doc__
-        print "PyTest Help"
-        print "==========="
+        print(__doc__)
+        print("PyTest Help")
+        print("===========")
         sys.stdout.flush()
     os.execlpe(python, python, "-m", "pytest", *args)
 
