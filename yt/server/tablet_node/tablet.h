@@ -484,6 +484,8 @@ private:
 
     TTabletCounters* ProfilerCounters_ = nullptr;
 
+    NLogging::TLogger Logger;
+
     NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler_;
