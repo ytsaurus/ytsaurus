@@ -13,7 +13,6 @@ import psutil
 import subprocess
 import random
 
-"""
 @require_ytserver_root_privileges
 class TestClickhouse(YTEnvSetup):
     NUM_MASTERS = 1
@@ -170,4 +169,13 @@ class TestClickhouse(YTEnvSetup):
         result = self._make_query(clique, 'select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
         assert result["data"] == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
 
-"""
+    @pytest.mark.parametrize("instance_count", [1, 2])
+    def test_cast(self, instance_count):
+        clique = self._start_clique(instance_count)
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+        write_table("//tmp/t", [{"a": "2012-12-12"}])
+
+        result = self._make_query(clique, 'select CAST(a as datetime) from "//tmp/t"')
+        assert result["data"] == [{"CAST(a as datetime)": "2012-12-12"}]
+
