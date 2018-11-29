@@ -2209,12 +2209,16 @@ private:
         for (const auto &path : paths) {
             LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
+            const auto& transactionId = path.GetTransactionId();
+
             auto inputChunks = CollectTableInputChunks(
                 path,
                 this,
                 nodeDirectory,
                 options.FetchChunkSpecConfig,
-                options.TransactionId,
+                transactionId
+                    ? *transactionId
+                    : options.TransactionId,
                 Logger);
 
             LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
