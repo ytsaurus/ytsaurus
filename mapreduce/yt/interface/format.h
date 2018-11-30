@@ -8,6 +8,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TYamredDsvAttributes
+{
+    // https://wiki.yandex-team.ru/yt/userdoc/formats/#yamreddsv
+    TVector<TString> KeyColumnNames;
+    TVector<TString> SubkeyColumnNames;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Data format for communication with YT proxies.
 struct TFormat {
 public:
@@ -26,6 +35,9 @@ public:
     static inline TFormat Protobuf();
 
     bool IsTextYson() const;
+
+    bool IsYamredDsv() const;
+    TYamredDsvAttributes GetYamredDsvAttributes() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
