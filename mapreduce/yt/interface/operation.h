@@ -597,13 +597,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IFormatAwareJob
+class IStructuredJob
     : public IJob
 {
 private:
     friend struct IOperationClient;
-    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) = 0;
-    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) = 0;
+    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const = 0;
+    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const = 0;
     virtual void AddInputFormatDescription(TMultiFormatDesc* desc) = 0;
     virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) = 0;
 };
@@ -611,7 +611,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class IMapperBase
-    : public IFormatAwareJob
+    : public IStructuredJob
 { };
 
 template <class TR, class TW>
@@ -639,8 +639,8 @@ public:
     }
 
 private:
-    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
-    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
+    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
+    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
     virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
     virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
@@ -649,7 +649,7 @@ private:
 
 // Common base for IReducer and IAggregatorReducer
 class IReducerBase
-    : public IFormatAwareJob
+    : public IStructuredJob
 { };
 
 template <class TR, class TW>
@@ -682,8 +682,8 @@ public:
     void Break(); // do not process other keys
 
 private:
-    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
-    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
+    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
+    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
     virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
     virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
@@ -721,8 +721,8 @@ public:
     }
 
 private:
-    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
-    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) override;
+    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
+    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
     virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
     virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
@@ -1326,24 +1326,24 @@ struct IOperationClient
 private:
     virtual IOperationPtr DoMap(
         const TMapOperationSpec& spec,
-        IJob* mapper,
+        const IStructuredJob& mapper,
         const TOperationOptions& options) = 0;
 
     virtual IOperationPtr DoReduce(
         const TReduceOperationSpec& spec,
-        IJob* reducer,
+        const IStructuredJob& reducer,
         const TOperationOptions& options) = 0;
 
     virtual IOperationPtr DoJoinReduce(
         const TJoinReduceOperationSpec& spec,
-        IJob* reducer,
+        const IStructuredJob& reducer,
         const TOperationOptions& options) = 0;
 
     virtual IOperationPtr DoMapReduce(
         const TMapReduceOperationSpec& spec,
-        IJob* mapper,
-        IJob* reduceCombiner,
-        IJob* reducer,
+        const IStructuredJob* mapper,
+        const IStructuredJob* reduceCombiner,
+        const IStructuredJob& reducer,
         const TMultiFormatDesc& outputMapperDesc,
         const TMultiFormatDesc& inputReduceCombinerDesc,
         const TMultiFormatDesc& outputReduceCombinerDesc,

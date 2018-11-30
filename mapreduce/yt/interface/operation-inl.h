@@ -15,6 +15,8 @@
 #include <util/stream/buffer.h>
 #include <util/string/subst.h>
 
+#include <typeindex>
+
 namespace NYT {
 
 namespace NDetail {
@@ -575,11 +577,11 @@ public:
         RegisterJobImpl<TVanillaJob>(name, RunVanillaJob<TVanillaJob>);
     }
 
-    TString GetJobName(IJob* job)
+    TString GetJobName(const IJob* job)
     {
-        const auto* typeInfoPtr = &typeid(*job);
-        CheckJobRegistered(typeInfoPtr);
-        return JobNames[typeInfoPtr];
+        const auto typeIndex = std::type_index(typeid(*job));
+        CheckJobRegistered(typeIndex);
+        return JobNames[typeIndex];
     }
 
     TJobFunction GetJobFunction(const char* name)
@@ -589,30 +591,30 @@ public:
     }
 
 private:
-    THashMap<const std::type_info*, TString> JobNames;
+    TMap<std::type_index, TString> JobNames;
     THashMap<TString, TJobFunction> JobFunctions;
 
     template <typename TJob, typename TRunner>
     void RegisterJobImpl(const char* name, TRunner runner) {
-        const auto* typeInfoPtr = &typeid(TJob);
-        CheckNotRegistered(typeInfoPtr, name);
-        JobNames[typeInfoPtr] = name;
+        const auto typeIndex = std::type_index(typeid(TJob));
+        CheckNotRegistered(typeIndex, name);
+        JobNames[typeIndex] = name;
         JobFunctions[name] = runner;
     }
 
-    void CheckNotRegistered(const std::type_info* typeInfoPtr, const char* name)
+    void CheckNotRegistered(const std::type_index& typeIndex, const char* name)
     {
-        Y_ENSURE(!JobNames.has(typeInfoPtr),
-            "type_info '" << typeInfoPtr->name() << "'"
-            "is already registered under name '" << JobNames[typeInfoPtr] << "'");
+        Y_ENSURE(!JobNames.has(typeIndex),
+            "type_info '" << typeIndex.name() << "'"
+            "is already registered under name '" << JobNames[typeIndex] << "'");
         Y_ENSURE(!JobFunctions.has(name),
             "job with name '" << name << "' is already registered");
     }
 
-    void CheckJobRegistered(const std::type_info* typeInfoPtr)
+    void CheckJobRegistered(const std::type_index& typeIndex)
     {
-        Y_ENSURE(JobNames.has(typeInfoPtr),
-            "type_info '" << typeInfoPtr->name() << "' is not registered, use REGISTER_* macros");
+        Y_ENSURE(JobNames.has(typeIndex),
+            "type_info '" << typeIndex.name() << "' is not registered, use REGISTER_* macros");
     }
 
     void CheckNameRegistered(const char* name)
@@ -729,13 +731,13 @@ void CheckFormats(const char *jobName, const char* direction, const TMultiFormat
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TReader, class TWriter>
-void IMapper<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc)
+void IMapper<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const
 {
     NYT::CheckFormats<typename TReader::TRowType>(jobName, "input", desc);
 }
 
 template <class TReader, class TWriter>
-void IMapper<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc)
+void IMapper<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const
 {
     NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
 }
@@ -755,13 +757,13 @@ void IMapper<TReader, TWriter>::AddOutputFormatDescription(TMultiFormatDesc* des
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TReader, class TWriter>
-void IReducer<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc)
+void IReducer<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const
 {
     NYT::CheckFormats<typename TReader::TRowType>(jobName, "input", desc);
 }
 
 template <class TReader, class TWriter>
-void IReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc)
+void IReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const
 {
     NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
 }
@@ -781,13 +783,13 @@ void IReducer<TReader, TWriter>::AddOutputFormatDescription(TMultiFormatDesc* de
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TReader, class TWriter>
-void IAggregatorReducer<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc)
+void IAggregatorReducer<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const
 {
     NYT::CheckFormats<typename TReader::TRowType>(jobName, "input", desc);
 }
 
 template <class TReader, class TWriter>
-void IAggregatorReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc)
+void IAggregatorReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const
 {
     NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
 }

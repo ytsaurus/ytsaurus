@@ -72,45 +72,45 @@ private:
 TOperationId ExecuteMap(
     TOperationPreparer& preparer,
     const TMapOperationSpec& spec,
-    IJob* mapper,
+    const IStructuredJob& mapper,
     const TOperationOptions& options);
 
 TOperationId ExecuteRawMap(
     TOperationPreparer& preparer,
     const TRawMapOperationSpec& spec,
-    IRawJob* mapper,
+    const IRawJob& mapper,
     const TOperationOptions& options);
 
 TOperationId ExecuteReduce(
     TOperationPreparer& preparer,
     const TReduceOperationSpec& spec,
-    IJob* reducer,
+    const IStructuredJob& reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteRawReduce(
     TOperationPreparer& preparer,
     const TRawReduceOperationSpec& spec,
-    IRawJob* reducer,
+    const IRawJob& reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteJoinReduce(
     TOperationPreparer& preparer,
     const TJoinReduceOperationSpec& spec,
-    IJob* reducer,
+    const IStructuredJob& reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteRawJoinReduce(
     TOperationPreparer& preparer,
     const TRawJoinReduceOperationSpec& spec,
-    IRawJob* reducer,
+    const IRawJob& reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteMapReduce(
     TOperationPreparer& preparer,
     const TMapReduceOperationSpec& spec,
-    IJob* mapper,
-    IJob* reduceCombiner,
-    IJob* reducer,
+    const IStructuredJob* mapper,
+    const IStructuredJob* reduceCombiner,
+    const IStructuredJob& reducer,
     const TMultiFormatDesc& outputMapperDesc,
     const TMultiFormatDesc& inputReduceCombinerDesc,
     const TMultiFormatDesc& outputReduceCombinerDesc,
@@ -120,9 +120,9 @@ TOperationId ExecuteMapReduce(
 TOperationId ExecuteRawMapReduce(
     TOperationPreparer& preparer,
     const TRawMapReduceOperationSpec& spec,
-    IRawJob* mapper,
-    IRawJob* reduceCombiner,
-    IRawJob* reducer,
+    const IRawJob* mapper,
+    const IRawJob* reduceCombiner,
+    const IRawJob& reducer,
     const TOperationOptions& options);
 
 TOperationId ExecuteSort(

@@ -112,7 +112,7 @@ public:
 
     IOperationPtr DoMap(
         const TMapOperationSpec& spec,
-        IJob* mapper,
+        const IStructuredJob& mapper,
         const TOperationOptions& options) override;
 
     IOperationPtr RawMap(
@@ -122,7 +122,7 @@ public:
 
     IOperationPtr DoReduce(
         const TReduceOperationSpec& spec,
-        IJob* reducer,
+        const IStructuredJob& reducer,
         const TOperationOptions& options) override;
 
     IOperationPtr RawReduce(
@@ -132,7 +132,7 @@ public:
 
     IOperationPtr DoJoinReduce(
         const TJoinReduceOperationSpec& spec,
-        IJob* reducer,
+        const IStructuredJob& reducer,
         const TOperationOptions& options) override;
 
     IOperationPtr RawJoinReduce(
@@ -142,9 +142,9 @@ public:
 
     IOperationPtr DoMapReduce(
         const TMapReduceOperationSpec& spec,
-        IJob* mapper,
-        IJob* reduceCombiner,
-        IJob* reducer,
+        const IStructuredJob* mapper,
+        const IStructuredJob* reduceCombiner,
+        const IStructuredJob& reducer,
         const TMultiFormatDesc& outputMapperDesc,
         const TMultiFormatDesc& inputReduceCombinerDesc,
         const TMultiFormatDesc& outputReduceCombinerDesc,

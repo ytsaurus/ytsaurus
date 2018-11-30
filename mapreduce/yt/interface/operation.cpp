@@ -68,7 +68,7 @@ IOperationPtr IOperationClient::Map(
 
     return DoMap(
         spec,
-        mapper.Get(),
+        *mapper,
         options);
 }
 
@@ -84,7 +84,7 @@ IOperationPtr IOperationClient::Reduce(
 
     return DoReduce(
         spec,
-        reducer.Get(),
+        *reducer,
         options);
 }
 
@@ -100,7 +100,7 @@ IOperationPtr IOperationClient::JoinReduce(
 
     return DoJoinReduce(
         spec,
-        reducer.Get(),
+        *reducer,
         options);
 }
 
@@ -129,7 +129,7 @@ IOperationPtr IOperationClient::MapReduce(
         spec,
         mapper.Get(),
         nullptr,
-        reducer.Get(),
+        *reducer,
         outputMapperDesc,
         dummy,
         dummy,
@@ -168,7 +168,7 @@ IOperationPtr IOperationClient::MapReduce(
         spec,
         mapper.Get(),
         reduceCombiner.Get(),
-        reducer.Get(),
+        *reducer,
         outputMapperDesc,
         inputReduceCombinerDesc,
         outputReduceCombinerDesc,
