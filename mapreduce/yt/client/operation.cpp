@@ -484,7 +484,7 @@ public:
         TOperationPreparer& operationPreparer,
         const TString& commandLineName,
         const TUserJobSpec& spec,
-        IJob* job,
+        const IJob& job,
         size_t outputTableCount,
         const TVector<TSmallJobFile>& smallFileList,
         const TOperationOptions& options)
@@ -538,7 +538,7 @@ public:
             jobCommandSuffix = spec.JobCommandSuffix_;
         }
 
-        ClassName_ = TJobFactory::Get()->GetJobName(job);
+        ClassName_ = TJobFactory::Get()->GetJobName(&job);
         Command_ = TStringBuilder() <<
             jobCommandPrefix <<
             (TConfig::Get()->UseClientProtobuf ? "YT_USE_CLIENT_PROTOBUF=1 " : "YT_USE_CLIENT_PROTOBUF=0 ") <<
@@ -759,12 +759,12 @@ private:
         }
     }
 
-    TMaybe<TSmallJobFile> GetJobState(IJob* job)
+    TMaybe<TSmallJobFile> GetJobState(const IJob& job)
     {
         TString result;
         {
             TStringOutput output(result);
-            job->Save(output);
+            job.Save(output);
             output.Finish();
         }
         if (result.empty()) {
@@ -1190,7 +1190,7 @@ void CheckInputTablesExist(
     }
 }
 
-void LogJob(const TOperationId& opId, IJob* job, const char* type)
+void LogJob(const TOperationId& opId, const IJob* job, const char* type)
 {
     if (job) {
         LOG_INFO("Operation %s; %s = %s",
@@ -1229,7 +1229,7 @@ TOperationId DoExecuteMap(
     TOperationPreparer& preparer,
     const TSimpleOperationIo& operationIo,
     const TMapOperationSpecBase<T>& spec,
-    IJob* mapper,
+    const IJob& mapper,
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
@@ -1278,7 +1278,7 @@ TOperationId DoExecuteMap(
         "map",
         MergeSpec(specNode, options));
 
-    LogJob(operationId, mapper, "mapper");
+    LogJob(operationId, &mapper, "mapper");
     LogYPaths(operationId, operationIo.Inputs, "input");
     LogYPaths(operationId, operationIo.Outputs, "output");
 
@@ -1288,7 +1288,7 @@ TOperationId DoExecuteMap(
 TOperationId ExecuteMap(
     TOperationPreparer& preparer,
     const TMapOperationSpec& spec,
-    IJob* mapper,
+    const IStructuredJob& mapper,
     const TOperationOptions& options)
 {
     return DoExecuteMap(
@@ -1302,7 +1302,7 @@ TOperationId ExecuteMap(
 TOperationId ExecuteRawMap(
     TOperationPreparer& preparer,
     const TRawMapOperationSpec& spec,
-    IRawJob* mapper,
+    const IRawJob& mapper,
     const TOperationOptions& options)
 {
     return DoExecuteMap(
@@ -1320,7 +1320,7 @@ TOperationId DoExecuteReduce(
     TOperationPreparer& preparer,
     const TSimpleOperationIo& operationIo,
     const TReduceOperationSpecBase<T>& spec,
-    IJob* reducer,
+    const IJob& reducer,
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
@@ -1378,7 +1378,7 @@ TOperationId DoExecuteReduce(
         "reduce",
         MergeSpec(specNode, options));
 
-    LogJob(operationId, reducer, "reducer");
+    LogJob(operationId, &reducer, "reducer");
     LogYPaths(operationId, operationIo.Inputs, "input");
     LogYPaths(operationId, operationIo.Outputs, "output");
 
@@ -1388,7 +1388,7 @@ TOperationId DoExecuteReduce(
 TOperationId ExecuteReduce(
     TOperationPreparer& preparer,
     const TReduceOperationSpec& spec,
-    IJob* reducer,
+    const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
     return DoExecuteReduce(
@@ -1402,14 +1402,14 @@ TOperationId ExecuteReduce(
 TOperationId ExecuteRawReduce(
     TOperationPreparer& preparer,
     const TRawReduceOperationSpec& spec,
-    IRawJob* mapper,
+    const IRawJob& reducer,
     const TOperationOptions& options)
 {
     return DoExecuteReduce(
         preparer,
         CreateSimpleOperationIo(preparer.GetAuth(), spec),
         spec,
-        mapper,
+        reducer,
         options);
 }
 
@@ -1420,7 +1420,7 @@ TOperationId DoExecuteJoinReduce(
     TOperationPreparer& preparer,
     const TSimpleOperationIo& operationIo,
     const TJoinReduceOperationSpecBase<T>& spec,
-    IJob* reducer,
+    const IJob& reducer,
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
@@ -1471,7 +1471,7 @@ TOperationId DoExecuteJoinReduce(
         "join_reduce",
         MergeSpec(specNode, options));
 
-    LogJob(operationId, reducer, "reducer");
+    LogJob(operationId, &reducer, "reducer");
     LogYPaths(operationId, operationIo.Inputs, "input");
     LogYPaths(operationId, operationIo.Outputs, "output");
 
@@ -1481,7 +1481,7 @@ TOperationId DoExecuteJoinReduce(
 TOperationId ExecuteJoinReduce(
     TOperationPreparer& preparer,
     const TJoinReduceOperationSpec& spec,
-    IJob* reducer,
+    const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
     return DoExecuteJoinReduce(
@@ -1495,14 +1495,14 @@ TOperationId ExecuteJoinReduce(
 TOperationId ExecuteRawJoinReduce(
     TOperationPreparer& preparer,
     const TRawJoinReduceOperationSpec& spec,
-    IRawJob* mapper,
+    const IRawJob& reducer,
     const TOperationOptions& options)
 {
     return DoExecuteJoinReduce(
         preparer,
         CreateSimpleOperationIo(preparer.GetAuth(), spec),
         spec,
-        mapper,
+        reducer,
         options);
 }
 
@@ -1513,9 +1513,9 @@ TOperationId DoExecuteMapReduce(
     TOperationPreparer& preparer,
     const TMapReduceOperationIo& operationIo,
     const TMapReduceOperationSpecBase<T>& spec,
-    IJob* mapper,
-    IJob* reduceCombiner,
-    IJob* reducer,
+    const IJob* mapper,
+    const IJob* reduceCombiner,
+    const IJob& reducer,
     const TOperationOptions& options)
 {
     TVector<TRichYPath> allOutputs;
@@ -1558,7 +1558,7 @@ TOperationId DoExecuteMapReduce(
                 preparer,
                 "--yt-map",
                 spec.MapperSpec_,
-                mapper,
+                *mapper,
                 1 + operationIo.MapOutputs.size(),
                 operationIo.MapperJobFiles,
                 options);
@@ -1577,7 +1577,7 @@ TOperationId DoExecuteMapReduce(
                 preparer,
                 "--yt-reduce",
                 spec.ReduceCombinerSpec_,
-                reduceCombiner,
+                *reduceCombiner,
                 1,
                 operationIo.ReduceCombinerJobFiles,
                 options);
@@ -1645,7 +1645,7 @@ TOperationId DoExecuteMapReduce(
 
     LogJob(operationId, mapper, "mapper");
     LogJob(operationId, reduceCombiner, "reduce_combiner");
-    LogJob(operationId, reducer, "reducer");
+    LogJob(operationId, &reducer, "reducer");
     LogYPaths(operationId, operationIo.Inputs, "input");
     LogYPaths(operationId, allOutputs, "output");
 
@@ -1655,9 +1655,9 @@ TOperationId DoExecuteMapReduce(
 TOperationId ExecuteMapReduce(
     TOperationPreparer& preparer,
     const TMapReduceOperationSpec& spec_,
-    IJob* mapper,
-    IJob* reduceCombiner,
-    IJob* reducer,
+    const IStructuredJob* mapper,
+    const IStructuredJob* reduceCombiner,
+    const IStructuredJob& reducer,
     const TMultiFormatDesc& mapperClassOutputDesc,
     const TMultiFormatDesc& reduceCombinerClassInputDesc,
     const TMultiFormatDesc& reduceCombinerClassOutputDesc,
@@ -1807,9 +1807,9 @@ TOperationId ExecuteMapReduce(
 TOperationId ExecuteRawMapReduce(
     TOperationPreparer& preparer,
     const TRawMapReduceOperationSpec& spec,
-    IRawJob* mapper,
-    IRawJob* reduceCombiner,
-    IRawJob* reducer,
+    const IRawJob* mapper,
+    const IRawJob* reduceCombiner,
+    const IRawJob& reducer,
     const TOperationOptions& options)
 {
     TMapReduceOperationIo operationIo;
@@ -1958,7 +1958,7 @@ TOperationId ExecuteVanilla(
             preparer,
             "--yt-map",
             task.Spec_,
-            task.Job_.Get(),
+            *task.Job_,
             /* outputTableCount = */ 0,
             /* smallFileList = */ {},
             options);

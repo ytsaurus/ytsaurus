@@ -254,7 +254,7 @@ TRawTableWriterPtr TClientBase::CreateRawWriter(
 
 IOperationPtr TClientBase::DoMap(
     const TMapOperationSpec& spec,
-    IJob* mapper,
+    const IStructuredJob& mapper,
     const TOperationOptions& options)
 {
     TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
@@ -275,14 +275,14 @@ IOperationPtr TClientBase::RawMap(
     auto operationId = ExecuteRawMap(
         preparer,
         spec,
-        mapper.Get(),
+        *mapper,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::DoReduce(
     const TReduceOperationSpec& spec,
-    IJob* reducer,
+    const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
     TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
@@ -303,14 +303,14 @@ IOperationPtr TClientBase::RawReduce(
     auto operationId = ExecuteRawReduce(
         preparer,
         spec,
-        reducer.Get(),
+        *reducer,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::DoJoinReduce(
     const TJoinReduceOperationSpec& spec,
-    IJob* reducer,
+    const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
     TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
@@ -331,16 +331,16 @@ IOperationPtr TClientBase::RawJoinReduce(
     auto operationId = ExecuteRawJoinReduce(
         preparer,
         spec,
-        reducer.Get(),
+        *reducer,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
 IOperationPtr TClientBase::DoMapReduce(
     const TMapReduceOperationSpec& spec,
-    IJob* mapper,
-    IJob* reduceCombiner,
-    IJob* reducer,
+    const IStructuredJob* mapper,
+    const IStructuredJob* reduceCombiner,
+    const IStructuredJob& reducer,
     const TMultiFormatDesc& outputMapperDesc,
     const TMultiFormatDesc& inputReduceCombinerDesc,
     const TMultiFormatDesc& outputReduceCombinerDesc,
@@ -375,7 +375,7 @@ IOperationPtr TClientBase::RawMapReduce(
         spec,
         mapper.Get(),
         reduceCombiner.Get(),
-        reducer.Get(),
+        *reducer,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
