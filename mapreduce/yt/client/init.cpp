@@ -168,6 +168,7 @@ void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
 
     TString jobName(argv[2]);
     size_t outputTableCount = FromString<size_t>(argv[3]);
+    NDetail::OutputTableCount = static_cast<i64>(outputTableCount);
     int hasState = FromString<int>(argv[4]);
 
     THolder<IInputStream> jobStateStream;
