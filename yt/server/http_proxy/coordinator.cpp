@@ -24,6 +24,8 @@
 
 #include <util/string/cgiparam.h>
 
+#include <util/random/shuffle.h>
+
 #include <util/system/info.h>
 
 namespace NYT {
@@ -147,6 +149,7 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxies(TNullable<TString> roleFil
     }
 
     std::sort(ordered.begin(), ordered.end());
+    Shuffle(ordered.begin(), ordered.begin() + ordered.size() / 2);
 
     filtered.clear();
     for (const auto& proxy : ordered) {
