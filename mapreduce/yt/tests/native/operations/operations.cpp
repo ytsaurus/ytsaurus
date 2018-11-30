@@ -482,6 +482,20 @@ REGISTER_MAPPER(TMapperThatNumbersRows);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReducerThatCountsOutputTables : public IReducer<TNodeReader, TNodeWriter>
+{
+public:
+    TReducerThatCountsOutputTables() = default;
+
+    void Do(TReader*, TWriter* writer) override
+    {
+        writer->AddRow(TNode()("result", GetOutputTableCount()), 0);
+    }
+};
+REGISTER_REDUCER(TReducerThatCountsOutputTables);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TIdMapperFailingFirstJob : public TIdMapper
 {
 public:
@@ -2626,6 +2640,52 @@ Y_UNIT_TEST_SUITE(Operations)
     Y_UNIT_TEST(ProtobufSchemaInferring_Options)
     {
         TestProtobufSchemaInferring(true);
+    }
+
+    Y_UNIT_TEST(OutputTableCounter)
+    {
+        auto client = CreateTestClient();
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath("//testing/input")
+                    .Schema(TTableSchema()
+                                .Strict(true)
+                                .AddColumn(TColumnSchema().Name("key").Type(VT_STRING).SortOrder(SO_ASCENDING))
+                                .AddColumn(TColumnSchema().Name("value").Type(VT_STRING))));
+            writer->AddRow(TNode()("key", "key1")("value", "value1"));
+            writer->Finish();
+        }
+
+        {
+            client->Reduce(
+                TReduceOperationSpec()
+                    .ReduceBy("key")
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output1"),
+                new TReducerThatCountsOutputTables());
+
+                auto reader = client->CreateTableReader<TNode>("//testing/output1");
+                UNIT_ASSERT(reader->IsValid());
+                UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("result", 1));
+                reader->Next();
+                UNIT_ASSERT(!reader->IsValid())
+        }
+
+        {
+            client->Reduce(
+                TReduceOperationSpec()
+                    .ReduceBy("key")
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output1")
+                    .AddOutput<TNode>("//testing/output2"),
+                new TReducerThatCountsOutputTables());
+
+                auto reader = client->CreateTableReader<TNode>("//testing/output1");
+                UNIT_ASSERT(reader->IsValid());
+                UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("result", 2));
+                reader->Next();
+                UNIT_ASSERT(!reader->IsValid())
+        }
     }
 }
 

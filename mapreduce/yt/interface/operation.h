@@ -10,6 +10,7 @@
 #include <util/generic/variant.h>
 #include <util/generic/vector.h>
 #include <util/system/file.h>
+#include <util/system/types.h>
 
 namespace NYT {
 
@@ -27,6 +28,12 @@ struct TJobBinaryCypressPath
 {
     TYPath Path;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+    extern i64 OutputTableCount;
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -587,6 +594,12 @@ public:
 
     const TNode& SecureVault() const {
         return GetJobSecureVault();
+    }
+
+    i64 GetOutputTableCount() const {
+        Y_VERIFY(NDetail::OutputTableCount > 0);
+
+        return NDetail::OutputTableCount;
     }
 };
 
