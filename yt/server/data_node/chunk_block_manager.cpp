@@ -54,10 +54,7 @@ public:
         TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->BlockCache->CompressedData,
-            NProfiling::TProfiler(
-                DataNodeProfiler.GetPathPrefix() +
-                "/block_cache/" +
-                FormatEnum(EBlockType::CompressedData)))
+            DataNodeProfiler.AppendPath("/block_cache/" + FormatEnum(EBlockType::CompressedData)))
         , Config_(config)
         , Bootstrap_(bootstrap)
         , ReaderThreadPool_(New<TThreadPool>(Config_->ReadThreadCount, "ReaderThread"))

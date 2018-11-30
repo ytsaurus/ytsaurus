@@ -136,7 +136,7 @@ TChunkReplicator::TChunkReplicator(
     , JobThrottler_(CreateReconfigurableThroughputThrottler(
         Config_->JobThrottler,
         ChunkServerLogger,
-        NProfiling::TProfiler(ChunkServerProfiler.GetPathPrefix() + "/job_throttler")))
+        ChunkServerProfiler.AppendPath("/job_throttler")))
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);

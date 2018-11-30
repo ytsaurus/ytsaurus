@@ -35,7 +35,7 @@ public:
         , RequestThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->RequestsThrottler,
             NLogging::TLogger(),
-            NProfiling::TProfiler(Profiler_.GetPathPrefix() + "/request_throttler")))
+            Profiler_.AppendPath("/request_throttler")))
     {
         TickExecutor_->Start();
     }

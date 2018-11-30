@@ -139,9 +139,7 @@ private:
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
                 options.Config = Config_->Writer;
                 options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
-                options.Profiler = NProfiling::TProfiler(
-                    HydraProfiler.GetPathPrefix() + "/remote_changelog",
-                    ProfilerTags_);
+                options.Profiler = HydraProfiler.AppendPath("/remote_changelog").AddTags(ProfilerTags_);
                 writer = Client_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())
                     .ThrowOnError();

@@ -172,8 +172,8 @@ public:
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
-        , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
-        , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
+        , TotalResourceLimitsProfiler_(SchedulerProfiler.AppendPath("/total_resource_limits"))
+        , TotalResourceUsageProfiler_(SchedulerProfiler.AppendPath("/total_resource_usage"))
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
@@ -204,7 +204,7 @@ public:
         }
 
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (type <= EJobType::SchedulerFirst || type >= EJobType::SchedulerLast) {
+            if (type < FirstSchedulerJobType || type > LastSchedulerJobType) {
                 continue;
             }
             JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("job_type", FormatEnum(type));
@@ -1459,7 +1459,7 @@ private:
         }
 
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (type <= EJobType::SchedulerFirst || type >= EJobType::SchedulerLast) {
+            if (type < FirstSchedulerJobType || type > LastSchedulerJobType) {
                 continue;
             }
             for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {

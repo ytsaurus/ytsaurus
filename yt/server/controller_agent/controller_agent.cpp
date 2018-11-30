@@ -139,7 +139,7 @@ public:
         , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->JobSpecSliceThrottler,
             NLogging::TLogger(),
-            NProfiling::TProfiler(ControllerAgentProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
+            ControllerAgentProfiler.AppendPath("/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
         , EventLogWriter_(New<TEventLogWriter>(
