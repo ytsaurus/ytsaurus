@@ -482,7 +482,6 @@ class TJobPreparer
 public:
     TJobPreparer(
         TOperationPreparer& operationPreparer,
-        const TString& commandLineName,
         const TUserJobSpec& spec,
         const IJob& job,
         size_t outputTableCount,
@@ -496,6 +495,7 @@ public:
         if (!Spec_.GetJobBinary().Is<TJobBinaryDefault>()) {
             jobBinary = Spec_.GetJobBinary();
         }
+        auto originalJobBinary = jobBinary;
         if (jobBinary.Is<TJobBinaryDefault>()) {
             if (GetInitStatus() != EInitStatus::FullInitialization) {
                 ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
@@ -541,9 +541,10 @@ public:
         ClassName_ = TJobFactory::Get()->GetJobName(&job);
         Command_ = TStringBuilder() <<
             jobCommandPrefix <<
-            (TConfig::Get()->UseClientProtobuf ? "YT_USE_CLIENT_PROTOBUF=1 " : "YT_USE_CLIENT_PROTOBUF=0 ") <<
+            (TConfig::Get()->UseClientProtobuf ? "YT_USE_CLIENT_PROTOBUF=1" : "YT_USE_CLIENT_PROTOBUF=0") << " " <<
             binaryPathInsideJob << " " <<
-            commandLineName << " " <<
+            // This argument has no meaning, but historically is checked in job initialization.
+            "--yt-map " <<
             "\"" << ClassName_ << "\" " <<
             outputTableCount << " " <<
             jobStateSmallFile.Defined() <<
@@ -1242,7 +1243,6 @@ TOperationId DoExecuteMap(
 
     TJobPreparer map(
         preparer,
-        "--yt-map",
         spec.MapperSpec_,
         mapper,
         operationIo.Outputs.size(),
@@ -1333,7 +1333,6 @@ TOperationId DoExecuteReduce(
 
     TJobPreparer reduce(
         preparer,
-        "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
         operationIo.Outputs.size(),
@@ -1433,7 +1432,6 @@ TOperationId DoExecuteJoinReduce(
 
     TJobPreparer reduce(
         preparer,
-        "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
         operationIo.Outputs.size(),
@@ -1542,7 +1540,6 @@ TOperationId DoExecuteMapReduce(
 
     TJobPreparer reduce(
         preparer,
-        "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
         operationIo.Outputs.size(),
@@ -1556,7 +1553,6 @@ TOperationId DoExecuteMapReduce(
         .DoIf(hasMapper, [&] (TFluentMap fluent) {
             TJobPreparer map(
                 preparer,
-                "--yt-map",
                 spec.MapperSpec_,
                 *mapper,
                 1 + operationIo.MapOutputs.size(),
@@ -1575,7 +1571,6 @@ TOperationId DoExecuteMapReduce(
         .DoIf(hasCombiner, [&] (TFluentMap fluent) {
             TJobPreparer combine(
                 preparer,
-                "--yt-reduce",
                 spec.ReduceCombinerSpec_,
                 *reduceCombiner,
                 1,
@@ -1956,7 +1951,6 @@ TOperationId ExecuteVanilla(
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         TJobPreparer jobPreparer(
             preparer,
-            "--yt-map",
             task.Spec_,
             *task.Job_,
             /* outputTableCount = */ 0,
