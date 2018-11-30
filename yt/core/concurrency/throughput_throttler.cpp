@@ -279,8 +279,7 @@ IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottl
     NProfiling::TProfiler profiler)
 {
     logger.AddTag("Throttler: %v", name);
-    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" +
-        CamelCaseToUnderscoreCase(name));
+    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" + CamelCaseToUnderscoreCase(name));
 
     return CreateReconfigurableThroughputThrottler(config, logger, profiler);
 };
@@ -358,8 +357,7 @@ IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
     const TString& name,
     NProfiling::TProfiler profiler)
 {
-    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" +
-        CamelCaseToUnderscoreCase(name));
+    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" + CamelCaseToUnderscoreCase(name));
 
     return New<TUnlimitedThroughtputThrottler>(profiler);
 };

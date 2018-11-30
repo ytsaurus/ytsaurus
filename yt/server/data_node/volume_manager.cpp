@@ -842,7 +842,7 @@ public:
         TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             New<TSlruCacheConfig>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction),
-            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/layer_cache"))
+            DataNodeProfiler.AppendPath("/layer_cache"))
         , Bootstrap_(bootstrap)
         , LayerLocations_(std::move(layerLocations))
     {

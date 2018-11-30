@@ -673,12 +673,11 @@ public:
 
         if (context.Profiler.GetEnabled()) {
             for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
-                NProfiling::TProfiler profiler(
-                    context.Profiler.GetPathPrefix() + "/timing_events",
+                auto profiler = context.Profiler.AppendPath("/timing_events").AddTags(
                     {
                         NProfiling::TProfileManager::Get()->RegisterTag("type", type)
                     });
-                auto& counters = EventCounters_[type];
+                const auto& counters = EventCounters_[type];
                 profiler.Enqueue("/count", counters.Count, NProfiling::EMetricType::Gauge);
                 profiler.Enqueue("/size", counters.Size, NProfiling::EMetricType::Gauge);
             }
@@ -1761,21 +1760,21 @@ private:
     void PushSystemStatistics(const TBackgroundContext& context)
     {
         auto counters = GetSystemCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/system");
+        auto profiler = context.Profiler.AppendPath("/system");
         PushCounterStatistics(profiler, counters);
     }
 
     void PushTotalStatistics(const TBackgroundContext& context)
     {
         auto counters = GetTotalCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/total");
+        auto profiler = context.Profiler.AppendPath("/total");
         PushCounterStatistics(profiler, counters);
     }
 
     void PushHugeStatistics(const TBackgroundContext& context)
     {
         auto counters = GetHugeCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/huge");
+        auto profiler = context.Profiler.AppendPath("/total");
         PushCounterStatistics(profiler, counters);
     }
 
@@ -1784,8 +1783,7 @@ private:
         size_t rank,
         const TLocalSmallCounters& counters)
     {
-        NProfiling::TProfiler profiler(
-            context.Profiler.GetPathPrefix() + "/small_arena",
+        auto profiler = context.Profiler.AppendPath("/total").AddTags(
             {
                 NProfiling::TProfileManager::Get()->RegisterTag("rank", rank)
             });
@@ -1795,7 +1793,7 @@ private:
     void PushSmallStatistics(const TBackgroundContext& context)
     {
         auto counters = GetSmallCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/small");
+        auto profiler = context.Profiler.AppendPath("/small");
         PushCounterStatistics(profiler, counters);
 
         auto arenaCounters = GetSmallArenaCounters();
@@ -1809,8 +1807,7 @@ private:
         size_t rank,
         const TLocalLargeCounters& counters)
     {
-        NProfiling::TProfiler profiler(
-            context.Profiler.GetPathPrefix() + "/large_arena",
+        auto profiler = context.Profiler.AppendPath("/large_arena").AddTags(
             {
                 NProfiling::TProfileManager::Get()->RegisterTag("rank", rank)
             });
@@ -1832,7 +1829,7 @@ private:
     void PushLargeStatistics(const TBackgroundContext& context)
     {
         auto counters = GetLargeCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/large");
+        auto profiler = context.Profiler.AppendPath("/large");
         PushCounterStatistics(profiler, counters);
 
         auto arenaCounters = GetLargeArenaCounters();

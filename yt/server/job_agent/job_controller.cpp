@@ -214,8 +214,8 @@ TJobController::TImpl::TImpl(
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
-    , ResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/resource_limits")
-    , ResourceUsageProfiler_(Profiler.GetPathPrefix() + "/resource_usage")
+    , ResourceLimitsProfiler_(Profiler.AppendPath("/resource_limits"))
+    , ResourceUsageProfiler_(Profiler.AppendPath("/resource_usage"))
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);

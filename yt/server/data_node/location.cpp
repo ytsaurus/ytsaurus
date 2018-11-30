@@ -66,12 +66,11 @@ TLocation::TLocation(
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
-    NProfiling::TTagIdList tagIds{
+    Profiler_ = DataNodeProfiler.AddTags({
         profileManager->RegisterTag("location_id", Id_),
         profileManager->RegisterTag("location_type", Type_),
         profileManager->RegisterTag("medium", GetMediumName())
-    };
-    Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+    });
 
     PerformanceCounters_.ThrottledReads = {"/throttled_reads", {}, config->ThrottleCounterInterval};
     PerformanceCounters_.ThrottledWrites = {"/throttled_writes", {}, config->ThrottleCounterInterval};
@@ -113,8 +112,7 @@ TLocation::TLocation(
         Profiler_,
         NLogging::TLogger(DataNodeLogger).AddTag("LocationId: %v", id));
 
-    auto throttlersProfiler = Profiler_;
-    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
+    auto throttlersProfiler = Profiler_.AppendPath("/location");
 
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
@@ -691,8 +689,7 @@ TStoreLocation::TStoreLocation(
         TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
 {
-    auto throttlersProfiler = GetProfiler();
-    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
+    auto throttlersProfiler = GetProfiler().AppendPath("/location");
 
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
@@ -1139,8 +1136,7 @@ TCacheLocation::TCacheLocation(
     , Config_(config)
     , InThrottler_(CreateReconfigurableThroughputThrottler(config->InThrottler))
 {
-    auto throttlersProfiler = Profiler_;
-    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/cache");
+    auto throttlersProfiler = Profiler_.AppendPath("/cache");
 
     InThrottler_ =  CreateNamedReconfigurableThroughputThrottler(
         config->InThrottler,
