@@ -171,7 +171,6 @@ public:
         bool allowFormatFromTableAttribute)
         : FormatDesc_(formatDesc)
         , SkiffSchema_(nullptr)
-        , FormatFromTableAttribute_()
         , Format_(TNode("NO_FORMAT")) // It will be properly initialized in the constructor body
     {
         switch (FormatDesc_.Format) {
@@ -183,12 +182,13 @@ public:
                     ? CreateSkiffFormat(SkiffSchema_)
                     : TFormat::YsonBinary();
                 break;
-            case TMultiFormatDesc::F_YAMR:
+            case TMultiFormatDesc::F_YAMR: {
+                TMaybe<TNode> formatFromTableAttribute;
                 if (allowFormatFromTableAttribute && options.UseTableFormats_) {
-                    FormatFromTableAttribute_ = GetTableFormats(auth, transactionId, tables);
+                    formatFromTableAttribute = GetTableFormats(auth, transactionId, tables);
                 }
-                if (FormatFromTableAttribute_) {
-                    Format_ = TFormat(*FormatFromTableAttribute_);
+                if (formatFromTableAttribute) {
+                    Format_ = TFormat(*formatFromTableAttribute);
                 } else {
                     auto formatNode = TNode("yamr");
                     formatNode.Attributes() = TNode()
@@ -198,6 +198,7 @@ public:
                     Format_ = TFormat(formatNode);
                 }
                 break;
+            }
             case TMultiFormatDesc::F_PROTO:
                 if (TConfig::Get()->UseClientProtobuf) {
                     Format_ = TFormat::YsonBinary();
@@ -236,14 +237,9 @@ public:
         return FormatDesc_.Format;
     }
 
-    const TMaybe<TNode>& GetFormatFromTableAttribute() const {
-        return FormatFromTableAttribute_;
-    }
-
 private:
     TMultiFormatDesc FormatDesc_;
     NSkiff::TSkiffSchemaPtr SkiffSchema_;
-    TMaybe<TNode> FormatFromTableAttribute_;
     TFormat Format_;
 
 private:
@@ -1714,23 +1710,18 @@ TOperationId ExecuteMapReduce(
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");
 
-    auto fixSpec = [&](const TFormatDescImpl& formatDesc) {
-        if (auto formatFromTableAttribute = formatDesc.GetFormatFromTableAttribute()) {
+    auto fixSpec = [&](const TFormat& format) {
+        if (format.IsYamredDsv()) {
             spec.SortBy_.Parts_.clear();
             spec.ReduceBy_.Parts_.clear();
 
-            const auto& attrs = formatFromTableAttribute->GetAttributes();
-            const auto& keyColumns = attrs["key_column_names"].AsList();
-            for (auto& column : keyColumns) {
-                spec.SortBy_.Parts_.push_back(column.AsString());
-                spec.ReduceBy_.Parts_.push_back(column.AsString());
+            const TYamredDsvAttributes attributes = format.GetYamredDsvAttributes();
+            for (auto& column : attributes.KeyColumnNames) {
+                spec.SortBy_.Parts_.push_back(column);
+                spec.ReduceBy_.Parts_.push_back(column);
             }
-
-            if (attrs.HasKey("subkey_column_names")) {
-                const auto& subkeyColumns = attrs["subkey_column_names"].AsList();
-                for (const auto& column : subkeyColumns) {
-                    spec.SortBy_.Parts_.push_back(column.AsString());
-                }
+            for (const auto& column : attributes.SubkeyColumnNames) {
+                spec.SortBy_.Parts_.push_back(column);
             }
         }
     };
@@ -1776,7 +1767,7 @@ TOperationId ExecuteMapReduce(
             spec.ReduceCombinerFormatHints_.OutputFormatHints_);
 
         if (isFirstStep) {
-            fixSpec(inputDescImpl);
+            fixSpec(*operationIo.ReduceCombinerInputFormat);
         }
     }
 
@@ -1800,7 +1791,7 @@ TOperationId ExecuteMapReduce(
         spec.ReducerFormatHints_.OutputFormatHints_);
 
     if (isFirstStep) {
-        fixSpec(inputDescImpl);
+        fixSpec(operationIo.ReducerInputFormat);
     }
 
     return DoExecuteMapReduce(

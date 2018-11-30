@@ -1,5 +1,7 @@
 #include "format.h"
 
+#include "errors.h"
+
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
 #include <contrib/libs/protobuf/descriptor.h>
@@ -16,6 +18,15 @@ using ::google::protobuf::FileDescriptorSet;
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TString FormatName(const TFormat& format)
+{
+    if (!format.Config.IsString()) {
+        Y_VERIFY(format.Config.IsUndefined());
+        return "<undefined>";
+    }
+    return format.Config.AsString();
+}
 
 TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescriptor)
 {
@@ -111,6 +122,48 @@ bool TFormat::IsTextYson() const
         return false;
     }
     return true;
+}
+
+bool TFormat::IsYamredDsv() const
+{
+    return Config.IsString() && Config.AsString() == "yamred_dsv";
+}
+
+TYamredDsvAttributes TFormat::GetYamredDsvAttributes() const
+{
+    if (!IsYamredDsv()) {
+        ythrow TApiUsageError() << "Cannot get yamred_dsv attributes for " << FormatName(*this) << " format";
+    }
+    TYamredDsvAttributes attributes;
+
+    const auto& nodeAttributes = Config.GetAttributes();
+    {
+        const auto& keyColumns = nodeAttributes["key_column_names"];
+        if (!keyColumns.IsList()) {
+            ythrow yexception() << "Ill-formed format: key_column_names is of non-list type: " << keyColumns.GetType();
+        }
+        for (auto& column : keyColumns.AsList()) {
+            if (!column.IsString()) {
+                ythrow yexception() << "Ill-formed format: key_column_names: " << column.GetType();
+            }
+            attributes.KeyColumnNames.push_back(column.AsString());
+        }
+    }
+
+    if (nodeAttributes.HasKey("subkey_column_names")) {
+        const auto& subkeyColumns = nodeAttributes["subkey_column_names"];
+        if (!subkeyColumns.IsList()) {
+            ythrow yexception() << "Ill-formed format: subkey_column_names is not a list: " << subkeyColumns.GetType();
+        }
+        for (const auto& column : subkeyColumns.AsList()) {
+            if (!column.IsString()) {
+                ythrow yexception() << "Ill-formed format: non-string inside subkey_key_column_names: " << column.GetType();
+            }
+            attributes.SubkeyColumnNames.push_back(column.AsString());
+        }
+    }
+
+    return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
