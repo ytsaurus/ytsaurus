@@ -60,7 +60,12 @@ TObjectAttributes CreateBasicAttributes(const IMapNode& attributeMap)
     attributes.Type = ToObjectType(
         attributeMap.GetChild("type")->AsString()->GetValue());
 
-    attributes.Revision = attributeMap.GetChild("revision")->AsInt64()->GetValue();
+    auto child = attributeMap.GetChild("revision");
+    if (child->GetType() == ENodeType::Int64) {
+        attributes.Revision = attributeMap.GetChild("revision")->AsInt64()->GetValue();
+    } else {
+        attributes.Revision = attributeMap.GetChild("revision")->AsUint64()->GetValue();
+    }
 
     attributes.LastModificationTime = TInstant::ParseIso8601Deprecated(
         attributeMap.GetChild("modification_time")->AsString()->GetValue());
