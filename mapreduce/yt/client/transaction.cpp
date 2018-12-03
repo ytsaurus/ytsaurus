@@ -13,6 +13,8 @@
 
 #include <util/datetime/base.h>
 
+#include <util/random/random.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,6 +87,15 @@ TPingableTransaction::TPingableTransaction(
 
     Running_ = true;
 
+    {
+        // Compute 'MaxPingInterval_' and 'MinPingInterval_' such that 'pingInterval == (max + min) / 2'.
+        auto pingInterval = TConfig::Get()->PingInterval;
+        auto actualTimeout = timeout.GetOrElse(TConfig::Get()->TxTimeout);
+        auto safeTimeout = actualTimeout - TDuration::Seconds(5);
+        MaxPingInterval_ = Max(pingInterval, Min(safeTimeout, pingInterval * 1.5));
+        MinPingInterval_ = pingInterval - (MaxPingInterval_ - pingInterval);
+    }
+
     if (autoPingable) {
         Thread_ = MakeHolder<TThread>(TThread::TParams{Pinger, (void*)this}.SetName("pingable_tx"));
         Thread_->Start();
@@ -148,8 +159,9 @@ void TPingableTransaction::Pinger()
             break;
         }
 
+        TDuration pingInterval = MinPingInterval_ + (MaxPingInterval_ - MinPingInterval_) * RandomNumber<float>();
         TInstant t = Now();
-        while (Running_ && Now() - t < TConfig::Get()->PingInterval) {
+        while (Running_ && Now() - t < pingInterval) {
             NDetail::TWaitProxy::Sleep(TDuration::MilliSeconds(100));
         }
     }
