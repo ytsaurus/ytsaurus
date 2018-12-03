@@ -88,6 +88,10 @@ public:
         NCypressClient::ELockMode mode,
         const NApi::TLockNodeOptions& options) override;
 
+    virtual TFuture<void> UnlockNode(
+        const NYPath::TYPath& path,
+        const NApi::TUnlockNodeOptions& options) override;
+
     virtual TFuture<NCypressClient::TNodeId> CopyNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,

@@ -389,6 +389,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SetNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LockNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnlockNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CopyNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MoveNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LinkNode));
@@ -1218,6 +1219,32 @@ private:
                     result.NodeId,
                     result.LockId);
             });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnlockNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        const auto& path = request->path();
+
+        TUnlockNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        context->SetRequestInfo("Path: %v", path);
+
+        CompleteCallWith(context, client->UnlockNode(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CopyNode)

@@ -126,6 +126,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUnlockCommand
+    : public TTypedCommand<NApi::TUnlockNodeOptions>
+{
+public:
+    TUnlockCommand();
+
+private:
+    NYPath::TRichYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCopyCommand
     : public TTypedCommand<NApi::TCopyNodeOptions>
 {

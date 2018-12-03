@@ -460,6 +460,10 @@ public:
         NCypressClient::ELockMode mode,
         const TLockNodeOptions& options),
         (path, mode, options))
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, UnlockNode, (
+        const TYPath& path,
+        const TUnlockNodeOptions& options),
+        (path, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TNodeId>, CopyNode, (
         const TYPath& srcPath,
         const TYPath& dstPath,

@@ -131,6 +131,17 @@ void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* 
     AccountResourceUsage_[account] += node->GetDeltaResourceUsage();
 }
 
+bool TTransaction::IsDescendantOf(TTransaction* transaction) const
+{
+    YCHECK(transaction);
+    for (auto* current = GetParent(); current; current = current->GetParent()) {
+        if (current == transaction) {
+            return true;
+        }
+    }
+    return false;
+}
+
 namespace {
 
 template <class TFluent>

@@ -691,6 +691,21 @@ message TRspLockNode
 
 //------------------------------------------------------------------------------
 
+message TReqUnlockNode
+{
+    required string path = 1; // YPath
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TPrerequisiteOptions prerequisite_options = 101;
+    optional TMutatingOptions mutating_options = 103;
+}
+
+message TRspUnlockNode
+{
+}
+
+//------------------------------------------------------------------------------
+
 message TReqCopyNode
 {
     required string src_path = 1; // YPath

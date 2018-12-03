@@ -35,6 +35,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ListNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LockNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnlockNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CopyNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MoveNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LinkNode);

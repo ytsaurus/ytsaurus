@@ -492,6 +492,14 @@ struct TLockNodeResult
     NCypressClient::TNodeId NodeId;
 };
 
+struct TUnlockNodeOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMutatingOptions
+    , public TPrerequisiteOptions
+{
+};
+
 struct TCopyNodeOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
@@ -996,6 +1004,10 @@ struct IClientBase
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
         const TLockNodeOptions& options = TLockNodeOptions()) = 0;
+
+    virtual TFuture<void> UnlockNode(
+        const NYPath::TYPath& path,
+        const TUnlockNodeOptions& options = TUnlockNodeOptions()) = 0;
 
     virtual TFuture<NCypressClient::TNodeId> CopyNode(
         const NYPath::TYPath& srcPath,

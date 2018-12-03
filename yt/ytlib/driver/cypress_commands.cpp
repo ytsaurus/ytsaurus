@@ -239,6 +239,24 @@ void TLockCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUnlockCommand::TUnlockCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TUnlockCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncUnlockResult = context->GetClient()->UnlockNode(
+        RewritePath(Path.GetPath(), RewriteOperationPath),
+        Options);
+    WaitFor(asyncUnlockResult)
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCopyCommand::TCopyCommand()
 {
     RegisterParameter("source_path", SourcePath);

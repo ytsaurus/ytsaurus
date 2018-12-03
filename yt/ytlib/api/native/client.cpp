@@ -661,6 +661,10 @@ public:
         ELockMode mode,
         const TLockNodeOptions& options),
         (path, mode, options))
+    IMPLEMENT_METHOD(void, UnlockNode, (
+        const TYPath& path,
+        const TUnlockNodeOptions& options),
+        (path, options))
     IMPLEMENT_METHOD(TNodeId, CopyNode, (
         const TYPath& srcPath,
         const TYPath& dstPath,
@@ -2904,6 +2908,25 @@ private:
             .ValueOrThrow();
 
         return TLockNodeResult({FromProto<TLockId>(rsp->lock_id()), FromProto<TNodeId>(rsp->node_id())});
+    }
+
+    void DoUnlockNode(
+        const TYPath& path,
+        const TUnlockNodeOptions& options)
+    {
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        auto batchReq = proxy->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
+        auto req = TCypressYPathProxy::Unlock(path);
+        SetTransactionId(req, options, false);
+        SetMutationId(req, options);
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspUnlock>(0)
+            .ValueOrThrow();
     }
 
     TNodeId DoCopyNode(

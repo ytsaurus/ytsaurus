@@ -78,6 +78,13 @@ public:
 
     NYson::TYsonString GetErrorDescription() const;
 
+    //! Returns true iff this transaction is (arbitrarily deeply) nested in #transaction.
+    /*!
+     *  A transaction is NOT a descendant of itself.
+     *  NB: complexity is O(number of intermediate descendants).
+     */
+    bool IsDescendantOf(TTransaction* transaction) const;
+
 private:
     void AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged);
 
