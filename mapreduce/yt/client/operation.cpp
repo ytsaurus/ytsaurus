@@ -553,7 +553,9 @@ public:
             jobStateSmallFile.Defined() <<
             jobCommandSuffix;
 
-        LockedCachedFiles_ = operationPreparer.LockFiles(CachedFiles_);
+        // TODO(levysotsky): Return it when tests are fix.
+        // LockedCachedFiles_ = operationPreparer.LockFiles(CachedFiles_);
+        LockedCachedFiles_ = CachedFiles_;
     }
 
     TVector<TNode> GetFiles() const
