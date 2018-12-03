@@ -35,6 +35,8 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/client/node_tracker_client/helpers.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -919,7 +921,7 @@ private:
 
     static TYPath GetNodePath(const TString& address)
     {
-        return "//sys/nodes/" + ToYPathLiteral(address);
+        return GetClusterNodesPath() + "/" + ToYPathLiteral(address);
     }
 
     static TYPath GetNodePath(TNode* node)
@@ -930,7 +932,7 @@ private:
     IMapNodePtr GetNodeMap()
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return cypressManager->ResolvePathToNodeProxy("//sys/nodes")->AsMap();
+        return cypressManager->ResolvePathToNodeProxy(GetClusterNodesPath())->AsMap();
     }
 
     void HydraRegisterNode(

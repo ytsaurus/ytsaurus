@@ -40,6 +40,8 @@
 
 #include <yt/client/api/transaction.h>
 
+#include <yt/client/node_tracker_client/helpers.h>
+
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -1784,7 +1786,7 @@ private:
     {
         LOG_INFO("Requesting exec nodes information");
 
-        auto req = TYPathProxy::List("//sys/nodes");
+        auto req = TYPathProxy::List(GetClusterNodesPath());
         std::vector<TString> attributeKeys{
             "id",
             "tags",
