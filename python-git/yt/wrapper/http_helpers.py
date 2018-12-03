@@ -21,6 +21,7 @@ import socket
 from datetime import datetime
 from socket import error as SocketError
 from abc import ABCMeta, abstractmethod
+from copy import deepcopy
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
@@ -255,7 +256,7 @@ class RequestRetrier(Retrier):
                 timeout = tuple(imap(lambda elem: elem / 1000.0, self.requests_timeout))
             else:
                 timeout = self.requests_timeout / 1000.0
-            response = create_response(session.request(self.method, url, timeout=timeout, **self.kwargs),
+            response = create_response(session.request(self.method, url, timeout=deepcopy(timeout), **self.kwargs),
                                        request_info, self.error_format, self.client)
 
         except requests.ConnectionError as error:
