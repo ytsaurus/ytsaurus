@@ -56,15 +56,20 @@ public:
 
     const TAuth& GetAuth() const;
     TTransactionId GetTransactionId() const;
+    TVector<TRichYPath> LockFiles(TVector<TRichYPath> paths) const;
 
     TOperationId StartOperation(
         const TString& operationType,
-        const TString& ysonSpec,
+        const TNode& spec,
         bool useStartOperationRequest = false);
 
 private:
     TClientPtr Client_;
     TTransactionId TransactionId_;
+    THolder<TPingableTransaction> FileTransaction_;
+
+private:
+    void CheckValidity() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
