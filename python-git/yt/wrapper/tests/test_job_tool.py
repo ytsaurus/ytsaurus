@@ -17,7 +17,7 @@ import pytest
 import time
 import json
 
-NODE_ORCHID_JOB_PATH_PATTERN = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
+NODE_ORCHID_JOB_PATH_PATTERN = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
 
 class TestJobRunner(object):
     @classmethod

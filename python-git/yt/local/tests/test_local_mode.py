@@ -422,7 +422,7 @@ class TestLocalMode(object):
 
         try:
             client = YtClient(proxy=self.yt_local("get_proxy", env_id))
-            assert len(client.list("//sys/nodes")) == 5
+            assert len(client.list("//sys/cluster_nodes")) == 5
             assert len(client.list("//sys/scheduler/instances")) == 2
             assert len(client.list("//sys/primary_masters")) == 3
         finally:
@@ -448,8 +448,8 @@ class TestLocalMode(object):
 
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
-                node_address = client.list("//sys/nodes")[0]
-                assert client.get("//sys/nodes/{0}/@resource_limits/user_slots".format(node_address)) == 20
+                node_address = client.list("//sys/cluster_nodes")[0]
+                assert client.get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node_address)) == 20
                 for subpath in ["primary_masters", "scheduler/instances"]:
                     address = client.list("//sys/{0}".format(subpath))[0]
                     assert client.get("//sys/{0}/{1}/orchid/config/yt_local_test_key"
