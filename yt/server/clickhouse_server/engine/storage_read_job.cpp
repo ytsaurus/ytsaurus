@@ -72,6 +72,8 @@ public:
         size_t maxBlockSize,
         unsigned numStreams) override;
 
+    QueryProcessingStage::Enum getQueryProcessingStage(const Context& context) const override;
+
 private:
     const NamesAndTypesList& ListPhysicalColumns() const override
     {
@@ -119,6 +121,11 @@ BlockInputStreams TStorageReadJob::read(
     }
 
     return streams;
+}
+
+QueryProcessingStage::Enum TStorageReadJob::getQueryProcessingStage(const Context& context) const
+{
+    return QueryProcessingStage::Enum::Complete;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
