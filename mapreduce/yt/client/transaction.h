@@ -37,6 +37,9 @@ public:
 private:
     TAuth Auth_;
     TTransactionId TransactionId_;
+    TDuration MinPingInterval_;
+    TDuration MaxPingInterval_;
+
     // We have to own an IntrusivePtr to registry to prevent use-after-free
     ::TIntrusivePtr<NDetail::TAbortableRegistry> AbortableRegistry_;
 
