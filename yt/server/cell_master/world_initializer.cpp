@@ -326,10 +326,10 @@ private:
             ScheduleCreateNode(
                 "//sys/cluster_nodes",
                 transactionId,
-                EObjectType::ClusterNodeMap,
+                EObjectType::Link,
                 BuildYsonStringFluently()
                     .BeginMap()
-                        .Item("opaque").Value(true)
+                        .Item("target_path").Value("//sys/nodes")
                     .EndMap());
 
             ScheduleCreateNode(
