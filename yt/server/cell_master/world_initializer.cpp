@@ -322,6 +322,16 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
+            // COMPAT(babenko): YT-4558
+            ScheduleCreateNode(
+                "//sys/cluster_nodes",
+                transactionId,
+                EObjectType::ClusterNodeMap,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
             ScheduleCreateNode(
                 "//sys/racks",
                 transactionId,
