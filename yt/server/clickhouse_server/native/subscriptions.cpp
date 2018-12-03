@@ -332,7 +332,7 @@ TErrorOr<TNodeRevision> TNodePoller::GetRevision()
 
     if (result.IsOK()) {
         const auto node = ConvertToNode(result.Value());
-        return node->AsInt64()->GetValue();
+        return node->GetType() == ENodeType::Int64 ? node->AsInt64()->GetValue() : node->AsUint64()->GetValue();
     } else if (IsNodeNotFound(result)) {
         return -1; // Node not found
     } else {
