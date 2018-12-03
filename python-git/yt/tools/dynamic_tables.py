@@ -167,7 +167,7 @@ def get_pivot_keys_new(client, tablet):
     tablet_id = tablet["tablet_id"]
     cell_id = tablet["cell_id"]
     node = client.get("#{0}/@peers/0/address".format(cell_id))
-    partitions_path = "//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/partitions".format(
+    partitions_path = "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/partitions".format(
         node, cell_id, tablet_id)
     partitions = client.get(partitions_path)
     for partition in partitions:
