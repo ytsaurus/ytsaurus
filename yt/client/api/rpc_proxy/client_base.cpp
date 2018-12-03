@@ -321,6 +321,24 @@ TFuture<TLockNodeResult> TClientBase::LockNode(
     }));
 }
 
+TFuture<void> TClientBase::UnlockNode(
+    const NYPath::TYPath& path,
+    const NApi::TUnlockNodeOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.UnlockNode();
+    SetTimeoutOptions(*req, options);
+
+    req->set_path(path);
+
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+    ToProto(req->mutable_mutating_options(), options);
+
+    return req->Invoke().As<void>();
+}
+
 TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
     const TYPath& srcPath,
     const TYPath& dstPath,

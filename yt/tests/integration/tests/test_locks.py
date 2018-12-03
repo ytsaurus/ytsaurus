@@ -3,6 +3,8 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+import __builtin__
+
 ##################################################################
 
 class TestLocks(YTEnvSetup):
@@ -66,13 +68,392 @@ class TestLocks(YTEnvSetup):
         lock("//tmp/node", mode = "snapshot", tx = tx)
 
         set("//tmp/node", 100)
-        # check that node under snapshot lock wasn"t changed
+        # check that node under snapshot lock wasn't changed
         assert get("//tmp/node", tx = tx) == 42
 
-        # can"t change value under snapshot lock
+        # can't change value under snapshot lock
         with pytest.raises(YtError): set("//tmp/node", 200, tx = tx)
 
         abort_transaction(tx)
+
+    def _assert_locked(self, path, tx, mode, child_key=None, attribute_key=None):
+        self._assert_locked_impl(path, tx, True)
+
+        locks = get(path + "/@locks", tx=tx)
+        lock = None
+        for l in locks:
+            if (l.get("transaction_id") == tx and
+                (child_key is None or l.get("child_key") == child_key) and
+                (attribute_key is None or l.get("attribute_key") == attribute_key)):
+                lock = l
+                break
+
+        assert lock
+        assert lock["mode"] == mode
+        assert lock["state"] == "acquired"
+        if child_key is not None:
+            assert lock["child_key"] == child_key
+        if attribute_key is not None:
+            assert lock["attribute_key"] == attribute_key
+
+        assert lock["id"] in get("#{0}/@lock_ids".format(tx))
+
+    def _assert_not_locked(self, path, tx):
+        self._assert_locked_impl(path, tx, False)
+
+    def _assert_locked_impl(self, path, tx, assert_true):
+        node_id = get(path + "/@id", tx=tx)
+        locked_node_ids = get("#{0}/@locked_node_ids".format(tx))
+        if assert_true:
+            assert node_id in locked_node_ids
+        else:
+            assert node_id not in locked_node_ids
+
+    @pytest.mark.parametrize("mode", ["snapshot", "exclusive", "shared_child", "shared_attribute"])
+    def test_unlock_explicit(self, mode):
+        create("map_node", "//tmp/m1")
+
+        if mode == "shared_child":
+            mode = "shared"
+            kwargs1 = {"child_key": "x1"}
+            kwargs2 = {"child_key": "x2"}
+        elif mode == "shared_attribute":
+            mode = "shared"
+            kwargs1 = {"attribute_key": "x1"}
+            kwargs2 = {"attribute_key": "x2"}
+        else:
+            kwargs1 = {}
+
+        tx = start_transaction()
+        lock_id = lock("//tmp/m1", mode=mode, tx=tx, **kwargs1)
+
+        self._assert_locked("//tmp/m1", tx, mode, **kwargs1)
+
+        tx2 = start_transaction()
+        if mode != "snapshot":
+            with pytest.raises(YtError): lock("//tmp/m1", mode=mode, tx=tx2, **kwargs1)
+        if mode == "shared":
+            lock("//tmp/m1", mode=mode, tx=tx2, **kwargs2)
+
+        unlock("//tmp/m1", tx=tx)
+
+        if mode == "shared":
+            self._assert_locked("//tmp/m1", tx2, "shared", **kwargs2)
+
+        self._assert_not_locked("//tmp/m1", tx)
+        assert not exists("#{0}".format(lock_id))
+        assert len(get("#{0}/@lock_ids".format(tx))) == 0
+
+        lock_id = lock("//tmp/m1", mode=mode, tx=tx2, **kwargs1)
+        self._assert_locked("//tmp/m1", tx2, mode, **kwargs1)
+
+        commit_transaction(tx) # mustn't crash
+
+    def test_unlock_implicit_noop(self):
+        create("map_node", "//tmp/m1")
+
+        tx = start_transaction()
+        set("//tmp/m1/c1", "child_value", tx=tx)
+        set("//tmp/m1/@a1", "attribute_value", tx=tx)
+
+        self._assert_locked("//tmp/m1", tx, "shared", child_key="c1")
+        self._assert_locked("//tmp/m1", tx, "shared", attribute_key="a1")
+        self._assert_locked("//tmp/m1/c1", tx, "exclusive")
+
+        unlock("//tmp/m1", tx=tx)
+        unlock("//tmp/m1/c1", tx=tx)
+
+        self._assert_locked("//tmp/m1", tx, "shared", child_key="c1")
+        self._assert_locked("//tmp/m1", tx, "shared", attribute_key="a1")
+        self._assert_locked("//tmp/m1/c1", tx, "exclusive")
+
+        commit_transaction(tx) # mustn't crash
+
+    @pytest.mark.parametrize("mode", ["exclusive", "shared"])
+    def test_unlock_modified(self, mode):
+        create("map_node", "//tmp/m1")
+
+        tx = start_transaction()
+        lock("//tmp/m1", mode=mode, tx=tx)
+
+        self._assert_locked("//tmp/m1", tx, mode)
+
+        set("//tmp/m1/c1", "child_value", tx=tx)
+
+        with pytest.raises(YtError): unlock("//tmp/m1", tx=tx) # modified and can't be unlocked
+
+    def test_unlock_not_locked(self):
+        create("map_node", "//tmp/m1")
+
+        tx = start_transaction()
+        self._assert_not_locked("//tmp/m1", tx)
+        unlock("//tmp/m1", tx=tx) # should be a quiet noop
+
+    @pytest.mark.parametrize("mode", ["exclusive", "shared"])
+    def test_unlock_promoted_lock(self, mode):
+        create("map_node", "//tmp/m1")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        lock("//tmp/m1", mode=mode, tx=tx2)
+        commit_transaction(tx2)
+
+        self._assert_locked("//tmp/m1", tx1, mode)
+        unlock("//tmp/m1", tx=tx1)
+        self._assert_not_locked("//tmp/m1", tx1)
+
+        commit_transaction(tx1) # mustn't crash
+
+    @pytest.mark.parametrize("mode", ["exclusive", "shared", "snapshot"])
+    def test_unlock_and_lock_again(self, mode):
+        create("map_node", "//tmp/m1")
+        tx = start_transaction()
+        lock("//tmp/m1", mode=mode, tx=tx)
+        self._assert_locked("//tmp/m1", tx, mode)
+        unlock("//tmp/m1", tx=tx)
+        self._assert_not_locked("//tmp/m1", tx)
+        lock("//tmp/m1", mode=mode, tx=tx)
+        self._assert_locked("//tmp/m1", tx, mode)
+        commit_transaction(tx) # mustn't crash
+
+    @pytest.mark.parametrize("mode", ["exclusive", "shared", "snapshot"])
+    def test_unlock_and_lock_in_parent(self, mode):
+        create("map_node", "//tmp/m1")
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        lock("//tmp/m1", mode=mode, tx=tx2)
+        self._assert_locked("//tmp/m1", tx2, mode)
+        unlock("//tmp/m1", tx=tx2)
+        self._assert_not_locked("//tmp/m1", tx2)
+
+        lock("//tmp/m1", mode=mode, tx=tx1)
+        self._assert_locked("//tmp/m1", tx1, mode)
+
+        commit_transaction(tx1) # mustn't crash
+
+    @pytest.mark.parametrize("mode", ["exclusive", "shared", "snapshot"])
+    def test_unlock_and_lock_in_child(self, mode):
+        create("map_node", "//tmp/m1")
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        lock("//tmp/m1", mode=mode, tx=tx1)
+        self._assert_locked("//tmp/m1", tx1, mode)
+        unlock("//tmp/m1", tx=tx1)
+        self._assert_not_locked("//tmp/m1", tx1)
+
+        lock("//tmp/m1", mode=mode, tx=tx2)
+        self._assert_locked("//tmp/m1", tx2, mode)
+
+        commit_transaction(tx2) # mustn't crash
+        commit_transaction(tx1)
+
+    def test_unlock_pending(self):
+        create("map_node", "//tmp/m1")
+        tx1 = start_transaction()
+        tx2 = start_transaction() # not nested
+
+        acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx1)
+        self._assert_locked("//tmp/m1", tx1, "exclusive")
+        pending_lock_id = lock("//tmp/m1", tx=tx2, waitable=True)
+        assert get("#" + pending_lock_id + "/@state") == "pending"
+
+        unlock("//tmp/m1", tx=tx2)
+
+        self._assert_locked("//tmp/m1", tx1, "exclusive")
+        gc_collect()
+        assert not exists("#" + pending_lock_id)
+
+        commit_transaction(tx2) # mustn't crash
+        commit_transaction(tx1)
+
+    def test_unlock_promotes_pending(self):
+        create("map_node", "//tmp/m1")
+        tx1 = start_transaction()
+        tx2 = start_transaction() # not nested
+
+        acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx1)
+        self._assert_locked("//tmp/m1", tx1, "exclusive")
+        pending_lock_id = lock("//tmp/m1", tx=tx2, waitable=True)
+        assert get("#" + pending_lock_id + "/@state") == "pending"
+
+        assert get("#" + pending_lock_id + "/@transaction_id") == tx2
+
+        unlock("//tmp/m1", tx=tx1)
+
+        assert not exists("#" + acquired_lock_id)
+
+        assert get("#" + pending_lock_id + "/@state") == "acquired"
+
+        commit_transaction(tx2) # mustn't crash
+        commit_transaction(tx1)
+
+    def test_unlock_unreachable_node(self):
+        create("map_node", "//tmp/m1")
+        create("map_node", "//tmp/m1/m2")
+        node_id =  create("map_node", "//tmp/m1/m2/m3")
+
+        tx = start_transaction()
+        acquired_lock_id = lock("//tmp/m1/m2/m3", mode="snapshot", tx=tx)
+
+        remove("//tmp/m1")
+
+        assert not exists("//tmp/m1/m2/m3")
+        assert not exists("//tmp/m1/m2/m3", tx=tx)
+
+        node_path = "#" + node_id
+        assert exists(node_path)
+        self._assert_locked(node_path, tx, "snapshot")
+        unlock(node_path, tx=tx)
+
+        gc_collect()
+
+        assert not exists(node_path)
+
+    @pytest.mark.parametrize("mode", ["shared", "snapshot"])
+    def test_unlock_deeply_nested_node1(self, mode):
+        create("map_node", "//tmp/m1")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        tx3 = start_transaction(tx=tx2)
+        tx4 = start_transaction(tx=tx3)
+        tx5 = start_transaction(tx=tx4)
+        tx6 = start_transaction(tx=tx5)
+
+        if mode == "shared":
+            kwargs2 = {"child_key": "c2"}
+            kwargs4 = {"child_key": "c4"}
+            kwargs6 = {"child_key": "c6"}
+        else:
+            kwargs2 = {}
+            kwargs4 = {}
+            kwargs6 = {}
+
+        lock("//tmp/m1", tx=tx2, mode=mode, **kwargs2)
+        lock("//tmp/m1", tx=tx4, mode=mode, **kwargs4)
+        lock("//tmp/m1", tx=tx6, mode=mode, **kwargs6)
+
+        self._assert_locked("//tmp/m1", tx2, mode, **kwargs2)
+        self._assert_locked("//tmp/m1", tx4, mode, **kwargs4)
+        self._assert_locked("//tmp/m1", tx6, mode, **kwargs6)
+
+        unlock("//tmp/m1", tx=tx4)
+        self._assert_locked("//tmp/m1", tx2, mode, **kwargs2)
+        self._assert_not_locked("//tmp/m1", tx4)
+        self._assert_locked("//tmp/m1", tx6, mode, **kwargs6)
+
+        unlock("//tmp/m1", tx=tx5) # not lock and does nothing
+        self._assert_locked("//tmp/m1", tx2, mode, **kwargs2)
+        self._assert_not_locked("//tmp/m1", tx4)
+        self._assert_locked("//tmp/m1", tx6, mode, **kwargs6)
+
+        unlock("//tmp/m1", tx=tx6)
+        self._assert_locked("//tmp/m1", tx2, mode, **kwargs2)
+        self._assert_not_locked("//tmp/m1", tx4)
+        self._assert_not_locked("//tmp/m1", tx6)
+
+        if mode != "snapshot":
+            with pytest.raises(YtError): lock("//tmp/m1", tx=tx1, mode="exclusive")
+
+        unlock("//tmp/m1", tx=tx2)
+        self._assert_not_locked("//tmp/m1", tx2)
+        self._assert_not_locked("//tmp/m1", tx4)
+        self._assert_not_locked("//tmp/m1", tx6)
+
+        lock("//tmp/m1", tx=tx1, mode="exclusive")
+        self._assert_locked("//tmp/m1", tx1, "exclusive")
+
+        for tx in [tx6, tx5, tx4, tx3, tx2, tx1]:
+            commit_transaction(tx) # mustn't throw
+
+    @pytest.mark.parametrize("transactions_to_skip", [{1, 3, 5}, {1, 3}, {1, 5}, {3, 5}, {1}, {3}, {5}, __builtin__.set()])
+    @pytest.mark.parametrize("modes", [["exclusive", "shared", "snapshot"], ["shared", "exclusive", "shared"], ["exclusive", "shared", "shared"], ["shared", "shared", "exclusive"]])
+    def test_unlock_deeply_nested_node2(self, modes, transactions_to_skip):
+        create("map_node", "//tmp/m1")
+
+        prev_tx = None
+        transactions = [None] * 6
+        for i in xrange(0, 6):
+            if i+1 in transactions_to_skip:
+                transactions[i] = None
+            else:
+                if prev_tx is None:
+                    prev_tx = start_transaction()
+                else :
+                    prev_tx = start_transaction(tx=prev_tx)
+                transactions[i] = prev_tx
+
+        tx1, tx2, tx3, tx4, tx5, tx6 = transactions
+
+        mode2, mode4, mode6 = modes
+
+        if mode2 == "shared":
+            kwargs2 = {"child_key": "c2"}
+        else:
+            kwargs2 = {}
+
+        if mode4 == "shared":
+            kwargs4 = {"child_key": "c4"}
+        else:
+            kwargs4 = {}
+
+        if mode6 == "shared":
+            kwargs6 = {"child_key": "c6"}
+        else:
+            kwargs6 = {}
+
+        lock("//tmp/m1", tx=tx2, mode=mode2, **kwargs2)
+        lock("//tmp/m1", tx=tx4, mode=mode4, **kwargs4)
+        lock("//tmp/m1", tx=tx6, mode=mode6, **kwargs6)
+
+        self._assert_locked("//tmp/m1", tx2, mode2, **kwargs2)
+        self._assert_locked("//tmp/m1", tx4, mode4, **kwargs4)
+        self._assert_locked("//tmp/m1", tx6, mode6, **kwargs6)
+
+        unlock("//tmp/m1", tx=tx4)
+        self._assert_locked("//tmp/m1", tx2, mode2, **kwargs2)
+        self._assert_not_locked("//tmp/m1", tx4)
+        self._assert_locked("//tmp/m1", tx6, mode6, **kwargs6)
+
+        if tx5 is not None:
+            unlock("//tmp/m1", tx=tx5) # not lock and does nothing
+            self._assert_locked("//tmp/m1", tx2, mode2, **kwargs2)
+            self._assert_not_locked("//tmp/m1", tx4)
+            self._assert_locked("//tmp/m1", tx6, mode6, **kwargs6)
+
+        unlock("//tmp/m1", tx=tx6)
+        self._assert_locked("//tmp/m1", tx2, mode2, **kwargs2)
+        self._assert_not_locked("//tmp/m1", tx4)
+        self._assert_not_locked("//tmp/m1", tx6)
+
+        if tx1 is not None:
+            if mode2 == "snapshot":
+                with pytest.raises(YtError): lock("//tmp/m1", tx=tx1, mode="shared", child_key="c1")
+            else:
+                with pytest.raises(YtError): lock("//tmp/m1", tx=tx1, mode="exclusive")
+
+        unlock("//tmp/m1", tx=tx2)
+        self._assert_not_locked("//tmp/m1", tx2)
+        self._assert_not_locked("//tmp/m1", tx4)
+        self._assert_not_locked("//tmp/m1", tx6)
+
+        if tx1 is not None:
+            lock("//tmp/m1", tx=tx1, mode="exclusive")
+            self._assert_locked("//tmp/m1", tx1, "exclusive")
+
+        for tx in reversed(transactions):
+            if tx is not None:
+                commit_transaction(tx) # mustn't throw
+
+    def test_unlock_without_transaction(self):
+        create("map_node", "//tmp/m1")
+        tx = start_transaction()
+        lock("//tmp/m1", tx=tx, mode="exclusive")
+        assert get("//tmp/m1/@lock_mode", tx=tx) == "exclusive"
+        with pytest.raises(YtError): unlock("//tmp/m1")
 
     def test_remove_map_subtree_lock(self):
         set("//tmp/a", {"b" : 1})
@@ -174,7 +555,7 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
         tx3 = start_transaction(tx=tx1)
-        
+
         set("//tmp/a", "b", tx=tx2)
         assert len(get("//tmp/@locks")) == 1
         commit_transaction(tx2)

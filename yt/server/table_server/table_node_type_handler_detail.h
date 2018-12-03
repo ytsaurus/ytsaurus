@@ -19,7 +19,7 @@ public:
 
     explicit TTableNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
-    virtual bool IsSupportedInheritableAttribute(const TString& key) const
+    virtual bool IsSupportedInheritableAttribute(const TString& key) const override
     {
         static const THashSet<TString> supportedInheritableAttributes = {
             "atomicity",
@@ -35,6 +35,8 @@ public:
 
         return TBase::IsSupportedInheritableAttribute(key);
     }
+
+    virtual bool HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode) override;
 
 protected:
     virtual std::unique_ptr<TImpl> DoCreate(
@@ -98,6 +100,8 @@ public:
     explicit TReplicatedTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
+
+    virtual bool HasBranchedChangesImpl(TReplicatedTableNode* originatingNode, TReplicatedTableNode* branchedNode) override;
 
 protected:
     virtual NCypressServer::ICypressNodeProxyPtr DoGetProxy(

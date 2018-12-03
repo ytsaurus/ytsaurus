@@ -176,6 +176,25 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TCompositeNodeBase::TAttributes::operator==(const TAttributes& rhs) const
+{
+    if (this == &rhs) {
+        return true;
+    }
+
+#define XX(camelCaseName, snakeCaseName) \
+    && camelCaseName == rhs.camelCaseName
+
+    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+}
+
+bool TCompositeNodeBase::TAttributes::operator!=(const TAttributes& rhs) const
+{
+    return !(*this == rhs);
+}
+
 void TCompositeNodeBase::TAttributes::Persist(NCellMaster::TPersistenceContext& context)
 {
 #define XX(camelCaseName, snakeCaseName) \
@@ -477,6 +496,15 @@ void TMapNodeTypeHandler::DoClone(
     }
 }
 
+bool TMapNodeTypeHandler::HasBranchedChangesImpl(TMapNode* originatingNode, TMapNode* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return !branchedNode->KeyToChild().empty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ENodeType TListNode::GetNodeType() const
@@ -607,6 +635,15 @@ void TListNodeTypeHandler::DoClone(
     }
 }
 
+bool TListNodeTypeHandler::HasBranchedChangesImpl(TListNode* originatingNode, TListNode* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return branchedNode->IndexToChild() != originatingNode->IndexToChild();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLinkNode::TLinkNode(const TVersionedNodeId& id)
@@ -728,6 +765,17 @@ void TLinkNodeTypeHandler::DoClone(
     clonedNode->SetTargetPath(sourceNode->GetTargetPath());
 }
 
+bool TLinkNodeTypeHandler::HasBranchedChangesImpl(
+    TLinkNode* originatingNode,
+    TLinkNode* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return branchedNode->GetTargetPath() != originatingNode->GetTargetPath();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
@@ -814,6 +862,17 @@ void TDocumentNodeTypeHandler::DoClone(
     TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
     clonedNode->SetValue(CloneNode(sourceNode->GetValue()));
+}
+
+bool TDocumentNodeTypeHandler::HasBranchedChangesImpl(
+    TDocumentNode* originatingNode,
+    TDocumentNode* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return !AreNodesEqual(branchedNode->GetValue(), originatingNode->GetValue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

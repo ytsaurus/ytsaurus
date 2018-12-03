@@ -726,6 +726,7 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& 
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     DISPATCH_YPATH_SERVICE_METHOD(Copy);
+    DISPATCH_YPATH_SERVICE_METHOD(Unlock);
 
     if (TNodeBase::DoInvoke(context)) {
         return true;
@@ -1226,6 +1227,23 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 
     context->SetResponseInfo("LockId: %v",
         lockId);
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
+{
+    DeclareMutating();
+
+    context->SetRequestInfo();
+
+    ValidateTransaction();
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    cypressManager->UnlockNode(TrunkNode, Transaction);
+
+    context->SetResponseInfo();
 
     context->Reply();
 }

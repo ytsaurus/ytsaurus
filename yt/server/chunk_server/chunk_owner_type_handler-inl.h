@@ -55,6 +55,20 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const 
 }
 
 template <class TChunkOwner>
+bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* originatingNode, TChunkOwner* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return branchedNode->GetUpdateMode() != NChunkClient::EUpdateMode::None ||
+        branchedNode->GetPrimaryMediumIndex() != originatingNode->GetPrimaryMediumIndex() ||
+        branchedNode->Replication() != originatingNode->Replication() ||
+        branchedNode->GetCompressionCodec() != originatingNode->GetCompressionCodec() ||
+        branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec();
+}
+
+template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     const NCypressServer::TVersionedNodeId& id,
     NObjectClient::TCellTag externalCellTag,

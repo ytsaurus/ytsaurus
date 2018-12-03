@@ -141,6 +141,14 @@ public:
         return ENodeType::Entity;
     }
 
+    virtual bool HasBranchedChangesImpl(
+        TJournalNode* originatingNode,
+        TJournalNode* branchedNode) override
+    {
+        // Forbid explicitly unlocking journal nodes.
+        return true;
+    }
+
 protected:
     typedef TChunkOwnerTypeHandler<TJournalNode> TBase;
 
@@ -202,7 +210,7 @@ protected:
     virtual void DoBranch(
         const TJournalNode* originatingNode,
         TJournalNode* branchedNode,
-        const TLockRequest& lockRequest) override
+        const TLockRequest& /*lockRequest*/) override
     {
         // NB: Don't call TBase::DoBranch.
 

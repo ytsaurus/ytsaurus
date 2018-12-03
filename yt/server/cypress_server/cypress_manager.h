@@ -109,7 +109,7 @@ public:
         const NYPath::TYPath& path,
         NTransactionServer::TTransaction* transaction = nullptr);
 
-    //! Similar to |FindNode| provided by |DECLARE_ENTITY_ACCESSORS| but
+    //! Similar to |FindNode| provided by |DECLARE_ENTITY_MAP_ACCESSORS| but
     //! specially optimized for the case of null transaction.
     TCypressNodeBase* FindNode(
         TCypressNodeBase* trunkNode,
@@ -135,6 +135,13 @@ public:
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
         bool waitable);
+
+    //! Releases and destroys all acquired locks on the specified node for the
+    //! specified transaction. Also destroys all pending locks. Adjusts the
+    //! version tree of the node correspondingly.
+    void UnlockNode(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction);
 
     void SetModified(
         TCypressNodeBase* trunkNode,

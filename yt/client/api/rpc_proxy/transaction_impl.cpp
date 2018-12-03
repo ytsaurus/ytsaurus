@@ -540,6 +540,16 @@ TFuture<TLockNodeResult> TTransaction::LockNode(
         PatchTransactionId(options));
 }
 
+TFuture<void> TTransaction::UnlockNode(
+    const NYPath::TYPath& path,
+    const NApi::TUnlockNodeOptions& options)
+{
+    ValidateActive();
+    return Client_->UnlockNode(
+        path,
+        PatchTransactionId(options));
+}
+
 TFuture<TNodeId> TTransaction::CopyNode(
     const TYPath& srcPath,
     const TYPath& dstPath,

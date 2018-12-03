@@ -326,6 +326,10 @@ def lock(path, waitable=False, **kwargs):
     kwargs["waitable"] = waitable
     return yson.loads(execute_command("lock", kwargs))
 
+def unlock(path, **kwargs):
+    kwargs["path"] = path
+    execute_command("unlock", kwargs)
+
 def remove(path, **kwargs):
     kwargs["path"] = path
     return execute_command("remove", kwargs)

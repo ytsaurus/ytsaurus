@@ -85,6 +85,15 @@ struct INodeTypeHandler
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode) = 0;
 
+    //! Returns #true iff the branched node differs from (contains changes to) the originating node.
+    /*!
+     *  \note
+     *  Called prior to unlocking a node (by an explicit request) to make sure no changes will be lost.
+     */
+    virtual bool HasBranchedChanges(
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode) = 0;
+
     //! Constructs a deep copy of the node.
     virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,

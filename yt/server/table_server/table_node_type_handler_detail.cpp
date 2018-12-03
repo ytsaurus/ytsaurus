@@ -43,6 +43,26 @@ TTableNodeTypeHandlerBase<TImpl>::TTableNodeTypeHandlerBase(TBootstrap* bootstra
 { }
 
 template <class TImpl>
+bool TTableNodeTypeHandlerBase<TImpl>::HasBranchedChangesImpl(
+    TImpl* originatingNode,
+    TImpl* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode))  {
+        return true;
+    }
+
+    if (branchedNode->IsDynamic()) {
+        YCHECK(originatingNode->IsDynamic());
+        // One may consider supporting unlocking unmounted dynamic tables.
+        // However, it isn't immediately obvious why that should be useful and
+        // allowing to unlock something always requires careful consideration.
+        return true;
+    }
+
+    return false;
+}
+
+template <class TImpl>
 std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const TVersionedNodeId& id,
     TCellTag cellTag,
@@ -296,6 +316,14 @@ TReplicatedTableNodeTypeHandler::TReplicatedTableNodeTypeHandler(TBootstrap* boo
 EObjectType TReplicatedTableNodeTypeHandler::GetObjectType() const
 {
     return EObjectType::ReplicatedTable;
+}
+
+bool TReplicatedTableNodeTypeHandler::HasBranchedChangesImpl(
+    TReplicatedTableNode* originatingNode,
+    TReplicatedTableNode* branchedNode)
+{
+    // Forbid explicitly unlocking replicated tables.
+    return true;
 }
 
 ICypressNodeProxyPtr TReplicatedTableNodeTypeHandler::DoGetProxy(

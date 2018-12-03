@@ -744,6 +744,13 @@ public:
         return ENodeType::Entity;
     }
 
+    virtual bool HasBranchedChangesImpl(TVirtualNode* /*originatingNode*/, TVirtualNode* /*branchedNode*/) override
+    {
+        // Treat virtual nodes as always different because explicitly unlocking
+        // them makes little sense anyway.
+        return true;
+    }
+
 private:
     const TYPathServiceProducer Producer_;
     const EObjectType ObjectType_;

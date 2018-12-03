@@ -231,6 +231,15 @@ public:
         return clonedNode;
     }
 
+    virtual bool HasBranchedChanges(
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode) override
+    {
+        return HasBranchedChangesImpl(
+            originatingNode->template As<TImpl>(),
+            branchedNode->template As<TImpl>());
+    }
+
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TImpl* trunkNode,
@@ -334,6 +343,12 @@ protected:
         securityManager->SetAccount(clonedNode, nullptr /* oldAccount */, account, transaction);
     }
 
+    virtual bool HasBranchedChangesImpl(
+        TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/)
+    {
+        return false;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -551,6 +566,9 @@ public:
         std::optional<NTabletClient::EInMemoryMode> InMemoryMode;
         std::optional<NTableClient::EOptimizeFor> OptimizeFor;
 
+        bool operator==(const TAttributes& rhs) const;
+        bool operator!=(const TAttributes& rhs) const;
+
         void Persist(NCellMaster::TPersistenceContext& context);
 
         // Are all attributes not null?
@@ -665,6 +683,30 @@ protected:
 
         originatingNode->SetAttributes(branchedNode->Attributes());
     }
+
+    virtual bool HasBranchedChangesImpl(
+        TImpl* originatingNode,
+        TImpl* branchedNode) override
+    {
+        if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+            return true;
+        }
+
+        auto* originatingAttributes = originatingNode->Attributes();
+        auto* branchedAttributes = originatingNode->Attributes();
+
+        if (!originatingAttributes && !branchedAttributes) {
+            return false;
+        }
+
+        if (originatingAttributes && !branchedAttributes ||
+            !originatingAttributes && branchedAttributes)
+        {
+            return true;
+        }
+
+        return *originatingAttributes != *branchedAttributes;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -727,6 +769,10 @@ private:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
+
+    virtual bool HasBranchedChangesImpl(
+        TMapNode* originatingNode,
+        TMapNode* branchedNode) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -788,6 +834,10 @@ private:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
+
+    virtual bool HasBranchedChangesImpl(
+        TListNode* originatingNode,
+        TListNode* branchedNode) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -849,6 +899,10 @@ private:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
+
+    virtual bool HasBranchedChangesImpl(
+        TLinkNode* originatingNode,
+        TLinkNode* branchedNode) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -903,6 +957,9 @@ private:
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
+    virtual bool HasBranchedChangesImpl(
+        TDocumentNode* originatingNode,
+        TDocumentNode* branchedNode) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
