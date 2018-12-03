@@ -16,11 +16,7 @@
 #include <mapreduce/yt/library/lazy_sort/lazy_sort.h>
 #include <mapreduce/yt/library/operation_tracker/operation_tracker.h>
 
-#include <mapreduce/yt/raw_client/raw_requests.h>
-
 #include <mapreduce/yt/util/wait_for_tablets_state.h>
-
-#include <library/digest/md5/md5.h>
 
 #include <library/unittest/registar.h>
 
@@ -2583,59 +2579,6 @@ Y_UNIT_TEST_SUITE(Operations)
         };
         auto actual = ReadTable(client, "//testing/output");
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
-    }
-
-    Y_UNIT_TEST(CachedFilesExpiration)
-    {
-        TConfigSaverGuard configGuard;
-        TConfig::Get()->StartOperationRetryCount = 100;
-        TConfig::Get()->StartOperationRetryInterval = TDuration::Seconds(1);
-        TConfig::Get()->UseAbortableResponse = true;
-
-        TYPath cachePath = "//tmp/yt_wrapper/file_storage/new_cache";
-        TString md5;
-        auto content = CreateGuidAsString();
-        TTempFile tempFile("/tmp/yt-cpp-api-testing-cached-files-expiration");
-        {
-            TOFStream os(tempFile.Name());
-            os << content;
-            md5 = MD5::Calc(content);
-        }
-
-        auto client = CreateTestClient();
-        CreateTableWithFooColumn(client, "//testing/input");
-
-        auto outage = TAbortableHttpResponse::StartOutage("/map", 10);
-
-        auto thread = SystemThreadPool()->Run([&] () {
-            auto op = client->Map(
-                TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output")
-                    .MapperSpec(
-                        TUserJobSpec().AddLocalFile(tempFile.Name())),
-                new TMapperThatChecksFile(tempFile.Name()));
-        });
-
-        TInstant startTime = TInstant::Now();
-        auto timeout = TDuration::Seconds(5);
-        while (true) {
-            auto maybePath = client->GetFileFromCache(md5, cachePath);
-            if (maybePath) {
-                // Sleep to allow the other thread lock the file.
-                Sleep(TDuration::Seconds(1));
-                client->Remove(*maybePath);
-                break;
-            }
-            if (TInstant::Now() - startTime >= timeout) {
-                UNIT_FAIL("File hasn't appeared in cache");
-            }
-            Sleep(TDuration::Seconds(1));
-        }
-
-        outage.Stop();
-
-        UNIT_ASSERT_NO_EXCEPTION(thread->Join());
     }
 
     void TestProtobufSchemaInferring(bool setOperationOptions)

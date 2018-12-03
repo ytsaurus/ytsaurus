@@ -46,14 +46,11 @@
 #include <mapreduce/yt/library/table_schema/protobuf.h>
 
 #include <util/folder/path.h>
-
 #include <util/stream/buffer.h>
 #include <util/stream/file.h>
-
 #include <util/string/builder.h>
 #include <util/string/cast.h>
 #include <util/string/printf.h>
-
 #include <util/system/execpath.h>
 #include <util/system/mutex.h>
 #include <util/system/rwlock.h>
@@ -552,28 +549,11 @@ public:
             outputTableCount << " " <<
             jobStateSmallFile.Defined() <<
             jobCommandSuffix;
-
-        // TODO(levysotsky): Return it when tests are fix.
-        // LockedCachedFiles_ = operationPreparer.LockFiles(CachedFiles_);
-        LockedCachedFiles_ = CachedFiles_;
     }
 
-    TVector<TNode> GetFiles() const
+    const TVector<TRichYPath>& GetFiles() const
     {
-        TVector<TNode> nodes;
-        nodes.reserve(CypressFiles_.size() + CachedFiles_.size());
-        for (const auto& cypressFile : CypressFiles_) {
-            nodes.emplace_back();
-            TNodeBuilder builder(&nodes.back());
-            Serialize(cypressFile, &builder);
-        }
-        for (size_t i = 0; i != CachedFiles_.size(); ++i) {
-            nodes.emplace_back();
-            TNodeBuilder builder(&nodes.back());
-            Serialize(LockedCachedFiles_[i], &builder);
-            nodes.back().Attributes()["original_file_path"] = CachedFiles_[i].Path_;
-        }
-        return nodes;
+        return Files_;
     }
 
     const TString& GetClassName() const
@@ -606,10 +586,7 @@ private:
     TUserJobSpec Spec_;
     TOperationOptions Options_;
 
-    TVector<TRichYPath> CypressFiles_;
-    TVector<TRichYPath> CachedFiles_;
-    TVector<TRichYPath> LockedCachedFiles_;
-
+    TVector<TRichYPath> Files_;
     TString ClassName_;
     TString Command_;
     ui64 TotalFileSize_ = 0;
@@ -740,7 +717,7 @@ private:
 
             TotalFileSize_ += RoundUpFileSize(static_cast<ui64>(size));
         }
-        CypressFiles_.push_back(file);
+        Files_.push_back(file);
     }
 
     void UploadLocalFile(const TLocalFilePath& localPath, const TAddLocalFileOptions& options)
@@ -764,7 +741,7 @@ private:
             TotalFileSize_ += RoundUpFileSize(stat.Size);
         }
 
-        CachedFiles_.push_back(cypressPath);
+        Files_.push_back(cypressPath);
     }
 
     void UploadBinary(const TJobBinaryConfig& jobBinary)
@@ -798,10 +775,9 @@ private:
         }
     }
 
-    void UploadSmallFile(const TSmallJobFile& smallFile)
-    {
+    void UploadSmallFile(const TSmallJobFile& smallFile) {
         auto cachePath = UploadToCache(TDataToUpload(smallFile.Data));
-        CachedFiles_.push_back(TRichYPath(cachePath).FileName(smallFile.FileName));
+        Files_.push_back(TRichYPath(cachePath).FileName(smallFile.FileName));
         if (ShouldMountSandbox()) {
             TotalFileSize_ += RoundUpFileSize(smallFile.Data.Size());
         }
@@ -1153,13 +1129,13 @@ void BuildIntermediateDataReplicationFactorPart(const TSpec& spec, TNode* nodeSp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNode MergeSpec(TNode dst, const TOperationOptions& options)
+TString MergeSpec(TNode& dst, const TOperationOptions& options)
 {
     MergeNodes(dst["spec"], TConfig::Get()->Spec);
     if (options.Spec_) {
         MergeNodes(dst["spec"], *options.Spec_);
     }
-    return dst;
+    return NodeToYsonString(dst, YF_BINARY);
 }
 
 template <typename TSpec>
@@ -1300,7 +1276,7 @@ TOperationId DoExecuteMap(
 
     auto operationId = preparer.StartOperation(
         "map",
-        MergeSpec(std::move(specNode), options));
+        MergeSpec(specNode, options));
 
     LogJob(operationId, &mapper, "mapper");
     LogYPaths(operationId, operationIo.Inputs, "input");
@@ -1399,7 +1375,7 @@ TOperationId DoExecuteReduce(
 
     auto operationId = preparer.StartOperation(
         "reduce",
-        MergeSpec(std::move(specNode), options));
+        MergeSpec(specNode, options));
 
     LogJob(operationId, &reducer, "reducer");
     LogYPaths(operationId, operationIo.Inputs, "input");
@@ -1491,7 +1467,7 @@ TOperationId DoExecuteJoinReduce(
 
     auto operationId = preparer.StartOperation(
         "join_reduce",
-        MergeSpec(std::move(specNode), options));
+        MergeSpec(specNode, options));
 
     LogJob(operationId, &reducer, "reducer");
     LogYPaths(operationId, operationIo.Inputs, "input");
@@ -1562,8 +1538,6 @@ TOperationId DoExecuteMapReduce(
     const bool hasMapper = mapper != nullptr;
     const bool hasCombiner = reduceCombiner != nullptr;
 
-    TVector<TRichYPath> files;
-
     TJobPreparer reduce(
         preparer,
         spec.ReducerSpec_,
@@ -1584,6 +1558,7 @@ TOperationId DoExecuteMapReduce(
                 1 + operationIo.MapOutputs.size(),
                 operationIo.MapperJobFiles,
                 options);
+
             fluent.Item("mapper").DoMap(std::bind(
                 BuildUserJobFluently1,
                 std::cref(map),
@@ -1598,9 +1573,10 @@ TOperationId DoExecuteMapReduce(
                 preparer,
                 spec.ReduceCombinerSpec_,
                 *reduceCombiner,
-                size_t(1),
+                1,
                 operationIo.ReduceCombinerJobFiles,
                 options);
+
             fluent.Item("reduce_combiner").DoMap(std::bind(
                 BuildUserJobFluently1,
                 std::cref(combine),
@@ -1660,7 +1636,7 @@ TOperationId DoExecuteMapReduce(
 
     auto operationId = preparer.StartOperation(
         "map_reduce",
-        MergeSpec(std::move(specNode), options));
+        MergeSpec(specNode, options));
 
     LogJob(operationId, mapper, "mapper");
     LogJob(operationId, reduceCombiner, "reduce_combiner");
@@ -1899,7 +1875,7 @@ TOperationId ExecuteSort(
 
     auto operationId = preparer.StartOperation(
         "sort",
-        MergeSpec(std::move(specNode), options));
+        MergeSpec(specNode, options));
 
     LogYPaths(operationId, inputs, "input");
     LogYPath(operationId, output, "output");
@@ -1935,7 +1911,7 @@ TOperationId ExecuteMerge(
 
     auto operationId = preparer.StartOperation(
         "merge",
-        MergeSpec(std::move(specNode), options));
+        MergeSpec(specNode, options));
 
     LogYPaths(operationId, inputs, "input");
     LogYPath(operationId, output, "output");
@@ -1959,7 +1935,7 @@ TOperationId ExecuteErase(
 
     auto operationId = preparer.StartOperation(
         "erase",
-        MergeSpec(std::move(specNode), options));
+        MergeSpec(specNode, options));
 
     LogYPath(operationId, tablePath, "table_path");
 
@@ -1971,6 +1947,7 @@ TOperationId ExecuteVanilla(
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options)
 {
+
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         TJobPreparer jobPreparer(
             preparer,
@@ -1979,6 +1956,7 @@ TOperationId ExecuteVanilla(
             /* outputTableCount = */ 0,
             /* smallFileList = */ {},
             options);
+
         fluent
             .Item(task.Name_).BeginMap()
                 .Item("job_count").Value(task.JobCount_)
@@ -2001,7 +1979,7 @@ TOperationId ExecuteVanilla(
 
     auto operationId = preparer.StartOperation(
         "vanilla",
-        MergeSpec(std::move(specNode), options),
+        MergeSpec(specNode, options),
         /* useStartOperationRequest = */ true);
 
     return operationId;
@@ -2390,51 +2368,9 @@ TListJobsResult TOperation::ListJobs(const TListJobsOptions& options)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWaitOperationStartPollerItem
-    : public IYtPollerItem
-{
-public:
-    TWaitOperationStartPollerItem(TOperationId operationId, THolder<TPingableTransaction> transaction)
-        : OperationId_(operationId)
-        , Transaction_(std::move(transaction))
-    { }
-
-    void PrepareRequest(TRawBatchRequest* batchRequest) override
-    {
-        Future_ = batchRequest->GetOperation(
-            OperationId_,
-            TGetOperationOptions().AttributeFilter(
-                TOperationAttributeFilter().Add(EOperationAttribute::State)));
-    }
-
-    EStatus OnRequestExecuted() override
-    {
-        try {
-            auto attributes = Future_.GetValue();
-            Y_ENSURE(attributes.State.Defined());
-            bool operationHasLockedFiles =
-                *attributes.State != "starting" &&
-                *attributes.State != "orphaned" &&
-                *attributes.State != "waiting_for_agent" &&
-                *attributes.State != "initializing";
-            return operationHasLockedFiles ? EStatus::PollBreak : EStatus::PollContinue;
-        } catch (const TErrorResponse& e) {
-            return NDetail::IsRetriable(e) ? PollContinue : PollBreak;
-        } catch (const yexception& e) {
-            return PollBreak;
-        }
-    }
-
-private:
-    TOperationId OperationId_;
-    THolder<TPingableTransaction> Transaction_;
-    NThreading::TFuture<TOperationAttributes> Future_;
-};
-
 TOperationPreparer::TOperationPreparer(TClientPtr client, TTransactionId transactionId)
     : Client_(std::move(client))
     , TransactionId_(transactionId)
-    , FileTransaction_(new TPingableTransaction(Client_->GetAuth(), TransactionId_))
 { }
 
 const TAuth& TOperationPreparer::GetAuth() const
@@ -2449,11 +2385,9 @@ TTransactionId TOperationPreparer::GetTransactionId() const
 
 TOperationId TOperationPreparer::StartOperation(
     const TString& operationType,
-    const TNode& spec,
+    const TString& ysonSpec,
     bool useStartOperationRequest)
 {
-    CheckValidity();
-
     THttpHeader header("POST", (useStartOperationRequest ? "start_op" : operationType));
     if (useStartOperationRequest) {
         header.AddParameter("operation_type", operationType);
@@ -2461,7 +2395,6 @@ TOperationId TOperationPreparer::StartOperation(
     header.AddTransactionId(TransactionId_);
     header.AddMutationId();
 
-    auto ysonSpec = NodeToYsonString(spec);
     TOperationId operationId = ParseGuidFromResponse(
         RetryRequest(Client_->GetAuth(), header, TStringBuf(ysonSpec), false, true));
 
@@ -2470,50 +2403,7 @@ TOperationId TOperationPreparer::StartOperation(
 
     TOperationExecutionTimeTracker::Get()->Start(operationId);
 
-    Client_->GetYtPoller().Watch(
-        new TWaitOperationStartPollerItem(operationId, std::move(FileTransaction_)));
-
     return operationId;
-}
-
-TVector<TRichYPath> TOperationPreparer::LockFiles(TVector<TRichYPath> paths) const
-{
-    CheckValidity();
-
-    TVector<NThreading::TFuture<TLockId>> lockIdFutures;
-    lockIdFutures.reserve(paths.size());
-    TRawBatchRequest lockRequest;
-    for (const auto& path : paths) {
-        lockIdFutures.push_back(lockRequest.Lock(
-            FileTransaction_->GetId(),
-            path.Path_,
-            ELockMode::LM_SNAPSHOT,
-            TLockOptions().Waitable(true)));
-    }
-    ExecuteBatch(GetAuth(), lockRequest);
-
-    TVector<NThreading::TFuture<TNode>> nodeIdFutures;
-    nodeIdFutures.reserve(paths.size());
-    TRawBatchRequest getNodeIdRequest;
-    for (const auto& lockIdFuture : lockIdFutures) {
-        nodeIdFutures.push_back(getNodeIdRequest.Get(
-            FileTransaction_->GetId(),
-            TStringBuilder() << '#' << GetGuidAsString(lockIdFuture.GetValue()) << "/@node_id",
-            TGetOptions()));
-    }
-    ExecuteBatch(GetAuth(), getNodeIdRequest);
-
-    for (size_t i = 0; i != paths.size(); ++i) {
-        paths[i].Path_ = "#" + nodeIdFutures[i].GetValue().AsString();
-    }
-    return paths;
-}
-
-void TOperationPreparer::CheckValidity() const
-{
-    Y_ENSURE(
-        FileTransaction_,
-        "File transaction is already moved, are you trying to use preparer for more than one operation?");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
