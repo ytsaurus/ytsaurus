@@ -3,6 +3,8 @@
 #include "node_detail.h"
 #include "tree_visitor.h"
 
+#include <yt/core/misc/cast.h>
+
 #include <yt/core/yson/writer.h>
 
 namespace NYT {
@@ -14,11 +16,116 @@ using namespace NYson;
 
 namespace NDetail {
 
-const ENodeType TScalarTypeTraits<TString>::NodeType = ENodeType::String;
-const ENodeType TScalarTypeTraits<i64>::NodeType = ENodeType::Int64;
-const ENodeType TScalarTypeTraits<ui64>::NodeType = ENodeType::Uint64;
-const ENodeType TScalarTypeTraits<double>::NodeType = ENodeType::Double;
-const ENodeType TScalarTypeTraits<bool>::NodeType = ENodeType::Boolean;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString& TScalarTypeTraits<TString>::GetValue(const IConstNodePtr& node)
+{
+    return node->AsString()->GetValue();
+}
+
+void TScalarTypeTraits<TString>::SetValue(const INodePtr& node, const TString& value)
+{
+    node->AsString()->SetValue(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 TScalarTypeTraits<i64>::GetValue(const IConstNodePtr& node)
+{
+    switch (node->GetType()) {
+        case ENodeType::Int64:
+            return node->AsInt64()->GetValue();
+        case ENodeType::Uint64:
+            return CheckedIntegralCast<i64>(node->AsUint64()->GetValue());
+        default:
+            ThrowInvalidNodeType(node, ENodeType::Int64, node->GetType());
+            Y_UNREACHABLE();
+    }
+}
+
+void TScalarTypeTraits<i64>::SetValue(const INodePtr& node, i64 value)
+{
+    switch (node->GetType()) {
+        case ENodeType::Int64:
+            node->AsInt64()->SetValue(value);
+            break;
+        case ENodeType::Uint64:
+            node->AsUint64()->SetValue(CheckedIntegralCast<ui64>(value));
+            break;
+        case ENodeType::Double:
+            node->AsDouble()->SetValue(static_cast<double>(value));
+            break;
+        default:
+            ThrowInvalidNodeType(node, ENodeType::Int64, node->GetType());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ui64 TScalarTypeTraits<ui64>::GetValue(const IConstNodePtr& node)
+{
+    switch (node->GetType()) {
+        case ENodeType::Uint64:
+            return node->AsUint64()->GetValue();
+        case ENodeType::Int64:
+            return CheckedIntegralCast<ui64>(node->AsInt64()->GetValue());
+        default:
+            ThrowInvalidNodeType(node, ENodeType::Uint64, node->GetType());
+            Y_UNREACHABLE();
+    }
+}
+
+void TScalarTypeTraits<ui64>::SetValue(const INodePtr& node, ui64 value)
+{
+    switch (node->GetType()) {
+        case ENodeType::Uint64:
+            node->AsUint64()->SetValue(value);
+            break;
+        case ENodeType::Int64:
+            node->AsInt64()->SetValue(CheckedIntegralCast<i64>(value));
+            break;
+        case ENodeType::Double:
+            node->AsDouble()->SetValue(static_cast<double>(value));
+            break;
+        default:
+            ThrowInvalidNodeType(node, ENodeType::Uint64, node->GetType());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+double TScalarTypeTraits<double>::GetValue(const IConstNodePtr& node)
+{
+    switch (node->GetType()) {
+        case ENodeType::Int64:
+            return static_cast<double>(node->AsInt64()->GetValue());
+        case ENodeType::Uint64:
+            return static_cast<double>(node->AsUint64()->GetValue());
+        default:
+            ThrowInvalidNodeType(node, ENodeType::Double, node->GetType());
+            Y_UNREACHABLE();
+    }
+}
+
+void TScalarTypeTraits<double>::SetValue(const INodePtr& node, double value)
+{
+    node->AsDouble()->SetValue(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TScalarTypeTraits<bool>::GetValue(const IConstNodePtr& node)
+{
+    return node->AsBoolean()->GetValue();
+}
+
+void TScalarTypeTraits<bool>::SetValue(const INodePtr& node, bool value)
+{
+    node->AsBoolean()->SetValue(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
 
