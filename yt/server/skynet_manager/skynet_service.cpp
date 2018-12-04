@@ -85,7 +85,7 @@ void TShareOperation::Run()
                         .EndMap(),
                     Null);
             };
-            
+
             auto shards = Cluster_->ReadSkynetMetaFromTable(
                 Request_.TablePath,
                 Request_.KeyColumns,
@@ -104,7 +104,7 @@ void TShareOperation::Run()
         for (auto resource : resources) {
             announces.push_back(Announcer_->AddOutOfOrderAnnounce(Cluster_->GetName(), resource));
         }
-            
+
         WaitFor(Combine(announces))
             .ThrowOnError();
         LOG_INFO("Finished announcing (Duration: %v)", (TInstant::Now() - announceStart));
@@ -186,7 +186,7 @@ TErrorOr<i64> TClusterConnection::CheckTableAttributes(const NYPath::TRichYPath&
         auto asyncGet = Client_->GetNode(path.Normalize().GetPath(), options);
         auto node = ConvertToNode(WaitFor(asyncGet).ValueOrThrow());
         const auto& attributes = node->Attributes();
- 
+
         if (attributes.Get<NObjectClient::EObjectType>("type") != EObjectType::Table) {
             return TError("Cypress node is not a table");
         }
@@ -305,7 +305,7 @@ void TSkynetService::ReapRemovedTablesLoop(TClusterConnectionPtr cluster)
             for (auto&& request : requests) {
                 WaitFor(throttler->Throttle(1))
                     .ThrowOnError();
-            
+
                 auto errorOrRevision = cluster->CheckTableAttributes(request.TablePath);
                 if (!errorOrRevision.IsOK()) {
                     LOG_INFO("Table has been removed (RequestKey: %v)", request);
@@ -370,7 +370,7 @@ void TSkynetService::HandleShare(const IRequestPtr& req, const IResponseWriterPt
 
     TRequestKey request{
         ToString(params.Path),
-        tableRevision,
+        static_cast<ui64>(tableRevision),
         params.KeyColumns
     };
 
@@ -403,7 +403,7 @@ void TSkynetService::WriteShareReply(
             .ThrowOnError();
     } else if (state.State == ERequestState::Active) {
         YCHECK(state.Resources.HasValue());
-    
+
         // COMPAT(prime)
         if (request.KeyColumns.size() == 0) {
             auto link = state.Resources->at(0);
