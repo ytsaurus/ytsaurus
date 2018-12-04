@@ -475,7 +475,7 @@ def get_first_file_line(filename):
 def parse_time(time_str):
     if time_str == "now":
         return datetime.datetime.now()
-    elif re.match("\d\d:\d\d:\d\d", time_str) or re.match("\d\d:\d\d"):
+    elif re.match("\d\d:\d\d:\d\d", time_str) or re.match("\d\d:\d\d", time_str):
         now = datetime.datetime.now()
         if len(time_str) == 5:
             parsed = datetime.datetime.strptime(time_str, "%H:%M")
