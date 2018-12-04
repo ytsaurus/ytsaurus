@@ -11,6 +11,7 @@
 #include <yt/core/rpc/authenticator.h>
 
 #include <util/string/split.h>
+#include <util/string/iterator.h>
 
 namespace NYT {
 namespace NAuth {
@@ -38,7 +39,7 @@ TError CheckCsrfToken(
     TInstant expirationTime)
 {
     std::vector<TString> parts;
-    SplitStringTo(csrfToken, ':', &parts);
+    StringSplitter(csrfToken).Split(':').AddTo(&parts);
     if (parts.size() != 2) {
         return TError("Malformed CSRF token");
     }
