@@ -329,7 +329,7 @@ class ReplaceSvnStuffStep(Step):
                         curchunk = min(chunk_size, len(file_list))
                         curargs = file_list[-curchunk:]
                         del file_list[-curchunk:]
-                        submodule_git.call("add", *curargs)
+                        submodule_git.call("add", "-f", *curargs)
                     submodule_git.call("commit", "--message", "arcadia-snapshot:{0}".format(revision))
                     new_head_by_submodule[submodule_path] = submodule_git.resolve_ref("HEAD")
 
