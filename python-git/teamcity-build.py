@@ -241,7 +241,7 @@ def copy_modules_from_contrib(options):
     if options.build_system == "cmake":
         run(["cmake", "."], cwd=options.checkout_directory)
     else:
-        run(["./prepare_source_tree.py"], cwd=options.checkout_directory)
+        run(["./prepare_source_tree.py", "--yt-root", options.yt_source_directory], cwd=options.checkout_directory)
 
 def _run_tests(options, python_version):
     sandbox_directory = os.path.join(options.sandbox_directory, python_version)
