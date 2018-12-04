@@ -210,7 +210,7 @@ TErrorOr<i64> TClusterConnection::CheckTableAttributes(const NYPath::TRichYPath&
         // TODO(prime): keep per-account usage statistics
         auto account = attributes.Get<TString>("account");
 
-        return attributes.Get<i64>("revision");
+        return attributes.Get<ui64>("revision");
     } catch (const TErrorException& ex) {
         if (ex.Error().GetCode() == NYTree::EErrorCode::ResolveError) {
             return ex.Error();
@@ -311,7 +311,7 @@ void TSkynetService::ReapRemovedTablesLoop(TClusterConnectionPtr cluster)
                     LOG_INFO("Table has been removed (RequestKey: %v)", request);
                     tables->EraseRequest(request);
                 } else if (errorOrRevision.Value() != request.TableRevision) {
-                    LOG_INFO("Table has been changed (RequestKey: %v, OldRevision: %d, NewRevision: %d)",
+                    LOG_INFO("Table has been changed (RequestKey: %v, OldRevision: %llx, NewRevision: %llx)",
                         request.TableRevision,
                         errorOrRevision.Value());
                     tables->EraseRequest(request);

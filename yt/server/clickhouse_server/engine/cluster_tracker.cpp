@@ -132,7 +132,7 @@ void TClusterNodeTracker::StartTrack(const Context& context)
 {
     Settings_ = context.getSettingsRef();
     EventHandler = CreateEventHandler();
-    Directory->SubscribeToUpdate(/*expectedRevision=*/ -1, EventHandler);
+    Directory->SubscribeToUpdate(/*expectedRevision=*/ NonexistingNodeRevision, EventHandler);
 }
 
 void TClusterNodeTracker::StopTrack()
@@ -188,7 +188,7 @@ void TClusterNodeTracker::OnUpdate(NNative::TNodeRevision newRevision)
         listing = Directory->ListNodes();
     } catch (...) {
         LOG_WARNING(Logger, "Failed to list cluster directory: " << CurrentExceptionText());
-        Directory->SubscribeToUpdate(-1, EventHandler);
+        Directory->SubscribeToUpdate(NonexistingNodeRevision, EventHandler);
         return;
     }
 
@@ -207,13 +207,13 @@ void TClusterNodeTracker::OnUpdate(NNative::TNodeRevision newRevision)
 void TClusterNodeTracker::OnRemove()
 {
     LOG_WARNING(Logger, "Cluster directory removed");
-    Directory->SubscribeToUpdate(-1, EventHandler);
+    Directory->SubscribeToUpdate(NonexistingNodeRevision, EventHandler);
 }
 
 void TClusterNodeTracker::OnError(const TString& errorMessage)
 {
     LOG_WARNING(Logger, "Error occurred during cluster directory polling: " << ToStdString(errorMessage));
-    Directory->SubscribeToUpdate(-1, EventHandler);
+    Directory->SubscribeToUpdate(NonexistingNodeRevision, EventHandler);
 }
 
 TClusterDirectoryEventHandlerPtr TClusterNodeTracker::CreateEventHandler()
