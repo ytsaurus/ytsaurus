@@ -297,7 +297,7 @@ TString RetryRequest(
             return response;
         }
 
-        NDetail::TWaitProxy::Sleep(retryInterval);
+        NDetail::TWaitProxy::Get()->Sleep(retryInterval);
     }
 
     Y_FAIL("Must be unreachable");

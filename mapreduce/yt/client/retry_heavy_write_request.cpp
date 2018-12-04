@@ -55,7 +55,7 @@ void RetryHeavyWriteRequest(
             if (!NDetail::IsRetriable(e) || attempt + 1 == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
+            NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
             continue;
 
         } catch (yexception& e) {
@@ -67,7 +67,7 @@ void RetryHeavyWriteRequest(
             if (attempt + 1 == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Sleep(TConfig::Get()->RetryInterval);
+            NDetail::TWaitProxy::Get()->Sleep(TConfig::Get()->RetryInterval);
             continue;
         }
 

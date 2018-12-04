@@ -42,7 +42,7 @@ void TYtPoller::WatchLoop()
         {
             auto g = Guard(Lock_);
             if (IsRunning_ && Pending_.empty() && InProgress_.empty()) {
-                TWaitProxy::WaitCondVar(HasData_, Lock_);
+                TWaitProxy::Get()->WaitCondVar(HasData_, Lock_);
             }
 
             if (!IsRunning_) {
@@ -51,7 +51,7 @@ void TYtPoller::WatchLoop()
 
             {
                 auto ug = Unguard(Lock_);  // allow adding new items into Pending_
-                TWaitProxy::SleepUntil(nextRequest);
+                TWaitProxy::Get()->SleepUntil(nextRequest);
                 nextRequest = TInstant::Now() + TConfig::Get()->WaitLockPollInterval;
             }
             if (!Pending_.empty()) {

@@ -145,7 +145,7 @@ void NonJobInitialize(const TInitializeOptions& options)
         TAbnormalTerminator::SetErrorTerminationHandler();
     }
     if (options.WaitProxy_) {
-        NDetail::TWaitProxy::Get() = options.WaitProxy_;
+        NDetail::TWaitProxy::Get()->SetProxy(options.WaitProxy_);
     }
     WriteVersionToLog();
 }

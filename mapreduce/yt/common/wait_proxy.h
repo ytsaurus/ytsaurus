@@ -2,7 +2,6 @@
 
 #include <mapreduce/yt/interface/wait_proxy.h>
 
-
 namespace NYT {
 namespace NDetail {
 
@@ -12,9 +11,6 @@ class TDefaultWaitProxy
     : public IWaitProxy
 {
 public:
-    TDefaultWaitProxy() = default;
-    ~TDefaultWaitProxy() override = default;
-
     bool WaitFuture(const NThreading::TFuture<void>& future, TDuration timeout) override;
     bool WaitEvent(TSystemEvent& event, TDuration timeout) override;
     bool WaitCondVar(TCondVar& condVar, TMutex& mutex, TDuration timeout) override;
@@ -23,26 +19,32 @@ public:
 
 class TWaitProxy {
 public:
-    TWaitProxy() = delete;
+    TWaitProxy();
 
-    static TIntrusivePtr<IWaitProxy>& Get();
+    static TWaitProxy* Get();
 
-    static bool WaitFuture(const NThreading::TFuture<void>& future);
-    static bool WaitFuture(const NThreading::TFuture<void>& future, TInstant deadLine);
-    static bool WaitFuture(const NThreading::TFuture<void>& future, TDuration timeout);
+    // NB: Non thread-safe, should be called only in initialization code.
+    void SetProxy(TIntrusivePtr<IWaitProxy> proxy);
 
-    static bool WaitEventD(TSystemEvent& event, TInstant deadLine);
-    static bool WaitEventT(TSystemEvent& event, TDuration timeout);
-    static void WaitEventI(TSystemEvent& event);
-    static bool WaitEvent(TSystemEvent& event);
+    bool WaitFuture(const NThreading::TFuture<void>& future);
+    bool WaitFuture(const NThreading::TFuture<void>& future, TInstant deadLine);
+    bool WaitFuture(const NThreading::TFuture<void>& future, TDuration timeout);
 
-    static bool WaitCondVarD(TCondVar& condVar, TMutex& m, TInstant deadLine);
-    static bool WaitCondVarT(TCondVar& condVar, TMutex& m, TDuration timeOut);
-    static void WaitCondVarI(TCondVar& condVar, TMutex& m);
-    static void WaitCondVar(TCondVar& condVar, TMutex& m);
+    bool WaitEventD(TSystemEvent& event, TInstant deadLine);
+    bool WaitEventT(TSystemEvent& event, TDuration timeout);
+    void WaitEventI(TSystemEvent& event);
+    bool WaitEvent(TSystemEvent& event);
 
-    static void Sleep(TDuration timeout);
-    static void SleepUntil(TInstant instant);
+    bool WaitCondVarD(TCondVar& condVar, TMutex& m, TInstant deadLine);
+    bool WaitCondVarT(TCondVar& condVar, TMutex& m, TDuration timeOut);
+    void WaitCondVarI(TCondVar& condVar, TMutex& m);
+    void WaitCondVar(TCondVar& condVar, TMutex& m);
+
+    void Sleep(TDuration timeout);
+    void SleepUntil(TInstant instant);
+
+private:
+    TIntrusivePtr<IWaitProxy> Proxy_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

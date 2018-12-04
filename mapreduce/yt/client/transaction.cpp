@@ -162,7 +162,7 @@ void TPingableTransaction::Pinger()
         TDuration pingInterval = MinPingInterval_ + (MaxPingInterval_ - MinPingInterval_) * RandomNumber<float>();
         TInstant t = Now();
         while (Running_ && Now() - t < pingInterval) {
-            NDetail::TWaitProxy::Sleep(TDuration::MilliSeconds(100));
+            NDetail::TWaitProxy::Get()->Sleep(TDuration::MilliSeconds(100));
         }
     }
 }
@@ -194,7 +194,7 @@ TYPath Snapshot(const TAuth& auth, const TTransactionId& transactionId, const TY
                 if (canRetry && e.IsResolveError()) {
                     // Object id got invalidated before Lock(), retry with
                     // updated object id
-                    NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
+                    NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
                     continue;
                 }
                 throw;
@@ -202,7 +202,7 @@ TYPath Snapshot(const TAuth& auth, const TTransactionId& transactionId, const TY
             return result;
         } catch (TErrorResponse& e) {
             if (canRetry && NDetail::IsRetriable(e)) {
-                NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
+                NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
                 continue;
             }
             throw;
