@@ -3,11 +3,11 @@
 #include "client.h"
 #include "file_reader.h"
 #include "file_writer.h"
-#include "format_hints.h"
 #include "init.h"
 #include "operation_tracker.h"
 #include "retry_heavy_write_request.h"
 #include "skiff.h"
+#include "structured_table_formats.h"
 #include "yt_poller.h"
 
 #include <mapreduce/yt/common/abortable_registry.h>
@@ -22,9 +22,6 @@
 #include <mapreduce/yt/interface/logging/log.h>
 
 #include <mapreduce/yt/node/serialize.h>
-
-#include <library/yson/writer.h>
-#include <library/yson/json_writer.h>
 
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
@@ -44,6 +41,9 @@
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <mapreduce/yt/library/table_schema/protobuf.h>
+
+#include <library/yson/writer.h>
+#include <library/yson/json_writer.h>
 
 #include <util/folder/path.h>
 #include <util/stream/buffer.h>
@@ -68,19 +68,6 @@ static const ui64 DefaultExrtaTmpfsSize = 1024LL * 1024LL;
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void ApplyFormatHints(
-    TFormat* format,
-    TMultiFormatDesc::EFormat rowType,
-    const TMaybe<TFormatHints>& formatHints);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSmallJobFile
-{
-    TString FileName;
-    TString Data;
-};
 
 struct TSimpleOperationIo
 {
@@ -151,151 +138,25 @@ bool UseLocalModeOptimization(const TAuth& auth)
     return isLocalMode;
 }
 
-void VerifyHasElements(const TVector<TRichYPath>& paths, const TString& name)
+template <typename T>
+void VerifyHasElements(const TVector<T>& paths, TStringBuf name)
 {
     if (paths.empty()) {
         ythrow TApiUsageError() << "no " << name << " table is specified";
     }
 }
 
-class TFormatDescImpl
-{
-public:
-    TFormatDescImpl(
-        const TAuth& auth,
-        const TTransactionId& transactionId,
-        const TMultiFormatDesc& formatDesc,
-        const TVector<TRichYPath>& tables,
-        const TOperationOptions& options,
-        ENodeReaderFormat nodeReaderFormat,
-        bool allowFormatFromTableAttribute)
-        : FormatDesc_(formatDesc)
-        , SkiffSchema_(nullptr)
-        , Format_(TNode("NO_FORMAT")) // It will be properly initialized in the constructor body
-    {
-        switch (FormatDesc_.Format) {
-            case TMultiFormatDesc::F_NODE:
-                if (nodeReaderFormat != ENodeReaderFormat::Yson) {
-                    SkiffSchema_ = TryCreateSkiffSchema(auth, transactionId, tables, options, nodeReaderFormat);
-                }
-                Format_ = SkiffSchema_
-                    ? CreateSkiffFormat(SkiffSchema_)
-                    : TFormat::YsonBinary();
-                break;
-            case TMultiFormatDesc::F_YAMR: {
-                TMaybe<TNode> formatFromTableAttribute;
-                if (allowFormatFromTableAttribute && options.UseTableFormats_) {
-                    formatFromTableAttribute = GetTableFormats(auth, transactionId, tables);
-                }
-                if (formatFromTableAttribute) {
-                    Format_ = TFormat(*formatFromTableAttribute);
-                } else {
-                    auto formatNode = TNode("yamr");
-                    formatNode.Attributes() = TNode()
-                        ("lenval", true)
-                        ("has_subkey", true)
-                        ("enable_table_index", true);
-                    Format_ = TFormat(formatNode);
-                }
-                break;
-            }
-            case TMultiFormatDesc::F_PROTO:
-                if (TConfig::Get()->UseClientProtobuf) {
-                    Format_ = TFormat::YsonBinary();
-                } else {
-                    Y_ENSURE_EX(!FormatDesc_.ProtoDescriptors.empty(),
-                        TApiUsageError() << "Messages for proto format are unknown (empty ProtoDescriptors)");
-                    Format_ = TFormat::Protobuf(FormatDesc_.ProtoDescriptors);
-                }
-                break;
-            default:
-                Y_FAIL("Unknown format type: %d", static_cast<int>(FormatDesc_.Format));
-        }
-    }
-
-    const TFormat& GetFormat() const
-    {
-        return Format_;
-    }
-
-    TMaybe<TSmallJobFile> GetFormatConfig(TStringBuf suffix) const {
-        switch (FormatDesc_.Format) {
-            case TMultiFormatDesc::F_PROTO:
-                return TSmallJobFile{TString("proto") + suffix, CreateProtoConfig(FormatDesc_)};
-            case TMultiFormatDesc::F_NODE:
-                if (SkiffSchema_) {
-                    return TSmallJobFile{TString("skiff") + suffix, CreateSkiffConfig(SkiffSchema_)};
-                }
-                return Nothing();
-            default:
-                return Nothing();
-        }
-    }
-
-    TMultiFormatDesc::EFormat GetRowType() const
-    {
-        return FormatDesc_.Format;
-    }
-
-private:
-    TMultiFormatDesc FormatDesc_;
-    NSkiff::TSkiffSchemaPtr SkiffSchema_;
-    TFormat Format_;
-
-private:
-    static NSkiff::TSkiffSchemaPtr TryCreateSkiffSchema(
-        const TAuth& auth,
-        const TTransactionId& transactionId,
-        const TVector<TRichYPath>& tables,
-        const TOperationOptions& options,
-        ENodeReaderFormat nodeReaderFormat)
-    {
-        bool hasInputQuery = options.Spec_.Defined() && options.Spec_->IsMap() && options.Spec_->HasKey("input_query");
-        if (hasInputQuery) {
-            Y_ENSURE_EX(nodeReaderFormat != ENodeReaderFormat::Skiff,
-                TApiUsageError() << "Cannot use Skiff format for operations with 'input_query' in spec");
-            return nullptr;
-        }
-        return CreateSkiffSchemaIfNecessary(
-            auth,
-            transactionId,
-            nodeReaderFormat,
-            tables,
-            TCreateSkiffSchemaOptions()
-                .HasKeySwitch(true));
-    }
-
-    static TString CreateProtoConfig(const TMultiFormatDesc& desc)
-    {
-        Y_VERIFY(desc.Format == TMultiFormatDesc::F_PROTO);
-
-        TString result;
-        TStringOutput messageTypeList(result);
-        for (const auto& descriptor : desc.ProtoDescriptors) {
-            messageTypeList << descriptor->full_name() << Endl;
-        }
-        return result;
-    }
-
-    static TString CreateSkiffConfig(const NSkiff::TSkiffSchemaPtr& schema)
-    {
-         TString result;
-         TStringOutput stream(result);
-         TYsonWriter writer(&stream);
-         Serialize(schema, &writer);
-         return result;
-    }
-};
+////////////////////////////////////////////////////////////////////////////////
 
 TVector<TSmallJobFile> CreateFormatConfig(
-    const TFormatDescImpl& inputDesc,
-    const TFormatDescImpl& outputDesc)
+    TMaybe<TSmallJobFile> inputConfig,
+    const TMaybe<TSmallJobFile>& outputConfig)
 {
     TVector<TSmallJobFile> result;
-    if (auto inputConfig = inputDesc.GetFormatConfig("_input")) {
+    if (inputConfig) {
         result.push_back(std::move(*inputConfig));
     }
-    if (auto outputConfig = outputDesc.GetFormatConfig("_output")) {
+    if (outputConfig) {
         result.push_back(std::move(*outputConfig));
     }
     return result;
@@ -328,6 +189,7 @@ void FillMissingSchemas(TVector<TRichYPath>* paths, const TVector<const ::google
 
 template <class TSpec>
 TSimpleOperationIo CreateSimpleOperationIo(
+    const IStructuredJob& structuredJob,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TSpec& spec,
@@ -337,36 +199,36 @@ TSimpleOperationIo CreateSimpleOperationIo(
     VerifyHasElements(spec.Inputs_, "input");
     VerifyHasElements(spec.Outputs_, "output");
 
+    const auto structuredInputs= CanonizeStructuredTableList(auth, spec.GetStructuredInputs());
+    const auto structuredOutputs = CanonizeStructuredTableList(auth, spec.GetStructuredOutputs());
+
     ENodeReaderFormat nodeReaderFormat =
         allowSkiff
         ? NodeReaderFormatFromHintAndGlobalConfig(spec)
         : ENodeReaderFormat::Yson;
 
-    TFormatDescImpl inputDesc(
-        auth,
-        transactionId,
-        spec.GetInputDesc(),
-        spec.Inputs_,
-        options,
+    TVector<TSmallJobFile> formatConfigList;
+    TFormatBuilder formatBuilder(auth, transactionId, options);
+
+    // Input format
+    auto[inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
+        structuredJob,
+        EIODirection::Input,
+        structuredInputs,
+        spec.InputFormatHints_,
         nodeReaderFormat,
         /* allowFormatFromTableAttribute = */ true);
 
-    TFormatDescImpl outputDesc(
-        auth,
-        transactionId,
-        spec.GetOutputDesc(),
-        spec.Outputs_,
-        options,
+    // Output format
+    auto[outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
+        structuredJob,
+        EIODirection::Output,
+        structuredOutputs,
+        spec.OutputFormatHints_,
         ENodeReaderFormat::Yson,
         /* allowFormatFromTableAttribute = */ false);
 
-    TFormat inputFormat = inputDesc.GetFormat();
-    TFormat outputFormat = outputDesc.GetFormat();
-
-    ApplyFormatHints(&inputFormat, inputDesc.GetRowType(), spec.InputFormatHints_);
-    ApplyFormatHints(&outputFormat, outputDesc.GetRowType(), spec.OutputFormatHints_);
-
-    auto outputPaths = CanonizePaths(auth, spec.Outputs_);
+    auto outputPaths = GetPathList(structuredOutputs);
     if (options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema) &&
         spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO)
     {
@@ -374,13 +236,13 @@ TSimpleOperationIo CreateSimpleOperationIo(
     }
 
     return TSimpleOperationIo {
-        CanonizePaths(auth, spec.Inputs_),
+        GetPathList(structuredInputs),
         outputPaths,
 
         inputFormat,
         outputFormat,
 
-        CreateFormatConfig(inputDesc, outputDesc)
+        CreateFormatConfig(inputFormatConfig, outputFormatConfig)
     };
 }
 
@@ -428,11 +290,11 @@ class TFileToUpload
     : public IItemToUpload
 {
 public:
-    TFileToUpload(const TString& fileName)
-        : FileName_(fileName)
+    TFileToUpload(TString fileName)
+        : FileName_(std::move(fileName))
     { }
 
-    virtual TString CalculateMD5() const override
+    TString CalculateMD5() const override
     {
         constexpr size_t md5Size = 32;
         TString result;
@@ -441,7 +303,7 @@ public:
         return result;
     }
 
-    virtual THolder<IInputStream> CreateInputStream() const override
+    THolder<IInputStream> CreateInputStream() const override
     {
         return MakeHolder<TFileInput>(FileName_);
     }
@@ -454,11 +316,11 @@ class TDataToUpload
     : public IItemToUpload
 {
 public:
-    TDataToUpload(const TStringBuf& data)
+    TDataToUpload(TStringBuf data)
         : Data_(data)
     { }
 
-    virtual TString CalculateMD5() const override
+    TString CalculateMD5() const override
     {
         constexpr size_t md5Size = 32;
         TString result;
@@ -467,7 +329,7 @@ public:
         return result;
     }
 
-    virtual THolder<IInputStream> CreateInputStream() const override
+    THolder<IInputStream> CreateInputStream() const override
     {
         return MakeHolder<TMemoryInput>(Data_.Data(), Data_.Size());
     }
@@ -618,7 +480,7 @@ private:
         using TAttemptLimitedRetryPolicy::TAttemptLimitedRetryPolicy;
         using TAttemptLimitedRetryPolicy::GetRetryInterval;
 
-        virtual TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override
+        TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override
         {
             if (IsAttemptLimitExceeded()) {
                 return Nothing();
@@ -815,79 +677,6 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
     return result;
 }
 
-using TDescriptorList = TVector<const ::google::protobuf::Descriptor*>;
-
-TMultiFormatDesc IdentityDesc(const TMultiFormatDesc& multi)
-{
-    const std::set<const ::google::protobuf::Descriptor*> uniqueDescrs(multi.ProtoDescriptors.begin(), multi.ProtoDescriptors.end());
-    if (uniqueDescrs.size() > 1)
-    {
-        TApiUsageError err;
-        err << __LOCATION__ << ": Different input proto descriptors";
-        for (const auto& desc : multi.ProtoDescriptors) {
-            err << " " << desc->full_name();
-        }
-        throw err;
-    }
-    TMultiFormatDesc result;
-    result.Format = multi.Format;
-    result.ProtoDescriptors.assign(uniqueDescrs.begin(), uniqueDescrs.end());
-    return result;
-}
-
-//TODO: simplify to lhs == rhs after YT-6967 resolving
-bool IsCompatible(const TDescriptorList& lhs, const TDescriptorList& rhs)
-{
-    return lhs.empty() || rhs.empty() || lhs == rhs;
-}
-
-const TMultiFormatDesc& MergeIntermediateDesc(
-    const TMultiFormatDesc& lh, const TMultiFormatDesc& rh,
-    const char* lhDescr, const char* rhDescr,
-    bool allowMultipleDescriptors = false)
-{
-    if (rh.Format == TMultiFormatDesc::F_NONE) {
-        return lh;
-    } else if (lh.Format == TMultiFormatDesc::F_NONE) {
-        return rh;
-    } else if (lh.Format == rh.Format && IsCompatible(lh.ProtoDescriptors, rh.ProtoDescriptors)) {
-        const auto& result = rh.ProtoDescriptors.empty() ? lh : rh;
-        if (result.ProtoDescriptors.size() > 1 && !allowMultipleDescriptors) {
-            ythrow TApiUsageError() << "too many proto descriptors for intermediate table";
-        }
-        return result;
-    } else {
-        ythrow TApiUsageError() << "incompatible format specifications: "
-            << lhDescr << " {format=" << ui32(lh.Format) << " descrs=" << lh.ProtoDescriptors.size() << "}"
-               " and "
-            << rhDescr << " {format=" << ui32(rh.Format) << " descrs=" << rh.ProtoDescriptors.size() << "}"
-        ;
-    }
-}
-
-void ApplyFormatHints(TFormat* format, TMultiFormatDesc::EFormat rowType, const TMaybe<TFormatHints>& hints)
-{
-    switch (rowType) {
-        case TMultiFormatDesc::EFormat::F_NODE:
-            NYT::NDetail::ApplyFormatHints<TNode>(format, hints);
-            break;
-        default:
-            break;
-    }
-}
-
-void VerifyIntermediateDesc(const TMultiFormatDesc& desc, const TStringBuf& textDescription)
-{
-    if (desc.Format != TMultiFormatDesc::F_PROTO) {
-        return;
-    }
-    for (size_t i = 0; i != desc.ProtoDescriptors.size(); ++i) {
-        if (!desc.ProtoDescriptors[i]) {
-            ythrow TApiUsageError() << "Don't know message type for " << textDescription << "; table index: " << i << " (did you forgot to use Hint* function?)";
-        }
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -1002,7 +791,7 @@ void BuildUserJobFluently1(
             for (const auto& item : userJobSpec.Environment_) {
                 environment[item.first] = item.second;
             }
-            fluentMap.Item("environment").Value(std::move(environment));
+            fluentMap.Item("environment").Value(environment);
         })
         .DoIf(userJobSpec.DiskSpaceLimit_.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("disk_space_limit").Value(*userJobSpec.DiskSpaceLimit_);
@@ -1293,7 +1082,7 @@ TOperationId ExecuteMap(
 {
     return DoExecuteMap(
         preparer,
-        CreateSimpleOperationIo(preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ true),
+        CreateSimpleOperationIo(mapper, preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ true),
         spec,
         mapper,
         options);
@@ -1392,7 +1181,7 @@ TOperationId ExecuteReduce(
 {
     return DoExecuteReduce(
         preparer,
-        CreateSimpleOperationIo(preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
+        CreateSimpleOperationIo(reducer, preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
         spec,
         reducer,
         options);
@@ -1484,7 +1273,7 @@ TOperationId ExecuteJoinReduce(
 {
     return DoExecuteJoinReduce(
         preparer,
-        CreateSimpleOperationIo(preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
+        CreateSimpleOperationIo(reducer, preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
         spec,
         reducer,
         options);
@@ -1653,48 +1442,21 @@ TOperationId ExecuteMapReduce(
     const IStructuredJob* mapper,
     const IStructuredJob* reduceCombiner,
     const IStructuredJob& reducer,
-    const TMultiFormatDesc& mapperClassOutputDesc,
-    const TMultiFormatDesc& reduceCombinerClassInputDesc,
-    const TMultiFormatDesc& reduceCombinerClassOutputDesc,
-    const TMultiFormatDesc& reducerClassInputDesc,
+    const TMultiFormatDesc& /*mapperClassOutputDesc*/,
+    const TMultiFormatDesc& /*reduceCombinerClassInputDesc*/,
+    const TMultiFormatDesc& /*reduceCombinerClassOutputDesc*/,
+    const TMultiFormatDesc& /*reducerClassInputDesc*/,
     const TOperationOptions& options)
 {
     TMapReduceOperationSpec spec = spec_;
 
-    const auto& reduceOutputDesc = spec.GetOutputDesc();
-    auto reduceInputDesc = MergeIntermediateDesc(reducerClassInputDesc, spec.ReduceInputHintDesc_,
-        "spec from reducer CLASS input", "spec from HINT for reduce input");
-    VerifyIntermediateDesc(reduceInputDesc, "reducer input");
-
-    auto reduceCombinerOutputDesc = MergeIntermediateDesc(reduceCombinerClassOutputDesc, spec.ReduceCombinerOutputHintDesc_,
-        "spec derived from reduce combiner CLASS output", "spec from HINT for reduce combiner output");
-    VerifyIntermediateDesc(reduceCombinerOutputDesc, "reduce combiner output");
-    auto reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerClassInputDesc, spec.ReduceCombinerInputHintDesc_,
-        "spec from reduce combiner CLASS input", "spec from HINT for reduce combiner input");
-    VerifyIntermediateDesc(reduceCombinerInputDesc, "reduce combiner input");
-    auto mapOutputDesc = MergeIntermediateDesc(mapperClassOutputDesc, spec.MapOutputDesc_,
-        "spec from mapper CLASS output", "spec from HINT for map output",
-        /* allowMultipleDescriptors = */ true);
-    VerifyIntermediateDesc(mapOutputDesc, "map output");
-
-    const auto& mapInputDesc = spec.GetInputDesc();
-
-    if (!mapper) {
-        //request identity desc only for no mapper cases
-        const auto& identityMapInputDesc = IdentityDesc(mapInputDesc);
-        if (reduceCombiner) {
-            reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerInputDesc, identityMapInputDesc,
-                "spec derived from reduce combiner CLASS input", "identity spec from mapper CLASS input");
-        } else {
-            reduceInputDesc = MergeIntermediateDesc(reduceInputDesc, identityMapInputDesc,
-                "spec derived from reduce CLASS input", "identity spec from mapper CLASS input" );
-        }
-    }
-
     TMapReduceOperationIo operationIo;
-    operationIo.Inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
-    operationIo.MapOutputs = CanonizePaths(preparer.GetAuth(), spec.MapOutputs_);
-    operationIo.Outputs = CanonizePaths(preparer.GetAuth(), spec.Outputs_);
+    const auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredInputs());
+    const auto structuredMapOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredMapOutputs());
+    const auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredOutputs());
+    operationIo.Inputs = GetPathList(structuredInputs);
+    operationIo.MapOutputs = GetPathList(structuredMapOutputs);
+    operationIo.Outputs = GetPathList(structuredOutputs);
 
     if (options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema) &&
         spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO)
@@ -1721,45 +1483,83 @@ TOperationId ExecuteMapReduce(
         }
     };
 
+    TFormatBuilder formatBuilder(
+       preparer.GetAuth(),
+       preparer.GetTransactionId(),
+       options);
+
     if (mapper) {
         auto nodeReaderFormat = NodeReaderFormatFromHintAndGlobalConfig(spec.MapperFormatHints_);
-        TFormatDescImpl inputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), mapInputDesc, operationIo.Inputs, options,
-            nodeReaderFormat, /* allowFormatFromTableAttribute = */ true);
-        TFormatDescImpl outputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), mapOutputDesc, operationIo.MapOutputs, options,
-            ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
-        operationIo.MapperJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
-        operationIo.MapperInputFormat = inputDescImpl.GetFormat();
-        operationIo.MapperOutputFormat = outputDescImpl.GetFormat();
-        ApplyFormatHints(
-            operationIo.MapperInputFormat.Get(),
-            inputDescImpl.GetRowType(),
-            spec.MapperFormatHints_.InputFormatHints_);
 
-        ApplyFormatHints(
-            operationIo.MapperOutputFormat.Get(),
-            outputDescImpl.GetRowType(),
-            spec.MapperFormatHints_.OutputFormatHints_);
+        auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
+           *mapper,
+           EIODirection::Input,
+           structuredInputs,
+           spec.MapperFormatHints_.InputFormatHints_,
+           nodeReaderFormat,
+           /* allowFormatFromTableAttribute */ true);
+
+        auto mapperOutputDescription =
+            spec.GetIntermediateMapOutputDescription()
+            .GetOrElse(TUnspecifiedTableStructure());
+        TStructuredJobTableList mapperOutput = {
+            TStructuredJobTable::Intermediate(mapperOutputDescription),
+        };
+        for (const auto& table : structuredMapOutputs) {
+            mapperOutput.push_back(TStructuredJobTable{table.Description, table.RichYPath});
+        }
+
+        auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
+            *mapper,
+            EIODirection::Output,
+            mapperOutput,
+            spec.MapperFormatHints_.OutputFormatHints_,
+            ENodeReaderFormat::Yson,
+            /* allowFormatFromTableAttribute */ false);
+
+        operationIo.MapperJobFiles = CreateFormatConfig(inputFormatConfig, outputFormatConfig);
+        operationIo.MapperInputFormat = inputFormat;
+        operationIo.MapperOutputFormat = outputFormat;
     }
 
     if (reduceCombiner) {
         const bool isFirstStep = !mapper;
-        auto inputs = isFirstStep ? operationIo.Inputs : TVector<TRichYPath>();
-        TFormatDescImpl inputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), reduceCombinerInputDesc, inputs, options,
-            ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ isFirstStep);
-        TFormatDescImpl outputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), reduceCombinerOutputDesc, /* tables = */ {}, options,
-            ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
-        operationIo.ReduceCombinerJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
-        operationIo.ReduceCombinerInputFormat = inputDescImpl.GetFormat();
-        operationIo.ReduceCombinerOutputFormat = outputDescImpl.GetFormat();
+        TStructuredJobTableList inputs;
+        if (isFirstStep) {
+            inputs = structuredInputs;
+        } else {
+            auto reduceCombinerIntermediateInput =
+                spec.GetIntermediateReduceCombinerInputDescription()
+                .GetOrElse(TUnspecifiedTableStructure());
+            inputs = {
+                TStructuredJobTable::Intermediate(reduceCombinerIntermediateInput),
+            };
+        }
+        auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
+            *reduceCombiner,
+            EIODirection::Input,
+            inputs,
+            spec.ReduceCombinerFormatHints_.InputFormatHints_,
+            ENodeReaderFormat::Yson,
+            /* allowFormatFromTableAttribute = */ isFirstStep);
 
-        ApplyFormatHints(
-            operationIo.ReduceCombinerInputFormat.Get(),
-            inputDescImpl.GetRowType(),
-            spec.ReduceCombinerFormatHints_.InputFormatHints_);
-        ApplyFormatHints(
-            operationIo.ReduceCombinerOutputFormat.Get(),
-            outputDescImpl.GetRowType(),
-            spec.ReduceCombinerFormatHints_.OutputFormatHints_);
+        auto reduceCombinerOutputDescription = spec.GetIntermediateReduceCombinerOutputDescription()
+            .GetOrElse(TUnspecifiedTableStructure());
+
+        TStructuredJobTableList outputs = {
+            TStructuredJobTable::Intermediate(reduceCombinerOutputDescription),
+        };
+        auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
+            *reduceCombiner,
+            EIODirection::Output,
+            outputs,
+            spec.ReduceCombinerFormatHints_.OutputFormatHints_,
+            ENodeReaderFormat::Yson,
+            /* allowFormatFromTableAttribute = */ false);
+
+        operationIo.ReduceCombinerJobFiles = CreateFormatConfig(inputFormatConfig, outputFormatConfig);
+        operationIo.ReduceCombinerInputFormat = inputFormat;
+        operationIo.ReduceCombinerOutputFormat = outputFormat;
 
         if (isFirstStep) {
             fixSpec(*operationIo.ReduceCombinerInputFormat);
@@ -1767,23 +1567,35 @@ TOperationId ExecuteMapReduce(
     }
 
     const bool isFirstStep = (!mapper && !reduceCombiner);
-    auto inputs = isFirstStep ? operationIo.Inputs : TVector<TRichYPath>();
-    TFormatDescImpl inputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), reduceInputDesc, inputs, options,
-        ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ isFirstStep);
-    TFormatDescImpl outputDescImpl(preparer.GetAuth(), preparer.GetTransactionId(), reduceOutputDesc, operationIo.Outputs, options,
-        ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
-    operationIo.ReducerJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
-    operationIo.ReducerInputFormat = inputDescImpl.GetFormat();
-    operationIo.ReducerOutputFormat = outputDescImpl.GetFormat();
-    ApplyFormatHints(
-        &operationIo.ReducerInputFormat,
-        inputDescImpl.GetRowType(),
-        spec.ReducerFormatHints_.InputFormatHints_);
+    TStructuredJobTableList reducerInputs;
+    if (isFirstStep) {
+        reducerInputs = structuredInputs;
+    } else {
+        auto reducerInputDescription =
+            spec.GetIntermediateReducerInputDescription()
+            .GetOrElse(TUnspecifiedTableStructure());
+        reducerInputs = {
+            TStructuredJobTable::Intermediate(reducerInputDescription),
+        };
+    }
+    auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
+        reducer,
+        EIODirection::Input,
+        reducerInputs,
+        spec.ReducerFormatHints_.InputFormatHints_,
+        ENodeReaderFormat::Yson,
+        /* allowFormatFromTableAttribute = */ isFirstStep);
 
-    ApplyFormatHints(
-        &operationIo.ReducerOutputFormat,
-        outputDescImpl.GetRowType(),
-        spec.ReducerFormatHints_.OutputFormatHints_);
+    auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
+        reducer,
+        EIODirection::Output,
+        ToStructuredJobTableList(spec.GetStructuredOutputs()),
+        spec.ReducerFormatHints_.OutputFormatHints_,
+        ENodeReaderFormat::Yson,
+        /* allowFormatFromTableAttribute = */ false);
+    operationIo.ReducerJobFiles = CreateFormatConfig(inputFormatConfig, outputFormatConfig);
+    operationIo.ReducerInputFormat = inputFormat;
+    operationIo.ReducerOutputFormat = outputFormat;
 
     if (isFirstStep) {
         fixSpec(operationIo.ReducerInputFormat);
@@ -1991,8 +1803,8 @@ class TOperation::TOperationImpl
     : public TThrRefBase
 {
 public:
-    TOperationImpl(const TAuth& auth, const TOperationId& operationId)
-        : Auth_(auth)
+    TOperationImpl(TAuth auth, const TOperationId& operationId)
+        : Auth_(std::move(auth))
         , Id_(operationId)
     { }
 
@@ -2036,10 +1848,10 @@ class TOperationPollerItem
 public:
     TOperationPollerItem(::TIntrusivePtr<TOperation::TOperationImpl> operationImpl)
         : OperationAttrPath_("//sys/operations/" + GetGuidAsString(operationImpl->GetId()) + "/@")
-        , OperationImpl_(operationImpl)
+        , OperationImpl_(std::move(operationImpl))
     { }
 
-    virtual void PrepareRequest(TRawBatchRequest* batchRequest) override
+    void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
         OperationState_ = batchRequest->GetOperation(
             OperationImpl_->GetId(),
@@ -2049,7 +1861,7 @@ public:
                 .Add(EOperationAttribute::Result)));
     }
 
-    virtual EStatus OnRequestExecuted() override
+    EStatus OnRequestExecuted() override
     {
         try {
             const auto& attributes = OperationState_.GetValue();
@@ -2192,7 +2004,7 @@ void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics,
 
 void TOperation::TOperationImpl::FinishWithException(std::exception_ptr e)
 {
-    CompletePromise_->SetException(e);
+    CompletePromise_->SetException(std::move(e));
 }
 
 void TOperation::TOperationImpl::AbortOperation() {
@@ -2431,8 +2243,6 @@ void ResetUseClientProtobuf(const char* methodName)
     Sleep(TDuration::Seconds(5));
     TConfig::Get()->UseClientProtobuf = true;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
 
