@@ -110,7 +110,7 @@ TResponseInfo RetryRequestWithPolicy(
 
             auto maybeRetryTimeout = retryPolicy->GetRetryInterval(e);
             if (maybeRetryTimeout) {
-                TWaitProxy::Sleep(*maybeRetryTimeout);
+                TWaitProxy::Get()->Sleep(*maybeRetryTimeout);
             } else {
                 throw;
             }
@@ -120,7 +120,7 @@ TResponseInfo RetryRequestWithPolicy(
 
             auto maybeRetryTimeout = retryPolicy->GetRetryInterval(e);
             if (maybeRetryTimeout) {
-                TWaitProxy::Sleep(*maybeRetryTimeout);
+                TWaitProxy::Get()->Sleep(*maybeRetryTimeout);
             } else {
                 throw;
             }

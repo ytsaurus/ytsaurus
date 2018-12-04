@@ -33,75 +33,83 @@ void TDefaultWaitProxy::Sleep(TDuration timeout)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIntrusivePtr<IWaitProxy> &TWaitProxy::Get()
+TWaitProxy::TWaitProxy()
+    : Proxy_(::MakeIntrusive<TDefaultWaitProxy>())
+{ }
+
+TWaitProxy* TWaitProxy::Get()
 {
-    static TIntrusivePtr<IWaitProxy> waitProxy = MakeIntrusive<TDefaultWaitProxy>();
-    return waitProxy;
+    return Singleton<TWaitProxy>();
+}
+
+void TWaitProxy::SetProxy(TIntrusivePtr<IWaitProxy> proxy)
+{
+    Proxy_ = std::move(proxy);
 }
 
 bool TWaitProxy::WaitFuture(const NThreading::TFuture<void>& future)
 {
-    return Get()->WaitFuture(future, TDuration::Max());
+    return Proxy_->WaitFuture(future, TDuration::Max());
 }
 
 bool TWaitProxy::WaitFuture(const NThreading::TFuture<void>& future, TInstant deadLine)
 {
-    return Get()->WaitFuture(future, deadLine - TInstant::Now());
+    return Proxy_->WaitFuture(future, deadLine - TInstant::Now());
 }
 
 bool TWaitProxy::WaitFuture(const NThreading::TFuture<void>& future, TDuration timeout)
 {
-    return Get()->WaitFuture(future, timeout);
+    return Proxy_->WaitFuture(future, timeout);
 }
 
 bool TWaitProxy::WaitEventD(TSystemEvent& event, TInstant deadLine)
 {
-    return Get()->WaitEvent(event, deadLine - TInstant::Now());
+    return Proxy_->WaitEvent(event, deadLine - TInstant::Now());
 }
 
 bool TWaitProxy::WaitEventT(TSystemEvent& event, TDuration timeout)
 {
-    return Get()->WaitEvent(event, timeout);
+    return Proxy_->WaitEvent(event, timeout);
 }
 
 void TWaitProxy::WaitEventI(TSystemEvent& event)
 {
-    Get()->WaitEvent(event, TDuration::Max());
+    Proxy_->WaitEvent(event, TDuration::Max());
 }
 
 bool TWaitProxy::WaitEvent(TSystemEvent& event)
 {
-    return Get()->WaitEvent(event, TDuration::Max());
+    return Proxy_->WaitEvent(event, TDuration::Max());
 }
 
 bool TWaitProxy::WaitCondVarD(TCondVar& condVar, TMutex& m, TInstant deadLine)
 {
-    return Get()->WaitCondVar(condVar, m, deadLine - TInstant::Now());
+    return Proxy_->WaitCondVar(condVar, m, deadLine - TInstant::Now());
 }
 
 bool TWaitProxy::WaitCondVarT(TCondVar& condVar, TMutex& m, TDuration timeOut)
 {
-    return Get()->WaitCondVar(condVar, m, timeOut);
+    return Proxy_->WaitCondVar(condVar, m, timeOut);
 }
 
 void TWaitProxy::WaitCondVarI(TCondVar& condVar, TMutex& m)
 {
-    Get()->WaitCondVar(condVar, m, TDuration::Max());
+    Proxy_->WaitCondVar(condVar, m, TDuration::Max());
 }
 
 void TWaitProxy::WaitCondVar(TCondVar& condVar, TMutex& m)
 {
-    Get()->WaitCondVar(condVar, m, TDuration::Max());
+    Proxy_->WaitCondVar(condVar, m, TDuration::Max());
 }
 
 void TWaitProxy::Sleep(TDuration timeout)
 {
-    Get()->Sleep(timeout);
+    Proxy_->Sleep(timeout);
 }
 
 void TWaitProxy::SleepUntil(TInstant instant)
 {
-    Get()->Sleep(instant - TInstant::Now());
+    Proxy_->Sleep(instant - TInstant::Now());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

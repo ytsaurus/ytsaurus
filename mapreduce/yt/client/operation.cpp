@@ -942,7 +942,7 @@ void WaitForOperation(
                 ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
             break;
         }
-        TWaitProxy::Sleep(checkOperationStateInterval);
+        TWaitProxy::Get()->Sleep(checkOperationStateInterval);
     }
 }
 
@@ -2413,7 +2413,7 @@ TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, 
     auto operation = ::MakeIntrusive<TOperation>(operationId, std::move(client));
     if (options.Wait_) {
         auto finishedFuture = operation->Watch();
-        TWaitProxy::WaitFuture(finishedFuture);
+        TWaitProxy::Get()->WaitFuture(finishedFuture);
         finishedFuture.GetValue();
     }
     return operation;

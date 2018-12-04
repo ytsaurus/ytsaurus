@@ -168,7 +168,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             if (!NDetail::IsRetriable(e) || attempt == lastAttempt) {
                 throw;
             }
-            NDetail::TWaitProxy::Sleep(NDetail::GetRetryInterval(e));
+            NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
             continue;
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
@@ -180,7 +180,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             if (attempt == lastAttempt) {
                 throw;
             }
-            NDetail::TWaitProxy::Sleep(TConfig::Get()->RetryInterval);
+            NDetail::TWaitProxy::Get()->Sleep(TConfig::Get()->RetryInterval);
             continue;
         }
 

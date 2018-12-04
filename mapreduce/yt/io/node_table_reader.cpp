@@ -31,7 +31,7 @@ void TRowQueue::Enqueue(TRowElement&& row)
         return;
     }
 
-    NDetail::TWaitProxy::WaitEvent(DequeueEvent_);
+    NDetail::TWaitProxy::Get()->WaitEvent(DequeueEvent_);
 
     if (Stopped_) {
         throw TStopException();
@@ -52,7 +52,7 @@ TRowElement TRowQueue::Dequeue()
         }
         DequeueBuffer_.clear();
         DequeueEvent_.Signal();
-        NDetail::TWaitProxy::WaitEvent(EnqueueEvent_);
+        NDetail::TWaitProxy::Get()->WaitEvent(EnqueueEvent_);
     }
 }
 
@@ -429,7 +429,7 @@ void TNodeTableReader::FetchThread()
             } catch (const TStopException&) {
                 break;
             }
-            NDetail::TWaitProxy::WaitEvent(RetryPrepared_);
+            NDetail::TWaitProxy::Get()->WaitEvent(RetryPrepared_);
         }
     }
 }
