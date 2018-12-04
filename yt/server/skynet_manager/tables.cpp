@@ -50,6 +50,8 @@ TString ToString(const TRequestKey& key)
     return ConvertToYsonString(key, EYsonFormat::Text).GetData();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TRequestKey TRequestKey::FromRow(
     const TNameTablePtr& nameTable,
     const TUnversionedRow& row)
@@ -65,7 +67,7 @@ TRequestKey TRequestKey::FromRow(
     YCHECK(row[1].Type == EValueType::String);
     TYsonString optionsYson(row[1].Data.String, row[1].Length);
     auto optionsNode = ConvertToNode(optionsYson)->AsMap();
-    key.TableRevision = ConvertTo<i64>(optionsNode->FindChild("revision"));
+    key.TableRevision = ConvertTo<ui64>(optionsNode->FindChild("revision"));
     key.KeyColumns = ConvertTo<std::vector<TString>>(optionsNode->FindChild("key_columns"));
 
     return key;

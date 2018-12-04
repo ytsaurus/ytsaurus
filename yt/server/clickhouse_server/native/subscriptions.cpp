@@ -300,7 +300,7 @@ void TNodePoller::CheckNode()
         LOG_DEBUG("Current revision of target node %Qv: %v", Path, revision);
 
         if (revision != ExpectedRevision) {
-            if (revision == -1) {
+            if (revision == NonexistingNodeRevision) {
                 NotifyOnRemove();
             } else {
                 NotifyOnUpdate(revision);
@@ -326,15 +326,13 @@ TErrorOr<TNodeRevision> TNodePoller::GetRevision()
         "revision",
     };
     options.SuppressAccessTracking = true;
-    options.ReadFrom = EMasterChannelKind::Follower;
 
     auto result = WaitFor(Client->GetNode(GetAttributePath(Path, "revision"), options));
 
     if (result.IsOK()) {
-        const auto node = ConvertToNode(result.Value());
-        return node->GetType() == ENodeType::Int64 ? node->AsInt64()->GetValue() : node->AsUint64()->GetValue();
+        return ConvertTo<TNodeRevision>(result.Value());
     } else if (IsNodeNotFound(result)) {
-        return -1; // Node not found
+        return NonexistingNodeRevision; // Node not found
     } else {
         return TError(result);
     }
