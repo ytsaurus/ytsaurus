@@ -98,6 +98,8 @@ void TScalarTypeTraits<ui64>::SetValue(const INodePtr& node, ui64 value)
 double TScalarTypeTraits<double>::GetValue(const IConstNodePtr& node)
 {
     switch (node->GetType()) {
+        case ENodeType::Double:
+            return node->AsDouble()->GetValue();
         case ENodeType::Int64:
             return static_cast<double>(node->AsInt64()->GetValue());
         case ENodeType::Uint64:
