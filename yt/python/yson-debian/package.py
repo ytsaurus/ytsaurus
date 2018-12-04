@@ -49,11 +49,15 @@ def create_if_missing(directory):
     return directory
 
 class PackagingContext(object):
-    def __init__(self, module_name, checkout_directory, working_directory, codename):
-        self.module_name = module_name
+    def __init__(self, module_path, checkout_directory, working_directory, codename):
+        self.module_path = module_path
         self.checkout_directory = checkout_directory
         self.working_directory = working_directory
         self.codename = codename
+
+    @property
+    def module_name(self):
+        return os.path.basename(self.module_path)
 
     @property
     def yson_debian_directory(self):
@@ -69,12 +73,12 @@ class PackagingContext(object):
 
 
 @contextlib.contextmanager
-def packaging_context(module_name, checkout_directory, working_directory=None, keep_tmp_files=False):
+def packaging_context(module_path, checkout_directory, working_directory=None, keep_tmp_files=False):
     if working_directory is None:
         working_directory = os.getcwd()
     tmp_dir = tempfile.mkdtemp(dir=working_directory)
     codename = re.sub(r"^Codename:\s*", "", run_captured(["lsb_release", "-c"]))
-    ctx = PackagingContext(module_name, checkout_directory, tmp_dir, codename)
+    ctx = PackagingContext(module_path, checkout_directory, tmp_dir, codename)
     try:
         yield ctx
     finally:
@@ -249,7 +253,9 @@ def build_targets(
             copy_content(package_path, build_dir)
             copy_element(ctx.yson_debian_directory, build_dir, "debian/changelog")
 
-            copy_element(ctx.yson_debian_directory, build_dir, ctx.module_name)
+            shutil.copytree(
+                os.path.join(ctx.checkout_directory, ctx.module_path),
+                os.path.join(build_dir, ctx.module_name))
 
             shutil.rmtree(ctx.install_directory)
             yson_lib_install_dir = os.path.join(ctx.install_directory, "lib/pyshared-{0}/yt_yson_bindings".format(
@@ -363,8 +369,8 @@ def main():
         target_map[m.group(1)] = m.group(2)
 
     checkout_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-    module_name="yt_yson_bindings"
-    with packaging_context(module_name, checkout_directory, args.working_directory, keep_tmp_files=args.keep_tmp_files) as ctx:
+    module_path = "yt/python/yt_yson_bindings"
+    with packaging_context(module_path, checkout_directory, args.working_directory, keep_tmp_files=args.keep_tmp_files) as ctx:
         build_targets(
             ctx,
             targets=target_map,
