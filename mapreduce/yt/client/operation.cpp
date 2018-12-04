@@ -2423,11 +2423,12 @@ TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, 
 
 void ResetUseClientProtobuf(const char* methodName)
 {
-    if (!TConfig::Get()->UseClientProtobuf) {
-        Cerr << "WARNING! OPTION `TConfig::UseClientProtobuf' IS RESET TO `true'; "
-            << "IT CAN DETERIORIATE YOUR CODE PERFORMANCE!!! DON'T USE DEPRECATED METHOD `"
-            << "TOperationIOSpec::" << methodName << "' TO AVOID THIS RESET" << Endl;
-    }
+    Cerr << "WARNING! OPTION `TConfig::UseClientProtobuf' IS RESET TO `true'; "
+        << "IT CAN DETERIORIATE YOUR CODE PERFORMANCE!!! DON'T USE DEPRECATED METHOD `"
+        << "TOperationIOSpec::" << methodName << "' TO AVOID THIS RESET" << Endl;
+    // Give users some time to contemplate about usage of deprecated functions.
+    Cerr << "Sleeping for 5 seconds..." << Endl;
+    Sleep(TDuration::Seconds(5));
     TConfig::Get()->UseClientProtobuf = true;
 }
 
