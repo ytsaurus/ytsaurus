@@ -124,6 +124,11 @@ bool TFormat::IsTextYson() const
     return true;
 }
 
+bool TFormat::IsProtobuf() const
+{
+    return Config.IsString() && Config.AsString() == "protobuf";
+}
+
 bool TFormat::IsYamredDsv() const
 {
     return Config.IsString() && Config.AsString() == "yamred_dsv";

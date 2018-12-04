@@ -16,6 +16,60 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUnspecifiedTableStructure
+{ };
+
+struct TProtobufTableStructure
+{
+    // If we tag our table with ::google::protobuf::Message instead of real proto class
+    // this descriptor might be null.
+    const ::google::protobuf::Descriptor* Descriptor = nullptr;
+};
+
+using TTableStructure = TVariant<
+    TUnspecifiedTableStructure,
+    TProtobufTableStructure
+>;
+
+struct TStructuredTablePath
+{
+    TStructuredTablePath(TRichYPath richYPath = TRichYPath(), TTableStructure description = TUnspecifiedTableStructure())
+        : RichYPath(std::move(richYPath))
+        , Description(std::move(description))
+    { }
+
+    TRichYPath RichYPath;
+    TTableStructure Description;
+};
+
+template <typename TRow>
+TStructuredTablePath Structured(TRichYPath richYPath);
+
+template <typename TRow>
+TTableStructure StructuredTableDescription();
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TTNodeStructuredRowStream
+{ };
+
+struct TTYaMRRowStructuredRowStream
+{ };
+
+struct TProtobufStructuredRowStream
+{
+    // If descriptor is nullptr, then mapper works with multiple message types
+    const ::google::protobuf::Descriptor* Descriptor = nullptr;
+};
+
+using TStructuredRowStreamDescription = TVariant<
+    TTNodeStructuredRowStream,
+    TTYaMRRowStructuredRowStream,
+    TProtobufStructuredRowStream
+>;
+
+///////////////////////////////////////////////////////////////////////////////
+
 struct TJobBinaryDefault
 { };
 
@@ -156,9 +210,18 @@ public:
         return OutputDesc_;
     }
 
+    const TVector<TStructuredTablePath>& GetStructuredInputs() const;
+    const TVector<TStructuredTablePath>& GetStructuredOutputs() const;
+
 protected:
     TMultiFormatDesc InputDesc_;
     TMultiFormatDesc OutputDesc_;
+
+private:
+    TVector<TStructuredTablePath> StructuredInputs_;
+    TVector<TStructuredTablePath> StructuredOutputs_;
+    template <class T>
+    friend struct TOperationIOSpec;
 };
 
 template <class TDerived>
@@ -247,6 +310,19 @@ struct TIntermediateTablesHintSpec
     TMultiFormatDesc ReduceCombinerOutputHintDesc_;
 
     TMultiFormatDesc ReduceInputHintDesc_;
+
+    const TVector<TStructuredTablePath>& GetStructuredMapOutputs() const;
+    const TMaybe<TTableStructure>& GetIntermediateMapOutputDescription() const;
+    const TMaybe<TTableStructure>& GetIntermediateReduceCombinerInputDescription() const;
+    const TMaybe<TTableStructure>& GetIntermediateReduceCombinerOutputDescription() const;
+    const TMaybe<TTableStructure>& GetIntermediateReducerInputDescription() const;
+
+private:
+    TVector<TStructuredTablePath> StructuredMapOutputs_;
+    TMaybe<TTableStructure> IntermediateMapOutputDescription_;
+    TMaybe<TTableStructure> IntermediateReduceCombinerInputDescription_;
+    TMaybe<TTableStructure> IntermediateReduceCombinerOutputDescription_;
+    TMaybe<TTableStructure> IntermediateReducerInputDescription_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -611,6 +687,10 @@ public:
 class IStructuredJob
     : public IJob
 {
+public:
+    virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const = 0;
+    virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const = 0;
+
 private:
     friend struct IOperationClient;
     virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const = 0;
@@ -648,6 +728,9 @@ public:
     {
         Y_UNUSED(writer);
     }
+
+    virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
+    virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
 
 private:
     virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
@@ -692,6 +775,9 @@ public:
 
     void Break(); // do not process other keys
 
+    virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
+    virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
+
 private:
     virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
     virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
@@ -730,6 +816,9 @@ public:
     {
         Y_UNUSED(writer);
     }
+
+    virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
+    virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
 
 private:
     virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;

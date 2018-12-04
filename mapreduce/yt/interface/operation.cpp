@@ -10,6 +10,18 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TVector<TStructuredTablePath>& TOperationIOSpecBase::GetStructuredInputs() const
+{
+    return StructuredInputs_;
+}
+
+const TVector<TStructuredTablePath>& TOperationIOSpecBase::GetStructuredOutputs() const
+{
+    return StructuredOutputs_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRawJobContext::TRawJobContext(size_t outputTableCount)
     : InputFile_(Duplicate(0))
 {

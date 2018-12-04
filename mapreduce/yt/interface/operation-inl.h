@@ -31,7 +31,60 @@ void Assign(TVector<T>& array, size_t idx, const T& value) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// https://en.cppreference.com/w/cpp/language/if
+// search for `dependent_false`
+template<typename T>
+struct TDependentFalse
+    : public std::false_type
+{ };
+
+template <typename TRow>
+TStructuredRowStreamDescription GetStructuredRowStreamDescription()
+{
+    if constexpr (std::is_same_v<TRow, NYT::TNode>) {
+        return TTNodeStructuredRowStream{};
+    } else if constexpr (std::is_same_v<TRow, NYT::TYaMRRow>) {
+        return TTYaMRRowStructuredRowStream{};
+    } else if constexpr (std::is_base_of_v<::google::protobuf::Message, TRow>) {
+        if constexpr (std::is_same_v<::google::protobuf::Message, TRow>) {
+            return TProtobufStructuredRowStream{nullptr};
+        } else {
+            return TProtobufStructuredRowStream{TRow::descriptor()};
+        }
+    } else {
+        static_assert(TDependentFalse<TRow>::value, "Unknown row type");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TRow>
+TStructuredTablePath Structured(TRichYPath richYPath)
+{
+    return TStructuredTablePath(std::move(richYPath), StructuredTableDescription<TRow>());
+}
+
+template <typename TRow>
+TTableStructure StructuredTableDescription()
+{
+    if constexpr (std::is_same_v<TRow, NYT::TNode>) {
+        return TUnspecifiedTableStructure{};
+    } else if constexpr (std::is_same_v<TRow, NYT::TYaMRRow>) {
+        return TUnspecifiedTableStructure{};
+    } else if constexpr (std::is_base_of_v<::google::protobuf::Message, TRow>) {
+        if constexpr (std::is_same_v<::google::protobuf::Message, TRow>) {
+            static_assert(NDetail::TDependentFalse<TRow>::value, "Cannot use ::google::protobuf::Message as table descriptor");
+        } else {
+            return TProtobufTableStructure{TRow::descriptor()};
+        }
+    } else {
+        static_assert(NDetail::TDependentFalse<TRow>::value, "Unknown row type");
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -261,6 +314,7 @@ void TOperationIOSpecBase::AddInput(const TRichYPath& path)
 {
     TOperationIOSpecBase::TFormatAdder<T>::Add(InputDesc_);
     Inputs_.push_back(path);
+    StructuredInputs_.emplace_back(Structured<T>(path));
 }
 
 template <class T>
@@ -268,6 +322,7 @@ void TOperationIOSpecBase::SetInput(size_t tableIndex, const TRichYPath& path)
 {
     TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, InputDesc_);
     NDetail::Assign(Inputs_, tableIndex, path);
+    NDetail::Assign(StructuredInputs_, tableIndex, Structured<T>(path));
 }
 
 
@@ -276,6 +331,7 @@ void TOperationIOSpecBase::AddOutput(const TRichYPath& path)
 {
     TOperationIOSpecBase::TFormatAdder<T>::Add(OutputDesc_);
     Outputs_.push_back(path);
+    StructuredOutputs_.emplace_back(Structured<T>(path));
 }
 
 template <class T>
@@ -283,6 +339,7 @@ void TOperationIOSpecBase::SetOutput(size_t tableIndex, const TRichYPath& path)
 {
     TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, OutputDesc_);
     NDetail::Assign(Outputs_, tableIndex, path);
+    NDetail::Assign(StructuredOutputs_, tableIndex, Structured<T>(path));
 }
 
 template <class TDerived>
@@ -336,6 +393,7 @@ TDerived& TOperationIOSpec<TDerived>::AddProtobufInput_VerySlow_Deprecated(const
     NDetail::ResetUseClientProtobuf("AddProtobufInput_VerySlow_Deprecated");
     TOperationIOSpecBase::TFormatAdder<Message>::Add(InputDesc_);
     Inputs_.push_back(path);
+    StructuredInputs_.emplace_back(TStructuredTablePath(path, TProtobufTableStructure{nullptr}));
     return *static_cast<TDerived*>(this);
 }
 
@@ -345,6 +403,7 @@ TDerived& TOperationIOSpec<TDerived>::AddProtobufOutput_VerySlow_Deprecated(cons
     NDetail::ResetUseClientProtobuf("AddProtobufOutput_VerySlow_Deprecated");
     TOperationIOSpecBase::TFormatAdder<Message>::Add(OutputDesc_);
     Outputs_.push_back(path);
+    StructuredOutputs_.emplace_back(TStructuredTablePath(path, TProtobufTableStructure{nullptr}));
     return *static_cast<TDerived*>(this);
 }
 
@@ -355,6 +414,7 @@ template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintMapOutput()
 {
     TOperationIOSpecBase::TFormatAdder<TRow>::Set(0, MapOutputDesc_);
+    IntermediateMapOutputDescription_ = StructuredTableDescription<TRow>();
     return *static_cast<TDerived*>(this);
 }
 
@@ -368,6 +428,7 @@ TDerived& TIntermediateTablesHintSpec<TDerived>::AddMapOutput(const TRichYPath& 
         TOperationIOSpecBase::TFormatAdder<TRow>::Add(MapOutputDesc_);
     }
     MapOutputs_.push_back(path);
+    StructuredMapOutputs_.emplace_back(Structured<TRow>(path));
     return *static_cast<TDerived*>(this);
 }
 
@@ -379,6 +440,7 @@ TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceCombinerInput()
         ythrow TApiUsageError() << "HintReduceCombinerInput cannot be called multiple times";
     }
     TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceCombinerInputHintDesc_);
+    IntermediateReduceCombinerInputDescription_ = StructuredTableDescription<TRow>();
     return *static_cast<TDerived*>(this);
 }
 
@@ -390,6 +452,7 @@ TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceCombinerOutput()
         ythrow TApiUsageError() << "HintReduceCombinerOutput cannot be called multiple times";
     }
     TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceCombinerOutputHintDesc_);
+    IntermediateReduceCombinerOutputDescription_ = StructuredTableDescription<TRow>();
     return *static_cast<TDerived*>(this);
 }
 
@@ -401,7 +464,38 @@ TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceInput()
         ythrow TApiUsageError() << "HintReduceInput cannot be called multiple times";
     }
     TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceInputHintDesc_);
+    IntermediateReducerInputDescription_ = StructuredTableDescription<TRow>();
     return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+const TVector<TStructuredTablePath>& TIntermediateTablesHintSpec<TDerived>::GetStructuredMapOutputs() const
+{
+    return StructuredMapOutputs_;
+}
+
+template <class TDerived>
+const TMaybe<TTableStructure>& TIntermediateTablesHintSpec<TDerived>::GetIntermediateMapOutputDescription() const
+{
+    return IntermediateMapOutputDescription_;
+}
+
+template <class TDerived>
+const TMaybe<TTableStructure>& TIntermediateTablesHintSpec<TDerived>::GetIntermediateReduceCombinerInputDescription() const
+{
+    return IntermediateReduceCombinerInputDescription_;
+}
+
+template <class TDerived>
+const TMaybe<TTableStructure>& TIntermediateTablesHintSpec<TDerived>::GetIntermediateReduceCombinerOutputDescription() const
+{
+    return IntermediateReduceCombinerOutputDescription_;
+}
+
+template <class TDerived>
+const TMaybe<TTableStructure>& TIntermediateTablesHintSpec<TDerived>::GetIntermediateReducerInputDescription() const
+{
+    return IntermediateReducerInputDescription_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -724,6 +818,16 @@ void IMapper<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMu
     NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
 }
 
+template <typename TReader, typename TWriter>
+TStructuredRowStreamDescription IMapper<TReader, TWriter>::GetInputRowStreamDescription() const {
+    return NYT::NDetail::GetStructuredRowStreamDescription<typename TReader::TRowType>();
+}
+
+template <typename TReader, typename TWriter>
+TStructuredRowStreamDescription IMapper<TReader, TWriter>::GetOutputRowStreamDescription() const {
+    return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
+}
+
 template <class TReader, class TWriter>
 void IMapper<TReader, TWriter>::AddInputFormatDescription(TMultiFormatDesc* desc)
 {
@@ -750,6 +854,16 @@ void IReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TM
     NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
 }
 
+template <typename TReader, typename TWriter>
+TStructuredRowStreamDescription IReducer<TReader, TWriter>::GetInputRowStreamDescription() const {
+    return NYT::NDetail::GetStructuredRowStreamDescription<typename TReader::TRowType>();
+}
+
+template <typename TReader, typename TWriter>
+TStructuredRowStreamDescription IReducer<TReader, TWriter>::GetOutputRowStreamDescription() const {
+    return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
+}
+
 template <class TReader, class TWriter>
 void IReducer<TReader, TWriter>::AddInputFormatDescription(TMultiFormatDesc* desc)
 {
@@ -774,6 +888,16 @@ template <class TReader, class TWriter>
 void IAggregatorReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const
 {
     NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
+}
+
+template <typename TReader, typename TWriter>
+TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetInputRowStreamDescription() const {
+    return NYT::NDetail::GetStructuredRowStreamDescription<typename TReader::TRowType>();
+}
+
+template <typename TReader, typename TWriter>
+TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetOutputRowStreamDescription() const {
+    return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
 }
 
 template <class TReader, class TWriter>

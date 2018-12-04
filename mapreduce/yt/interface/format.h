@@ -36,6 +36,8 @@ public:
 
     bool IsTextYson() const;
 
+    bool IsProtobuf() const;
+
     bool IsYamredDsv() const;
     TYamredDsvAttributes GetYamredDsvAttributes() const;
 };
