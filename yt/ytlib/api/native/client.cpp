@@ -4782,6 +4782,12 @@ private:
             const EOperationType& type,
             i64 count)
         {
+            UserCounts[user] += count;
+
+            if (Options.UserFilter && *Options.UserFilter != user) {
+                return false;
+            }
+
             if (pools) {
                 for (const auto& pool : *pools) {
                     PoolCounts[pool] += count;
@@ -4789,12 +4795,6 @@ private:
             }
 
             if (Options.Pool && (!pools || std::find(pools->begin(), pools->end(), *Options.Pool) == pools->end())) {
-                return false;
-            }
-
-            UserCounts[user] += count;
-
-            if (Options.UserFilter && *Options.UserFilter != user) {
                 return false;
             }
 
