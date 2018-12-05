@@ -299,7 +299,7 @@ public:
         constexpr size_t md5Size = 32;
         TString result;
         result.ReserveAndResize(md5Size);
-        MD5::File(~FileName_, result.Detach());
+        MD5::File(FileName_.data(), result.Detach());
         return result;
     }
 
@@ -618,7 +618,7 @@ private:
                     .FileName("cppbinary")
                     .Executable(true));
         } else {
-            Y_FAIL("%s", ~(TStringBuilder() << "Unexpected jobBinary tag: " << jobBinary.Index()));
+            Y_FAIL("%s", (TStringBuilder() << "Unexpected jobBinary tag: " << jobBinary.Index()).data());
         }
     }
 
@@ -698,9 +698,9 @@ EOperationBriefState CheckOperation(
         return EOperationBriefState::Completed;
     } else if (*attributes.BriefState == EOperationBriefState::Aborted || *attributes.BriefState == EOperationBriefState::Failed) {
         LOG_ERROR("Operation %s %s (%s)",
-            ~GetGuidAsString(operationId),
-            ~::ToString(*attributes.BriefState),
-            ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
+            GetGuidAsString(operationId).data(),
+            ::ToString(*attributes.BriefState).data(),
+            ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)).data());
 
         auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
 
@@ -727,8 +727,8 @@ void WaitForOperation(
         auto status = CheckOperation(auth, operationId);
         if (status == EOperationBriefState::Completed) {
             LOG_INFO("Operation %s completed (%s)",
-                ~GetGuidAsString(operationId),
-                ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
+                GetGuidAsString(operationId).data(),
+                ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)).data());
             break;
         }
         TWaitProxy::Get()->Sleep(checkOperationStateInterval);
@@ -984,7 +984,7 @@ void LogJob(const TOperationId& opId, const IJob* job, const char* type)
 {
     if (job) {
         LOG_INFO("Operation %s; %s = %s",
-            ~GetGuidAsString(opId), type, ~TJobFactory::Get()->GetJobName(job));
+            GetGuidAsString(opId).data(), type, TJobFactory::Get()->GetJobName(job).data());
     }
 }
 
@@ -1000,14 +1000,14 @@ void LogYPaths(const TOperationId& opId, const TVector<TRichYPath>& paths, const
 {
     for (size_t i = 0; i < paths.size(); ++i) {
         LOG_INFO("Operation %s; %s[%" PRISZT "] = %s",
-            ~GetGuidAsString(opId), type, i, ~DumpYPath(paths[i]));
+            GetGuidAsString(opId).data(), type, i, DumpYPath(paths[i]).data());
     }
 }
 
 void LogYPath(const TOperationId& opId, const TRichYPath& output, const char* type)
 {
     LOG_INFO("Operation %s; %s = %s",
-        ~GetGuidAsString(opId), type, ~DumpYPath(output));
+        GetGuidAsString(opId).data(), type, DumpYPath(output).data());
 }
 
 } // namespace
@@ -2082,7 +2082,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
         Y_VERIFY(attributes.Result && attributes.Result->Error);
         const auto& error = *attributes.Result->Error;
         LOG_ERROR("Operation %s is `%s' with error: %s",
-            ~GetGuidAsString(Id_), ~::ToString(*attributes.BriefState), ~error.FullDescription());
+            GetGuidAsString(Id_).data(), ::ToString(*attributes.BriefState).data(), error.FullDescription().data());
         TString additionalExceptionText;
         TVector<TFailedJobInfo> failedJobStderrInfo;
         if (*attributes.BriefState == EOperationBriefState::Failed) {
@@ -2211,7 +2211,7 @@ TOperationId TOperationPreparer::StartOperation(
         RetryRequest(Client_->GetAuth(), header, TStringBuf(ysonSpec), false, true));
 
     LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",
-        ~GetGuidAsString(operationId), ~operationType, ~GetAuth().ServerName, ~GetGuidAsString(operationId));
+        GetGuidAsString(operationId).data(), operationType.data(), GetAuth().ServerName.data(), GetGuidAsString(operationId).data());
 
     TOperationExecutionTimeTracker::Get()->Start(operationId);
 

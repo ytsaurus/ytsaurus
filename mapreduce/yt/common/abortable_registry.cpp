@@ -57,8 +57,8 @@ void TAbortableRegistry::AbortAllAndBlockForever()
             abortable->Abort();
         } catch (yexception& ex) {
             LOG_ERROR("Exception while aborting %s %s: %s",
-                      ~abortable->GetType(),
-                      ~GetGuidAsString(id),
+                      abortable->GetType().data(),
+                      GetGuidAsString(id).data(),
                       ex.what());
         }
     }

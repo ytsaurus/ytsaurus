@@ -448,9 +448,9 @@ THttpResponse::THttpResponse(
 
     auto logAndSetError = [&] (const TString& rawError) {
         LOG_ERROR("RSP %s - HTTP %d - %s",
-            ~RequestId_,
+            RequestId_.data(),
             HttpCode_,
-            ~rawError);
+            rawError.data());
         ErrorResponse_->SetRawError(rawError);
     };
 
@@ -476,11 +476,11 @@ THttpResponse::THttpResponse(
             httpHeaders << ")";
 
             auto errorString = Sprintf("RSP %s - HTTP %d - %s",
-                ~RequestId_,
+                RequestId_.data(),
                 HttpCode_,
-                ~httpHeaders.Str());
+                httpHeaders.Str().data());
 
-            LOG_ERROR(~errorString);
+            LOG_ERROR(errorString.data());
 
             if (auto parsedResponse = ParseError(HttpInput_.Headers())) {
                 ErrorResponse_ = parsedResponse.GetRef();
@@ -557,7 +557,7 @@ void THttpResponse::CheckTrailers(const THttpHeaders& trailers)
 {
     if (auto errorResponse = ParseError(trailers)) {
         LOG_ERROR("RSP %s - %s",
-            ~RequestId_,
+            RequestId_.data(),
             errorResponse.GetRef().what());
         ythrow errorResponse.GetRef();
     }
@@ -604,13 +604,13 @@ TString THttpRequest::GetRequestId() const
 void THttpRequest::Connect(TDuration socketTimeout)
 {
     LOG_DEBUG("REQ %s - connect to %s",
-        ~RequestId,
-        ~HostName);
+        RequestId.data(),
+        HostName.data());
 
     Connection = TConnectionPool::Get()->Connect(HostName, socketTimeout);
 
     LOG_DEBUG("REQ %s - connection #%u",
-        ~RequestId,
+        RequestId.data(),
         Connection->Id);
 }
 
@@ -619,8 +619,8 @@ THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool incl
     auto strHeader = header.GetHeader(HostName, RequestId, includeParameters);
     Url_ = header.GetUrl();
     LOG_DEBUG("REQ %s - %s",
-        ~RequestId,
-        ~Url_);
+        RequestId.data(),
+        Url_.data());
 
     auto outputFormat = header.GetOutputFormat();
     if (outputFormat && outputFormat->IsTextYson()) {
@@ -631,7 +631,7 @@ THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool incl
     Output.Reset(new THttpOutput(SocketOutput.Get()));
     Output->EnableKeepAlive(true);
 
-    Output->Write(~strHeader, +strHeader);
+    Output->Write(strHeader.data(), strHeader.size());
     return Output.Get();
 }
 
@@ -641,8 +641,8 @@ THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
     if (!parameters.Empty()) {
         auto parametersStr = NodeToYsonString(parameters);
         LOG_DEBUG("REQ %s - X-YT-Parameters: %s",
-            ~RequestId,
-            ~parametersStr);
+            RequestId.data(),
+            parametersStr.data());
     }
     return StartRequestImpl(header, true);
 }
@@ -661,8 +661,8 @@ void THttpRequest::SmallRequest(const THttpHeader& header, TMaybe<TStringBuf> bo
         if (!parameters.Empty()) {
             // Want to log parameters before request.
             LOG_DEBUG("REQ %s - parameters (in body): %s",
-                ~RequestId,
-                ~parametersStr);
+                RequestId.data(),
+                parametersStr.data());
         }
         auto* output = StartRequestImpl(header, false);
         output->Write(parametersStr);
@@ -696,17 +696,17 @@ TString THttpRequest::GetResponse()
         const size_t sizeLimit = 2 << 10;
         if (result.size() > sizeLimit) {
             LOG_DEBUG("RSP %s - %s...truncated - %" PRISZT " bytes total",
-                ~RequestId,
-                ~result.substr(0, sizeLimit),
+                RequestId.data(),
+                result.substr(0, sizeLimit).data(),
                 result.size());
         } else {
             LOG_DEBUG("RSP %s - %s",
-                ~RequestId,
-                ~result);
+                RequestId.data(),
+                result.data());
         }
     } else {
         LOG_DEBUG("RSP %s - %" PRISZT " bytes",
-            ~RequestId,
+            RequestId.data(),
             result.size());
     }
     return result;

@@ -225,7 +225,7 @@ void TSkiffTableReader::ReadRow()
             case NSkiff::EWireType::Yson32:
                 return NodeFromYsonString(Parser_.ParseYson32());
             default:
-                Y_FAIL("Bad column wire type: '%s'", ~::ToString(wireType));
+                Y_FAIL("Bad column wire type: '%s'", ::ToString(wireType).data());
         }
     };
 

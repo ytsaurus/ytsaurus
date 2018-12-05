@@ -31,7 +31,7 @@ namespace {
 
 void WriteVersionToLog()
 {
-    LOG_INFO("Wrapper version: %s", ~TProcessState::Get()->ClientVersion);
+    LOG_INFO("Wrapper version: %s", TProcessState::Get()->ClientVersion.data());
 }
 
 static TNode SecureVaultContents; // safe
@@ -178,7 +178,7 @@ void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
         jobStateStream = new TBufferStream(0);
     }
 
-    int ret = TJobFactory::Get()->GetJobFunction(~jobName)(outputTableCount, *jobStateStream);
+    int ret = TJobFactory::Get()->GetJobFunction(jobName.data())(outputTableCount, *jobStateStream);
     if (options.JobOnExitFunction_) {
         (*options.JobOnExitFunction_)();
     }
