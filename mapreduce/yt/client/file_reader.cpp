@@ -70,13 +70,13 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
             CurrentOffset_ += read;
             return read;
         } catch (TErrorResponse& e) {
-            LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", ~GetActiveRequestId(), e.what(), attempt, retryCount);
+            LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", GetActiveRequestId().data(), e.what(), attempt, retryCount);
             if (!NDetail::IsRetriable(e) || attempt == retryCount) {
                 throw;
             }
             NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
         } catch (yexception& e) {
-            LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", ~GetActiveRequestId(), e.what(), attempt, retryCount);
+            LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", GetActiveRequestId().data(), e.what(), attempt, retryCount);
             if (Request_) {
                 Request_->InvalidateConnection();
             }
@@ -131,7 +131,7 @@ THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTrans
     request->StartRequest(header);
     request->FinishRequest();
 
-    LOG_DEBUG("RSP %s - file stream", ~request->GetRequestId());
+    LOG_DEBUG("RSP %s - file stream", request->GetRequestId().data());
 
     return request;
 }
@@ -180,7 +180,7 @@ THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const T
     request->StartRequest(header);
     request->FinishRequest();
 
-    LOG_DEBUG("RSP %s - blob table stream", ~request->GetRequestId());
+    LOG_DEBUG("RSP %s - blob table stream", request->GetRequestId().data());
     return request;
 }
 

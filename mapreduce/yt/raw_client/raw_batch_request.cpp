@@ -433,7 +433,7 @@ void TRawBatchRequest::FillParameterList(size_t maxSize, TNode* result, TInstant
     maxSize = Min(maxSize, BatchItemList_.size());
     *result = TNode::CreateList();
     for (size_t i = 0; i < maxSize; ++i) {
-        LOG_DEBUG("ExecuteBatch preparing: %s", ~RequestInfo(BatchItemList_[i].Parameters));
+        LOG_DEBUG("ExecuteBatch preparing: %s", RequestInfo(BatchItemList_[i].Parameters).data());
         result->Add(BatchItemList_[i].Parameters);
         if (BatchItemList_[i].NextTry > *nextTry) {
             *nextTry = BatchItemList_[i].NextTry;
@@ -485,13 +485,13 @@ void TRawBatchRequest::ParseResponse(
                     if (auto curInterval = retryPolicy.GetRetryInterval(error)) {
                         LOG_INFO(
                             "Batch subrequest (%s) failed, will retry, error: %s",
-                            ~RequestInfo(BatchItemList_[i].Parameters),
+                            RequestInfo(BatchItemList_[i].Parameters).data(),
                             error.what());
                         retryBatch->AddRequest(TBatchItem(BatchItemList_[i], now + *curInterval));
                     } else {
                         LOG_ERROR(
                             "Batch subrequest (%s) failed, error: %s",
-                            ~RequestInfo(BatchItemList_[i].Parameters),
+                            RequestInfo(BatchItemList_[i].Parameters).data(),
                             error.what());
                         BatchItemList_[i].ResponseParser->SetException(std::make_exception_ptr(error));
                     }

@@ -150,7 +150,7 @@ void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 
     Y_VERIFY(row.GetReflection()->GetUnknownFields(row).empty(),
         "Message has unknown fields. This probably means bug in client code.\n"
-        "Message: %s", ~row.DebugString());
+        "Message: %s", row.DebugString().data());
 
     auto* stream = GetStream(tableIndex);
     i32 size = row.ByteSize();

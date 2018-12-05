@@ -49,7 +49,7 @@ void RetryHeavyWriteRequest(
 
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - attempt %d failed",
-                ~requestId,
+                requestId.data(),
                 attempt);
 
             if (!NDetail::IsRetriable(e) || attempt + 1 == retryCount) {
@@ -60,7 +60,7 @@ void RetryHeavyWriteRequest(
 
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
-                ~requestId,
+                requestId.data(),
                 e.what(),
                 attempt);
 

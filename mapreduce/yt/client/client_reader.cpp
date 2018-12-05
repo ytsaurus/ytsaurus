@@ -159,11 +159,11 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
 
             Input_ = Request_->GetResponseStream();
 
-            LOG_DEBUG("RSP %s - table stream", ~requestId);
+            LOG_DEBUG("RSP %s - table stream", requestId.data());
 
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - attempt %d failed",
-                ~requestId, attempt);
+                requestId.data(), attempt);
 
             if (!NDetail::IsRetriable(e) || attempt == lastAttempt) {
                 throw;
@@ -172,7 +172,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             continue;
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
-                ~requestId, e.what(), attempt);
+                requestId.data(), e.what(), attempt);
 
             if (Request_) {
                 Request_->InvalidateConnection();

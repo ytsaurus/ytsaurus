@@ -42,7 +42,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
         auto checkType = [&columnName] (TNode::EType expected, TNode::EType actual) {
             if (expected != actual) {
                 ythrow TNode::TTypeError() << "expected node type " << expected
-                    << ", actual " << actual << " for node " << ~columnName;
+                    << ", actual " << actual << " for node " << columnName.data();
             }
         };
 
@@ -100,7 +100,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
             case FieldDescriptor::TYPE_MESSAGE: {
                 checkType(TNode::String, actualType);
                 Message* message = reflection->MutableMessage(row, fieldDesc);
-                if (!message->ParseFromArray(~it->second.AsString(), +it->second.AsString())) {
+                if (!message->ParseFromArray(it->second.AsString().data(), it->second.AsString().size())) {
                     ythrow yexception() << "Failed to parse protobuf message";
                 }
                 break;

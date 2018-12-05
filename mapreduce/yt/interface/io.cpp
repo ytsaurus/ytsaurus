@@ -22,7 +22,7 @@ void LogTableReaderStatistics(ui64 rowCount, TMaybe<size_t> byteCount)
     TString byteCountStr = (byteCount ? ::ToString(*byteCount) : "<unknown>");
     LOG_DEBUG("Table reader has read %" PRIu64 " rows, %s bytes",
         rowCount,
-        ~byteCountStr);
+        byteCountStr.data());
 }
 
 } // namespace NDetail
