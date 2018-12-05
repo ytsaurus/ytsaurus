@@ -89,7 +89,7 @@ namespace NYT {
             if (!FindValueByLiteral(str, &value)) { \
                 throw std::runtime_error(Sprintf("Error parsing %s value %s", \
                     PP_STRINGIZE(name), \
-                    ~TString(str).Quote()).data()); \
+                    TString(str).Quote().data()).data()); \
             } \
             return value; \
         }
