@@ -325,7 +325,7 @@ private:
     bool IsPeerBannedForever(const TString& peerAddress) const
     {
         TGuard<TSpinLock> guard(PeersSpinLock_);
-        return BannedForeverPeers_.has(peerAddress);
+        return BannedForeverPeers_.contains(peerAddress);
     }
 
     void AccountTraffic(i64 transferredByteCount, const TNodeDescriptor& srcDescriptor)
@@ -736,7 +736,7 @@ protected:
     void OnRetryFailed()
     {
         DiscardSeeds();
-        
+
         int retryCount = ReaderConfig_->RetryCount;
         LOG_DEBUG("Retry failed: %v of %v",
             RetryIndex_ + 1,
@@ -753,7 +753,7 @@ protected:
                 .Via(SessionInvoker_),
             GetBackoffDuration(RetryIndex_));
     }
-    
+
     void DiscardSeeds()
     {
         auto reader = Reader_.Lock();
@@ -772,7 +772,7 @@ protected:
         if (!reader) {
             return;
         }
-        
+
         reader->SetFailed();
     }
 
@@ -1675,7 +1675,7 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + blocksReceived - 1,
             bytesReceived);
-        
+
         if (peerAddress != GetLocalHostName() && TotalBytesReceived_ > BytesThrottled_) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
@@ -1878,7 +1878,7 @@ private:
             ChunkId_));
         OnSessionFailed(fatal, error);
     }
-    
+
     void OnSessionFailed(bool fatal, const TError& error)
     {
         if (fatal) {
