@@ -413,27 +413,37 @@ private:
     char Padding[40];
 
 private:
-    static Y_FORCE_INLINE TTaggedPointer LoadRelaxed(TAtomicUint128* ptr)
+    static Y_FORCE_INLINE TTaggedPointer LoadRelaxed(TAtomicUint128* atomic)
     {
-        auto value = __atomic_load_n(ptr, __ATOMIC_RELAXED);
-        return std::make_pair(
-            reinterpret_cast<T*>(value & 0xffffffffffffffff),
-            static_cast<TTag>(value >> 64));
+        TTaggedPointer result;
+        __asm__ __volatile__
+        (
+            "xor %%ecx, %%ecx\n"
+            "xor %%eax, %%eax\n"
+            "xor %%edx, %%edx\n"
+            "xor %%ebx, %%ebx\n"
+            "lock cmpxchg16b %2"
+            : "=a"(result.first)
+            , "=d"(result.second)
+            : "m"(*atomic)
+            : "cc", "rbx", "rcx"
+        );
+        return result;
     }
 
-    static Y_FORCE_INLINE bool CompareAndSet(TAtomicUint128* ptr, TTaggedPointer expectedValue, TTaggedPointer newValue)
+    static Y_FORCE_INLINE bool CompareAndSet(TAtomicUint128* atomic, TTaggedPointer expectedValue, TTaggedPointer newValue)
     {
         bool result;
         __asm__ __volatile__
         (
             "lock cmpxchg16b %1\n\t"
             "setz %0"
-            : "=q" ( result )
-            , "+m" ( *ptr )
-            , "+d" ( expectedValue.second )
-            , "+a" ( expectedValue.first )
-            : "c" ( newValue.second )
-            , "b" ( newValue.first )
+            : "=q"(result)
+            , "+m"(*atomic)
+            , "+a"(expectedValue.first)
+            , "+d"(expectedValue.second)
+            : "b"(newValue.first)
+            , "c"(newValue.second)
             : "cc"
         );
         return result;
