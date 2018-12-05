@@ -390,6 +390,30 @@ private:
                 reachableVersion = ComputeReachableVersion();
             }
 
+            {
+                auto asyncRsp = MasterClient_->GetNode(Format(
+                    "//sys/accounts/%v/@violated_resource_limits",
+                    ToYPathLiteral(Options_->ChangelogAccount)));
+
+                auto rspOrError = WaitFor(asyncRsp);
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    rspOrError,
+                    "Error requesting resource limits for account %Qv",
+                    Options_->ChangelogAccount);
+
+                auto rsp = rspOrError.Value();
+
+                auto attributes = ConvertToAttributes(rsp);
+                auto chunkCount = attributes->Get<bool>("chunk_count");
+                auto diskSpace = attributes->Get<bool>("disk_space");
+
+                if (chunkCount || diskSpace) {
+                    THROW_ERROR_EXCEPTION(
+                        "Resource limits for changelog account %Qv are violated",
+                        Options_->ChangelogAccount);
+                }
+            }
+
             return New<TRemoteChangelogStore>(
                 Config_,
                 Options_,
