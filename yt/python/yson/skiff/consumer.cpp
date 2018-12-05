@@ -58,7 +58,7 @@ void TPythonSkiffRecordBuilder::OnStringScalar(TStringBuf value, ui16 columnId)
     // TODO(ignat): remove this copy/paste.
     if (Encoding_) {
         auto decodedString = Py::Object(
-            PyUnicode_FromEncodedObject(*bytes, ~Encoding_.Get(), "strict"),
+            PyUnicode_FromEncodedObject(*bytes, Encoding_.Get().data(), "strict"),
             /* owned */ true);
 #if PY_MAJOR_VERSION < 3
         auto utf8String = Py::Object(

@@ -245,7 +245,7 @@ public:
                 Py::Callable class_type(TCommandDescriptor::type());
                 Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
                 descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);
-                descriptors.setItem(~nativeDescriptor.CommandName, descriptor);
+                descriptors.setItem(nativeDescriptor.CommandName.data(), descriptor);
             }
             return descriptors;
         } CATCH_AND_CREATE_YT_ERROR("Failed to get command descriptors");
