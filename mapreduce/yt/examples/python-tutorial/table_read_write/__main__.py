@@ -33,7 +33,7 @@ if __name__ == "__main__":
     for row in yt.wrapper.read_table(
         yt.wrapper.TablePath(
             table,
-            start_index=0, end_index=2) # читаем с 0й по 2ю строки, 2я строка невключительно
+            start_index=0, end_index=2)  # читаем с 0й по 2ю строки, 2я строка невключительно
     ):
         print "english:", row["english"], "; russian:", row["russian"]
     print "*****************"
@@ -47,9 +47,9 @@ if __name__ == "__main__":
     for row in yt.wrapper.read_table(
         yt.wrapper.TablePath(
             table,
-            exact_key=["three"] # В качестве ключа передаём список значений ключевых колонок
-                                # (тех колонок по которым отсортирована таблица).
-                                # Тут у нас простой случай, одна ключевая колонка, но их может быть больше.
+            exact_key=["three"]  # В качестве ключа передаём список значений ключевых колонок
+                                 # (тех колонок по которым отсортирована таблица).
+                                 # Тут у нас простой случай, одна ключевая колонка, но их может быть больше.
         )
     ):
         print "english:", row["english"], "; russian:", row["russian"]
