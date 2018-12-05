@@ -47,7 +47,7 @@ TString JobTablePathString(const TStructuredJobTable& jobTable);
 TStructuredJobTableList ToStructuredJobTableList(const TVector<TStructuredTablePath>& tableList);
 
 TStructuredJobTableList CanonizeStructuredTableList(const TAuth& auth, const TVector<TStructuredTablePath>& tableList);
-TVector<TRichYPath> GetPathList(const TStructuredJobTableList& tableList);
+TVector<TRichYPath> GetPathList(const TStructuredJobTableList& tableList, bool inferSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,6 +99,10 @@ private:
     const TTransactionId TransactionId_;
     const TOperationOptions OperationOptions_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMaybe<TTableSchema> GetTableSchema(const TTableStructure& tableStructure);
 
 ////////////////////////////////////////////////////////////////////////////////
 

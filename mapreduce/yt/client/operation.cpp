@@ -40,8 +40,6 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
-#include <mapreduce/yt/library/table_schema/protobuf.h>
-
 #include <library/yson/writer.h>
 #include <library/yson/json_writer.h>
 
@@ -175,18 +173,6 @@ ENodeReaderFormat NodeReaderFormatFromHintAndGlobalConfig(const TUserJobFormatHi
     return result;
 }
 
-void FillMissingSchemas(TVector<TRichYPath>* paths, const TVector<const ::google::protobuf::Descriptor*>& descriptors)
-{
-    Y_ENSURE(paths->size() == descriptors.size());
-    for (size_t i = 0; i != paths->size(); ++i) {
-        auto& path = (*paths)[i];
-        if (path.Schema_) {
-            continue;
-        }
-        path.Schema(CreateTableSchema(*descriptors[i]));
-    }
-}
-
 template <class TSpec>
 TSimpleOperationIo CreateSimpleOperationIo(
     const IStructuredJob& structuredJob,
@@ -228,15 +214,11 @@ TSimpleOperationIo CreateSimpleOperationIo(
         ENodeReaderFormat::Yson,
         /* allowFormatFromTableAttribute = */ false);
 
-    auto outputPaths = GetPathList(structuredOutputs);
-    if (options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema) &&
-        spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO)
-    {
-        FillMissingSchemas(&outputPaths, spec.GetOutputDesc().ProtoDescriptors);
-    }
+    const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
+    auto outputPaths = GetPathList(structuredOutputs, inferOutputSchema);
 
     return TSimpleOperationIo {
-        GetPathList(structuredInputs),
+        GetPathList(structuredInputs, /*inferSchema*/ false),
         outputPaths,
 
         inputFormat,
@@ -1454,15 +1436,12 @@ TOperationId ExecuteMapReduce(
     const auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredInputs());
     const auto structuredMapOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredMapOutputs());
     const auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredOutputs());
-    operationIo.Inputs = GetPathList(structuredInputs);
-    operationIo.MapOutputs = GetPathList(structuredMapOutputs);
-    operationIo.Outputs = GetPathList(structuredOutputs);
 
-    if (options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema) &&
-        spec.GetOutputDesc().Format == TMultiFormatDesc::F_PROTO)
-    {
-        FillMissingSchemas(&operationIo.Outputs, spec.GetOutputDesc().ProtoDescriptors);
-    }
+    const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
+
+    operationIo.Inputs = GetPathList(structuredInputs, /*inferSchema*/ false);
+    operationIo.MapOutputs = GetPathList(structuredMapOutputs, inferOutputSchema);
+    operationIo.Outputs = GetPathList(structuredOutputs, inferOutputSchema);
 
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");

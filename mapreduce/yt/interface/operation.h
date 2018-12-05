@@ -200,16 +200,6 @@ public:
     TVector<TRichYPath> Inputs_;
     TVector<TRichYPath> Outputs_;
 
-    const TMultiFormatDesc& GetInputDesc() const
-    {
-        return InputDesc_;
-    }
-
-    const TMultiFormatDesc& GetOutputDesc() const
-    {
-        return OutputDesc_;
-    }
-
     const TVector<TStructuredTablePath>& GetStructuredInputs() const;
     const TVector<TStructuredTablePath>& GetStructuredOutputs() const;
 

@@ -5,6 +5,8 @@
 
 #include <mapreduce/yt/io/yamr_table_reader.h>
 
+#include <mapreduce/yt/library/table_schema/protobuf.h>
+
 #include <library/yson/writer.h>
 
 #include <memory>
@@ -121,13 +123,19 @@ TStructuredJobTableList CanonizeStructuredTableList(const TAuth& auth, const TVe
     return result;
 }
 
-TVector<TRichYPath> GetPathList(const TStructuredJobTableList& tableList)
+TVector<TRichYPath> GetPathList(const TStructuredJobTableList& tableList, bool inferSchema)
 {
     TVector<TRichYPath> result;
     result.reserve(tableList.size());
     for (const auto& table : tableList) {
         Y_VERIFY(table.RichYPath, "Cannot get path for intermediate table.");
-        result.emplace_back(*table.RichYPath);
+        auto richYPath = *table.RichYPath;
+        if (inferSchema && !richYPath.Schema_) {
+            if (auto schema = GetTableSchema(table.Description)) {
+                richYPath.Schema(std::move(*schema));
+            }
+        }
+        result.emplace_back(std::move(richYPath));
     }
     return result;
 }
@@ -358,6 +366,30 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
             CreateProtoConfig(descriptorList)
         },
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGetTableSchemaImpl
+{
+    template <typename T>
+    TMaybe<TTableSchema> operator() (const T& description) {
+        if constexpr (std::is_same_v<T, TUnspecifiedTableStructure>) {
+            return Nothing();
+        } else if constexpr (std::is_same_v<T, TProtobufTableStructure>) {
+            if (!description.Descriptor) {
+                return Nothing();
+            }
+            return CreateTableSchema(*description.Descriptor);
+        } else {
+            static_assert(TDependentFalse<T>::value, "unknown type");
+        }
+    }
+};
+
+TMaybe<TTableSchema> GetTableSchema(const TTableStructure& tableStructure)
+{
+    return Visit(TGetTableSchemaImpl(), tableStructure);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
