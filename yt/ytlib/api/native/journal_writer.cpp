@@ -407,7 +407,7 @@ private:
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
                 TObjectServiceProxy proxy(channel);
 
-                auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
+                auto req = TYPathProxy::Get(objectIdPath + "/@");
                 SetTransactionId(req, Transaction_);
                 std::vector<TString> attributeKeys{
                     "type",
