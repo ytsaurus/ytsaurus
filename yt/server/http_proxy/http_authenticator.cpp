@@ -61,9 +61,7 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
         rsp->SetStatus(EStatusCode::InternalServerError);
         ReplyJson(rsp, [&] (auto consumer) {
             BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("error").Value(TError(result))
-                .EndMap();
+                .Value(TError(result));
         });
     }
 }
