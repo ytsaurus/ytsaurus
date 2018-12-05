@@ -430,6 +430,10 @@ public:
         try {
             auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
 
+            if (tablet->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Cannot trim a replicated table tablet");
+            }
+
             tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
             ValidateTabletMounted(tablet);
 
