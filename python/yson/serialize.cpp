@@ -360,7 +360,7 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encod
         for (auto child : node->AsMap()->GetChildren()) {
             Py::Object item;
             Deserialize(item, child.second, encoding);
-            map.setItem(~child.first, item);
+            map.setItem(child.first.data(), item);
         }
         obj = NPython::CreateYsonObject("YsonMap", map, attributes);
     } else if (type == ENodeType::Entity) {
@@ -374,15 +374,15 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encod
     } else if (type == ENodeType::Double) {
         obj = NPython::CreateYsonObject("YsonDouble", Py::Float(node->AsDouble()->GetValue()), attributes);
     } else if (type == ENodeType::String) {
-        auto str = Py::Bytes(~node->AsString()->GetValue());
+        auto str = Py::Bytes(node->AsString()->GetValue().data());
         if (encoding) {
 #if PY_MAJOR_VERSION >= 3
             obj = NPython::CreateYsonObject("YsonUnicode", str.decode(~encoding.Get()), attributes);
 #else
-            obj = NPython::CreateYsonObject("YsonString", str.decode(~encoding.Get()).encode("utf-8"), attributes);
+            obj = NPython::CreateYsonObject("YsonString", str.decode(encoding.Get().data()).encode("utf-8"), attributes);
 #endif
         } else {
-            obj = NPython::CreateYsonObject("YsonString", Py::Bytes(~node->AsString()->GetValue()), attributes);
+            obj = NPython::CreateYsonObject("YsonString", Py::Bytes(node->AsString()->GetValue().data()), attributes);
         }
     } else if (type == ENodeType::List) {
         auto list = Py::List();
@@ -393,7 +393,7 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encod
         }
         obj = NPython::CreateYsonObject("YsonList", list, attributes);
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported node type %s", ~ToString(type));
+        THROW_ERROR_EXCEPTION("Unsupported node type %s", ToString(type).data());
     }
 }
 
