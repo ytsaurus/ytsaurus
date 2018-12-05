@@ -321,7 +321,7 @@ TString TRefCountedTracker::GetDebugInfo(int sortByColumn) const
             slot.GetInstancesAllocated(),
             slot.GetBytesAlive(),
             slot.GetBytesAllocated(),
-            ~slot.GetFullName());
+            slot.GetFullName().data());
     }
 
     builder.AppendString("-------------------------------------------------------------------------------------------------------------\n");

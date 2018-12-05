@@ -297,10 +297,10 @@ void TNonOwningCGroup::DoLock() const
 
 #ifdef _linux_
     if (!IsNull()) {
-        int code = chmod(~FullPath_, ReadExecuteByAll);
+        int code = chmod(FullPath_.data(), ReadExecuteByAll);
         YCHECK(code == 0);
 
-        code = chmod(~GetPath("tasks"), ReadByAll);
+        code = chmod(GetPath("tasks").data(), ReadByAll);
         YCHECK(code == 0);
     }
 #endif
@@ -318,12 +318,12 @@ bool TNonOwningCGroup::TryUnlock() const
 
 #ifdef _linux_
     if (!IsNull()) {
-        int code = chmod(~GetPath("tasks"), ReadByAll | S_IWUSR);
+        int code = chmod(GetPath("tasks").data(), ReadByAll | S_IWUSR);
         if (code != 0) {
             result = false;
         }
 
-        code = chmod(~FullPath_, ReadExecuteByAll | S_IWUSR);
+        code = chmod(FullPath_.data(), ReadExecuteByAll | S_IWUSR);
         if (code != 0) {
             result = false;
         }

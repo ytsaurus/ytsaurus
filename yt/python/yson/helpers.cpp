@@ -41,7 +41,7 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& en
                 ),
                 context);
         }
-        return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), ~encoding.Get(), "strict"), true);
+        return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), encoding.Get().data(), "strict"), true);
     } else {
 #if PY_MAJOR_VERSION >= 3
         if (encoding) {
