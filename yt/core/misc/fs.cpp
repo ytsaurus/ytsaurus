@@ -55,7 +55,7 @@ bool Exists(const TString& path)
 #ifdef _win32_
     return GetFileAttributesA(~path) != 0xFFFFFFFF;
 #else
-    return access(~path, F_OK) == 0;
+    return access(path.data(), F_OK) == 0;
 #endif
 }
 
@@ -66,12 +66,12 @@ void Remove(const TString& path)
     ok = DeleteFileA(~path);
 #else
     struct stat sb;
-    ok = lstat(~path, &sb) == 0;
+    ok = lstat(path.data(), &sb) == 0;
     if (ok) {
         if (S_ISDIR(sb.st_mode)) {
-            ok = rmdir(~path) == 0;
+            ok = rmdir(path.data()) == 0;
         } else {
-            ok = remove(~path) == 0;
+            ok = remove(path.data()) == 0;
         }
     }
 #endif
@@ -101,7 +101,7 @@ void Rename(const TString& source, const TString& destination)
 #if defined(_win_)
     ok = MoveFileEx(~source, ~destination, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
-    ok = rename(~source, ~destination) == 0;
+    ok = rename(source.data(), destination.data()) == 0;
 #endif
     if (!ok) {
         THROW_ERROR_EXCEPTION("Cannot rename %v to %v",
@@ -268,7 +268,7 @@ TDiskSpaceStatistics GetDiskSpaceStatistics(const TString& path)
         (PULARGE_INTEGER) &result.FreeSpace) != 0;
 #else
     struct statfs fsData;
-    ok = statfs(~path, &fsData) == 0;
+    ok = statfs(path.data(), &fsData) == 0;
     result.TotalSpace = (i64) fsData.f_blocks * fsData.f_bsize;
     result.AvailableSpace = (i64) fsData.f_bavail * fsData.f_bsize;
     result.FreeSpace = (i64) fsData.f_bfree * fsData.f_bsize;
@@ -285,7 +285,7 @@ TDiskSpaceStatistics GetDiskSpaceStatistics(const TString& path)
 
 void MakeDirRecursive(const TString& path, int mode)
 {
-    MakePathIfNotExist(~path, mode);
+    MakePathIfNotExist(path.data(), mode);
 }
 
 TFileStatistics GetFileStatistics(const TString& path)
@@ -293,7 +293,7 @@ TFileStatistics GetFileStatistics(const TString& path)
     TFileStatistics statistics;
 #ifdef _unix_
     struct stat fileStat;
-    int result = ::stat(~path, &fileStat);
+    int result = ::stat(path.data(), &fileStat);
 #else
     WIN32_FIND_DATA findData;
     HANDLE handle = ::FindFirstFileA(~path, &findData);
@@ -381,7 +381,7 @@ i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles)
 void Touch(const TString& path)
 {
 #ifdef _unix_
-    int result = ::utimes(~path, nullptr);
+    int result = ::utimes(path.data(), nullptr);
     if (result != 0) {
         THROW_ERROR_EXCEPTION("Failed to touch %v",
             path)
@@ -482,7 +482,7 @@ void SetExecutableMode(const TString& path, bool executable)
         mode |= S_IXGRP;
         mode |= S_IXUSR;
     }
-    bool ok = chmod(~path, mode) == 0;
+    bool ok = chmod(path.data(), mode) == 0;
     if (!ok) {
         THROW_ERROR_EXCEPTION(
             "Failed to set mode %v for %v",
@@ -500,7 +500,7 @@ void MakeSymbolicLink(const TString& filePath, const TString& linkPath)
     // If the function fails, the return value is zero. To get extended error information, call GetLastError.
     bool ok = CreateSymbolicLink(~linkPath, ~filePath, 0) != 0;
 #else
-    bool ok = symlink(~filePath, ~linkPath) == 0;
+    bool ok = symlink(filePath.data(), linkPath.data()) == 0;
 #endif
 
     if (!ok) {
@@ -516,7 +516,7 @@ bool AreInodesIdentical(const TString& lhsPath, const TString& rhsPath)
 {
 #ifdef _unix_
     auto checkedStat = [] (const TString& path, struct stat* buffer) {
-        auto result = stat(~path, buffer);
+        auto result = stat(path.data(), buffer);
         if (result) {
             THROW_ERROR_EXCEPTION(
                 "Failed to check for identical inodes: stat failed for %v",
@@ -551,7 +551,7 @@ TString GetHomePath()
 void FlushDirectory(const TString& path)
 {
 #ifdef _unix_
-    int fd = ::open(~path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    int fd = ::open(path.data(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (fd < 0) {
         THROW_ERROR_EXCEPTION("Failed to open directory %v", path)
             << TError::FromSystem();
@@ -573,7 +573,7 @@ void FlushDirectory(const TString& path)
 std::vector<TMountPoint> GetMountPoints(const TString& mountsFile)
 {
 #ifdef _linux_
-    std::unique_ptr<FILE, decltype(&endmntent)> file(::setmntent(~mountsFile, "r"), endmntent);
+    std::unique_ptr<FILE, decltype(&endmntent)> file(::setmntent(mountsFile.data(), "r"), endmntent);
 
     if (!file.get()) {
         THROW_ERROR_EXCEPTION("Failed to open mounts file %v", mountsFile);
@@ -600,7 +600,7 @@ void MountTmpfs(const TString& path, int userId, i64 size)
 {
 #ifdef _linux_
     auto opts = Format("mode=0777,uid=%v,size=%v", userId, size);
-    int result = ::mount("none", ~path, "tmpfs", 0, ~opts);
+    int result = ::mount("none", path.data(), "tmpfs", 0, opts.data());
     if (result < 0) {
         THROW_ERROR_EXCEPTION("Failed to mount tmpfs at %v", path)
             << TErrorAttribute("user_id", userId)
@@ -619,7 +619,7 @@ void Umount(const TString& path, bool detach)
     if (detach) {
         flags |= MNT_DETACH;
     }
-    int result = ::umount2(~path, flags);
+    int result = ::umount2(path.data(), flags);
     // EINVAL for ::umount means that nothing mounted at this point.
     // ENOENT means 'No such file or directory'.
     if (result < 0 && LastSystemError() != EINVAL && LastSystemError() != ENOENT) {
@@ -737,7 +737,7 @@ void ExpectIOErrors(std::function<void()> func)
 void Chmod(const TString& path, int mode)
 {
 #ifdef _linux_
-    int result = ::Chmod(~path, mode);
+    int result = ::Chmod(path.data(), mode);
     if (result < 0) {
         THROW_ERROR_EXCEPTION("Failed to change mode of %v", path)
             << TErrorAttribute("mode", Format("%04o", mode))

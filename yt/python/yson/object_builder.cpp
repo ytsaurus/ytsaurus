@@ -34,14 +34,14 @@ TPythonObjectBuilder::PyObjectPtr TPythonObjectBuilder::MakePyObjectPtr(PyObject
 
 void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
 {
-    auto bytes = MakePyObjectPtr(PyBytes_FromStringAndSize(~value, value.size()));
+    auto bytes = MakePyObjectPtr(PyBytes_FromStringAndSize(value.data(), value.size()));
     if (!bytes) {
         throw Py::Exception();
     }
 
     if (Encoding_) {
         auto decodedString = MakePyObjectPtr(
-            PyUnicode_FromEncodedObject(bytes.get(), ~Encoding_.Get(), "strict"));
+            PyUnicode_FromEncodedObject(bytes.get(), Encoding_.Get().data(), "strict"));
         if (!decodedString) {
             throw Py::Exception();
         }
@@ -106,7 +106,7 @@ void TPythonObjectBuilder::OnKeyedItem(TStringBuf key)
 
     auto it = KeyCache_.find(key);
     if (it == KeyCache_.end()) {
-        auto pyKeyPtr = MakePyObjectPtr(PyBytes_FromStringAndSize(~key, key.size()));
+        auto pyKeyPtr = MakePyObjectPtr(PyBytes_FromStringAndSize(key.data(), key.size()));
         if (!pyKeyPtr) {
             throw Py::Exception();
         }
@@ -118,7 +118,7 @@ void TPythonObjectBuilder::OnKeyedItem(TStringBuf key)
             OriginalKeyCache_.emplace_back(std::move(pyKeyPtr));
 
             pyKeyPtr = MakePyObjectPtr(
-                PyUnicode_FromEncodedObject(originalPyKeyObj, ~Encoding_.Get(), "strict"));
+                PyUnicode_FromEncodedObject(originalPyKeyObj, Encoding_.Get().data(), "strict"));
             if (!pyKeyPtr) {
                 throw Py::Exception();
             }
