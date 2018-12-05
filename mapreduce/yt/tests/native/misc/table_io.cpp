@@ -758,7 +758,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
         client->Move(secondPath.Path_, firstPath.Path_, TMoveOptions().Force(true));
         UNIT_ASSERT(TAbortableHttpResponse::AbortAll("/read_table") > 0);
         for (; reader->IsValid(); reader->Next()) {
-            UNIT_ASSERT(reader->GetRow().AsMap().has("first_key"));
+            UNIT_ASSERT(reader->GetRow().AsMap().contains("first_key"));
         }
     }
 

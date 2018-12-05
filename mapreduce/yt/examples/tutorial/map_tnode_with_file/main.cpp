@@ -25,7 +25,7 @@ public:
 
         for (; loginReader->IsValid(); loginReader->Next()) {
             const auto& curRow = loginReader->GetRow();
-            if (robotIds.has(curRow["uid"].AsInt64())) {
+            if (robotIds.contains(curRow["uid"].AsInt64())) {
                 writer->AddRow(curRow);
             }
         }

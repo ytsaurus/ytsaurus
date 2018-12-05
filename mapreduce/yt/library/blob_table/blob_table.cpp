@@ -62,7 +62,7 @@ static TTableSchema CreateSortedSchema(const TTableSchema& tableSchema, const TB
     result.AddColumn(blobTableSchema.PartIndexColumnName_, VT_ANY, SO_ASCENDING);
 
     for (const auto& columnSchema : tableSchema.Columns_) {
-        if (keyColumns.has(columnSchema.Name_)) {
+        if (keyColumns.contains(columnSchema.Name_)) {
             continue;
         }
         result.Columns_.push_back(columnSchema);

@@ -680,22 +680,22 @@ private:
 
     void CheckNotRegistered(const std::type_index& typeIndex, const char* name)
     {
-        Y_ENSURE(!JobNames.has(typeIndex),
+        Y_ENSURE(!JobNames.contains(typeIndex),
             "type_info '" << typeIndex.name() << "'"
             "is already registered under name '" << JobNames[typeIndex] << "'");
-        Y_ENSURE(!JobFunctions.has(name),
+        Y_ENSURE(!JobFunctions.contains(name),
             "job with name '" << name << "' is already registered");
     }
 
     void CheckJobRegistered(const std::type_index& typeIndex)
     {
-        Y_ENSURE(JobNames.has(typeIndex),
+        Y_ENSURE(JobNames.contains(typeIndex),
             "type_info '" << typeIndex.name() << "' is not registered, use REGISTER_* macros");
     }
 
     void CheckNameRegistered(const char* name)
     {
-        Y_ENSURE(JobFunctions.has(name),
+        Y_ENSURE(JobFunctions.contains(name),
             "job with name '" << name << "' is not registered, use REGISTER_* macros");
     }
 };

@@ -95,7 +95,7 @@ void THttpHeader::AddMutationId()
 
 bool THttpHeader::HasMutationId() const
 {
-    return Parameters.has("mutation_id");
+    return Parameters.contains("mutation_id");
 }
 
 void THttpHeader::SetToken(const TString& token)

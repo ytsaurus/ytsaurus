@@ -184,7 +184,7 @@ TJobStatistics TJobStatistics::JobState(TVector<EJobState> filter) const
 
 bool TJobStatistics::HasStatistics(TStringBuf name) const
 {
-    return Data_->Name2State2Type2Data.has(name);
+    return Data_->Name2State2Type2Data.contains(name);
 }
 
 TJobStatisticsEntry<i64> TJobStatistics::GetStatistics(TStringBuf name) const
