@@ -1194,7 +1194,7 @@ private:
             auto filterIndexes = THashSet<int>(ColumnFilter_.GetIndexes().begin(), ColumnFilter_.GetIndexes().end());
             for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
                 auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
-                if (filterIndexes.has(nameTableIndex)) {
+                if (filterIndexes.contains(nameTableIndex)) {
                     if (chunkColumnId < ChunkMeta_->ChunkSchema().Columns().size()) {
                         schemaColumnIndexes.push_back(chunkColumnId);
                     } else {
@@ -1587,7 +1587,7 @@ private:
             auto filterIndexes = THashSet<int>(ColumnFilter_.GetIndexes().begin(), ColumnFilter_.GetIndexes().end());
             for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
                 auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
-                if (filterIndexes.has(nameTableIndex)) {
+                if (filterIndexes.contains(nameTableIndex)) {
                     if (chunkColumnId < ChunkMeta_->ChunkSchema().Columns().size()) {
                         schemaColumnIndexes.push_back(chunkColumnId);
                     } else {
