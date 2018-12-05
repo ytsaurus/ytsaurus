@@ -166,6 +166,17 @@ TString GetSuffix(EIODirection direction)
     Y_FAIL("unreachable");
 }
 
+TString GetAddIOMethodName(EIODirection direction)
+{
+    switch (direction) {
+        case EIODirection::Input:
+            return "AddInput<>";
+        case EIODirection::Output:
+            return "AddOutput<>";
+    }
+    Y_FAIL("unreachable");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFormatBuilder::TFormatSwitcher
@@ -225,7 +236,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateYamrFormat(
             ythrow TApiUsageError()
                 << "cannot use " << direction << " table '" << JobTablePathString(table)
                 << "' with job " << TJobFactory::Get()->GetJobName(&job) << "; "
-                << "table has unsupported structure description: " << GetTableStructureDescriptionString(table.Description);
+                << "table has unsupported structure description; check " << GetAddIOMethodName(direction) << " for this table";
         }
     }
     TMaybe<TNode> formatFromTableAttributes;
@@ -268,7 +279,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeFormat(
             ythrow TApiUsageError()
                 << "cannot use " << direction << " table '" << JobTablePathString(table)
                 << "' with job " << TJobFactory::Get()->GetJobName(&job) << "; "
-                << "table has unsupported structure description: " << GetTableStructureDescriptionString(table.Description);
+                << "table has unsupported structure description; check AddInput<> / AddOutput<> for this table";
         }
     }
     NSkiff::TSkiffSchemaPtr skiffSchema = nullptr;
@@ -336,7 +347,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
             ythrow TApiUsageError()
                 << "cannot use " << direction << " table '" << JobTablePathString(table)
                 << "' with job " << TJobFactory::Get()->GetJobName(&job) << "; "
-                << "table has unsupported structure description: " << GetTableStructureDescriptionString(table.Description);
+                << "table has unsupported structure description; check " << GetAddIOMethodName(direction) << " for this table";
         }
         if (!descriptor) {
             // It must be intermediate table, because there is no proper way to add such table to spec (AddInput requires to specify proper message).
@@ -345,7 +356,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
                 descriptor = jobDescriptor;
             } else {
                 ythrow TApiUsageError()
-                    << "Cannot derive protobuf type for intermediate " << direction << " table for job "
+                    << "Cannot derive exact protobuf type for intermediate " << direction << " table for job "
                     << TJobFactory::Get()->GetJobName(&job)
                     << "; use one of TMapreduceOperationSpec::Hint* methods to specifiy intermediate table structure";
             }
