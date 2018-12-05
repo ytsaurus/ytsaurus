@@ -26,7 +26,7 @@ struct TProtobufTableStructure
     const ::google::protobuf::Descriptor* Descriptor = nullptr;
 };
 
-using TTableStructure = TVariant<
+using TTableStructure = ::TVariant<
     TUnspecifiedTableStructure,
     TProtobufTableStructure
 >;
@@ -62,7 +62,7 @@ struct TProtobufStructuredRowStream
     const ::google::protobuf::Descriptor* Descriptor = nullptr;
 };
 
-using TStructuredRowStreamDescription = TVariant<
+using TStructuredRowStreamDescription = ::TVariant<
     TTNodeStructuredRowStream,
     TTYaMRRowStructuredRowStream,
     TProtobufStructuredRowStream
