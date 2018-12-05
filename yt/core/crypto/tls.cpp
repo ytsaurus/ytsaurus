@@ -521,7 +521,7 @@ TSslContext::TSslContext()
 
 void TSslContext::SetCipherList(const TString& list)
 {
-    if (SSL_CTX_set_cipher_list(Impl_->Ctx, ~list) == 0) {
+    if (SSL_CTX_set_cipher_list(Impl_->Ctx, list.data()) == 0) {
         THROW_ERROR_EXCEPTION("SSL_CTX_set_cipher_list failed")
             << TErrorAttribute("cipher_list", list)
             << GetLastSslError();

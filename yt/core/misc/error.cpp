@@ -535,7 +535,7 @@ const char* TErrorException::what() const noexcept
     if (CachedWhat_.empty()) {
         CachedWhat_ = ToString(Error_);
     }
-    return ~CachedWhat_;
+    return CachedWhat_.data();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

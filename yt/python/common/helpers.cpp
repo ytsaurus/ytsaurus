@@ -178,14 +178,14 @@ PyObject* TPythonStringCache::GetPythonString(TStringBuf string)
             return it->second;
         }
     }
-    auto result = PyBytes_FromStringAndSize(~string, string.size());
+    auto result = PyBytes_FromStringAndSize(string.data(), string.size());
     if (!result) {
         throw Py::Exception();
     }
 
     auto ownedCachedString = ConvertToStringBuf(Py::Bytes(result));
     if (Encoding_) {
-        auto unicodeObject = PyUnicode_FromEncodedObject(result, ~Encoding_.Get(), "strict");
+        auto unicodeObject = PyUnicode_FromEncodedObject(result, Encoding_.Get().data(), "strict");
         if (!unicodeObject) {
             throw Py::Exception();
         }
