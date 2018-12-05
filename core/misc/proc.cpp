@@ -81,7 +81,7 @@ std::vector<int> GetPidsByUid(int uid)
 
         auto path = Format("/proc/%v", pid);
         struct stat buf;
-        int res = ::stat(~path, &buf);
+        int res = ::stat(path.data(), &buf);
 
         if (res == 0) {
             if (buf.st_uid == uid || uid == -1) {
@@ -486,7 +486,7 @@ void SafeSetCloexec(int fd)
 void SetPermissions(const TString& path, int permissions)
 {
 #ifdef _linux_
-    auto res = HandleEintr(::chmod, ~path, permissions);
+    auto res = HandleEintr(::chmod, path.data(), permissions);
 
     if (res == -1) {
         THROW_ERROR_EXCEPTION("Failed to set permissions for descriptor")
@@ -890,7 +890,7 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
 void SafeCreateStderrFile(TString fileName)
 {
 #ifdef _unix_
-    if (freopen(~fileName, "a", stderr) == nullptr) {
+    if (freopen(fileName.data(), "a", stderr) == nullptr) {
         auto lastError = TError::FromSystem();
         THROW_ERROR_EXCEPTION("Stderr redirection failed")
             << lastError;

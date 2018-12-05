@@ -53,7 +53,7 @@ void TRefCountedTrackerFacade::ReallocateSpace(TRefCountedTypeCookie cookie, siz
 
 void TRefCountedTrackerFacade::Dump()
 {
-    fprintf(stderr, "%s", ~TRefCountedTracker::Get()->GetDebugInfo());
+    fprintf(stderr, "%s", TRefCountedTracker::Get()->GetDebugInfo().data());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

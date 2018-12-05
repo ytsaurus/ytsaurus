@@ -318,7 +318,7 @@ TNetworkAddress TNetworkAddress::CreateUnixDomainAddress(const TString& name)
     sockaddr_un sockAddr;
     memset(&sockAddr, 0, sizeof(sockAddr));
     sockAddr.sun_family = AF_UNIX;
-    memcpy(sockAddr.sun_path + 1, ~name, name.length());
+    memcpy(sockAddr.sun_path + 1, name.data(), name.length());
     return TNetworkAddress(
         *reinterpret_cast<sockaddr*>(&sockAddr),
         sizeof (sockAddr.sun_family) +
