@@ -782,14 +782,14 @@ static NYT::TRawJobRegistrator<className> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 #define REGISTER_RAW_JOB(className) \
-REGISTER_NAMED_RAW_JOB((~NYT::YtRegistryTypeName(TypeName<className>())), className)
+REGISTER_NAMED_RAW_JOB((NYT::YtRegistryTypeName(TypeName<className>()).data()), className)
 
 #define REGISTER_NAMED_VANILLA_JOB(name, className) \
 static NYT::TVanillaJobRegistrator<className> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 #define REGISTER_VANILLA_JOB(className) \
-REGISTER_NAMED_VANILLA_JOB((~NYT::YtRegistryTypeName(TypeName<className>())), className)
+REGISTER_NAMED_VANILLA_JOB((NYT::YtRegistryTypeName(TypeName<className>()).data()), className)
 
 ////////////////////////////////////////////////////////////////////////////////
 
