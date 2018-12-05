@@ -385,7 +385,7 @@ TNode TNode::Add(TNode&& node) &&
 bool TNode::HasKey(const TStringBuf key) const
 {
     CheckType(Map);
-    return Value_.As<TMapType>().has(key);
+    return Value_.As<TMapType>().contains(key);
 }
 
 TNode& TNode::operator()(const TString& key, const TNode& value) &

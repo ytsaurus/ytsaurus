@@ -30,7 +30,7 @@ public:
     void Do(TReader* reader, TWriter* writer) override {
         for (; reader->IsValid(); reader->Next()) {
             const auto& curRow = reader->GetRow();
-            if (RobotUids.has(curRow["uid"].AsInt64())) {
+            if (RobotUids.contains(curRow["uid"].AsInt64())) {
                 writer->AddRow(curRow);
             }
         }
