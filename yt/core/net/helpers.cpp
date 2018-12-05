@@ -14,6 +14,10 @@ std::vector<int> AllocateFreePorts(
     const THashSet<int>& availablePorts,
     const NLogging::TLogger& logger)
 {
+    if (portCount == 0) {
+        return {};
+    }
+
     const auto& Logger = logger;
 
     // Here goes our best effort to make sure we provide free ports to user job.
@@ -47,10 +51,12 @@ std::vector<int> AllocateFreePorts(
 
         allocatedPorts.push_back(port);
 
-        if (allocatedPorts.size() == portCount) {
+        if (allocatedPorts.size() >= portCount) {
             break;
         }
     }
+
+    YCHECK(allocatedPorts.size() == portCount);
 
     return allocatedPorts;
 }
