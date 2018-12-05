@@ -418,13 +418,13 @@ private:
         TTaggedPointer result;
         __asm__ __volatile__
         (
-            "xor %%ecx, %%ecx\n"
-            "xor %%eax, %%eax\n"
-            "xor %%edx, %%edx\n"
-            "xor %%ebx, %%ebx\n"
+            "xor %%rcx, %%rcx\n"
+            "xor %%rax, %%rax\n"
+            "xor %%rdx, %%rdx\n"
+            "xor %%rbx, %%rbx\n"
             "lock cmpxchg16b %2"
-            : "=a"(result.first)
-            , "=d"(result.second)
+            : "+a"(result.first)
+            , "+d"(result.second)
             : "m"(*atomic)
             : "cc", "rbx", "rcx"
         );
@@ -436,7 +436,7 @@ private:
         bool result;
         __asm__ __volatile__
         (
-            "lock cmpxchg16b %1\n\t"
+            "lock cmpxchg16b %1\n"
             "setz %0"
             : "=q"(result)
             , "+m"(*atomic)
