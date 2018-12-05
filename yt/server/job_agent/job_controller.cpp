@@ -533,21 +533,23 @@ void TJobController::TImpl::StartWaitingJobs()
 
         std::vector<int> ports;
 
-        try {
-            ports = AllocateFreePorts(portCount, FreePorts_, jobLogger);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", portCount);
-            continue;
-        }
-
-        if (ports.size() < portCount) {
-            LOG_DEBUG("Not enough bindable free ports to start job (PortCount: %v, FreePortCount: %v)",
-                portCount,
-                ports.size());
-            continue;
-        }
-
         if (portCount > 0) {
+            LOG_INFO("Allocating ports (PortCount: %v)", portCount);
+
+            try {
+                ports = AllocateFreePorts(portCount, FreePorts_, jobLogger);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", portCount);
+                continue;
+            }
+
+            if (ports.size() < portCount) {
+                LOG_DEBUG("Not enough bindable free ports to start job (PortCount: %v, FreePortCount: %v)",
+                    portCount,
+                    ports.size());
+                continue;
+            }
+
             for (int port : ports) {
                 FreePorts_.erase(port);
             }
