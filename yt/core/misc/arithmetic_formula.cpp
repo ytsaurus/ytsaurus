@@ -33,7 +33,7 @@ bool IsSymbolAllowedInName(char c, EEvaluationContext context, bool isFirst)
     if (std::isdigit(c)) {
         return true;
     }
-    if (context == EEvaluationContext::Boolean && extraAllowedBooleanVariableTokens.has(c)) {
+    if (context == EEvaluationContext::Boolean && extraAllowedBooleanVariableTokens.contains(c)) {
         return true;
     }
     return false;
@@ -1002,7 +1002,7 @@ TTimeFormula MakeTimeFormula(const TString& formula)
     auto arithmeticFormula = MakeArithmeticFormula(formula);
 
     for (const auto& variable : arithmeticFormula.GetVariables()) {
-        if (!allowedVariables.has(variable)) {
+        if (!allowedVariables.contains(variable)) {
             THROW_ERROR_EXCEPTION("Invalid variable in time formula (Variable: %Qv, TimeFormula: %Qv)",
                 variable,
                 formula);
