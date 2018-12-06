@@ -266,14 +266,14 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert [op["id"] for op in res["operations"]] == []
 
     def test_user_filter(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, user="user2", read_from=read_from)
-        assert res["pool_counts"] == {"user3": 2, "user1": 1, "user2": 1, "user4": 1, "some_pool": 1}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, user="user3", read_from=read_from)
+        assert res["pool_counts"] == {"user3": 2, "some_pool": 1}
         assert res["user_counts"] == {"user3": 2, "user1": 1, "user2": 1, "user4": 1}
-        assert res["state_counts"] == {"completed": 1}
-        assert res["type_counts"] == {"map": 1}
+        assert res["state_counts"] == {'failed': 1, 'aborted': 1}
+        assert res["type_counts"] == {'map_reduce': 1L, 'reduce': 1L}
         if self.check_failed_jobs_count:
-            assert res["failed_jobs_count"] == 0
-        assert [op["id"] for op in res["operations"]] == [self.op2.id]
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
 
     def test_text_filter(self, read_from):
         # Title filter.
@@ -292,8 +292,8 @@ class _TestListOperationsBase(ListOperationsSetup):
 
     def test_pool_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, pool="user3", read_from=read_from)
+        assert res["user_counts"] == {"user3": 2, "user1": 1, "user2": 1}
         assert res["pool_counts"] == {"user3": 2, "user1": 1, "user2": 1, "some_pool": 1}
-        assert res["user_counts"] == {"user3": 2}
         assert res["state_counts"] == {"failed": 1, "aborted": 1}
         assert res["type_counts"] == {"map_reduce": 1, "reduce": 1}
         if self.check_failed_jobs_count:
