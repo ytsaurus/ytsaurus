@@ -375,7 +375,7 @@ public:
 private:
     const TCacheLocationConfigPtr Config_;
 
-    NConcurrency::IThroughputThrottlerPtr InThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr InThrottler_;
 
     TNullable<TChunkDescriptor> Repair(const TChunkId& chunkId, const TString& metaSuffix);
     virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;

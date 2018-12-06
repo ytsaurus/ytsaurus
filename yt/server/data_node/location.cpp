@@ -122,6 +122,7 @@ TLocation::TLocation(
     TabletCompactionAndPartitioningOutThrottler_ = createThrottler(
         config->TabletCompactionAndPartitioningOutThrottler,
         "TabletCompactionAndPartitioningOutThrottler");
+    TabletLoggingOutThrottler_ = createThrottler(config->TabletLoggingOutThrottler, "TabletLoggingOutThrottler");
     TabletPreloadOutThrottler_ = createThrottler(config->TabletPreloadOutThrottler, "TabletPreloadOutThrottler");
     TabletRecoveryOutThrottler_ = createThrottler(config->TabletRecoveryOutThrottler, "TabletRecoveryOutThrottler");
     UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", throttlersProfiler);
@@ -508,6 +509,9 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
             return TabletCompactionAndPartitioningOutThrottler_;
+
+        case EWorkloadCategory::SystemTabletLogging:
+             return TabletLoggingOutThrottler_;
 
         case EWorkloadCategory::SystemTabletPreload:
              return TabletPreloadOutThrottler_;
@@ -1134,16 +1138,12 @@ TCacheLocation::TCacheLocation(
         config,
         bootstrap)
     , Config_(config)
-    , InThrottler_(CreateReconfigurableThroughputThrottler(config->InThrottler))
-{
-    auto throttlersProfiler = Profiler_.AppendPath("/cache");
-
-    InThrottler_ =  CreateNamedReconfigurableThroughputThrottler(
-        config->InThrottler,
+    , InThrottler_(CreateNamedReconfigurableThroughputThrottler(
+        Config_->InThrottler,
         "InThrottler",
         Logger,
-        throttlersProfiler);
-}
+        Profiler_.AppendPath("/cache")))
+{ }
 
 IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
 {
