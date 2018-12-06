@@ -7,7 +7,7 @@ from yt.yson import YsonEntity
 
 ##################################################################
 
-class TestSchedulerJoinReduceCommandsOneCell(YTEnvSetup):
+class TestSchedulerJoinReduceCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -1037,10 +1037,10 @@ done
         assert interrupted["job_split"] >= 1
 
 
-class TestSchedulerNewJoinReduceCommandsOneCell(TestSchedulerJoinReduceCommandsOneCell):
+class TestSchedulerNewJoinReduceCommands(TestSchedulerJoinReduceCommands):
     @classmethod
     def modify_controller_agent_config(cls, config):
-        TestSchedulerJoinReduceCommandsOneCell.modify_controller_agent_config(config)
+        TestSchedulerJoinReduceCommands.modify_controller_agent_config(config)
         config["controller_agent"]["join_reduce_operation_options"]["spec_template"] = {"use_new_controller": True}
 
     @unix_only
@@ -1071,9 +1071,9 @@ class TestSchedulerNewJoinReduceCommandsOneCell(TestSchedulerJoinReduceCommandsO
         assert read_table("//tmp/out") == expected
 
 
-class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommandsOneCell):
+class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
-class TestSchedulerNewJoinReduceCommandsMulticell(TestSchedulerNewJoinReduceCommandsOneCell):
+class TestSchedulerNewJoinReduceCommandsMulticell(TestSchedulerNewJoinReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
