@@ -125,7 +125,7 @@ BlockInputStreams TStorageReadJob::read(
 
 QueryProcessingStage::Enum TStorageReadJob::getQueryProcessingStage(const Context& context) const
 {
-    return QueryProcessingStage::Enum::Complete;
+    return QueryProcessingStage::Enum::FetchColumns;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

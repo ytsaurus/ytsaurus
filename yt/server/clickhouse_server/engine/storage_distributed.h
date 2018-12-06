@@ -71,6 +71,8 @@ public:
         return true;
     }
 
+    DB::QueryProcessingStage::Enum getQueryProcessingStage(const DB::Context& context) const override;
+
     DB::BlockInputStreams read(
         const DB::Names& columnNames,
         const DB::SelectQueryInfo& queryInfo,
