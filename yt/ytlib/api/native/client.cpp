@@ -5091,15 +5091,15 @@ private:
         return operation;
     }
 
-    THashSet<TString> MakeFinalAttrbibuteSet(
+    THashSet<TString> MakeFinalAttributeSet(
         const TNullable<THashSet<TString>>& originalAttributes,
-        const THashSet<TString>& requiredAttrbiutes,
-        const THashSet<TString>& defaultAttrbiutes,
-        const THashSet<TString>& ignoredAttrbiutes)
+        const THashSet<TString>& requiredAttributes,
+        const THashSet<TString>& defaultAttributes,
+        const THashSet<TString>& ignoredAttributes)
     {
-        auto attributes = originalAttributes.Get(defaultAttrbiutes);
-        attributes.insert(requiredAttrbiutes.begin(), requiredAttrbiutes.end());
-        for (const auto& attribute : ignoredAttrbiutes) {
+        auto attributes = originalAttributes.Get(defaultAttributes);
+        attributes.insert(requiredAttributes.begin(), requiredAttributes.end());
+        for (const auto& attribute : ignoredAttributes) {
             attributes.erase(attribute);
         }
         return attributes;
@@ -5152,7 +5152,7 @@ private:
 
         static const THashSet<TString> IgnoredAttributes = {};
 
-        auto requestedAttributes = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
+        auto requestedAttributes = MakeFinalAttributeSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
         bool areAllRequestedAttributesLight = std::all_of(
             requestedAttributes.begin(),
@@ -5452,7 +5452,7 @@ private:
         };
         static const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
 
-        auto attributesToRequest = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttrbiutes, DefaultAttributes, IgnoredAttributes);
+        auto attributesToRequest = MakeFinalAttributeSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
         bool needBriefProgress = !options.Attributes || options.Attributes->contains("brief_progress");
 
         std::vector<int> columns;
