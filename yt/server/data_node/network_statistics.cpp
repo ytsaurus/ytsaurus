@@ -47,7 +47,7 @@ void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
 void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TNodeStatistics* statistics)
 {
     TReaderGuard guard(Lock_);
-    for (auto& counter : Counters_) {
+    for (const auto& counter : Counters_) {
         auto network = statistics->add_network();
         network->set_network(counter.first);
 
