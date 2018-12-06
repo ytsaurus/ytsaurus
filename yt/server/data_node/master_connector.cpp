@@ -542,8 +542,8 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         locationStatistics->set_throttling_writes(location->IsWriteThrottling());
         locationStatistics->set_sick(location->IsSick());
 
-        auto& mediumStatistics = mediaStatistics[mediumIndex];
-        if (location->IsEnabled() && !location->IsFull() && !location->IsSick()) {
+        if (IsLocationWriteable(location)) {
+            auto& mediumStatistics = mediaStatistics[mediumIndex];
             ++mediumStatistics.IOWeight;
         }
     }
@@ -555,6 +555,27 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         protoStatistics->set_medium_index(mediumIndex);
         protoStatistics->set_io_weight(mediumStatistics.IOWeight);
     }
+}
+
+bool TMasterConnector::IsLocationWriteable(const TStoreLocationPtr& location)
+{
+    if (!location->IsEnabled()) {
+        return false;
+    }
+
+    if (location->IsFull()) {
+        return false;
+    }
+
+    if (location->IsSick()) {
+        return false;
+    }
+
+    if (location->GetMaxPendingIOSize(EIODirection::Write) > Config_->DiskWriteThrottlingLimit) {
+        return false;
+    }
+
+    return true;
 }
 
 void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)

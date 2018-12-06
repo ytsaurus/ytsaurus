@@ -160,6 +160,9 @@ public:
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor);
 
+    //! Returns the maximum number of bytes pending for disk IO in given #direction.
+    i64 GetMaxPendingIOSize(EIODirection direction);
+
     //! Acquires a lock for the given number of bytes to be read or written.
     TPendingIOGuard IncreasePendingIOSize(
         EIODirection direction,
