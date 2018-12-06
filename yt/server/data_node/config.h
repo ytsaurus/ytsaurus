@@ -141,6 +141,9 @@ public:
     //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
     NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningOutThrottler;
 
+    //! Controls outcoming location bandwidth used by tablet logging.
+    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingOutThrottler;
+
     //! Controls outcoming location bandwidth used by tablet preload.
     NConcurrency::TThroughputThrottlerConfigPtr TabletPreloadOutThrottler;
 
@@ -160,6 +163,8 @@ public:
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
             .DefaultNew();
         RegisterParameter("tablet_compaction_and_partitioning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
+            .DefaultNew();
+        RegisterParameter("tablet_logging_out_throttler", TabletLoggingOutThrottler)
             .DefaultNew();
         RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
             .DefaultNew();
