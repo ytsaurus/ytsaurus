@@ -108,7 +108,7 @@ private:
 
     bool AcceptByNames(ui16 columnId, TStringBuf columnName)
     {
-        return Names_->has(columnName);
+        return Names_->contains(columnName);
     }
 
     bool AcceptByMaxCount(ui16 columnId, TStringBuf columnName)
@@ -117,7 +117,7 @@ private:
             AcceptedColumnIds_.insert(columnId);
             return true;
         }
-        return AcceptedColumnIds_.has(columnId);
+        return AcceptedColumnIds_.contains(columnId);
     }
 };
 
@@ -277,7 +277,7 @@ bool TSchemalessWriterForWebJson::TryRegisterColumn(ui16 columnId, TStringBuf co
 
     if (AllColumnIdToName_.size() < Config_->MaxAllColumnNamesCount) {
         AllColumnIdToName_[columnId] = columnName;
-    } else if (!AllColumnIdToName_.has(columnId)) {
+    } else if (!AllColumnIdToName_.contains(columnId)) {
         IncompleteAllColumnNames_ = true;
     }
 

@@ -21,7 +21,7 @@ TTcpBusServerConfig::TTcpBusServerConfig()
         .Default();
 
     RegisterPreprocessor([&] {
-        if (DefaultNetwork && !Networks.has(*DefaultNetwork)) {
+        if (DefaultNetwork && !Networks.contains(*DefaultNetwork)) {
             THROW_ERROR_EXCEPTION("Default network is not present in network list");
         }
     });

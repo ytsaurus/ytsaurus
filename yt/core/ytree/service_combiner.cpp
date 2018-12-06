@@ -56,7 +56,7 @@ public:
 
 private:
     const std::vector<IYPathServicePtr> Services_;
-    
+
     NConcurrency::TPeriodicExecutorPtr UpdateKeysExecutor_;
 
     TPromise<void> InitializedPromise_ = NewPromise<void>();
@@ -224,7 +224,7 @@ private:
 
         BuildYsonFluently(&writer)
             .DoListFor(combinedServiceResults, [&] (TFluentList fluent, const IStringNodePtr& item) {
-                if (!keys.has(item->GetValue())) {
+                if (!keys.contains(item->GetValue())) {
                     fluent
                         .Item().Value(item);
                     keys.insert(item->GetValue());

@@ -293,7 +293,7 @@ public:
     std::vector<TTableMountInfoPtr> ExtractTableInfos()
     {
         auto guard = Guard(TableInfosSpinLock_);
-        return std::move(TableInfos_);   
+        return std::move(TableInfos_);
     }
 
 private:
@@ -331,7 +331,7 @@ private:
             auto guard = Guard(TableInfosSpinLock_);
             TableInfos_.push_back(tableInfo);
         }
-        
+
         TDataSplit result;
         SetObjectId(&result, tableInfo->TableId);
         SetTableSchema(&result, GetTableSchema(path, tableInfo));
@@ -3823,7 +3823,7 @@ private:
         std::vector<TString> result;
         result.reserve(attributes.size());
         for (const auto& attribute : attributes) {
-            if (!SupportedOperationAttributes.has(attribute)) {
+            if (!SupportedOperationAttributes.contains(attribute)) {
                 THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
             }
@@ -3845,7 +3845,7 @@ private:
         std::vector<TString> result;
         result.reserve(attributes.size() + 1); // Plus 1 for 'id_lo' and 'id_hi' instead of 'id'.
         for (const auto& attribute : attributes) {
-            if (!SupportedOperationAttributes.has(attribute)) {
+            if (!SupportedOperationAttributes.contains(attribute)) {
                 THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
             }
@@ -3870,7 +3870,7 @@ private:
         if (options.Attributes) {
             cypressAttributes = MakeCypressOperationAttributes(*options.Attributes);
 
-            if (!options.Attributes->has("controller_agent_address")) {
+            if (!options.Attributes->contains("controller_agent_address")) {
                 cypressAttributes->push_back("controller_agent_address");
             }
         }
@@ -3917,7 +3917,7 @@ private:
             // COMPAT(levysotsky): When "operation_type" is disallowed, this code
             // will be simplified to unconditionally removing the child
             // (and also child will not have to be cloned).
-            if (options.Attributes && !options.Attributes->has("operation_type")) {
+            if (options.Attributes && !options.Attributes->contains("operation_type")) {
                 attrNode->RemoveChild("operation_type");
             }
 
@@ -3931,7 +3931,7 @@ private:
             YCHECK(attrNode->AddChild("id", child));
         }
 
-        if (options.Attributes && !options.Attributes->has("state")) {
+        if (options.Attributes && !options.Attributes->contains("state")) {
             attrNode->RemoveChild("state");
         }
 
@@ -3940,7 +3940,7 @@ private:
             keysToKeep.insert("id");
             keysToKeep.insert("type");
             for (const auto& key : attrNode->GetKeys()) {
-                if (!keysToKeep.has(key)) {
+                if (!keysToKeep.contains(key)) {
                     attrNode->RemoveChild(key);
                 }
             }
@@ -3949,7 +3949,7 @@ private:
         TNullable<TString> controllerAgentAddress;
         if (auto child = attrNode->FindChild("controller_agent_address")) {
             controllerAgentAddress = child->AsString()->GetValue();
-            if (options.Attributes && !options.Attributes->has("controller_agent_address")) {
+            if (options.Attributes && !options.Attributes->contains("controller_agent_address")) {
                 attrNode->RemoveChild(child);
             }
         }
@@ -3977,7 +3977,7 @@ private:
             };
 
             for (const auto& attribute : runtimeAttributes) {
-                if (!options.Attributes || options.Attributes->has(attribute.first)) {
+                if (!options.Attributes || options.Attributes->contains(attribute.first)) {
                     addProgressAttributeRequest(attribute.first, attribute.second);
                 }
             }
@@ -4012,7 +4012,7 @@ private:
                 };
 
                 for (const auto& attribute : runtimeAttributes) {
-                    if (!options.Attributes || options.Attributes->has(attribute.first)) {
+                    if (!options.Attributes || options.Attributes->contains(attribute.first)) {
                         handleProgressAttributeRequest(attribute.first);
                     }
                 }
@@ -4087,7 +4087,7 @@ private:
 
             auto ysonResult = BuildYsonStringFluently()
                 .BeginMap()
-                    .DoIf(fields.has("id_lo"), [&] (TFluentMap fluent) {
+                    .DoIf(fields.contains("id_lo"), [&] (TFluentMap fluent) {
                         fluent.Item("id").Value(operationId);
                     })
                     SET_ITEM_STRING_VALUE("state")
@@ -5013,56 +5013,56 @@ private:
 
         TOperation operation;
 
-        if (!attributes || attributes->has("id")) {
+        if (!attributes || attributes->contains("id")) {
             if (auto id = nodeAttributes.Find<TString>("key")) {
                 operation.Id = TGuid::FromString(*id);
             }
         }
-        if (!attributes || attributes->has("type")) {
+        if (!attributes || attributes->contains("type")) {
             if (auto type = nodeAttributes.Find<TString>("operation_type")) {
                 operation.Type = ParseEnum<NScheduler::EOperationType>(*type);
             }
         }
-        if (!attributes || attributes->has("state")) {
+        if (!attributes || attributes->contains("state")) {
             if (auto state = nodeAttributes.Find<TString>("state")) {
                 operation.State = ParseEnum<NScheduler::EOperationState>(*state);
             }
         }
-        if (!attributes || attributes->has("start_time")) {
+        if (!attributes || attributes->contains("start_time")) {
             if (auto startTime = nodeAttributes.Find<TString>("start_time")) {
                 operation.StartTime = ConvertTo<TInstant>(*startTime);
             }
         }
-        if (!attributes || attributes->has("finish_time")) {
+        if (!attributes || attributes->contains("finish_time")) {
             if (auto finishTime = nodeAttributes.Find<TString>("finish_time")) {
                 operation.FinishTime = ConvertTo<TInstant>(*finishTime);
             }
         }
-        if (!attributes || attributes->has("authenticated_user")) {
+        if (!attributes || attributes->contains("authenticated_user")) {
             operation.AuthenticatedUser = nodeAttributes.Find<TString>("authenticated_user");
         }
 
-        if (!attributes || attributes->has("brief_spec")) {
+        if (!attributes || attributes->contains("brief_spec")) {
             operation.BriefSpec = nodeAttributes.FindYson("brief_spec");
         }
-        if (!attributes || attributes->has("spec")) {
+        if (!attributes || attributes->contains("spec")) {
             operation.Spec = nodeAttributes.FindYson("spec");
         }
-        if (!attributes || attributes->has("full_spec")) {
+        if (!attributes || attributes->contains("full_spec")) {
             operation.FullSpec = nodeAttributes.FindYson("full_spec");
         }
-        if (!attributes || attributes->has("unrecognized_spec")) {
+        if (!attributes || attributes->contains("unrecognized_spec")) {
             operation.UnrecognizedSpec = nodeAttributes.FindYson("unrecognized_spec");
         }
 
-        if (!attributes || attributes->has("brief_progress")) {
+        if (!attributes || attributes->contains("brief_progress")) {
             operation.BriefProgress = nodeAttributes.FindYson("brief_progress");
         }
-        if (!attributes || attributes->has("progress")) {
+        if (!attributes || attributes->contains("progress")) {
             operation.Progress = nodeAttributes.FindYson("progress");
         }
 
-        if (!attributes || attributes->has("runtime_parameters")) {
+        if (!attributes || attributes->contains("runtime_parameters")) {
             operation.RuntimeParameters = nodeAttributes.FindYson("runtime_parameters");
 
             if (operation.RuntimeParameters) {
@@ -5073,14 +5073,14 @@ private:
             }
         }
 
-        if (!attributes || attributes->has("suspended")) {
+        if (!attributes || attributes->contains("suspended")) {
             operation.Suspended = nodeAttributes.Find<bool>("suspended");
         }
 
-        if (!attributes || attributes->has("events")) {
+        if (!attributes || attributes->contains("events")) {
             operation.Events = nodeAttributes.FindYson("events");
         }
-        if (!attributes || attributes->has("result")) {
+        if (!attributes || attributes->contains("result")) {
             operation.Result = nodeAttributes.FindYson("result");
         }
 
@@ -5158,12 +5158,12 @@ private:
             requestedAttributes.begin(),
             requestedAttributes.end(),
             [&] (const TString& attribute) {
-                return LightAttributes.has(attribute);
+                return LightAttributes.contains(attribute);
             });
 
         auto areIntersecting = [] (const THashSet<TString>& set, const std::vector<TString>& vector) {
             for (const auto& element : vector) {
-                if (set.has(element)) {
+                if (set.contains(element)) {
                     return true;
                 }
             }
@@ -5210,7 +5210,7 @@ private:
                 }
 
                 if (transitiveClosureOfOwnedBy &&
-                    !(operation.AuthenticatedUser && transitiveClosureOfOwnedBy->has(*operation.AuthenticatedUser)) &&
+                    !(operation.AuthenticatedUser && transitiveClosureOfOwnedBy->contains(*operation.AuthenticatedUser)) &&
                     !areIntersecting(*transitiveClosureOfOwnedBy, operation.Owners.Get({})))
                 {
                     continue;
@@ -5452,8 +5452,8 @@ private:
         };
         static const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
 
-        auto attributesToRequest = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
-        bool needBriefProgress = !options.Attributes || options.Attributes->has("brief_progress");
+        auto attributesToRequest = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttrbiutes, DefaultAttributes, IgnoredAttributes);
+        bool needBriefProgress = !options.Attributes || options.Attributes->contains("brief_progress");
 
         std::vector<int> columns;
         for (const auto columnName : MakeArchiveOperationAttributes(attributesToRequest)) {
@@ -6489,7 +6489,7 @@ private:
         std::vector<TString> result;
         result.reserve(attributes.size() + 2); // Plus 2 as operation_id and job_id are split into hi and lo.
         for (const auto& attribute : attributes) {
-            if (!SupportedJobAttributes.has(attribute)) {
+            if (!SupportedJobAttributes.contains(attribute)) {
                 THROW_ERROR_EXCEPTION("Job attribute %Qv is not allowed", attribute);
             }
             if (attribute.EndsWith("_id")) {
