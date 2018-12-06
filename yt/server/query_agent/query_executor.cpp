@@ -242,7 +242,7 @@ public:
             ProfilerTags_ = tabletSnapshot->ProfilerTags;
         }
 
-        tabletSnapshot->RuntimeData->AccessTime = TInstant::Now();
+        tabletSnapshot->RuntimeData->AccessTime = NProfiling::GetInstant();
     }
 
     NProfiling::TTagIdList GetProfilerTags()
