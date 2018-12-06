@@ -1612,7 +1612,6 @@ class TestInputOutputFormats(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -1814,10 +1813,3 @@ print '{hello=world}'
 
 class TestInputOutputFormatsMulticell(TestInputOutputFormats):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-##################################################################
-
-@patch_porto_env_only(TestInputOutputFormats)
-class TestInputOutputFormatsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
-    USE_PORTO_FOR_SERVERS = True
