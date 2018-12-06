@@ -482,7 +482,7 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < static_cast<int>(Locations_.size()); ++index) {
         const auto& location = Locations_[index];
-        if (!CanStartNewSession(location, chunkType, sessionId.MediumIndex, options.WorkloadDescriptor)) {
+        if (!CanStartNewSession(location, sessionId.MediumIndex, options.WorkloadDescriptor)) {
             continue;
         }
         if (options.PlacementId) {
@@ -532,7 +532,6 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
 
 bool TChunkStore::CanStartNewSession(
     const TStoreLocationPtr& location,
-    EObjectType chunkType,
     int mediumIndex,
     const TWorkloadDescriptor& workloadDescriptor)
 {
