@@ -1424,10 +1424,6 @@ TOperationId ExecuteMapReduce(
     const IStructuredJob* mapper,
     const IStructuredJob* reduceCombiner,
     const IStructuredJob& reducer,
-    const TMultiFormatDesc& /*mapperClassOutputDesc*/,
-    const TMultiFormatDesc& /*reduceCombinerClassInputDesc*/,
-    const TMultiFormatDesc& /*reduceCombinerClassOutputDesc*/,
-    const TMultiFormatDesc& /*reducerClassInputDesc*/,
     const TOperationOptions& options)
 {
     TMapReduceOperationSpec spec = spec_;

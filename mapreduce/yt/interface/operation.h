@@ -91,19 +91,6 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMultiFormatDesc
-{
-    enum EFormat {
-        F_NONE,
-        F_NODE,
-        F_YAMR,
-        F_PROTO,
-    };
-
-    EFormat Format = F_NONE;
-    TVector<const ::google::protobuf::Descriptor*> ProtoDescriptors;
-};
-
 template <class TDerived>
 class TUserJobFormatHintsBase
 {
@@ -203,10 +190,6 @@ public:
     const TVector<TStructuredTablePath>& GetStructuredInputs() const;
     const TVector<TStructuredTablePath>& GetStructuredOutputs() const;
 
-protected:
-    TMultiFormatDesc InputDesc_;
-    TMultiFormatDesc OutputDesc_;
-
 private:
     TVector<TStructuredTablePath> StructuredInputs_;
     TVector<TStructuredTablePath> StructuredOutputs_;
@@ -293,13 +276,7 @@ struct TIntermediateTablesHintSpec
     template <class T>
     TDerived& AddMapOutput(const TRichYPath& path);
 
-    TMultiFormatDesc MapOutputDesc_;
     TVector<TRichYPath> MapOutputs_;
-
-    TMultiFormatDesc ReduceCombinerInputHintDesc_;
-    TMultiFormatDesc ReduceCombinerOutputHintDesc_;
-
-    TMultiFormatDesc ReduceInputHintDesc_;
 
     const TVector<TStructuredTablePath>& GetStructuredMapOutputs() const;
     const TMaybe<TTableStructure>& GetIntermediateMapOutputDescription() const;
@@ -680,13 +657,6 @@ class IStructuredJob
 public:
     virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const = 0;
     virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const = 0;
-
-private:
-    friend struct IOperationClient;
-    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const = 0;
-    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const = 0;
-    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) = 0;
-    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -721,12 +691,6 @@ public:
 
     virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
     virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
-
-private:
-    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
-    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
-    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
-    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -767,12 +731,6 @@ public:
 
     virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
     virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
-
-private:
-    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
-    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
-    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
-    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -809,12 +767,6 @@ public:
 
     virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
     virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
-
-private:
-    virtual void CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
-    virtual void CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const override;
-    virtual void AddInputFormatDescription(TMultiFormatDesc* desc) override;
-    virtual void AddOutputFormatDescription(TMultiFormatDesc* desc) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1434,10 +1386,6 @@ private:
         const IStructuredJob* mapper,
         const IStructuredJob* reduceCombiner,
         const IStructuredJob& reducer,
-        const TMultiFormatDesc& outputMapperDesc,
-        const TMultiFormatDesc& inputReduceCombinerDesc,
-        const TMultiFormatDesc& outputReduceCombinerDesc,
-        const TMultiFormatDesc& inputReducerDesc,
         const TOperationOptions& options) = 0;
 };
 

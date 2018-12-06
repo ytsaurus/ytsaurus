@@ -235,84 +235,9 @@ inline TTableWriterPtr<T> CreateJobWriter(size_t outputTableCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class = void>
-struct TFormatDescTraits;
-
-template <>
-struct TFormatDescTraits<TNode>
-{
-    static const TMultiFormatDesc::EFormat Format = TMultiFormatDesc::F_NODE;
-};
-
-template <>
-struct TFormatDescTraits<TYaMRRow>
-{
-    static const TMultiFormatDesc::EFormat Format = TMultiFormatDesc::F_YAMR;
-};
-
-template <>
-struct TFormatDescTraits<Message>
-{
-    static const TMultiFormatDesc::EFormat Format = TMultiFormatDesc::F_PROTO;
-};
-
-template <class T>
-struct TFormatDescTraits<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
-{
-    static const TMultiFormatDesc::EFormat Format = TMultiFormatDesc::F_PROTO;
-};
-
-template<class T>
-void SetFormat(TMultiFormatDesc& desc)
-{
-    const auto newFmt = TFormatDescTraits<T>::Format;
-    if (desc.Format != TMultiFormatDesc::F_NONE && desc.Format != newFmt)
-    {
-        ythrow yexception() << "Invalid format"; // TODO: more info
-    }
-    desc.Format = newFmt;
-}
-
-template <class T, class TEnable>
-struct TOperationIOSpecBase::TFormatAdder
-{
-    static void Add(TMultiFormatDesc& desc)
-    {
-        SetFormat<T>(desc);
-    }
-
-    static void Set(size_t /*idx*/, TMultiFormatDesc& desc)
-    {
-        SetFormat<T>(desc);
-    }
-};
-
-//TODO: enable when all the clients will not use AddInput<Message>/AddOutput<Message>
-//see REVIEW: 270137
-//
-//template<>
-//struct TOperationIOSpecBase::TFormatAdder<Message>;
-
-template <class T>
-struct TOperationIOSpecBase::TFormatAdder<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
-{
-    static void Add(TMultiFormatDesc& desc)
-    {
-        SetFormat<T>(desc);
-        desc.ProtoDescriptors.push_back(T::descriptor());
-    }
-
-    static void Set(size_t idx, TMultiFormatDesc& desc)
-    {
-        SetFormat<T>(desc);
-        NDetail::Assign(desc.ProtoDescriptors, idx, T::descriptor());
-    }
-};
-
 template <class T>
 void TOperationIOSpecBase::AddInput(const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Add(InputDesc_);
     Inputs_.push_back(path);
     StructuredInputs_.emplace_back(Structured<T>(path));
 }
@@ -320,7 +245,6 @@ void TOperationIOSpecBase::AddInput(const TRichYPath& path)
 template <class T>
 void TOperationIOSpecBase::SetInput(size_t tableIndex, const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, InputDesc_);
     NDetail::Assign(Inputs_, tableIndex, path);
     NDetail::Assign(StructuredInputs_, tableIndex, Structured<T>(path));
 }
@@ -329,7 +253,6 @@ void TOperationIOSpecBase::SetInput(size_t tableIndex, const TRichYPath& path)
 template <class T>
 void TOperationIOSpecBase::AddOutput(const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Add(OutputDesc_);
     Outputs_.push_back(path);
     StructuredOutputs_.emplace_back(Structured<T>(path));
 }
@@ -337,7 +260,6 @@ void TOperationIOSpecBase::AddOutput(const TRichYPath& path)
 template <class T>
 void TOperationIOSpecBase::SetOutput(size_t tableIndex, const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, OutputDesc_);
     NDetail::Assign(Outputs_, tableIndex, path);
     NDetail::Assign(StructuredOutputs_, tableIndex, Structured<T>(path));
 }
@@ -391,7 +313,6 @@ template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::AddProtobufInput_VerySlow_Deprecated(const TRichYPath& path)
 {
     NDetail::ResetUseClientProtobuf("AddProtobufInput_VerySlow_Deprecated");
-    TOperationIOSpecBase::TFormatAdder<Message>::Add(InputDesc_);
     Inputs_.push_back(path);
     StructuredInputs_.emplace_back(TStructuredTablePath(path, TProtobufTableStructure{nullptr}));
     return *static_cast<TDerived*>(this);
@@ -401,7 +322,6 @@ template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::AddProtobufOutput_VerySlow_Deprecated(const TRichYPath& path)
 {
     NDetail::ResetUseClientProtobuf("AddProtobufOutput_VerySlow_Deprecated");
-    TOperationIOSpecBase::TFormatAdder<Message>::Add(OutputDesc_);
     Outputs_.push_back(path);
     StructuredOutputs_.emplace_back(TStructuredTablePath(path, TProtobufTableStructure{nullptr}));
     return *static_cast<TDerived*>(this);
@@ -413,7 +333,6 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintMapOutput()
 {
-    TOperationIOSpecBase::TFormatAdder<TRow>::Set(0, MapOutputDesc_);
     IntermediateMapOutputDescription_ = StructuredTableDescription<TRow>();
     return *static_cast<TDerived*>(this);
 }
@@ -422,11 +341,6 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::AddMapOutput(const TRichYPath& path)
 {
-    if (MapOutputs_.empty()) {
-        TOperationIOSpecBase::TFormatAdder<TRow>::Set(1, MapOutputDesc_);
-    } else {
-        TOperationIOSpecBase::TFormatAdder<TRow>::Add(MapOutputDesc_);
-    }
     MapOutputs_.push_back(path);
     StructuredMapOutputs_.emplace_back(Structured<TRow>(path));
     return *static_cast<TDerived*>(this);
@@ -436,10 +350,6 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceCombinerInput()
 {
-    if (!ReduceCombinerInputHintDesc_.ProtoDescriptors.empty()) {
-        ythrow TApiUsageError() << "HintReduceCombinerInput cannot be called multiple times";
-    }
-    TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceCombinerInputHintDesc_);
     IntermediateReduceCombinerInputDescription_ = StructuredTableDescription<TRow>();
     return *static_cast<TDerived*>(this);
 }
@@ -448,10 +358,6 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceCombinerOutput()
 {
-    if (!ReduceCombinerOutputHintDesc_.ProtoDescriptors.empty()) {
-        ythrow TApiUsageError() << "HintReduceCombinerOutput cannot be called multiple times";
-    }
-    TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceCombinerOutputHintDesc_);
     IntermediateReduceCombinerOutputDescription_ = StructuredTableDescription<TRow>();
     return *static_cast<TDerived*>(this);
 }
@@ -460,10 +366,6 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceInput()
 {
-    if (!ReduceInputHintDesc_.ProtoDescriptors.empty()) {
-        ythrow TApiUsageError() << "HintReduceInput cannot be called multiple times";
-    }
-    TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceInputHintDesc_);
     IntermediateReducerInputDescription_ = StructuredTableDescription<TRow>();
     return *static_cast<TDerived*>(this);
 }
@@ -793,31 +695,6 @@ REGISTER_NAMED_VANILLA_JOB((NYT::YtRegistryTypeName(TypeName<className>()).data(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRow>
-void CheckFormats(const char *jobName, const char* direction, const TMultiFormatDesc& desc)
-{
-    if (desc.Format != TMultiFormatDesc::F_NONE &&
-        TFormatDescTraits<TRow>::Format != desc.Format)
-    {
-        ythrow TApiUsageError()
-            << "cannot match " << jobName << " type and " << direction << " descriptor";
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TReader, class TWriter>
-void IMapper<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const
-{
-    NYT::CheckFormats<typename TReader::TRowType>(jobName, "input", desc);
-}
-
-template <class TReader, class TWriter>
-void IMapper<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const
-{
-    NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
-}
-
 template <typename TReader, typename TWriter>
 TStructuredRowStreamDescription IMapper<TReader, TWriter>::GetInputRowStreamDescription() const {
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TReader::TRowType>();
@@ -828,31 +705,7 @@ TStructuredRowStreamDescription IMapper<TReader, TWriter>::GetOutputRowStreamDes
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
 }
 
-template <class TReader, class TWriter>
-void IMapper<TReader, TWriter>::AddInputFormatDescription(TMultiFormatDesc* desc)
-{
-    TOperationIOSpecBase::TFormatAdder<typename TReader::TRowType>::Add(*desc);
-}
-
-template <class TReader, class TWriter>
-void IMapper<TReader, TWriter>::AddOutputFormatDescription(TMultiFormatDesc* desc)
-{
-    TOperationIOSpecBase::TFormatAdder<typename TWriter::TRowType>::Add(*desc);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class TReader, class TWriter>
-void IReducer<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const
-{
-    NYT::CheckFormats<typename TReader::TRowType>(jobName, "input", desc);
-}
-
-template <class TReader, class TWriter>
-void IReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const
-{
-    NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
-}
 
 template <typename TReader, typename TWriter>
 TStructuredRowStreamDescription IReducer<TReader, TWriter>::GetInputRowStreamDescription() const {
@@ -864,31 +717,7 @@ TStructuredRowStreamDescription IReducer<TReader, TWriter>::GetOutputRowStreamDe
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
 }
 
-template <class TReader, class TWriter>
-void IReducer<TReader, TWriter>::AddInputFormatDescription(TMultiFormatDesc* desc)
-{
-    TOperationIOSpecBase::TFormatAdder<typename TReader::TRowType>::Add(*desc);
-}
-
-template <class TReader, class TWriter>
-void IReducer<TReader, TWriter>::AddOutputFormatDescription(TMultiFormatDesc* desc)
-{
-    TOperationIOSpecBase::TFormatAdder<typename TWriter::TRowType>::Add(*desc);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class TReader, class TWriter>
-void IAggregatorReducer<TReader, TWriter>::CheckInputFormat(const char* jobName, const TMultiFormatDesc& desc) const
-{
-    NYT::CheckFormats<typename TReader::TRowType>(jobName, "input", desc);
-}
-
-template <class TReader, class TWriter>
-void IAggregatorReducer<TReader, TWriter>::CheckOutputFormat(const char* jobName, const TMultiFormatDesc& desc) const
-{
-    NYT::CheckFormats<typename TWriter::TRowType>(jobName, "output", desc);
-}
 
 template <typename TReader, typename TWriter>
 TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetInputRowStreamDescription() const {
@@ -900,18 +729,6 @@ TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetOutputR
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
 }
 
-template <class TReader, class TWriter>
-void IAggregatorReducer<TReader, TWriter>::AddInputFormatDescription(TMultiFormatDesc* desc)
-{
-    TOperationIOSpecBase::TFormatAdder<typename TReader::TRowType>::Add(*desc);
-}
-
-template <class TReader, class TWriter>
-void IAggregatorReducer<TReader, TWriter>::AddOutputFormatDescription(TMultiFormatDesc* desc)
-{
-    TOperationIOSpecBase::TFormatAdder<typename TWriter::TRowType>::Add(*desc);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT
