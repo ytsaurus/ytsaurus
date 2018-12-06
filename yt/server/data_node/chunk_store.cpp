@@ -502,8 +502,7 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
     if (candidates.empty()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoLocationAvailable,
-            "No write location is available")
-            << TErrorAttribute("chunk_type", chunkType);
+            "No write location is available");
     }
 
     TStoreLocationPtr result;
