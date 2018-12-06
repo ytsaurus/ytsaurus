@@ -261,7 +261,7 @@ public:
         ValidateReadTimestamp(timestamp);
         ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
-        tabletSnapshot->RuntimeData->AccessTime = TInstant::Now();
+        tabletSnapshot->RuntimeData->AccessTime = NProfiling::GetInstant();
 
         while (!reader->IsFinished()) {
             ExecuteSingleRead(
@@ -299,7 +299,7 @@ public:
             ValidateClientTimestamp(transactionId);
         }
 
-        tabletSnapshot->RuntimeData->ModificationTime = TInstant::Now();
+        tabletSnapshot->RuntimeData->ModificationTime = NProfiling::GetInstant();
 
         while (!reader->IsFinished()) {
             // NB: No yielding beyond this point.
