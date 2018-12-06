@@ -62,7 +62,7 @@ static bool IsSkiffSpecialColumn(
         OtherColumnsName,
         SparseColumnsName
     };
-    return specialColumns.has(columnName) || columnName == rangeIndexColumnName || columnName == rowIndexColumnName;
+    return specialColumns.contains(columnName) || columnName == rangeIndexColumnName || columnName == rowIndexColumnName;
 }
 
 static std::pair<TSkiffSchemaPtr, bool> DeoptionalizeSchema(TSkiffSchemaPtr skiffSchema)
@@ -287,7 +287,7 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
         auto it = parsedRegistry->find(name);
         if (it != parsedRegistry->end()) {
             return it->second;
-        } else if (parseInProgressNames->has(name)) {
+        } else if (parseInProgressNames->contains(name)) {
             THROW_ERROR_EXCEPTION(
                 "Type %Qv is recursive, recursive types are forbiden",
                 name);
