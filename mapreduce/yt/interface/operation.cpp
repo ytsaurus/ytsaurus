@@ -121,21 +121,11 @@ IOperationPtr IOperationClient::MapReduce(
 {
     Y_VERIFY(reducer.Get());
 
-    TMultiFormatDesc dummy, outputMapperDesc, inputReducerDesc;
-    if (mapper) {
-        mapper->AddOutputFormatDescription(&outputMapperDesc);
-    }
-    reducer->AddInputFormatDescription(&inputReducerDesc);
-
     return DoMapReduce(
         spec,
         mapper.Get(),
         nullptr,
         *reducer,
-        outputMapperDesc,
-        dummy,
-        dummy,
-        inputReducerDesc,
         options);
 }
 
@@ -148,26 +138,11 @@ IOperationPtr IOperationClient::MapReduce(
 {
     Y_VERIFY(reducer.Get());
 
-    TMultiFormatDesc outputMapperDesc, inputReducerDesc,
-        inputReduceCombinerDesc, outputReduceCombinerDesc;
-    if (mapper) {
-        mapper->AddOutputFormatDescription(&outputMapperDesc);
-    }
-    reducer->AddInputFormatDescription(&inputReducerDesc);
-    if (reduceCombiner) {
-        reduceCombiner->AddInputFormatDescription(&inputReduceCombinerDesc);
-        reduceCombiner->AddOutputFormatDescription(&outputReduceCombinerDesc);
-    }
-
     return DoMapReduce(
         spec,
         mapper.Get(),
         reduceCombiner.Get(),
         *reducer,
-        outputMapperDesc,
-        inputReduceCombinerDesc,
-        outputReduceCombinerDesc,
-        inputReducerDesc,
         options);
 }
 

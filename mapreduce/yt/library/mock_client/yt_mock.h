@@ -51,7 +51,7 @@ namespace NTesting {
         MOCK_METHOD3(RawReduce, IOperationPtr(const TRawReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
         MOCK_METHOD3(DoJoinReduce, IOperationPtr(const TJoinReduceOperationSpec&, const IStructuredJob&, const TOperationOptions&));
         MOCK_METHOD3(RawJoinReduce, IOperationPtr(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
-        MOCK_METHOD9(DoMapReduce, IOperationPtr(const TMapReduceOperationSpec&, const IStructuredJob*, const IStructuredJob*, const IStructuredJob&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TOperationOptions&));
+        MOCK_METHOD5(DoMapReduce, IOperationPtr(const TMapReduceOperationSpec&, const IStructuredJob*, const IStructuredJob*, const IStructuredJob&, const TOperationOptions&));
         MOCK_METHOD5(RawMapReduce, IOperationPtr(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
         MOCK_METHOD2(RunVanilla, IOperationPtr(const TVanillaOperationSpec&, const TOperationOptions&));
         MOCK_METHOD1(AttachOperation, IOperationPtr(const TOperationId&));
@@ -139,7 +139,7 @@ namespace NTesting {
         MOCK_METHOD3(RawReduce, IOperationPtr(const TRawReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
         MOCK_METHOD3(DoJoinReduce, IOperationPtr(const TJoinReduceOperationSpec&, const IStructuredJob&, const TOperationOptions&));
         MOCK_METHOD3(RawJoinReduce, IOperationPtr(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
-        MOCK_METHOD9(DoMapReduce, IOperationPtr(const TMapReduceOperationSpec&, const IStructuredJob*, const IStructuredJob*, const IStructuredJob&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TOperationOptions&));
+        MOCK_METHOD5(DoMapReduce, IOperationPtr(const TMapReduceOperationSpec&, const IStructuredJob*, const IStructuredJob*, const IStructuredJob&, const TOperationOptions&));
         MOCK_METHOD5(RawMapReduce, IOperationPtr(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
         MOCK_METHOD2(RunVanilla, IOperationPtr(const TVanillaOperationSpec&, const TOperationOptions&));
         MOCK_METHOD1(AttachOperation, IOperationPtr(const TOperationId&));

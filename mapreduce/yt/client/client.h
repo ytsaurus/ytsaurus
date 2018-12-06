@@ -145,10 +145,6 @@ public:
         const IStructuredJob* mapper,
         const IStructuredJob* reduceCombiner,
         const IStructuredJob& reducer,
-        const TMultiFormatDesc& outputMapperDesc,
-        const TMultiFormatDesc& inputReduceCombinerDesc,
-        const TMultiFormatDesc& outputReduceCombinerDesc,
-        const TMultiFormatDesc& inputReducerDesc,
         const TOperationOptions& options) override;
 
     IOperationPtr RawMapReduce(
