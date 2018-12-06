@@ -55,7 +55,7 @@ struct TLocationPerformanceCounters
     NProfiling::TMonotonicCounter ThrottledWrites;
 
     NProfiling::TAggregateGauge PutBlocksWallTime;
-    NProfiling::TAggregateGauge MetaReadTime;
+    NProfiling::TAggregateGauge BlobChunkMetaReadTime;
     NProfiling::TAggregateGauge BlobChunkReaderOpenTime;
     NProfiling::TAggregateGauge BlobBlockReadSize;
     NProfiling::TAggregateGauge BlobBlockReadTime;
