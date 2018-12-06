@@ -3490,6 +3490,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
+        write_table("<append=%true>//tmp/t_in", [{"b": 0}])
         for i in range(40):
             write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
@@ -3507,7 +3508,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         op = map(dont_track=True,
                  in_="//tmp/t_in",
                  out="<sorted_by=[a]>//tmp/t_out",
-                 command=events.wait_event_cmd("start") + '; python -c "print \'{a=\' + \'x\' * 250 * 1024 + \'}\'"',
+                 command=events.wait_event_cmd("start") + '; grep b - && sleep 3600 || python -c "print \'{a=\' + \'x\' * 250 * 1024 + \'}\'"',
                  spec={
                      "data_size_per_job": 1,
                      "job_io": {"table_writer": {"max_key_weight": 256 * 1024}}
@@ -3533,14 +3534,16 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         wait(check)
 
-        # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
-        # resulting in about 20mb of memory.
+        # After all jobs are finished, controller should contain at least 40
+        # pairs of boundary keys of length 250kb, resulting in about 20mb of
+        # memory. First job should stuck, protecting this check from the race
+        # against operation completion.
         wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 10 * 10**6 and
                      get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 10 * 10**6)
 
         assert get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6
 
-        op.track()
+        op.abort()
 
         time.sleep(5)
 
