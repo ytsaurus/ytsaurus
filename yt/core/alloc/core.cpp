@@ -402,7 +402,7 @@ public:
     }
 
 private:
-    using TAtomicUint128 = volatile unsigned __int128;
+    using TAtomicUint128 = volatile unsigned __int128  __attribute__((aligned(16)));
     using TTag = ui64;
     using TTaggedPointer = std::pair<T*, TTag>;
 
