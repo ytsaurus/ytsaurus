@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 813;
+    return 814;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -92,7 +92,8 @@ bool ValidateSnapshotVersion(int version)
         version == 810 || // ignat: Persist transaction deadline
         version == 811 || // aozeritsky: Add attributes_revision, content_revision
         version == 812 || // savrus: add reassign peer mutation
-        version == 813;   // aozeritsky: YT-9775: master-master protocol change
+        version == 813 || // aozeritsky: YT-9775: master-master protocol change
+        version == 814;   // aozeritsky
 }
 
 ////////////////////////////////////////////////////////////////////////////////
