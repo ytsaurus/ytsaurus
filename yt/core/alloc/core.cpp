@@ -361,12 +361,13 @@ class TFreeList
 public:
     void Put(T* item)
     {
-        auto newTag = CurrentTag_++;
+        auto newEpoch = Epoch_++;
         for (;;) {
-            auto currentTaggedHead = LoadRelaxed(&TaggedHead_);
-            item->Next = currentTaggedHead.first;
-            auto newTaggedHead = std::make_pair(item, newTag);
-            if (CompareAndSet(&TaggedHead_, currentTaggedHead, newTaggedHead)) {
+            auto currentHead = __atomic_load_n(&Head_, __ATOMIC_RELAXED);
+            auto currentPair = Unpack(currentHead);
+            item->Next = currentPair.first;
+            auto newHead = Pack(item, newEpoch);
+            if (__sync_bool_compare_and_swap(&Head_, currentHead, newHead)) {
                 break;
             }
         }
@@ -374,15 +375,16 @@ public:
 
     T* Extract()
     {
-        auto newTag = CurrentTag_++;
+        auto newEpoch = Epoch_++;
         for (;;) {
-            auto currentTaggedHead = LoadRelaxed(&TaggedHead_);
-            auto* item = currentTaggedHead.first;
+            auto currentHead = __atomic_load_n(&Head_, __ATOMIC_RELAXED);
+            auto currentPair = Unpack(currentHead);
+            auto* item = currentPair.first;
             if (!item) {
                 return nullptr;
             }
-            auto newTaggedHead = std::make_pair(item->Next, newTag);
-            if (CompareAndSet(&TaggedHead_, currentTaggedHead, newTaggedHead)) {
+            auto newHead = Pack(item->Next, newEpoch);
+            if (__sync_bool_compare_and_swap(&Head_, currentHead, newHead)) {
                 return item;
             }
         }
@@ -390,63 +392,41 @@ public:
 
     T* ExtractAll()
     {
-        auto newTag = CurrentTag_++;
+        auto newEpoch = Epoch_++;
         for (;;) {
-            auto currentTaggedHead = LoadRelaxed(&TaggedHead_);
-            auto* item = currentTaggedHead.first;
-            auto newTaggedHead = std::make_pair(nullptr, newTag);
-            if (CompareAndSet(&TaggedHead_, currentTaggedHead, newTaggedHead)) {
+            auto currentHead = __atomic_load_n(&Head_, __ATOMIC_RELAXED);
+            auto currentPair = Unpack(currentHead);
+            auto* item = currentPair.first;
+            auto newHead = Pack(nullptr, newEpoch);
+            if (__sync_bool_compare_and_swap(&Head_, currentHead, newHead)) {
                 return item;
             }
         }
     }
 
 private:
-    using TAtomicUint128 = volatile unsigned __int128;
-    using TTag = ui64;
-    using TTaggedPointer = std::pair<T*, TTag>;
+    using TEpoch = ui64;
+    using TDoubleWordAtomic = volatile unsigned __int128;
 
-    TAtomicUint128 TaggedHead_ = {0};
-    std::atomic<TTag> CurrentTag_ = {0};
+    TDoubleWordAtomic Head_ = {0};
+    std::atomic<TEpoch> Epoch_ = {0};
 
     // Avoid false sharing.
     char Padding[40];
 
 private:
-    static Y_FORCE_INLINE TTaggedPointer LoadRelaxed(TAtomicUint128* atomic)
+    static std::pair<T*, TEpoch> Unpack(TDoubleWordAtomic value)
     {
-        TTaggedPointer result;
-        __asm__ __volatile__
-        (
-            "xor %%rcx, %%rcx\n"
-            "xor %%rax, %%rax\n"
-            "xor %%rdx, %%rdx\n"
-            "xor %%rbx, %%rbx\n"
-            "lock cmpxchg16b %2"
-            : "+a"(result.first)
-            , "+d"(result.second)
-            : "m"(*atomic)
-            : "cc", "rbx", "rcx"
-        );
-        return result;
+        return std::make_pair(
+            reinterpret_cast<T*>(value & 0xffffffffffffffff),
+            static_cast<TEpoch>(value >> 64));
     }
 
-    static Y_FORCE_INLINE bool CompareAndSet(TAtomicUint128* atomic, TTaggedPointer expectedValue, TTaggedPointer newValue)
+    static TDoubleWordAtomic Pack(T* item, TEpoch epoch)
     {
-        bool result;
-        __asm__ __volatile__
-        (
-            "lock cmpxchg16b %1\n"
-            "setz %0"
-            : "=q"(result)
-            , "+m"(*atomic)
-            , "+a"(expectedValue.first)
-            , "+d"(expectedValue.second)
-            : "b"(newValue.first)
-            , "c"(newValue.second)
-            : "cc"
-        );
-        return result;
+        return
+            reinterpret_cast<unsigned __int128>(item) |
+            static_cast<unsigned __int128>(epoch) << 64;
     }
 };
 
