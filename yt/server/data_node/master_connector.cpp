@@ -550,10 +550,10 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
 
     for (const auto& pair : mediaStatistics) {
         int mediumIndex = pair.first;
-        const auto& mediumStatisitcs = pair.second;
+        const auto& mediumStatistics = pair.second;
         auto* protoStatistics = result->add_media();
         protoStatistics->set_medium_index(mediumIndex);
-        protoStatistics->set_io_weight(mediumStatisitcs.IOWeight);
+        protoStatistics->set_io_weight(mediumStatistics.IOWeight);
     }
 }
 
@@ -753,7 +753,6 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     auto tabletSnapshots = slotManager->GetTabletSnapshots();
     for (const auto& tabletSnapshot : tabletSnapshots) {
         if (CellTagFromId(tabletSnapshot->TabletId) == cellTag) {
-
             auto* protoTabletInfo = request->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletSnapshot->TabletId);
 
