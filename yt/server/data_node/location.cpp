@@ -317,6 +317,17 @@ i64 TLocation::GetPendingIOSize(
     return GetPendingIOSizeCounter(direction, category).GetCurrent();
 }
 
+i64 TLocation::GetMaxPendingIOSize(EIODirection direction)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    i64 result = 0;
+    for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+        result = std::max(result, GetPendingIOSizeCounter(direction, category).GetCurrent());
+    }
+    return result;
+}
+
 TPendingIOGuard TLocation::IncreasePendingIOSize(
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor,
