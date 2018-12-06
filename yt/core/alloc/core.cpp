@@ -361,13 +361,12 @@ class TFreeList
 public:
     void Put(T* item)
     {
-        auto newEpoch = Epoch_++;
+        auto newTag = CurrentTag_++;
         for (;;) {
-            auto currentHead = __atomic_load_n(&Head_, __ATOMIC_RELAXED);
-            auto currentPair = Unpack(currentHead);
-            item->Next = currentPair.first;
-            auto newHead = Pack(item, newEpoch);
-            if (__sync_bool_compare_and_swap(&Head_, currentHead, newHead)) {
+            auto currentTaggedHead = LoadRelaxed(&TaggedHead_);
+            item->Next = currentTaggedHead.first;
+            auto newTaggedHead = std::make_pair(item, newTag);
+            if (CompareAndSet(&TaggedHead_, currentTaggedHead, newTaggedHead)) {
                 break;
             }
         }
@@ -375,16 +374,15 @@ public:
 
     T* Extract()
     {
-        auto newEpoch = Epoch_++;
+        auto newTag = CurrentTag_++;
         for (;;) {
-            auto currentHead = __atomic_load_n(&Head_, __ATOMIC_RELAXED);
-            auto currentPair = Unpack(currentHead);
-            auto* item = currentPair.first;
+            auto currentTaggedHead = LoadRelaxed(&TaggedHead_);
+            auto* item = currentTaggedHead.first;
             if (!item) {
                 return nullptr;
             }
-            auto newHead = Pack(item->Next, newEpoch);
-            if (__sync_bool_compare_and_swap(&Head_, currentHead, newHead)) {
+            auto newTaggedHead = std::make_pair(item->Next, newTag);
+            if (CompareAndSet(&TaggedHead_, currentTaggedHead, newTaggedHead)) {
                 return item;
             }
         }
@@ -392,41 +390,63 @@ public:
 
     T* ExtractAll()
     {
-        auto newEpoch = Epoch_++;
+        auto newTag = CurrentTag_++;
         for (;;) {
-            auto currentHead = __atomic_load_n(&Head_, __ATOMIC_RELAXED);
-            auto currentPair = Unpack(currentHead);
-            auto* item = currentPair.first;
-            auto newHead = Pack(nullptr, newEpoch);
-            if (__sync_bool_compare_and_swap(&Head_, currentHead, newHead)) {
+            auto currentTaggedHead = LoadRelaxed(&TaggedHead_);
+            auto* item = currentTaggedHead.first;
+            auto newTaggedHead = std::make_pair(nullptr, newTag);
+            if (CompareAndSet(&TaggedHead_, currentTaggedHead, newTaggedHead)) {
                 return item;
             }
         }
     }
 
 private:
-    using TEpoch = ui64;
-    using TDoubleWordAtomic = volatile unsigned __int128;
+    using TAtomicUint128 = volatile unsigned __int128;
+    using TTag = ui64;
+    using TTaggedPointer = std::pair<T*, TTag>;
 
-    TDoubleWordAtomic Head_ = {0};
-    std::atomic<TEpoch> Epoch_ = {0};
+    TAtomicUint128 TaggedHead_ = {0};
+    std::atomic<TTag> CurrentTag_ = {0};
 
     // Avoid false sharing.
     char Padding[40];
 
 private:
-    static std::pair<T*, TEpoch> Unpack(TDoubleWordAtomic value)
+    static Y_FORCE_INLINE TTaggedPointer LoadRelaxed(TAtomicUint128* atomic)
     {
-        return std::make_pair(
-            reinterpret_cast<T*>(value & 0xffffffffffffffff),
-            static_cast<TEpoch>(value >> 64));
+        TTaggedPointer result;
+        __asm__ __volatile__
+        (
+            "xor %%rcx, %%rcx\n"
+            "xor %%rax, %%rax\n"
+            "xor %%rdx, %%rdx\n"
+            "xor %%rbx, %%rbx\n"
+            "lock cmpxchg16b %2"
+            : "+a"(result.first)
+            , "+d"(result.second)
+            : "m"(*atomic)
+            : "cc", "rbx", "rcx"
+        );
+        return result;
     }
 
-    static TDoubleWordAtomic Pack(T* item, TEpoch epoch)
+    static Y_FORCE_INLINE bool CompareAndSet(TAtomicUint128* atomic, TTaggedPointer expectedValue, TTaggedPointer newValue)
     {
-        return
-            reinterpret_cast<unsigned __int128>(item) |
-            static_cast<unsigned __int128>(epoch) << 64;
+        bool result;
+        __asm__ __volatile__
+        (
+            "lock cmpxchg16b %1\n"
+            "setz %0"
+            : "=q"(result)
+            , "+m"(*atomic)
+            , "+a"(expectedValue.first)
+            , "+d"(expectedValue.second)
+            : "b"(newValue.first)
+            , "c"(newValue.second)
+            : "cc"
+        );
+        return result;
     }
 };
 
