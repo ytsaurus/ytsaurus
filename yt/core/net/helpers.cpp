@@ -56,7 +56,7 @@ std::vector<int> AllocateFreePorts(
         }
     }
 
-    YCHECK(allocatedPorts.size() == portCount);
+    YCHECK(allocatedPorts.size() <= portCount);
 
     return allocatedPorts;
 }
