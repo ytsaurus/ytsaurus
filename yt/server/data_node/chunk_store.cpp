@@ -475,9 +475,6 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
 
     ExpirePlacementInfos();
 
-    const auto& chunkId = sessionId.ChunkId;
-    auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
-
     std::vector<int> candidates;
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < static_cast<int>(Locations_.size()); ++index) {
