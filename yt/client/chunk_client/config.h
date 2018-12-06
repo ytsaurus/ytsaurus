@@ -342,7 +342,7 @@ public:
             .GreaterThanOrEqual(1)
             .Default(2);
         RegisterParameter("ban_failed_nodes", BanFailedNodes)
-            .Default(false);
+            .Default(true);
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
             .Default(2)
             .GreaterThanOrEqual(1);
