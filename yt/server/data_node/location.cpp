@@ -307,13 +307,6 @@ i64 TLocation::GetAvailableSpace() const
     return AvailableSpace_;
 }
 
-double TLocation::GetLoadFactor() const
-{
-    i64 used = GetUsedSpace();
-    i64 quota = GetQuota();
-    return used >= quota ? 1.0 : (double) used / quota;
-}
-
 i64 TLocation::GetPendingIOSize(
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor)

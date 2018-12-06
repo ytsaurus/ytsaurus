@@ -155,9 +155,6 @@ public:
     //! Never throws.
     i64 GetAvailableSpace() const;
 
-    //! Returns the load factor.
-    double GetLoadFactor() const;
-
     //! Returns the number of bytes pending for disk IO.
     i64 GetPendingIOSize(
         EIODirection direction,
