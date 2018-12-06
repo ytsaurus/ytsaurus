@@ -524,6 +524,58 @@ class TestUserFiles(YTEnvSetup):
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
+    def test_unlinked_file(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/test_file"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+        tx = start_transaction(timeout=30000)
+        file_id = get(file + "/@id")
+        assert lock(file, mode="snapshot", tx=tx)
+        remove(file)
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat my_file; cat",
+            file=[to_yson_type("#" + file_id, attributes={"file_name": "my_file"})],
+            verbose=True)
+
+        with pytest.raises(YtError):
+            # Cannot infer file name error.
+            map(in_="//tmp/t_input",
+                out=["//tmp/t_output"],
+                command="cat my_file; cat",
+                file=[to_yson_type("#" + file)],
+                spec={"max_failed_job_count": 1},
+                verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"value": 42}, {"hello": "world"}]
+
+    def test_file_names_priority(self):
+        create("table", "//tmp/input")
+        write_table("//tmp/input", {"foo": "bar"})
+        create("table", "//tmp/output")
+
+        file1 = "//tmp/file1"
+        file2 = "//tmp/file2"
+        file3 = "//tmp/file3"
+        for f in [file1, file2, file3]:
+            create("file", f)
+            write_file(f, "{{name=\"{}\"}};\n".format(f))
+        set(file2 + "/@file_name", "file2_name_in_attribute")
+        set(file3 + "/@file_name", "file3_name_in_attribute")
+
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command="cat > /dev/null; cat file1; cat file2_name_in_attribute; cat file3_name_in_path",
+            file=[file1, file2, to_yson_type(file3, attributes={"file_name": "file3_name_in_path"})])
+
+        assert read_table("//tmp/output") == [{"name": "//tmp/file1"}, {"name": "//tmp/file2"}, {"name": "//tmp/file3"}]
+
     @unix_only
     def test_with_user_files(self):
         create("table", "//tmp/input")
@@ -571,7 +623,6 @@ class TestUserFiles(YTEnvSetup):
                 out="//tmp/output",
                 command="cat",
                 file=["//tmp/table_file"])
-
 
     @unix_only
     def test_empty_user_files(self):

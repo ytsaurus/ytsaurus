@@ -5197,15 +5197,23 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     const auto& attributes = *file.Attributes;
 
                     try {
-                        if (linkRsp.IsOK()) {
-                            auto linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
-                            file.FileName = linkAttributes->Get<TString>("key");
-                            file.FileName = linkAttributes->Find<TString>("file_name").Get(file.FileName);
+                        if (const auto& fileNameFromPath = file.Path.GetFileName()) {
+                            file.FileName = *fileNameFromPath;
                         } else {
-                            file.FileName = attributes.Get<TString>("key");
-                            file.FileName = attributes.Find<TString>("file_name").Get(file.FileName);
+                            const auto* actualAttributes = &attributes;
+                            std::unique_ptr<IAttributeDictionary> linkAttributes;
+                            if (linkRsp.IsOK()) {
+                                linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
+                                actualAttributes = linkAttributes.get();
+                            }
+                            if (const auto& fileNameAttribute = actualAttributes->Find<TString>("file_name")) {
+                                file.FileName = *fileNameAttribute;
+                            } else if (const auto& keyAttribute = actualAttributes->Find<TString>("key")) {
+                                file.FileName = *keyAttribute;
+                            } else {
+                                THROW_ERROR_EXCEPTION("Couldn't infer file name for user file");
+                            }
                         }
-                        file.FileName = file.Path.GetFileName().Get(file.FileName);
                     } catch (const std::exception& ex) {
                         // NB: Some of the above Gets and Finds may throw due to, e.g., type mismatch.
                         THROW_ERROR_EXCEPTION("Error parsing attributes of user file %v",
