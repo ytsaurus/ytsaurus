@@ -3077,7 +3077,7 @@ private:
     {
         TNullable<TDataStatistics> DataStatistics;
         TNullable<TClusterResources> TabletResourceUsage;
-        TNullable<TInstant> ModificationTime; // TODO: persist ?
+        TNullable<TInstant> ModificationTime;
         TNullable<TInstant> AccessTime;
 
         void Persist(NCellMaster::TPersistenceContext& context)
@@ -3086,6 +3086,11 @@ private:
 
             Persist(context, DataStatistics);
             Persist(context, TabletResourceUsage);
+
+            if (context.GetVersion() >= 814) {
+                Persist(context, ModificationTime);
+                Persist(context, AccessTime);
+            }
         }
     };
 
@@ -3972,7 +3977,6 @@ private:
 
         // Copy tablet statistics, update performance counters and table replica statistics.
         auto now = TInstant::Now();
-        THashSet<TTableNode*> tables;
 
         for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
@@ -4018,7 +4022,9 @@ private:
                         FromProto<TInstant>(tablet->NodeStatistics().access_time())));
                 }
 
-                tables.insert(table);
+                if (EnableUpdateStatisticsOnHeartbeat_) {
+                    ScheduleTableStatisticsUpdate(table);
+                }
             }
 
             auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
@@ -4062,12 +4068,6 @@ private:
             }
 
             TabletBalancer_->OnTabletHeartbeat(tablet);
-        }
-
-        if (EnableUpdateStatisticsOnHeartbeat_) {
-            for (auto* table : tables) {
-                ScheduleTableStatisticsUpdate(table);
-            }
         }
     }
 
