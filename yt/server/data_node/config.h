@@ -159,7 +159,7 @@ public:
             .Default(TNullable<i64>());
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
             .DefaultNew();
-        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
+        RegisterParameter("tablet_compaction_and_partitioning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
             .DefaultNew();
         RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
             .DefaultNew();
