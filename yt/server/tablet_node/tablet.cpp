@@ -319,7 +319,7 @@ TTablet::TTablet(
     , WriterOptions_(New<TTabletWriterOptions>())
     , Context_(context)
     , Logger(NLogging::TLogger(TabletNodeLogger)
-        .AddTag("TabletId", Id_))
+        .AddTag("TabletId: %v", Id_))
     , FlushThrottler_(CreateReconfigurableThroughputThrottler(
         Config_->FlushThrottler,
         Logger))
@@ -372,7 +372,7 @@ TTablet::TTablet(
         NextPivotKey_))
     , Context_(context)
     , Logger(NLogging::TLogger(TabletNodeLogger)
-        .AddTag("TabletId", Id_))
+        .AddTag("TabletId: %v", Id_))
     , FlushThrottler_(CreateReconfigurableThroughputThrottler(
         Config_->FlushThrottler,
         Logger))
