@@ -155,8 +155,8 @@ TListOperationsCommand::TListOperationsCommand()
 void TListOperationsCommand::BuildOperations(const TListOperationsResult& result, TFluentMap fluent)
 {
     // COMPAT(levysotsky): "operation_type" is a deprecated synonim for "type".
-    bool needOperationType = !Options.Attributes || Options.Attributes->has("operation_type");
-    bool needType = !Options.Attributes || Options.Attributes->has("type");
+    bool needOperationType = !Options.Attributes || Options.Attributes->contains("operation_type");
+    bool needType = !Options.Attributes || Options.Attributes->contains("type");
 
     auto fillOperationAttributes = [needOperationType, needType] (const TOperation& operation, TFluentMap fluent) {
         fluent
