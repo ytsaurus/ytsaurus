@@ -177,7 +177,6 @@ void TBlobChunkBase::DoReadMeta(
     TCachedChunkMetaCookie cookie,
     const TBlockReadOptions& options)
 {
-    const auto& Profiler = Location_->GetProfiler();
     LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
         Id_,
         Location_->GetId(),
@@ -185,22 +184,27 @@ void TBlobChunkBase::DoReadMeta(
         options.ReadSessionId);
 
     TRefCountedChunkMetaPtr meta;
-    PROFILE_TIMING("/meta_read_time") {
-        try {
-            const auto& readerCache = Bootstrap_->GetBlobReaderCache();
-            auto reader = readerCache-> GetReader(this);
-            meta = WaitFor(reader->GetMeta(options))
-                .ValueOrThrow();
-        } catch (const std::exception& ex) {
-            cookie.Cancel(ex);
-            return;
-        }
+    TWallTimer readTimer;
+    try {
+        const auto& readerCache = Bootstrap_->GetBlobReaderCache();
+        auto reader = readerCache-> GetReader(this);
+        meta = WaitFor(reader->GetMeta(options))
+            .ValueOrThrow();
+    } catch (const std::exception& ex) {
+        cookie.Cancel(ex);
+        return;
     }
+    auto readTime = readTimer.GetElapsedTime();
 
-    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v)",
+    const auto& locationProfiler = Location_->GetProfiler();
+    auto& performanceCounters = Location_->GetPerformanceCounters();
+    locationProfiler.Update(performanceCounters.BlobChunkMetaReadTime, NProfiling::DurationToValue(readTime));
+
+    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v, ReadTime: %v)",
         Id_,
         Location_->GetId(),
-        options.ReadSessionId);
+        options.ReadSessionId,
+        readTime);
 
     auto cachedMeta = New<TCachedChunkMeta>(
         Id_,

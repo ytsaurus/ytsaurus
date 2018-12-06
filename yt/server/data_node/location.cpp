@@ -75,7 +75,7 @@ TLocation::TLocation(
     PerformanceCounters_.ThrottledReads = {"/throttled_reads", {}, config->ThrottleCounterInterval};
     PerformanceCounters_.ThrottledWrites = {"/throttled_writes", {}, config->ThrottleCounterInterval};
     PerformanceCounters_.PutBlocksWallTime = {"/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.MetaReadTime = {"/meta_read_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobChunkMetaReadTime = {"/blob_chunk_meta_read_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobChunkReaderOpenTime = {"/blob_chunk_reader_open_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockReadSize = {"/blob_block_read_size", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockReadTime = {"/blob_block_read_time", {}, NProfiling::EAggregateMode::All};
