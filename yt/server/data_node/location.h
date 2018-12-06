@@ -204,7 +204,7 @@ public:
     bool IsReadThrottling();
     bool IsWriteThrottling();
 
-    //! |true| if location is sick.
+    //! Returns |true| if location is sick.
     bool IsSick() const;
 
 protected:
@@ -299,7 +299,7 @@ public:
     //! Checks whether the location is full.
     bool IsFull() const;
 
-    //! Checks whether to location has enough space to contain file of size #size
+    //! Checks whether to location has enough space to contain file of size #size.
     bool HasEnoughSpace(i64 size) const;
 
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
