@@ -33,8 +33,8 @@ protected:
             positionInOrdering[ordering[index]] = index;
         }
         for (const auto& edge : CurrentEdges_) {
-            EXPECT_TRUE(positionInOrdering.has(edge.first));
-            EXPECT_TRUE(positionInOrdering.has(edge.second));
+            EXPECT_TRUE(positionInOrdering.contains(edge.first));
+            EXPECT_TRUE(positionInOrdering.contains(edge.second));
             EXPECT_LT(positionInOrdering[edge.first], positionInOrdering[edge.second]);
         }
     }

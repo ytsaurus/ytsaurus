@@ -611,10 +611,10 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
     NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
-    if (IndexToItem_.has(EmptyChunkRequisitionIndex)) {
-        YCHECK(IndexToItem_.has(MigrationChunkRequisitionIndex));
-        YCHECK(IndexToItem_.has(MigrationRF2ChunkRequisitionIndex));
-        YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
+    if (IndexToItem_.contains(EmptyChunkRequisitionIndex)) {
+        YCHECK(IndexToItem_.contains(MigrationChunkRequisitionIndex));
+        YCHECK(IndexToItem_.contains(MigrationRF2ChunkRequisitionIndex));
+        YCHECK(IndexToItem_.contains(MigrationErasureChunkRequisitionIndex));
 
         return;
     }
@@ -686,10 +686,10 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
         RequisitionToIndex_.emplace(pair.second.Requisition, pair.first);
     }
 
-    YCHECK(IndexToItem_.has(EmptyChunkRequisitionIndex));
-    YCHECK(IndexToItem_.has(MigrationChunkRequisitionIndex));
-    YCHECK(IndexToItem_.has(MigrationRF2ChunkRequisitionIndex));
-    YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
+    YCHECK(IndexToItem_.contains(EmptyChunkRequisitionIndex));
+    YCHECK(IndexToItem_.contains(MigrationChunkRequisitionIndex));
+    YCHECK(IndexToItem_.contains(MigrationRF2ChunkRequisitionIndex));
+    YCHECK(IndexToItem_.contains(MigrationErasureChunkRequisitionIndex));
 
     // COMPAT(shakurov)
     if (context.GetVersion() < 710) {
@@ -698,7 +698,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
 
     Load(context, NextIndex_);
 
-    YCHECK(!IndexToItem_.has(NextIndex_));
+    YCHECK(!IndexToItem_.contains(NextIndex_));
 }
 
 TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreate(

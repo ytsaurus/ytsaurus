@@ -1582,7 +1582,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             return nullptr;
         }
 
-        if (node->RecentlyFinishedJobs().has(jobId)) {
+        if (node->RecentlyFinishedJobs().contains(jobId)) {
             LOG_DEBUG("Job is skipped since it was recently finished and is currently being stored");
             return nullptr;
         }

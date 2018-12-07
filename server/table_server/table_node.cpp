@@ -299,7 +299,7 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
             }
             case ESchemaSerializationMethod::TableIdWithSameSchema: {
                 const TVersionedObjectId previousTableId(Load<TObjectId>(context), NullTransactionId);
-                YCHECK(context.LoadedSchemas().has(previousTableId));
+                YCHECK(context.LoadedSchemas().contains(previousTableId));
                 SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
                 break;
             }
@@ -316,7 +316,7 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
             }
             case ESchemaSerializationMethod::TableIdWithSameSchema: {
                 auto previousTableId = Load<TVersionedObjectId>(context);
-                YCHECK(context.LoadedSchemas().has(previousTableId));
+                YCHECK(context.LoadedSchemas().contains(previousTableId));
                 SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
                 break;
             }
