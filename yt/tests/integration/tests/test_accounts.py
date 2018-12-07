@@ -445,7 +445,7 @@ class TestAccounts(YTEnvSetup):
         self._set_account_chunk_count_limit("max", 2000)
         self._set_account_chunk_count_limit("max", 0)
         assert not self._is_account_chunk_count_limit_violated("max")
-        with pytest.raises(YtError): self._set_account_chunk_count_limit("max", -1)
+        with pytest.raises(YtError): wait(lambda: self._set_account_chunk_count_limit("max", -1))
 
     def test_chunk_count_limits2(self):
         create_account("max")
@@ -481,7 +481,7 @@ class TestAccounts(YTEnvSetup):
         # After a requisition update, max's chunk count usage should've increased.
 
         assert self._get_account_chunk_count("max") == 2
-        with pytest.raises(YtError): write_table("//tmp/a/t4", {"a" : "b"})
+        with pytest.raises(YtError): wait(lambda: write_table("//tmp/a/t4", {"a" : "b"}))
 
     def test_disk_space_limits1(self):
         create_account("max")
@@ -490,7 +490,7 @@ class TestAccounts(YTEnvSetup):
         set_account_disk_space_limit("max", 2000)
         set_account_disk_space_limit("max", 0)
         assert not self._is_account_disk_space_limit_violated("max")
-        with pytest.raises(YtError): set_account_disk_space_limit("max", -1)
+        with pytest.raises(YtError): wait(lambda: set_account_disk_space_limit("max", -1))
 
     def test_disk_space_limits2(self):
         create_account("max")
@@ -509,7 +509,7 @@ class TestAccounts(YTEnvSetup):
         self._replicator_sleep()
 
         assert self._is_account_disk_space_limit_violated("max")
-        with pytest.raises(YtError): write_table("//tmp/t", {"a" : "b"})
+        with pytest.raises(YtError): wait(lambda: write_table("//tmp/t", {"a" : "b"}))
         # Wait for upload tx to abort
         wait(lambda: get("//tmp/t/@locks") == [])
 
@@ -538,7 +538,7 @@ class TestAccounts(YTEnvSetup):
         assert self._is_account_disk_space_limit_violated("max")
 
         create("file", "//tmp/f2", attributes={"account": "max"})
-        with pytest.raises(YtError): write_file("//tmp/f2", content)
+        with pytest.raises(YtError): wait(lambda: write_file("//tmp/f2", content))
 
         set_account_disk_space_limit("max", get_account_disk_space("max") + 1)
         assert not self._is_account_disk_space_limit_violated("max")
@@ -575,7 +575,8 @@ class TestAccounts(YTEnvSetup):
 
         create("file", "//tmp/b/a/f3")
         # Writing new data should fail...
-        with pytest.raises(YtError): write_file("//tmp/b/a/f3", content)
+        with pytest.raises(YtError): wait(lambda: write_file("//tmp/b/a/f3", content))
+
         # Wait for upload tx to abort
         wait(lambda: get("//tmp/b/a/f3/@locks") == [])
         remove("//tmp/b/a/f3")
@@ -615,7 +616,7 @@ class TestAccounts(YTEnvSetup):
         # After a requisition update, max's disk space usage should've increased.
 
         assert get_account_disk_space("max") == 2 * disk_space
-        with pytest.raises(YtError): write_table("//tmp/a/t4", {"a" : "b"})
+        with pytest.raises(YtError): wait(lambda: write_table("//tmp/a/t4", {"a" : "b"}))
 
     def test_committed_usage(self):
         self._replicator_sleep()
