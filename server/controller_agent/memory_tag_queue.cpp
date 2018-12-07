@@ -126,7 +126,7 @@ void TMemoryTagQueue::UpdateStatistics()
             auto tag = tags[index];
             auto usage = usages[index];
             auto operationId = TagToLastOperationId_[tag] ? MakeNullable(TagToLastOperationId_[tag]) : Null;
-            auto alive = operationId && UsedTags_.has(tag);
+            auto alive = operationId && UsedTags_.contains(tag);
             fluent
                 .Item().BeginMap()
                     .Item("usage").Value(usage)

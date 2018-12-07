@@ -212,7 +212,7 @@ private:
             const auto* bundle = bundleAndId.second;
 
             // If it is necessary and possible to balance cells, do it...
-            if (BundlesPendingCellBalancing_.has(bundleId) && !BundlesWithActiveActions_.has(bundle)) {
+            if (BundlesPendingCellBalancing_.contains(bundleId) && !BundlesWithActiveActions_.contains(bundle)) {
                 LOG_DEBUG("Balancing cells for bundle (Bundle: %v)",
                     bundle->GetName());
                 forMove.push_back(bundle);
@@ -225,7 +225,7 @@ private:
             }
 
             // If it was nesessary but not possible to balance cells, postpone balancing to the next iteration and log it.
-            if (BundlesPendingCellBalancing_.has(bundleId) && BundlesWithActiveActions_.has(bundle)) {
+            if (BundlesPendingCellBalancing_.contains(bundleId) && BundlesWithActiveActions_.contains(bundle)) {
                 LOG_DEBUG(
                     "Tablet balancer did not balance cells because bundle participates in action (Bundle: %v)",
                     bundle->GetName());
@@ -485,7 +485,7 @@ private:
             if (cells.size() == expectedCellCount) {
                 break;
             }
-            if (!tabletsByCell.has(cell)) {
+            if (!tabletsByCell.contains(cell)) {
                 cells.emplace_back(0, cell);
             }
         }
@@ -583,7 +583,7 @@ private:
             auto& srcTablets = cellTablets[srcIndex].second;
             for (size_t tabletIndex = 0; tabletIndex < srcTablets.size() && moveCount < limit; ++tabletIndex) {
                 auto* tablet = srcTablets[tabletIndex];
-                if (!presentTables[dstIndex].has(tablet->GetTable())) {
+                if (!presentTables[dstIndex].contains(tablet->GetTable())) {
                     presentTables[dstIndex].insert(tablet->GetTable());
                     TabletToTargetCellMap_[tablet] = cellTablets[dstIndex].first;
                     std::swap(srcTablets[tabletIndex], srcTablets.back());
@@ -692,7 +692,7 @@ private:
 
     void BalanceTablets(const TTabletCellBundle* bundle)
     {
-        if (!TabletIdQueue_.has(bundle->GetId())) {
+        if (!TabletIdQueue_.contains(bundle->GetId())) {
             return;
         }
 
@@ -712,7 +712,7 @@ private:
 
             auto* tablet = tabletManager->FindTablet(tabletId);
             if (!IsTabletReshardable(tablet) ||
-                TablesWithActiveActions_.has(tablet->GetTable()))
+                TablesWithActiveActions_.contains(tablet->GetTable()))
             {
                 continue;
             }

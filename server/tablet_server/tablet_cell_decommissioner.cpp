@@ -144,7 +144,7 @@ private:
 
             if (IsObjectAlive(cell) &&
                 cell->GetDecommissioned() &&
-                !retiringCells.has(cell))
+                !retiringCells.contains(cell))
             {
                 for (auto* tablet : cell->Tablets()) {
                     if (!DecommissionThrottler_->TryAcquire(1)) {

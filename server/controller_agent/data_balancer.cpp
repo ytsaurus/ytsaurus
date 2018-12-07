@@ -64,7 +64,7 @@ void TDataBalancer::OnExecNodesUpdated(const TExecNodeDescriptorMap& newExecNode
     for (auto& pair : IdToNode_) {
         const auto& nodeId = pair.first;
         auto& node = pair.second;
-        if (node.Active && !newExecNodes.has(nodeId)) {
+        if (node.Active && !newExecNodes.contains(nodeId)) {
             node.Active = false;
             ActiveNodeTotalIOWeight_ -= node.Descriptor.IOWeight;
         }

@@ -73,7 +73,7 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
         } else {
             // Let's hope versioned chunks are never lost nor regenerated.
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                YCHECK(!Substitutes_.has(chunkSlice->GetInputChunk()));
+                YCHECK(!Substitutes_.contains(chunkSlice->GetInputChunk()));
             }
             mappedStripe->DataSlices.emplace_back(dataSlice);
         }

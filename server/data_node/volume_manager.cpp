@@ -359,7 +359,7 @@ private:
                 continue;
             }
 
-            if (!fileIds.has(id)) {
+            if (!fileIds.contains(id)) {
                 LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)",
                     layerName);
                 WaitFor(Executor_->RemoveLayer(layerName, Config_->Path))
@@ -689,7 +689,7 @@ private:
 
         {
             auto guard = Guard(SpinLock);
-            YCHECK(Volumes_.has(volumeId));
+            YCHECK(Volumes_.contains(volumeId));
         }
 
         auto volumePath = GetVolumePath(volumeId);
