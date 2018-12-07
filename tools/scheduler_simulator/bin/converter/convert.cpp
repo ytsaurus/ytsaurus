@@ -98,8 +98,8 @@ int main(int argc, char** argv)
         TUnbufferedFileOutput output(destination);
         output.Write(&extractedCount, sizeof extractedCount);
     }
-    NFs::Cat(~destination, ~destinationTemp);
-    NFs::Remove(~destinationTemp);
+    NFs::Cat(destination.data(), destinationTemp.data());
+    NFs::Remove(destinationTemp.data());
 
     NYT::Shutdown();
 }
