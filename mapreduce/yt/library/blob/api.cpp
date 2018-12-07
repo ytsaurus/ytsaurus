@@ -51,7 +51,7 @@ static void Upload(
         }
         row.SetOffset(offset);
 
-        md5.Update({~row.GetChunk(), +row.GetChunk()});
+        md5.Update({row.GetChunk().data(), row.GetChunk().size()});
 
         w->AddRow(row);
     }

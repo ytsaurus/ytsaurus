@@ -46,7 +46,7 @@ void WriteFixedExecutable(const TString& outputPath)
     WriteFixedExecutable(&outf);
     outf.Finish();
 
-    Chmod(~outputPath, MODE0755);
+    Chmod(outputPath.data(), MODE0755);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

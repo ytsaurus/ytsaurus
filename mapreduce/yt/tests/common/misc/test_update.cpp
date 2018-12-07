@@ -241,14 +241,14 @@ YT_TEST(TUpdate, MultiUpdate) {
         DoTestMultiUpdate(GetServer(), updates, GetBigTestData());
         for (const auto& update : updates) {
             Cout << "~~~~~~" << update.Name << "::" << (int) update.Mode << "::GetBigTestData~~~~~~\n";
-            PrintTable(GetServer(), ~update.Name, Cout);
+            PrintTable(GetServer(), update.Name.data(), Cout);
         }
 
         RefreshTables();
         DoTestMultiUpdate(GetServer(), updates, GetSmallSortedTestData());
         for (const auto& update : updates) {
             Cout << "~~~~~~" << update.Name << "::" << (int) update.Mode << "::GetSmallSortedTestData~~~~~~\n";
-            PrintTable(GetServer(), ~update.Name, Cout);
+            PrintTable(GetServer(), update.Name.data(), Cout);
         }
     }
 }

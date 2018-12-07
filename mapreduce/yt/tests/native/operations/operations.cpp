@@ -420,7 +420,7 @@ public:
     void Do() override
     {
         TFile file(FileName_, EOpenModeFlag::ForAppend);
-        file.Write(~Message_, +Message_);
+        file.Write(Message_.data(), Message_.size());
     }
 
     Y_SAVELOAD_JOB(FileName_, Message_);
