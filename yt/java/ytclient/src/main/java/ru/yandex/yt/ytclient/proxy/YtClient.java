@@ -241,6 +241,11 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
 
 
     public CompletableFuture<Void> waitProxies() {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        synchronized (waiting) {
+            waiting.push(future);
+        }
+
         int proxies = 0;
         for (DataCenter dataCenter: dataCenters) {
             proxies += dataCenter.getAliveDestinations().size();
@@ -248,10 +253,6 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
         if (proxies > 0) {
             return CompletableFuture.completedFuture(null);
         } else {
-            CompletableFuture<Void> future = new CompletableFuture<>();
-            synchronized (waiting) {
-                waiting.push(future);
-            }
             return future;
         }
     }
