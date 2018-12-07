@@ -216,13 +216,13 @@ void ValidateHostDeviceSpec(const NClient::NApi::NProto::TPodSpec_THostDevice& s
 {
     const auto& path = spec.path();
 
-    if (!HostDeviceWhitelist.has(path)) {
+    if (!HostDeviceWhitelist.contains(path)) {
         THROW_ERROR_EXCEPTION("Host device %Qv cannot be configured",
             path);
     }
 
     for (char modeSymbol : spec.mode()) {
-        if (!HostDeviceModeAllowedSymbols.has(modeSymbol)) {
+        if (!HostDeviceModeAllowedSymbols.contains(modeSymbol)) {
             THROW_ERROR_EXCEPTION("Host device %Qv cannot be configured with %Qv mode",
                 path,
                 modeSymbol);
@@ -257,7 +257,7 @@ void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlPropert
         }
     }
 
-    if (SysctlWhitelist.has(name)) {
+    if (SysctlWhitelist.contains(name)) {
         return;
     }
 

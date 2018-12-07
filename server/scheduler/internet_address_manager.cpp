@@ -28,7 +28,7 @@ void TInternetAddressManager::ReconcileState(
 TNullable<TString> TInternetAddressManager::TakeInternetAddress(
     const TString& networkModuleId)
 {
-    if (!ModuleIdToAddressIds_.has(networkModuleId)) {
+    if (!ModuleIdToAddressIds_.contains(networkModuleId)) {
         return Null;
     }
 
