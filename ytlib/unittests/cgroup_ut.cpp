@@ -249,11 +249,11 @@ TEST(TCGroup, Bug)
     auto initBarier = ::eventfd(0, 0);
 
     const auto filename = NFS::CombinePaths(group.GetFullPath(), "memory.usage_in_bytes");
-    int fd = ::open(~filename, 0);
+    int fd = ::open(filename.data(), 0);
     int reallyRead = ::read(fd, buffer, 1024);
 
     ASSERT_TRUE(reallyRead > 0);
-    EXPECT_STREQ(~TString(buffer, reallyRead), "0\n");
+    EXPECT_STREQ(TString(buffer, reallyRead).data(), "0\n");
 
     auto pid = fork();
     ASSERT_TRUE(pid >= 0);
