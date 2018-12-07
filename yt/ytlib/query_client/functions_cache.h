@@ -51,8 +51,7 @@ struct TExternalCGInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<TString>& functionNames,
-    const TString& udfRegistryPath,
+    const std::vector<std::pair<TString, TString>>& functionNames,
     const NApi::NNative::IClientPtr& client);
 
 void AppendUdfDescriptors(
@@ -66,13 +65,14 @@ void AppendUdfDescriptors(
 struct IFunctionRegistry
     : public virtual TRefCounted
 {
-    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<TString>& names) = 0;
+    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
+        const TString& udfRegistryPath,
+        const std::vector<TString>& names) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IFunctionRegistryPtr CreateFunctionRegistryCache(
-    const TString& udfRegistryPath,
     TAsyncExpiringCacheConfigPtr config,
     TWeakPtr<NApi::NNative::IClient> client,
     IInvokerPtr invoker);

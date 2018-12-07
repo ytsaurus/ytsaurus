@@ -626,6 +626,32 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]")
         assert_items_equal(actual, expected)
 
+    def test_udf_custom_path(self):
+        registry_path =  "//home/udfs"
+        create("map_node", "//home")
+        create("map_node", registry_path)
+
+        abs_path = os.path.join(registry_path, "abs_udf")
+        create("file", abs_path,
+            attributes = { "function_descriptor": {
+                "name": "abs_udf",
+                "argument_types": [{
+                    "tag": "concrete_type",
+                    "value": "int64"}],
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "calling_convention": "simple"}})
+
+        local_implementation_path = find_ut_file("test_udfs.bc")
+        write_local_file(abs_path, local_implementation_path)
+
+        sync_create_cells(1)
+        self._sample_data(path="//tmp/u")
+        expected = [{"s": 2 * i} for i in xrange(1, 10)]
+        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]", udf_registry_path=registry_path)
+        assert_items_equal(actual, expected)
+
     def test_udf_fc(self):
         registry_path =  "//tmp/udfs"
         create("map_node", registry_path)
