@@ -539,6 +539,8 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("allow_join_without_index", Options.AllowJoinWithoutIndex)
         .Optional();
+    RegisterParameter("udf_registry_path", Options.UdfRegistryPath)
+        .Default(Null);
 }
 
 void TSelectRowsCommand::DoExecute(ICommandContextPtr context)

@@ -2219,6 +2219,15 @@ private:
         if (request->has_max_subqueries()) {
             options.MaxSubqueries = request->max_subqueries();
         }
+        if (request->has_allow_full_scan()) {
+            options.AllowFullScan = request->allow_full_scan();
+        }
+        if (request->has_allow_join_without_index()) {
+            options.AllowJoinWithoutIndex = request->allow_join_without_index();
+        }
+        if (request->has_udf_registry_path()) {
+            options.UdfRegistryPath = request->udf_registry_path();
+        }
 
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,

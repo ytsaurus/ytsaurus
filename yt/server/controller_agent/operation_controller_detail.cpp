@@ -5330,7 +5330,12 @@ void TOperationControllerBase::ParseInputQuery(
                 << TErrorAttribute("extenal_names", externalNames);
         }
 
-        auto descriptors = LookupAllUdfDescriptors(externalNames, Config->UdfRegistryPath.Get(), Host->GetClient());
+        std::vector<std::pair<TString, TString>> keys;
+        for (const auto& name : externalNames) {
+            keys.emplace_back(Config->UdfRegistryPath.Get(), name);
+        }
+
+        auto descriptors = LookupAllUdfDescriptors(keys, Host->GetClient());
 
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };

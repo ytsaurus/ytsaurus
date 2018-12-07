@@ -146,8 +146,7 @@ TString GetUdfDescriptorPath(const TYPath& registryPath, const TString& function
 } // namespace
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<TString>& functionNames,
-    const TString& udfRegistryPath,
+    const std::vector<std::pair<TString, TString>>& functionNames,
     const NNative::IClientPtr& client)
 {
     using NObjectClient::TObjectYPathProxy;
@@ -167,8 +166,8 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& functionName : functionNames) {
-        auto path = GetUdfDescriptorPath(udfRegistryPath, functionName);
+    for (const auto& item : functionNames) {
+        auto path = GetUdfDescriptorPath(item.first, item.second);
 
         auto getReq = TYPathProxy::Get(path);
 
@@ -188,13 +187,16 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     THashMap<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> infoByCellTags;
 
     for (int index = 0; index < functionNames.size(); ++index) {
-        const auto& functionName = functionNames[index];
-        auto path = GetUdfDescriptorPath(udfRegistryPath, functionName);
+        const auto& function = functionNames[index];
+        auto path = GetUdfDescriptorPath(function.first, function.second);
 
         auto getRspOrError = getRspsOrError[index];
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(getRspOrError, "Failed to find implementation of function %Qv in Cypress",
-            functionName);
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            getRspOrError,
+            "Failed to find implementation of function %Qv at path %Qv in Cypress",
+            function.second,
+            function.first);
 
         auto getRsp = getRspOrError
             .ValueOrThrow();
@@ -207,7 +209,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto cellTag = basicAttrsRsp->cell_tag();
 
         LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
-            functionName,
+            function.second,
             ConvertToYsonString(item, NYson::EYsonFormat::Text).GetData());
 
         TExternalFunctionSpec cypressInfo;
@@ -364,34 +366,37 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 namespace {
 
 class TCypressFunctionRegistry
-    : public TAsyncExpiringCache<TString, TExternalFunctionSpec>
+    : public TAsyncExpiringCache<std::pair<TString, TString>, TExternalFunctionSpec>
     , public IFunctionRegistry
 {
 public:
-    typedef TAsyncExpiringCache<TString, TExternalFunctionSpec> TBase;
+    typedef TAsyncExpiringCache<std::pair<TString, TString>, TExternalFunctionSpec> TBase;
 
     TCypressFunctionRegistry(
-        const TString& registryPath,
         TAsyncExpiringCacheConfigPtr config,
         TWeakPtr<NNative::IClient> client,
         IInvokerPtr invoker)
         : TBase(config)
-        , RegistryPath_(registryPath)
         , Client_(client)
         , Invoker_(invoker)
     { }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<TString>& names) override
+    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
+        const TString& udfRegistryPath,
+        const std::vector<TString>& names) override
     {
-        return Get(names);
+        std::vector<std::pair<TString, TString>> keys;
+        for (const auto& name : names) {
+            keys.emplace_back(udfRegistryPath, name);
+        }
+        return Get(keys);
     }
 
 private:
-    const TString RegistryPath_;
     const TWeakPtr<NNative::IClient> Client_;
     const IInvokerPtr Invoker_;
 
-    virtual TFuture<TExternalFunctionSpec> DoGet(const TString& key) override
+    virtual TFuture<TExternalFunctionSpec> DoGet(const std::pair<TString, TString>& key) override
     {
         return DoGetMany({key})
             .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& result) {
@@ -399,10 +404,11 @@ private:
             }));
     }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<TString>& keys) override
+    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(
+        const std::vector<std::pair<TString, TString>>& keys) override
     {
         if (auto client = Client_.Lock()) {
-            return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, std::move(client))
+            return BIND(LookupAllUdfDescriptors, keys, std::move(client))
                 .AsyncVia(Invoker_)
                 .Run();
         } else {
@@ -416,13 +422,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IFunctionRegistryPtr CreateFunctionRegistryCache(
-    const TString& registryPath,
     TAsyncExpiringCacheConfigPtr config,
     TWeakPtr<NNative::IClient> client,
     IInvokerPtr invoker)
 {
     return New<TCypressFunctionRegistry>(
-        registryPath,
         std::move(config),
         std::move(client),
         std::move(invoker));

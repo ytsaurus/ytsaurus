@@ -532,6 +532,11 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     req->set_verbose_logging(options.VerboseLogging);
     req->set_enable_code_cache(options.EnableCodeCache);
     req->set_max_subqueries(options.MaxSubqueries);
+    req->set_allow_full_scan(options.AllowFullScan);
+    req->set_allow_join_without_index(options.AllowJoinWithoutIndex);
+    if (options.UdfRegistryPath) {
+        req->set_udf_registry_path(*options.UdfRegistryPath);
+    }
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();

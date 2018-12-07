@@ -287,6 +287,9 @@ message TReqSelectRows
     optional bool verbose_logging = 8;
     optional bool enable_code_cache = 9;
     optional int32 max_subqueries = 10;
+    optional bool allow_full_scan = 11;
+    optional bool allow_join_without_index = 12;
+    optional string udf_registry_path = 13;
 }
 
 message TRspSelectRows

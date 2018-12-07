@@ -410,6 +410,8 @@ struct TSelectRowsOptions
     bool AllowFullScan = true;
     //! Allow queries with join condition which implies foreign query with IN operator.
     bool AllowJoinWithoutIndex = false;
+    //! Path in Cypress with UDFs.
+    TNullable<TString> UdfRegistryPath;
 };
 
 struct TGetNodeOptions

@@ -422,7 +422,6 @@ public:
             MakeWeak(this));
 
         FunctionRegistry_ = CreateFunctionRegistryCache(
-            Connection_->GetConfig()->UdfRegistryPath,
             Connection_->GetConfig()->FunctionRegistryCache,
             MakeWeak(this),
             Connection_->GetInvoker());
@@ -1985,6 +1984,10 @@ private:
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
 
+        const auto& udfRegistryPath = options.UdfRegistryPath
+            ? *options.UdfRegistryPath
+            : Connection_->GetConfig()->UdfRegistryPath;
+
         auto externalCGInfo = New<TExternalCGInfo>();
         auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
             MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
@@ -1997,7 +2000,7 @@ private:
                 }
             }
 
-            auto descriptors = WaitFor(FunctionRegistry_->FetchFunctions(externalNames))
+            auto descriptors = WaitFor(FunctionRegistry_->FetchFunctions(udfRegistryPath, externalNames))
                 .ValueOrThrow();
 
             AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
