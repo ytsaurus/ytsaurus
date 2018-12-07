@@ -89,7 +89,7 @@ static void Download(
     const bool downloadToMemoryFirst) {
 
     const auto downloaded = NYtBlob::TryDownload(path, name, table, client, downloadToMemoryFirst);
-    Y_VERIFY(!failProgramOnDownloadFailure || downloaded, "name=\"%s\"", ~name);
+    Y_VERIFY(!failProgramOnDownloadFailure || downloaded, "name=\"%s\"", name.data());
 }
 
 static int Main(

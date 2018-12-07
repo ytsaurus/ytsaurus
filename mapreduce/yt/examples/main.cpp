@@ -478,7 +478,7 @@ void Tablets()
         }
     }
     { // select
-        TString query = Sprintf("* from [%s] where b > 7", ~table);
+        TString query = Sprintf("* from [%s] where b > 7", table.data());
         auto rows = client->SelectRows(query);
         for (const auto& row : rows) {
             Cout <<

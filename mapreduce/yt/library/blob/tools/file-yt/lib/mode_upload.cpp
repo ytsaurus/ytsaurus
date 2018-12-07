@@ -84,7 +84,7 @@ static int Main(const NFileYtTool::TUploadConfig& config) {
         if (config.GetCreateTableIfDoesntExists()) {
             NYtBlob::CreateTable(config.GetTable(), client);
         } else {
-            Y_FAIL("table '%s' doesn't exists", ~config.GetTable());
+            Y_FAIL("table '%s' doesn't exists", config.GetTable().data());
         }
     }
 
