@@ -1936,7 +1936,7 @@ void TSystemAllocator::Free(void* ptr)
 // (if the latter is empty then the arena allocator is consulted).
 // Vice versa, if the local cache overflows, a group of chunks is moved from it to the global cache.
 //
-// Global caches and arena allocators also take care of (rare) cases when YTAlloc/YTFree is called
+// Global caches and arena allocators also take care of (rare) cases when Allocate/Free is called
 // without a valid thread state (which happens during thread shutdown when TThreadState is already destroyed).
 
 // Each tagged small chunk is prepended with this header (and there is no header at all
@@ -2288,7 +2288,7 @@ private:
 // its acquired size is extended (if needed); the acquired size never shrinks on allocation.
 // If no spare blobs exist, a disposed segment is extracted and is turned into a blob (i.e.
 // its header is initialized) and the needed number of bytes is acquired. If no disposed segments
-// exist, then a new extent is allocated and slices into segments.
+// exist, then a new extent is allocated and sliced into segments.
 //
 // The above algorithm only claims memory from the system (by means of madvise(MADV_POPULATE));
 // the reclaim is handled by a separate background mechanism. Two types of reclaimable memory
@@ -2301,25 +2301,25 @@ private:
 // the disposed segment list.
 //
 // Reclaiming overheads is more complicated since (a) allocated blobs are never tracked directly and
-// (b) reclaiming them may interfere with YTAlloc and YTFree.
+// (b) reclaiming them may interfere with Allocate and Free.
 //
 // To overcome (a), for each extent we maintain a bitmap marking segments that are actually blobs
 // (i.e. contain a header). (For simplicity and efficiency this bitmap is just a vector of bytes.)
-// These flags are updated in YTAlloc/YTFree with appropriate memory ordering. Note that since
+// These flags are updated in Allocate/Free with appropriate memory ordering. Note that since
 // blobs are only disposed (and are turned into segments) by the background thread; if this
 // thread discovers a segment that is marked as a blob, then it is safe to assume that this segment
 // remains a blob unless the thread disposes it.
 //
 // To overcome (b), each large blob header maintains a spin lock. When blob B is extracted
-// from a spare list in YTAlloc, an acquisition is tried. If successful, B is returned to the
+// from a spare list in Allocate, an acquisition is tried. If successful, B is returned to the
 // user. Otherwise it is assumed that B is currently being examined by the background
-// reclaimer thread. YTAlloc then skips this blob and retries extraction; the problem is that
+// reclaimer thread. Allocate then skips this blob and retries extraction; the problem is that
 // since the spare list is basically a stack one cannot just push B back into the spare list.
 // Instead, B is pushed into a special locked spare list. This list is purged by the background
 // thread on each tick and its items are pushed back into the usual spare list.
 //
-// A similar trick is used by YTFree: when invoked for blob B its spin lock acquisition is first
-// tried. Upon success, B is moved to the spare list. On failure, YTFree has to postpone this deallocation
+// A similar trick is used by Free: when invoked for blob B its spin lock acquisition is first
+// tried. Upon success, B is moved to the spare list. On failure, Free has to postpone this deallocation
 // by moving B into the freed locked list. This list, similarly, is being purged by the background thread.
 //
 // It remains to explain how the background thread computes the number of bytes to be reclaimed from
@@ -2331,12 +2331,12 @@ private:
 // spare and overhead volumes.
 //
 // The above implies that each large blob contains a fixed-size header preceeding it.
-// Hence ptr % PageSize == sizeof (TLargeBlobHeader) for each ptr returned by YTAlloc
+// Hence ptr % PageSize == sizeof (TLargeBlobHeader) for each ptr returned by Allocate
 // (since large blob sizes are larger than PageSize and are divisible by PageSize).
-// For YTAllocPageAligned, however, ptr must be divisible by PageSize. To handle such an allocation, we
-// artificially increase its size and align the result of YTAlloc up to the next page boundary.
+// For AllocatePageAligned, however, ptr must be divisible by PageSize. To handle such an allocation, we
+// artificially increase its size and align the result of Allocate up to the next page boundary.
 // When handling a deallocation, ptr is moved back by UnalignPtr (which is capable of dealing
-// with both the results of YTAlloc and YTAllocPageAligned).
+// with both the results of Allocate and AllocatePageAligned).
 // This technique is applied to both large and huge blobs.
 
 // Every large blob (either tagged or not) is prepended with this header.
