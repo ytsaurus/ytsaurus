@@ -30,7 +30,7 @@ public:
             "tablet_cell_bundle"
         };
 
-        if (supportedInheritableAttributes.has(key)) {
+        if (supportedInheritableAttributes.contains(key)) {
             return true;
         }
 

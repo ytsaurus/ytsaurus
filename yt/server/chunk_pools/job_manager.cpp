@@ -369,7 +369,7 @@ IChunkPoolOutput::TCookie TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
             InputCookieToAffectedOutputCookies_.resize(inputCookie + 1);
         }
         InputCookieToAffectedOutputCookies_[inputCookie].emplace_back(outputCookie);
-        if (SuspendedInputCookies_.has(inputCookie)) {
+        if (SuspendedInputCookies_.contains(inputCookie)) {
             ++initialSuspendedStripeCount;
         }
     }

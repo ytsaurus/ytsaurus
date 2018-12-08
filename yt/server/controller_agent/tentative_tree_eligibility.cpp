@@ -215,7 +215,7 @@ void TTentativeTreeEligibility::BanTree(const TString& treeId)
 
 bool TTentativeTreeEligibility::IsTreeBanned(const TString& treeId) const
 {
-    return BannedTrees_.has(treeId);
+    return BannedTrees_.contains(treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1395,7 +1395,7 @@ public:
             auto* action = FindTabletAction(actionId);
             if (IsObjectAlive(action) && action->GetState() == ETabletActionState::Orphaned) {
                 auto* bundle = action->Tablets().front()->GetTable()->GetTabletCellBundle();
-                if (healthyBundles.has(bundle)) {
+                if (healthyBundles.contains(bundle)) {
                     ChangeTabletActionState(action, ETabletActionState::Unmounted);
                 }
             }

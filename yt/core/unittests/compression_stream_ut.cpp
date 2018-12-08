@@ -14,7 +14,7 @@ TString Compress(TString data)
     TString compressed;
     TStringOutput output(compressed);
     TCompressStream compressStream(&output, 11);
-    compressStream.Write(~data, +data);
+    compressStream.Write(data.data(), data.size());
     compressStream.Finish();
     output.Finish();
     return compressed;

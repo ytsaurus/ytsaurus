@@ -50,7 +50,7 @@ const NJobTrackerClient::TJobId& TJobSatelliteConnection::GetJobId() const
 
 void TJobSatelliteConnection::MakeConfig()
 {
-    ConfigFile_ = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), SatelliteConfigFileName);
+    ConfigFile_ = NFS::CombinePaths(NFs::CurrentWorkingDirectory().data(), SatelliteConfigFileName);
     try {
         TFile file(ConfigFile_, CreateAlways | WrOnly | Seq | CloseOnExec);
         TUnbufferedFileOutput output(file);
