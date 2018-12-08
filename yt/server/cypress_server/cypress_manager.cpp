@@ -196,9 +196,9 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = GetNewNodeAccount();
-        auto maybeAccount = explicitAttributes->FindAndRemove<TString>("account");
-        if (maybeAccount) {
-            account = securityManager->GetAccountByNameOrThrow(*maybeAccount);
+        auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
+        if (optionalAccount) {
+            account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
         }
         securityManager->ValidatePermission(account, EPermission::Use);
         securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
@@ -226,9 +226,9 @@ public:
                     handler->GetObjectType());
             }
 
-            auto maybeExternalCellTag = explicitAttributes->FindAndRemove<TCellTag>("external_cell_tag");
-            if (maybeExternalCellTag) {
-                cellTag = *maybeExternalCellTag;
+            auto optionalExternalCellTag = explicitAttributes->FindAndRemove<TCellTag>("external_cell_tag");
+            if (optionalExternalCellTag) {
+                cellTag = *optionalExternalCellTag;
                 if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
                     THROW_ERROR_EXCEPTION("Unknown cell tag %v", cellTag);
                 }

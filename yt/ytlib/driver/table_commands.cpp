@@ -709,15 +709,15 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
     if (ColumnNames) {
         TColumnFilter::TIndexes columnFilterIndexes;
         for (const auto& name : *ColumnNames) {
-            auto maybeIndex = nameTable->FindId(name);
-            if (!maybeIndex) {
+            auto optionalIndex = nameTable->FindId(name);
+            if (!optionalIndex) {
                 if (!tableInfo->Schemas[ETableSchemaKind::Primary].FindColumn(name)) {
                     THROW_ERROR_EXCEPTION("No such column %Qv",
                         name);
                 }
-                maybeIndex = nameTable->GetIdOrRegisterName(name);
+                optionalIndex = nameTable->GetIdOrRegisterName(name);
             }
-            columnFilterIndexes.push_back(*maybeIndex);
+            columnFilterIndexes.push_back(*optionalIndex);
         }
         Options.ColumnFilter = TColumnFilter(std::move(columnFilterIndexes));
     }

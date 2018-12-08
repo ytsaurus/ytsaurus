@@ -63,11 +63,11 @@ public:
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        const std::optional<TColumnFilter>& maybeColumnFilter)
+        const std::optional<TColumnFilter>& optionalColumnFilter)
         : Store_(std::move(store))
         , TabletIndex_(tabletIndex)
         , UpperRowIndex_(std::min(upperRowIndex, Store_->GetStartingRowIndex() + Store_->GetRowCount()))
-        , MaybeColumnFilter_(maybeColumnFilter)
+        , MaybeColumnFilter_(optionalColumnFilter)
         , CurrentRowIndex_(std::max(lowerRowIndex, Store_->GetStartingRowIndex()))
     { }
 
@@ -474,14 +474,14 @@ ISchemafulReaderPtr TOrderedDynamicStore::DoCreateReader(
     int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    const std::optional<TColumnFilter>& maybeColumnFilter)
+    const std::optional<TColumnFilter>& optionalColumnFilter)
 {
     auto reader = New<TReader>(
         this,
         tabletIndex,
         lowerRowIndex,
         upperRowIndex,
-        maybeColumnFilter);
+        optionalColumnFilter);
     reader->Initialize();
     return reader;
 }

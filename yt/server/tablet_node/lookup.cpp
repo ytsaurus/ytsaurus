@@ -258,9 +258,9 @@ private:
                 ColumnFilter_,
                 BlockReadOptions_);
             auto future = reader->Open();
-            auto maybeError = future.TryGet();
-            if (maybeError) {
-                maybeError->ThrowOnError();
+            auto optionalError = future.TryGet();
+            if (optionalError) {
+                optionalError->ThrowOnError();
             } else {
                 asyncFutures.emplace_back(std::move(future));
             }

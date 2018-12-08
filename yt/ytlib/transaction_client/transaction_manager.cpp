@@ -607,9 +607,9 @@ private:
         auto attributes = options.Attributes
             ? options.Attributes->Clone()
             : CreateEphemeralAttributes();
-        auto maybeTitle = attributes->FindAndRemove<TString>("title");
-        if (maybeTitle) {
-            req->set_title(*maybeTitle);
+        auto optionalTitle = attributes->FindAndRemove<TString>("title");
+        if (optionalTitle) {
+            req->set_title(*optionalTitle);
         }
         ToProto(req->mutable_attributes(), *attributes);
         req->set_timeout(ToProto<i64>(GetTimeout()));

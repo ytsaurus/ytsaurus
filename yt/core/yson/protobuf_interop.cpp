@@ -597,15 +597,15 @@ private:
 
                 case FieldDescriptor::TYPE_ENUM: {
                     const auto* enumType = field->GetEnumType();
-                    auto maybeValue = enumType->FindValueByLiteral(value);
-                    if (!maybeValue) {
+                    auto optionalValue = enumType->FindValueByLiteral(value);
+                    if (!optionalValue) {
                         THROW_ERROR_EXCEPTION("Field %v cannot have value %Qv",
                             YPathStack_.GetPath(),
                             value)
                             << TErrorAttribute("ypath", YPathStack_.GetPath())
                             << TErrorAttribute("proto_type", enumType->GetFullName());
                     }
-                    BodyCodedStream_.WriteVarint32SignExtended(*maybeValue);
+                    BodyCodedStream_.WriteVarint32SignExtended(*optionalValue);
                     break;
                 }
 

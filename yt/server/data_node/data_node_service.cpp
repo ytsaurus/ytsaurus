@@ -809,9 +809,9 @@ private:
 
             // COMPAT(savrus) Support schemaful and versioned chunks.
             TKeyColumns chunkKeyColumns;
-            auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(meta.extensions());
-            if (maybeKeyColumnsExt) {
-                chunkKeyColumns = FromProto<TKeyColumns>(*maybeKeyColumnsExt);
+            auto optionalKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(meta.extensions());
+            if (optionalKeyColumnsExt) {
+                chunkKeyColumns = FromProto<TKeyColumns>(*optionalKeyColumnsExt);
             } else {
                 auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
                 chunkKeyColumns = FromProto<TTableSchema>(schemaExt).GetKeyColumns();
@@ -1008,9 +1008,9 @@ private:
 
         // COMPAT(psushin)
         TKeyColumns chunkKeyColumns;
-        auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
-        if (maybeKeyColumnsExt) {
-            chunkKeyColumns = NYT::FromProto<TKeyColumns>(*maybeKeyColumnsExt);
+        auto optionalKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+        if (optionalKeyColumnsExt) {
+            chunkKeyColumns = NYT::FromProto<TKeyColumns>(*optionalKeyColumnsExt);
         } else {
             auto schemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
             chunkKeyColumns = FromProto<TTableSchema>(schemaExt).GetKeyColumns();
@@ -1229,15 +1229,15 @@ private:
                     type);
             }
 
-            auto maybeColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
+            auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
             // COMPAT(max42): remove second option when YT-8954 is at least several months old.
-            if (!maybeColumnarStatisticsExt || maybeColumnarStatisticsExt->data_weights_size() == 0) {
+            if (!optionalColumnarStatisticsExt || optionalColumnarStatisticsExt->data_weights_size() == 0) {
                 ToProto(
                     subresponse->mutable_error(),
                     TError(NChunkClient::EErrorCode::MissingExtension, "Columnar statistics chunk meta extension missing"));
                 return;
             }
-            const auto& columnarStatisticsExt = *maybeColumnarStatisticsExt;
+            const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
 
             auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
             TNameTablePtr nameTable;

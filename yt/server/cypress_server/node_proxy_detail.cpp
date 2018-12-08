@@ -345,12 +345,12 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
         return std::nullopt;
     }
 
-    auto maybeDescriptor = FindBuiltinAttributeDescriptor(internedKey);
-    if (!maybeDescriptor) {
+    auto optionalDescriptor = FindBuiltinAttributeDescriptor(internedKey);
+    if (!optionalDescriptor) {
         return std::nullopt;
     }
 
-    const auto& descriptor = *maybeDescriptor;
+    const auto& descriptor = *optionalDescriptor;
     if (!descriptor.External) {
         return std::nullopt;
     }
@@ -2081,11 +2081,11 @@ bool TMapNodeProxy::RemoveChild(const TString& key)
 
 void TMapNodeProxy::RemoveChild(const INodePtr& child)
 {
-    auto maybeKey = FindChildKey(child);
-    if (!maybeKey) {
+    auto optionalKey = FindChildKey(child);
+    if (!optionalKey) {
         THROW_ERROR_EXCEPTION("Node is not a child");
     }
-    const auto& key = *maybeKey;
+    const auto& key = *optionalKey;
 
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
@@ -2102,11 +2102,11 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
         return;
     }
 
-    auto maybeKey = FindChildKey(oldChild);
-    if (!maybeKey) {
+    auto optionalKey = FindChildKey(oldChild);
+    if (!optionalKey) {
         THROW_ERROR_EXCEPTION("Node is not a child");
     }
-    const auto& key = *maybeKey;
+    const auto& key = *optionalKey;
 
     auto* oldTrunkChildImpl = ICypressNodeProxy::FromNode(oldChild.Get())->GetTrunkNode();
     auto* oldChildImpl = LockImpl(oldTrunkChildImpl, ELockMode::Exclusive, true);

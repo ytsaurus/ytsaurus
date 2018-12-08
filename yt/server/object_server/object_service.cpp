@@ -234,14 +234,14 @@ public:
         NeedsUpstreamSync_ = false;
 
         auto result = HydraManager_->SyncWithUpstream();
-        auto maybeError = result.TryGet();
-        if (!maybeError) {
+        auto optionalError = result.TryGet();
+        if (!optionalError) {
             result.Subscribe(
                 BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
             return false;
         }
 
-        const auto& error = *maybeError;
+        const auto& error = *optionalError;
         if (!error.IsOK()) {
             Reply(error);
             return false;

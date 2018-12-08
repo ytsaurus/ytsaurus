@@ -213,7 +213,7 @@ void TSchedulerThread::ThreadMainStep()
 
     SetCurrentFiberId(InvalidFiberId);
 
-    auto maybeReleaseIdleFiber = [&] () {
+    auto optionalReleaseIdleFiber = [&] () {
         if (CurrentFiber_ == IdleFiber_) {
             // Advance epoch as this (idle) fiber might be rescheduled elsewhere.
             Epoch_.fetch_add(TurnDelta, std::memory_order_relaxed);
@@ -227,7 +227,7 @@ void TSchedulerThread::ThreadMainStep()
 
     switch (CurrentFiber_->GetState()) {
         case EFiberState::Sleeping:
-            maybeReleaseIdleFiber();
+            optionalReleaseIdleFiber();
             // Reschedule this fiber to wake up later.
             Reschedule(
                 std::move(CurrentFiber_),
@@ -241,7 +241,7 @@ void TSchedulerThread::ThreadMainStep()
             break;
 
         case EFiberState::Terminated:
-            maybeReleaseIdleFiber();
+            optionalReleaseIdleFiber();
             // We do not own this fiber anymore, so forget about it.
             CurrentFiber_.Reset();
             break;

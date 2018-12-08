@@ -307,11 +307,11 @@ private:
         const TRichYPath& path,
         const TTableMountInfoPtr& tableInfo)
     {
-        if (auto maybePathSchema = path.GetSchema()) {
+        if (auto optionalPathSchema = path.GetSchema()) {
             if (tableInfo->Dynamic) {
                 THROW_ERROR_EXCEPTION("Explicit YPath \"schema\" specification is only allowed for static tables");
             }
-            return *maybePathSchema;
+            return *optionalPathSchema;
         }
 
         return tableInfo->Schemas[ETableSchemaKind::Query];
@@ -1972,9 +1972,9 @@ private:
     {
         auto parsedQuery = ParseSource(queryString, EParseMode::Query);
         auto* astQuery = &parsedQuery->AstHead.Ast.As<NAst::TQuery>();
-        auto maybeClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
-        if (maybeClusterName) {
-            auto replicaClient = CreateReplicaClient(*maybeClusterName);
+        auto optionalClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
+        if (optionalClusterName) {
+            auto replicaClient = CreateReplicaClient(*optionalClusterName);
             auto updatedQueryString = NAst::FormatQuery(*astQuery);
             auto asyncResult = replicaClient->SelectRows(updatedQueryString, options);
             return WaitFor(asyncResult)
@@ -4439,13 +4439,13 @@ private:
 
         auto schedulerJobSpecExt = jobSpec.GetExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        auto maybeDataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
-        if (!maybeDataSourceDirectoryExt) {
+        auto optionalDataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
+        if (!optionalDataSourceDirectoryExt) {
             THROW_ERROR_EXCEPTION("Cannot build job input paths; job is either too old or has intermediate input")
                 << TErrorAttribute("job_id", jobId);
         }
 
-        const auto& dataSourceDirectoryExt = *maybeDataSourceDirectoryExt;
+        const auto& dataSourceDirectoryExt = *optionalDataSourceDirectoryExt;
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
         for (const auto& dataSource : dataSourceDirectory->DataSources()) {

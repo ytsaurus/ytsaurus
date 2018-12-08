@@ -492,12 +492,12 @@ private:
     {
         const auto& chunkId = descriptor.Id;
 
-        auto maybeKey = TryParseArtifactMeta(location, chunkId);
-        if (!maybeKey) {
+        auto optionalKey = TryParseArtifactMeta(location, chunkId);
+        if (!optionalKey) {
             return;
         }
 
-        const auto& key = *maybeKey;
+        const auto& key = *optionalKey;
         auto cookie = BeginInsert(key);
         if (!cookie.IsActive()) {
             LOG_WARNING("Removing duplicate cached chunk (ChunkId: %v)",

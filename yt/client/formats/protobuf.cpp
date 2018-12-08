@@ -310,8 +310,8 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
                 }
             }
 
-            auto maybeType = ConvertToInternalProtobufType(fieldDescriptor->type(), enumsAsStrings);
-            if (!maybeType) {
+            auto optionalType = ConvertToInternalProtobufType(fieldDescriptor->type(), enumsAsStrings);
+            if (!optionalType) {
                 continue;
             }
 
@@ -321,7 +321,7 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
             field.WireTag = google::protobuf::internal::WireFormatLite::MakeTag(
                 fieldDescriptor->number(),
                 ::google::protobuf::internal::WireFormatLite::WireTypeForFieldType(wireFieldType));
-            field.Type = *maybeType;
+            field.Type = *optionalType;
             field.TagSize = ::google::protobuf::internal::WireFormatLite::TagSize(fieldDescriptor->number(), wireFieldType);
 
             if (field.Type == EProtobufType::EnumString || field.Type == EProtobufType::EnumInt)

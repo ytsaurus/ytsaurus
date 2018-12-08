@@ -556,8 +556,8 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
             token.Type = EFormulaTokenType::Number;
             token.Number = extractNumber();
             expectBinaryOperator = true;
-        } else if (auto maybeType = extractSpecialToken()) {
-            token.Type = *maybeType;
+        } else if (auto optionalType = extractSpecialToken()) {
+            token.Type = *optionalType;
             expectBinaryOperator = token.Type == EFormulaTokenType::RightBracket;
         } else if (IsSymbolAllowedInName(formula[pos], context, true)) {
             token.Type = EFormulaTokenType::Variable;

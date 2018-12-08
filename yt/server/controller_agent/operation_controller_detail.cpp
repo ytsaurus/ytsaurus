@@ -2015,9 +2015,9 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     // We want to know row count before moving jobSummary to ProcessFinishedJobResult.
-    std::optional<i64> maybeRowCount;
+    std::optional<i64> optionalRowCount;
     if (RowCountLimitTableIndex) {
-        maybeRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
+        optionalRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
     }
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ false);
@@ -2033,7 +2033,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         return;
     }
 
-    if (RowCountLimitTableIndex && maybeRowCount) {
+    if (RowCountLimitTableIndex && optionalRowCount) {
         switch (joblet->JobType) {
             case EJobType::Map:
             case EJobType::OrderedMap:
@@ -2044,7 +2044,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             case EJobType::UnorderedMerge:
             case EJobType::SortedMerge:
             case EJobType::FinalSort: {
-                RegisterOutputRows(*maybeRowCount, *RowCountLimitTableIndex);
+                RegisterOutputRows(*optionalRowCount, *RowCountLimitTableIndex);
                 break;
             }
             default:

@@ -57,9 +57,9 @@ template <class T>
 NYson::TYsonString TOverlaidAttributeDictionary<T>::FindYson(const TString& key) const
 {
     for (const auto& dict : UnderlyingDictionaries_) {
-        auto maybeResult = dict ? dict->FindYson(key) : NYson::TYsonString();
-        if (maybeResult) {
-            return maybeResult;
+        auto optionalResult = dict ? dict->FindYson(key) : NYson::TYsonString();
+        if (optionalResult) {
+            return optionalResult;
         }
     }
 
