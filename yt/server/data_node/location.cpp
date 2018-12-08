@@ -636,9 +636,9 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     // by moving them into trash.
     std::vector<TChunkDescriptor> descriptors;
     for (const auto& chunkId : chunkIds) {
-        auto maybeDescriptor = RepairChunk(chunkId);
-        if (maybeDescriptor) {
-            descriptors.push_back(*maybeDescriptor);
+        auto optionalDescriptor = RepairChunk(chunkId);
+        if (optionalDescriptor) {
+            descriptors.push_back(*optionalDescriptor);
         }
     }
 
@@ -1026,16 +1026,16 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkI
 
 std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(const TChunkId& chunkId)
 {
-    std::optional<TChunkDescriptor> maybeDescriptor;
+    std::optional<TChunkDescriptor> optionalDescriptor;
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
     switch (chunkType) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            maybeDescriptor = RepairBlobChunk(chunkId);
+            optionalDescriptor = RepairBlobChunk(chunkId);
             break;
 
         case EObjectType::JournalChunk:
-            maybeDescriptor = RepairJournalChunk(chunkId);
+            optionalDescriptor = RepairJournalChunk(chunkId);
             break;
 
         default:
@@ -1044,7 +1044,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(const TChunkId& chun
                 chunkId);
             break;
     }
-    return maybeDescriptor;
+    return optionalDescriptor;
 }
 
 std::vector<TString> TStoreLocation::GetChunkPartNames(const TChunkId& chunkId) const
@@ -1199,15 +1199,15 @@ std::optional<TChunkDescriptor> TCacheLocation::Repair(
 
 std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(const TChunkId& chunkId)
 {
-    std::optional<TChunkDescriptor> maybeDescriptor;
+    std::optional<TChunkDescriptor> optionalDescriptor;
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
     switch (chunkType) {
         case EObjectType::Chunk:
-            maybeDescriptor = Repair(chunkId, ChunkMetaSuffix);
+            optionalDescriptor = Repair(chunkId, ChunkMetaSuffix);
             break;
 
         case EObjectType::Artifact:
-            maybeDescriptor = Repair(chunkId, ArtifactMetaSuffix);
+            optionalDescriptor = Repair(chunkId, ArtifactMetaSuffix);
             break;
 
         default:
@@ -1216,7 +1216,7 @@ std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(const TChunkId& chun
                 chunkId);
             break;
     }
-    return maybeDescriptor;
+    return optionalDescriptor;
 }
 
 std::vector<TString> TCacheLocation::GetChunkPartNames(const TChunkId& chunkId) const

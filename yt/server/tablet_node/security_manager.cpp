@@ -34,8 +34,8 @@ static const auto& Logger = TabletNodeLogger;
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     TSecurityManagerPtr securityManager,
-    const std::optional<TString>& maybeUser)
-    : TAuthenticatedUserGuardBase(std::move(securityManager), maybeUser)
+    const std::optional<TString>& optionalUser)
+    : TAuthenticatedUserGuardBase(std::move(securityManager), optionalUser)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,12 +271,12 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         EPermission permission)
     {
-        auto maybeUser = GetAuthenticatedUserName();
-        if (!maybeUser) {
+        auto optionalUser = GetAuthenticatedUserName();
+        if (!optionalUser) {
             return VoidFuture;
         }
 
-        TTablePermissionKey key{tabletSnapshot->TableId, *maybeUser, permission};
+        TTablePermissionKey key{tabletSnapshot->TableId, *optionalUser, permission};
         return TablePermissionCache_->Get(key);
     }
 
@@ -285,10 +285,10 @@ public:
         EPermission permission)
     {
         auto asyncResult = CheckPermission(std::move(tabletSnapshot), permission);
-        auto maybeResult = asyncResult.TryGet();
+        auto optionalResult = asyncResult.TryGet();
         TError result;
-        if (maybeResult) {
-            result = *maybeResult;
+        if (optionalResult) {
+            result = *optionalResult;
         } else {
             LOG_DEBUG("Started waiting for persmission cache result");
             result = WaitFor(asyncResult);
@@ -311,8 +311,8 @@ public:
         EInMemoryMode inMemoryMode)
     {
         auto asyncResult = CheckResourceLimits(account, mediumName, inMemoryMode);
-        auto maybeResult = asyncResult.TryGet();
-        auto result = maybeResult ? *maybeResult : WaitFor(asyncResult);
+        auto optionalResult = asyncResult.TryGet();
+        auto result = optionalResult ? *optionalResult : WaitFor(asyncResult);
         result.ThrowOnError();
     }
 

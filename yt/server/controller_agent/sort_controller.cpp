@@ -1187,12 +1187,12 @@ protected:
                 YCHECK(jobOutput.JobSummary.Statistics);
                 auto tableIndex = Controller->GetRowCountLimitTableIndex();
                 if (tableIndex) {
-                    auto maybeCount = FindNumericValue(
+                    auto optionalCount = FindNumericValue(
                         *jobOutput.JobSummary.Statistics,
                         Format("/data/output/%v/row_count", *tableIndex));
-                    if (maybeCount) {
+                    if (optionalCount) {
                         // We have to unregister registered output rows.
-                        Controller->RegisterOutputRows(-(*maybeCount), *tableIndex);
+                        Controller->RegisterOutputRows(-(*optionalCount), *tableIndex);
                     }
                 }
             }

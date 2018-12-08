@@ -41,11 +41,11 @@ public:
 
         auto guard = Guard(Lock_);
 
-        auto maybeBucketIndex = GetStarvingBucketIndex();
-        if (!maybeBucketIndex) {
+        auto optionalBucketIndex = GetStarvingBucketIndex();
+        if (!optionalBucketIndex) {
             return false;
         }
-        auto bucketIndex = *maybeBucketIndex;
+        auto bucketIndex = *optionalBucketIndex;
 
         TruncateExcessTimes(ExcessTimes_[bucketIndex]);
 

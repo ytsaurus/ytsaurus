@@ -27,7 +27,7 @@ class TAuthenticatedUserGuard
     : public NSecurityServer::TAuthenticatedUserGuardBase
 {
 public:
-    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const std::optional<TString>& maybeUser);
+    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const std::optional<TString>& optionalUser);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

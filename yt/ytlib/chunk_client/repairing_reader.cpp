@@ -166,12 +166,12 @@ private:
             }
             erasedIndicesOnPreviousIteration = bannedPartIndices;
 
-            auto maybeRepairIndices = Codec_->GetRepairIndices(bannedPartIndicesList);
-            if (!maybeRepairIndices) {
+            auto optionalRepairIndices = Codec_->GetRepairIndices(bannedPartIndicesList);
+            if (!optionalRepairIndices) {
                 THROW_ERROR_EXCEPTION("Not enough parts to read with repair")
                     << innerErrors;
             }
-            auto repairIndices = *maybeRepairIndices;
+            auto repairIndices = *optionalRepairIndices;
 
             std::vector<IChunkReaderAllowingRepairPtr> readers;
             for (int index = 0; index < Codec_->GetDataPartCount(); ++index) {

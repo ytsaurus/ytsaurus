@@ -332,9 +332,9 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
         systemTracker->GetLimit(EMemoryCategory::SystemJobs),
         systemTracker->GetUsed(EMemoryCategory::SystemJobs) + systemTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
 
-    auto maybeCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
-    if (maybeCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
-        result.set_cpu(*maybeCpuLimit);
+    auto optionalCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
+    if (optionalCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
+        result.set_cpu(*optionalCpuLimit);
     }
 
     if (result.has_cpu()) {
@@ -362,10 +362,10 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
 
 void TJobController::TImpl::AdjustResources()
 {
-    auto maybeMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
-    if (maybeMemoryLimit) {
+    auto optionalMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
+    if (optionalMemoryLimit) {
         auto* tracker = GetUserMemoryUsageTracker();
-        tracker->SetTotalLimit(*maybeMemoryLimit);
+        tracker->SetTotalLimit(*optionalMemoryLimit);
     }
 
     auto usage = GetResourceUsage(false);
@@ -991,9 +991,9 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
             startJob(startInfo, attachment);
         } else {
             auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(startInfo.spec_service_addresses());
-            auto maybeAddress = FindAddress(addresses, Bootstrap_->GetLocalNetworks());
-            if (maybeAddress) {
-                const auto& address = *maybeAddress;
+            auto optionalAddress = FindAddress(addresses, Bootstrap_->GetLocalNetworks());
+            if (optionalAddress) {
+                const auto& address = *optionalAddress;
                 LOG_DEBUG("Job spec will be fetched (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
                     operationId,
                     jobId,

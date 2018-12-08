@@ -1267,8 +1267,8 @@ private:
             return;
         }
 
-        std::optional<TPeer> maybePeer;
-        while (!maybePeer) {
+        std::optional<TPeer> optionalPeer;
+        while (!optionalPeer) {
             auto candidates = PickPeerCandidates(
                 ReaderConfig_->ProbePeerCount,
                 [&] (const TString& address) {
@@ -1292,10 +1292,10 @@ private:
                 return;
             }
 
-            maybePeer = SelectBestPeer(candidates, blockIndexes, reader);
+            optionalPeer = SelectBestPeer(candidates, blockIndexes, reader);
         }
 
-        const auto& peerAddress = maybePeer->Address;
+        const auto& peerAddress = optionalPeer->Address;
         auto channel = GetChannel(peerAddress);
         if (!channel) {
             RequestBlocks();
@@ -1352,7 +1352,7 @@ private:
 
         reader->AccountTraffic(
             rsp->GetTotalSize(),
-            maybePeer->NodeDescriptor);
+            optionalPeer->NodeDescriptor);
 
         UpdatePeerBlockMap(rsp, reader);
 
@@ -1411,7 +1411,7 @@ private:
 
         LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
               peerAddress,
-              maybePeer->Type,
+              optionalPeer->Type,
               MakeShrunkFormattableRange(receivedBlockIndexes, TDefaultFormatter(), 3),
               bytesReceived,
               rsp->peer_descriptors_size());

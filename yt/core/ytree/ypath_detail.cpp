@@ -690,9 +690,9 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
         if (builtinAttributeProvider) {
             auto internedKey = GetInternedAttributeKey(key);
             if (internedKey != InvalidInternedAttribute) {
-                auto maybeDescriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
-                if (maybeDescriptor) {
-                    const auto& descriptor = *maybeDescriptor;
+                auto optionalDescriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
+                if (optionalDescriptor) {
+                    const auto& descriptor = *optionalDescriptor;
                     return descriptor.Present ? TrueFuture : FalseFuture;
                 }
             }

@@ -68,11 +68,11 @@ std::optional<int> TNameTable::FindId(TStringBuf name) const
 
 int TNameTable::GetIdOrThrow(TStringBuf name) const
 {
-    auto maybeId = FindId(name);
-    if (!maybeId) {
+    auto optionalId = FindId(name);
+    if (!optionalId) {
         THROW_ERROR_EXCEPTION("No such column %Qv", name);
     }
-    return *maybeId;
+    return *optionalId;
 }
 
 int TNameTable::GetId(TStringBuf name) const
@@ -98,8 +98,8 @@ int TNameTable::RegisterName(TStringBuf name)
 int TNameTable::RegisterNameOrThrow(TStringBuf name)
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    auto maybeId = NameToId_.find(name);
-    if (maybeId != NameToId_.end()) {
+    auto optionalId = NameToId_.find(name);
+    if (optionalId != NameToId_.end()) {
         THROW_ERROR_EXCEPTION("Cannot register column %Qv: column already exists", name);
     }
     return DoRegisterName(name);
@@ -209,21 +209,21 @@ std::optional<int> TNameTableWriter::FindId(TStringBuf name) const
         return it->second;
     }
 
-    auto maybeId = NameTable_->FindId(name);
-    if (maybeId) {
+    auto optionalId = NameTable_->FindId(name);
+    if (optionalId) {
         Names_.push_back(TString(name));
-        YCHECK(NameToId_.insert(std::make_pair(Names_.back(), *maybeId)).second);
+        YCHECK(NameToId_.insert(std::make_pair(Names_.back(), *optionalId)).second);
     }
-    return maybeId;
+    return optionalId;
 }
 
 int TNameTableWriter::GetIdOrThrow(TStringBuf name) const
 {
-    auto maybeId = FindId(name);
-    if (!maybeId) {
+    auto optionalId = FindId(name);
+    if (!optionalId) {
         THROW_ERROR_EXCEPTION("No such column %Qv", name);
     }
-    return *maybeId;
+    return *optionalId;
 }
 
 int TNameTableWriter::GetIdOrRegisterName(TStringBuf name)

@@ -464,22 +464,22 @@ void TRichYPath::SetColumns(const std::vector<TString>& columns)
 std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
 {
     // COMPAT(ignat): top-level "lower_limit" and "upper_limit" are processed for compatibility.
-    auto maybeLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
-    auto maybeUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
-    auto maybeRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
+    auto optionalLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
+    auto optionalUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
+    auto optionalRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
 
-    if (maybeLowerLimit || maybeUpperLimit) {
-        if (maybeRanges) {
+    if (optionalLowerLimit || optionalUpperLimit) {
+        if (optionalRanges) {
             THROW_ERROR_EXCEPTION("YPath cannot be annotated with both multiple (\"ranges\" attribute) "
                 "and single (\"lower_limit\" or \"upper_limit\" attributes) ranges");
         }
         return std::vector<TReadRange>({
             TReadRange(
-                maybeLowerLimit.value_or(TReadLimit()),
-                maybeUpperLimit.value_or(TReadLimit())
+                optionalLowerLimit.value_or(TReadLimit()),
+                optionalUpperLimit.value_or(TReadLimit())
             )});
     } else {
-        return maybeRanges.value_or(std::vector<TReadRange>({TReadRange()}));
+        return optionalRanges.value_or(std::vector<TReadRange>({TReadRange()}));
     }
 }
 
@@ -493,11 +493,11 @@ void TRichYPath::SetRanges(const std::vector<NChunkClient::TReadRange>& value)
 
 bool TRichYPath::HasNontrivialRanges() const
 {
-    auto maybeLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
-    auto maybeUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
-    auto maybeRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
+    auto optionalLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
+    auto optionalUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
+    auto optionalRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
 
-    return maybeUpperLimit || maybeUpperLimit || maybeRanges;
+    return optionalUpperLimit || optionalUpperLimit || optionalRanges;
 }
 
 std::optional<TString> TRichYPath::GetFileName() const
