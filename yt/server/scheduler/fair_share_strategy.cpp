@@ -180,7 +180,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operationId);
-        if (!state->TreeIdToPoolNameMap().has(treeId)) {
+        if (!state->TreeIdToPoolNameMap().contains(treeId)) {
             LOG_INFO("Operation to be removed from a tentative tree was not found in that tree (OperationId: %v, TreeId: %v)",
                 operationId,
                 treeId);
@@ -745,7 +745,7 @@ public:
         }
 
         for (const auto& job : jobUpdates) {
-            if (!jobsToSave.has(job.JobId)) {
+            if (!jobsToSave.contains(job.JobId)) {
                 successfullyUpdatedJobs->push_back({job.OperationId, job.JobId});
             }
         }
@@ -852,7 +852,7 @@ private:
         }
 
         for (const auto& tentativePoolTree : spec->TentativePoolTrees) {
-            if (spec->PoolTrees.has(tentativePoolTree)) {
+            if (spec->PoolTrees.contains(tentativePoolTree)) {
                 THROW_ERROR_EXCEPTION("Regular and tentative pool trees must not intersect");
             }
         }

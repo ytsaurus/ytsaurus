@@ -399,7 +399,7 @@ protected:
 
         // First check.
         for (const auto& inputChunk : CreatedUnversionedPrimaryChunks_) {
-            if (teleportChunksSet.has(inputChunk)) {
+            if (teleportChunksSet.contains(inputChunk)) {
                 continue;
             }
             TKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasKey()
@@ -581,7 +581,7 @@ protected:
                         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                             auto chunk = chunkSlice->GetInputChunk();
                             EXPECT_TRUE(chunk);
-                            EXPECT_TRUE(ActiveChunks_.has(chunk->ChunkId()));
+                            EXPECT_TRUE(ActiveChunks_.contains(chunk->ChunkId()));
                         }
                     }
                 }
@@ -2999,8 +2999,8 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
                 const auto& chunkId = chunk->ChunkId();
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
-                ASSERT_TRUE(resumedChunks.has(chunkId));
-                ASSERT_TRUE(!suspendedChunks.has(chunkId));
+                ASSERT_TRUE(resumedChunks.contains(chunkId));
+                ASSERT_TRUE(!suspendedChunks.contains(chunkId));
                 ASSERT_TRUE(pendingChunks.erase(chunkId));
                 ASSERT_TRUE(startedChunks.insert(chunkId).second);
                 ASSERT_TRUE(chunkIdToOutputCookie.insert(std::make_pair(chunkId, outputCookie)).second);

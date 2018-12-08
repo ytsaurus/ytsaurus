@@ -1281,7 +1281,7 @@ protected:
 
             Controller->SortedMergeJobCounter->Completed(1);
             YCHECK(ActiveJoblets_.erase(joblet) == 1);
-            if (!InvalidatedJoblets_.has(joblet)) {
+            if (!InvalidatedJoblets_.contains(joblet)) {
                 JobOutputs_.emplace_back(TJobOutput{joblet->ChunkListIds, jobSummary});
             }
 

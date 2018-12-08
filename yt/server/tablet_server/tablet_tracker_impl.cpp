@@ -97,7 +97,7 @@ public:
     virtual bool IsPossibleHost(const TNode* node, const TTabletCellBundle* bundle) override
     {
         const auto& bundleNodeTracker = Bootstrap_->GetTabletManager()->GetBundleNodeTracker();
-        return bundleNodeTracker->GetBundleNodes(bundle).has(node);
+        return bundleNodeTracker->GetBundleNodes(bundle).contains(node);
     }
 
     virtual bool IsVerboseLoggingEnabled() override

@@ -271,7 +271,7 @@ inline const TChunkReplication& TChunkRequisitionRegistry::GetReplication(TChunk
 inline TChunkRequisitionIndex TChunkRequisitionRegistry::GenerateIndex()
 {
     auto result = NextIndex_++;
-    while (IndexToItem_.has(NextIndex_)) {
+    while (IndexToItem_.contains(NextIndex_)) {
         ++NextIndex_;
     }
     return result;
@@ -292,7 +292,7 @@ inline TChunkRequisitionIndex TEphemeralRequisitionRegistry::Insert(const TChunk
 inline TChunkRequisitionIndex TEphemeralRequisitionRegistry::GenerateIndex()
 {
     auto result = NextIndex_++;
-    while (IndexToRequisition_.has(NextIndex_)) {
+    while (IndexToRequisition_.contains(NextIndex_)) {
         ++NextIndex_;
     }
     return result;
