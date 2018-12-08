@@ -1,5 +1,5 @@
 from .config import get_config, get_option, set_option, get_backend_type
-from .common import require, get_value, total_seconds, generate_uuid
+from .common import require, get_value, total_seconds, generate_uuid, forbidden_inside_job
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
@@ -458,6 +458,7 @@ def get_token(token=None, client=None):
 
     return token
 
+@forbidden_inside_job
 def get_user_name(token=None, headers=None, client=None):
     """Requests auth method at proxy to receive user name by token or by cookies in header."""
     if get_backend_type(client) != "http":
