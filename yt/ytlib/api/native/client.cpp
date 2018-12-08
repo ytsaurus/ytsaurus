@@ -5084,7 +5084,7 @@ private:
             operation.Result = nodeAttributes.FindYson("result");
         }
 
-        if (!attributes || attributes->has("slot_index_per_pool_tree")) {
+        if (!attributes || attributes->contains("slot_index_per_pool_tree")) {
             operation.SlotIndexPerPoolTree = nodeAttributes.FindYson("slot_index_per_pool_tree");
         }
 
