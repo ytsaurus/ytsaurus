@@ -52,7 +52,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const 
         "vital"
     };
 
-    return supportedInheritableAttributes.has(key);
+    return supportedInheritableAttributes.contains(key);
 }
 
 template <class TChunkOwner>

@@ -377,7 +377,7 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encod
         auto str = Py::Bytes(node->AsString()->GetValue().data());
         if (encoding) {
 #if PY_MAJOR_VERSION >= 3
-            obj = NPython::CreateYsonObject("YsonUnicode", str.decode(~encoding.Get()), attributes);
+            obj = NPython::CreateYsonObject("YsonUnicode", str.decode(encoding.Get().data()), attributes);
 #else
             obj = NPython::CreateYsonObject("YsonString", str.decode(encoding.Get().data()).encode("utf-8"), attributes);
 #endif

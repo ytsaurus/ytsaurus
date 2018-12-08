@@ -3687,7 +3687,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 {
-    return Spec_->TentativePoolTrees && Spec_->TentativePoolTrees->has(treeId);
+    return Spec_->TentativePoolTrees && Spec_->TentativePoolTrees->contains(treeId);
 }
 
 void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId, bool shouldBan)

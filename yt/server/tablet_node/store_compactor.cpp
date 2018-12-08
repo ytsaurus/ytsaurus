@@ -746,7 +746,7 @@ private:
         stores.reserve(task->StoreIds.size());
         for (const auto& storeId : task->StoreIds) {
             auto store = tablet->FindStore(storeId);
-            if (!store || !eden->Stores().has(store->AsSorted())) {
+            if (!store || !eden->Stores().contains(store->AsSorted())) {
                 LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
                 return;
             }
@@ -1161,7 +1161,7 @@ private:
         stores.reserve(task->StoreIds.size());
         for (const auto& storeId : task->StoreIds) {
             auto store = tablet->FindStore(storeId);
-            if (!store || !partition->Stores().has(store->AsSorted())) {
+            if (!store || !partition->Stores().contains(store->AsSorted())) {
                 LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
                 return;
             }

@@ -238,7 +238,7 @@ protected:
 
         // First check.
         for (const auto& inputChunk : CreatedUnversionedChunks_) {
-            if (teleportChunksSet.has(inputChunk)) {
+            if (teleportChunksSet.contains(inputChunk)) {
                 continue;
             }
             TKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasKey()
@@ -340,7 +340,7 @@ protected:
                         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                             auto chunk = chunkSlice->GetInputChunk();
                             EXPECT_TRUE(chunk);
-                            EXPECT_TRUE(ActiveChunks_.has(chunk->ChunkId()));
+                            EXPECT_TRUE(ActiveChunks_.contains(chunk->ChunkId()));
                         }
                     }
                 }
