@@ -1,51 +1,7 @@
-import pytest
-
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt_helpers import ProfileMetric
 
-from yt.environment.helpers import assert_items_equal
-
-from sys import stderr
-
-##################################################################
-
-# This class provides effective means for getting information from YT
-# profiling information exported via Orchid. Wrap some calculations into "with"
-# section using it as a context manager, and then call `get` method of the
-# remaining Profile object to get exactly the slice of given profiling path
-# corresponding to the time spend in "with" section.
-class Profile(object):
-    def __init__(self, node, path):
-        self.path = "//sys/nodes/{0}/orchid/profiling/{1}".format(node, path)
-
-    def _get(self):
-        try:
-            return get(self.path)
-        except YtError:
-            return []
-
-    def __enter__(self):
-        self.len_on_enter = len(self._get())
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            # False return value makes python re-raise the exception happened inside "with" section.
-            return False
-        else:
-            self.profile = self._get()
-
-    def get(self):
-        return self.profile[self.len_on_enter:]
-
-    def total(self):
-        return sum(event["value"] for event in self.get())
-
-    def _up_to_moment(self, i):
-        return self.profile[i - 1]["value"] if i > 0 else 0
-
-    def differentiate(self):
-        return self._up_to_moment(len(self.profile)) - self._up_to_moment(self.len_on_enter)
 
 def clear_everything_after_test(func):
     def wrapped(*args, **kwargs):
@@ -103,7 +59,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
 
     @clear_everything_after_test
     def test_no_distribution(self):
-        with Profile(self.seed, "data_node/p2p/distributed_block_size") as p:
+        with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
             self._access()
             self._access()
             time.sleep(2)
@@ -111,7 +67,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
 
     @clear_everything_after_test
     def test_simple_distribution(self):
-        with Profile(self.seed, "data_node/p2p/distributed_block_size") as p:
+        with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
             self._access()
             self._access()
             self._access()
@@ -124,7 +80,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
             set("//sys/nodes/{0}/@user_tags".format(non_seed), ["tag42"])
         # Wait for node directory to become updated.
         time.sleep(2)
-        with Profile(self.seed, "data_node/p2p/distributed_block_size") as p:
+        with ProfileMetric.at_node(self.seed, "data_node/p2p/distributed_block_size") as p:
             self._access()
             self._access()
             self._access()
@@ -155,10 +111,10 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
 
     @clear_everything_after_test
     def test_wow_block_so_hot_such_much_requests(self):
-        with Profile(self.seed, "data_node/block_cache/compressed_data/hit") as ps, \
-            Profile(self.non_seeds[0], "data_node/block_cache/compressed_data/hit") as pns0, \
-            Profile(self.non_seeds[1], "data_node/block_cache/compressed_data/hit") as pns1, \
-            Profile(self.non_seeds[2], "data_node/block_cache/compressed_data/hit") as pns2:
+        with ProfileMetric.at_node(self.seed, "data_node/block_cache/compressed_data/hit") as ps, \
+            ProfileMetric.at_node(self.non_seeds[0], "data_node/block_cache/compressed_data/hit") as pns0, \
+            ProfileMetric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit") as pns1, \
+            ProfileMetric.at_node(self.non_seeds[2], "data_node/block_cache/compressed_data/hit") as pns2:
             for i in range(300):
                 self._access()
         assert ps.differentiate() > 0
