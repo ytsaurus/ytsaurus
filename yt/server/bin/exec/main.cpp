@@ -160,7 +160,7 @@ protected:
         }
 
         if (!executorError.IsOK()) {
-            fprintf(stderr, "Failed to prepare pipes, unexpected executor error\n%s", ~ToString(executorError));
+            fprintf(stderr, "Failed to prepare pipes, unexpected executor error\n%s", ToString(executorError).data());
             Exit(3);
             return;
         }

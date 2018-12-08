@@ -53,7 +53,7 @@ void TSafeUrlBuilder::AppendParam(TStringBuf key, TStringBuf value)
 
     char* safeBegin = SafeUrl_.Preallocate(size);
     char* safeEnd = safeBegin;
-    if (PrivateUrlParams.has(key)) {
+    if (PrivateUrlParams.contains(key)) {
         memcpy(safeEnd, realBegin, realIt - realBegin);
         safeEnd += realIt - realBegin;
         memcpy(safeEnd, "***", 3);

@@ -150,7 +150,7 @@ TValue TDocument::ToValue(const INodePtr& node)
         case ENodeType::String:
             {
                 auto& string = node->AsString()->GetValue();
-                result.SetString(~string, +string);
+                result.SetString(string.data(), string.size());
                 return result;
             }
 
