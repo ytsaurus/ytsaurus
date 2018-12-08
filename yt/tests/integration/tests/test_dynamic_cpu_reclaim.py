@@ -2,7 +2,9 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, wait, require_ytserver_root_privileges
 from yt_commands import *
+from yt_helpers import ProfileMetric
 
+import copy
 
 SPEC_WITH_CPU_MONITOR = {
     "job_cpu_monitor": {
@@ -17,6 +19,77 @@ SPEC_WITH_CPU_MONITOR = {
 
 
 @require_ytserver_root_privileges
+class TestAggregatedCpuMetrics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "cgroups",
+                    "supported_cgroups": ["cpu", "cpuacct"]
+                }
+            },
+            "scheduler_connector": {
+                "heartbeat_period": 100
+            },
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "running_jobs_update_period": 10,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_metrics_report_period": 100,
+        }
+    }
+
+    def test_sleeping(self):
+        with ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100") as smoothed_cpu, \
+                ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_max_cpu_usage_x100") as max_cpu, \
+                ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_preemptable_cpu_x100") as preemptable_cpu:
+            run_test_vanilla(": ;", SPEC_WITH_CPU_MONITOR).track()
+
+        print smoothed_cpu.differentiate()
+        print max_cpu.differentiate()
+        print preemptable_cpu.differentiate()
+
+        assert smoothed_cpu.differentiate() > 0
+        assert smoothed_cpu.differentiate() < max_cpu.differentiate()
+        assert preemptable_cpu.differentiate() > 0
+
+    def test_busy(self):
+        spec = copy.deepcopy(SPEC_WITH_CPU_MONITOR)
+        spec["job_cpu_monitor"]["min_cpu_limit"] = 1
+
+        with ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100") as smoothed_cpu, \
+                ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_max_cpu_usage_x100") as max_cpu, \
+                ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_preemptable_cpu_x100") as preemptable_cpu:
+            op = run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), spec)
+            wait_breakpoint()
+            release_breakpoint()
+            time.sleep(0.2)
+            op.abort()
+
+        print smoothed_cpu.differentiate()
+        print max_cpu.differentiate()
+        print preemptable_cpu.differentiate()
+
+        assert smoothed_cpu.differentiate() > 0
+        assert smoothed_cpu.differentiate() < max_cpu.differentiate()
+        assert preemptable_cpu.differentiate() == 0
+
+
+@require_ytserver_root_privileges
 class TestDynamicCpuReclaim(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -27,7 +100,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "cgroups",
-                    "supported_cgroups": ["cpu", "cpuacct", "blkio"]
+                    "supported_cgroups": ["cpu", "cpuacct"]
                 }
             },
             "job_controller": {
@@ -96,7 +169,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "cgroups",
-                    "supported_cgroups": ["cpu", "cpuacct", "blkio"]
+                    "supported_cgroups": ["cpu", "cpuacct"]
                 }
             },
             "job_controller": {

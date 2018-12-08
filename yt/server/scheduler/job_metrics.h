@@ -34,8 +34,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, TimeCompleted);
     DEFINE_BYVAL_RW_PROPERTY(i64, TimeAborted);
 
-    DEFINE_BYVAL_RW_PROPERTY(i64, SmoothedCpuUsage);
-    DEFINE_BYVAL_RW_PROPERTY(i64, PreemptableCpu);
+    DEFINE_BYVAL_RW_PROPERTY(i64, AggregatedSmoothedCpuUsage);
+    DEFINE_BYVAL_RW_PROPERTY(i64, AggregatedMaxCpuUsage);
+    DEFINE_BYVAL_RW_PROPERTY(i64, AggregatedPreemptableCpu);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalTime);
     DEFINE_BYVAL_RW_PROPERTY(i64, ExecTime);
