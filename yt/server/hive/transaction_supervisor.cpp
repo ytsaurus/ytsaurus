@@ -837,6 +837,9 @@ private:
 
         auto considerParticipant = [&] (const auto& weakParticipant) {
             if (auto participant = weakParticipant.Lock()) {
+                if (participant->GetCellId() == SelfCellId_) {
+                    return;
+                }
                 if (!participant->IsUp()) {
                     result.push_back(participant->GetCellId());
                 }
