@@ -226,7 +226,7 @@ TAttributeSchema* TAttributeSchema::SetProtobufSetter(const TScalarAttributeSche
                 auto protobufWriter = NYson::CreateProtobufWriter(
                     &outputStream,
                     NYson::ReflectProtobufMessageType<TTypedValue>());
-                NYTree::VisitTree(value, protobufWriter.get());
+                NYTree::VisitTree(value, protobufWriter.get(), true);
             } else {
                 // TODO(babenko): optimize
                 auto oldProtobuf = attribute->Load();
@@ -244,7 +244,7 @@ TAttributeSchema* TAttributeSchema::SetProtobufSetter(const TScalarAttributeSche
                 auto protobufWriter = NYson::CreateProtobufWriter(
                     &outputStream,
                     NYson::ReflectProtobufMessageType<TTypedValue>());
-                NYTree::VisitTree(node, protobufWriter.get());
+                NYTree::VisitTree(node, protobufWriter.get(), true);
             }
             if (object->GetState() == EObjectState::Creating && schema.Initializer) {
                 schema.Initializer(transaction, typedObject, &protobuf);
