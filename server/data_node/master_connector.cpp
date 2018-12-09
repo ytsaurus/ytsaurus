@@ -542,19 +542,40 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         locationStatistics->set_throttling_writes(location->IsWriteThrottling());
         locationStatistics->set_sick(location->IsSick());
 
-        auto& mediumStatistics = mediaStatistics[mediumIndex];
-        if (location->IsEnabled() && !location->IsFull() && !location->IsSick()) {
+        if (IsLocationWriteable(location)) {
+            auto& mediumStatistics = mediaStatistics[mediumIndex];
             ++mediumStatistics.IOWeight;
         }
     }
 
     for (const auto& pair : mediaStatistics) {
         int mediumIndex = pair.first;
-        const auto& mediumStatisitcs = pair.second;
+        const auto& mediumStatistics = pair.second;
         auto* protoStatistics = result->add_media();
         protoStatistics->set_medium_index(mediumIndex);
-        protoStatistics->set_io_weight(mediumStatisitcs.IOWeight);
+        protoStatistics->set_io_weight(mediumStatistics.IOWeight);
     }
+}
+
+bool TMasterConnector::IsLocationWriteable(const TStoreLocationPtr& location)
+{
+    if (!location->IsEnabled()) {
+        return false;
+    }
+
+    if (location->IsFull()) {
+        return false;
+    }
+
+    if (location->IsSick()) {
+        return false;
+    }
+
+    if (location->GetMaxPendingIOSize(EIODirection::Write) > Config_->DiskWriteThrottlingLimit) {
+        return false;
+    }
+
+    return true;
 }
 
 void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
@@ -753,7 +774,6 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     auto tabletSnapshots = slotManager->GetTabletSnapshots();
     for (const auto& tabletSnapshot : tabletSnapshots) {
         if (CellTagFromId(tabletSnapshot->TabletId) == cellTag) {
-
             auto* protoTabletInfo = request->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletSnapshot->TabletId);
 
@@ -768,6 +788,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->RuntimeData->LastWriteTimestamp);
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
             protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
+            protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->RuntimeData->ModificationTime));
+            protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->RuntimeData->AccessTime));
 
             ToProto(protoTabletInfo->mutable_errors(), tabletSnapshot->RuntimeData->Errors);
 

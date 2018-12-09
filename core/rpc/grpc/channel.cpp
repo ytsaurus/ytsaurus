@@ -54,13 +54,13 @@ public:
         TGrpcChannelArgs args(Config_->GrpcArguments);
         if (Config_->Credentials) {
             Credentials_ = LoadChannelCredentials(Config_->Credentials);
-            Channel_= TGrpcChannelPtr(grpc_secure_channel_create(
+            Channel_ = TGrpcChannelPtr(grpc_secure_channel_create(
                 Credentials_.Unwrap(),
                 Config_->Address.c_str(),
                 args.Unwrap(),
                 nullptr));
         } else {
-            Channel_= TGrpcChannelPtr(grpc_insecure_channel_create(
+            Channel_ = TGrpcChannelPtr(grpc_insecure_channel_create(
                 Config_->Address.c_str(),
                 args.Unwrap(),
                 nullptr));

@@ -76,11 +76,12 @@ TUserStatistics operator + (const TUserStatistics& lhs, const TUserStatistics& r
 TUser::TUser(const TUserId& id)
     : TSubject(id)
     , Banned_(false)
-    , RequestRateLimit_(100)
     , RequestQueueSizeLimit_(100)
     , RequestQueueSize_(0)
     , LocalStatisticsPtr_(nullptr)
     , RequestStatisticsUpdateIndex_(-1)
+    , ReadRequestRateLimit_(100)
+    , WriteRequestRateLimit_(100)
 { }
 
 void TUser::Save(NCellMaster::TSaveContext& context) const
@@ -89,7 +90,8 @@ void TUser::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     Save(context, Banned_);
-    Save(context, RequestRateLimit_);
+    Save(context, ReadRequestRateLimit_);
+    Save(context, WriteRequestRateLimit_);
     Save(context, RequestQueueSizeLimit_);
     Save(context, MulticellStatistics_);
     Save(context, ClusterStatistics_);
@@ -101,7 +103,15 @@ void TUser::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Banned_);
-    Load(context, RequestRateLimit_);
+    // COMPAT(aozeritsky)
+    if (context.GetVersion() < 815) {
+        auto requestRateLimit = Load<int>(context);
+        ReadRequestRateLimit_ = requestRateLimit;
+        WriteRequestRateLimit_ = requestRateLimit;
+    } else {
+        Load(context, ReadRequestRateLimit_);
+        Load(context, WriteRequestRateLimit_);
+    }
     Load(context, RequestQueueSizeLimit_);
     Load(context, MulticellStatistics_);
     Load(context, ClusterStatistics_);
@@ -126,6 +136,31 @@ void TUser::RecomputeClusterStatistics()
         ClusterStatistics_ += pair.second;
     }
 }
+
+int TUser::GetRequestRateLimit(EUserWorkloadType type) {
+    switch (type) {
+        case EUserWorkloadType::Read:
+            return ReadRequestRateLimit_;
+        case EUserWorkloadType::Write:
+            return WriteRequestRateLimit_;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type) {
+    switch (type) {
+        case EUserWorkloadType::Read:
+            ReadRequestRateLimit_ = limit;
+            break;
+        case EUserWorkloadType::Write:
+            WriteRequestRateLimit_ = limit;
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

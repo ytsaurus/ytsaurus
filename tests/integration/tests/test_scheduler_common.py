@@ -14,9 +14,11 @@ from flaky import flaky
 
 import pprint
 import random
+import socket
 import sys
 import time
 import __builtin__
+
 from collections import defaultdict
 
 ##################################################################
@@ -522,6 +524,58 @@ class TestUserFiles(YTEnvSetup):
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
+    def test_unlinked_file(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/test_file"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+        tx = start_transaction(timeout=30000)
+        file_id = get(file + "/@id")
+        assert lock(file, mode="snapshot", tx=tx)
+        remove(file)
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat my_file; cat",
+            file=[to_yson_type("#" + file_id, attributes={"file_name": "my_file"})],
+            verbose=True)
+
+        with pytest.raises(YtError):
+            # Cannot infer file name error.
+            map(in_="//tmp/t_input",
+                out=["//tmp/t_output"],
+                command="cat my_file; cat",
+                file=[to_yson_type("#" + file)],
+                spec={"max_failed_job_count": 1},
+                verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"value": 42}, {"hello": "world"}]
+
+    def test_file_names_priority(self):
+        create("table", "//tmp/input")
+        write_table("//tmp/input", {"foo": "bar"})
+        create("table", "//tmp/output")
+
+        file1 = "//tmp/file1"
+        file2 = "//tmp/file2"
+        file3 = "//tmp/file3"
+        for f in [file1, file2, file3]:
+            create("file", f)
+            write_file(f, "{{name=\"{}\"}};\n".format(f))
+        set(file2 + "/@file_name", "file2_name_in_attribute")
+        set(file3 + "/@file_name", "file3_name_in_attribute")
+
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command="cat > /dev/null; cat file1; cat file2_name_in_attribute; cat file3_name_in_path",
+            file=[file1, file2, to_yson_type(file3, attributes={"file_name": "file3_name_in_path"})])
+
+        assert read_table("//tmp/output") == [{"name": "//tmp/file1"}, {"name": "//tmp/file2"}, {"name": "//tmp/file3"}]
+
     @unix_only
     def test_with_user_files(self):
         create("table", "//tmp/input")
@@ -569,7 +623,6 @@ class TestUserFiles(YTEnvSetup):
                 out="//tmp/output",
                 command="cat",
                 file=["//tmp/table_file"])
-
 
     @unix_only
     def test_empty_user_files(self):
@@ -2676,6 +2729,12 @@ class TestSchedulerGpu(YTEnvSetup):
         assert len(jobs) == 1
         assert jobs.values()[0]["address"] == gpu_node
 
+    def test_min_share_resources(self):
+        create("map_node", "//sys/pools/gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
+        gpu_pool_orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools/gpu_pool"
+        wait(lambda: exists(gpu_pool_orchid_path))
+        wait(lambda: get(gpu_pool_orchid_path + "/min_share_resources/gpu") == 1)
+        wait(lambda: get(gpu_pool_orchid_path + "/recursive_min_share_ratio") == 1.0)
 
 ##################################################################
 
@@ -3482,6 +3541,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
+        write_table("<append=%true>//tmp/t_in", [{"b": 0}])
         for i in range(40):
             write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
@@ -3499,7 +3559,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         op = map(dont_track=True,
                  in_="//tmp/t_in",
                  out="<sorted_by=[a]>//tmp/t_out",
-                 command=events.wait_event_cmd("start") + '; python -c "print \'{a=\' + \'x\' * 250 * 1024 + \'}\'"',
+                 command=events.wait_event_cmd("start") + '; grep b - && sleep 3600 || python -c "print \'{a=\' + \'x\' * 250 * 1024 + \'}\'"',
                  spec={
                      "data_size_per_job": 1,
                      "job_io": {"table_writer": {"max_key_weight": 256 * 1024}}
@@ -3525,14 +3585,16 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         wait(check)
 
-        # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
-        # resulting in about 20mb of memory.
+        # After all jobs are finished, controller should contain at least 40
+        # pairs of boundary keys of length 250kb, resulting in about 20mb of
+        # memory. First job should stuck, protecting this check from the race
+        # against operation completion.
         wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 10 * 10**6 and
                      get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 10 * 10**6)
 
         assert get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6
 
-        op.track()
+        op.abort()
 
         time.sleep(5)
 
@@ -3694,6 +3756,41 @@ class TestPorts(YTEnvSetup):
         assert ports[0] != ports[1]
 
         assert all(port >= 20000 and port < 20003 for port in ports)
+
+    def test_preliminary_bind(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"a": 1}])
+
+        server_socket = None
+        try:
+            server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            server_socket.bind(("::1", 20001))
+
+            # We run test several times to make sure that ports did not stuck inside node.
+            for iteration in range(3):
+                if iteration in [0, 1]:
+                    expected_ports = [{"port": 20000}, {"port": 20002}]
+                else:
+                    server_socket.close()
+                    server_socket = None
+                    expected_ports = [{"port": 20000}, {"port": 20001}]
+
+                map(in_="//tmp/t_in",
+                    out="//tmp/t_out",
+                    command='echo "{port=$YT_PORT_0}; {port=$YT_PORT_1}"',
+                    spec={
+                        "mapper": {
+                            "port_count": 2,
+                            "format": "yson",
+                        }
+                    })
+
+                ports = read_table("//tmp/t_out")
+                assert ports == expected_ports
+        finally:
+            if server_socket is not None:
+                server_socket.close()
 
 class TestNewLivePreview(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -4017,45 +4114,3 @@ class TestOperationAliasesRpc(TestOperationAliasesBase):
 
     def test_get_operation_latest_archive_version(self):
         self._test_get_operation_latest_archive_version()
-
-
-@require_ytserver_root_privileges
-class TestDynamicCpuAdjustment(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_SCHEDULERS = 1
-    NUM_NODES = 1
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_cpu_monitor": {
-                "check_period": 10,
-                "smoothing_factor": 0.05,
-                "vote_window_size": 10,
-                "vote_decision_threshold": 5,
-                "min_cpu_limit": 0.1,
-            },
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": ["cpu", "cpuacct", "blkio"]
-                }
-            }
-        }
-    }
-
-    def test_dynamic_cpu_adjustment(self):
-        run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"))
-        job_id = wait_breakpoint()[0]
-        time.sleep(0.1)
-
-        node = ls("//sys/nodes")[0]
-        stats_path = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy/".format(node, job_id)
-        min_cpu_limit = self.DELTA_NODE_CONFIG["exec_agent"]["job_cpu_monitor"]["min_cpu_limit"]
-
-        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] <= 15)
-        wait(lambda: get(stats_path + "preemptable_cpu_x100")["max"] >= 85)
-
-        release_breakpoint()
-
-        wait(lambda: get(stats_path + "smoothed_cpu_usage_x100")["max"] >= 85)
-        wait(lambda: get(stats_path + "preemptable_cpu_x100")["max"] == 0)

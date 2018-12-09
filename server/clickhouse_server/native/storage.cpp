@@ -716,7 +716,7 @@ TMaybe<TRevision> TStorage::DoGetObjectRevision(
     }
 
     const auto node = ConvertToNode(rspOrError.Value());
-    return node->AsInt64()->GetValue();
+    return node->GetType() == ENodeType::Int64 ? node->AsInt64()->GetValue() : node->AsUint64()->GetValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

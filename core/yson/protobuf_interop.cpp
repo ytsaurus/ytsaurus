@@ -1744,6 +1744,7 @@ private:
 
     bool ParseAttributeDictionary()
     {
+        // XXX
         auto throwUnexpectedWireType = [&] (WireFormatLite::WireType actualWireType) {
             THROW_ERROR_EXCEPTION("Invalid wire type %v while parsing attribute dictionary %v",
                 static_cast<int>(actualWireType),

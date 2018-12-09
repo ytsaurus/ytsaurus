@@ -80,6 +80,8 @@ public:
     TDuration BanCacheExpirationTime;
     int ConcurrencyLimit;
 
+    bool DisableCorsCheck;
+
     TApiConfig()
     {
         RegisterParameter("ban_cache_expiration_time", BanCacheExpirationTime)
@@ -87,6 +89,9 @@ public:
 
         RegisterParameter("concurrency_limit", ConcurrencyLimit)
             .Default(1024);
+
+        RegisterParameter("disable_cors_check", DisableCorsCheck)
+            .Default(false);
     }
 };
 

@@ -18,7 +18,6 @@ class Timer(object):
         self._running = False
         self._extra_info = None
         self._process = psutil.Process()
-        self._process.cpu_affinity([0])
 
     def start(self):
         assert not self._running

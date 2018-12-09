@@ -31,13 +31,18 @@ public:
         TUser* user,
         const TUserWorkload& workload);
 
-    TFuture<void> ThrottleUser(
+    TFuture<void> ThrottleUserReadRequest(
+        TUser* user,
+        int requestCount);
+
+    TFuture<void> ThrottleUserWriteRequest(
         TUser* user,
         int requestCount);
 
     void SetUserRequestRateLimit(
         TUser* user,
-        int limit);
+        int limit,
+        EUserWorkloadType type);
 
     void ReconfigureUserRequestRateThrottler(TUser* user);
 

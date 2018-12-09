@@ -47,9 +47,7 @@ TCommitterBase::TCommitterBase(
     , EpochContext_(epochContext)
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
-    , Profiler(NProfiling::TProfiler(
-        HydraProfiler.GetPathPrefix(),
-        Options_.ProfilingTagIds))
+    , Profiler(HydraProfiler.AddTags(Options_.ProfilingTagIds))
 {
     YCHECK(Config_);
     YCHECK(DecoratedAutomaton_);

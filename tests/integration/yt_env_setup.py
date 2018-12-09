@@ -493,6 +493,11 @@ class YTEnvSetup(object):
             cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
             cls.remote_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
 
+        latest_run_path = os.path.join(path_to_test, "run_latest")
+        if os.path.exists(latest_run_path):
+            os.remove(latest_run_path)
+        os.symlink(cls.path_to_run, latest_run_path)
+
         yt_commands.is_multicell = cls.NUM_SECONDARY_MASTER_CELLS > 0
         yt_commands.path_to_run_tests = cls.path_to_run
         yt_commands.init_drivers([cls.Env] + cls.remote_envs)

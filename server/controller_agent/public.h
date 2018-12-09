@@ -152,6 +152,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
 
 DEFINE_ENUM(EErrorCode,
     ((AgentCallFailed)             (4400))
+    ((NoOnlineNodeToScheduleJob)   (4410))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

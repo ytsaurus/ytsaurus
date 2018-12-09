@@ -60,7 +60,7 @@ public:
     explicit TImpl(TDataNodeConfigPtr config)
         : TAsyncSlruCacheBase(
             config->ChangelogReaderCache,
-            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/changelog_cache"))
+            DataNodeProfiler.AppendPath("/changelog_cache"))
         , Config_(config)
     { }
 

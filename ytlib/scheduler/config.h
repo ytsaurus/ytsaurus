@@ -81,6 +81,7 @@ public:
     TNullable<double> Cpu;
     TNullable<int> Network;
     TNullable<i64> Memory;
+    TNullable<int> Gpu;
 
     TResourceLimitsConfig();
 };
@@ -237,7 +238,10 @@ public:
     //! Operation's job will be scheduled to these pool trees as long as they're
     //! not much slower than those in other (non-tentative) trees.
     //! If TentativePoolTrees is not empty, PoolTrees must not be empty, too.
-    THashSet<TString> TentativePoolTrees;
+    TNullable<THashSet<TString>> TentativePoolTrees;
+
+    //! Enables using default tentative pool trees from scheduler config. It has effect only if TentativePoolTrees is not specified.
+    bool UseDefaultTentativePoolTrees;
 
     // Config for tentative pool tree eligibility - the part of the scheduler that decides
     // whether a job should (or shouldn't) be launched in a pool tree marked as tentative.
@@ -585,6 +589,8 @@ public:
 
     TNullable<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
+
+    TJobCpuMonitorConfigPtr JobCpuMonitor;
 
     TOperationWithUserJobSpec();
 };
@@ -1068,6 +1074,34 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobCpuMonitorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableCpuReclaim;
+
+    TDuration CheckPeriod;
+
+    double SmoothingFactor;
+
+    double RelativeUpperBound;
+    double RelativeLowerBound;
+
+    double IncreaseCoefficient;
+    double DecreaseCoefficient;
+
+    int VoteWindowSize;
+    int VoteDecisionThreshold;
+
+    double MinCpuLimit;
+
+    TJobCpuMonitorConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

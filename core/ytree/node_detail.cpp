@@ -57,8 +57,8 @@ void TNodeBase::GetSelf(
     VisitTree(
         this,
         &writer,
-        attributeKeys,
-        false);
+        false,
+        attributeKeys);
 
     writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {

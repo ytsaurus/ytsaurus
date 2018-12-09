@@ -52,6 +52,11 @@ public:
         return Table->Name;
     }
 
+    virtual QueryProcessingStage::Enum getQueryProcessingStage(const Context&) const
+    {
+        return QueryProcessingStage::WithMergeableState;
+    }
+
 private:
     const DB::NamesAndTypesList& ListVirtualColumns() const override
     {

@@ -32,6 +32,8 @@ message TTabletStatistics
     optional uint64 last_write_timestamp = 9;
     optional uint64 unflushed_timestamp = 8;
     optional int64 dynamic_memory_pool_size = 10 [default = 0];
+    optional uint64 modification_time = 11;
+    optional uint64 access_time = 12;
 }
 
 message TTabletPerformanceCounters

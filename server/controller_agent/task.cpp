@@ -650,7 +650,9 @@ void TTask::DoCheckResourceDemandSanity(
     if (!Dominates(*TaskHost_->CachedMaxAvailableExecNodeResources(), neededResources.ToJobResources())) {
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
-            TError("No online node can satisfy the resource demand")
+            TError(
+                EErrorCode::NoOnlineNodeToScheduleJob,
+                "No online node can satisfy the resource demand")
                 << TErrorAttribute("task_name", GetTitle())
                 << TErrorAttribute("needed_resources", neededResources.ToJobResources()));
     }
@@ -884,6 +886,12 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             schedulerJobSpecExt->input_row_count() *
             ApproximateSizesBoostFactor));
     }
+
+    auto operationWithUserJobSpec = dynamic_cast<TOperationWithUserJobSpec*>(TaskHost_->GetSpec().Get());
+    auto jobCpuMonitorConfig = operationWithUserJobSpec
+        ? operationWithUserJobSpec->JobCpuMonitor
+        : New<TJobCpuMonitorConfig>();
+    schedulerJobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(jobCpuMonitorConfig).GetData());
 
     if (schedulerJobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
         TaskHost_->OnOperationFailed(TError(

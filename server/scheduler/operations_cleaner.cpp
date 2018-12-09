@@ -72,6 +72,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     BriefSpec = operation->BriefSpec();
     RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
     Alias = operation->Alias();
+    SlotIndexPerPoolTree = ConvertToYsonString(operation->GetSlotIndices(), EYsonFormat::Binary);
 
     const auto& attributes = operation->ControllerAttributes();
     const auto& initializationAttributes = attributes.InitializeAttributes;
@@ -102,6 +103,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "unrecognized_spec",
         "runtime_parameters",
         "alias",
+        "slot_index_per_pool_tree",
     };
 
     return attributeKeys;
@@ -136,6 +138,7 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
     UnrecognizedSpec = attributes.FindYson("unrecognized_spec");
     RuntimeParameters = attributes.FindYson("runtime_parameters");
     Alias = ConvertTo<TOperationSpecBasePtr>(Spec)->Alias;
+    SlotIndexPerPoolTree = attributes.FindYson("slot_index_per_pool_tree");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,9 +265,6 @@ TUnversionedRow BuildOrderedByIdTableRow(
     builder.AddValue(MakeUnversionedAnyValue(request.Result.GetData(), index.Result));
     builder.AddValue(MakeUnversionedAnyValue(request.Events.GetData(), index.Events));
     builder.AddValue(MakeUnversionedAnyValue(request.Alerts.GetData(), index.Alerts));
-    if (request.SlotIndex) {
-        builder.AddValue(MakeUnversionedInt64Value(*request.SlotIndex, index.SlotIndex));
-    }
     if (version >= 17) {
         if (request.UnrecognizedSpec) {
             builder.AddValue(MakeUnversionedAnyValue(request.UnrecognizedSpec.GetData(), index.UnrecognizedSpec));
@@ -276,6 +276,10 @@ TUnversionedRow BuildOrderedByIdTableRow(
 
     if (version >= 22 && request.RuntimeParameters) {
         builder.AddValue(MakeUnversionedAnyValue(request.RuntimeParameters.GetData(), index.RuntimeParameters));
+    }
+
+    if (version >= 27 && request.SlotIndexPerPoolTree) {
+        builder.AddValue(MakeUnversionedAnyValue(request.SlotIndexPerPoolTree.GetData(), index.SlotIndexPerPoolTree));
     }
 
     return rowBuffer->Capture(builder.GetRow());

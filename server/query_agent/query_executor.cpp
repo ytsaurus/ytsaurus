@@ -241,6 +241,8 @@ public:
             TableId_ = tabletSnapshot->TableId;
             ProfilerTags_ = tabletSnapshot->ProfilerTags;
         }
+
+        tabletSnapshot->RuntimeData->AccessTime = NProfiling::GetInstant();
     }
 
     NProfiling::TTagIdList GetProfilerTags()

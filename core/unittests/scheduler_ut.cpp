@@ -17,6 +17,7 @@
 
 #include <yt/core/misc/lazy_ptr.h>
 
+#include <util/system/compiler.h>
 #include <util/system/thread.h>
 
 #include <exception>
@@ -89,7 +90,13 @@ TEST_W(TSchedulerTest, CheckFiberStack)
 
     WaitFor(asyncResult1).ThrowOnError();
 
-    auto asyncResult2 = BIND(&RecursiveFunction, 20, 0)
+#ifdef _asan_enabled_
+    constexpr size_t tooLargeDepth = 160;
+#else
+    constexpr size_t tooLargeDepth = 20;
+#endif
+
+    auto asyncResult2 = BIND(&RecursiveFunction, tooLargeDepth, 0)
         .AsyncVia(Queue1->GetInvoker())
         .Run();
 

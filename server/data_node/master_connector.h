@@ -214,6 +214,7 @@ private:
     // Implementation details for #ComputeStatistics().
     void ComputeTotalStatistics(NNodeTrackerClient::NProto::TNodeStatistics* result);
     void ComputeLocationSpecificStatistics(NNodeTrackerClient::NProto::TNodeStatistics* statistics);
+    bool IsLocationWriteable(const TStoreLocationPtr& location);
 
     //! Returns |true| if the node is allowed to send a full heartbeat to Node Tracker
     //! of a given #cellTag.

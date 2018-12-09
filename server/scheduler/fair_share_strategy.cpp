@@ -847,11 +847,18 @@ private:
             }
         }
 
-        if (!spec->TentativePoolTrees.empty() && spec->PoolTrees.empty()) {
+        THashSet<TString> tentativePoolTrees;
+        if (spec->TentativePoolTrees) {
+            tentativePoolTrees = *spec->TentativePoolTrees;
+        } else if (spec->UseDefaultTentativePoolTrees) {
+            tentativePoolTrees = Config->DefaultTentativePoolTrees;
+        }
+
+        if (!tentativePoolTrees.empty() && spec->PoolTrees.empty()) {
             THROW_ERROR_EXCEPTION("Regular pool trees must be specified for tentative pool trees to work properly");
         }
 
-        for (const auto& tentativePoolTree : spec->TentativePoolTrees) {
+        for (const auto& tentativePoolTree : tentativePoolTrees) {
             if (spec->PoolTrees.contains(tentativePoolTree)) {
                 THROW_ERROR_EXCEPTION("Regular and tentative pool trees must not intersect");
             }
@@ -870,7 +877,7 @@ private:
         const auto& noTentativePoolOperationTypes = Config->OperationsWithoutTentativePoolTrees;
         if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
             std::vector<TString> presentedTentativePoolTrees;
-            for (const auto& treeId : spec->TentativePoolTrees) {
+            for (const auto& treeId : tentativePoolTrees) {
                 if (FindTree(treeId)) {
                     presentedTentativePoolTrees.push_back(treeId);
                 } else {

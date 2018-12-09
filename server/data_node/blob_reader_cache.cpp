@@ -87,7 +87,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->BlobReaderCache,
-            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/block_reader_cache"))
+            DataNodeProfiler.AppendPath("/block_reader_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
     { }

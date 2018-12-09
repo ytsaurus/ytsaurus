@@ -491,10 +491,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     BeginNodeHeartbeatProcessing(node);
     auto finallyGuard = Finally([&, cancelableContext = CancelableContext_] {
-        if (cancelableContext->IsCanceled()) {
-            return;
+        if (!cancelableContext->IsCanceled()) {
+            EndNodeHeartbeatProcessing(node);
         }
-        EndNodeHeartbeatProcessing(node);
     });
 
     std::vector<TJobPtr> runningJobs;
@@ -1452,7 +1451,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     {
         auto now = GetCpuInstant();
-        std::vector<TJobId> RecentlyFinishedJobsToRemove;
+        std::vector<TJobId> recentlyFinishedJobsToRemove;
         for (const auto& pair : node->RecentlyFinishedJobs()) {
             const auto& jobId = pair.first;
             const auto& jobInfo = pair.second;
@@ -1462,10 +1461,10 @@ void TNodeShard::ProcessHeartbeatJobs(
                     jobId,
                     nodeId,
                     nodeAddress);
-                RecentlyFinishedJobsToRemove.push_back(jobId);
+                recentlyFinishedJobsToRemove.push_back(jobId);
             }
         }
-        for (const auto& jobId : RecentlyFinishedJobsToRemove) {
+        for (const auto& jobId : recentlyFinishedJobsToRemove) {
             RemoveRecentlyFinishedJob(jobId);
         }
     }
@@ -1474,7 +1473,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         YCHECK(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
         // Skip jobs that are not issued by the scheduler.
-        if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast) {
+        if (jobType < FirstSchedulerJobType || jobType > LastSchedulerJobType) {
             continue;
         }
 
@@ -1822,7 +1821,6 @@ void TNodeShard::ProcessScheduledJobs(
 {
     auto* response = &rpcContext->Response();
 
-    std::vector<TFuture<TSharedRef>> asyncJobSpecs;
     for (const auto& job : schedulingContext->StartedJobs()) {
         auto* operationState = FindOperationState(job->GetOperationId());
         if (!operationState) {

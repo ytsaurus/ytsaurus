@@ -52,7 +52,7 @@ BlockInputStreams TStorageDistributed::read(
 
     // Set processing stage
 
-    processedStage = allocation.size() == 1 || settings.distributed_group_by_no_merge
+    processedStage = settings.distributed_group_by_no_merge
         ? QueryProcessingStage::Complete
         : QueryProcessingStage::WithMergeableState;
 
@@ -98,6 +98,17 @@ BlockInputStreams TStorageDistributed::read(
     LOG_DEBUG(Logger, "All block streams created");
 
     return streams;
+}
+
+QueryProcessingStage::Enum TStorageDistributed::getQueryProcessingStage(const Context& context) const
+{
+    const auto& settings = context.getSettingsRef();
+
+    // Set processing stage
+
+    return settings.distributed_group_by_no_merge
+                     ? QueryProcessingStage::Complete
+                     : QueryProcessingStage::WithMergeableState;
 }
 
 TTableAllocation TStorageDistributed::AllocateTablePartsToClusterNodes(

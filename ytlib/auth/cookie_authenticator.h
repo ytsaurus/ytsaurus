@@ -32,7 +32,7 @@ ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
     IBlackboxServicePtr blackboxService);
 
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
-    TAsyncExpiringCacheConfigPtr config,
+    TCachingCookieAuthenticatorConfigPtr config,
     ICookieAuthenticatorPtr authenticator);
 
 NRpc::IAuthenticatorPtr CreateCookieAuthenticatorWrapper(

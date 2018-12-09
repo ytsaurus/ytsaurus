@@ -43,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceLink)
 struct TRequestKey
 {
     NYPath::TYPath TablePath;
-    i64 TableRevision;
+    ui64 TableRevision;
     std::vector<TString> KeyColumns;
 
     NTableClient::TKey ToRow(

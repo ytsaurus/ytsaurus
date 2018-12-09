@@ -294,8 +294,6 @@ public:
     NLogging::TLogConfigPtr JobProxyLogging;
     NTracing::TTraceManagerConfigPtr JobProxyTracing;
 
-    NJobProxy::TJobCpuMonitorConfigPtr JobCpuMonitor;
-
     TDuration SupervisorRpcTimeout;
     TDuration JobProberRpcTimeout;
 
@@ -328,8 +326,6 @@ public:
         RegisterParameter("job_proxy_logging", JobProxyLogging)
             .DefaultNew();
         RegisterParameter("job_proxy_tracing", JobProxyTracing)
-            .DefaultNew();
-        RegisterParameter("job_cpu_monitor", JobCpuMonitor)
             .DefaultNew();
 
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)

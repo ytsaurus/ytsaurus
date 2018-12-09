@@ -92,6 +92,8 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> LastCommitTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
     std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
+    std::atomic<TInstant> ModificationTime = {NProfiling::GetInstant()};
+    std::atomic<TInstant> AccessTime = {TInstant::Zero()};
     std::atomic<i64> DynamicMemoryPoolSize = {0};
     TEnumIndexedVector<TAtomicObject<TError>, NTabletClient::ETabletBackgroundActivity> Errors;
 };
@@ -483,6 +485,8 @@ private:
     i64 TabletLockCount_ = 0;
 
     TTabletCounters* ProfilerCounters_ = nullptr;
+
+    NLogging::TLogger Logger;
 
     NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler_;

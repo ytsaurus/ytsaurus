@@ -74,7 +74,7 @@ private:
     NDriver::IDriverPtr DriverV3_;
     NDriver::IDriverPtr DriverV4_;
 
-    NConcurrency::TActionQueuePtr BlackboxActionQueue_;
+    NConcurrency::TThreadPoolPtr BlackboxThreadPool_;
     NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
     THttpAuthenticatorPtr HttpAuthenticator_;

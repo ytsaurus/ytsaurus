@@ -221,7 +221,7 @@ TCompositeAutomaton::TCompositeAutomaton(
     const NProfiling::TTagIdList& profilingTagIds)
     : Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", cellId))
-    , Profiler(HydraProfiler.GetPathPrefix(), profilingTagIds)
+    , Profiler(HydraProfiler.AddTags(profilingTagIds))
     , AsyncSnapshotInvoker_(asyncSnapshotInvoker)
 { }
 

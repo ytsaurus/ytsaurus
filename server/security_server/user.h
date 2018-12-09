@@ -45,8 +45,8 @@ public:
     // Limits and bans.
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
 
-    DEFINE_BYVAL_RW_PROPERTY(int, RequestRateLimit);
-    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, RequestRateThrottler);
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, ReadRequestRateThrottler);
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, WriteRequestRateThrottler);
 
     DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSizeLimit);
     DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize);
@@ -68,6 +68,13 @@ public:
     TUserStatistics& LocalStatistics();
 
     void RecomputeClusterStatistics();
+
+    int GetRequestRateLimit(EUserWorkloadType);
+    void SetRequestRateLimit(int, EUserWorkloadType);
+
+private:
+    int ReadRequestRateLimit_;
+    int WriteRequestRateLimit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

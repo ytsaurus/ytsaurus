@@ -145,20 +145,20 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
     };
 
     if (!error.IsOK()) {
-        for (auto errCode : retriableCodes) {
-            if (auto retriableError = error.FindMatching(errCode)) {
-                // COMPAT(savrus) Not all above exceptions had tablet_id attribute in early 19.2 versions.
+        for (auto code : retriableCodes) {
+            if (auto retriableError = error.FindMatching(code)) {
+                // COMPAT(savrus): Not all above exceptions had tablet_id attribute in early 19.2 versions.
                 auto tabletId = retriableError->Attributes().Find<TTabletId>("tablet_id");
                 if (!tabletId) {
                     continue;
                 }
                 auto tabletInfo = FindTablet(*tabletId);
                 if (tabletInfo) {
-                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, CellId: %v, MountRevision: %v, Owners:%v)",
+                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, CellId: %v, MountRevision: %llx, Owners: %v)",
                         tabletInfo->TabletId,
                         tabletInfo->CellId,
                         tabletInfo->MountRevision,
-                        MakeFormattableRange(tabletInfo->Owners, [] (TStringBuilder* builder, const TWeakPtr<TTableMountInfo>& weakOwner) {
+                        MakeFormattableRange(tabletInfo->Owners, [] (auto* builder, const auto& weakOwner) {
                             if (auto owner = weakOwner.Lock()) {
                                 FormatValue(builder, owner->Path, TStringBuf());
                             }

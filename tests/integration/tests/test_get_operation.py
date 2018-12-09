@@ -76,6 +76,7 @@ class TestGetOperation(YTEnvSetup):
                 "spec",
                 "unrecognized_spec",
                 "full_spec",
+                "slot_index_per_pool_tree",
             ]
             return {key: attrs[key] for key in PROPER_ATTRS if key in attrs}
 
@@ -138,10 +139,12 @@ class TestGetOperation(YTEnvSetup):
 
         clean_operations(self.Env.create_native_client())
 
-        res_get_operation_archive = get_operation(op.id, attributes=["progress", "state", "runtime_parameters"])
-        assert sorted(list(res_get_operation_archive)) == ["progress", "runtime_parameters", "state"]
+        requesting_attributes = ["progress", "runtime_parameters", "slot_index_per_pool_tree", "state"]
+        res_get_operation_archive = get_operation(op.id, attributes=requesting_attributes)
+        assert sorted(list(res_get_operation_archive)) == requesting_attributes
         assert res_get_operation_archive["state"] == "completed"
         assert res_get_operation_archive["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
+        assert res_get_operation_archive["slot_index_per_pool_tree"]["default"] == 0
         with pytest.raises(YtError):
             get_operation(op.id, attributes=["PYSCH"])
 

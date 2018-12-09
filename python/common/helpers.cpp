@@ -203,7 +203,7 @@ PyObject* TPythonStringCache::GetPythonString(TStringBuf string)
 PyObject* GetYsonTypeClass(const std::string& name)
 {
     // TODO(ignat): Make singleton
-    static PyObject* ysonTypesModule = PyImport_ImportModule("yt.yson.yson_types");
+    static PyObject* ysonTypesModule = PyImport_ImportModuleNoBlock("yt.yson.yson_types");
     if (!ysonTypesModule) {
         throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
     }

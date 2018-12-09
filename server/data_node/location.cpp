@@ -66,17 +66,16 @@ TLocation::TLocation(
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
-    NProfiling::TTagIdList tagIds{
+    Profiler_ = DataNodeProfiler.AddTags({
         profileManager->RegisterTag("location_id", Id_),
         profileManager->RegisterTag("location_type", Type_),
         profileManager->RegisterTag("medium", GetMediumName())
-    };
-    Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+    });
 
     PerformanceCounters_.ThrottledReads = {"/throttled_reads", {}, config->ThrottleCounterInterval};
     PerformanceCounters_.ThrottledWrites = {"/throttled_writes", {}, config->ThrottleCounterInterval};
     PerformanceCounters_.PutBlocksWallTime = {"/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.MetaReadTime = {"/meta_read_time", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobChunkMetaReadTime = {"/blob_chunk_meta_read_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobChunkReaderOpenTime = {"/blob_chunk_reader_open_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockReadSize = {"/blob_block_read_size", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockReadTime = {"/blob_block_read_time", {}, NProfiling::EAggregateMode::All};
@@ -113,8 +112,7 @@ TLocation::TLocation(
         Profiler_,
         NLogging::TLogger(DataNodeLogger).AddTag("LocationId: %v", id));
 
-    auto throttlersProfiler = Profiler_;
-    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
+    auto throttlersProfiler = Profiler_.AppendPath("/location");
 
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
@@ -124,6 +122,7 @@ TLocation::TLocation(
     TabletCompactionAndPartitioningOutThrottler_ = createThrottler(
         config->TabletCompactionAndPartitioningOutThrottler,
         "TabletCompactionAndPartitioningOutThrottler");
+    TabletLoggingOutThrottler_ = createThrottler(config->TabletLoggingOutThrottler, "TabletLoggingOutThrottler");
     TabletPreloadOutThrottler_ = createThrottler(config->TabletPreloadOutThrottler, "TabletPreloadOutThrottler");
     TabletRecoveryOutThrottler_ = createThrottler(config->TabletRecoveryOutThrottler, "TabletRecoveryOutThrottler");
     UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", throttlersProfiler);
@@ -308,13 +307,6 @@ i64 TLocation::GetAvailableSpace() const
     return AvailableSpace_;
 }
 
-double TLocation::GetLoadFactor() const
-{
-    i64 used = GetUsedSpace();
-    i64 quota = GetQuota();
-    return used >= quota ? 1.0 : (double) used / quota;
-}
-
 i64 TLocation::GetPendingIOSize(
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor)
@@ -323,6 +315,17 @@ i64 TLocation::GetPendingIOSize(
 
     auto category = ToIOCategory(workloadDescriptor);
     return GetPendingIOSizeCounter(direction, category).GetCurrent();
+}
+
+i64 TLocation::GetMaxPendingIOSize(EIODirection direction)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    i64 result = 0;
+    for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+        result = std::max(result, GetPendingIOSizeCounter(direction, category).GetCurrent());
+    }
+    return result;
 }
 
 TPendingIOGuard TLocation::IncreasePendingIOSize(
@@ -511,6 +514,9 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
         case EWorkloadCategory::SystemTabletPartitioning:
             return TabletCompactionAndPartitioningOutThrottler_;
 
+        case EWorkloadCategory::SystemTabletLogging:
+             return TabletLoggingOutThrottler_;
+
         case EWorkloadCategory::SystemTabletPreload:
              return TabletPreloadOutThrottler_;
 
@@ -691,8 +697,7 @@ TStoreLocation::TStoreLocation(
         TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
 {
-    auto throttlersProfiler = GetProfiler();
-    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/location");
+    auto throttlersProfiler = GetProfiler().AppendPath("/location");
 
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
@@ -1137,17 +1142,12 @@ TCacheLocation::TCacheLocation(
         config,
         bootstrap)
     , Config_(config)
-    , InThrottler_(CreateReconfigurableThroughputThrottler(config->InThrottler))
-{
-    auto throttlersProfiler = Profiler_;
-    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/cache");
-
-    InThrottler_ =  CreateNamedReconfigurableThroughputThrottler(
-        config->InThrottler,
+    , InThrottler_(CreateNamedReconfigurableThroughputThrottler(
+        Config_->InThrottler,
         "InThrottler",
         Logger,
-        throttlersProfiler);
-}
+        Profiler_.AppendPath("/cache")))
+{ }
 
 IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
 {

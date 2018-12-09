@@ -12,14 +12,14 @@ namespace NYTree {
 void VisitTree(
     INodePtr root,
     NYson::IYsonConsumer* consumer,
-    const TNullable<std::vector<TString>>& attributeKeys = Null,
-    bool stable = false);
+    bool stable,
+    const TNullable<std::vector<TString>>& attributeKeys = Null);
 
 void VisitTree(
     INodePtr root,
     NYson::IAsyncYsonConsumer* consumer,
-    const TNullable<std::vector<TString>>& attributeKeys = Null,
-    bool stable = false);
+    bool stable,
+    const TNullable<std::vector<TString>>& attributeKeys = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 

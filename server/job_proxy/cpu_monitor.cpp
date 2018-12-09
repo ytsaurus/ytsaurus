@@ -9,18 +9,18 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCpuMonitor::TCpuMonitor(
-    TJobCpuMonitorConfigPtr config,
+    NScheduler::TJobCpuMonitorConfigPtr config,
     IInvokerPtr invoker,
-    const double hardCpuLimit,
-    TJobProxy* jobProxy)
-    : HardLimit_(hardCpuLimit)
-    , SoftLimit_(hardCpuLimit)
-    , Config_(std::move(config))
+    TJobProxy* jobProxy,
+    const double hardCpuLimit)
+    : Config_(std::move(config))
     , MonitoringExecutor_(New<NConcurrency::TPeriodicExecutor>(
         invoker,
         BIND(&TCpuMonitor::DoCheck, MakeWeak(this)),
         Config_->CheckPeriod))
     , JobProxy_(jobProxy)
+    , HardLimit_(hardCpuLimit)
+    , SoftLimit_(hardCpuLimit)
     , Logger("CpuMonitor")
 { }
 
@@ -39,12 +39,16 @@ void TCpuMonitor::FillStatistics(NJobTrackerClient::TStatistics& statistics) con
     if (SmoothedUsage_) {
         statistics.AddSample("/job_proxy/smoothed_cpu_usage_x100", static_cast<i64>(*SmoothedUsage_ * 100));
         statistics.AddSample("/job_proxy/preemptable_cpu_x100", static_cast<i64>((HardLimit_ - SoftLimit_) * 100));
+
+        statistics.AddSample("/job_proxy/aggregated_smoothed_cpu_usage_x100", static_cast<i64>(AggregatedSmoothedCpuUsage_ * 100));
+        statistics.AddSample("/job_proxy/aggregated_max_cpu_usage_x100", static_cast<i64>(AggregatedMaxCpuUsage_ * 100));
+        statistics.AddSample("/job_proxy/aggregated_preemptable_cpu_x100", static_cast<i64>(AggregatedPreemptableCpu_ * 100));
     }
 }
 
 void TCpuMonitor::DoCheck()
 {
-    if (!UpdateSmoothedValue()) {
+    if (!TryUpdateSmoothedValue()) {
         return;
     }
     UpdateVotes();
@@ -59,9 +63,11 @@ void TCpuMonitor::DoCheck()
             JobProxy_->SetCpuLimit(*decision);
         }
     }
+
+    UpdateAggregates();
 };
 
-bool TCpuMonitor::UpdateSmoothedValue()
+bool TCpuMonitor::TryUpdateSmoothedValue()
 {
     TDuration totalCpu;
     try {
@@ -74,8 +80,9 @@ bool TCpuMonitor::UpdateSmoothedValue()
     auto now = TInstant::Now();
     bool canCalcSmoothedUsage = LastCheckTime_.HasValue() && LastTotalCpu_.HasValue();
     if (canCalcSmoothedUsage) {
+        CheckedTimeInterval_ = (now - *LastCheckTime_);
         auto deltaCpu = totalCpu - *LastTotalCpu_;
-        auto cpuUsage = deltaCpu / (now - *LastCheckTime_);
+        auto cpuUsage = deltaCpu / *CheckedTimeInterval_;
         auto newSmoothedUsage = SmoothedUsage_.HasValue()
             ? Config_->SmoothingFactor * cpuUsage + (1 - Config_->SmoothingFactor) * *SmoothedUsage_
             : HardLimit_;
@@ -131,6 +138,17 @@ TNullable<double> TCpuMonitor::TryMakeDecision()
         }
     }
     return result;
+}
+
+void TCpuMonitor::UpdateAggregates()
+{
+    if (!CheckedTimeInterval_ || !SmoothedUsage_) {
+        return;
+    }
+    double seconds = static_cast<double>(CheckedTimeInterval_->MicroSeconds()) / 1000 / 1000;
+    AggregatedSmoothedCpuUsage_ += *SmoothedUsage_ * seconds;
+    AggregatedPreemptableCpu_ += (HardLimit_ - SoftLimit_) * seconds;
+    AggregatedMaxCpuUsage_ += HardLimit_ * seconds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

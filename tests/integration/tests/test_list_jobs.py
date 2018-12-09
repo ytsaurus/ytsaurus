@@ -444,21 +444,18 @@ class TestListJobs(YTEnvSetup):
 
         clear_metadata_caches()
 
-        wait_for_cells(ls("//sys/tablet_cells"))
+        wait_for_cells()
 
         mount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
 
         op.track()
 
-        get(op.get_path() + "/jobs")
-
-        time.sleep(1)
-
-        options = dict(data_source="manual", include_cypress=False, include_controller_agent=False, include_archive=True)
-        select_rows("* from [//sys/operations_archive/jobs]")
-        jobs = list_jobs(op.id, running_jobs_lookbehind_period=1000, **options)["jobs"]
-        assert len(jobs) == 1
+        def check():
+            options = dict(data_source="manual", include_cypress=False, include_controller_agent=False, include_archive=True)
+            jobs = list_jobs(op.id, running_jobs_lookbehind_period=1000, **options)["jobs"]
+            return len(jobs) == 1
+        wait(check)
 
     def test_stderrs_and_hash_buckets_storage(self):
         create("table", "//tmp/input")

@@ -585,6 +585,7 @@ print row + table_index
             release_breakpoint(job_id=job_id)
 
         wait(lambda : op.get_job_count("completed") == 2)
+        wait(lambda: exists(operation_path + "/controller_orchid"))
 
         live_preview_data1 = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0")
         live_preview_data2 = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/1")
@@ -1611,7 +1612,6 @@ class TestInputOutputFormats(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -1813,10 +1813,3 @@ print '{hello=world}'
 
 class TestInputOutputFormatsMulticell(TestInputOutputFormats):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-##################################################################
-
-@patch_porto_env_only(TestInputOutputFormats)
-class TestInputOutputFormatsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
-    USE_PORTO_FOR_SERVERS = True

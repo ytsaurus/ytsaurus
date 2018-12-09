@@ -190,6 +190,7 @@
     XX(Rack, rack) \
     XX(Racks, racks) \
     XX(ReadQuorum, read_quorum) \
+    XX(ReadRequestRateLimit, read_request_rate_limit) \
     XX(ReadRequestTime, read_request_time) \
     XX(RecursiveResourceUsage, recursive_resource_usage) \
     XX(RefCounter, ref_counter) \
@@ -204,7 +205,6 @@
     XX(ReplicationStatus, replication_status) \
     XX(RequestCount, request_count) \
     XX(RequestQueueSizeLimit, request_queue_size_limit) \
-    XX(RequestRateLimit, request_rate_limit) \
     XX(Requisition, requisition) \
     XX(ResourceLimits, resource_limits) \
     XX(ResourceLimitsOverrides, resource_limits_overrides) \
@@ -281,6 +281,7 @@
     XX(WeakRefCounter, weak_ref_counter) \
     XX(WithAlertsNodeCount, with_alerts_node_count) \
     XX(WriteQuorum, write_quorum) \
+    XX(WriteRequestRateLimit, write_request_rate_limit) \
     XX(WriteRequestTime, write_request_time)
 
 namespace NYT {

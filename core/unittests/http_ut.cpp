@@ -983,7 +983,7 @@ TEST_P(THttpServerTest, ConnectionKeepAlive)
                 .ThrowOnError();
 
             response->GetStatusCode();
-            auto body = response->ReadBody();
+            auto body = response->ReadAll();
 
             ASSERT_TRUE(response->IsSafeToReuse());
             ASSERT_TRUE(request->IsSafeToReuse());
@@ -1022,7 +1022,7 @@ TEST_P(THttpServerTest, ConnectionKeepAlive)
 
         for (int i = 0; i < 10; ++i) {
             response->GetStatusCode();
-            auto body = response->ReadBody();
+            auto body = response->ReadAll();
 
             ASSERT_TRUE(response->IsSafeToReuse());
             response->Reset();

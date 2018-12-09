@@ -46,7 +46,7 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
         rsp->SetStatus(EStatusCode::OK);
         ProtectCsrfToken(rsp);
 
-        TString csrfSecret = Config_->GetCsrfSecret();
+        auto csrfSecret = Config_->GetCsrfSecret();
         auto csrfToken = SignCsrfToken(result.Value().Login, csrfSecret, TInstant::Now());
 
         ReplyJson(rsp, [&] (NYson::IYsonConsumer* consumer) {
@@ -61,9 +61,7 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
         rsp->SetStatus(EStatusCode::InternalServerError);
         ReplyJson(rsp, [&] (auto consumer) {
             BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("error").Value(TError(result))
-                .EndMap();
+                .Value(TError(result));
         });
     }
 }
@@ -108,18 +106,20 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
             return authResult;
         }
 
-        if (!disableCsrfTokenCheck) {
+        if (request->GetMethod() != EMethod::Get && !disableCsrfTokenCheck) {
             auto csrfTokenHeader = request->GetHeaders()->Find("X-Csrf-Token");
-            if (csrfTokenHeader) {
-                auto error = CheckCsrfToken(
-                    Strip(*csrfTokenHeader),
-                    authResult.Value().Login,
-                    Config_->GetCsrfSecret(),
-                    Config_->GetCsrfTokenExpirationTime());
+            if (!csrfTokenHeader) {
+                return TError(NRpc::EErrorCode::InvalidCredentials, "CSRF token is missing");
+            }
 
-                if (!error.IsOK()) {
-                    return error;
-                }
+            auto error = CheckCsrfToken(
+                Strip(*csrfTokenHeader),
+                authResult.Value().Login,
+                Config_->GetCsrfSecret(),
+                Config_->GetCsrfTokenExpirationTime());
+
+            if (!error.IsOK()) {
+                return error;
             }
         }
 

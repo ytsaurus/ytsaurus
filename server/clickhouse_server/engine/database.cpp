@@ -38,7 +38,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUserTables {
-    Tables Tables;
+    Tables UserTables;
     std::mutex Mutex;
 };
 
@@ -217,8 +217,8 @@ StoragePtr TDatabase::GetTable(
         // lookup for cached tables first
         std::lock_guard<std::mutex> lock(userTables->Mutex);
 
-        auto it = userTables->Tables.find(name);
-        if (it != userTables->Tables.end()) {
+        auto it = userTables->UserTables.find(name);
+        if (it != userTables->UserTables.end()) {
             return it->second;
         }
     }
@@ -240,7 +240,7 @@ StoragePtr TDatabase::GetTable(
         Tables::iterator it;
         bool inserted;
 
-        std::tie(it, inserted) = userTables->Tables.emplace(
+        std::tie(it, inserted) = userTables->UserTables.emplace(
             name,
             std::move(storage));
 

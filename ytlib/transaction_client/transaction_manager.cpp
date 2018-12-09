@@ -289,26 +289,9 @@ public:
 
         YCHECK(Atomicity_ == EAtomicity::Full);
 
-        auto guard = Guard(SpinLock_);
-
-        switch (State_) {
-            case ETransactionState::Committed:
-                THROW_ERROR_EXCEPTION("Transaction %v is already committed",
-                    Id_);
-
-            case ETransactionState::Aborted:
-                THROW_ERROR_EXCEPTION("Transaction %v is already aborted",
-                    Id_);
-
-            case ETransactionState::Active:
-                State_ = ETransactionState::Detached;
-                break;
-
-            case ETransactionState::Detached:
-                return;
-
-            default:
-                Y_UNREACHABLE();
+        {
+            auto guard = Guard(SpinLock_);
+            State_ = ETransactionState::Detached;
         }
 
         LOG_DEBUG("Transaction detached (TransactionId: %v)",

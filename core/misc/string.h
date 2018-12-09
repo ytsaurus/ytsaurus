@@ -159,6 +159,7 @@ struct TDefaultFormatter
 };
 
 extern const TStringBuf DefaultJoinToStringDelimiter;
+extern const TStringBuf DefaultKeyValueDelimiter;
 
 //! Joins a range of items into a string intermixing them with the delimiter.
 /*!

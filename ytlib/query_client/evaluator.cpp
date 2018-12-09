@@ -61,7 +61,7 @@ public:
         IMemoryChunkProviderPtr memoryChunkProvider)
         : TAsyncSlruCacheBase(
             config->CGCache,
-            profiler.GetPathPrefix() ? NProfiling::TProfiler(profiler.GetPathPrefix() + "/cg_cache") : NProfiling::TProfiler())
+            profiler.AppendPath("/cg_cache"))
         , MemoryChunkProvider_(memoryChunkProvider
             ? std::move(memoryChunkProvider)
             : CreateMemoryChunkProvider())

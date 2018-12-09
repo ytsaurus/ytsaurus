@@ -20,7 +20,6 @@ extern const TOperationId NullOperationId;
 // is used as a key of TEnumIndexedVector.
 DEFINE_ENUM(EJobType,
     // Scheduler jobs
-    ((SchedulerFirst)    (  0)) // Sentinel.
     ((Map)               (  1))
     ((PartitionMap)      (  2))
     ((SortedMerge)       (  3))
@@ -38,16 +37,19 @@ DEFINE_ENUM(EJobType,
     ((JoinReduce)        ( 15))
     ((Vanilla)           ( 16))
     ((SchedulerUnknown)  ( 98)) // Used by node to report aborted jobs for which spec request has failed
-    ((SchedulerLast)     ( 99)) // Sentinel.
 
     // Master jobs
-    ((ReplicatorFirst)   (100)) // Sentinel.
     ((ReplicateChunk)    (100))
     ((RemoveChunk)       (101))
     ((RepairChunk)       (102))
     ((SealChunk)         (103))
-    ((ReplicatorLast)    (103)) // Sentinel.
 );
+
+constexpr auto FirstSchedulerJobType = EJobType::Map;
+constexpr auto LastSchedulerJobType = EJobType::SchedulerUnknown;
+
+constexpr auto FirstMasterJobType = EJobType::ReplicateChunk;
+constexpr auto LastMasterJobType = EJobType::SealChunk;
 
 // NB: Please keep the range of values small as this type
 // is used as a key of TEnumIndexedVector.
