@@ -175,7 +175,7 @@ public:
     //! Resumes an earlier suspended mutation logging and logs out all pending mutations.
     void ResumeLogging();
 
-    //! Fowards a given mutation to the leader via RPC.
+    //! Forwards a given mutation to the leader via RPC.
     TFuture<TMutationResponse> Forward(TMutationRequest&& request);
 
 private:

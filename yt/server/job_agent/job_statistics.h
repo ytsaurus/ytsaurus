@@ -56,7 +56,6 @@ using TJobEvents = std::vector<TJobEvent>;
 
 struct TJobStatistics
 {
-public:
     size_t EstimateSize() const;
 
     TJobStatistics ExtractSpec();
@@ -93,6 +92,8 @@ public:
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Stderr)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, FailContext)
 };
+
+#undef DEFINE_FORWARD_RW_PROPERTY
 
 ////////////////////////////////////////////////////////////////////////////////
 
