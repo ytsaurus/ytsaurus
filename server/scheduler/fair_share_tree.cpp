@@ -1178,6 +1178,10 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             PreemptJob(job, operationElement, context);
         }
     }
+
+    if (!Dominates(context->SchedulingContext->ResourceLimits(), context->SchedulingContext->ResourceUsage())) {
+        LOG_INFO("Resource usage exceeds node resorce limits even after preemption.");
+    }
 }
 
 void TFairShareTree::DoScheduleJobs(
@@ -1403,7 +1407,6 @@ bool TFairShareTree::TryAllocatePoolSlotIndex(const TString& poolName, int slotI
 
 void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
 {
-    auto it = PoolToSpareSlotIndices.find(poolName);
     auto slotIndex = state->GetHost()->FindSlotIndex(TreeId);
 
     if (slotIndex) {
@@ -1416,6 +1419,7 @@ void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperatio
             *slotIndex);
     }
 
+    auto it = PoolToSpareSlotIndices.find(poolName);
     if (it == PoolToSpareSlotIndices.end() || it->second.empty()) {
         auto minUnusedIndexIt = PoolToMinUnusedSlotIndex.find(poolName);
         YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex.end());

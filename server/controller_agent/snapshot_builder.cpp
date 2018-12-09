@@ -64,7 +64,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     , IOInvoker_(ioInvoker)
     , ControlInvoker_(GetCurrentInvoker())
     , IncarnationId_(incarnationId)
-    , Profiler(ControllerAgentProfiler.GetPathPrefix() + "/snapshot")
+    , Profiler(ControllerAgentProfiler.AppendPath("/snapshot"))
 {
     YCHECK(Config_);
     YCHECK(Client_);

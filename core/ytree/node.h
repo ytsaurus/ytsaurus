@@ -111,50 +111,93 @@ struct IScalarNode
     virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) = 0;
 };
 
-// Define the actual scalar node types: IStringNode, IInt64Node, IUint64Node, IDoubleNode, IBooleanNode.
-#define DECLARE_SCALAR_TYPE(name, type) \
-    struct I##name##Node \
-        : IScalarNode<type> \
-    { }; \
-    \
-    DEFINE_REFCOUNTED_TYPE(I##name##Node) \
-    \
-    namespace NDetail { \
-    \
-    template <> \
-    struct TScalarTypeTraits<type> \
-    { \
-        typedef I##name##Node TNode; \
-        typedef type TType; \
-        typedef NMpl::TConditional< \
-            NMpl::TIsSame<type, TString>::Value, \
-            /* if-true  */ TStringBuf, \
-            /* if-false */ type \
-        >::TType TConsumerType; \
-        \
-        static const ENodeType NodeType; \
-        \
-        static NMpl::TCallTraits<type>::TType GetValue(const IConstNodePtr& node) \
-        { \
-            return node->As##name()->GetValue(); \
-        } \
-        \
-        static void SetValue(const INodePtr& node, NMpl::TCallTraits<type>::TType value) \
-        { \
-            node->As##name()->SetValue(value); \
-        } \
-    }; \
-    \
-    }
+////////////////////////////////////////////////////////////////////////////////
 
-// Don't forget to define a #TScalarTypeTraits<>::NodeType constant in "node.cpp".
-DECLARE_SCALAR_TYPE(String, TString)
-DECLARE_SCALAR_TYPE(Int64, i64)
-DECLARE_SCALAR_TYPE(Uint64, ui64)
-DECLARE_SCALAR_TYPE(Double, double)
-DECLARE_SCALAR_TYPE(Boolean, bool)
+//! String node.
+struct IStringNode
+    : public IScalarNode<TString>
+{ };
 
-#undef DECLARE_SCALAR_TYPE
+DEFINE_REFCOUNTED_TYPE(IStringNode)
+
+//! Int64 node.
+struct IInt64Node
+    : public IScalarNode<i64>
+{ };
+
+DEFINE_REFCOUNTED_TYPE(IInt64Node)
+
+//! Uint64 node.
+struct IUint64Node
+    : public IScalarNode<ui64>
+{ };
+
+DEFINE_REFCOUNTED_TYPE(IUint64Node)
+
+//! Double node.
+struct IDoubleNode
+    : public IScalarNode<double>
+{ };
+
+DEFINE_REFCOUNTED_TYPE(IDoubleNode)
+
+//! Boolean node.
+struct IBooleanNode
+    : public IScalarNode<bool>
+{ };
+
+DEFINE_REFCOUNTED_TYPE(IBooleanNode)
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+template <>
+struct TScalarTypeTraits<TString>
+{
+    static constexpr ENodeType NodeType = ENodeType::String;
+    using TConsumerType = TStringBuf;
+    static const TString& GetValue(const IConstNodePtr& node);
+    static void SetValue(const INodePtr& node, const TString& value);
+};
+
+template <>
+struct TScalarTypeTraits<i64>
+{
+    static constexpr ENodeType NodeType = ENodeType::Int64;
+    using TConsumerType = i64;
+    static i64 GetValue(const IConstNodePtr& node);
+    static void SetValue(const INodePtr& node, i64 value);
+};
+
+template <>
+struct TScalarTypeTraits<ui64>
+{
+    static constexpr ENodeType NodeType = ENodeType::Uint64;
+    using TConsumerType = ui64;
+    static ui64 GetValue(const IConstNodePtr& node);
+    static void SetValue(const INodePtr& node, ui64 value);
+};
+
+template <>
+struct TScalarTypeTraits<double>
+{
+    static constexpr ENodeType NodeType = ENodeType::Double;
+    using TConsumerType = double;
+    static double GetValue(const IConstNodePtr& node);
+    static void SetValue(const INodePtr& node, double value);
+};
+
+template <>
+struct TScalarTypeTraits<bool>
+{
+    static constexpr ENodeType NodeType = ENodeType::Boolean;
+    using TConsumerType = bool;
+    static bool GetValue(const IConstNodePtr& node);
+    static void SetValue(const INodePtr& node, bool value);
+};
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

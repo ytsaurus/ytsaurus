@@ -5,6 +5,7 @@
 
 #include <yt/core/misc/checkpointable_stream.h>
 #include <yt/core/misc/checkpointable_stream_block_header.h>
+#include <yt/core/misc/serialize.h>
 
 #include <queue>
 
@@ -339,6 +340,30 @@ IAsyncOutputStreamPtr CreateAsyncAdapter(
 {
     YCHECK(underlyingStream);
     return New<TAsyncOutputStreamAdapter>(underlyingStream, std::move(invoker));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef IAsyncZeroCopyInputStream::ReadAll()
+{
+    struct TTag
+    { };
+
+    std::vector<TSharedRef> chunks;
+
+    // TODO(prime@): Add hard limit on body size.
+    while (true) {
+        auto chunk = WaitFor(Read())
+            .ValueOrThrow();
+
+        if (chunk.Empty()) {
+            break;
+        }
+
+        chunks.emplace_back(TSharedRef::MakeCopy<TTag>(chunk));
+    }
+
+    return MergeRefsToRef<TTag>(std::move(chunks));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -109,18 +109,20 @@ class ListOperationsSetup(YTEnvSetup):
 
         create("table", cls._output_path, recursive=True, ignore_existing=True)
 
-        # Create a new pool tree.
-        tag = "other"
-        set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
+        # Setup pool trees.
+        set("//sys/pool_trees/default/@nodes_filter", "!other")
+
+        nodes = ls("//sys/nodes")
+        set("//sys/nodes/" + nodes[0] + "/@user_tags/end", "other")
+
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
         create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", tag)
-
+        create("map_node", "//sys/pool_trees/other/pool_no_running", ignore_existing=True)
+        set("//sys/pool_trees/other/pool_no_running/@max_running_operation_count", 0)
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
 
         # Create users and groups.
-        for i in range(1,5):
+        for i in range(1,6):
             create_user("user{0}".format(i))
         create_group("group1")
         create_group("group2")
@@ -152,6 +154,7 @@ class _TestListOperationsBase(ListOperationsSetup):
     #  3. map_reduce - failed     - user3 -   user3            - True        - [group2]
     #  4. reduce     - aborted    - user3 - [user3, some_pool] - False       - [large_group]
     #  5. sort       - completed  - user4 -   user4            - False       -  []
+    #  6. sort       - pending    - user5 -  pool_no_running   - False       -  []
     # Moreover, |self.op3| is expected to have title "op3 title".
 
     def test_invalid_arguments(self):
@@ -352,14 +355,28 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
     read_from_values = ["cache", "follower"]
     check_failed_jobs_count = True
 
+    @classmethod
+    def setup_class(cls):
+        super(TestListOperationsCypressOnly, cls).setup_class()
+        op6_spec = {
+            "pool_trees": ["other"],
+            "scheduling_options_per_pool_tree": {
+                "other": {"pool": "pool_no_running"},
+            },
+        }
+        before_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
+        cls.op6 = start_op("sort", in_=cls._input_path, out=cls._output_path, dont_track=True, authenticated_user="user5", spec=op6_spec, sort_by="key")
+        cls.op6.before_start_time = before_start_time
+        wait(lambda: get(cls.op6.get_path() + "/@state") == "pending")
+
     def test_no_filters(self, read_from):
         res = list_operations(include_archive=self.include_archive)
-        assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
-        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
-        assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1}
-        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 1}
+        assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1, "pool_no_running": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "user5": 1}
+        assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1, "pending": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 2}
         assert res["failed_jobs_count"] == 1
-        assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
+        assert [op["id"] for op in res["operations"]] == [self.op6.id, self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
     def test_owned_by_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user3", read_from=read_from)
@@ -379,6 +396,21 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
 
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, owned_by="user4", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
+
+    def test_has_failed_jobs_with_pending(self, read_from):
+        res = list_operations(include_archive=self.include_archive, with_failed_jobs=True, read_from=read_from)
+        assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1, "pool_no_running": 1}
+        assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "user5": 1}
+        assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1, "pending": 1}
+        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 2}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        for x in res["operations"]:
+            print(x)
+        assert [op["id"] for op in res["operations"]] == [self.op3.id]
+
+        res = list_operations(include_archive=self.include_archive, with_failed_jobs=False, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op6.id, self.op5.id, self.op4.id, self.op2.id, self.op1.id]
 
 
 class TestListOperationsCypressArchive(_TestListOperationsBase):

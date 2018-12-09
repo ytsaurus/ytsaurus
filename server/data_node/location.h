@@ -55,7 +55,7 @@ struct TLocationPerformanceCounters
     NProfiling::TMonotonicCounter ThrottledWrites;
 
     NProfiling::TAggregateGauge PutBlocksWallTime;
-    NProfiling::TAggregateGauge MetaReadTime;
+    NProfiling::TAggregateGauge BlobChunkMetaReadTime;
     NProfiling::TAggregateGauge BlobChunkReaderOpenTime;
     NProfiling::TAggregateGauge BlobBlockReadSize;
     NProfiling::TAggregateGauge BlobBlockReadTime;
@@ -155,13 +155,13 @@ public:
     //! Never throws.
     i64 GetAvailableSpace() const;
 
-    //! Returns the load factor.
-    double GetLoadFactor() const;
-
     //! Returns the number of bytes pending for disk IO.
     i64 GetPendingIOSize(
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor);
+
+    //! Returns the maximum number of bytes pending for disk IO in given #direction.
+    i64 GetMaxPendingIOSize(EIODirection direction);
 
     //! Acquires a lock for the given number of bytes to be read or written.
     TPendingIOGuard IncreasePendingIOSize(
@@ -204,7 +204,7 @@ public:
     bool IsReadThrottling();
     bool IsWriteThrottling();
 
-    //! |true| if location is sick.
+    //! Returns |true| if location is sick.
     bool IsSick() const;
 
 protected:
@@ -299,7 +299,7 @@ public:
     //! Checks whether the location is full.
     bool IsFull() const;
 
-    //! Checks whether to location has enough space to contain file of size #size
+    //! Checks whether to location has enough space to contain file of size #size.
     bool HasEnoughSpace(i64 size) const;
 
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
@@ -375,7 +375,7 @@ public:
 private:
     const TCacheLocationConfigPtr Config_;
 
-    NConcurrency::IThroughputThrottlerPtr InThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr InThrottler_;
 
     TNullable<TChunkDescriptor> Repair(const TChunkId& chunkId, const TString& metaSuffix);
     virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;

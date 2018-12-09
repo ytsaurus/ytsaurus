@@ -13,7 +13,7 @@
 #include <yt/core/https/server.h>
 
 #include <yt/core/concurrency/thread_pool_poller.h>
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
@@ -112,11 +112,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     driverV4Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(4));
     DriverV4_ = CreateDriver(Connection_, ConvertTo<TDriverConfigPtr>(driverV4Config));
 
-    BlackboxActionQueue_ = New<TActionQueue>("Blackbox");
+    BlackboxThreadPool_ = New<TThreadPool>(16, "Blackbox");
     
     auto authenticationManager = New<NAuth::TAuthenticationManager>(
         Config_->Auth,
-        BlackboxActionQueue_->GetInvoker(),
+        BlackboxThreadPool_->GetInvoker(),
         Client_);
     TokenAuthenticator_ = authenticationManager->GetTokenAuthenticator();
     CookieAuthenticator_ = authenticationManager->GetCookieAuthenticator();

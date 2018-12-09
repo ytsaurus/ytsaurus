@@ -6,6 +6,10 @@
 
 #include <yt/core/misc/config.h>
 
+#include <yt/core/concurrency/config.h>
+
+#include <yt/core/https/config.h>
+
 namespace NYT {
 namespace NAuth {
 
@@ -15,6 +19,15 @@ class TDefaultBlackboxServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TString Host;
+    int Port;
+    bool Secure;
+
+    TDuration RequestTimeout;
+    TDuration AttemptTimeout;
+    TDuration BackoffTimeout;
+    bool UseLowercaseLogin;
+
     TDefaultBlackboxServiceConfig()
     {
         RegisterParameter("host", Host)
@@ -32,15 +45,6 @@ public:
         RegisterParameter("use_lowercase_login", UseLowercaseLogin)
             .Default(true);
     }
-
-    TString Host;
-    ui16 Port;
-    bool Secure;
-
-    TDuration RequestTimeout;
-    TDuration AttemptTimeout;
-    TDuration BackoffTimeout;
-    bool UseLowercaseLogin;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
@@ -51,18 +55,21 @@ class TDefaultTvmServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TString Host;
+    int Port;
+    TString Token;
+
+    TDuration RequestTimeout;
+
     TDefaultTvmServiceConfig()
     {
+        RegisterParameter("host", Host)
+            .Default("localhost");
         RegisterParameter("port", Port);
         RegisterParameter("token", Token);
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(3));
     }
-
-    ui16 Port;
-    TString Token;
-
-    TDuration RequestTimeout;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultTvmServiceConfig)
@@ -82,15 +89,15 @@ class TBlackboxTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TString Scope;
+    bool EnableScopeCheck;
+
     TBlackboxTokenAuthenticatorConfig()
     {
         RegisterParameter("scope", Scope);
         RegisterParameter("enable_scope_check", EnableScopeCheck)
             .Default(true);
     }
-
-    TString Scope;
-    bool EnableScopeCheck;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
@@ -114,9 +121,26 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxTicketAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCachingTokenAuthenticatorConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TAsyncExpiringCacheConfigPtr Cache;
+
+    TCachingTokenAuthenticatorConfig()
+    {
+        RegisterParameter("cache", Cache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachingBlackboxTokenAuthenticatorConfig
     : public TBlackboxTokenAuthenticatorConfig
-    , public TAsyncExpiringCacheConfig
+    , public TCachingTokenAuthenticatorConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxTokenAuthenticatorConfig)
@@ -127,6 +151,11 @@ class TCypressTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    NYPath::TYPath RootPath;
+    TString Realm;
+
+    bool Secure;
+
     TCypressTokenAuthenticatorConfig()
     {
         RegisterParameter("root_path", RootPath)
@@ -137,11 +166,6 @@ public:
         RegisterParameter("secure", Secure)
             .Default(false);
     }
-
-    NYPath::TYPath RootPath;
-    TString Realm;
-
-    bool Secure;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
@@ -149,8 +173,8 @@ DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachingCypressTokenAuthenticatorConfig
-    : public TCypressTokenAuthenticatorConfig
-    , public TAsyncExpiringCacheConfig
+    : public TCachingTokenAuthenticatorConfig
+    , public TCypressTokenAuthenticatorConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
@@ -163,6 +187,11 @@ class TBlackboxCookieAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TString Domain;
+
+    TNullable<TString> CsrfSecret;
+    TDuration CsrfTokenTtl;
+
     TBlackboxCookieAuthenticatorConfig()
     {
         RegisterParameter("domain", Domain)
@@ -173,27 +202,108 @@ public:
         RegisterParameter("csrf_token_ttl", CsrfTokenTtl)
             .Default(DefaultCsrfTokenTtl);
     }
-
-    TString Domain;
-
-    TNullable<TString> CsrfSecret;
-    TDuration CsrfTokenTtl;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingBlackboxCookieAuthenticatorConfig
-    : public TBlackboxCookieAuthenticatorConfig
-    , public TAsyncExpiringCacheConfig
+class TCachingCookieAuthenticatorConfig
+    : public virtual NYTree::TYsonSerializable
 {
 public:
-    TCachingBlackboxCookieAuthenticatorConfig()
-    { }
+    TAsyncExpiringCacheConfigPtr Cache;
+
+    TCachingCookieAuthenticatorConfig()
+    {
+        RegisterParameter("cache", Cache)
+            .DefaultNew();
+    }
 };
 
+DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingBlackboxCookieAuthenticatorConfig
+    : public TBlackboxCookieAuthenticatorConfig
+    , public TCachingCookieAuthenticatorConfig
+{ };
+
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDefaultSecretVaultServiceConfig
+    : public virtual NYT::NYTree::TYsonSerializable
+{
+public:
+    TString Host;
+    int Port;
+    NHttps::TClientConfigPtr HttpClient;
+    TDuration RequestTimeout;
+    TString VaultServiceId;
+
+    TDefaultSecretVaultServiceConfig()
+    {
+        RegisterParameter("host", Host)
+            .Default("vault-api.passport.yandex.net");
+        RegisterParameter("port", Port)
+            .Default(443);
+        RegisterParameter("http_client", HttpClient);
+        RegisterParameter("request_timeout", RequestTimeout)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("vault_service_id", VaultServiceId)
+            .Default("yav");
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDefaultSecretVaultServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBatchingSecretVaultServiceConfig
+    : public virtual NYT::NYTree::TYsonSerializable
+{
+public:
+    TDuration BatchDelay;
+    int MaxSubrequestsPerRequest;
+    NConcurrency::TThroughputThrottlerConfigPtr RequestsThrottler;
+
+    TBatchingSecretVaultServiceConfig()
+    {
+        RegisterParameter("batch_delay", BatchDelay)
+            .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("max_subrequests_per_request", MaxSubrequestsPerRequest)
+            .Default(100)
+            .GreaterThan(0);
+        RegisterParameter("requests_throttler", RequestsThrottler)
+            .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            RequestsThrottler->Limit = 100;
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBatchingSecretVaultServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingSecretVaultServiceConfig
+    : public TAsyncExpiringCacheConfig
+{
+public:
+    TAsyncExpiringCacheConfigPtr Cache;
+
+    TCachingSecretVaultServiceConfig()
+    {
+        RegisterParameter("cache", Cache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingSecretVaultServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,7 +350,7 @@ public:
             return *BlackboxCookieAuthenticator->CsrfSecret;
         }
 
-        return "";
+        return TString();
     }
 
     TInstant GetCsrfTokenExpirationTime() const

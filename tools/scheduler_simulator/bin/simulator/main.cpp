@@ -123,17 +123,6 @@ TSchedulerConfigPtr LoadSchedulerConfigFromFile(const TString& schedulerConfigFi
     }
 }
 
-std::vector<TOperationDescription> LoadOperations()
-{
-    std::vector<TOperationDescription> operations;
-    {
-        TLoadContext context;
-        context.SetInput(&Cin);
-        Load(context, operations);
-    }
-    return operations;
-}
-
 TInstant FindEarliestTime(const std::vector<TOperationDescription>& operations)
 {
     auto earliestTime = TInstant::Max();
@@ -141,6 +130,23 @@ TInstant FindEarliestTime(const std::vector<TOperationDescription>& operations)
         earliestTime = std::min(earliestTime, operation.StartTime);
     }
     return earliestTime;
+}
+
+std::vector<TOperationDescription> LoadOperations(bool shiftOperationsToStart)
+{
+    std::vector<TOperationDescription> operations;
+    {
+        TLoadContext context;
+        context.SetInput(&Cin);
+        Load(context, operations);
+    }
+    if (shiftOperationsToStart) {
+        const auto earliestTime = FindEarliestTime(operations);
+        for (auto& operation : operations) {
+            operation.StartTime = earliestTime;
+        }
+    }
+    return operations;
 }
 
 INodePtr LoadPoolTrees(const TString& poolTreesFilename)
@@ -169,7 +175,7 @@ void Run(const char* configFilename)
 
     YCHECK(!execNodes.empty());
 
-    const auto operations = LoadOperations();
+    const auto operations = LoadOperations(config->ShiftOperationsToStart);
     const TInstant earliestTime = FindEarliestTime(operations);
 
     TFixedBufferFileOutput eventLogOutputStream(config->EventLogFilename);

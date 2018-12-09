@@ -212,28 +212,49 @@ template <class TRange, class TFormatter>
 TFormattableRange<TRange, TFormatter> MakeShrunkFormattableRange(
     const TRange& range,
     const TFormatter& formatter,
-    ui32 limit)
+    size_t limit)
 {
     return TFormattableRange<TRange, TFormatter>{range, formatter, limit};
 }
 
 template <class TRange, class TFormatter>
-void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, ui32 limit = ui32(-1))
+void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, size_t limit = std::numeric_limits<size_t>::max())
 {
     builder->AppendChar('[');
-    ui32 i = 0;
+    size_t index = 0;
     for (const auto& item : range) {
-        if (i > 0) {
+        if (index > 0) {
             builder->AppendString(DefaultJoinToStringDelimiter);
         }
-        if (i == limit) {
+        if (index == limit) {
             builder->AppendString(DefaultRangeEllipsisFormat);
             break;
         }
         formatter(builder, item);
-        ++i;
+        ++index;
     }
     builder->AppendChar(']');
+}
+
+template <class TRange, class TFormatter>
+void FormatKeyValueRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter, size_t limit = std::numeric_limits<size_t>::max())
+{
+    builder->AppendChar('{');
+    size_t index = 0;
+    for (const auto& item : range) {
+        if (index > 0) {
+            builder->AppendString(DefaultJoinToStringDelimiter);
+        }
+        if (index == limit) {
+            builder->AppendString(DefaultRangeEllipsisFormat);
+            break;
+        }
+        formatter(builder, item.first);
+        builder->AppendString(DefaultKeyValueDelimiter);
+        formatter(builder, item.second);
+        ++index;
+    }
+    builder->AppendChar('}');
 }
 
 // TFormattableRange
@@ -296,6 +317,26 @@ struct TValueFormatter<std::set<T>>
     }
 };
 
+// std::map
+template <class K, class V>
+struct TValueFormatter<std::map<K, V>>
+{
+    static void Do(TStringBuilder* builder, const std::map<K, V>& collection, TStringBuf /*format*/)
+    {
+        FormatKeyValueRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// std::multimap
+template <class K, class V>
+struct TValueFormatter<std::multimap<K, V>>
+{
+    static void Do(TStringBuilder* builder, const std::multimap<K, V>& collection, TStringBuf /*format*/)
+    {
+        FormatKeyValueRange(builder, collection, TDefaultFormatter());
+    }
+};
+
 // THashSet
 template <class T>
 struct TValueFormatter<THashSet<T>>
@@ -303,6 +344,26 @@ struct TValueFormatter<THashSet<T>>
     static void Do(TStringBuilder* builder, const THashSet<T>& collection, TStringBuf /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// THashMap
+template <class K, class V>
+struct TValueFormatter<THashMap<K, V>>
+{
+    static void Do(TStringBuilder* builder, const THashMap<K, V>& collection, TStringBuf /*format*/)
+    {
+        FormatKeyValueRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// THashMultiMap
+template <class K, class V>
+struct TValueFormatter<THashMultiMap<K, V>>
+{
+    static void Do(TStringBuilder* builder, const THashMultiMap<K, V>& collection, TStringBuf /*format*/)
+    {
+        FormatKeyValueRange(builder, collection, TDefaultFormatter());
     }
 };
 

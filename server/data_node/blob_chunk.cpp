@@ -124,6 +124,7 @@ TFuture<void> TBlobChunkBase::ReadBlocksExt(const TBlockReadOptions& options)
         return Null;
     }
 
+    TPromise<void> promise;
     {
         TWriterGuard guard(CachedBlocksExtLock_);
         if (HasCachedBlocksExt_) {
@@ -132,14 +133,22 @@ TFuture<void> TBlobChunkBase::ReadBlocksExt(const TBlockReadOptions& options)
         if (CachedBlocksExtPromise_) {
             return CachedBlocksExtPromise_;
         }
-        CachedBlocksExtPromise_ = NewPromise<void>();
+        promise = CachedBlocksExtPromise_ = NewPromise<void>();
     }
 
-    CachedBlocksExtPromise_.SetFrom(
-        ReadMeta(options).Apply(
-            BIND(&TBlobChunkBase::SetBlocksExt, MakeStrong(this))));
+    ReadMeta(options)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
+            if (result.IsOK()) {
+                SetBlocksExt(result.Value());
+            } else {
+                TWriterGuard guard(CachedBlocksExtLock_);
+                YCHECK(!HasCachedBlocksExt_);
+                CachedBlocksExtPromise_.Reset();
+            }
+            promise.Set(result);
+        }));
 
-    return CachedBlocksExtPromise_.ToFuture();
+    return promise.ToFuture();
 }
 
 void TBlobChunkBase::SetBlocksExt(const TRefCountedChunkMetaPtr& meta)
@@ -168,7 +177,6 @@ void TBlobChunkBase::DoReadMeta(
     TCachedChunkMetaCookie cookie,
     const TBlockReadOptions& options)
 {
-    const auto& Profiler = Location_->GetProfiler();
     LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
         Id_,
         Location_->GetId(),
@@ -176,22 +184,27 @@ void TBlobChunkBase::DoReadMeta(
         options.ReadSessionId);
 
     TRefCountedChunkMetaPtr meta;
-    PROFILE_TIMING("/meta_read_time") {
-        try {
-            const auto& readerCache = Bootstrap_->GetBlobReaderCache();
-            auto reader = readerCache-> GetReader(this);
-            meta = WaitFor(reader->GetMeta(options))
-                .ValueOrThrow();
-        } catch (const std::exception& ex) {
-            cookie.Cancel(ex);
-            return;
-        }
+    TWallTimer readTimer;
+    try {
+        const auto& readerCache = Bootstrap_->GetBlobReaderCache();
+        auto reader = readerCache-> GetReader(this);
+        meta = WaitFor(reader->GetMeta(options))
+            .ValueOrThrow();
+    } catch (const std::exception& ex) {
+        cookie.Cancel(ex);
+        return;
     }
+    auto readTime = readTimer.GetElapsedTime();
 
-    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v)",
+    const auto& locationProfiler = Location_->GetProfiler();
+    auto& performanceCounters = Location_->GetPerformanceCounters();
+    locationProfiler.Update(performanceCounters.BlobChunkMetaReadTime, NProfiling::DurationToValue(readTime));
+
+    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v, ReadTime: %v)",
         Id_,
         Location_->GetId(),
-        options.ReadSessionId);
+        options.ReadSessionId,
+        readTime);
 
     auto cachedMeta = New<TCachedChunkMeta>(
         Id_,
@@ -394,7 +407,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             session->Blocks[entry.LocalIndex] = std::move(block);
             entry.Cached = true;
         } else if (options.FetchFromDisk && options.PopulateCache) {
-            const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
+            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             entry.Cookie = chunkBlockManager->BeginInsertCachedBlock(blockId);
             if (!entry.Cookie.IsActive()) {
                 entry.Cached = true;

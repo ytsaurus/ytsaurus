@@ -442,8 +442,6 @@ void TBootstrap::DoRun()
 
     JobProxyConfigTemplate->JobEnvironment = Config->ExecAgent->SlotManager->JobEnvironment;
 
-    JobProxyConfigTemplate->JobCpuMonitor = Config->ExecAgent->JobCpuMonitor;
-
     JobProxyConfigTemplate->Logging = Config->ExecAgent->JobProxyLogging;
     JobProxyConfigTemplate->Tracing = Config->ExecAgent->JobProxyTracing;
     JobProxyConfigTemplate->TestRootFS = Config->ExecAgent->TestRootFS;

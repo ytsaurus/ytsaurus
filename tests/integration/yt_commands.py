@@ -611,10 +611,10 @@ def events_on_fs():
         _events_on_fs = JobEvents(create_tmpdir("eventdir"))
     return _events_on_fs
 
-def with_breakpoint(cmd):
+def with_breakpoint(cmd, breakpoint_name="default"):
     if "BREAKPOINT" not in cmd:
         raise ValueError("Command doesn't have BREAKPOINT: {0}".format(cmd))
-    result = cmd.replace("BREAKPOINT", events_on_fs().breakpoint_cmd(), 1)
+    result = cmd.replace("BREAKPOINT", events_on_fs().breakpoint_cmd(breakpoint_name), 1)
     if "BREAKPOINT" in result:
         raise ValueError("Command has multiple BREAKPOINT: {0}".format(cmd))
     return result
@@ -1258,28 +1258,46 @@ def wait_for_chunk_replicator(driver=None):
     print >>sys.stderr, "Waiting for chunk replicator to become enabled..."
     wait(lambda: get("//sys/@chunk_replicator_enabled", driver=driver))
 
+def get_cluster_drivers(primary_driver=None):
+    if primary_driver is None:
+        return clusters_drivers["primary"]
+    for drivers in clusters_drivers.values():
+        if drivers[0] == primary_driver:
+            return drivers
+    raise "Failed to get cluster drivers"
+
 def wait_for_cells(cell_ids=None, driver=None):
     print >>sys.stderr, "Waiting for tablet cells to become healthy..."
-    def get_cells():
+    
+    def get_cells(driver):
         cells = ls("//sys/tablet_cells", attributes=["health", "id", "peers"], driver=driver)
-        if cell_ids == None:
+        if cell_ids is None:
             return cells
         return [cell for cell in cells if cell.attributes["id"] in cell_ids]
 
-    def check_cells():
-        cells = get_cells()
+    def check_orchid():
+        cells = get_cells(driver=driver)
         for cell in cells:
-            if cell.attributes["health"] != "good":
+            peer = cell.attributes["peers"][0]
+            if "address" not in peer:
                 return False
-            node = cell.attributes["peers"][0]["address"]
+            node = peer["address"]
             try:
                 if not exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
                     return False
             except YtResponseError:
                 return False
         return True
+    wait(check_orchid)
 
-    wait(check_cells)
+    def check_cells(driver):
+        cells = get_cells(driver=driver)
+        for cell in cells:
+            if cell.attributes["health"] != "good":
+                return False
+        return True
+    for driver in get_cluster_drivers(driver):
+        wait(lambda: check_cells(driver=driver))
 
 def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
     cell_ids = []

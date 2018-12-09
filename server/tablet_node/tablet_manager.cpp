@@ -261,6 +261,8 @@ public:
         ValidateReadTimestamp(timestamp);
         ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
+        tabletSnapshot->RuntimeData->AccessTime = NProfiling::GetInstant();
+
         while (!reader->IsFinished()) {
             ExecuteSingleRead(
                 tabletSnapshot,
@@ -296,6 +298,8 @@ public:
         if (atomicity == EAtomicity::None) {
             ValidateClientTimestamp(transactionId);
         }
+
+        tabletSnapshot->RuntimeData->ModificationTime = NProfiling::GetInstant();
 
         while (!reader->IsFinished()) {
             // NB: No yielding beyond this point.
@@ -425,6 +429,10 @@ public:
 
         try {
             auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
+
+            if (tablet->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Cannot trim a replicated table tablet");
+            }
 
             tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
             ValidateTabletMounted(tablet);

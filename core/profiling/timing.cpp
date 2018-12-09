@@ -1,10 +1,9 @@
 #include "timing.h"
 #include "profiler.h"
 
-#include <util/system/hp_timer.h>
-#include <util/system/sanitizers.h>
+#include <yt/core/misc/singleton.h>
 
-#include <util/generic/singleton.h>
+#include <util/system/sanitizers.h>
 
 #include <array>
 
@@ -22,7 +21,7 @@ class TClockConverter
 public:
     static TClockConverter* Get()
     {
-        return Singleton<TClockConverter>();
+        return ImmortalSingleton<TClockConverter>();
     }
 
     // TDuration is unsigned and does not support negative values,
@@ -43,22 +42,30 @@ public:
             : state.CpuInstant - DurationToCpuDuration(state.Instant - instant);
     }
 
+    double GetClockRate()
+    {
+        return ClockRate_;
+    }
+
 private:
+    DECLARE_IMMORTAL_SINGLETON_FRIEND()
+
+    const double ClockRate_;
+    
     struct TCalibrationState
     {
         TCpuInstant CpuInstant;
         TInstant Instant;
     };
 
-    std::atomic<TCpuInstant> NextCalibrationCpuInstant_{0};
+    std::atomic<TCpuInstant> NextCalibrationCpuInstant_ = {0};
     TSpinLock CalibrationLock_;
     std::array<TCalibrationState, 2> CalibrationStates_;
-    std::atomic<ui32> CalibrationStateIndex_{0};
+    std::atomic<size_t> CalibrationStateIndex_ = {0};
 
-
-    Y_DECLARE_SINGLETON_FRIEND();
 
     TClockConverter()
+        : ClockRate_(EstimateClockRate())
     {
         Calibrate(0);
     }
@@ -99,6 +106,60 @@ private:
             return CalibrationStates_[CalibrationStateIndex_];
         }
     }
+
+    static double EstimateClockRateOnce()
+    {
+        ui64 startCycle = 0;
+        ui64 startMS = 0;
+
+        for (;;) {
+            startMS = MicroSeconds();
+            startCycle = GetCpuInstant();
+
+            ui64 n = MicroSeconds();
+
+            if (n - startMS < 100) {
+                break;
+            }
+        }
+
+        Sleep(TDuration::MicroSeconds(5000));
+
+        ui64 finishCycle = 0;
+        ui64 finishMS = 0;
+
+        for (;;) {
+            finishMS = MicroSeconds();
+
+            if (finishMS - startMS < 100) {
+                continue;
+            }
+
+            finishCycle = GetCpuInstant();
+
+            ui64 n = MicroSeconds();
+
+            if (n - finishMS < 100) {
+                break;
+            }
+        }
+
+        return (finishCycle - startCycle) * 1000000.0 / (finishMS - startMS);
+    }
+
+    static double EstimateClockRate()
+    {
+        const size_t N = 9;
+        std::array<double, N> estimates;
+
+        for (auto& estimate : estimates) {
+            estimate = EstimateClockRateOnce();
+        }
+
+        std::sort(estimates.begin(), estimates.end());
+
+        return estimates[N / 2];
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,12 +173,12 @@ TDuration CpuDurationToDuration(TCpuDuration duration)
 {
     // TDuration is unsigned and thus does not support negative values.
     Y_ASSERT(duration >= 0);
-    return TDuration::Seconds(static_cast<double>(duration) / NHPTimer::GetClockRate());
+    return TDuration::Seconds(static_cast<double>(duration) / TClockConverter::Get()->GetClockRate());
 }
 
 TCpuDuration DurationToCpuDuration(TDuration duration)
 {
-    return static_cast<TCpuDuration>(static_cast<double>(duration.MicroSeconds()) * NHPTimer::GetClockRate() / 1000000);
+    return static_cast<TCpuDuration>(static_cast<double>(duration.MicroSeconds()) * TClockConverter::Get()->GetClockRate() / 1000000);
 }
 
 TInstant CpuInstantToInstant(TCpuInstant instant)

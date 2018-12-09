@@ -271,6 +271,8 @@ bool TContext::TryParseUser()
         } else {
             Response_->SetStatus(EStatusCode::ServiceUnavailable);
         }
+
+        FillYTErrorHeaders(Response_, TError(authResult));
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .Value(TError(authResult));
@@ -552,7 +554,7 @@ void TContext::CaptureParameters()
     }
 
     if (Request_->GetMethod() == EMethod::Post) {
-        auto body = Request_->ReadBody();
+        auto body = Request_->ReadAll();
         if (body.Size() == 0) {
             return;
         }
@@ -683,8 +685,11 @@ void TContext::SetupInputStream()
 
 void TContext::SetupOutputStream()
 {
-    if (Descriptor_->OutputType == EDataType::Null ||
-        Descriptor_->OutputType == EDataType::Structured)
+    // NB(psushin): This is an ugly hack for a long-running command with structured output - YT-9713.
+    // Remove once framing is implemented - YT-9838.
+    if (Descriptor_->CommandName != "get_table_columnar_statistics" && (
+        Descriptor_->OutputType == EDataType::Null ||
+        Descriptor_->OutputType == EDataType::Structured))
     {
         MemoryOutput_ = New<TSharedRefOutputStream>();
         DriverRequest_.OutputStream = MemoryOutput_;
@@ -860,7 +865,7 @@ void TContext::DispatchNotFound(const TString& message)
 void TContext::ReplyError(const TError& error)
 {
     LOG_DEBUG(error, "Request finished with error");
-    FillYTErrorHeaders(Response_, Error_);
+    FillYTErrorHeaders(Response_, error);
     DispatchJson([&] (auto consumer) {
         BuildYsonFluently(consumer)
             .Value(error);

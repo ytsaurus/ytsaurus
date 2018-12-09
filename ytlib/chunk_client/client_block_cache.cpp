@@ -120,7 +120,7 @@ public:
                 auto cache = New<TPerTypeClientBlockCache>(
                     type,
                     config,
-                    NProfiling::TProfiler(profiler.GetPathPrefix() + "/" + FormatEnum(type)));
+                    profiler.AppendPath("/" + FormatEnum(type)));
                 YCHECK(PerTypeCaches_.insert({type, cache}).second);
             }
         };

@@ -160,9 +160,8 @@ private:
 
     i64 Size_ = 0;
 
-    void PutGroup(TReplicationWriterPtr writer);
-
-    void SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode);
+    void PutGroup(const TReplicationWriterPtr& writer);
+    void SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcNode);
 
     void Process();
 };
@@ -200,7 +199,6 @@ public:
         , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
         , UploadReplicationFactor_(Config_->UploadReplicationFactor)
         , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
-        , AllocateWriteTargetsTimestamp_(TInstant::Zero())
     {
         ClosePromise_.TrySetFrom(StateError_.ToFuture());
     }
@@ -292,7 +290,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TChunkReplicaList chunkReplicas;
-        for (auto node : Nodes_) {
+        for (const auto& node : Nodes_) {
             if (node->IsAlive()) {
                 chunkReplicas.push_back(node->ChunkReplica);
             }
@@ -369,7 +367,7 @@ private:
     TInstant AllocateWriteTargetsTimestamp_;
     int AllocateWriteTargetsRetryIndex_ = 0;
 
-    std::vector<TString> BannedNodes_;
+    std::vector<TString> BannedNodeAddresses_;
 
     bool HasSickReplicas_ = false;
 
@@ -435,7 +433,7 @@ private:
             THROW_ERROR_EXCEPTION(
                 EErrorCode::MasterCommunicationFailed,
                 "Failed to allocate write targets, retry count limit exceeded")
-                    << TErrorAttribute("retry_count", Config_->AllocateWriteTargetsRetryCount);
+                << TErrorAttribute("retry_count", Config_->AllocateWriteTargetsRetryCount);
         }
 
         auto delayTime = TInstant::Now() - AllocateWriteTargetsTimestamp_;
@@ -445,13 +443,13 @@ private:
         }
         AllocateWriteTargetsTimestamp_ = TInstant::Now();
 
-        int activeTargets = Nodes_.size();
+        int activeTargets = static_cast<int>(Nodes_.size());
+
         std::vector<TString> forbiddenAddresses;
         for (const auto& node : Nodes_) {
             forbiddenAddresses.push_back(node->Descriptor.GetDefaultAddress());
         }
-
-        forbiddenAddresses.insert(forbiddenAddresses.begin(), BannedNodes_.begin(), BannedNodes_.end());
+        forbiddenAddresses.insert(forbiddenAddresses.begin(), BannedNodeAddresses_.begin(), BannedNodeAddresses_.end());
 
         return AllocateWriteTargets(
             Client_,
@@ -507,7 +505,7 @@ private:
     }
 
 
-    void OnNodeFailed(TNodePtr node, const TError& error)
+    void OnNodeFailed(const TNodePtr& node, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -521,7 +519,7 @@ private:
         LOG_ERROR(wrappedError);
 
         if (Config_->BanFailedNodes) {
-            BannedNodes_.push_back(node->Descriptor.GetDefaultAddress());
+            BannedNodeAddresses_.push_back(node->Descriptor.GetDefaultAddress());
         }
 
         node->PingExecutor->Stop();
@@ -532,7 +530,7 @@ private:
             auto cumulativeError = TError(
                 NChunkClient::EErrorCode::AllTargetNodesFailed,
                 "Not enough target nodes to finish upload");
-            for (auto node : Nodes_) {
+            for (const auto& node : Nodes_) {
                 if (!node->IsAlive()) {
                     cumulativeError.InnerErrors().push_back(node->Error);
                 }
@@ -573,7 +571,7 @@ private:
 
         std::vector<TFuture<void>> asyncResults;
 
-        for (auto node : Nodes_) {
+        for (const auto& node : Nodes_) {
             asyncResults.push_back(
                 BIND(&TReplicationWriter::FlushBlocks, MakeWeak(this), node, lastFlushableBlock)
                     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -625,7 +623,7 @@ private:
         }
     }
 
-    void FlushBlocks(TNodePtr node, int blockIndex)
+    void FlushBlocks(const TNodePtr& node, int blockIndex)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -692,6 +690,9 @@ private:
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
+            if (Config_->BanFailedNodes) {
+                BannedNodeAddresses_.push_back(address);
+            }
             LOG_WARNING(rspOrError, "Failed to start write session on node %v", address);
             return;
         }
@@ -722,14 +723,14 @@ private:
 
         LOG_INFO("Closing writer");
 
-        for (auto node : Nodes_) {
+        for (const auto& node : Nodes_) {
             BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), node)
                 .Via(TDispatcher::Get()->GetWriterInvoker())
                 .Run();
         }
     }
 
-    void FinishChunk(TNodePtr node)
+    void FinishChunk(const TNodePtr& node)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -795,12 +796,12 @@ private:
     {
         // No thread affinity; may be called from dtor.
 
-        for (auto node : Nodes_) {
+        for (const auto& node : Nodes_) {
             CancelNode(node);
         }
     }
 
-    void CancelNode(TNodePtr node)
+    void CancelNode(const TNodePtr& node)
     {
         if (node->Canceled.test_and_set()) {
             return;
@@ -929,7 +930,7 @@ bool TGroup::IsWritten() const
     return true;
 }
 
-void TGroup::PutGroup(TReplicationWriterPtr writer)
+void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -1011,7 +1012,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     ScheduleProcess();
 }
 
-void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
+void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcNode)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 

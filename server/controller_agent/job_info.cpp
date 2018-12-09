@@ -49,7 +49,7 @@ TJoblet::TJoblet()
 { }
 
 TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId, bool treeIsTentative)
-    : Task(std::move(task))
+    : Task(task)
     , JobIndex(jobIndex)
     , TaskJobIndex(taskJobIndex)
     , TreeId(treeId)
@@ -136,6 +136,11 @@ void TFinishedJobInfo::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Summary);
+
+    if (context.IsLoad() && context.GetVersion() <= 300024) {
+        NYson::TYsonString inputPaths;
+        Persist(context, inputPaths);
+    }
 
     TJobInfoBase::Persist(context);
 }

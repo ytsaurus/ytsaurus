@@ -65,6 +65,9 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
     if (config->Memory) {
         defaultValue.SetMemory(*config->Memory);
     }
+    if (config->Gpu) {
+        defaultValue.SetGpu(*config->Gpu);
+    }
     return defaultValue;
 }
 
@@ -356,6 +359,33 @@ TString TSchedulerElement::GetLoggingString(const TDynamicAttributesList& dynami
 bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
 {
     return dynamicAttributesList[GetTreeIndex()].Active;
+}
+
+double TSchedulerElement::GetWeight() const
+{
+    auto specifiedWeight = GetSpecifiedWeight();
+    if (specifiedWeight) {
+        return *specifiedWeight;
+    }
+
+    if (!TreeConfig_->InferWeightFromMinShareRatioMultiplier) {
+        return 1.0;
+    }
+    if (Attributes().RecursiveMinShareRatio < RatioComputationPrecision) {
+        return 1.0;
+    }
+
+    double parentMinShareRatio = 1.0;
+    if (GetParent()) {
+        parentMinShareRatio = GetParent()->Attributes().RecursiveMinShareRatio;
+    }
+
+    if (parentMinShareRatio < RatioComputationPrecision) {
+        return 1.0;
+    }
+
+    return Attributes().RecursiveMinShareRatio * (*TreeConfig_->InferWeightFromMinShareRatioMultiplier) /
+        parentMinShareRatio;
 }
 
 TCompositeSchedulerElement* TSchedulerElement::GetParent() const
@@ -1467,9 +1497,9 @@ TString TPool::GetId() const
     return Id_;
 }
 
-double TPool::GetWeight() const
+TNullable<double> TPool::GetSpecifiedWeight() const
 {
-    return Config_->Weight.Get(1.0);
+    return Config_->Weight;
 }
 
 double TPool::GetMinShareRatio() const
@@ -1835,12 +1865,12 @@ int TOperationElementSharedState::GetScheduledJobCount() const
     return ScheduledJobCount_;
 }
 
-TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
+TNullable<TJobResources> TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
     if (!Enabled_ && !force) {
-        return ZeroJobResources();
+        return Null;
     }
 
     LastScheduleJobSuccessTime_ = TInstant::Now();
@@ -1975,12 +2005,12 @@ void TOperationElement::Enable()
     return SharedState_->Enable();
 }
 
-TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
+TNullable<TJobResources> TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
     if (!Enabled_) {
-        return ZeroJobResources();
+        return Null;
     }
 
     auto it = JobPropertiesMap_.find(jobId);
@@ -2341,11 +2371,11 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     context->TotalScheduleJobDuration += scheduleJobDuration;
     context->ExecScheduleJobDuration += scheduleJobResult->Duration;
 
-    for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        context->FailedScheduleJob[reason] += scheduleJobResult->Failed[reason];
-    }
-
     if (!scheduleJobResult->StartDescriptor) {
+        for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+            context->FailedScheduleJob[reason] += scheduleJobResult->Failed[reason];
+        }
+
         ++context->ScheduleJobFailureCount;
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
@@ -2361,8 +2391,15 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     }
 
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
+    if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits, precommittedResources)) {
+        Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
+        disableOperationElement(EDeactivationReason::OperationDisabled);
+        DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
+        FinishScheduleJob(/*enableBackoff*/ false, now);
+        return false;
+    }
+
     context->SchedulingContext->ResourceUsage() += startDescriptor.ResourceLimits;
-    OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits, precommittedResources);
     context->SchedulingContext->StartJob(
         GetTreeId(),
         OperationId_,
@@ -2386,9 +2423,9 @@ bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
     return Spec_->AllowAggressiveStarvationPreemption.Get(true);
 }
 
-double TOperationElement::GetWeight() const
+TNullable<double> TOperationElement::GetSpecifiedWeight() const
 {
-    return RuntimeParams_->Weight.Get(1.0);
+    return RuntimeParams_->Weight;
 }
 
 double TOperationElement::GetMinShareRatio() const
@@ -2574,7 +2611,7 @@ TString TOperationElement::GetUserName() const
     return Operation_->GetAuthenticatedUser();
 }
 
-void TOperationElement::OnJobStarted(
+bool TOperationElement::OnJobStarted(
     const TJobId& jobId,
     const TJobResources& resourceUsage,
     const TJobResources& precommittedResources,
@@ -2584,10 +2621,13 @@ void TOperationElement::OnJobStarted(
     LOG_DEBUG("Adding job to strategy (JobId: %v)", jobId);
 
     auto resourceUsageDelta = SharedState_->AddJob(jobId, resourceUsage, force);
-
-    CommitHierarchicalResourceUsage(resourceUsageDelta, precommittedResources);
-
-    UpdatePreemptableJobsList();
+    if (resourceUsageDelta) {
+        CommitHierarchicalResourceUsage(*resourceUsageDelta, precommittedResources);
+        UpdatePreemptableJobsList();
+        return true;
+    } else {
+        return false;
+    }
 }
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
@@ -2596,9 +2636,10 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
     LOG_DEBUG("Removing job from strategy (JobId: %v)", jobId);
 
     auto delta = SharedState_->RemoveJob(jobId);
-    IncreaseHierarchicalResourceUsage(-delta);
-
-    UpdatePreemptableJobsList();
+    if (delta) {
+        IncreaseHierarchicalResourceUsage(-(*delta));
+        UpdatePreemptableJobsList();
+    }
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
@@ -2819,9 +2860,9 @@ TString TRootElement::GetId() const
     return TString(RootPoolName);
 }
 
-double TRootElement::GetWeight() const
+TNullable<double> TRootElement::GetSpecifiedWeight() const
 {
-    return 1.0;
+    return Null;
 }
 
 double TRootElement::GetMinShareRatio() const

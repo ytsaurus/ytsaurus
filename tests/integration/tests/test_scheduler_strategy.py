@@ -924,6 +924,24 @@ class TestSchedulerPreemption(YTEnvSetup):
             release_breakpoint()
             op.track()
 
+    def test_infer_weight_from_min_share(self):
+        create("map_node", "//sys/pool_trees/custom_pool_tree", attributes={"infer_weight_from_min_share_ratio_multiplier": 10, "nodes_filter": "missing"})
+        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool1", attributes={"min_share_ratio": 0.3})
+        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool2", attributes={"min_share_ratio": 0.4})
+        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool3")
+        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool2/subpool1", attributes={"min_share_ratio": 0.3})
+        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool2/subpool2", attributes={"min_share_ratio": 0.4})
+
+        pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/custom_pool_tree/fair_share_info/pools"
+        wait(lambda: exists(pools_path + "/subpool2"))
+        get(pools_path)
+        wait(lambda: are_almost_equal(get(pools_path + "/test_pool1/weight"), 3.0))
+        wait(lambda: are_almost_equal(get(pools_path + "/test_pool2/weight"), 4.0))
+        wait(lambda: are_almost_equal(get(pools_path + "/test_pool3/weight"), 1.0))
+
+        wait(lambda: are_almost_equal(get(pools_path + "/subpool1/weight"), 3.0))
+        wait(lambda: are_almost_equal(get(pools_path + "/subpool2/weight"), 4.0))
+
     def test_recursive_preemption_settings(self):
         create("map_node", "//sys/pools/p1", attributes={"fair_share_starvation_tolerance_limit": 0.6})
         create("map_node", "//sys/pools/p1/p2")
@@ -2497,6 +2515,35 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                 if tentative:
                     events.notify_event("continue_job_{0}".format(job_id))
                     tentative_job_count += 1
+
+    def test_use_default_tentative_pool_trees(self):
+        other_node_list = self._prepare_pool_trees()
+
+        set("//sys/scheduler/config/default_tentative_pool_trees", ["other"], recursive=True)
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/config/default_tentative_pool_trees"))
+
+        try:
+            spec = self._create_spec()
+            spec["pool_trees"].remove("other")
+            spec["use_default_tentative_pool_trees"] = True
+
+            create("table", "//tmp/t_in")
+            write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
+            create("table", "//tmp/t_out")
+
+            events = events_on_fs()
+            op = map(
+                command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec=spec,
+                dont_track=True)
+
+            op_pool_trees_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
+            wait(lambda: exists(op_pool_trees_path + "other"))
+
+        finally:
+            remove("//sys/scheduler/config/default_tentative_pool_trees")
 
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_MASTERS = 1

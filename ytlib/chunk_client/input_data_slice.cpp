@@ -132,26 +132,26 @@ TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlic
         chunkSlice->UpperLimit());
 }
 
-TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSlicePtr>& inputChunks)
+TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSlicePtr>& inputChunkSlices)
 {
     std::vector<TInputDataSlicePtr> dataSlices;
 
-    YCHECK(!inputChunks.empty());
+    YCHECK(!inputChunkSlices.empty());
     TInputDataSlice::TChunkSliceList chunkSlices;
     TNullable<int> tableIndex;
     TInputSliceLimit lowerLimit;
     TInputSliceLimit upperLimit;
-    for (const auto& inputChunk : inputChunks) {
+    for (const auto& inputChunkSlice : inputChunkSlices) {
         if (!tableIndex) {
-            tableIndex = inputChunk->GetInputChunk()->GetTableIndex();
-            lowerLimit.Key = inputChunk->LowerLimit().Key;
-            upperLimit.Key = inputChunk->UpperLimit().Key;
+            tableIndex = inputChunkSlice->GetInputChunk()->GetTableIndex();
+            lowerLimit.Key = inputChunkSlice->LowerLimit().Key;
+            upperLimit.Key = inputChunkSlice->UpperLimit().Key;
         } else {
-            YCHECK(*tableIndex == inputChunk->GetInputChunk()->GetTableIndex());
-            YCHECK(lowerLimit.Key == inputChunk->LowerLimit().Key);
-            YCHECK(upperLimit.Key == inputChunk->UpperLimit().Key);
+            YCHECK(*tableIndex == inputChunkSlice->GetInputChunk()->GetTableIndex());
+            YCHECK(lowerLimit.Key == inputChunkSlice->LowerLimit().Key);
+            YCHECK(upperLimit.Key == inputChunkSlice->UpperLimit().Key);
         }
-        chunkSlices.push_back(inputChunk);
+        chunkSlices.push_back(inputChunkSlice);
     }
     return New<TInputDataSlice>(
         EDataSourceType::VersionedTable,
@@ -254,29 +254,6 @@ TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool chec
     return Null;
 }
 
-bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2)
-{
-    const auto& limit1 = slice1->LowerLimit();
-    const auto& limit2 = slice2->LowerLimit();
-    i64 diff;
-
-    if (slice1->IsTrivial() && slice2->IsTrivial()) {
-        diff = slice1->ChunkSlices[0]->GetInputChunk()->GetRangeIndex() - slice2->ChunkSlices[0]->GetInputChunk()->GetRangeIndex();
-        if (diff != 0) {
-            return diff < 0;
-        }
-
-        diff = (limit1.RowIndex.Get(0) + slice1->ChunkSlices[0]->GetInputChunk()->GetTableRowIndex()) -
-            (limit2.RowIndex.Get(0) + slice2->ChunkSlices[0]->GetInputChunk()->GetTableRowIndex());
-        if (diff != 0) {
-            return diff < 0;
-        }
-    }
-
-    diff = CompareRows(limit1.Key, limit2.Key);
-    return diff < 0;
-}
-
 bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2)
 {
     const auto& limit1 = slice1->LowerLimit();
@@ -296,33 +273,6 @@ bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TIn
 
     diff = CompareRows(limit1.Key, limit2.Key);
     return diff < 0;
-}
-
-bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2)
-{
-    //FIXME(savrus) really&
-    if (!slice1->IsTrivial() || !slice2->IsTrivial()) {
-        return false;
-    }
-
-    if (slice1->ChunkSlices[0]->GetInputChunk()->GetRangeIndex() != slice2->ChunkSlices[0]->GetInputChunk()->GetRangeIndex()) {
-        return false;
-    }
-
-    const auto& limit1 = slice1->UpperLimit();
-    const auto& limit2 = slice2->LowerLimit();
-    const auto& chunk1 = slice1->GetSingleUnversionedChunkOrThrow();
-    const auto& chunk2 = slice2->GetSingleUnversionedChunkOrThrow();
-
-    if ((limit1.Key || limit2.Key) && limit1.Key != limit2.Key) {
-        return false;
-    }
-
-    // Now it is safe to assume that keys are ok, so we need just to compare row indices.
-    auto rowIndex1 = limit1.RowIndex.Get(chunk1->GetRowCount()) + chunk1->GetTableRowIndex();
-    auto rowIndex2 = limit2.RowIndex.Get(0) + chunk2->GetTableRowIndex();
-
-    return rowIndex1 == rowIndex2;
 }
 
 i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices)

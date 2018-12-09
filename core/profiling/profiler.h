@@ -201,10 +201,17 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, PathPrefix);
 
     //! If |false| then no samples are emitted.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Enabled, false);
 
     //! Tags to append to each enqueued sample.
     DEFINE_BYREF_RW_PROPERTY(TTagIdList, TagIds);
+
+
+    //! Constructs a new profiler by adding a suffix to the path.
+    TProfiler AppendPath(const NYPath::TYPath& pathSuffix) const;
+
+    //! Constructs a adding more tags.
+    TProfiler AddTags(const TTagIdList& tagIds) const;
 
 
     //! Enqueues a new sample with tags.

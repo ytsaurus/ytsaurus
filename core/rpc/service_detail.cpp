@@ -649,6 +649,7 @@ void TServiceBase::OnRequestAuthenticated(
     Profiler.Increment(AuthenticationQueueSizeCounter_, -1);
     if (authResultOrError.IsOK()) {
         const auto& authResult = authResultOrError.Value();
+        const auto& Logger = RpcServerLogger;
         LOG_DEBUG("Request authenticated (RequestId: %v, User: %v, Realm: %v)",
             acceptedRequest.RequestId,
             authResult.User,

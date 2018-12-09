@@ -404,11 +404,10 @@ public:
         auto* profileManager = TProfileManager::Get();
         Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetCellTag()));
 
-        for (auto jobType = EJobType::ReplicatorFirst;
-             jobType != EJobType::ReplicatorLast;
-             jobType = static_cast<EJobType>(static_cast<TEnumTraits<EJobType>::TUnderlying>(jobType) + 1))
-        {
-            JobTypeToTag_[jobType] = profileManager->RegisterTag("job_type", jobType);
+        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+            if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
+                JobTypeToTag_[jobType] = profileManager->RegisterTag("job_type", jobType);
+            }
         }
     }
 
@@ -1357,7 +1356,7 @@ private:
 
     TChunkRequisitionRegistry ChunkRequisitionRegistry_;
 
-    TEnumIndexedVector<TTagId, EJobType, EJobType::ReplicatorFirst, EJobType::ReplicatorLast> JobTypeToTag_;
+    TEnumIndexedVector<TTagId, EJobType, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType> JobTypeToTag_;
     THashMap<const TDataCenter*, TTagId> SourceDataCenterToTag_;
     THashMap<const TDataCenter*, TTagId> DestinationDataCenterToTag_;
 
@@ -2961,11 +2960,10 @@ private:
         Profiler.Enqueue("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size(), EMetricType::Gauge);
 
         const auto& jobCounters = ChunkReplicator_->JobCounters();
-        for (auto jobType = EJobType::ReplicatorFirst;
-             jobType != EJobType::ReplicatorLast;
-             jobType = static_cast<EJobType>(static_cast<TEnumTraits<EJobType>::TUnderlying>(jobType) + 1))
-        {
-            Profiler.Enqueue("/job_count", jobCounters[jobType], EMetricType::Gauge, {JobTypeToTag_[jobType]});
+        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+            if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
+                Profiler.Enqueue("/job_count", jobCounters[jobType], EMetricType::Gauge, {JobTypeToTag_[jobType]});
+            }
         }
 
         for (const auto& srcPair : ChunkReplicator_->InterDCEdgeConsumption()) {

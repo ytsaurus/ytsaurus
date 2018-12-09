@@ -55,9 +55,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->VersionedChunkMetaCache,
-            NProfiling::TProfiler(
-                TabletNodeProfiler.GetPathPrefix() +
-                "/versioned_chunk_meta_cache"))
+            TabletNodeProfiler.AppendPath("/versioned_chunk_meta_cache"))
         , Bootstrap_(bootstrap)
     { }
 

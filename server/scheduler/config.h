@@ -37,6 +37,7 @@ DEFINE_ENUM(EDeactivationReason,
     (MinNeededResourcesUnsatisfied)
     (ResourceLimitsExceeded)
     (SaturatedInTentativeTree)
+    (OperationDisabled)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,6 +142,9 @@ public:
     //! Period of ban from the moment of operation saturation in tentative tree.
     TDuration TentativeTreeSaturationDeactivationPeriod;
 
+    //! Enables infer of weight from effective min share ratios (if weight is not implicitly specified); inferred weight is this number mupltiplied by min share ratio.
+    TNullable<double> InferWeightFromMinShareRatioMultiplier;
+
     TFairShareStrategyTreeConfig();
 };
 
@@ -177,6 +181,9 @@ public:
 
     //! List of operation types, which have disabled tentative pool trees option.
     THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
+
+    //! Tentative pool trees used by default for operations that specified 'UseDefaultTentativePoolTrees' options.
+    THashSet<TString> DefaultTentativePoolTrees;
 
     TFairShareStrategyConfig();
 };

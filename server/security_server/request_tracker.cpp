@@ -63,7 +63,8 @@ void TRequestTracker::Stop()
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     for (const auto& pair : securityManager->Users()) {
         auto* user = pair.second;
-        user->SetRequestRateThrottler(nullptr);
+        user->SetReadRequestRateThrottler(nullptr);
+        user->SetWriteRequestRateThrottler(nullptr);
         user->SetRequestQueueSize(0);
     }
 
@@ -84,7 +85,7 @@ void TRequestTracker::ChargeUser(
             if (hydraManager->IsLeader()) {
                 DoChargeUser(user, workload);
             } else {
-                user->GetRequestRateThrottler()->Acquire(workload.RequestCount);
+                user->GetWriteRequestRateThrottler()->Acquire(workload.RequestCount);
             }
             break;
         }
@@ -130,26 +131,42 @@ void TRequestTracker::DoChargeUser(
     statistics->set_access_time(ToProto<i64>(now));
 }
 
-TFuture<void> TRequestTracker::ThrottleUser(TUser* user, int requestCount)
+TFuture<void> TRequestTracker::ThrottleUserReadRequest(TUser* user, int requestCount)
 {
-    return user->GetRequestRateThrottler()->Throttle(requestCount);
+    return user->GetReadRequestRateThrottler()->Throttle(requestCount);
 }
 
-void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit)
+TFuture<void> TRequestTracker::ThrottleUserWriteRequest(TUser* user, int requestCount)
 {
-    user->SetRequestRateLimit(limit);
+    return user->GetWriteRequestRateThrottler()->Throttle(requestCount);
+}
+
+void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
+{
+    user->SetRequestRateLimit(limit, type);
     ReconfigureUserRequestRateThrottler(user);
 }
 
 void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 {
-    if (!user->GetRequestRateThrottler()) {
-        user->SetRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()));
+    if (!user->GetReadRequestRateThrottler()) {
+        user->SetReadRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()));
     }
-    auto config = New<TThroughputThrottlerConfig>();
-    config->Period = Config_->RequestRateSmoothingPeriod;
-    config->Limit = user->GetRequestRateLimit();
-    user->GetRequestRateThrottler()->Reconfigure(std::move(config));
+    if (!user->GetWriteRequestRateThrottler()) {
+        user->SetWriteRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()));
+    }
+    {
+        auto config = New<TThroughputThrottlerConfig>();
+        config->Period = Config_->RequestRateSmoothingPeriod;
+        config->Limit = user->GetRequestRateLimit(EUserWorkloadType::Read);
+        user->GetReadRequestRateThrottler()->Reconfigure(std::move(config));
+    }
+    {
+        auto config = New<TThroughputThrottlerConfig>();
+        config->Period = Config_->RequestRateSmoothingPeriod;
+        config->Limit = user->GetRequestRateLimit(EUserWorkloadType::Write);
+        user->GetWriteRequestRateThrottler()->Reconfigure(std::move(config));
+    }
 }
 
 void TRequestTracker::SetUserRequestQueueSizeLimit(TUser* user, int limit)

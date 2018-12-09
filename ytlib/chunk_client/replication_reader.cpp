@@ -508,9 +508,11 @@ protected:
     //! Fixed priority invoker build upon CompressionPool.
     IInvokerPtr SessionInvoker_;
 
-    TInstant StartTimestamp_;
+    //! The instant this session was started.
+    TInstant StartTime_ = TInstant::Now();
 
-    i64 TotalBytesReceived_;
+    //! Total number of bytes received in this session; used to detect slow reads.
+    i64 TotalBytesReceived_ = 0;
 
 
     TSessionBase(
@@ -978,7 +980,7 @@ private:
             return true;
         }
 
-        auto error = reader->RunSlownessChecker(TotalBytesReceived_, StartTimestamp_);
+        auto error = reader->RunSlownessChecker(TotalBytesReceived_, StartTime_);
         if (!error.IsOK()) {
             RegisterError(TError("Read session of chunk %v is slow; may attempting repair",
                 reader->GetChunkId())
@@ -1015,9 +1017,10 @@ public:
 
     TFuture<std::vector<TBlock>> Run()
     {
-        // TODO: maybe it's better to set in reader
-        StartTimestamp_ = TInstant::Now();
-        TotalBytesReceived_ = 0;
+        if (BlockIndexes_.empty()) {
+            return MakeFuture(std::vector<TBlock>());
+        }
+        StartTime_ = TInstant::Now();
         NextRetry();
         return Promise_;
     }
@@ -1501,9 +1504,7 @@ public:
         if (BlockCount_ == 0) {
             return MakeFuture(std::vector<TBlock>());
         }
-
-        StartTimestamp_ = TInstant::Now();
-        TotalBytesReceived_ = 0;
+        StartTime_ = TInstant::Now();
         NextRetry();
         return Promise_;
     }
@@ -1760,8 +1761,7 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> Run()
     {
-        StartTimestamp_ = TInstant::Now();
-        TotalBytesReceived_ = 0;
+        StartTime_ = TInstant::Now();
         NextRetry();
         return Promise_;
     }

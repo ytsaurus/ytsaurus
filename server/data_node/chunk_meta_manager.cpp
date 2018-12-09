@@ -49,9 +49,7 @@ public:
         TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->ChunkMetaCache,
-            NProfiling::TProfiler(
-                DataNodeProfiler.GetPathPrefix() +
-                "/chunk_meta_cache"))
+            DataNodeProfiler.AppendPath("/chunk_meta_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
     {

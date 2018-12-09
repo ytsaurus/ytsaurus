@@ -95,9 +95,7 @@ public:
         , Throttler_(CreateReconfigurableThroughputThrottler(
             MountConfig_->ReplicationThrottler,
             Logger,
-            NProfiling::TProfiler(
-                Profiler.GetPathPrefix() + "/replica/replication_data_weight_throttler",
-                replicaInfo->GetCounters()->Tags)))
+            Profiler.AppendPath("/replica/replication_data_weight_throttler").AddTags(replicaInfo->GetCounters()->Tags)))
     { }
 
     void Enable()

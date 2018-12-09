@@ -477,7 +477,8 @@ TJobResult TJobProxy::DoRun()
 
         RetrieveJobSpec();
 
-        CpuMonitor_ = New<TCpuMonitor>(Config_->JobCpuMonitor, JobThread_->GetInvoker(), CpuLimit_, this);
+        auto cpuMonitorConfig = ConvertTo<TJobCpuMonitorConfigPtr>(TYsonString(JobSpecHelper_->GetSchedulerJobSpecExt().job_cpu_monitor_config()));
+        CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuLimit_);
 
         if (Config_->JobThrottler) {
             LOG_DEBUG("Job throttling enabled");

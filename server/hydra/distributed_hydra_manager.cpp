@@ -145,7 +145,7 @@ public:
         , SnapshotStore_(snapshotStore)
         , Options_(options)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
-        , Profiler(NProfiling::TProfiler(HydraProfiler.GetPathPrefix(), Options_.ProfilingTagIds))
+        , Profiler(HydraProfiler.AddTags(Options_.ProfilingTagIds))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);

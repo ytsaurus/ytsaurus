@@ -2209,7 +2209,7 @@ private:
         auto fetcher = New<TColumnarStatisticsFetcher>(
             options.FetcherConfig,
             nodeDirectory,
-            GetCurrentInvoker(),
+            CreateSerializedInvoker(GetCurrentInvoker()),
             nullptr /* scraper */,
             this,
             Logger);
@@ -3813,6 +3813,7 @@ private:
         "events",
         "memory_usage",
         "suspended",
+        "slot_index_per_pool_tree",
     };
 
     // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
@@ -4106,6 +4107,7 @@ private:
                     SET_ITEM_INSTANT_VALUE("finish_time")
                     SET_ITEM_YSON_STRING_VALUE("result")
                     SET_ITEM_YSON_STRING_VALUE("events")
+                    SET_ITEM_YSON_STRING_VALUE("slot_index_per_pool_tree")
                 .EndMap();
 #undef SET_ITEM_STRING_VALUE
 #undef SET_ITEM_YSON_STRING_VALUE
@@ -4491,7 +4493,7 @@ private:
             auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
 
             YCHECK(lhsUpperLimit.HasRowIndex() == rhsLowerLimit.HasRowIndex());
-            if (lhsUpperLimit.HasRowIndex() && lhsUpperLimit.GetRowIndex() != rhsLowerLimit.GetRowIndex()) {
+            if (lhsUpperLimit.HasRowIndex() && lhsUpperLimit.GetRowIndex() < rhsLowerLimit.GetRowIndex()) {
                 return false;
             }
 
@@ -4992,18 +4994,14 @@ private:
 
         bool FilterByFailedJobs(const TYsonString& briefProgress)
         {
+            bool hasFailedJobs = false;
             if (briefProgress) {
                 auto briefProgressMapNode = ConvertToNode(briefProgress)->AsMap();
                 auto jobsNode = briefProgressMapNode->FindChild("jobs");
-                bool hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
-
-                FailedJobsCount += hasFailedJobs;
-                if (Options.WithFailedJobs && *Options.WithFailedJobs != hasFailedJobs) {
-                    return false;
-                }
+                hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
             }
-
-            return true;
+            FailedJobsCount += hasFailedJobs;
+            return !Options.WithFailedJobs || (*Options.WithFailedJobs == hasFailedJobs);
         }
     };
 
@@ -5086,18 +5084,22 @@ private:
             operation.Result = nodeAttributes.FindYson("result");
         }
 
+        if (!attributes || attributes->contains("slot_index_per_pool_tree")) {
+            operation.SlotIndexPerPoolTree = nodeAttributes.FindYson("slot_index_per_pool_tree");
+        }
+
         return operation;
     }
 
-    THashSet<TString> MakeFinalAttrbibuteSet(
+    THashSet<TString> MakeFinalAttributeSet(
         const TNullable<THashSet<TString>>& originalAttributes,
-        const THashSet<TString>& requiredAttrbiutes,
-        const THashSet<TString>& defaultAttrbiutes,
-        const THashSet<TString>& ignoredAttrbiutes)
+        const THashSet<TString>& requiredAttributes,
+        const THashSet<TString>& defaultAttributes,
+        const THashSet<TString>& ignoredAttributes)
     {
-        auto attributes = originalAttributes.Get(defaultAttrbiutes);
-        attributes.insert(requiredAttrbiutes.begin(), requiredAttrbiutes.end());
-        for (const auto& attribute : ignoredAttrbiutes) {
+        auto attributes = originalAttributes.Get(defaultAttributes);
+        attributes.insert(requiredAttributes.begin(), requiredAttributes.end());
+        for (const auto& attribute : ignoredAttributes) {
             attributes.erase(attribute);
         }
         return attributes;
@@ -5133,7 +5135,7 @@ private:
             "suspended",
         };
 
-        static const THashSet<TString> RequiredAttrbiutes = {"id", "start_time"};
+        static const THashSet<TString> RequiredAttributes = {"id", "start_time"};
 
         static const THashSet<TString> DefaultAttributes = {
             "authenticated_user",
@@ -5150,7 +5152,7 @@ private:
 
         static const THashSet<TString> IgnoredAttributes = {};
 
-        auto requestedAttributes = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttrbiutes, DefaultAttributes, IgnoredAttributes);
+        auto requestedAttributes = MakeFinalAttributeSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
         bool areAllRequestedAttributesLight = std::all_of(
             requestedAttributes.begin(),
@@ -5436,7 +5438,7 @@ private:
             keys.push_back(key);
         }
 
-        static const THashSet<TString> RequiredAttrbiutes = {"id", "start_time", "brief_progress"};
+        static const THashSet<TString> RequiredAttributes = {"id", "start_time", "brief_progress"};
         static const THashSet<TString> DefaultAttributes = {
             "authenticated_user",
             "brief_progress",
@@ -5450,7 +5452,7 @@ private:
         };
         static const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
 
-        auto attributesToRequest = MakeFinalAttrbibuteSet(options.Attributes, RequiredAttrbiutes, DefaultAttributes, IgnoredAttributes);
+        auto attributesToRequest = MakeFinalAttributeSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
         bool needBriefProgress = !options.Attributes || options.Attributes->contains("brief_progress");
 
         std::vector<int> columns;
@@ -5566,6 +5568,10 @@ private:
             }
             if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Result)) {
                 operation.Result = getYson(row[*indexOrNull]);
+            }
+
+            if (auto indexOrNull = columnFilter.FindPosition(tableIndex.SlotIndexPerPoolTree)) {
+                operation.SlotIndexPerPoolTree = getYson(row[*indexOrNull]);
             }
 
             idToOperation.emplace(*operation.Id, std::move(operation));
@@ -6012,12 +6018,6 @@ private:
                     stderrSize = stderrNode->Attributes().Get<i64>("uncompressed_data_size");
                 }
 
-                if (options.WithSpec) {
-                    if (*options.WithSpec == (state == EJobState::Running)) {
-                        continue;
-                    }
-                }
-
                 if (options.WithStderr) {
                     if (*options.WithStderr && stderrSize <= 0) {
                         continue;
@@ -6103,12 +6103,6 @@ private:
 
                 auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
 
-                if (options.WithSpec) {
-                    if (*options.WithSpec == (state == EJobState::Running)) {
-                        continue;
-                    }
-                }
-
                 if (options.WithStderr) {
                     if (*options.WithStderr && stderrSize <= 0) {
                         continue;
@@ -6130,6 +6124,7 @@ private:
                 job.State = state;
                 job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
                 job.Address = address;
+                job.HasSpec = true;
                 job.Progress = values->GetChild("progress")->AsDouble()->GetValue();
                 if (stderrSize > 0) {
                     job.StderrSize = stderrSize;

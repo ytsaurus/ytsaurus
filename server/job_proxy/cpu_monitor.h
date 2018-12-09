@@ -23,16 +23,27 @@ class TCpuMonitor
 {
 public:
     TCpuMonitor(
-        TJobCpuMonitorConfigPtr config,
+        NScheduler::TJobCpuMonitorConfigPtr config,
         IInvokerPtr invoker,
-        double hardCpuLimit,
-        TJobProxy* jobProxy);
+        TJobProxy* jobProxy,
+        double hardCpuLimit);
 
     void Start();
     TFuture<void> Stop();
     void FillStatistics(NJobTrackerClient::TStatistics& statistics) const;
 
 private:
+    NScheduler::TJobCpuMonitorConfigPtr Config_;
+
+    NConcurrency::TPeriodicExecutorPtr MonitoringExecutor_;
+
+    TJobProxy* JobProxy_;
+
+    TNullable<TDuration> CheckedTimeInterval_;
+    double AggregatedSmoothedCpuUsage_ = 0;
+    double AggregatedMaxCpuUsage_ = 0;
+    double AggregatedPreemptableCpu_ = 0;
+
     const double HardLimit_;
     double SoftLimit_;
     TNullable<double> SmoothedUsage_;
@@ -42,17 +53,12 @@ private:
 
     std::deque<ECpuMonitorVote> Votes_;
 
-    TJobCpuMonitorConfigPtr Config_;
-
-    NConcurrency::TPeriodicExecutorPtr MonitoringExecutor_;
-
-    TJobProxy* JobProxy_;
-
     NLogging::TLogger Logger;
 
-    bool UpdateSmoothedValue();
+    bool TryUpdateSmoothedValue();
     void UpdateVotes();
     TNullable<double> TryMakeDecision();
+    void UpdateAggregates();
 
     void DoCheck();
 };

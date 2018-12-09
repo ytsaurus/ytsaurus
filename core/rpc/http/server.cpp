@@ -195,7 +195,7 @@ public:
             return;
         }
 
-        auto body = req->ReadBody();
+        auto body = req->ReadAll();
         auto remoteAddress = req->GetRemoteAddress();
         auto endpointDescription = ToString(remoteAddress);
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()

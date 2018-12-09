@@ -251,6 +251,10 @@ TOperationControllerBase::TOperationControllerBase(
     UserTransaction = UserTransactionId
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
+
+    LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
+        OperationType,
+        static_cast<void*>(this));
 }
 
 void TOperationControllerBase::BuildMemoryUsageYson(TFluentAny fluent) const
@@ -2788,7 +2792,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (!AvailableExecNodesObserved_ && !foundMatching) {
-        OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv in trees %v",
+        OnOperationFailed(TError(
+            EErrorCode::NoOnlineNodeToScheduleJob,
+            "No online nodes match operation scheduling tag filter %Qv in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
             GetKeys(PoolTreeToSchedulingTagFilter_)));
         return;
@@ -3174,7 +3180,9 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
         const auto& neededResources = task->GetMinNeededResources();
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
             OnOperationFailed(
-                TError("No online node can satisfy the resource demand")
+                TError(
+                    EErrorCode::NoOnlineNodeToScheduleJob,
+                    "No online node can satisfy the resource demand")
                     << TErrorAttribute("task_name", task->GetTitle())
                     << TErrorAttribute("needed_resources", neededResources.ToJobResources())
                     << TErrorAttribute("max_available_resources", *CachedMaxAvailableExecNodeResources_));
@@ -3679,7 +3687,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 {
-    return Spec_->TentativePoolTrees.contains(treeId);
+    return Spec_->TentativePoolTrees && Spec_->TentativePoolTrees->contains(treeId);
 }
 
 void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId, bool shouldBan)
@@ -5189,15 +5197,23 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     const auto& attributes = *file.Attributes;
 
                     try {
-                        if (linkRsp.IsOK()) {
-                            auto linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
-                            file.FileName = linkAttributes->Get<TString>("key");
-                            file.FileName = linkAttributes->Find<TString>("file_name").Get(file.FileName);
+                        if (const auto& fileNameFromPath = file.Path.GetFileName()) {
+                            file.FileName = *fileNameFromPath;
                         } else {
-                            file.FileName = attributes.Get<TString>("key");
-                            file.FileName = attributes.Find<TString>("file_name").Get(file.FileName);
+                            const auto* actualAttributes = &attributes;
+                            std::unique_ptr<IAttributeDictionary> linkAttributes;
+                            if (linkRsp.IsOK()) {
+                                linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
+                                actualAttributes = linkAttributes.get();
+                            }
+                            if (const auto& fileNameAttribute = actualAttributes->Find<TString>("file_name")) {
+                                file.FileName = *fileNameAttribute;
+                            } else if (const auto& keyAttribute = actualAttributes->Find<TString>("key")) {
+                                file.FileName = *keyAttribute;
+                            } else {
+                                THROW_ERROR_EXCEPTION("Couldn't infer file name for user file");
+                            }
                         }
-                        file.FileName = file.Path.GetFileName().Get(file.FileName);
                     } catch (const std::exception& ex) {
                         // NB: Some of the above Gets and Finds may throw due to, e.g., type mismatch.
                         THROW_ERROR_EXCEPTION("Error parsing attributes of user file %v",

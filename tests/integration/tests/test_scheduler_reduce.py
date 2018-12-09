@@ -10,7 +10,7 @@ from yt.yson import YsonEntity
 
 ##################################################################
 
-class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
+class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -1577,10 +1577,10 @@ done
         assert get("//tmp/t2/@chunk_count") in [0, 1]
 
 
-class TestSchedulerNewReduceCommandsOneCell(TestSchedulerReduceCommandsOneCell):
+class TestSchedulerNewReduceCommands(TestSchedulerReduceCommands):
     @classmethod
     def modify_controller_agent_config(cls, config):
-        TestSchedulerReduceCommandsOneCell.modify_controller_agent_config(config)
+        TestSchedulerReduceCommands.modify_controller_agent_config(config)
         config["controller_agent"]["reduce_operation_options"]["spec_template"] = {"use_new_controller": True}
 
     @unix_only
@@ -1796,9 +1796,9 @@ class TestSchedulerNewReduceCommandsOneCell(TestSchedulerReduceCommandsOneCell):
         assert read_table("//tmp/out") == [{"key": 1}, {"key": 1}]
 
 
-class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommandsOneCell):
+class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
-class TestSchedulerNewReduceCommandsMulticell(TestSchedulerNewReduceCommandsOneCell):
+class TestSchedulerNewReduceCommandsMulticell(TestSchedulerNewReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2

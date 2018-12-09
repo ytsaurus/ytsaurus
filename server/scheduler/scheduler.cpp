@@ -40,6 +40,8 @@
 
 #include <yt/client/api/transaction.h>
 
+#include <yt/client/node_tracker_client/helpers.h>
+
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -172,8 +174,8 @@ public:
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
-        , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
-        , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
+        , TotalResourceLimitsProfiler_(SchedulerProfiler.AppendPath("/total_resource_limits"))
+        , TotalResourceUsageProfiler_(SchedulerProfiler.AppendPath("/total_resource_usage"))
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
@@ -204,6 +206,9 @@ public:
         }
 
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+            if (type < FirstSchedulerJobType || type > LastSchedulerJobType) {
+                continue;
+            }
             JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("job_type", FormatEnum(type));
         }
 
@@ -1456,6 +1461,9 @@ private:
         }
 
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+            if (type < FirstSchedulerJobType || type > LastSchedulerJobType) {
+                continue;
+            }
             for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
                 TTagIdList commonTags = {JobStateToTag_[state], JobTypeToTag_[type]};
                 if (state == EJobState::Aborted) {
@@ -1778,7 +1786,7 @@ private:
     {
         LOG_INFO("Requesting exec nodes information");
 
-        auto req = TYPathProxy::List("//sys/nodes");
+        auto req = TYPathProxy::List(GetClusterNodesPath());
         std::vector<TString> attributeKeys{
             "id",
             "tags",
@@ -2534,7 +2542,7 @@ private:
 
             // Should be called before commit in controller.
             auto operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
-                .AsyncVia(GetControlInvoker(EControlQueue::Operation))
+                .AsyncVia(operation->GetCancelableControlInvoker())
                 .Run())
                 .ValueOrThrow();
 

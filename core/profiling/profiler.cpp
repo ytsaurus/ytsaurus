@@ -178,6 +178,26 @@ TProfiler::TProfiler(
     , SelfProfiling_(selfProfiling)
 { }
 
+TProfiler TProfiler::AppendPath(const TYPath& pathSuffix) const
+{
+    if (!Enabled_) {
+        return {};
+    }
+    return TProfiler(PathPrefix_ + pathSuffix, TagIds_);
+}
+
+TProfiler TProfiler::AddTags(const TTagIdList& tagIds) const
+{
+    if (!Enabled_) {
+        return {};
+    }
+    auto allTagIds = TagIds_;
+    for (auto tagId : tagIds) {
+        allTagIds.push_back(tagId);
+    }
+    return TProfiler(PathPrefix_, tagIds);
+}
+
 void TProfiler::Enqueue(
     const NYPath::TYPath& path,
     TValue value,

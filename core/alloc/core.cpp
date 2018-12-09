@@ -361,13 +361,12 @@ class TFreeList
 public:
     void Put(T* item)
     {
-        auto newEpoch = Epoch_++;
+        auto newTag = CurrentTag_++;
         for (;;) {
-            auto currentHead = __atomic_load_n(&Head_, __ATOMIC_RELAXED);
-            auto currentPair = Unpack(currentHead);
-            item->Next = currentPair.first;
-            auto newHead = Pack(item, newEpoch);
-            if (__sync_bool_compare_and_swap(&Head_, currentHead, newHead)) {
+            auto currentTaggedHead = LoadRelaxed(&TaggedHead_);
+            item->Next = currentTaggedHead.first;
+            auto newTaggedHead = std::make_pair(item, newTag);
+            if (CompareAndSet(&TaggedHead_, currentTaggedHead, newTaggedHead)) {
                 break;
             }
         }
@@ -375,16 +374,15 @@ public:
 
     T* Extract()
     {
-        auto newEpoch = Epoch_++;
+        auto newTag = CurrentTag_++;
         for (;;) {
-            auto currentHead = __atomic_load_n(&Head_, __ATOMIC_RELAXED);
-            auto currentPair = Unpack(currentHead);
-            auto* item = currentPair.first;
+            auto currentTaggedHead = LoadRelaxed(&TaggedHead_);
+            auto* item = currentTaggedHead.first;
             if (!item) {
                 return nullptr;
             }
-            auto newHead = Pack(item->Next, newEpoch);
-            if (__sync_bool_compare_and_swap(&Head_, currentHead, newHead)) {
+            auto newTaggedHead = std::make_pair(item->Next, newTag);
+            if (CompareAndSet(&TaggedHead_, currentTaggedHead, newTaggedHead)) {
                 return item;
             }
         }
@@ -392,41 +390,63 @@ public:
 
     T* ExtractAll()
     {
-        auto newEpoch = Epoch_++;
+        auto newTag = CurrentTag_++;
         for (;;) {
-            auto currentHead = __atomic_load_n(&Head_, __ATOMIC_RELAXED);
-            auto currentPair = Unpack(currentHead);
-            auto* item = currentPair.first;
-            auto newHead = Pack(nullptr, newEpoch);
-            if (__sync_bool_compare_and_swap(&Head_, currentHead, newHead)) {
+            auto currentTaggedHead = LoadRelaxed(&TaggedHead_);
+            auto* item = currentTaggedHead.first;
+            auto newTaggedHead = std::make_pair(nullptr, newTag);
+            if (CompareAndSet(&TaggedHead_, currentTaggedHead, newTaggedHead)) {
                 return item;
             }
         }
     }
 
 private:
-    using TEpoch = ui64;
-    using TDoubleWordAtomic = volatile unsigned __int128;
+    using TAtomicUint128 = volatile unsigned __int128  __attribute__((aligned(16)));
+    using TTag = ui64;
+    using TTaggedPointer = std::pair<T*, TTag>;
 
-    TDoubleWordAtomic Head_ = {0};
-    std::atomic<TEpoch> Epoch_ = {0};
+    TAtomicUint128 TaggedHead_ = {0};
+    std::atomic<TTag> CurrentTag_ = {0};
 
     // Avoid false sharing.
     char Padding[40];
 
 private:
-    static std::pair<T*, TEpoch> Unpack(TDoubleWordAtomic value)
+    static Y_FORCE_INLINE TTaggedPointer LoadRelaxed(TAtomicUint128* atomic)
     {
-        return std::make_pair(
-            reinterpret_cast<T*>(value & 0xffffffffffffffff),
-            static_cast<TEpoch>(value >> 64));
+        TTaggedPointer result;
+        __asm__ __volatile__
+        (
+            "xor %%rcx, %%rcx\n"
+            "xor %%rax, %%rax\n"
+            "xor %%rdx, %%rdx\n"
+            "xor %%rbx, %%rbx\n"
+            "lock cmpxchg16b %2"
+            : "+a"(result.first)
+            , "+d"(result.second)
+            : "m"(*atomic)
+            : "cc", "rbx", "rcx"
+        );
+        return result;
     }
 
-    static TDoubleWordAtomic Pack(T* item, TEpoch epoch)
+    static Y_FORCE_INLINE bool CompareAndSet(TAtomicUint128* atomic, TTaggedPointer expectedValue, TTaggedPointer newValue)
     {
-        return
-            reinterpret_cast<unsigned __int128>(item) |
-            static_cast<unsigned __int128>(epoch) << 64;
+        bool result;
+        __asm__ __volatile__
+        (
+            "lock cmpxchg16b %1\n"
+            "setz %0"
+            : "=q"(result)
+            , "+m"(*atomic)
+            , "+a"(expectedValue.first)
+            , "+d"(expectedValue.second)
+            : "b"(newValue.first)
+            , "c"(newValue.second)
+            : "cc"
+        );
+        return result;
     }
 };
 
@@ -673,12 +693,11 @@ public:
 
         if (context.Profiler.GetEnabled()) {
             for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
-                NProfiling::TProfiler profiler(
-                    context.Profiler.GetPathPrefix() + "/timing_events",
+                auto profiler = context.Profiler.AppendPath("/timing_events").AddTags(
                     {
                         NProfiling::TProfileManager::Get()->RegisterTag("type", type)
                     });
-                auto& counters = EventCounters_[type];
+                const auto& counters = EventCounters_[type];
                 profiler.Enqueue("/count", counters.Count, NProfiling::EMetricType::Gauge);
                 profiler.Enqueue("/size", counters.Size, NProfiling::EMetricType::Gauge);
             }
@@ -731,18 +750,11 @@ public:
     explicit TTimingGuard(ETimingEventType eventType, size_t size = 0)
         : EventType_(eventType)
         , Size_(size)
-        // Sadly, TWallTimer cannot be used prior to all statics being initialized.
-        , StartTime_(ConfigurationManager->IsLoggingEnabled() ? NProfiling::GetCpuInstant() : 0)
     { }
 
     ~TTimingGuard()
     {
-        if (StartTime_ == 0) {
-            return;
-        }
-
-        auto endTime = NProfiling::GetCpuInstant();
-        auto duration = NProfiling::CpuDurationToDuration(endTime - StartTime_);
+        auto duration = Timer_.GetElapsedTime();
         if (duration > ConfigurationManager->GetSlowCallWarningThreshold()) {
             TimingManager->EnqueueEvent(EventType_, duration, Size_);
         };
@@ -751,7 +763,8 @@ public:
 private:
     const ETimingEventType EventType_;
     const size_t Size_;
-    const NProfiling::TCpuInstant StartTime_;
+
+    NProfiling::TWallTimer Timer_;
 };
 
 template <class T>
@@ -1767,21 +1780,21 @@ private:
     void PushSystemStatistics(const TBackgroundContext& context)
     {
         auto counters = GetSystemCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/system");
+        auto profiler = context.Profiler.AppendPath("/system");
         PushCounterStatistics(profiler, counters);
     }
 
     void PushTotalStatistics(const TBackgroundContext& context)
     {
         auto counters = GetTotalCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/total");
+        auto profiler = context.Profiler.AppendPath("/total");
         PushCounterStatistics(profiler, counters);
     }
 
     void PushHugeStatistics(const TBackgroundContext& context)
     {
         auto counters = GetHugeCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/huge");
+        auto profiler = context.Profiler.AppendPath("/total");
         PushCounterStatistics(profiler, counters);
     }
 
@@ -1790,8 +1803,7 @@ private:
         size_t rank,
         const TLocalSmallCounters& counters)
     {
-        NProfiling::TProfiler profiler(
-            context.Profiler.GetPathPrefix() + "/small_arena",
+        auto profiler = context.Profiler.AppendPath("/total").AddTags(
             {
                 NProfiling::TProfileManager::Get()->RegisterTag("rank", rank)
             });
@@ -1801,7 +1813,7 @@ private:
     void PushSmallStatistics(const TBackgroundContext& context)
     {
         auto counters = GetSmallCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/small");
+        auto profiler = context.Profiler.AppendPath("/small");
         PushCounterStatistics(profiler, counters);
 
         auto arenaCounters = GetSmallArenaCounters();
@@ -1815,8 +1827,7 @@ private:
         size_t rank,
         const TLocalLargeCounters& counters)
     {
-        NProfiling::TProfiler profiler(
-            context.Profiler.GetPathPrefix() + "/large_arena",
+        auto profiler = context.Profiler.AppendPath("/large_arena").AddTags(
             {
                 NProfiling::TProfileManager::Get()->RegisterTag("rank", rank)
             });
@@ -1838,7 +1849,7 @@ private:
     void PushLargeStatistics(const TBackgroundContext& context)
     {
         auto counters = GetLargeCounters();
-        NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/large");
+        auto profiler = context.Profiler.AppendPath("/large");
         PushCounterStatistics(profiler, counters);
 
         auto arenaCounters = GetLargeArenaCounters();
@@ -1854,44 +1865,6 @@ private:
 };
 
 TBox<TStatisticsManager> StatisticsManager;
-
-////////////////////////////////////////////////////////////////////////////////
-
-Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
-{
-    if (Y_LIKELY(ThreadState_)) {
-        return ThreadState_;
-    }
-
-    if (ThreadStateDestroyed_) {
-        return nullptr;
-    }
-
-    InitializeGlobals();
-
-    // InitializeGlobals must not allocate.
-    YCHECK(!ThreadState_);
-    ThreadState_ = ThreadManager->AllocateThreadState();
-
-    return ThreadState_;
-}
-
-void TThreadManager::DestroyThread(void*)
-{
-    {
-        auto guard = GuardWithTiming(ThreadManager->ThreadRegistryLock_);
-        ThreadManager->UnrefThreadState(ThreadState_);
-    }
-    ThreadState_ = nullptr;
-    ThreadStateDestroyed_ = true;
-}
-
-void TThreadManager::DestroyThreadState(TThreadState* state)
-{
-    StatisticsManager->AccumulateLocalCounters(state);
-    ThreadRegistry_.Remove(state);
-    ThreadStatePool_.Free(state);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2091,16 +2064,15 @@ public:
 
     void PutOne(void* ptr)
     {
-        PARANOID_CHECK(Size_ == 0);
-        Ptrs_[Size_] = ptr;
-        Size_ = 1;
+        PutMany(&ptr, 1);
     }
 
-    void PutAll(void** ptrs)
+    void PutMany(void** ptrs, size_t count)
     {
         PARANOID_CHECK(Size_ == 0);
-        ::memcpy(Ptrs_.data(), ptrs, ChunksPerGroup * sizeof(void*));
-        Size_ = ChunksPerGroup;
+        PARANOID_CHECK(count <= ChunksPerGroup);
+        ::memcpy(Ptrs_.data(), ptrs, count * sizeof(void*));
+        Size_ = count;
     }
 
 private:
@@ -2138,7 +2110,7 @@ public:
         auto* group = GroupPool_.Allocate(state);
 
         auto& chunkPtrPtr = state->SmallBlobCache[Kind_].RankToCachedChunkPtr[rank];
-        group->PutAll(chunkPtrPtr - ChunksPerGroup + 1);
+        group->PutMany(chunkPtrPtr - ChunksPerGroup + 1, ChunksPerGroup);
         chunkPtrPtr -= ChunksPerGroup;
         ::memset(chunkPtrPtr + 1, 0, sizeof(void*) * ChunksPerGroup);
 
@@ -2155,6 +2127,29 @@ public:
         auto& groups = RankToChunkGroups_[rank];
         PARANOID_CHECK(!group->IsEmpty());
         groups.Put(&GlobalShardedState_, group);
+    }
+
+    void MoveAllToGlobal(TThreadState* state, size_t rank)
+    {
+        auto& chunkPtrPtr = state->SmallBlobCache[Kind_].RankToCachedChunkPtr[rank];
+        while (true) {
+            size_t count = 0;
+            while (count < ChunksPerGroup && *chunkPtrPtr != reinterpret_cast<void*>(TThreadState::LeftSentinel)) {
+                --chunkPtrPtr;
+                ++count;
+            }
+
+            if (count == 0) {
+                break;
+            }
+
+            auto* group = GroupPool_.Allocate(state);
+            group->PutMany(chunkPtrPtr + 1, count);
+            ::memset(chunkPtrPtr + 1, 0, sizeof(void*) * count);
+
+            auto& groups = RankToChunkGroups_[rank];
+            groups.Put(state, group);
+        }
     }
 
 private:
@@ -2240,7 +2235,22 @@ public:
         return size;
     }
 
+    static void PurgeCaches()
+    {
+        DoPurgeCaches<EAllocationKind::Untagged>();
+        DoPurgeCaches<EAllocationKind::Tagged>();
+    }
+
 private:
+    template <EAllocationKind Kind>
+    static void DoPurgeCaches()
+    {
+        auto* state = TThreadManager::GetThreadState();
+        for (size_t rank = 0; rank < SmallRankCount; ++rank) {
+            (*GlobalSmallChunkCaches)[Kind]->MoveAllToGlobal(state, rank);
+        }
+    }
+
     template <EAllocationKind Kind>
     static void* AllocateGlobal(TMemoryTag tag, size_t size, size_t rank)
     {
@@ -3135,6 +3145,48 @@ private:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE TThreadState* TThreadManager::FindThreadState()
+{
+    if (Y_LIKELY(ThreadState_)) {
+        return ThreadState_;
+    }
+
+    if (ThreadStateDestroyed_) {
+        return nullptr;
+    }
+
+    InitializeGlobals();
+
+    // InitializeGlobals must not allocate.
+    YCHECK(!ThreadState_);
+    ThreadState_ = ThreadManager->AllocateThreadState();
+
+    return ThreadState_;
+}
+
+void TThreadManager::DestroyThread(void*)
+{
+    TSmallAllocator::PurgeCaches();
+
+    TThreadState* state = ThreadState_;
+    ThreadState_ = nullptr;
+    ThreadStateDestroyed_ = true;
+
+    {
+        auto guard = GuardWithTiming(ThreadManager->ThreadRegistryLock_);
+        ThreadManager->UnrefThreadState(state);
+    }
+}
+
+void TThreadManager::DestroyThreadState(TThreadState* state)
+{
+    StatisticsManager->AccumulateLocalCounters(state);
+    ThreadRegistry_.Remove(state);
+    ThreadStatePool_.Free(state);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

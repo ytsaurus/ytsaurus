@@ -863,6 +863,8 @@ struct TOperation
 
     NYson::TYsonString Events;
     NYson::TYsonString Result;
+
+    NYson::TYsonString SlotIndexPerPoolTree;
 };
 
 struct TListOperationsResult

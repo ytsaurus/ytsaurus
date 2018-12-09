@@ -318,15 +318,17 @@ TTablet::TTablet(
     , WriterConfig_(New<TTabletChunkWriterConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
     , Context_(context)
+    , Logger(NLogging::TLogger(TabletNodeLogger)
+        .AddTag("TabletId: %v", Id_))
     , FlushThrottler_(CreateReconfigurableThroughputThrottler(
         Config_->FlushThrottler,
-        TabletNodeLogger))
+        Logger))
     , CompactionThrottler_(CreateReconfigurableThroughputThrottler(
         Config_->CompactionThrottler,
-        TabletNodeLogger))
+        Logger))
     , PartitioningThrottler_(CreateReconfigurableThroughputThrottler(
         Config_->PartitioningThrottler,
-        TabletNodeLogger))
+        Logger))
 { }
 
 TTablet::TTablet(
@@ -369,15 +371,17 @@ TTablet::TTablet(
         PivotKey_,
         NextPivotKey_))
     , Context_(context)
+    , Logger(NLogging::TLogger(TabletNodeLogger)
+        .AddTag("TabletId: %v", Id_))
     , FlushThrottler_(CreateReconfigurableThroughputThrottler(
         Config_->FlushThrottler,
-        TabletNodeLogger))
+        Logger))
     , CompactionThrottler_(CreateReconfigurableThroughputThrottler(
         Config_->CompactionThrottler,
-        TabletNodeLogger))
+        Logger))
     , PartitioningThrottler_(CreateReconfigurableThroughputThrottler(
         Config_->PartitioningThrottler,
-        TabletNodeLogger))
+        Logger))
 {
     Initialize();
 }
@@ -1308,6 +1312,12 @@ void TTablet::UpdateOverlappingStoreCount()
         }
     }
     overlappingStoreCount += Eden_->Stores().size();
+
+    if (OverlappingStoreCount_ != overlappingStoreCount) {
+        LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",
+            overlappingStoreCount);
+    }
+
     OverlappingStoreCount_ = overlappingStoreCount;
     CriticalPartitionCount_ = criticalPartitionCount;
 

@@ -153,7 +153,6 @@ private:
 
     bool CanStartNewSession(
         const TStoreLocationPtr& location,
-        NObjectClient::EObjectType chunkType,
         int mediumIndex,
         const TWorkloadDescriptor& workloadDescriptor);
 

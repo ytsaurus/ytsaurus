@@ -134,7 +134,7 @@ private:
             }
             if (!matchedScope) {
                 AuthProfiler.Increment(TokenScopeCheckErrors_);
-                return TError("Token does not provide a valid scope")
+                return TError(NRpc::EErrorCode::InvalidCredentials, "Token does not provide a valid scope")
                     << TErrorAttribute("scope", oauthScope.Value());
             }
         }
@@ -238,8 +238,8 @@ class TCachingTokenAuthenticator
     , public TAsyncExpiringCache<TTokenCredentials, TAuthenticationResult>
 {
 public:
-    TCachingTokenAuthenticator(TAsyncExpiringCacheConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
-        : TAsyncExpiringCache(std::move(config))
+    TCachingTokenAuthenticator(TCachingTokenAuthenticatorConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
+        : TAsyncExpiringCache(config->Cache)
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
 
@@ -249,16 +249,16 @@ public:
     }
 
 private:
+    const ITokenAuthenticatorPtr TokenAuthenticator_;
+
     virtual TFuture<TAuthenticationResult> DoGet(const TTokenCredentials& credentials) override
     {
         return TokenAuthenticator_->Authenticate(credentials);
     }
-
-    const ITokenAuthenticatorPtr TokenAuthenticator_;
 };
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
-    TAsyncExpiringCacheConfigPtr config,
+    TCachingTokenAuthenticatorConfigPtr config,
     ITokenAuthenticatorPtr authenticator)
 {
     return New<TCachingTokenAuthenticator>(std::move(config), std::move(authenticator));

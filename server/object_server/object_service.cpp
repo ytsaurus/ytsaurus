@@ -30,6 +30,9 @@
 
 #include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/heap.h>
+#include <yt/core/misc/lock_free.h>
+
+#include <yt/core/actions/cancelable_context.h>
 
 #include <atomic>
 #include <queue>
@@ -77,6 +80,7 @@ public:
             EAutomatonThreadQueue::ObjectService,
             ObjectServerLogger)
         , Config_(std::move(config))
+        , AutomatonInvoker_(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetMaxQueueSize(10000)
@@ -90,12 +94,8 @@ public:
     }
 
 private:
-    static IInvokerPtr GetRpcInvoker()
-    {
-        return NRpc::TDispatcher::Get()->GetHeavyInvoker();
-    }
-
     const TObjectServiceConfigPtr Config_;
+    const IInvokerPtr AutomatonInvoker_;
 
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
@@ -113,6 +113,7 @@ private:
         //! and if not then readjust the heap.
         TDuration HeapKey;
         std::queue<TExecuteSessionPtr> Sessions;
+        bool InHeap = false;
     };
 
     struct TUserBucketComparer
@@ -130,9 +131,19 @@ private:
     //! A bucket is only present here iff it has at least one session.
     std::vector<TUserBucket*> BucketHeap_;
 
+    TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionPtr> EnqueuedSessions_;
 
-    void ScheduleSession(TExecuteSessionPtr session);
-    void RunSession();
+    std::atomic<bool> RunSessionsCallbackEnqueued_ = {false};
+
+
+    static IInvokerPtr GetRpcInvoker()
+    {
+        return NRpc::TDispatcher::Get()->GetHeavyInvoker();
+    }
+
+    void EnqueueSession(TExecuteSessionPtr session);
+    void EnqueueRunSessionsCallback();
+    void RunSessions();
     TUserBucket* GetOrCreateBucket(const TString& userName);
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
@@ -159,12 +170,12 @@ class TObjectService::TExecuteSession
 public:
     TExecuteSession(
         TObjectServicePtr owner,
-        TCtxExecutePtr context)
+        TCtxExecutePtr rpcContext)
         : Owner_(std::move(owner))
-        , Context_(std::move(context))
-        , SubrequestCount_(Context_->Request().part_counts_size())
-        , UserName_(Context_->GetUser())
-        , RequestId_(Context_->GetRequestId())
+        , RpcContext_(std::move(rpcContext))
+        , SubrequestCount_(RpcContext_->Request().part_counts_size())
+        , UserName_(RpcContext_->GetUser())
+        , RequestId_(RpcContext_->GetRequestId())
         , HydraFacade_(Owner_->Bootstrap_->GetHydraFacade())
         , HydraManager_(HydraFacade_->GetHydraManager())
         , ObjectManager_(Owner_->Bootstrap_->GetObjectManager())
@@ -194,7 +205,7 @@ public:
     {
         auto codicilGuard = MakeCodicilGuard();
 
-        Context_->SetRequestInfo("Count: %v", SubrequestCount_);
+        RpcContext_->SetRequestInfo("Count: %v", SubrequestCount_);
 
         if (SubrequestCount_ == 0) {
             Reply();
@@ -215,7 +226,31 @@ public:
         return true;
     }
 
-    void Run()
+    bool RunFast()
+    {
+        if (!NeedsUpstreamSync_) {
+            return true;
+        }
+        NeedsUpstreamSync_ = false;
+
+        auto result = HydraManager_->SyncWithUpstream();
+        auto maybeError = result.TryGet();
+        if (!maybeError) {
+            result.Subscribe(
+                BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
+            return false;
+        }
+
+        const auto& error = *maybeError;
+        if (!error.IsOK()) {
+            Reply(error);
+            return false;
+        }
+
+        return true;
+    }
+
+    void RunSlow()
     {
         auto codicilGuard = MakeCodicilGuard();
         try {
@@ -227,7 +262,7 @@ public:
 
 private:
     const TObjectServicePtr Owner_;
-    const TCtxExecutePtr Context_;
+    const TCtxExecutePtr RpcContext_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -254,6 +289,7 @@ private:
     int CurrentSubrequestIndex_ = 0;
     int ThrottledSubrequestIndex_ = -1;
     IInvokerPtr EpochAutomatonInvoker_;
+    TCancelableContextPtr EpochCancelableContext_;
     bool NeedsUpstreamSync_ = true;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
@@ -282,8 +318,8 @@ private:
         TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
         YCHECK(guard.WasAcquired());
 
-        const auto& request = Context_->Request();
-        const auto& attachments = Context_->RequestAttachments();
+        const auto& request = RpcContext_->Request();
+        const auto& attachments = RpcContext_->RequestAttachments();
         Subrequests_.resize(SubrequestCount_);
         Revisions_.resize(SubrequestCount_);
         int currentPartIndex = 0;
@@ -310,7 +346,7 @@ private:
 
             // Propagate various parameters to the subrequest.
             ToProto(subrequestHeader.mutable_request_id(), RequestId_);
-            subrequestHeader.set_retry(subrequestHeader.retry() || Context_->IsRetry());
+            subrequestHeader.set_retry(subrequestHeader.retry() || RpcContext_->IsRetry());
             subrequestHeader.set_user(UserName_);
 
             auto* ypathExt = subrequestHeader.MutableExtension(TYPathHeaderExt::ypath_header_ext);
@@ -361,8 +397,7 @@ private:
 
     void Reschedule()
     {
-        EpochAutomatonInvoker_->Invoke(
-            BIND(&TObjectService::ScheduleSession, Owner_, Passed(MakeStrong(this))));
+        Owner_->EnqueueSession(this);
     }
 
     template <class T>
@@ -394,20 +429,18 @@ private:
         auto batchStartTime = NProfiling::GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
-        if (Context_->IsCanceled()) {
-            return;
-        }
-
         if (!EpochAutomatonInvoker_) {
             EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
         }
+        if (!EpochCancelableContext_) {
+            EpochCancelableContext_ = HydraFacade_->GetHydraManager()->GetAutomatonCancelableContext();
+        }
 
-        if (NeedsUpstreamSync_) {
-            NeedsUpstreamSync_ = false;
-            auto result = HydraManager_->SyncWithUpstream();
-            if (!WaitForAndContinue(std::move(result))) {
-                return;
-            }
+        if (RpcContext_->IsCanceled()) {
+            return;
+        }
+        if (EpochCancelableContext_->IsCanceled()) {
+            return;
         }
 
         Owner_->ValidateClusterInitialized();
@@ -436,8 +469,11 @@ private:
             !Replied_)
         {
             while (CurrentSubrequestIndex_ > ThrottledSubrequestIndex_) {
+                EUserWorkloadType workloadType = Subrequests_[CurrentSubrequestIndex_].Mutation
+                    ? EUserWorkloadType::Write
+                    : EUserWorkloadType::Read;
                 ++ThrottledSubrequestIndex_;
-                auto result = SecurityManager_->ThrottleUser(user, 1);
+                auto result = SecurityManager_->ThrottleUser(user, 1, workloadType);
                 if (!WaitForAndContinue(result)) {
                     return;
                 }
@@ -551,7 +587,7 @@ private:
             context->ReplyFrom(ObjectManager_->ForwardToLeader(
                 Owner_->Bootstrap_->GetCellTag(),
                 subrequest->RequestMessage,
-                Context_->GetTimeout()));
+                RpcContext_->GetTimeout()));
         }
 
         // NB: Even if the user was just removed the instance is still valid but not alive.
@@ -620,13 +656,13 @@ private:
 
         TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
 
-        if (Context_->IsCanceled()) {
+        if (RpcContext_->IsCanceled()) {
             return;
         }
 
         if (error.IsOK()) {
-            auto& response = Context_->Response();
-            auto& attachments = Context_->ResponseAttachments();
+            auto& response = RpcContext_->Response();
+            auto& attachments = RpcContext_->ResponseAttachments();
 
             YCHECK(SubrequestCount_ == 0 || CurrentSubrequestIndex_ != 0);
 
@@ -651,19 +687,19 @@ private:
 
         YCHECK(!error.IsOK() ||
             SubrequestCount_ == 0 ||
-            Context_->Response().part_counts_size() > 0);
+            RpcContext_->Response().part_counts_size() > 0);
 
-        Context_->Reply(error);
+        RpcContext_->Reply(error);
     }
 
     bool IsBackoffAllowed() const
     {
-        return Context_->Request().allow_backoff();
+        return RpcContext_->Request().allow_backoff();
     }
 
     void ScheduleBackoffAlarm()
     {
-        auto requestTimeout = Context_->GetTimeout();
+        auto requestTimeout = RpcContext_->GetTimeout();
         if (requestTimeout &&
             *requestTimeout > Owner_->Config_->TimeoutBackoffLeadTime)
         {
@@ -732,24 +768,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TObjectService::ScheduleSession(TExecuteSessionPtr session)
+void TObjectService::EnqueueSession(TExecuteSessionPtr session)
 {
-    auto* bucket = GetOrCreateBucket(session->GetUserName());
-
-    // Insert the bucket into the heap if this is its first session.
-    if (bucket->Sessions.empty()) {
-        BucketHeap_.push_back(bucket);
-        AdjustHeapBack(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
-    }
-
-    bucket->Sessions.push(std::move(session));
-    RunSession();
+    EnqueuedSessions_.Enqueue(std::move(session));
+    EnqueueRunSessionsCallback();
 }
 
-void TObjectService::RunSession()
+void TObjectService::EnqueueRunSessionsCallback()
 {
-    while (!BucketHeap_.empty()) {
+    bool expected = false;
+    if (RunSessionsCallbackEnqueued_.compare_exchange_strong(expected, true)) {
+        AutomatonInvoker_->Invoke(BIND(&TObjectService::RunSessions, MakeStrong(this)));
+    }
+}
+
+void TObjectService::RunSessions()
+{
+    auto startTime = NProfiling::GetCpuInstant();
+    auto deadlineTime = startTime + NProfiling::DurationToCpuDuration(Config_->YieldTimeout);
+
+    RunSessionsCallbackEnqueued_.store(false);
+    
+    EnqueuedSessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
+        if (!session->RunFast()) {
+            return;
+        }
+
+        auto* bucket = GetOrCreateBucket(session->GetUserName());
+        // Insert the bucket into the heap if this is its first session.
+        if (!bucket->InHeap) {
+            BucketHeap_.push_back(bucket);
+            AdjustHeapBack(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
+            bucket->InHeap = true;
+        }
+        bucket->Sessions.push(std::move(session));
+    });
+
+    while (!BucketHeap_.empty() && NProfiling::GetCpuInstant() < deadlineTime) {
         auto* bucket = BucketHeap_.front();
+        Y_ASSERT(bucket->InHeap);
+
         auto actualExcessTime = std::max(bucket->ExcessTime, ExcessBaseline_);
 
         // Account for charged time possibly reordering the heap.
@@ -764,18 +822,21 @@ void TObjectService::RunSession()
         if (bucket->Sessions.empty()) {
             ExtractHeap(BucketHeap_.begin(), BucketHeap_.end(), TUserBucketComparer());
             BucketHeap_.pop_back();
+            bucket->InHeap = false;
             continue;
         }
 
         // Promote the baseline.
         ExcessBaseline_ = actualExcessTime;
 
-
         // Extract and run the session.
         auto session = std::move(bucket->Sessions.front());
         bucket->Sessions.pop();
-        session->Run();
-        break;
+        session->RunSlow();
+    }
+
+    if (!BucketHeap_.empty()) {
+        EnqueueRunSessionsCallback();
     }
 }
 
@@ -805,10 +866,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
         return;
     }
 
-    Bootstrap_
-        ->GetHydraFacade()
-        ->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService)
-        ->Invoke(BIND(&TObjectService::ScheduleSession, MakeStrong(this), Passed(std::move(session))));
+    EnqueueSession(std::move(session));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)

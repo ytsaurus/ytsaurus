@@ -79,6 +79,7 @@ DECLARE_REFCOUNTED_CLASS(TUserFriendlyOperationRuntimeParameters)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TOperationFairShareTreeRuntimeParameters)
 DECLARE_REFCOUNTED_CLASS(TTentativeTreeEligibilityConfig)
+DECLARE_REFCOUNTED_CLASS(TJobCpuMonitorConfig)
 
 class TJobResources;
 
