@@ -835,9 +835,6 @@ private:
     {
         std::vector<TCellId> result;
 
-        // XXX(savrus): Revert this nightly fix.
-        return result;
-
         auto considerParticipant = [&] (const auto& weakParticipant) {
             if (auto participant = weakParticipant.Lock()) {
                 if (participant->GetCellId() == SelfCellId_) {
