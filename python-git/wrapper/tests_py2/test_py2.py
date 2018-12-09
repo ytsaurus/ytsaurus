@@ -78,7 +78,7 @@ def run_pytest():
     os.makedirs(bindings_build_dir)
 
     prepare_yt_packages()
-    path, node_path = arcadia_interop.prepare_yt_environment(build_dir)
+    path = arcadia_interop.prepare_yt_environment(build_dir)
     build_bindings(bindings_build_dir)
 
     if "PATH" in os.environ:
@@ -92,7 +92,6 @@ def run_pytest():
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "yson_shared"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver_shared")
         ]),
-        "NODE_PATH": node_path,
         "TESTS_SANDBOX": sandbox_dir,
         "TESTS_JOB_CONTROL": "1",
         "YT_CAPTURE_STDERR_TO_FILE": "1",
