@@ -42,22 +42,26 @@ class TLowerRequestLimit
 public:
     TLowerRequestLimit(IClientPtr client, int value)
         : Client_(client)
-        , RequestRateLimit_(Client_->Get("//sys/users/root/@request_rate_limit"))
+        , ReadRequestRateLimit_(Client_->Get("//sys/users/root/@read_request_rate_limit"))
+        , WriteRequestRateLimit_(Client_->Get("//sys/users/root/@write_request_rate_limit"))
         , RequestQueueSizeLimit_(Client_->Get("//sys/users/root/@request_queue_size_limit"))
     {
-        Client_->Set("//sys/users/root/@request_rate_limit", value);
+        Client_->Set("//sys/users/root/@read_request_rate_limit", value);
+        Client_->Set("//sys/users/root/@write_request_rate_limit", value);
         Client_->Set("//sys/users/root/@request_queue_size_limit", value);
     }
 
     ~TLowerRequestLimit()
     {
-        Client_->Set("//sys/users/root/@request_rate_limit", RequestRateLimit_);
+        Client_->Set("//sys/users/root/@read_request_rate_limit", ReadRequestRateLimit_);
+        Client_->Set("//sys/users/root/@write_request_rate_limit", WriteRequestRateLimit_);
         Client_->Set("//sys/users/root/@request_queue_size_limit", RequestQueueSizeLimit_);
     }
 
 private:
     IClientPtr Client_;
-    const TNode RequestRateLimit_;
+    const TNode ReadRequestRateLimit_;
+    const TNode WriteRequestRateLimit_;
     const TNode RequestQueueSizeLimit_;
 };
 

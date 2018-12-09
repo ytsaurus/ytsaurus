@@ -248,9 +248,10 @@ class YtStuff(object):
         # Folders
         self.yt_path = tempfile.mkdtemp(dir=work_path, prefix="yt_") if self.config.yt_path is None else self.config.yt_path
         self.yt_bins_path = os.path.join(self.yt_path, "bin")
-        self.yt_node_path = os.path.join(self.yt_path, "node")
-        self.yt_node_bin_path = os.path.join(self.yt_node_path, "bin")
-        self.yt_node_modules_path = os.path.join(self.yt_path, "node_modules")
+        if self.version != "19_4":
+            self.yt_node_path = os.path.join(self.yt_path, "node")
+            self.yt_node_bin_path = os.path.join(self.yt_node_path, "bin")
+            self.yt_node_modules_path = os.path.join(self.yt_path, "node_modules")
         self.yt_thor_path = os.path.join(self.yt_path, "yt-thor")
         # Binaries
         self.yt_local_path = [self.python_binary, os.path.join(self.yt_bins_path, "yt_local")]
@@ -282,7 +283,10 @@ class YtStuff(object):
         self.is_running = False
 
     def _replace_binaries(self):
-        for path in (self.yt_bins_path, self.yt_node_bin_path):
+        paths = [self.yt_bins_path]
+        if self.version != "19_4":
+            paths.append(self.yt_node_bin_path)
+        for path in paths:
             if not os.path.exists(path):
                 os.makedirs(path)
 
@@ -318,14 +322,15 @@ class YtStuff(object):
                                                         .format(self.version, server_dir, binary))
                 os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
 
-        yt_node_arcadia_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/bin/ytnode'.format(self.version))
-        os.symlink(yt_node_arcadia_path, os.path.join(self.yt_node_bin_path, 'nodejs'))
+        if self.version != "19_4":
+            yt_node_arcadia_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/bin/ytnode'.format(self.version))
+            os.symlink(yt_node_arcadia_path, os.path.join(self.yt_node_bin_path, 'nodejs'))
 
-        node_modules_archive_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/node_modules/resource.tar.gz'.format(self.version))
-        self._extract_tar(node_modules_archive_path, self.yt_path)
+            node_modules_archive_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/node_modules/resource.tar.gz'.format(self.version))
+            self._extract_tar(node_modules_archive_path, self.yt_path)
 
-        yt_node_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/package'.format(self.version))
-        os.symlink(yt_node_path, os.path.join(self.yt_node_modules_path, 'yt'))
+            yt_node_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/package'.format(self.version))
+            os.symlink(yt_node_path, os.path.join(self.yt_node_modules_path, 'yt'))
 
     def _prepare_env(self):
         self.env = {}
@@ -333,14 +338,17 @@ class YtStuff(object):
             "/usr/sbin",  # It is required to locate logrotate in watcher process
             self.yt_bins_path,
             self.yt_env_watcher_dir_path,
-            self.yt_node_path,
-            self.yt_node_bin_path
         ])
-        self.env["NODE_MODULES"] = self.yt_node_modules_path
-        self.env["NODE_PATH"] = ":".join([
-            self.yt_node_path,
-            self.yt_node_modules_path,
-        ])
+        if self.version != "19_4":
+            self.env["NODE_MODULES"] = self.yt_node_modules_path
+            self.env["NODE_PATH"] = ":".join([
+                self.yt_node_path,
+                self.yt_node_modules_path,
+            ])
+            self.env["PATH"] += ":" + ":".join([
+                self.yt_node_path,
+                self.yt_node_bin_path
+            ])
         self.env["YT_LOCAL_THOR_PATH"] = self.yt_thor_path
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
         self.env["YT_LOG_LEVEL"] = "DEBUG"
