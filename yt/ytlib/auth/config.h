@@ -19,6 +19,7 @@ class TDefaultBlackboxServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    NHttps::TClientConfigPtr HttpClient;
     TString Host;
     int Port;
     bool Secure;
@@ -30,6 +31,8 @@ public:
 
     TDefaultBlackboxServiceConfig()
     {
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
         RegisterParameter("host", Host)
             .Default("blackbox.yandex-team.ru");
         RegisterParameter("port", Port)
@@ -55,6 +58,7 @@ class TDefaultTvmServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    NHttp::TClientConfigPtr HttpClient;
     TString Host;
     int Port;
     TString Token;
@@ -63,6 +67,8 @@ public:
 
     TDefaultTvmServiceConfig()
     {
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
         RegisterParameter("host", Host)
             .Default("localhost");
         RegisterParameter("port", Port);
@@ -250,7 +256,8 @@ public:
             .Default("vault-api.passport.yandex.net");
         RegisterParameter("port", Port)
             .Default(443);
-        RegisterParameter("http_client", HttpClient);
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(3));
         RegisterParameter("vault_service_id", VaultServiceId)

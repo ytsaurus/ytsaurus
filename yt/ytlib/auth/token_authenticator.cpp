@@ -26,15 +26,18 @@ static const TString LocalUserIP = "127.0.0.1";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): used passed profiler
 class TBlackboxTokenAuthenticator
     : public ITokenAuthenticator
 {
 public:
     TBlackboxTokenAuthenticator(
         TBlackboxTokenAuthenticatorConfigPtr config,
-        IBlackboxServicePtr blackboxService)
+        IBlackboxServicePtr blackboxService,
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , Blackbox_(std::move(blackboxService))
+        , Profiler_(std::move(profiler))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
@@ -64,6 +67,7 @@ public:
 private:
     const TBlackboxTokenAuthenticatorConfigPtr Config_;
     const IBlackboxServicePtr Blackbox_;
+    const NProfiling::TProfiler Profiler_;
 
     TMonotonicCounter RejectedTokens_{"/blackbox_token_authenticator/rejected_tokens"};
     TMonotonicCounter InvalidBlackboxResponces_{"/blackbox_token_authenticator/invalid_responces"};
@@ -149,9 +153,13 @@ private:
 
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TBlackboxTokenAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackboxService)
+    IBlackboxServicePtr blackboxService,
+    NProfiling::TProfiler profiler)
 {
-    return New<TBlackboxTokenAuthenticator>(std::move(config), std::move(blackboxService));
+    return New<TBlackboxTokenAuthenticator>(
+        std::move(config),
+        std::move(blackboxService),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,8 +246,11 @@ class TCachingTokenAuthenticator
     , public TAsyncExpiringCache<TTokenCredentials, TAuthenticationResult>
 {
 public:
-    TCachingTokenAuthenticator(TCachingTokenAuthenticatorConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
-        : TAsyncExpiringCache(config->Cache)
+    TCachingTokenAuthenticator(
+        TCachingTokenAuthenticatorConfigPtr config,
+        ITokenAuthenticatorPtr tokenAuthenticator,
+        NProfiling::TProfiler profiler)
+        : TAsyncExpiringCache(config->Cache, std::move(profiler))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
 
@@ -259,9 +270,13 @@ private:
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     TCachingTokenAuthenticatorConfigPtr config,
-    ITokenAuthenticatorPtr authenticator)
+    ITokenAuthenticatorPtr authenticator,
+    NProfiling::TProfiler profiler)
 {
-    return New<TCachingTokenAuthenticator>(std::move(config), std::move(authenticator));
+    return New<TCachingTokenAuthenticator>(
+        std::move(config),
+        std::move(authenticator),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

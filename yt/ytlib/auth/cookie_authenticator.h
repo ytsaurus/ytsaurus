@@ -33,7 +33,8 @@ ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
 
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
     TCachingCookieAuthenticatorConfigPtr config,
-    ICookieAuthenticatorPtr authenticator);
+    ICookieAuthenticatorPtr authenticator,
+    NProfiling::TProfiler profiler = {});
 
 NRpc::IAuthenticatorPtr CreateCookieAuthenticatorWrapper(
     ICookieAuthenticatorPtr underlying);

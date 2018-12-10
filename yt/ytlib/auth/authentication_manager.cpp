@@ -15,6 +15,7 @@ namespace NAuth {
 
 using namespace NApi;
 using namespace NRpc;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,25 +24,29 @@ class TAuthenticationManager::TImpl
 public:
     TImpl(
         TAuthenticationManagerConfigPtr config,
-        IInvokerPtr invoker,
-        IClientPtr client)
+        IPollerPtr poller,
+        IClientPtr client,
+        NProfiling::TProfiler profiler)
     {
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
         std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
 
         IBlackboxServicePtr blackboxService;
-        if (config->BlackboxService && invoker) {
+        if (config->BlackboxService && poller) {
             blackboxService = CreateDefaultBlackboxService(
                 config->BlackboxService,
-                invoker);
+                poller,
+                profiler.AppendPath("/blackbox"));
         }
 
-        if (config->TvmService) {
+        if (config->TvmService && poller) {
             TvmService_ = CreateCachingTvmService(
                 CreateDefaultTvmService(
                     config->TvmService,
-                    invoker),
-                config->TvmService);
+                    poller,
+                    profiler.AppendPath("/tvm/remote")),
+                config->TvmService,
+                profiler.AppendPath("/tvm/cache"));
         }
 
         if (config->BlackboxTokenAuthenticator && blackboxService) {
@@ -50,7 +55,9 @@ public:
                     config->BlackboxTokenAuthenticator,
                     CreateBlackboxTokenAuthenticator(
                         config->BlackboxTokenAuthenticator,
-                        blackboxService)));
+                        blackboxService,
+                        profiler.AppendPath("/blackbox_token_authenticator/remote")),
+                    profiler.AppendPath("/blackbox_token_authenticator/cache")));
         }
 
         if (config->CypressTokenAuthenticator && client) {
@@ -59,7 +66,8 @@ public:
                     config->CypressTokenAuthenticator,
                     CreateCypressTokenAuthenticator(
                         config->CypressTokenAuthenticator,
-                        client)));
+                        client),
+                    profiler.AppendPath("/cypress_token_authenticator/cache")));
         }
 
         if (config->BlackboxCookieAuthenticator && blackboxService) {
@@ -67,7 +75,8 @@ public:
                 config->BlackboxCookieAuthenticator,
                 CreateBlackboxCookieAuthenticator(
                     config->BlackboxCookieAuthenticator,
-                    blackboxService));
+                    blackboxService),
+                profiler.AppendPath("/blackbox_cookie_authenticator/cache"));
             rpcAuthenticators.push_back(
                 CreateCookieAuthenticatorWrapper(CookieAuthenticator_));
         }
@@ -134,12 +143,14 @@ private:
 
 TAuthenticationManager::TAuthenticationManager(
     TAuthenticationManagerConfigPtr config,
-    IInvokerPtr invoker,
-    IClientPtr client)
+    IPollerPtr poller,
+    IClientPtr client,
+    NProfiling::TProfiler profiler)
     : Impl_(std::make_unique<TImpl>(
         std::move(config),
-        std::move(invoker),
-        std::move(client)))
+        std::move(poller),
+        std::move(client),
+        std::move(profiler)))
 { }
 
 const NRpc::IAuthenticatorPtr& TAuthenticationManager::GetRpcAuthenticator() const

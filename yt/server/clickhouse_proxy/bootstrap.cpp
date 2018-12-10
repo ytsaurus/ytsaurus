@@ -20,6 +20,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/core/net/address.h>
 
@@ -58,6 +59,7 @@ TBootstrap::TBootstrap(TClickHouseProxyServerConfigPtr config, INodePtr configNo
     , ConfigNode_(std::move(configNode))
     , ControlQueue_(New<TActionQueue>("Control"))
     , WorkerPool_(New<TThreadPool>(Config_->WorkerThreadPoolSize, "Worker"))
+    , HttpPoller_(CreateThreadPoolPoller(1, "HttpPoller"))
 {
     WarnForUnrecognizedOptions(Logger, Config_);
 }
@@ -77,11 +79,11 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    LOG_INFO("Starting clickhouse proxy");
+    LOG_INFO("Starting Clickhouse proxy");
 
     AuthenticationManager_ = New<TAuthenticationManager>(
         Config_->AuthenticationManager,
-        GetControlInvoker(),
+        HttpPoller_,
         nullptr /* client */);
     TokenAuthenticator_ = AuthenticationManager_->GetTokenAuthenticator();
 

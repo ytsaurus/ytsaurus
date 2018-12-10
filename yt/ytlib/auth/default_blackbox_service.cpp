@@ -6,16 +6,19 @@
 
 #include <yt/core/json/json_parser.h>
 
-#include <library/http/simple/http_client.h>
+#include <yt/core/https/client.h>
 
-#include <util/string/quote.h>
-#include <util/string/url.h>
+#include <yt/core/http/client.h>
+#include <yt/core/http/http.h>
+
+#include <yt/core/rpc/dispatcher.h>
 
 namespace NYT {
 namespace NAuth {
 
 using namespace NYTree;
-using namespace NProfiling;
+using namespace NHttp;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,9 +34,13 @@ class TDefaultBlackboxService
 public:
     TDefaultBlackboxService(
         TDefaultBlackboxServiceConfigPtr config,
-        IInvokerPtr invoker)
+        IPollerPtr poller,
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
-        , Invoker_(std::move(invoker))
+        , Profiler_(std::move(profiler))
+        , HttpClient_(Config_->Secure
+            ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
+            : NHttp::CreateClient(Config_->HttpClient, std::move(poller)))
     { }
 
     virtual TFuture<INodePtr> Call(
@@ -41,9 +48,8 @@ public:
         const THashMap<TString, TString>& params,
         const THashMap<TString, TString>& headers) override
     {
-        auto deadline = TInstant::Now() + Config_->RequestTimeout;
-        return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, headers, deadline)
-            .AsyncVia(Invoker_)
+        return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, headers)
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
     }
 
@@ -58,24 +64,27 @@ public:
 
 private:
     const TDefaultBlackboxServiceConfigPtr Config_;
-    const IInvokerPtr Invoker_;
+    const NProfiling::TProfiler Profiler_;
 
-    TMonotonicCounter BlackboxCalls_{"/blackbox_calls"};
-    TMonotonicCounter BlackboxCallErrors_{"/blackbox_call_errors"};
-    TMonotonicCounter BlackboxCallFatalErrors_{"/blackbox_call_fatal_errors"};
+    const NHttp::IClientPtr HttpClient_;
+
+    NProfiling::TMonotonicCounter BlackboxCalls_{"/blackbox_calls"};
+    NProfiling::TMonotonicCounter BlackboxCallErrors_{"/blackbox_call_errors"};
+    NProfiling::TMonotonicCounter BlackboxCallFatalErrors_{"/blackbox_call_fatal_errors"};
 
 private:
     INodePtr DoCall(
         const TString& method,
         const THashMap<TString, TString>& params,
-        const THashMap<TString, TString>& headers,
-        TInstant deadline)
+        const THashMap<TString, TString>& headers)
     {
-        auto host = AddSchemePrefix(TString(GetHost(Config_->Host)), Config_->Secure ? "https" : "http");
-        auto port = Config_->Port;
+        auto deadline = TInstant::Now() + Config_->RequestTimeout;
 
         TSafeUrlBuilder builder;
-        builder.AppendString("/blackbox?");
+        builder.AppendString(Format("%v://%v:%v/blackbox?",
+            Config_->Secure ? "https" : "http",
+            Config_->Host,
+            Config_->Port));
         builder.AppendParam(AsStringBuf("method"), method);
         for (const auto& param : params) {
             builder.AppendChar('&');
@@ -89,6 +98,8 @@ private:
         auto realUrl = builder.FlushRealUrl();
         auto safeUrl = builder.FlushSafeUrl();
 
+        auto httpHeaders = MakeHeaders(headers);
+
         auto callId = TGuid::Create();
 
         std::vector<TError> accumulatedErrors;
@@ -100,15 +111,12 @@ private:
                 result = DoCallOnce(
                     callId,
                     attempt,
-                    host,
-                    port,
                     realUrl,
                     safeUrl,
-                    headers,
+                    httpHeaders,
                     deadline);
             } catch (const std::exception& ex) {
                 AuthProfiler.Increment(BlackboxCallErrors_);
-            
                 LOG_WARNING(
                     ex,
                     "Blackbox call attempt failed, backing off (CallId: %v, Attempt: %v)",
@@ -179,71 +187,105 @@ private:
             << TErrorAttribute("call_id", callId);
     }
 
+    static NJson::TJsonFormatConfigPtr MakeJsonFormatConfig()
+    {
+        auto config = New<NJson::TJsonFormatConfig>();
+        config->EncodeUtf8 = false; // Hipsters use real Utf8.
+        return config;
+    }
+
+    static THeadersPtr MakeHeaders(const THashMap<TString, TString>& headers)
+    {
+        auto httpHeaders = New<THeaders>();
+        for (const auto& [key, value] : headers) {
+            httpHeaders->Add(key, value);
+        }
+        return httpHeaders;
+    }
+
     INodePtr DoCallOnce(
         TGuid callId,
         int attempt,
-        const TString& host,
-        ui16 port,
         const TString& realUrl,
         const TString& safeUrl,
-        const THashMap<TString, TString>& headers,
+        const THeadersPtr& headers,
         TInstant deadline)
     {
+        auto onError = [&] (TError error) {
+            error.Attributes().Set("call_id", callId);
+            LOG_DEBUG(error);
+            THROW_ERROR(error);
+        };
+
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
 
-        TString buffer;
-        INodePtr result;
-
-        LOG_DEBUG("Calling Blackbox (Url: %v, CallId: %v, Attempt: %v, Host: %v, Port: %v, Timeout: %v)",
+        LOG_DEBUG("Calling Blackbox (Url: %v, CallId: %v, Attempt: %v, Timeout: %v)",
             safeUrl,
             callId,
             attempt,
-            host,
-            port,
             timeout);
 
-        {
-            TSimpleHttpClient httpClient(host, port, timeout, timeout);
-            TStringOutput outputStream(buffer);
-            httpClient.DoGet(realUrl, &outputStream, headers);
+        auto rspOrError = WaitFor(HttpClient_->Get(realUrl, headers));
+        if (!rspOrError.IsOK()) {
+            onError(TError("Blackbox call failed")
+                << rspOrError);
         }
 
-        LOG_DEBUG("Received Blackbox reply (CallId: %v, Attempt: %v)\n%v",
-            callId,
-            attempt,
-            buffer);
+        const auto& rsp = rspOrError.Value();
+        if (rsp->GetStatusCode() != EStatusCode::OK) {
+            onError(TError("Blackbox call returned HTTP status code %v",
+                static_cast<int>(rsp->GetStatusCode())));
+        }
 
-        {
-            TStringInput inputStream(buffer);
+        INodePtr rootNode;
+        try {
+
+            LOG_DEBUG("Started reading response body from Blackbox (CallId: %v, Attempt: %v)",
+                callId,
+                attempt);
+
+            auto body = rsp->ReadAll();
+
+            LOG_DEBUG("Finished reading response body from Blackbox (CallId: %v, Attempt: %v)\n%v",
+                callId,
+                attempt,
+                body);
+
+            TMemoryInput stream(body.Begin(), body.Size());
             auto factory = NYTree::CreateEphemeralNodeFactory();
             auto builder = NYTree::CreateBuilderFromFactory(factory.get());
-            auto config = New<NJson::TJsonFormatConfig>();
-            config->EncodeUtf8 = false; // Hipsters use real Utf8.
-            NJson::ParseJson(&inputStream, builder.get(), std::move(config));
-            result = builder->EndTree();
+            static const auto Config = MakeJsonFormatConfig();
+            NJson::ParseJson(&stream, builder.get(), Config);
+            rootNode = builder->EndTree();
+
+            LOG_DEBUG("Parsed Blackbox daemon reply (CallId: %v, Attempt: %v)",
+                callId,
+                attempt);
+        } catch (const std::exception& ex) {
+            onError(TError(
+                "Error parsing Blackbox response")
+                << ex);
         }
 
-        if (!result || result->GetType() != ENodeType::Map) {
+        if (rootNode->GetType() != ENodeType::Map) {
             THROW_ERROR_EXCEPTION("Blackbox has returned an improper result")
                 << TErrorAttribute("expected_result_type", ENodeType::Map)
-                << TErrorAttribute("actual_result_type", result->GetType());
+                << TErrorAttribute("actual_result_type", rootNode->GetType());
         }
 
-        LOG_DEBUG("Parsed Blackbox reply (CallId: %v, Attempt: %v)",
-            callId,
-            attempt);
-
-        return result;
+        return rootNode;
     }
 };
 
 IBlackboxServicePtr CreateDefaultBlackboxService(
     TDefaultBlackboxServiceConfigPtr config,
-    IInvokerPtr invoker)
+    IPollerPtr poller,
+    NProfiling::TProfiler profiler)
 {
     return New<TDefaultBlackboxService>(
         std::move(config),
-        std::move(invoker));
+        std::move(poller),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

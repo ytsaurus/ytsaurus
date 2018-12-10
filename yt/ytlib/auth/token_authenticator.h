@@ -8,6 +8,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT {
 namespace NAuth {
 
@@ -26,7 +28,8 @@ DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator)
 
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TBlackboxTokenAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackboxService);
+    IBlackboxServicePtr blackboxService,
+    NProfiling::TProfiler profiler = {});
 
 ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
     TCypressTokenAuthenticatorConfigPtr config,
@@ -34,7 +37,8 @@ ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     TCachingTokenAuthenticatorConfigPtr config,
-    ITokenAuthenticatorPtr authenticator);
+    ITokenAuthenticatorPtr authenticator,
+    NProfiling::TProfiler profiler = {});
 
 ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
     std::vector<ITokenAuthenticatorPtr> authenticators);

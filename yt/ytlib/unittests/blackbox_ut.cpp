@@ -1,5 +1,3 @@
-#include <yt/core/test_framework/framework.h>
-
 #include <yt/ytlib/auth/token_authenticator.h>
 #include <yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/ytlib/auth/blackbox_service.h>
@@ -9,10 +7,15 @@
 
 #include <library/http/server/http.h>
 
-namespace NYT {
+#include <yt/core/concurrency/thread_pool_poller.h>
 
-using namespace NAuth;
+#include <yt/core/test_framework/framework.h>
+
+namespace NYT::NAuth {
+namespace {
+
 using namespace NYTree;
+using namespace NConcurrency;
 using namespace NYson;
 
 using ::testing::_;
@@ -93,11 +96,11 @@ protected:
         return config;
     }
 
-    IBlackboxServicePtr CreateDefaultSyncDefaultBlackboxService()
+    IBlackboxServicePtr CreateDefaultBlackboxService(TDefaultBlackboxServiceConfigPtr config = {})
     {
         return CreateDefaultBlackboxService(
-            CreateDefaultBlackboxServiceConfig(),
-            GetSyncInvoker());
+            config ? config : CreateDefaultBlackboxServiceConfig(),
+            CreateThreadPoolPoller(1, "HttpPoller"));
     }
 
     TString HttpResponse(int code, TString body)
@@ -146,10 +149,10 @@ TEST_F(TDefaultBlackboxTest, FailOnBadHost)
     auto config = CreateDefaultBlackboxServiceConfig();
     config->Host = "lokalhozd";
     config->Port = 1;
-    auto service = CreateDefaultBlackboxService(config, GetSyncInvoker());
+    auto service = CreateDefaultBlackboxService(config);
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
-    EXPECT_THAT(CollectMessages(result), HasSubstr("Resolve of lokalhozd"));
+    EXPECT_THAT(CollectMessages(result), HasSubstr("DNS resolve failed"));
 }
 
 TEST_F(TDefaultBlackboxTest, FailOn5xxResponse)
@@ -158,10 +161,10 @@ TEST_F(TDefaultBlackboxTest, FailOn5xxResponse)
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(500, "");
     };
-    auto service = CreateDefaultSyncDefaultBlackboxService();
+    auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
-    EXPECT_THAT(CollectMessages(result), HasSubstr("Got 500"));
+    EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox call returned HTTP status code 500"));
 }
 
 TEST_F(TDefaultBlackboxTest, FailOn4xxResponse)
@@ -170,10 +173,10 @@ TEST_F(TDefaultBlackboxTest, FailOn4xxResponse)
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(404, "");
     };
-    auto service = CreateDefaultSyncDefaultBlackboxService();
+    auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
-    EXPECT_THAT(CollectMessages(result), HasSubstr("Got 404"));
+    EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox call returned HTTP status code 404"));
 }
 
 TEST_F(TDefaultBlackboxTest, FailOnEmptyResponse)
@@ -182,7 +185,7 @@ TEST_F(TDefaultBlackboxTest, FailOnEmptyResponse)
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(200, "");
     };
-    auto service = CreateDefaultSyncDefaultBlackboxService();
+    auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Error parsing JSON"));
@@ -194,7 +197,7 @@ TEST_F(TDefaultBlackboxTest, FailOnMalformedResponse)
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(200, "#$&(^$#@(^");
     };
-    auto service = CreateDefaultSyncDefaultBlackboxService();
+    auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Error parsing JSON"));
@@ -206,7 +209,7 @@ TEST_F(TDefaultBlackboxTest, FailOnBlackboxException)
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(200, R"jj({"exception":{"id": 666, "value": "bad stuff happened"}})jj");
     };
-    auto service = CreateDefaultSyncDefaultBlackboxService();
+    auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox has raised an exception"));
@@ -219,7 +222,7 @@ TEST_F(TDefaultBlackboxTest, Success)
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello&foo=bar&spam=ham"));
         request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
     };
-    auto service = CreateDefaultSyncDefaultBlackboxService();
+    auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString("{status=ok}"))));
@@ -245,7 +248,7 @@ TEST_F(TDefaultBlackboxTest, RetriesErrors)
     config->BackoffTimeout = TDuration::MilliSeconds(0);
     config->AttemptTimeout = TDuration::Seconds(30);
     config->RequestTimeout = TDuration::Seconds(30);
-    auto service = CreateDefaultBlackboxService(config, GetSyncInvoker());
+    auto service = CreateDefaultBlackboxService(config);
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ(7, counter.load());
@@ -444,4 +447,5 @@ TEST_F(TCookieAuthenticatorTest, Success)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace
+} // namespace NYT::NAuth
