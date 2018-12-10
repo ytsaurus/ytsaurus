@@ -178,7 +178,7 @@ public:
 
     const TSchedulingTagFilter& GetNodesFilter() const;
 
-    TPoolName CreatePoolName(const TNullable<TString>& poolFromSpec, const TString& user);
+    TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user);
 
     bool HasOperation(const TOperationId& operationId);
 

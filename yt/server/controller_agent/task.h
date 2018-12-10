@@ -30,7 +30,7 @@ class TTask
     , public IPersistent
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, DelayedTime);
     DEFINE_BYVAL_RW_PROPERTY(TDataFlowGraph::TVertexDescriptor, InputVertex, TDataFlowGraph::TVertexDescriptor());
 
 public:
@@ -123,7 +123,7 @@ public:
 
     i64 GetInputDataSliceCount() const;
 
-    TNullable<i64> GetMaximumUsedTmpfsSize() const;
+    std::optional<i64> GetMaximumUsedTmpfsSize() const;
 
     virtual void Persist(const TPersistenceContext& context) override;
 
@@ -171,7 +171,7 @@ protected:
     mutable std::unique_ptr<IDigest> JobProxyMemoryDigest_;
     mutable std::unique_ptr<IDigest> UserJobMemoryDigest_;
 
-    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
+    virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
 
     virtual void OnTaskCompleted();
 
@@ -251,10 +251,10 @@ private:
     int CachedPendingJobCount_;
     int CachedTotalJobCount_;
 
-    TNullable<i64> MaximumUsedTmfpsSize_;
+    std::optional<i64> MaximumUsedTmfpsSize_;
 
     TJobResources CachedTotalNeededResources_;
-    mutable TNullable<NScheduler::TExtendedJobResources> CachedMinNeededResources_;
+    mutable std::optional<NScheduler::TExtendedJobResources> CachedMinNeededResources_;
 
     NProfiling::TCpuInstant DemandSanityCheckDeadline_;
     bool CompletedFired_;

@@ -6,7 +6,7 @@
 #include "enum.h"
 #include "guid.h"
 #include "mpl.h"
-#include "nullable.h"
+#include "optional.h"
 #include "variant.h"
 #include "property.h"
 #include "ref.h"
@@ -585,22 +585,22 @@ struct TStringSerializer
 };
 
 template <class TUnderlyingSerializer = TDefaultSerializer>
-struct TNullableSerializer
+struct TOptionalSerializer
 {
     template <class T, class C>
-    static void Save(C& context, const TNullable<T>& nullable)
+    static void Save(C& context, const std::optional<T>& optional)
     {
         using NYT::Save;
 
-        Save(context, nullable.HasValue());
+        Save(context, optional.operator bool());
 
-        if (nullable) {
-            TUnderlyingSerializer::Save(context, *nullable);
+        if (optional) {
+            TUnderlyingSerializer::Save(context, *optional);
         }
     }
 
     template <class T, class C>
-    static void Load(C& context, TNullable<T>& nullable)
+    static void Load(C& context, std::optional<T>& optional)
     {
         using NYT::Load;
 
@@ -609,9 +609,9 @@ struct TNullableSerializer
         if (hasValue) {
             T temp;
             TUnderlyingSerializer::Load(context, temp);
-            nullable.Assign(std::move(temp));
+            optional = temp;
         } else {
-            nullable.Reset();
+            optional.reset();
             SERIALIZATION_DUMP_WRITE(context, "null");
         }
     }
@@ -969,7 +969,7 @@ template <
     class TItemSerializer = TDefaultSerializer,
     class TSortTag = TUnsortedTag
 >
-struct TNullableVectorSerializer
+struct TOptionalVectorSerializer
 {
     template <class TVectorType, class C>
     static void Save(C& context, const std::unique_ptr<TVectorType>& objects)
@@ -1075,7 +1075,7 @@ struct TArraySerializer
 };
 
 template <class TItemSerializer = TDefaultSerializer>
-struct TNullableListSerializer
+struct TOptionalListSerializer
 {
     template <class TListType, class C>
     static void Save(C& context, const std::unique_ptr<TListType>& objects)
@@ -1254,7 +1254,7 @@ template <
     class TItemSerializer = TDefaultSerializer,
     class TSortTag = TSortedTag
 >
-struct TNullableSetSerializer
+struct TOptionalSetSerializer
 {
     template <class TSetType, class C>
     static void Save(C& context, const std::unique_ptr<TSetType>& set)
@@ -1507,9 +1507,9 @@ struct TSerializerTraits<TString, C, void>
 };
 
 template <class T, class C>
-struct TSerializerTraits<TNullable<T>, C, void>
+struct TSerializerTraits<std::optional<T>, C, void>
 {
-    typedef TNullableSerializer<> TSerializer;
+    typedef TOptionalSerializer<> TSerializer;
 };
 
 template <class... Ts, class C>
@@ -1580,37 +1580,37 @@ struct TSerializerTraits<THashMultiSet<T>, C, void>
 template <class T, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::vector<T, A>>, C, void>
 {
-    typedef TNullableVectorSerializer<> TSerializer;
+    typedef TOptionalVectorSerializer<> TSerializer;
 };
 
 template <class T, unsigned size, class C>
 struct TSerializerTraits<std::unique_ptr<SmallVector<T, size>>, C, void>
 {
-    typedef TNullableVectorSerializer<> TSerializer;
+    typedef TOptionalVectorSerializer<> TSerializer;
 };
 
 template <class T, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::list<T, A>>, C, void>
 {
-    typedef TNullableListSerializer<> TSerializer;
+    typedef TOptionalListSerializer<> TSerializer;
 };
 
 template <class T, class Q, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::set<T, Q, A>>, C, void>
 {
-    typedef TNullableSetSerializer<> TSerializer;
+    typedef TOptionalSetSerializer<> TSerializer;
 };
 
 template <class T, class H, class P, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::unordered_set<T, H, P, A>>, C, void>
 {
-    typedef TNullableSetSerializer<> TSerializer;
+    typedef TOptionalSetSerializer<> TSerializer;
 };
 
 template <class T, class H, class E, class A, class C>
 struct TSerializerTraits<std::unique_ptr<THashSet<T, H, E, A>>, C, void>
 {
-    typedef TNullableSetSerializer<> TSerializer;
+    typedef TOptionalSetSerializer<> TSerializer;
 };
 
 template <class K, class V, class Q, class A, class C>

@@ -419,13 +419,13 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
         }
     };
 
-    auto extractSpecialToken = [&] () -> TNullable<EFormulaTokenType> {
+    auto extractSpecialToken = [&] () -> std::optional<EFormulaTokenType> {
         char first = formula[pos];
         char second = pos + 1 < formula.Size() ? formula[pos + 1] : '\0';
         if (first == 'i' && second == 'n') {
             char third = pos + 2 < formula.Size() ? formula[pos + 2] : '\0';
             if (IsSymbolAllowedInName(third, context, false)) {
-                return Null;
+                return std::nullopt;
             } else {
                 pos += 2;
                 return EFormulaTokenType::In;
@@ -511,7 +511,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
                         return EFormulaTokenType::Greater;
                 }
             default:
-                return Null;
+                return std::nullopt;
         }
     };
 

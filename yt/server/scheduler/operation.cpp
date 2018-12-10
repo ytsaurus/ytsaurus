@@ -110,7 +110,7 @@ TOperation::TOperation(
     const TString& authenticatedUser,
     TInstant startTime,
     IInvokerPtr controlInvoker,
-    const TNullable<TString>& alias,
+    const std::optional<TString>& alias,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended)
@@ -229,10 +229,10 @@ void TOperation::SetSlotIndex(const TString& treeId, int value)
     TreeIdToSlotIndex_.emplace(treeId, value);
 }
 
-TNullable<int> TOperation::FindSlotIndex(const TString& treeId) const
+std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
 {
     auto it = TreeIdToSlotIndex_.find(treeId);
-    return it != TreeIdToSlotIndex_.end() ? MakeNullable(it->second) : Null;
+    return it != TreeIdToSlotIndex_.end() ? std::make_optional(it->second) : std::nullopt;
 }
 
 int TOperation::GetSlotIndex(const TString& treeId) const
@@ -278,7 +278,7 @@ bool TOperation::HasAlert(EOperationAlertType alertType) const
     return Alerts_.find(alertType) != Alerts_.end();
 }
 
-void TOperation::SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout)
+void TOperation::SetAlert(EOperationAlertType alertType, const TError& error, std::optional<TDuration> timeout)
 {
     auto& alert = Alerts_[alertType];
 

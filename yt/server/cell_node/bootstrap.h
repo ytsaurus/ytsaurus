@@ -106,7 +106,7 @@ public:
     const NObjectClient::TCellId& GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
-    TNullable<TString> GetDefaultNetworkName();
+    std::optional<TString> GetDefaultNetworkName();
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
 

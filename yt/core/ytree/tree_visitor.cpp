@@ -25,7 +25,7 @@ public:
     TTreeVisitor(
         IAsyncYsonConsumer* consumer,
         bool stable,
-        const TNullable<std::vector<TString>>& attributeKeys)
+        const std::optional<std::vector<TString>>& attributeKeys)
         : Consumer(consumer)
         , Stable_(stable)
         , AttributeKeys(attributeKeys)
@@ -39,7 +39,7 @@ public:
 private:
     IAsyncYsonConsumer* const Consumer;
     const bool Stable_;
-    const TNullable<std::vector<TString>> AttributeKeys;
+    const std::optional<std::vector<TString>> AttributeKeys;
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
@@ -151,7 +151,7 @@ void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
     bool stable,
-    const TNullable<std::vector<TString>>& attributeKeys)
+    const std::optional<std::vector<TString>>& attributeKeys)
 {
     TAsyncYsonConsumerAdapter adapter(consumer);
     VisitTree(
@@ -165,7 +165,7 @@ void VisitTree(
     INodePtr root,
     IAsyncYsonConsumer* consumer,
     bool stable,
-    const TNullable<std::vector<TString>>& attributeKeys)
+    const std::optional<std::vector<TString>>& attributeKeys)
 {
     TTreeVisitor treeVisitor(
         consumer,

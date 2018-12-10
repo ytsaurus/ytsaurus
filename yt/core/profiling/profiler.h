@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 
 #include <yt/core/ypath/public.h>
@@ -277,13 +277,13 @@ private:
 
     TDuration DoTimingCheckpoint(
         TTimer& timer,
-        const TNullable<TStringBuf>& key,
-        const TNullable<TTagIdList>& checkpointTagIds) const;
+        const std::optional<TStringBuf>& key,
+        const std::optional<TTagIdList>& checkpointTagIds) const;
 
     TDuration DoTimingStop(
         TTimer& timer,
-        const TNullable<TStringBuf>& key,
-        const TNullable<TTagIdList>& totalTagIds) const;
+        const std::optional<TStringBuf>& key,
+        const std::optional<TTagIdList>& totalTagIds) const;
 
 };
 

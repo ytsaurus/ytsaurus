@@ -488,7 +488,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
         sessionId,
         codec->GetTotalPartCount(),
         codec->GetTotalPartCount(),
-        Null,
+        std::nullopt,
         partConfig->PreferLocalHost,
         std::vector<TString>(),
         nodeDirectory,

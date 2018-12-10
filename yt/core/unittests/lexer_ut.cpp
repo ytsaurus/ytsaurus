@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/yson/lexer.h>
 

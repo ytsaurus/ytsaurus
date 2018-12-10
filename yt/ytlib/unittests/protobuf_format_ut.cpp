@@ -296,12 +296,12 @@ public:
         : Input_(input)
     { }
 
-    TNullable<TLenvalEntry> Next()
+    std::optional<TLenvalEntry> Next()
     {
         ui32 rowSize;
         size_t read = Input_->Load(&rowSize, sizeof(rowSize));
         if (read == 0) {
-            return Null;
+            return std::nullopt;
         } else if (read < sizeof(rowSize)) {
             THROW_ERROR_EXCEPTION("corrupted lenval: can't read row length");
         }

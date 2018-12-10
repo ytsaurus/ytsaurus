@@ -11,7 +11,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/actions/future.h>
 
@@ -110,8 +110,8 @@ public:
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
 
-    //! Returns the descriptor for a given cell id (|Null| if the cell is not known).
-    TNullable<TCellDescriptor> FindDescriptor(const TCellId& cellId);
+    //! Returns the descriptor for a given cell id (null if the cell is not known).
+    std::optional<TCellDescriptor> FindDescriptor(const TCellId& cellId);
 
     //! Returns the descriptor for a given cell id (throws if the cell is not known).
     TCellDescriptor GetDescriptorOrThrow(const TCellId& cellId);

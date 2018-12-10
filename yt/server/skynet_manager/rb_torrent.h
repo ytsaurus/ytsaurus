@@ -40,7 +40,7 @@ struct TRowRangeLocation
     i64 RowIndex;
     i64 RowCount = 0;
 
-    TNullable<i64> LowerLimit;
+    std::optional<i64> LowerLimit;
 
     NChunkClient::TChunkId ChunkId;
 

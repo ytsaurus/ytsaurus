@@ -772,7 +772,7 @@ void ValidateClientRow(
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
     bool isKey,
-    TNullable<int> tabletIndexColumnId = Null)
+    std::optional<int> tabletIndexColumnId = std::nullopt)
 {
     ValidateRowValueCount(row.GetCount());
     ValidateKeyColumnCount(schema.GetKeyColumnCount());
@@ -824,8 +824,8 @@ void ValidateClientRow(
     }
 
     if (tabletIndexColumnId) {
-        YCHECK(idMapping.size() > tabletIndexColumnId.Get());
-        auto mappedId = idMapping[tabletIndexColumnId.Get()];
+        YCHECK(idMapping.size() > *tabletIndexColumnId);
+        auto mappedId = idMapping[*tabletIndexColumnId];
         YCHECK(mappedId >= 0);
         keyColumnSeen[mappedId] = true;
     }
@@ -1135,7 +1135,7 @@ void ValidateClientDataRow(
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
-    TNullable<int> tabletIndexColumnId)
+    std::optional<int> tabletIndexColumnId)
 {
     ValidateClientRow(row, schema, idMapping, nameTable, false, tabletIndexColumnId);
 }
@@ -1417,7 +1417,7 @@ TString ToString(TUnversionedRow row)
 {
     return row
         ? "[" + JoinToString(row.Begin(), row.End()) + "]"
-        : "<Null>";
+        : "<std::nullopt>";
 }
 
 TString ToString(TMutableUnversionedRow row)

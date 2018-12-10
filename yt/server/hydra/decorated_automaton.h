@@ -53,7 +53,7 @@ struct TEpochContext
     bool UpstreamSyncDeadlineReached = false;
     NProfiling::TCpuInstant UpstreamSyncStartTime;
 
-    TNullable<TVersion> LeaderSyncVersion;
+    std::optional<TVersion> LeaderSyncVersion;
     TPromise<void> LeaderSyncPromise;
 
     TPeerId LeaderId = InvalidPeerId;

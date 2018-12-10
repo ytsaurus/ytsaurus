@@ -47,7 +47,7 @@ void SendSignal(const std::vector<int>& pids, const TString& signalName)
     }
 }
 
-TNullable<int> FindSignalIdBySignalName(const TString& signalName)
+std::optional<int> FindSignalIdBySignalName(const TString& signalName)
 {
     static THashMap<TString, int> SignalNameToNumber = {
         { "SIGHUP",  SIGHUP },
@@ -61,7 +61,7 @@ TNullable<int> FindSignalIdBySignalName(const TString& signalName)
     };
 
     auto it = SignalNameToNumber.find(signalName);
-    return it == SignalNameToNumber.end() ? Null : MakeNullable(it->second);
+    return it == SignalNameToNumber.end() ? std::nullopt : std::make_optional(it->second);
 }
 
 void ValidateSignalName(const TString& signalName)

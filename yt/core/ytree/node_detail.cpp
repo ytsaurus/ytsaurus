@@ -40,13 +40,13 @@ void TNodeBase::GetSelf(
     const TCtxGetPtr& context)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     // TODO(babenko): make use of limit
     auto limit = request->has_limit()
-        ? MakeNullable(request->limit())
-        : Null;
+        ? std::make_optional(request->limit())
+        : std::nullopt;
 
     context->SetRequestInfo("Limit: %v", limit);
 
@@ -302,12 +302,12 @@ void TMapNodeMixin::ListSelf(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     auto limit = request->has_limit()
-        ? MakeNullable(request->limit())
-        : Null;
+        ? std::make_optional(request->limit())
+        : std::nullopt;
 
     context->SetRequestInfo("Limit: %v", limit);
 

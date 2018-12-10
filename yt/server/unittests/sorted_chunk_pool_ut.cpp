@@ -620,7 +620,7 @@ protected:
 
     i64 InputSliceDataWeight_;
 
-    TNullable<double> SamplingRate_;
+    std::optional<double> SamplingRate_;
     i64 SamplingDataWeightPerJob_ = Inf64;
     i64 SamplingPrimaryDataWeightPerJob_ = Inf64;
 
@@ -2872,13 +2872,13 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     std::uniform_int_distribution<> dice(0, 99);
 
-    auto chooseRandomElement = [&] (auto container) -> TNullable<typename decltype(container)::value_type> {
+    auto chooseRandomElement = [&] (auto container) -> std::optional<typename decltype(container)::value_type> {
         if (container.empty()) {
-            return Null;
+            return std::nullopt;
         } else {
             auto it = container.begin();
             std::advance(it, std::uniform_int_distribution<>(0, container.size() - 1)(Gen_));
-            return MakeNullable(*it);
+            return std::make_optional(*it);
         }
     };
 

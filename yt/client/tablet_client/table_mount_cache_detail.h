@@ -30,13 +30,13 @@ private:
 struct TTableMountCacheKey
 {
     NYPath::TYPath Path;
-    TNullable<i64> RefreshPrimaryRevision;
-    TNullable<i64> RefreshSecondaryRevision;
+    std::optional<i64> RefreshPrimaryRevision;
+    std::optional<i64> RefreshSecondaryRevision;
 
     TTableMountCacheKey(
         const NYPath::TYPath& path,
-        TNullable<i64> refreshPrimaryRevision = Null,
-        TNullable<i64> refreshSecondaryRevision = Null);
+        std::optional<i64> refreshPrimaryRevision = std::nullopt,
+        std::optional<i64> refreshSecondaryRevision = std::nullopt);
 
     operator size_t() const;
     bool operator == (const TTableMountCacheKey& other) const;

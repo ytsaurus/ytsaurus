@@ -153,8 +153,8 @@ void TTableNode::EndUpload(
     const TDataStatistics* statistics,
     const TSharedTableSchemaPtr& sharedSchema,
     ETableSchemaMode schemaMode,
-    TNullable<NTableClient::EOptimizeFor> optimizeFor,
-    const TNullable<TMD5Hasher>& md5Hasher)
+    std::optional<NTableClient::EOptimizeFor> optimizeFor,
+    const std::optional<TMD5Hasher>& md5Hasher)
 {
     SchemaMode_ = schemaMode;
     SharedTableSchema() = sharedSchema;
@@ -611,7 +611,7 @@ void TTableNode::ValidateAllTabletsUnmounted(TStringBuf message) const
     ValidateExpectedTabletState(message, false);
 }
 
-std::vector<TError> TTableNode::GetTabletErrors(TNullable<int> limit) const
+std::vector<TError> TTableNode::GetTabletErrors(std::optional<int> limit) const
 {
     auto* trunkNode = GetTrunkNode();
     std::vector<TError> errors;

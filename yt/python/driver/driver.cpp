@@ -69,7 +69,7 @@ INodePtr ConvertObjectToNode(const Py::Object& obj)
     auto factory = GetEphemeralNodeFactory();
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
-    Serialize(obj, builder.get(), MakeNullable<TString>("utf-8"));
+    Serialize(obj, builder.get(), std::make_optional<TString>("utf-8"));
     return builder->EndTree();
 }
 
@@ -369,9 +369,9 @@ public:
 
         Py::Object object;
 #if PY_MAJOR_VERSION < 3
-        Deserialize(object, ConfigNode_, Null);
+        Deserialize(object, ConfigNode_, std::nullopt);
 #else
-        Deserialize(object, ConfigNode_, MakeNullable<TString>("utf-8"));
+        Deserialize(object, ConfigNode_, std::make_optional<TString>("utf-8"));
 #endif
         return object;
     }

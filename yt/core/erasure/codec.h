@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
 namespace NYT {
@@ -53,11 +53,11 @@ struct ICodec
     //! Given a set of missing block indices, checks if missing blocks can be repaired.
     /*!
      *  \returns
-     *  If repair is not possible, returns |Null|.
+     *  If repair is not possible, returns |std::nullopt|.
      *  Otherwise returns the indices of blocks (both data and parity) to be passed to #Decode
      *  (in this very order). Not all known blocks may be needed for repair.
      */
-    virtual TNullable<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) const = 0;
+    virtual std::optional<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) const = 0;
 
     //! Returns the number of data blocks this codec can handle.
     virtual int GetDataPartCount() const = 0;

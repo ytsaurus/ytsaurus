@@ -122,7 +122,7 @@ public:
     double UpperBound;
 
     // The value that is returned when there are no samples in the digest.
-    TNullable<double> DefaultValue;
+    std::optional<double> DefaultValue;
 
     TLogDigestConfig(double lowerBound, double upperBound, double defaultValue)
         : TLogDigestConfig()

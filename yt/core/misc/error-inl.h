@@ -94,7 +94,7 @@ TError TError::Wrap(TArgs&&... args) const
 template <class T>
 TErrorOr<T>::TErrorOr()
 {
-    Value_.Emplace();
+    Value_.emplace();
 }
 
 template <class T>

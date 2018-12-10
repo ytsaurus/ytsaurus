@@ -61,11 +61,11 @@ public:
     void SetForeign(bool value);
 
     // "columns"
-    TNullable<std::vector<TString>> GetColumns() const;
+    std::optional<std::vector<TString>> GetColumns() const;
     void SetColumns(const std::vector<TString>& columns);
 
     // "rename_columns"
-    TNullable<NTableClient::TColumnRenameDescriptors> GetColumnRenameDescriptors() const;
+    std::optional<NTableClient::TColumnRenameDescriptors> GetColumnRenameDescriptors() const;
 
     // "ranges"
     // COMPAT(ignat): also "lower_limit" and "upper_limit"
@@ -74,41 +74,41 @@ public:
     bool HasNontrivialRanges() const;
 
     // "file_name"
-    TNullable<TString> GetFileName() const;
+    std::optional<TString> GetFileName() const;
 
     // "executable"
-    TNullable<bool> GetExecutable() const;
+    std::optional<bool> GetExecutable() const;
 
     // "format"
     NYson::TYsonString GetFormat() const;
 
     // "schema"
-    TNullable<NTableClient::TTableSchema> GetSchema() const;
+    std::optional<NTableClient::TTableSchema> GetSchema() const;
 
     // "sorted_by"
     NTableClient::TKeyColumns GetSortedBy() const;
     void SetSortedBy(const NTableClient::TKeyColumns& value);
 
     // "row_count_limit"
-    TNullable<i64> GetRowCountLimit() const;
+    std::optional<i64> GetRowCountLimit() const;
 
     // "timestamp"
-    TNullable<NTransactionClient::TTimestamp> GetTimestamp() const;
+    std::optional<NTransactionClient::TTimestamp> GetTimestamp() const;
 
     // "optimize_for"
-    TNullable<NTableClient::EOptimizeFor> GetOptimizeFor() const;
+    std::optional<NTableClient::EOptimizeFor> GetOptimizeFor() const;
 
     // "compression_codec"
-    TNullable<NCompression::ECodec> GetCompressionCodec() const;
+    std::optional<NCompression::ECodec> GetCompressionCodec() const;
 
     // "erasure_codec"
-    TNullable<NErasure::ECodec> GetErasureCodec() const;
+    std::optional<NErasure::ECodec> GetErasureCodec() const;
 
     // "auto_merge"
     bool GetAutoMerge() const;
 
     // "transaction_id"
-    TNullable<NObjectClient::TTransactionId> GetTransactionId() const;
+    std::optional<NObjectClient::TTransactionId> GetTransactionId() const;
 
 private:
     TYPath Path_;

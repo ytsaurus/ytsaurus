@@ -198,7 +198,7 @@ public:
         }
     }
 
-    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
+    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const std::optional<TString>& coreHandlerSocketPath) override
     {
         Y_UNUSED(coreHandlerSocketPath);
         YCHECK(!Process_);
@@ -459,7 +459,7 @@ public:
         }
     }
 
-    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
+    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const std::optional<TString>& coreHandlerSocketPath) override
     {
         static const TString RootFSBinaryDirectory("/ext_bin/");
 
@@ -471,7 +471,7 @@ public:
 
             if (binaryPathOrError.IsOK()) {
                 auto coreHandler = binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
-                    " 1 /dev/null /dev/null " + coreHandlerSocketPath.Get();
+                    " 1 /dev/null /dev/null " + *coreHandlerSocketPath;
 
                 LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
                     coreHandler);
@@ -520,7 +520,7 @@ class TPortoJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    TPortoJobProxyEnvironment(TPortoJobEnvironmentConfigPtr config, const TNullable<TRootFS>& rootFS, std::vector<TString> gpuDevices)
+    TPortoJobProxyEnvironment(TPortoJobEnvironmentConfigPtr config, const std::optional<TRootFS>& rootFS, std::vector<TString> gpuDevices)
         : RootFS_(rootFS)
         , GpuDevices_(std::move(gpuDevices))
         , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
@@ -586,7 +586,7 @@ public:
     }
 
 private:
-    const TNullable<TRootFS> RootFS_;
+    const std::optional<TRootFS> RootFS_;
     const std::vector<TString> GpuDevices_;
     const TDuration BlockIOWatchdogPeriod_;
     TString SlotAbsoluteName_;
@@ -613,7 +613,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoJobProxyEnvironment)
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     NYTree::INodePtr config,
-    const TNullable<TRootFS>& rootFS,
+    const std::optional<TRootFS>& rootFS,
     std::vector<TString> gpuDevices)
 {
 

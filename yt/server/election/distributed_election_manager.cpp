@@ -474,7 +474,7 @@ private:
         LOG_DEBUG("Voting round completed");
 
         // Choose the best vote.
-        TNullable<TStatus> bestCandidate;
+        std::optional<TStatus> bestCandidate;
         for (const auto& pair : StatusTable) {
             const auto& currentCandidate = pair.second;
             if (StatusTable.find(currentCandidate.VoteId) != StatusTable.end() &&

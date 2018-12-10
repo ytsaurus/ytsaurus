@@ -122,7 +122,7 @@ TEST_F(TFutureTest, SetAndTryGet)
 
     {
         auto result = future.TryGet();
-        EXPECT_TRUE(result.HasValue());
+        EXPECT_TRUE(result);
         EXPECT_EQ(42, result->Value());
     }
 }

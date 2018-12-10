@@ -27,16 +27,16 @@ const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleChunk() const
     return ChunkSpecs[0];
 }
 
-TNullable<i64> TDataSliceDescriptor::GetTag() const
+std::optional<i64> TDataSliceDescriptor::GetTag() const
 {
     YCHECK(!ChunkSpecs.empty());
-    TNullable<i64> commonTag = ChunkSpecs.front().has_data_slice_tag()
-        ? MakeNullable(ChunkSpecs.front().data_slice_tag())
-        : Null;
+    std::optional<i64> commonTag = ChunkSpecs.front().has_data_slice_tag()
+        ? std::make_optional(ChunkSpecs.front().data_slice_tag())
+        : std::nullopt;
     for (const auto& chunkSpec : ChunkSpecs) {
-        TNullable<i64> tag = chunkSpec.has_data_slice_tag()
-            ? MakeNullable(chunkSpec.data_slice_tag())
-            : Null;
+        std::optional<i64> tag = chunkSpec.has_data_slice_tag()
+            ? std::make_optional(chunkSpec.data_slice_tag())
+            : std::nullopt;
         YCHECK(commonTag == tag);
     }
     return commonTag;

@@ -52,7 +52,7 @@ struct TAny::TTypedBox
 inline TAny::TAny()
 { }
 
-inline TAny::TAny(TNull)
+inline TAny::TAny(std::nullopt_t)
 { }
 
 inline TAny::TAny(const TAny& other)

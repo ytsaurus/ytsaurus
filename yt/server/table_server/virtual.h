@@ -44,7 +44,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         NYT::NYson::IAsyncYsonConsumer* consumer,
-        const NYT::TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override;
 
 private:

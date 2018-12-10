@@ -285,7 +285,7 @@ protected:
 
     void CalculateSizes()
     {
-        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
         switch (OperationType) {
             case EOperationType::Merge:
@@ -721,7 +721,7 @@ private:
         return Spec_->OutputTablePaths;
     }
 
-    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    virtual std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec_->StderrTablePath;
     }
@@ -731,7 +731,7 @@ private:
         return Spec_->StderrTableWriter;
     }
 
-    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    virtual std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec_->CoreTablePath;
     }
@@ -1193,7 +1193,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
-            auto attributeKeys = Spec_->AttributeKeys.Get(userAttributeKeys);
+            auto attributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);
 
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& key : attributeKeys) {

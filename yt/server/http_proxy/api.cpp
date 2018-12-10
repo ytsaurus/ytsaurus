@@ -16,7 +16,7 @@ using namespace NConcurrency;
 using namespace NHttp;
 using namespace NProfiling;
 
-static auto& Logger = HttpProxyLogger;
+static const auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +80,7 @@ void TApi::PutUserIntoBanCache(const TString& user)
     BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
 }
 
-TNullable<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const TString& command)
+std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const TString& command)
 {
     auto value = GlobalSemaphore_.load();
     do {
@@ -164,7 +164,7 @@ void TApi::DoIncrementHttpCode(
 void TApi::IncrementProfilingCounters(
     const TString& user,
     const TString& command,
-    TNullable<EStatusCode> httpStatusCode,
+    std::optional<EStatusCode> httpStatusCode,
     TErrorCode apiErrorCode,
     TDuration duration,
     i64 bytesIn,

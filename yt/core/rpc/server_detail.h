@@ -25,8 +25,8 @@ public:
 
     virtual TRequestId GetRequestId() const override;
 
-    virtual TNullable<TInstant> GetStartTime() const override;
-    virtual TNullable<TDuration> GetTimeout() const override;
+    virtual std::optional<TInstant> GetStartTime() const override;
+    virtual std::optional<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
     virtual TMutationId GetMutationId() const override;
 
@@ -135,8 +135,8 @@ public:
     virtual NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
-    virtual TNullable<TInstant> GetStartTime() const override;
-    virtual TNullable<TDuration> GetTimeout() const override;
+    virtual std::optional<TInstant> GetStartTime() const override;
+    virtual std::optional<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
     virtual TMutationId GetMutationId() const override;
 

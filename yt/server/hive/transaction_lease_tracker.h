@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/callback.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/variant.h>
 
@@ -55,8 +55,8 @@ public:
     void RegisterTransaction(
         const TTransactionId& transactionId,
         const TTransactionId& parentId,
-        TNullable<TDuration> timeout,
-        TNullable<TInstant> deadline,
+        std::optional<TDuration> timeout,
+        std::optional<TInstant> deadline,
         TTransactionLeaseExpirationHandler expirationHandler);
 
     //! Unregisters a transaction.
@@ -111,8 +111,8 @@ private:
     {
         TTransactionId TransactionId;
         TTransactionId ParentId;
-        TNullable<TDuration> Timeout;
-        TNullable<TInstant> Deadline;
+        std::optional<TDuration> Timeout;
+        std::optional<TInstant> Deadline;
         TTransactionLeaseExpirationHandler ExpirationHandler;
     };
 
@@ -148,8 +148,8 @@ private:
     {
         TTransactionId TransactionId;
         TTransactionId ParentId;
-        TNullable<TDuration> Timeout;
-        TNullable<TInstant> UserDeadline;
+        std::optional<TDuration> Timeout;
+        std::optional<TInstant> UserDeadline;
         TTransactionLeaseExpirationHandler ExpirationHandler;
         TInstant Deadline;
         TInstant LastPingTime;

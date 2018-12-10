@@ -27,9 +27,9 @@ void LazyDictCopy(TLazyDict* source, TLazyDict* destination, bool deep)
 
         if (value.Value) {
             if (deep) {
-                destination->SetItem(key, Py::Callable(deepcopyFunction).apply(Py::TupleN(value.Value.Get())));
+                destination->SetItem(key, Py::Callable(deepcopyFunction).apply(Py::TupleN(*value.Value)));
             } else {
-                destination->SetItem(key, value.Value.Get());
+                destination->SetItem(key, *value.Value);
             }
         } else {
             destination->SetItem(key, value.Data);
@@ -172,7 +172,7 @@ int LazyYsonMapBaseInit(TLazyYsonMapBase* self, PyObject* args, PyObject* kwargs
     Py::Tuple arguments(args);
     Py::Dict kwarguments(kwargs);
 
-    TNullable<TString> encoding;
+    std::optional<TString> encoding;
     auto arg = NPython::ExtractArgument(arguments, kwarguments, "encoding");
     if (!arg.isNone()) {
         encoding = Py::ConvertStringObjectToString(arg);

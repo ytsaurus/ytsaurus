@@ -55,7 +55,7 @@ class TAddressResolverConfig
 public:
     bool EnableIPv4;
     bool EnableIPv6;
-    TNullable<TString> LocalHostFqdn;
+    std::optional<TString> LocalHostFqdn;
     int Retries;
     TDuration ResolveTimeout;
     TDuration MaxResolveTimeout;

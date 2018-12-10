@@ -61,16 +61,16 @@ void TFileNode::EndUpload(
     const NChunkClient::NProto::TDataStatistics* statistics,
     const NTableServer::TSharedTableSchemaPtr& sharedSchema,
     NTableClient::ETableSchemaMode schemaMode,
-    TNullable<NTableClient::EOptimizeFor> optimizeFor,
-    const TNullable<TMD5Hasher>& md5Hasher)
+    std::optional<NTableClient::EOptimizeFor> optimizeFor,
+    const std::optional<TMD5Hasher>& md5Hasher)
 {
     SetMD5Hasher(md5Hasher);
     TChunkOwnerBase::EndUpload(statistics, sharedSchema, schemaMode, optimizeFor, md5Hasher);
 }
 
-void TFileNode::GetUploadParams(TNullable<TMD5Hasher>* md5Hasher)
+void TFileNode::GetUploadParams(std::optional<TMD5Hasher>* md5Hasher)
 {
-    md5Hasher->Assign(GetMD5Hasher());
+    *md5Hasher = GetMD5Hasher();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

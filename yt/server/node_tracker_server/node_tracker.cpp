@@ -563,7 +563,7 @@ public:
             LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
-                rack ? MakeNullable(rack->GetName()) : Null);
+                rack ? std::make_optional(rack->GetName()) : std::nullopt);
             NodeRackChanged_.Fire(node, oldRack);
             NodeTagsChanged_.Fire(node);
             UpdateNodeCounters(node, +1);
@@ -685,8 +685,8 @@ public:
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
-                MakeNullable(rack->GetName()),
-                dataCenter ? MakeNullable(dataCenter->GetName()) : Null);
+                std::make_optional(rack->GetName()),
+                dataCenter ? std::make_optional(dataCenter->GetName()) : std::nullopt);
 
             for (auto* node : nodes) {
                 NodeDataCenterChanged_.Fire(node, oldDataCenter);

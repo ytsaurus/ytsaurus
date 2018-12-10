@@ -195,7 +195,7 @@ class TBlackboxCookieAuthenticatorConfig
 public:
     TString Domain;
 
-    TNullable<TString> CsrfSecret;
+    std::optional<TString> CsrfSecret;
     TDuration CsrfTokenTtl;
 
     TBlackboxCookieAuthenticatorConfig()

@@ -942,7 +942,7 @@ public:
         }
     }
 
-    void SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time)
+    void SetExpirationTime(TCypressNodeBase* trunkNode, std::optional<TInstant> time)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         Y_ASSERT(trunkNode->IsTrunk());
@@ -2252,7 +2252,7 @@ private:
         LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v)",
             versionedNodeId,
             type,
-            account ? MakeNullable(account->GetName()) : Null);
+            account ? std::make_optional(account->GetName()) : std::nullopt);
 
         const auto& handler = GetHandler(type);
 
@@ -2619,7 +2619,7 @@ void TCypressManager::SetAccessed(TCypressNodeBase* trunkNode)
     Impl_->SetAccessed(trunkNode);
 }
 
-void TCypressManager::SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time)
+void TCypressManager::SetExpirationTime(TCypressNodeBase* trunkNode, std::optional<TInstant> time)
 {
     Impl_->SetExpirationTime(trunkNode, time);
 }

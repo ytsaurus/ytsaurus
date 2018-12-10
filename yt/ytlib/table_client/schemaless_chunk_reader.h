@@ -50,7 +50,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const NChunkClient::TReadRange& readRange,
-    TNullable<int> partitionTag = Null);
+    std::optional<int> partitionTag = std::nullopt);
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TChunkStatePtr& chunkState,
@@ -64,7 +64,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
-    TNullable<int> partitionTag = Null);
+    std::optional<int> partitionTag = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,7 +100,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter = TColumnFilter(),
     const TKeyColumns &keyColumns = TKeyColumns(),
-    TNullable<int> partitionTag = Null,
+    std::optional<int> partitionTag = std::nullopt,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
@@ -120,7 +120,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),
-    TNullable<int> partitionTag = Null,
+    std::optional<int> partitionTag = std::nullopt,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());

@@ -13,7 +13,7 @@
 
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/string.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/demangle.h>
 #include <yt/core/misc/serialize.h>
@@ -110,10 +110,10 @@ void LoadFromNode(
     }
 }
 
-// TNullable
+// std::optional
 template <class T>
 void LoadFromNode(
-    TNullable<T>& parameter,
+    std::optional<T>& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
@@ -123,7 +123,7 @@ void LoadFromNode(
         case EMergeStrategy::Default:
         case EMergeStrategy::Overwrite: {
             if (node->GetType() == NYTree::ENodeType::Entity) {
-                parameter = Null;
+                parameter = std::nullopt;
             } else {
                 T value;
                 LoadFromNode(value, node, path, EMergeStrategy::Overwrite, keepUnrecognizedRecursively);
@@ -400,7 +400,7 @@ void TYsonSerializableLite::TParameter<T>::Save(NYson::IYsonConsumer* consumer) 
 template <class T>
 bool TYsonSerializableLite::TParameter<T>::CanOmitValue() const
 {
-    return NYT::NYTree::NDetail::CanOmitValue(&Parameter, DefaultValue.GetPtr());
+    return NYT::NYTree::NDetail::CanOmitValue(&Parameter, DefaultValue ? &*DefaultValue : nullptr);
 }
 
 template <class T>
@@ -473,9 +473,9 @@ void TYsonSerializableLite::TParameter<T>::SetKeepUnrecognizedRecursively()
     { \
         return CheckThat([=] (const T& parameter) { \
             using ::ToString; \
-            TNullable<TValueType> nullableParameter(parameter); \
+            std::optional<TValueType> nullableParameter(parameter); \
             if (nullableParameter) { \
-                const auto& actual = nullableParameter.Get(); \
+                const auto& actual = *nullableParameter; \
                 if (!(condition)) { \
                     THROW_ERROR error; \
                 } \

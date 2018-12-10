@@ -139,7 +139,7 @@ private:
 
     //! Contains nodes forming the current path in the tree.
     std::stack<INodePtr> NodeStack;
-    TNullable<TString> Key;
+    std::optional<TString> Key;
     INodePtr ResultNode;
     std::unique_ptr<TAttributeConsumer> AttributeConsumer;
     std::unique_ptr<IAttributeDictionary> Attributes;
@@ -159,7 +159,7 @@ private:
                 if (!collectionNode->AsMap()->AddChild(*Key, node)) {
                     THROW_ERROR_EXCEPTION("Duplicate key %Qv", *Key);
                 }
-                Key.Reset();
+                Key.reset();
             } else {
                 collectionNode->AsList()->AddChild(node);
             }

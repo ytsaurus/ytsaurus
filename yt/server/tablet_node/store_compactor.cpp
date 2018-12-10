@@ -1484,7 +1484,7 @@ private:
     {
         return std::min(
             config->MaxOverlappingStoreCount,
-            config->CriticalOverlappingStoreCount.Get(config->MaxOverlappingStoreCount));
+            config->CriticalOverlappingStoreCount.value_or(config->MaxOverlappingStoreCount));
     }
 };
 

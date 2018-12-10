@@ -28,7 +28,7 @@ struct IChunkReader
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& estimatedSize = Null) = 0;
+        const std::optional<i64>& estimatedSize = std::nullopt) = 0;
 
     //! Asynchronously reads a given range of blocks.
     //! The call may return less blocks than requested.
@@ -37,13 +37,13 @@ struct IChunkReader
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& estimatedSize = Null) = 0;
+        const std::optional<i64>& estimatedSize = std::nullopt) = 0;
 
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        TNullable<int> partitionTag = Null,
-        const TNullable<std::vector<int>>& extensionTags = Null) = 0;
+        std::optional<int> partitionTag = std::nullopt,
+        const std::optional<std::vector<int>>& extensionTags = std::nullopt) = 0;
 
     virtual TChunkId GetChunkId() const = 0;
 

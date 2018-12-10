@@ -48,10 +48,10 @@ void TOperation::SetSlotIndex(const TString& treeId, int value)
     TreeIdToSlotIndex_.emplace(treeId, value);
 }
 
-TNullable<int> TOperation::FindSlotIndex(const TString& treeId) const
+std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
 {
     auto it = TreeIdToSlotIndex_.find(treeId);
-    return it != TreeIdToSlotIndex_.end() ? MakeNullable(it->second) : Null;
+    return it != TreeIdToSlotIndex_.end() ? std::make_optional(it->second) : std::nullopt;
 }
 
 int TOperation::GetSlotIndex(const TString& treeId) const

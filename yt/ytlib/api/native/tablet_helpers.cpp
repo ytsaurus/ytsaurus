@@ -234,7 +234,7 @@ TTabletInfoPtr GetSortedTabletForRow(
 TTabletInfoPtr GetOrderedTabletForRow(
     const TTableMountInfoPtr& tableInfo,
     const TTabletInfoPtr& randomTabletInfo,
-    TNullable<int> tabletIndexColumnId,
+    std::optional<int> tabletIndexColumnId,
     TUnversionedRow row,
     bool validateWrite)
 {

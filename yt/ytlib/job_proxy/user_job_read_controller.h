@@ -48,8 +48,8 @@ struct IUserJobReadController
     virtual double GetProgress() const = 0;
     virtual TFuture<std::vector<TBlob>> GetInputContext() const = 0;
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
-    virtual TNullable<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const = 0;
-    virtual TNullable<NChunkClient::TCodecStatistics> GetDecompressionStatistics() const = 0;
+    virtual std::optional<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const = 0;
+    virtual std::optional<NChunkClient::TCodecStatistics> GetDecompressionStatistics() const = 0;
     virtual void InterruptReader() = 0;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
 };
@@ -64,7 +64,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
         IInvokerPtr invoker,
         NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
-        TNullable<TString> udfDirectory,
+        std::optional<TString> udfDirectory,
         NChunkClient::TClientBlockReadOptions& blockReadOptions,
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,

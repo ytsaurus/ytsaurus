@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/http/public.h>
 
@@ -13,7 +13,7 @@ namespace NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<TString> GatherHeader(const NHttp::THeadersPtr& headers, const TString& headerName);
+std::optional<TString> GatherHeader(const NHttp::THeadersPtr& headers, const TString& headerName);
 
 NYTree::IMapNodePtr ParseQueryString(TStringBuf queryString);
 
@@ -28,7 +28,7 @@ struct TPythonWrapperVersion
     int Patch = 0;
 };
 
-TNullable<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent);
+std::optional<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent);
 
 bool IsWrapperBuggy(const NHttp::IRequestPtr& req);
 
@@ -40,7 +40,7 @@ struct TNetworkStatistics
     i64 TotalTxBytes = 0;
 };
 
-TNullable<TNetworkStatistics> GetNetworkStatistics();
+std::optional<TNetworkStatistics> GetNetworkStatistics();
 
 ////////////////////////////////////////////////////////////////////////////////
 

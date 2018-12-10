@@ -131,8 +131,8 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
                 file.GetPath(),
                 file.Schema,
                 file.Path.GetColumns(),
-                file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp),
-                file.Path.GetColumnRenameDescriptors().Get({}));
+                file.Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
+                file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         } else {
@@ -142,7 +142,7 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
                     file.GetPath(),
                     file.Schema,
                     file.Path.GetColumns(),
-                    file.Path.GetColumnRenameDescriptors().Get({}));
+                    file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         }
@@ -174,7 +174,7 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
                 inputTable->Path.GetPath(),
                 inputTable->Schema,
                 inputTable->Path.GetColumns(),
-                inputTable->Path.GetTimestamp().Get(AsyncLastCommittedTimestamp),
+                inputTable->Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
                 inputTable->ColumnRenameDescriptors)
             : MakeUnversionedDataSource(
                 inputTable->Path.GetPath(),
@@ -194,8 +194,8 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory()
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
         IntermediatePath,
-        Null,
-        Null));
+        std::nullopt,
+        std::nullopt));
     return dataSourceDirectory;
 }
 

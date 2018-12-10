@@ -30,7 +30,7 @@ public:
     virtual TInstant GetStartTime() const override;
     virtual TString GetAuthenticatedUser() const override;
 
-    virtual TNullable<int> FindSlotIndex(const TString& treeId) const override;
+    virtual std::optional<int> FindSlotIndex(const TString& treeId) const override;
     virtual int GetSlotIndex(const TString& treeId) const override;
     virtual void SetSlotIndex(const TString&  treeId, int index) override;
 

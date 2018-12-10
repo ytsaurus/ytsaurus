@@ -278,7 +278,7 @@ protected:
 
     void CalculateSizes()
     {
-        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
         switch (OperationType) {
             case EOperationType::Merge:
@@ -404,7 +404,7 @@ protected:
         InitJobSpecTemplate();
     }
 
-    virtual TNullable<int> GetOutputTeleportTableIndex() const = 0;
+    virtual std::optional<int> GetOutputTeleportTableIndex() const = 0;
 
     //! Initializes #JobIOConfig.
     void InitJobIOConfig()
@@ -491,7 +491,7 @@ protected:
         }
 
         for (const auto& teleportChunk : SortedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
-            // If teleport chunks were found, then teleport table index should be non-Null.
+            // If teleport chunks were found, then teleport table index should be non-null.
             RegisterTeleportChunk(teleportChunk, 0, *GetOutputTeleportTableIndex());
         }
 
@@ -724,9 +724,9 @@ public:
         ToProto(mergeJobSpecExt->mutable_key_columns(), PrimaryKeyColumns_);
     }
 
-    virtual TNullable<int> GetOutputTeleportTableIndex() const override
+    virtual std::optional<int> GetOutputTeleportTableIndex() const override
     {
-        return MakeNullable(0);
+        return std::make_optional(0);
     }
 
     virtual void PrepareOutputTables() override
@@ -869,7 +869,7 @@ public:
         return Spec_->OutputTablePaths;
     }
 
-    virtual TNullable<int> GetOutputTeleportTableIndex() const override
+    virtual std::optional<int> GetOutputTeleportTableIndex() const override
     {
         return OutputTeleportTableIndex_;
     }
@@ -948,7 +948,7 @@ public:
         return true;
     }
 
-    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    virtual std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec_->StderrTablePath;
     }
@@ -958,7 +958,7 @@ public:
         return Spec_->StderrTableWriter;
     }
 
-    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    virtual std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec_->CoreTablePath;
     }
@@ -992,7 +992,7 @@ private:
 
     i64 StartRowIndex_ = 0;
 
-    TNullable<int> OutputTeleportTableIndex_;
+    std::optional<int> OutputTeleportTableIndex_;
 };
 
 class TSortedReduceController
@@ -1499,7 +1499,7 @@ IOperationControllerPtr CreateAppropriateReduceController(
     auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TNewReduceOperationSpec>(mergedSpec);
     if (spec->UseNewController) {
-        if (!spec->EnableKeyGuarantee.HasValue()) {
+        if (!spec->EnableKeyGuarantee) {
             spec->EnableKeyGuarantee = !isJoinReduce;
         }
         return New<TNewReduceController>(spec, config, options, host, operation);

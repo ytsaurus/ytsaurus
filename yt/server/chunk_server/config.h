@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -44,14 +44,14 @@ public:
         });
     }
 
-    THashMap<TNullable<TString>, THashMap<TNullable<TString>, i64>> GetCapacities() const
+    THashMap<std::optional<TString>, THashMap<std::optional<TString>, i64>> GetCapacities() const
     {
-        THashMap<TNullable<TString>, THashMap<TNullable<TString>, i64>> result;
+        THashMap<std::optional<TString>, THashMap<std::optional<TString>, i64>> result;
         for (const auto& pair : Capacities) {
-            auto srcDataCenter = MakeNullable(!pair.first.empty(), pair.first);
+            auto srcDataCenter = pair.first.empty() ? std::nullopt : std::make_optional(pair.first);
             auto& srcDataCenterCapacities = result[srcDataCenter];
             for (const auto& pair2 : pair.second) {
-                auto dstDataCenter = MakeNullable(!pair2.first.empty(), pair2.first);
+                auto dstDataCenter = pair2.first.empty() ? std::nullopt : std::make_optional(pair2.first);
                 srcDataCenterCapacities.emplace(dstDataCenter, pair2.second);
             }
         }

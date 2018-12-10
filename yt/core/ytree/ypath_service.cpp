@@ -271,7 +271,7 @@ private:
             auto asyncYson = AsyncYPathGet(
                 UnderlyingService_,
                 TYPath(),
-                Null);
+                std::nullopt);
 
             auto yson = WaitFor(asyncYson)
                 .ValueOrThrow();
@@ -366,7 +366,7 @@ IYPathServicePtr IYPathService::WithPermissionValidator(TCallback<void(const TSt
 
 void IYPathService::WriteAttributesFragment(
     IAsyncYsonConsumer* consumer,
-    const TNullable<std::vector<TString>>& attributeKeys,
+    const std::optional<std::vector<TString>>& attributeKeys,
     bool stable)
 {
     if (!attributeKeys && ShouldHideAttributes() ||
@@ -379,7 +379,7 @@ void IYPathService::WriteAttributesFragment(
 
 void IYPathService::WriteAttributes(
     IAsyncYsonConsumer* consumer,
-    const TNullable<std::vector<TString>>& attributeKeys,
+    const std::optional<std::vector<TString>>& attributeKeys,
     bool stable)
 {
     TAttributeFragmentConsumer attributesConsumer(consumer);

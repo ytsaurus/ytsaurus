@@ -69,13 +69,13 @@ void Serialize(const TDataSource& spec, IYsonConsumer* consumer)
         .BeginMap()
             .Item("type").Value(spec.GetType())
             .Item("timestamp").Value(spec.GetTimestamp())
-            .DoIf(spec.GetPath().HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(spec.GetPath().operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("path").Value(*spec.GetPath());
             })
-            .DoIf(spec.Schema().HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(spec.Schema().operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("schema").Value(*spec.Schema());
             })
-            .DoIf(spec.Columns().HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(spec.Columns().operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("columns").List(*spec.Columns());
             })
         .EndMap();
@@ -88,17 +88,17 @@ void Deserialize(TDataSource& spec, INodePtr node)
     auto type = ConvertTo<EDataSourceType>(mapNode->GetChild("type"));
     auto timestamp = ConvertTo<NTransactionClient::TTimestamp>(mapNode->GetChild("timestamp"));
 
-    TNullable<TString> path;
+    std::optional<TString> path;
     if (auto node = mapNode->FindChild("path")) {
         path = ConvertTo<TString>(node);
     }
 
-    TNullable<NTableClient::TTableSchema> schema;
+    std::optional<NTableClient::TTableSchema> schema;
     if (auto node = mapNode->FindChild("schema")) {
         schema = ConvertTo<NTableClient::TTableSchema>(node);
     }
 
-    TNullable<std::vector<TString>> columns;
+    std::optional<std::vector<TString>> columns;
     if (auto node = mapNode->FindChild("columns")) {
         columns = ConvertTo<std::vector<TString>>(node);
     }

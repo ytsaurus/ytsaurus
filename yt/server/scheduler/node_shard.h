@@ -129,7 +129,7 @@ public:
     void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const TString& user);
     void SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
     void AbandonJob(const TJobId& jobId, const TString& user);
-    void AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
+    void AbortJobByUserRequest(const TJobId& jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
     void AbortJob(const TJobId& jobId, const TError& error);
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
@@ -339,13 +339,13 @@ private:
 
     void SetOperationJobsReleaseDeadline(TOperationState* operationState);
 
-    void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
+    void PreemptJob(const TJobPtr& job, std::optional<NProfiling::TCpuDuration> interruptTimeout);
 
     void DoInterruptJob(
         const TJobPtr& job,
         EInterruptReason reason,
         NProfiling::TCpuDuration interruptTimeout = 0,
-        const TNullable<TString>& interruptUser = Null);
+        const std::optional<TString>& interruptUser = std::nullopt);
 
     TExecNodePtr FindNodeByJob(const TJobId& jobId);
 

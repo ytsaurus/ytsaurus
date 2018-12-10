@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/object_client/master_ypath.pb.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/rpc/service_detail.h>
 

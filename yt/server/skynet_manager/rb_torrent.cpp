@@ -390,7 +390,7 @@ INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRang
 
             i64 endRow = std::min(
                 file.start_row() + file.row_count(),
-                it->RowIndex + it->RowCount + it->LowerLimit.Get(0));
+                it->RowIndex + it->RowCount + it->LowerLimit.value_or(0));
             if (endRow == startRow) {
                 THROW_ERROR_EXCEPTION("Inconsistent file")
                     << TErrorAttribute("file", file.filename())

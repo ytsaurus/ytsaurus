@@ -130,7 +130,7 @@ const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
     return CancelableInvoker_;
 }
 
-TNullable<TControllerAgentMemoryStatistics> TControllerAgent::GetMemoryStatistics()
+std::optional<TControllerAgentMemoryStatistics> TControllerAgent::GetMemoryStatistics()
 {
     auto guard = Guard(MemoryStatisticsLock_);
 

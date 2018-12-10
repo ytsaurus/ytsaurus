@@ -1140,7 +1140,7 @@ const TValue* InsertGroupRow(
         if (closure->CheckNulls) {
             for (int index = 0; index < closure->KeySize; ++index) {
                 if (row[index].Type == EValueType::Null) {
-                    THROW_ERROR_EXCEPTION("Null values in group key");
+                    THROW_ERROR_EXCEPTION("std::nullopt values in group key");
                 }
             }
         }

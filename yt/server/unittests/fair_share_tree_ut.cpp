@@ -95,7 +95,7 @@ struct TSchedulerStrategyHostMock
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout) override
+        std::optional<TDuration> timeout) override
     {
         return VoidFuture;
     }
@@ -194,7 +194,7 @@ public:
         return StartTime_;
     }
 
-    virtual TNullable<int> FindSlotIndex(const TString& /* treeId */) const override
+    virtual std::optional<int> FindSlotIndex(const TString& /* treeId */) const override
     {
         return 0;
     }

@@ -26,7 +26,7 @@ protected:
 
     struct TValue
     {
-        TNullable<double> Data;
+        std::optional<double> Data;
         TTimestamp Timestamp;
     };
 
@@ -65,7 +65,7 @@ protected:
         rows->push_back(CreateRow({
             {std::numeric_limits<double>::max(), TimestampBase},
             {std::numeric_limits<double>::min(), TimestampBase + 1},
-            {Null, TimestampBase + 2}}));
+            {std::nullopt, TimestampBase + 2}}));
     }
 
     std::vector<TVersionedRow> CreateDirectDense()
@@ -153,7 +153,7 @@ protected:
     virtual void Write(IValueColumnWriter* columnWriter) override
     {
         // Segment 1 - 5 values.
-        WriteSegment(columnWriter, {Null, 1.0, 2.0, 3.0, 4.0});
+        WriteSegment(columnWriter, {std::nullopt, 1.0, 2.0, 3.0, 4.0});
         // Segment 2 - 1 value.
         WriteSegment(columnWriter, {5.0});
         // Segment 3 - 4 values.
@@ -178,7 +178,7 @@ protected:
 TEST_F(TUnversionedDoubleSegmentTest, GetEqualRange)
 {
     EXPECT_EQ(std::make_pair(8L, 8L), Reader_->GetEqualRange(MakeValue(7.5), 7, 8));
-    EXPECT_EQ(std::make_pair(0L, 0L), Reader_->GetEqualRange(MakeValue(Null), 0, 0));
+    EXPECT_EQ(std::make_pair(0L, 0L), Reader_->GetEqualRange(MakeValue(std::nullopt), 0, 0));
     EXPECT_EQ(std::make_pair(8L, 8L), Reader_->GetEqualRange(MakeValue(7.5), 2, 9));
 }
 
@@ -202,7 +202,7 @@ TEST_F(TUnversionedDoubleSegmentTest, ReadNull)
     auto rows = AllocateRows(3);
 
     Reader_->ReadValues(TMutableRange<TMutableVersionedRow>(rows.data(), rows.size()));
-    EXPECT_EQ(MakeValue(Null), *rows.front().BeginKeys());
+    EXPECT_EQ(MakeValue(std::nullopt), *rows.front().BeginKeys());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

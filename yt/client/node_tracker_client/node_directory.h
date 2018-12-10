@@ -9,7 +9,7 @@
 #include <yt/core/yson/public.h>
 
 #include <yt/core/misc/enum.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 
 namespace NYT {
@@ -23,11 +23,11 @@ class TNodeDescriptor
 public:
     TNodeDescriptor();
     explicit TNodeDescriptor(const TString& defaultAddress);
-    explicit TNodeDescriptor(const TNullable<TString>& defaultAddress);
+    explicit TNodeDescriptor(const std::optional<TString>& defaultAddress);
     explicit TNodeDescriptor(
         TAddressMap addresses,
-        TNullable<TString> rack = Null,
-        TNullable<TString> dc = Null,
+        std::optional<TString> rack = std::nullopt,
+        std::optional<TString> dc = std::nullopt,
         const std::vector<TString>& tags = {});
 
     bool IsNull() const;
@@ -37,10 +37,10 @@ public:
     const TString& GetDefaultAddress() const;
 
     const TString& GetAddressOrThrow(const TNetworkPreferenceList& networks) const;
-    TNullable<TString> FindAddress(const TNetworkPreferenceList& networks) const;
+    std::optional<TString> FindAddress(const TNetworkPreferenceList& networks) const;
 
-    const TNullable<TString>& GetRack() const;
-    const TNullable<TString>& GetDataCenter() const;
+    const std::optional<TString>& GetRack() const;
+    const std::optional<TString>& GetDataCenter() const;
 
     const std::vector<TString>& GetTags() const;
 
@@ -49,8 +49,8 @@ public:
 private:
     TAddressMap Addresses_;
     TString DefaultAddress_;
-    TNullable<TString> Rack_;
-    TNullable<TString> DataCenter_;
+    std::optional<TString> Rack_;
+    std::optional<TString> DataCenter_;
     std::vector<TString> Tags_;
 };
 
@@ -68,7 +68,7 @@ const TString& GetDefaultAddress(const TAddressMap& addresses);
 const TString& GetDefaultAddress(const NProto::TAddressMap& addresses);
 
 const TString& GetAddressOrThrow(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
-TNullable<TString> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
+std::optional<TString> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 
 const TAddressMap& GetAddressesOrThrow(const TNodeAddressMap& nodeAddresses, EAddressType type);
 

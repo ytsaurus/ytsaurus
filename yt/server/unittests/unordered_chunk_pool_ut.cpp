@@ -394,7 +394,7 @@ protected:
 
     i64 InputSliceRowCount_;
 
-    TNullable<double> SamplingRate_;
+    std::optional<double> SamplingRate_;
 
     i64 JobCount_;
 

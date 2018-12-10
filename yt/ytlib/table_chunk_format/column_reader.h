@@ -34,7 +34,7 @@ struct IColumnReaderBase
 
     virtual int GetCurrentBlockIndex() const = 0;
 
-    virtual TNullable<int> GetNextBlockIndex() const = 0;
+    virtual std::optional<int> GetNextBlockIndex() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

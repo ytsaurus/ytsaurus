@@ -83,7 +83,7 @@ struct TChunkStripeList
 
     std::vector<TChunkStripePtr> Stripes;
 
-    TNullable<int> PartitionTag;
+    std::optional<int> PartitionTag;
 
     //! If True then TotalDataWeight and TotalRowCount are approximate (and are hopefully upper bounds).
     bool IsApproximate = false;

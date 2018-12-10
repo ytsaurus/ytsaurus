@@ -31,8 +31,8 @@ public:
             YCHECK(summary.Statistics);
             UpdateStatistics(
                 GetNumericValue(*summary.Statistics, "/data/input/data_weight"),
-                summary.PrepareDuration.Get(TDuration()) - summary.DownloadDuration.Get(TDuration()),
-                summary.ExecDuration.Get(TDuration()));
+                summary.PrepareDuration.value_or(TDuration()) - summary.DownloadDuration.value_or(TDuration()),
+                summary.ExecDuration.value_or(TDuration()));
         }
     }
 

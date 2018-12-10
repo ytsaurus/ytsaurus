@@ -14,8 +14,8 @@ class TPemBlobConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<TString> FileName;
-    TNullable<TString> Value;
+    std::optional<TString> FileName;
+    std::optional<TString> Value;
 
     TPemBlobConfig();
 

@@ -125,7 +125,7 @@ void TMemoryTagQueue::UpdateStatistics()
         for (int index = 0; index < tags.size(); ++index) {
             auto tag = tags[index];
             auto usage = usages[index];
-            auto operationId = TagToLastOperationId_[tag] ? MakeNullable(TagToLastOperationId_[tag]) : Null;
+            auto operationId = TagToLastOperationId_[tag] ? std::make_optional(TagToLastOperationId_[tag]) : std::nullopt;
             auto alive = operationId && UsedTags_.contains(tag);
             fluent
                 .Item().BeginMap()

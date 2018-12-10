@@ -45,8 +45,8 @@ class TMasterHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
 {
 public:
-    TNullable<int> MaxSnapshotCountToKeep;
-    TNullable<i64> MaxSnapshotSizeToKeep;
+    std::optional<int> MaxSnapshotCountToKeep;
+    std::optional<i64> MaxSnapshotSizeToKeep;
 
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 

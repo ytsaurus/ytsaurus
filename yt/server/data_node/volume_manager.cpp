@@ -462,7 +462,7 @@ private:
 
     i64 GetQuota() const
     {
-        return Config_->Quota.Get(std::numeric_limits<i64>::max());
+        return Config_->Quota.value_or(std::numeric_limits<i64>::max());
     }
 
     TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TGuid& tag)

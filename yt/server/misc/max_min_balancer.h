@@ -1,7 +1,7 @@
 #pragma once
 #include "public.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/profiling/timing.h>
 
 namespace NYT {
@@ -39,12 +39,12 @@ public:
 
     void AddContender(T contender, W initialWeight = W());
 
-    // Returns Null if there're no contenders.
-    TNullable<T> TakeWinner();
+    // Returns null if there're no contenders.
+    std::optional<T> TakeWinner();
 
-    // Returns Null if there're no contenders or no contender satisfies #pred.
+    // Returns null if there're no contenders or no contender satisfies #pred.
     template <typename P>
-    TNullable<T> TakeWinnerIf(P pred);
+    std::optional<T> TakeWinnerIf(P pred);
 
     void AddWeight(T winner, W extraWeight);
 

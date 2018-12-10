@@ -16,7 +16,7 @@ class TUserInjectingChannel
     : public TChannelWrapper
 {
 public:
-    TUserInjectingChannel(IChannelPtr underlyingChannel, const TNullable<TString>& user)
+    TUserInjectingChannel(IChannelPtr underlyingChannel, const std::optional<TString>& user)
         : TChannelWrapper(std::move(underlyingChannel))
         , User_(user)
     { }
@@ -44,10 +44,10 @@ protected:
     }
 
 private:
-    const TNullable<TString> User_;
+    const std::optional<TString> User_;
 };
 
-IChannelPtr CreateUserInjectingChannel(IChannelPtr underlyingChannel, const TNullable<TString>& user)
+IChannelPtr CreateUserInjectingChannel(IChannelPtr underlyingChannel, const std::optional<TString>& user)
 {
     YCHECK(underlyingChannel);
     return New<TUserInjectingChannel>(std::move(underlyingChannel), user);
@@ -61,7 +61,7 @@ class TTokenInjectingChannel
 public:
     TTokenInjectingChannel(
         IChannelPtr underlyingChannel,
-        const TNullable<TString>& user,
+        const std::optional<TString>& user,
         const TString& token)
         : TUserInjectingChannel(std::move(underlyingChannel), user)
         , Token_(token)
@@ -82,7 +82,7 @@ private:
 
 IChannelPtr CreateTokenInjectingChannel(
     IChannelPtr underlyingChannel,
-    const TNullable<TString>& user,
+    const std::optional<TString>& user,
     const TString& token)
 {
     YCHECK(underlyingChannel);
@@ -100,7 +100,7 @@ class TCookieInjectingChannel
 public:
     TCookieInjectingChannel(
         IChannelPtr underlyingChannel,
-        const TNullable<TString>& user,
+        const std::optional<TString>& user,
         const TString& sessionId,
         const TString& sslSessionId)
         : TUserInjectingChannel(std::move(underlyingChannel), user)
@@ -125,7 +125,7 @@ private:
 
 IChannelPtr CreateCookieInjectingChannel(
     IChannelPtr underlyingChannel,
-    const TNullable<TString>& user,
+    const std::optional<TString>& user,
     const TString& sessionId,
     const TString& sslSessionId)
 {

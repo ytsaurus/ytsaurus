@@ -114,7 +114,7 @@ bool TCoordinator::CanHandleHeavyRequests() const
     return Self_->Role != "control";
 }
 
-std::vector<TProxyEntryPtr> TCoordinator::ListProxies(TNullable<TString> roleFilter, bool includeDeadAndBanned)
+std::vector<TProxyEntryPtr> TCoordinator::ListProxies(std::optional<TString> roleFilter, bool includeDeadAndBanned)
 {
     std::vector<TProxyEntryPtr> proxies;
     {
@@ -350,8 +350,8 @@ void THostsHandler::HandleRequest(
         return;
     }
 
-    TNullable<TString> role{"data"};
-    TNullable<TString> suffix;
+    std::optional<TString> role{"data"};
+    std::optional<TString> suffix;
     bool returnJson = true;
 
     {

@@ -34,7 +34,7 @@ static const auto& Logger = TabletNodeLogger;
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     TSecurityManagerPtr securityManager,
-    const TNullable<TString>& maybeUser)
+    const std::optional<TString>& maybeUser)
     : TAuthenticatedUserGuardBase(std::move(securityManager), maybeUser)
 { }
 
@@ -259,10 +259,10 @@ public:
     void ResetAuthenticatedUser()
     {
         Y_ASSERT(*AuthenticatedUser_);
-        AuthenticatedUser_->Reset();
+        AuthenticatedUser_->reset();
     }
 
-    TNullable<TString> GetAuthenticatedUserName()
+    std::optional<TString> GetAuthenticatedUserName()
     {
         return *AuthenticatedUser_;
     }
@@ -323,7 +323,7 @@ private:
     const TTablePermissionCachePtr TablePermissionCache_;
     const TResourceLimitsCachePtr ResourceLimitsCache_;
 
-    TFls<TNullable<TString>> AuthenticatedUser_;
+    TFls<std::optional<TString>> AuthenticatedUser_;
 
 };
 
@@ -349,7 +349,7 @@ void TSecurityManager::ResetAuthenticatedUser()
     Impl_->ResetAuthenticatedUser();
 }
 
-TNullable<TString> TSecurityManager::GetAuthenticatedUserName()
+std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
 {
     return Impl_->GetAuthenticatedUserName();
 }

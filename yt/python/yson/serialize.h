@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/small_vector.h>
 
@@ -27,7 +27,7 @@ struct TPathPart
 struct TContext
 {
     SmallVector<TPathPart, 2> PathParts;
-    TNullable<size_t> RowIndex;
+    std::optional<size_t> RowIndex;
 
     void Push(TStringBuf& key)
     {
@@ -68,16 +68,16 @@ void Serialize(
     const Py::Object& obj,
     NYson::IYsonConsumer* consumer,
 #if PY_MAJOR_VERSION >= 3
-    const TNullable<TString>& encoding = MakeNullable(TString("utf-8")),
+    const std::optional<TString>& encoding = std::make_optional(TString("utf-8")),
 #else
-    const TNullable<TString>& encoding = Null,
+    const std::optional<TString>& encoding = std::nullopt,
 #endif
     bool ignoreInnerAttributes = false,
     NYson::EYsonType ysonType = NYson::EYsonType::Node,
     int depth = 0,
     TContext* context = nullptr);
 
-void Deserialize(Py::Object& obj, NYTree::INodePtr node, const TNullable<TString>& encoding = Null);
+void Deserialize(Py::Object& obj, NYTree::INodePtr node, const std::optional<TString>& encoding = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

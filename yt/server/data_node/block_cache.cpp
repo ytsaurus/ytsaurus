@@ -44,7 +44,7 @@ public:
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
-        const TNullable<TNodeDescriptor>& source) override
+        const std::optional<TNodeDescriptor>& source) override
     {
         if (type == EBlockType::CompressedData) {
             const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();

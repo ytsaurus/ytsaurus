@@ -26,7 +26,7 @@ struct TDataSliceDescriptor
 
     const NProto::TChunkSpec& GetSingleChunk() const;
 
-    TNullable<i64> GetTag() const;
+    std::optional<i64> GetTag() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

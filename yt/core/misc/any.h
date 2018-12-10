@@ -23,7 +23,7 @@ public:
     TAny();
 
     //! Constructs a null instance.
-    TAny(TNull);
+    TAny(std::nullopt_t);
 
     //! Constructs an instance by copying another instance.
     TAny(const TAny& other);

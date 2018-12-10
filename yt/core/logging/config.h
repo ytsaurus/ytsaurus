@@ -17,7 +17,7 @@ public:
     EWriterType Type;
     TString FileName;
     ELogMessageFormat AcceptedMessageFormat;
-    TNullable<size_t> RateLimit;
+    std::optional<size_t> RateLimit;
 
     TWriterConfig()
     {
@@ -47,7 +47,7 @@ class TRuleConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<THashSet<TString>> IncludeCategories;
+    std::optional<THashSet<TString>> IncludeCategories;
     THashSet<TString> ExcludeCategories;
 
     ELogLevel MinLevel;
@@ -85,9 +85,9 @@ class TLogConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<TDuration> FlushPeriod;
-    TNullable<TDuration> WatchPeriod;
-    TNullable<TDuration> CheckSpacePeriod;
+    std::optional<TDuration> FlushPeriod;
+    std::optional<TDuration> WatchPeriod;
+    std::optional<TDuration> CheckSpacePeriod;
 
     i64 MinDiskSpace;
 

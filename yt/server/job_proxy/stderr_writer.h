@@ -60,7 +60,7 @@ private:
     const size_t PartLimit_;
 
     TBlobOutput Head_;
-    TNullable<TTailBuffer> Tail_;
+    std::optional<TTailBuffer> Tail_;
 
     NChunkClient::TChunkId ChunkId_ = NChunkClient::NullChunkId;
 };

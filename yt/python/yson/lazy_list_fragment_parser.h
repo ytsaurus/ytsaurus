@@ -18,7 +18,7 @@ public:
 
     TLazyListFragmentParser(
         IInputStream* stream,
-        const TNullable<TString>& encoding,
+        const std::optional<TString>& encoding,
         bool alwaysCreateAttributes,
         TPythonStringCache* keyCacher);
 

@@ -16,7 +16,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/concurrency/lease_manager.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -69,7 +69,7 @@ struct ISession
     //! Finishes the session.
     virtual TFuture<IChunkPtr> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        TNullable<int> blockCount) = 0;
+        std::optional<int> blockCount) = 0;
 
     //! Puts a contiguous range of blocks into the window.
     virtual TFuture<void> PutBlocks(

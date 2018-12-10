@@ -194,7 +194,7 @@ public:
     TFuture<TSharedRefArray> ForwardToLeader(
         TCellTag cellTag,
         TSharedRefArray requestMessage,
-        TNullable<TDuration> timeout = Null);
+        std::optional<TDuration> timeout = std::nullopt);
 
     //! Posts a creation request to the secondary master.
     void ReplicateObjectCreationToSecondaryMaster(

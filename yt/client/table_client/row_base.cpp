@@ -36,14 +36,14 @@ TColumnFilter::TColumnFilter(int schemaColumnCount)
     }
 }
 
-TNullable<int> TColumnFilter::FindPosition(int columnIndex) const
+std::optional<int> TColumnFilter::FindPosition(int columnIndex) const
 {
     if (IsUniversal_) {
         THROW_ERROR_EXCEPTION("Unable to search index in column filter with IsUniversal flag");
     }
     auto it = std::find(Indexes_.begin(), Indexes_.end(), columnIndex);
     if (it == Indexes_.end()) {
-        return Null;
+        return std::nullopt;
     }
     return std::distance(Indexes_.begin(), it);
 }

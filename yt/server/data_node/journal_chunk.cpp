@@ -84,7 +84,7 @@ TChunkInfo TJournalChunk::GetInfo() const
 
 TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
     const TBlockReadOptions& /*options*/,
-    const TNullable<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -93,7 +93,7 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
         .Run();
 }
 
-TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const TNullable<std::vector<int>>& extensionTags)
+TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const std::optional<std::vector<int>>& extensionTags)
 {
     UpdateCachedParams();
 

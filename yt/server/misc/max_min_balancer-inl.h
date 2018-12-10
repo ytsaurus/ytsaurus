@@ -34,10 +34,10 @@ void TDecayingMaxMinBalancer<T, W>::AddContender(T contender, W initialWeight)
 }
 
 template <typename T, typename W>
-TNullable<T> TDecayingMaxMinBalancer<T, W>::TakeWinner()
+std::optional<T> TDecayingMaxMinBalancer<T, W>::TakeWinner()
 {
     if (Contenders_.empty()) {
-        return Null;
+        return std::nullopt;
     } else {
         auto it = std::min_element(Contenders_.begin(), Contenders_.end());
         return it->Contender;
@@ -46,7 +46,7 @@ TNullable<T> TDecayingMaxMinBalancer<T, W>::TakeWinner()
 
 template <typename T, typename W>
 template <typename P>
-TNullable<T> TDecayingMaxMinBalancer<T, W>::TakeWinnerIf(P pred)
+std::optional<T> TDecayingMaxMinBalancer<T, W>::TakeWinnerIf(P pred)
 {
     auto resultIt = std::find_if(
         Contenders_.begin(),
@@ -60,7 +60,7 @@ TNullable<T> TDecayingMaxMinBalancer<T, W>::TakeWinnerIf(P pred)
     }
 
     if (resultIt == Contenders_.end()) {
-        return Null;
+        return std::nullopt;
     } else {
         return resultIt->Contender;
     }

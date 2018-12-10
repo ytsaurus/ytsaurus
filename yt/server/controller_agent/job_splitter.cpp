@@ -87,14 +87,14 @@ public:
         const TCompletedJobSummary& summary,
         i64 unreadRowCount) const override
     {
-        double execDuration = summary.ExecDuration.Get(TDuration()).SecondsFloat();
+        double execDuration = summary.ExecDuration.value_or(TDuration()).SecondsFloat();
         YCHECK(summary.Statistics);
         i64 processedRowCount = GetNumericValue(*summary.Statistics, "/data/input/row_count");
         if (unreadRowCount <= 1 || processedRowCount == 0 || execDuration == 0.0) {
             return 1;
         }
-        double prepareDuration = summary.PrepareDuration.Get(TDuration()).SecondsFloat() -
-            summary.DownloadDuration.Get(TDuration()).SecondsFloat();
+        double prepareDuration = summary.PrepareDuration.value_or(TDuration()).SecondsFloat() -
+            summary.DownloadDuration.value_or(TDuration()).SecondsFloat();
         double expectedExecDuration = execDuration / processedRowCount * unreadRowCount;
 
         auto getMedianCompletionDuration = [&] () {
@@ -284,15 +284,15 @@ private:
 
         void UpdateCompletionTime(TStatistics* statistics, const TJobSummary& summary)
         {
-            PrepareWithoutDownloadDuration_ = summary.PrepareDuration.Get(TDuration()) - summary.DownloadDuration.Get(TDuration());
+            PrepareWithoutDownloadDuration_ = summary.PrepareDuration.value_or(TDuration()) - summary.DownloadDuration.value_or(TDuration());
             if (!summary.ExecDuration) {
                 return;
             }
 
-            ExecDuration_ = summary.ExecDuration.Get(TDuration());
+            ExecDuration_ = summary.ExecDuration.value_or(TDuration());
             YCHECK(summary.Statistics);
 
-            RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").Get(0);
+            RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").value_or(0);
             if (RowCount_ == 0) {
                 return;
             }

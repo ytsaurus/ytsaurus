@@ -123,7 +123,7 @@ private:
     const std::vector<int> BlocksToSave_;
     THashMap<int, int> BlockIndexToBlocksToSaveIndex_;
 
-    std::vector<TNullable<TBlock>> SavedBlocks_;
+    std::vector<std::optional<TBlock>> SavedBlocks_;
     std::deque<std::pair<int, TBlock>> CachedBlocks_;
 };
 
@@ -367,7 +367,7 @@ private:
     i64 TotalBytes_ = 0;
     i64 SavedBytes_ = 0;
 
-    TNullable<TPartRange> LastRange_;
+    std::optional<TPartRange> LastRange_;
 };
 
 class TEmptyPartBlockConsumer
@@ -562,7 +562,7 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& /* estimatedSize */) override
+        const std::optional<i64>& /* estimatedSize */) override
     {
         // NB(psushin): do not use estimated size for throttling here, repair requires much more traffic than estimated.
         // When reading erasure chunks we fallback to post-throttling.
@@ -583,7 +583,7 @@ public:
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& /* estimatedSize */)
+        const std::optional<i64>& /* estimatedSize */)
     {
         // Implement when first needed.
         Y_UNIMPLEMENTED();

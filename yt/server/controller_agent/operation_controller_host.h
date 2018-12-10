@@ -27,10 +27,10 @@ struct TAgentToSchedulerJobEvent
     NScheduler::EAgentToSchedulerJobEventType EventType;
     TJobId JobId;
     TError Error;
-    TNullable<EInterruptReason> InterruptReason;
-    TNullable<bool> ArchiveJobSpec;
-    TNullable<bool> ArchiveStderr;
-    TNullable<bool> ArchiveFailContext;
+    std::optional<EInterruptReason> InterruptReason;
+    std::optional<bool> ArchiveJobSpec;
+    std::optional<bool> ArchiveStderr;
+    std::optional<bool> ArchiveFailContext;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

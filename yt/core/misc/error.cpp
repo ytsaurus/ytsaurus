@@ -261,7 +261,7 @@ void TError::CaptureOriginAttributes()
     }
 }
 
-TNullable<TError> TError::FindMatching(TErrorCode code) const
+std::optional<TError> TError::FindMatching(TErrorCode code) const
 {
     if (Code_ == code) {
         return *this;
@@ -274,7 +274,7 @@ TNullable<TError> TError::FindMatching(TErrorCode code) const
         }
     }
 
-    return Null;
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

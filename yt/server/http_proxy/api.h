@@ -13,7 +13,7 @@ namespace NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::pair<TNullable<TString>, TNullable<TString>> TUserCommandPair;
+using TUserCommandPair =std::pair<std::optional<TString>, std::optional<TString>>;
 
 class TSemaphoreGuard
 {
@@ -55,13 +55,13 @@ public:
     bool IsUserBannedInCache(const TString& user);
     void PutUserIntoBanCache(const TString& user);
 
-    TNullable<TSemaphoreGuard> AcquireSemaphore(const TString& user, const TString& command);
+    std::optional<TSemaphoreGuard> AcquireSemaphore(const TString& user, const TString& command);
     void ReleaseSemaphore(const TUserCommandPair& key);
 
     void IncrementProfilingCounters(
         const TString& user,
         const TString& command,
-        TNullable<NHttp::EStatusCode> httpStatusCode,
+        std::optional<NHttp::EStatusCode> httpStatusCode,
         TErrorCode apiErrorCode,
         TDuration duration,
         i64 bytesIn,

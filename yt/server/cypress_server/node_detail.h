@@ -501,56 +501,56 @@ public:
     // NB: the list of inheritable attributes doesn't include the "account"
     // attribute because that's already present on every Cypress node.
 
-    TNullable<NCompression::ECodec> GetCompressionCodec() const;
-    void SetCompressionCodec(TNullable<NCompression::ECodec> compressionCodec);
+    std::optional<NCompression::ECodec> GetCompressionCodec() const;
+    void SetCompressionCodec(std::optional<NCompression::ECodec> compressionCodec);
 
-    TNullable<NErasure::ECodec> GetErasureCodec() const;
-    void SetErasureCodec(TNullable<NErasure::ECodec> erasureCodec);
+    std::optional<NErasure::ECodec> GetErasureCodec() const;
+    void SetErasureCodec(std::optional<NErasure::ECodec> erasureCodec);
 
-    TNullable<int> GetPrimaryMediumIndex() const;
-    void SetPrimaryMediumIndex(TNullable<int> primaryMediumIndex);
+    std::optional<int> GetPrimaryMediumIndex() const;
+    void SetPrimaryMediumIndex(std::optional<int> primaryMediumIndex);
 
-    TNullable<NChunkServer::TChunkReplication> GetMedia() const;
-    void SetMedia(TNullable<NChunkServer::TChunkReplication> media);
+    std::optional<NChunkServer::TChunkReplication> GetMedia() const;
+    void SetMedia(std::optional<NChunkServer::TChunkReplication> media);
 
     // Although both Vital and ReplicationFactor can be deduced from Media, it's
     // important to be able to specify just the ReplicationFactor (or the Vital
     // flag) while leaving Media null.
 
-    TNullable<int> GetReplicationFactor() const;
-    void SetReplicationFactor(TNullable<int> replicationFactor);
+    std::optional<int> GetReplicationFactor() const;
+    void SetReplicationFactor(std::optional<int> replicationFactor);
 
-    TNullable<bool> GetVital() const;
-    void SetVital(TNullable<bool> vital);
+    std::optional<bool> GetVital() const;
+    void SetVital(std::optional<bool> vital);
 
     NTabletServer::TTabletCellBundle* GetTabletCellBundle() const;
     void SetTabletCellBundle(NTabletServer::TTabletCellBundle* tabletCellBundle);
 
-    TNullable<NTransactionClient::EAtomicity> GetAtomicity() const;
-    void SetAtomicity(TNullable<NTransactionClient::EAtomicity> atomicity);
+    std::optional<NTransactionClient::EAtomicity> GetAtomicity() const;
+    void SetAtomicity(std::optional<NTransactionClient::EAtomicity> atomicity);
 
-    TNullable<NTransactionClient::ECommitOrdering> GetCommitOrdering() const;
-    void SetCommitOrdering(TNullable<NTransactionClient::ECommitOrdering> commitOrdering);
+    std::optional<NTransactionClient::ECommitOrdering> GetCommitOrdering() const;
+    void SetCommitOrdering(std::optional<NTransactionClient::ECommitOrdering> commitOrdering);
 
-    TNullable<NTabletClient::EInMemoryMode> GetInMemoryMode() const;
-    void SetInMemoryMode(TNullable<NTabletClient::EInMemoryMode> inMemoryMode);
+    std::optional<NTabletClient::EInMemoryMode> GetInMemoryMode() const;
+    void SetInMemoryMode(std::optional<NTabletClient::EInMemoryMode> inMemoryMode);
 
-    TNullable<NTableClient::EOptimizeFor> GetOptimizeFor() const;
-    void SetOptimizeFor(TNullable<NTableClient::EOptimizeFor> optimizeFor);
+    std::optional<NTableClient::EOptimizeFor> GetOptimizeFor() const;
+    void SetOptimizeFor(std::optional<NTableClient::EOptimizeFor> optimizeFor);
 
     struct TAttributes
     {
-        TNullable<NCompression::ECodec> CompressionCodec;
-        TNullable<NErasure::ECodec> ErasureCodec;
-        TNullable<int> PrimaryMediumIndex;
-        TNullable<NChunkServer::TChunkReplication> Media;
-        TNullable<int> ReplicationFactor;
-        TNullable<bool> Vital;
+        std::optional<NCompression::ECodec> CompressionCodec;
+        std::optional<NErasure::ECodec> ErasureCodec;
+        std::optional<int> PrimaryMediumIndex;
+        std::optional<NChunkServer::TChunkReplication> Media;
+        std::optional<int> ReplicationFactor;
+        std::optional<bool> Vital;
         NTabletServer::TTabletCellBundle* TabletCellBundle = nullptr;
-        TNullable<NTransactionClient::EAtomicity> Atomicity;
-        TNullable<NTransactionClient::ECommitOrdering> CommitOrdering;
-        TNullable<NTabletClient::EInMemoryMode> InMemoryMode;
-        TNullable<NTableClient::EOptimizeFor> OptimizeFor;
+        std::optional<NTransactionClient::EAtomicity> Atomicity;
+        std::optional<NTransactionClient::ECommitOrdering> CommitOrdering;
+        std::optional<NTabletClient::EInMemoryMode> InMemoryMode;
+        std::optional<NTableClient::EOptimizeFor> OptimizeFor;
 
         void Persist(NCellMaster::TPersistenceContext& context);
 

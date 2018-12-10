@@ -99,8 +99,8 @@ public:
     int RetryAttempts;
 
     //! Maximum time to spend while retrying.
-    //! If |Null| then no limit is enforced.
-    TNullable<TDuration> RetryTimeout;
+    //! If null then no limit is enforced.
+    std::optional<TDuration> RetryTimeout;
 
     TRetryingChannelConfig()
     {

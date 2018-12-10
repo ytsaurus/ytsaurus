@@ -73,7 +73,7 @@ TString TJob::GetStderr()
         "Getting stderr is not supported for built-in jobs");
 }
 
-TNullable<TString> TJob::GetFailContext()
+std::optional<TString> TJob::GetFailContext()
 {
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,

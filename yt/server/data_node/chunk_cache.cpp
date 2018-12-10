@@ -804,13 +804,13 @@ private:
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
 
-        TNullable<TTableSchema> schema = key.data_source().has_table_schema()
-            ? MakeNullable(FromProto<TTableSchema>(key.data_source().table_schema()))
-            : Null;
+        std::optional<TTableSchema> schema = key.data_source().has_table_schema()
+            ? std::make_optional(FromProto<TTableSchema>(key.data_source().table_schema()))
+            : std::nullopt;
 
-        auto columnFilter = MakeNullable(
-            key.data_source().has_column_filter(),
-            FromProto<std::vector<TString>>(key.data_source().columns()));
+        auto columnFilter = key.data_source().has_column_filter()
+            ? std::make_optional(FromProto<std::vector<TString>>(key.data_source().columns()))
+            : std::nullopt;
 
         switch (EDataSourceType(key.data_source().type())) {
             case EDataSourceType::UnversionedTable:
@@ -851,7 +851,7 @@ private:
             blockReadOptions,
             TColumnFilter(),
             TKeyColumns(),
-            /* partitionTag */ Null,
+            /* partitionTag */ std::nullopt,
             trafficMeter,
             Bootstrap_->GetArtifactCacheInThrottler(),
             Bootstrap_->GetReadRpsOutThrottler());
@@ -947,7 +947,7 @@ private:
         return CreateChunk(location, key, descriptor);
     }
 
-    TNullable<TArtifactKey> TryParseArtifactMeta(const TCacheLocationPtr& location, TChunkId chunkId)
+    std::optional<TArtifactKey> TryParseArtifactMeta(const TCacheLocationPtr& location, TChunkId chunkId)
     {
         if (!IsArtifactChunkId(chunkId)) {
             return TArtifactKey(chunkId);
@@ -967,12 +967,12 @@ private:
             metaInput.Read(metaBlob.Begin(), metaFile.GetLength());
         })).Run();
 
-        auto readMeta = [&] () -> TNullable<TArtifactKey> {
+        auto readMeta = [&] () -> std::optional<TArtifactKey> {
             if (metaBlob.Size() < sizeof(TArtifactMetaHeader)) {
                 LOG_WARNING("Artifact meta file %v is too short: at least %v bytes expected",
                     metaFileName,
                     sizeof(TArtifactMetaHeader));
-                return Null;
+                return std::nullopt;
             }
 
             const auto* header = reinterpret_cast<const TArtifactMetaHeader*>(metaBlob.Begin());
@@ -981,7 +981,7 @@ private:
                     metaFileName,
                     header->ExpectedSignature,
                     header->Signature);
-                return Null;
+                return std::nullopt;
             }
 
             if (header->Version != header->ExpectedVersion) {
@@ -989,7 +989,7 @@ private:
                     metaFileName,
                     header->ExpectedVersion,
                     header->Version);
-                return Null;
+                return std::nullopt;
             }
 
             metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
@@ -997,7 +997,7 @@ private:
             if (!TryDeserializeProto(&key, metaBlob)) {
                 LOG_WARNING("Failed to parse artifact meta file %v",
                     metaFileName);
-                return Null;
+                return std::nullopt;
             }
 
             return key;

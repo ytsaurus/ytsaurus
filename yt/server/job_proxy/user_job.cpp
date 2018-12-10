@@ -210,7 +210,7 @@ public:
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,
                 *UserId_,
-                MakeNullable(UserJobSpec_.has_core_table_spec(), *host->GetConfig()->BusServer->UnixDomainName));
+                UserJobSpec_.has_core_table_spec() ? std::make_optional(*host->GetConfig()->BusServer->UnixDomainName) : std::nullopt);
 
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
                 AuxQueue_->GetInvoker(),
@@ -323,7 +323,7 @@ public:
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
-            bool coreDumped = jobResultError.HasValue() && jobResultError->Attributes().Get("core_dumped", false /* defaultValue */);
+            bool coreDumped = jobResultError.operator bool() && jobResultError->Attributes().Get("core_dumped", false /* defaultValue */);
             auto coreResult = CoreProcessorService_->Finalize(coreDumped ? Config_->CoreForwarderTimeout : TDuration::Zero());
 
             LOG_INFO("User job produced %v core files", coreResult.CoreInfos.size());
@@ -415,7 +415,7 @@ private:
 
     TString InputPipePath_;
 
-    TNullable<int> UserId_;
+    std::optional<int> UserId_;
 
     std::atomic<bool> Prepared_ = { false };
     std::atomic<bool> Woodpecker_ = { false };
@@ -474,7 +474,7 @@ private:
 
     TCoreProcessorServicePtr CoreProcessorService_;
 
-    TNullable<TString> FailContext_;
+    std::optional<TString> FailContext_;
 
     void Prepare()
     {
@@ -679,7 +679,7 @@ private:
         return result;
     }
 
-    virtual TNullable<TString> GetFailContext() override
+    virtual std::optional<TString> GetFailContext() override
     {
         ValidatePrepared();
 

@@ -477,7 +477,7 @@ public:
         bool preserveTimestamps,
         NTransactionClient::EAtomicity atomicity,
         TTimestamp startReplicationTimestamp,
-        const TNullable<std::vector<i64>>& startReplicationRowIndexes)
+        const std::optional<std::vector<i64>>& startReplicationRowIndexes)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -576,10 +576,10 @@ public:
 
     void AlterTableReplica(
         TTableReplica* replica,
-        TNullable<bool> enabled,
-        TNullable<ETableReplicaMode> mode,
-        TNullable<NTransactionClient::EAtomicity> atomicity,
-        TNullable<bool> preserveTimestamps)
+        std::optional<bool> enabled,
+        std::optional<ETableReplicaMode> mode,
+        std::optional<NTransactionClient::EAtomicity> atomicity,
+        std::optional<bool> preserveTimestamps)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -591,7 +591,7 @@ public:
                 switch (state) {
                     case ETableReplicaState::Enabled:
                     case ETableReplicaState::Enabling:
-                        enabled = Null;
+                        enabled = std::nullopt;
                         break;
                     case ETableReplicaState::Disabled:
                         break;
@@ -603,7 +603,7 @@ public:
                 switch (state) {
                     case ETableReplicaState::Disabled:
                     case ETableReplicaState::Disabling:
-                        enabled = Null;
+                        enabled = std::nullopt;
                         break;
                     case ETableReplicaState::Enabled:
                         break;
@@ -623,15 +623,15 @@ public:
         }
 
         if (mode && replica->GetMode() == *mode) {
-            mode = Null;
+            mode = std::nullopt;
         }
 
         if (atomicity && replica->GetAtomicity() == *atomicity) {
-            atomicity = Null;
+            atomicity = std::nullopt;
         }
 
         if (preserveTimestamps && replica->GetPreserveTimestamps() == *preserveTimestamps) {
-            preserveTimestamps = Null;
+            preserveTimestamps = std::nullopt;
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table replica updated (TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
@@ -683,7 +683,7 @@ public:
             ToProto(req.mutable_replica_id(), replica->GetId());
 
             if (enabled) {
-                TNullable<ETableReplicaState> newState;
+                std::optional<ETableReplicaState> newState;
                 if (*enabled && replicaInfo->GetState() != ETableReplicaState::Enabled) {
                     newState = ETableReplicaState::Enabling;
                 }
@@ -721,7 +721,7 @@ public:
         const std::vector<TTablet*>& tablets,
         const std::vector<TTabletCell*>& cells,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
-        const TNullable<int>& tabletCount,
+        const std::optional<int>& tabletCount,
         bool skipFreezing,
         bool keepFinished)
     {
@@ -783,7 +783,7 @@ public:
                         pivotKeys.size());
                 }
                 if (!!tabletCount) {
-                    THROW_ERROR_EXCEPTION("Invalid number of tablets: expected Null, actual %v",
+                    THROW_ERROR_EXCEPTION("Invalid number of tablets: expected std::nullopt, actual %v",
                         *tabletCount);
                 }
                 break;
@@ -834,7 +834,7 @@ public:
         const std::vector<TTablet*>& tablets,
         const std::vector<TTabletCell*>& cells,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
-        const TNullable<int>& tabletCount,
+        const std::optional<int>& tabletCount,
         bool freeze,
         bool skipFreezing,
         bool keepFinished)
@@ -1844,7 +1844,7 @@ public:
             std::vector<TTablet*>{tablet},
             std::vector<TTabletCell*>{},
             std::vector<NTableClient::TOwningKey>{},
-            TNullable<int>(),
+            std::optional<int>(),
             freeze,
             false,
             false);
@@ -3075,10 +3075,10 @@ private:
 
     struct TTableStatistics
     {
-        TNullable<TDataStatistics> DataStatistics;
-        TNullable<TClusterResources> TabletResourceUsage;
-        TNullable<TInstant> ModificationTime;
-        TNullable<TInstant> AccessTime;
+        std::optional<TDataStatistics> DataStatistics;
+        std::optional<TClusterResources> TabletResourceUsage;
+        std::optional<TInstant> ModificationTime;
+        std::optional<TInstant> AccessTime;
 
         void Persist(NCellMaster::TPersistenceContext& context)
         {
@@ -4233,11 +4233,11 @@ private:
         auto tableId = FromProto<TTableId>(request->table_id());
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         auto actualState = request->has_actual_tablet_state()
-            ? MakeNullable(static_cast<ETabletState>(request->actual_tablet_state()))
-            : Null;
+            ? std::make_optional(static_cast<ETabletState>(request->actual_tablet_state()))
+            : std::nullopt;
         auto expectedState = request->has_expected_tablet_state()
-            ? MakeNullable(static_cast<ETabletState>(request->expected_tablet_state()))
-            : Null;
+            ? std::make_optional(static_cast<ETabletState>(request->expected_tablet_state()))
+            : std::nullopt;
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->FindNode(TVersionedNodeId(tableId));
@@ -4344,7 +4344,7 @@ private:
         }
 
         auto actualState = table->ComputeActualTabletState();
-        TNullable<ETabletState> expectedState;
+        std::optional<ETabletState> expectedState;
 
         if (table->GetLastMountTransactionId()) {
             if (table->TabletCountByExpectedState()[ETabletState::Mounted] > 0) {
@@ -5080,9 +5080,9 @@ private:
         auto cellIds = FromProto<std::vector<TTabletId>>(request->cell_ids());
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
         bool keepFinished = request->keep_finished();
-        TNullable<int> tabletCount = request->has_tablet_count()
-            ? MakeNullable(request->tablet_count())
-            : Null;
+        std::optional<int> tabletCount = request->has_tablet_count()
+            ? std::make_optional(request->tablet_count())
+            : std::nullopt;
         std::vector<TTablet*> tablets;
         std::vector<TTabletCell*> cells;
 
@@ -5188,7 +5188,7 @@ private:
         config->Addresses.clear();
         for (const auto& peer : cell->Peers()) {
             if (peer.Descriptor.IsNull()) {
-                config->Addresses.push_back(Null);
+                config->Addresses.push_back(std::nullopt);
             } else {
                 config->Addresses.push_back(peer.Descriptor.GetAddressOrThrow(Bootstrap_->GetConfig()->Networks));
             }
@@ -5365,8 +5365,8 @@ private:
             {},
             secondaryCellTags,
             secondaryCellTags,
-            Null,
-            /* deadline */ Null,
+            std::nullopt,
+            /* deadline */ std::nullopt,
             Format("Prerequisite for cell %v", cell->GetId()),
             EmptyAttributes());
 
@@ -6317,7 +6317,7 @@ TTableReplica* TTabletManager::CreateTableReplica(
     bool preserveTimestamps,
     NTransactionClient::EAtomicity atomicity,
     TTimestamp startReplicationTimestamp,
-    const  TNullable<std::vector<i64>>& startReplicationRowIndexes)
+    const  std::optional<std::vector<i64>>& startReplicationRowIndexes)
 {
     return Impl_->CreateTableReplica(
         table,
@@ -6337,10 +6337,10 @@ void TTabletManager::DestroyTableReplica(TTableReplica* replica)
 
 void TTabletManager::AlterTableReplica(
     TTableReplica* replica,
-    TNullable<bool> enabled,
-    TNullable<ETableReplicaMode> mode,
-    TNullable<NTransactionClient::EAtomicity> atomicity,
-    TNullable<bool> preserveTimestamps)
+    std::optional<bool> enabled,
+    std::optional<ETableReplicaMode> mode,
+    std::optional<NTransactionClient::EAtomicity> atomicity,
+    std::optional<bool> preserveTimestamps)
 {
     Impl_->AlterTableReplica(
         replica,
@@ -6356,7 +6356,7 @@ TTabletAction* TTabletManager::CreateTabletAction(
     const std::vector<TTablet*>& tabletIds,
     const std::vector<TTabletCell*>& cellIds,
     const std::vector<NTableClient::TOwningKey>& pivotKeys,
-    const TNullable<int>& tabletCount,
+    const std::optional<int>& tabletCount,
     bool skipFreezing,
     bool keepFinished)
 {

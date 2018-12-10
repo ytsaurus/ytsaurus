@@ -447,7 +447,7 @@ protected:
             return Controller->Spec->EnableIntermediateOutputRecalculation;
         }
 
-        virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
+        virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
         {
             // We don't have a job at hand here, let's make a guess.
             auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics()[0];
@@ -457,7 +457,7 @@ protected:
                 return EScheduleJobFailReason::DataBalancingViolation;
             }
 
-            return Null;
+            return std::nullopt;
         }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
@@ -663,7 +663,7 @@ protected:
             JobProxyMemoryDigest_ = CreateLogDigest(New<TLogDigestConfig>(
                 1.0, // LowerLimit - we do not want to adjust memory reserve lower limit for sort jobs - we are pretty sure in our initial estimates.
                 Controller->Spec->JobProxyMemoryDigest->UpperBound,
-                Controller->Spec->JobProxyMemoryDigest->DefaultValue.Get(1.0)));
+                Controller->Spec->JobProxyMemoryDigest->DefaultValue.value_or(1.0)));
         }
 
         virtual TTaskGroupPtr GetGroup() const override
@@ -2153,7 +2153,7 @@ protected:
         return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
     }
 
-    void AccountRows(const TNullable<NJobTrackerClient::TStatistics>& statistics)
+    void AccountRows(const std::optional<NJobTrackerClient::TStatistics>& statistics)
     {
         YCHECK(statistics);
         TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
@@ -3022,7 +3022,7 @@ private:
         return Spec->OutputTablePaths;
     }
 
-    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    virtual std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec->StderrTablePath;
     }
@@ -3032,7 +3032,7 @@ private:
         return Spec->StderrTableWriter;
     }
 
-    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    virtual std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec->CoreTablePath;
     }
@@ -3083,7 +3083,7 @@ private:
         int partitionCount = SuggestPartitionCount();
         LOG_INFO("Suggested partition count %v", partitionCount);
 
-        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
         auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
             Spec,

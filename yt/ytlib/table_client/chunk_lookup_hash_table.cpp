@@ -75,7 +75,7 @@ public:
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*block*/,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
         Y_UNREACHABLE();
     }

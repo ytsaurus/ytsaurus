@@ -122,7 +122,7 @@ private:
     const TPeriodicExecutorPtr AliveUpdateExecutor_;
     const TPeriodicExecutorPtr ProxyUpdateExecutor_;
 
-    TNullable<TString> GrpcProxyPath_;
+    std::optional<TString> GrpcProxyPath_;
 
     TInstant LastSuccessTimestamp_ = Now();
 

@@ -11,7 +11,7 @@ size_t TPyObjectHasher::operator()(const Py::Object& object) const
     return object.hashValue();
 }
 
-TLazyDict::TLazyDict(bool alwaysCreateAttributes, const TNullable<TString>& encoding)
+TLazyDict::TLazyDict(bool alwaysCreateAttributes, const std::optional<TString>& encoding)
     : AlwaysCreateAttributes_(alwaysCreateAttributes)
     , Encoding_(encoding)
 {
@@ -41,7 +41,7 @@ void TLazyDict::SetItem(const Py::Object& key, const TSharedRef& value)
     if (HasItem(key)) {
         Data_.erase(key);
     }
-    Data_.emplace(key, TLazyDictValue({value, Null}));
+    Data_.emplace(key, TLazyDictValue({value, std::nullopt}));
 }
 
 void TLazyDict::SetItem(const Py::Object& key, const Py::Object& value)
@@ -81,7 +81,7 @@ Py::Object TLazyDict::GetConsumerParams()
 {
     Py::Object encoding;
     if (Encoding_) {
-        encoding = Py::String(Encoding_.Get());
+        encoding = Py::String(*Encoding_);
     } else {
         encoding = Py::None();
     }

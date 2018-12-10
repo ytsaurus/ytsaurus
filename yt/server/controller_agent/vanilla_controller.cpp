@@ -259,7 +259,7 @@ public:
         return outputTablePaths;
     }
 
-    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    virtual std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec_->StderrTablePath;
     }
@@ -269,7 +269,7 @@ public:
         return Spec_->StderrTableWriter;
     }
 
-    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    virtual std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec_->CoreTablePath;
     }

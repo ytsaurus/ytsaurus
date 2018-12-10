@@ -558,9 +558,9 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        TNullable<int> replicationFactorOverride,
+        std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const TNullable<TString>& preferredHostName)
+        const std::optional<TString>& preferredHostName)
     {
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
@@ -1074,9 +1074,9 @@ public:
 
     TMedium* CreateMedium(
         const TString& name,
-        TNullable<bool> transient,
-        TNullable<bool> cache,
-        TNullable<int> priority,
+        std::optional<bool> transient,
+        std::optional<bool> cache,
+        std::optional<int> priority,
         const TObjectId& hintId)
     {
         ValidateMediumName(name);
@@ -2464,7 +2464,7 @@ private:
         if (medium) {
             return false;
         }
-        medium = DoCreateMedium(id, mediumIndex, name, false, cache, Null);
+        medium = DoCreateMedium(id, mediumIndex, name, false, cache, std::nullopt);
         return true;
     }
 
@@ -3003,9 +3003,9 @@ private:
         const TMediumId& id,
         int mediumIndex,
         const TString& name,
-        TNullable<bool> transient,
-        TNullable<bool> cache,
-        TNullable<int> priority)
+        std::optional<bool> transient,
+        std::optional<bool> cache,
+        std::optional<int> priority)
     {
         auto mediumHolder = std::make_unique<TMedium>(id);
         mediumHolder->SetName(name);
@@ -3254,9 +3254,9 @@ TNodeList TChunkManager::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
-    const TNullable<TString>& preferredHostName)
+    const std::optional<TString>& preferredHostName)
 {
     return Impl_->AllocateWriteTargets(
         medium,

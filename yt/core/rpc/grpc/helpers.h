@@ -183,7 +183,7 @@ struct TMessageWithAttachments
 
 TMessageWithAttachments ByteBufferToMessageWithAttachments(
     grpc_byte_buffer* buffer,
-    TNullable<ui32> messageBodySize);
+    std::optional<ui32> messageBodySize);
 
 TGrpcByteBufferPtr MessageWithAttachmentsToByteBuffer(
     const TMessageWithAttachments& messageWithAttachments);
@@ -198,7 +198,7 @@ TError DeserializeError(TStringBuf serializedError);
 TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config);
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config);
 TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config);
-TNullable<TString> ParseIssuerFromX509(TStringBuf x509String);
+std::optional<TString> ParseIssuerFromX509(TStringBuf x509String);
 
 ////////////////////////////////////////////////////////////////////////////////
 

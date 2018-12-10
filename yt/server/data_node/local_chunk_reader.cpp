@@ -48,7 +48,7 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& /* estimatedSize */) override
+        const std::optional<i64>& /* estimatedSize */) override
     {
         auto session = New<TReadBlockSetSession>();
         static_cast<TClientBlockReadOptions&>(session->Options) = options;
@@ -64,7 +64,7 @@ public:
         const TClientBlockReadOptions& clientOptions,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& /* estimatedSize */) override
+        const std::optional<i64>& /* estimatedSize */) override
     {
         TBlockReadOptions options;
         static_cast<TClientBlockReadOptions&>(options) = clientOptions;
@@ -87,8 +87,8 @@ public:
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& clientOptions,
-        TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags) override
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override
     {
         TBlockReadOptions options;
         static_cast<TClientBlockReadOptions&>(options) = clientOptions;

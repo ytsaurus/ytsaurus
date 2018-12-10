@@ -913,7 +913,7 @@ public:
 
         if (PendingBlock_) {
             auto block = std::move(PendingBlock_);
-            PendingBlock_ = TNullable<TErrorOr<TSharedRef>>();
+            PendingBlock_ = std::optional<TErrorOr<TSharedRef>>();
 
             return MakeFuture<TSharedRef>(*block);
         }
@@ -942,7 +942,7 @@ private:
     TSpinLock SpinLock_;
 
     bool Fetching_ = false;
-    TNullable<TErrorOr<TSharedRef>> PendingBlock_;
+    std::optional<TErrorOr<TSharedRef>> PendingBlock_;
     TPromise<TSharedRef> Promise_;
     TDelayedExecutorCookie Cookie_;
 
@@ -1012,7 +1012,7 @@ public:
 
         if (PendingBlock_) {
             auto block = std::move(PendingBlock_);
-            PendingBlock_ = TNullable<TErrorOr<TSharedRef>>();
+            PendingBlock_ = std::optional<TErrorOr<TSharedRef>>();
 
             return MakeFuture<TSharedRef>(*block);
         }
@@ -1042,7 +1042,7 @@ private:
     TSpinLock SpinLock_;
 
     bool Fetching_ = false;
-    TNullable<TErrorOr<TSharedRef>> PendingBlock_;
+    std::optional<TErrorOr<TSharedRef>> PendingBlock_;
     TPromise<TSharedRef> Promise_;
 
     void OnRead(const TErrorOr<TSharedRef>& value)

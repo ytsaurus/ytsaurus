@@ -47,7 +47,7 @@ TFuture<void> TBlobSession::DoStart()
 
 TFuture<IChunkPtr> TBlobSession::DoFinish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    TNullable<int> blockCount)
+    std::optional<int> blockCount)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(chunkMeta);
@@ -157,7 +157,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         slot.MemoryTrackerGuard = std::move(memoryTrackerGuards[localIndex]);
 
         if (enableCaching) {
-            chunkBlockManager->PutCachedBlock(blockId, block, Null);
+            chunkBlockManager->PutCachedBlock(blockId, block, std::nullopt);
         }
 
         Location_->UpdateUsedSpace(block.Size());

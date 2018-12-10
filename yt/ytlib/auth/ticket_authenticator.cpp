@@ -125,12 +125,12 @@ public:
         const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            return Null;
+            return std::nullopt;
         }
 
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!ext.has_user_ticket()) {
-            return Null;
+            return std::nullopt;
         }
 
         TTicketCredentials credentials;

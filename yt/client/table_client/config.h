@@ -50,8 +50,8 @@ class TChunkReaderConfig
 public:
     i64 MaxDataSizePerRead;
 
-    TNullable<double> SamplingRate;
-    TNullable<ui64> SamplingSeed;
+    std::optional<double> SamplingRate;
+    std::optional<ui64> SamplingSeed;
 
     TChunkReaderConfig()
     {

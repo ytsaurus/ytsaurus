@@ -275,7 +275,7 @@ struct IMapNode
      *  \param child A possible child.
      *  \return Child's key or null if the node is not a child.
      */
-    virtual TNullable<TString> FindChildKey(const IConstNodePtr& child) = 0;
+    virtual std::optional<TString> FindChildKey(const IConstNodePtr& child) = 0;
 
     //! Returns the key for a given child or throws if the node is not a child.
     /*!
@@ -332,7 +332,7 @@ struct IListNode
      *  \param child A node that must be a child.
      *  \return Child's index or null if the node is not a child.
      */
-    virtual TNullable<int> FindChildIndex(const IConstNodePtr& child) = 0;
+    virtual std::optional<int> FindChildIndex(const IConstNodePtr& child) = 0;
 
     //! Returns the index for a given child or throws if the node is not a child.
     /*!

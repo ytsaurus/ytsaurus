@@ -63,7 +63,7 @@ public:
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        const TNullable<TColumnFilter>& maybeColumnFilter)
+        const std::optional<TColumnFilter>& maybeColumnFilter)
         : Store_(std::move(store))
         , TabletIndex_(tabletIndex)
         , UpperRowIndex_(std::min(upperRowIndex, Store_->GetStartingRowIndex() + Store_->GetRowCount()))
@@ -84,7 +84,7 @@ public:
             for (int id = 0; id < static_cast<int>(Store_->Schema_.Columns().size()) + 2; ++id) {
                 columnFilterIndexes.push_back(id);
             }
-            MaybeColumnFilter_.Emplace(std::move(columnFilterIndexes));
+            MaybeColumnFilter_.emplace(std::move(columnFilterIndexes));
         }
 
         Pool_ = std::make_unique<TChunkedMemoryPool>(TOrderedDynamicStoreReaderPoolTag(), ReaderPoolSize);
@@ -124,7 +124,7 @@ private:
     const TOrderedDynamicStorePtr Store_;
     const int TabletIndex_;
     const i64 UpperRowIndex_;
-    TNullable<TColumnFilter> MaybeColumnFilter_;
+    std::optional<TColumnFilter> MaybeColumnFilter_;
 
     std::unique_ptr<TChunkedMemoryPool> Pool_;
 
@@ -162,11 +162,11 @@ private:
 
 namespace {
 
-TNullable<int> GetTimestampColumnId(const TTableSchema& schema)
+std::optional<int> GetTimestampColumnId(const TTableSchema& schema)
 {
     const auto* column = schema.FindColumn(TimestampColumnName);
     if (!column) {
-        return Null;
+        return std::nullopt;
     }
     return schema.GetColumnIndex(*column);
 }
@@ -199,7 +199,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
         -1,
         StartingRowIndex_,
         StartingRowIndex_ + FlushRowCount_,
-        Null);
+        std::nullopt);
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
@@ -208,7 +208,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
         -1,
         StartingRowIndex_,
         StartingRowIndex_ + GetRowCount(),
-        Null);
+        std::nullopt);
 }
 
 TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
@@ -474,7 +474,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::DoCreateReader(
     int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    const TNullable<TColumnFilter>& maybeColumnFilter)
+    const std::optional<TColumnFilter>& maybeColumnFilter)
 {
     auto reader = New<TReader>(
         this,

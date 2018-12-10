@@ -38,7 +38,7 @@ private:
     virtual void DoCancel(const TError& error) override;
     virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        TNullable<int> blockCount) override;
+        std::optional<int> blockCount) override;
 
     void OnFinished();
 };

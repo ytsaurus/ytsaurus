@@ -1903,7 +1903,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
             Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
                 source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
         },
-        HasSubstr("Null values in group key"));
+        HasSubstr("std::nullopt values in group key"));
 
     SUCCEED();
 }

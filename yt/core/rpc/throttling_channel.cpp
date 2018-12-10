@@ -43,15 +43,16 @@ public:
                     return;
                 }
 
+                auto adjustedOptions = options;
                 auto now = TInstant::Now();
-                auto adjustedTimeout = timeout
-                    ? MakeNullable(now > sendTime + *timeout ? TDuration::Zero() : *timeout - (now - sendTime))
-                    : Null;
+                adjustedOptions.Timeout = timeout
+                    ? std::make_optional(now > sendTime + *timeout ? TDuration::Zero() : *timeout - (now - sendTime))
+                    : std::nullopt;
 
                 auto requestControl = UnderlyingChannel_->Send(
                     std::move(request),
                     std::move(responseHandler),
-                    options);
+                    adjustedOptions);
                 requestControlThunk->SetUnderlying(std::move(requestControl));
             }));
         return requestControlThunk;

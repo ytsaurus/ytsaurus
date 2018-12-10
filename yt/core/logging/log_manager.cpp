@@ -323,7 +323,7 @@ public:
         }
 
         if (!logIncludeCategories.empty()) {
-            rule->IncludeCategories.Assign(THashSet<TString>());
+            rule->IncludeCategories.emplace();
             for (const auto& includeCategory : logIncludeCategories) {
                 rule->IncludeCategories->insert(includeCategory);
             }

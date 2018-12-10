@@ -189,9 +189,9 @@ TTestingOptions::TTestingOptions()
     RegisterParameter("random_master_disconnection_max_backoff", RandomMasterDisconnectionMaxBackoff)
         .Default(TDuration::Seconds(5));
     RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
-        .Default(Null);
+        .Default();
     RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
-        .Default(Null);
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

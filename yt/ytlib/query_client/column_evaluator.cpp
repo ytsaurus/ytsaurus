@@ -43,7 +43,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             THashSet<TString> references;
 
             column.Expression = PrepareExpression(
-                schema.Columns()[index].Expression().Get(),
+                *schema.Columns()[index].Expression(),
                 schema,
                 typeInferrers,
                 &references);
@@ -62,7 +62,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
         }
 
         if (schema.Columns()[index].Aggregate()) {
-            const auto& aggregateName = schema.Columns()[index].Aggregate().Get();
+            const auto& aggregateName = *schema.Columns()[index].Aggregate();
             auto type = schema.Columns()[index].GetPhysicalType();
             column.Aggregate = CodegenAggregate(
                 BuiltinAggregateProfilers->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName),

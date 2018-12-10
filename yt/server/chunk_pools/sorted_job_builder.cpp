@@ -63,13 +63,13 @@ public:
             EEndpointType::ForeignLeft,
             dataSlice,
             GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
-            dataSlice->LowerLimit().RowIndex.Get(0)
+            dataSlice->LowerLimit().RowIndex.value_or(0)
         };
         TEndpoint rightEndpoint = {
             EEndpointType::ForeignRight,
             dataSlice,
             GetStrictKeySuccessor(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_),
-            dataSlice->UpperLimit().RowIndex.Get(0)
+            dataSlice->UpperLimit().RowIndex.value_or(0)
         };
 
         try {
@@ -114,7 +114,7 @@ public:
                 0LL /* RowIndex */
             };
         } else {
-            int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
+            int leftRowIndex = dataSlice->LowerLimit().RowIndex.value_or(0);
             leftEndpoint = {
                 EEndpointType::Left,
                 dataSlice,
@@ -122,7 +122,7 @@ public:
                 leftRowIndex
             };
 
-            int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
+            int rightRowIndex = dataSlice->UpperLimit().RowIndex.value_or(
                 dataSlice->Type == EDataSourceType::UnversionedTable
                 ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
                 : 0);
@@ -305,8 +305,8 @@ private:
                 endpoint.Key,
                 endpoint.RowIndex,
                 (endpoint.DataSlice && endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
-                ? MakeNullable(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
-                : Null,
+                ? std::make_optional(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
+                : std::nullopt,
                 endpoint.Type,
                 endpoint.DataSlice.Get());
         }

@@ -778,7 +778,7 @@ public:
         const TCheckPermissionOptions& options),
         (user, path, permission, options))
     IMPLEMENT_METHOD(TCheckPermissionByAclResult, CheckPermissionByAcl, (
-        const TNullable<TString>& user,
+        const std::optional<TString>& user,
         EPermission permission,
         INodePtr acl,
         const TCheckPermissionByAclOptions& options),
@@ -1106,7 +1106,7 @@ private:
             const TCellId& cellId,
             const TLookupRowsOptionsBase& options,
             TTableMountInfoPtr tableInfo,
-            const TNullable<TString>& retentionConfig,
+            const std::optional<TString>& retentionConfig,
             TEncoder encoder,
             TDecoder decoder)
             : Config_(std::move(config))
@@ -1150,7 +1150,7 @@ private:
                 Networks_);
 
             InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
-            InvokeProxy_->SetDefaultTimeout(Options_.Timeout.Get(Config_->DefaultLookupRowsTimeout));
+            InvokeProxy_->SetDefaultTimeout(Options_.Timeout.value_or(Config_->DefaultLookupRowsTimeout));
             InvokeProxy_->SetDefaultRequestAck(false);
 
             InvokeNextBatch();
@@ -1178,7 +1178,7 @@ private:
         const TCellId CellId_;
         const TLookupRowsOptionsBase Options_;
         const TTableMountInfoPtr TableInfo_;
-        const TNullable<TString> RetentionConfig_;
+        const std::optional<TString> RetentionConfig_;
         const TEncoder Encoder_;
         const TDecoder Decoder_;
 
@@ -1320,7 +1320,7 @@ private:
                 nameTable,
                 keys,
                 options,
-                Null,
+                std::nullopt,
                 encoder,
                 decoder,
                 fallbackHandler);
@@ -1364,7 +1364,7 @@ private:
             return replicaClient->VersionedLookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
         };
 
-        TNullable<TString> retentionConfig;
+        std::optional<TString> retentionConfig;
         if (options.RetentionConfig) {
             retentionConfig = ConvertToYsonString(options.RetentionConfig).GetData();
         }
@@ -1440,7 +1440,7 @@ private:
                 Connection_->GetNetworks());
 
             TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(options.Timeout.Get(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
+            proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
 
             auto req = proxy.GetTabletInfo();
             ToProto(req->mutable_tablet_ids(), pair.second);
@@ -1481,7 +1481,7 @@ private:
             }));
     }
 
-    TNullable<TString> PickInSyncClusterAndPatchQuery(
+    std::optional<TString> PickInSyncClusterAndPatchQuery(
         const TTabletReadOptions& options,
         NAst::TQuery* query)
     {
@@ -1514,7 +1514,7 @@ private:
         }
 
         if (!someReplicated) {
-            return Null;
+            return std::nullopt;
         }
 
         std::vector<TFuture<TTableReplicaInfoPtrList>> asyncCandidates;
@@ -1656,7 +1656,7 @@ private:
         const TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
         const TLookupRowsOptionsBase& options,
-        const TNullable<TString> retentionConfig,
+        const std::optional<TString> retentionConfig,
         TEncoderWithMapping encoderWithMapping,
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TRowset> replicaFallbackHandler)
@@ -1981,8 +1981,8 @@ private:
                 .ValueOrThrow();
         }
 
-        auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
-        auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
+        auto inputRowLimit = options.InputRowLimit.value_or(Connection_->GetConfig()->DefaultInputRowLimit);
+        auto outputRowLimit = options.OutputRowLimit.value_or(Connection_->GetConfig()->DefaultOutputRowLimit);
 
         const auto& udfRegistryPath = options.UdfRegistryPath
             ? *options.UdfRegistryPath
@@ -2048,7 +2048,7 @@ private:
         queryOptions.UseMultijoin = options.UseMultijoin;
         queryOptions.AllowFullScan = options.AllowFullScan;
         queryOptions.ReadSessionId = TReadSessionId::Create();
-        queryOptions.Deadline = options.Timeout.Get(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
+        queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
 
         TClientBlockReadOptions blockReadOptions;
         blockReadOptions.WorkloadDescriptor = queryOptions.WorkloadDescriptor;
@@ -2161,7 +2161,7 @@ private:
                 const auto channel = GetReadCellChannelOrThrow(cellId);
 
                 TQueryServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(options.Timeout.Get(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
+                proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
 
                 auto req = proxy.GetTabletInfo();
                 ToProto(req->mutable_tablet_ids(), perCellTabletIds);
@@ -2283,7 +2283,7 @@ private:
             if (!subrequest.Request) {
                 auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
                 TQueryServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(options.Timeout.Get(Connection_->GetConfig()->DefaultGetTabletInfosTimeout));
+                proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetTabletInfosTimeout));
                 subrequest.Request = proxy.GetTabletInfo();
             }
             ToProto(subrequest.Request->add_tablet_ids(), tabletInfo->TabletId);
@@ -3018,8 +3018,8 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of inputs and outputs");
                 const auto& batchRsp = batchRspOrError.Value();
 
-                TNullable<EObjectType> commonType;
-                TNullable<TString> pathWithCommonType;
+                std::optional<EObjectType> commonType;
+                std::optional<TString> pathWithCommonType;
                 auto checkType = [&] (EObjectType type, const TYPath& path) {
                     if (type != EObjectType::Table && type != EObjectType::File) {
                         THROW_ERROR_EXCEPTION("Type of %v must be either %Qlv or %Qlv",
@@ -3327,7 +3327,7 @@ private:
         auto cellTag = PrimaryMasterCellTag;
 
         if (type == EObjectType::TableReplica) {
-            TNullable<TString> path;
+            std::optional<TString> path;
             if (!attributes || !(path = attributes->Find<TString>("table_path"))) {
                 THROW_ERROR_EXCEPTION("Attribute \"table_path\" is not found");
             }
@@ -3340,7 +3340,7 @@ private:
 
             attributes = std::move(newAttributes);
         } else if (type == EObjectType::TabletAction) {
-            TNullable<std::vector<TTabletId>> tabletIds;
+            std::optional<std::vector<TTabletId>> tabletIds;
             if (!attributes ||
                 !(tabletIds = attributes->Find<std::vector<TTabletId>>("tablet_ids")) ||
                 tabletIds->empty())
@@ -3372,7 +3372,7 @@ private:
     }
 
     TCheckPermissionByAclResult DoCheckPermissionByAcl(
-        const TNullable<TString>& user,
+        const std::optional<TString>& user,
         EPermission permission,
         INodePtr acl,
         const TCheckPermissionByAclOptions& options)
@@ -3400,7 +3400,7 @@ private:
         TCheckPermissionByAclResult result;
         result.Action = ESecurityAction(rsp->action());
         result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
-        result.SubjectName = rsp->has_subject_name() ? MakeNullable(rsp->subject_name()) : Null;
+        result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
         result.MissingSubjects = FromProto<std::vector<TString>>(rsp->missing_subjects());
         return result;
     }
@@ -3686,9 +3686,9 @@ private:
         TCheckPermissionResult result;
         result.Action = ESecurityAction(rsp->action());
         result.ObjectId = FromProto<TObjectId>(rsp->object_id());
-        result.ObjectName = rsp->has_object_name() ? MakeNullable(rsp->object_name()) : Null;
+        result.ObjectName = rsp->has_object_name() ? std::make_optional(rsp->object_name()) : std::nullopt;
         result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
-        result.SubjectName = rsp->has_subject_name() ? MakeNullable(rsp->subject_name()) : Null;
+        result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
         return result;
     }
 
@@ -3873,7 +3873,7 @@ private:
         TInstant deadline,
         const TGetOperationOptions& options)
     {
-        TNullable<std::vector<TString>> cypressAttributes;
+        std::optional<std::vector<TString>> cypressAttributes;
         if (options.Attributes) {
             cypressAttributes = MakeCypressOperationAttributes(*options.Attributes);
 
@@ -3953,7 +3953,7 @@ private:
             }
         }
 
-        TNullable<TString> controllerAgentAddress;
+        std::optional<TString> controllerAgentAddress;
         if (auto child = attrNode->FindChild("controller_agent_address")) {
             controllerAgentAddress = child->AsString()->GetValue();
             if (options.Attributes && !options.Attributes->contains("controller_agent_address")) {
@@ -4034,7 +4034,7 @@ private:
         TInstant deadline,
         const TGetOperationOptions& options)
     {
-        auto attributes = options.Attributes.Get(SupportedOperationAttributes);
+        auto attributes = options.Attributes.value_or(SupportedOperationAttributes);
         // Ignoring memory_usage and suspended in archive.
         attributes.erase("memory_usage");
         attributes.erase("suspended");
@@ -4179,7 +4179,7 @@ private:
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options)
     {
-        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultGetOperationTimeout);
+        auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
         auto deadline = timeout.ToDeadLine();
 
         TOperationId operationId;
@@ -4222,7 +4222,7 @@ private:
 
     void ValidateJobAcl(
         const TJobId& jobId,
-        TNullable<NJobTrackerClient::NProto::TJobSpec> jobSpec = Null)
+        std::optional<NJobTrackerClient::NProto::TJobSpec> jobSpec = std::nullopt)
     {
         if (!jobSpec) {
             jobSpec = GetJobSpecFromArchive(jobId);
@@ -4232,7 +4232,7 @@ private:
 
         if (schedulerJobSpecExt && schedulerJobSpecExt->has_acl()) {
             auto aclYson = TYsonString(schedulerJobSpecExt->acl());
-            auto checkResult = WaitFor(CheckPermissionByAcl(Null, EPermission::Read, ConvertToNode(aclYson), TCheckPermissionByAclOptions()))
+            auto checkResult = WaitFor(CheckPermissionByAcl(std::nullopt, EPermission::Read, ConvertToNode(aclYson), TCheckPermissionByAclOptions()))
                 .ValueOrThrow();
             if (checkResult.Action != ESecurityAction::Allow) {
                 THROW_ERROR_EXCEPTION("No permissions to read job from archive")
@@ -4276,7 +4276,7 @@ private:
         return jobNodeDescriptor;
     }
 
-    TNullable<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(const TJobId& jobId)
+    std::optional<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(const TJobId& jobId)
     {
         try {
             TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
@@ -4299,7 +4299,7 @@ private:
                     << exception;
             }
         }
-        return Null;
+        return std::nullopt;
     }
 
     NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(const TJobId& jobId)
@@ -4360,7 +4360,7 @@ private:
     {
         NJobTrackerClient::NProto::TJobSpec jobSpec;
         if (auto jobSpecFromProxy = GetJobSpecFromJobNode(jobId)) {
-            jobSpec.Swap(jobSpecFromProxy.GetPtr());
+            jobSpec = std::move(*jobSpecFromProxy);
         } else {
             jobSpec = GetJobSpecFromArchive(jobId);
         }
@@ -4413,7 +4413,7 @@ private:
             GetConnection()->GetInvoker(),
             TNodeDescriptor(),
             BIND([] { }) /* onNetworkRelease */,
-            Null /* udfDirectory */,
+            std::nullopt /* udfDirectory */,
             blockReadOptions,
             nullptr /* trafficMeter */,
             NConcurrency::GetUnlimitedThrottler() /* bandwidthThrottler */,
@@ -4430,7 +4430,7 @@ private:
     {
         NJobTrackerClient::NProto::TJobSpec jobSpec;
         if (auto jobSpecFromProxy = GetJobSpecFromJobNode(jobId)) {
-            jobSpec.Swap(jobSpecFromProxy.GetPtr());
+            jobSpec = std::move(*jobSpecFromProxy);
         } else {
             jobSpec = GetJobSpecFromArchive(jobId);
         }
@@ -4883,7 +4883,7 @@ private:
     }
 
     template <class T>
-    static bool LessNullable(const TNullable<T>& lhs, const TNullable<T>& rhs)
+    static bool LessNullable(const std::optional<T>& lhs, const std::optional<T>& rhs)
     {
         return rhs && (!lhs || *lhs < *rhs);
     }
@@ -4962,7 +4962,7 @@ private:
         { }
 
         bool Filter(
-            TNullable<std::vector<TString>> pools,
+            std::optional<std::vector<TString>> pools,
             TStringBuf user,
             const EOperationState& state,
             const EOperationType& type,
@@ -5014,7 +5014,7 @@ private:
 
     TOperation CreateOperationFromNode(
         const INodePtr& node,
-        const TNullable<THashSet<TString>>& attributes = Null)
+        const std::optional<THashSet<TString>>& attributes = std::nullopt)
     {
         const auto& nodeAttributes = node->Attributes();
 
@@ -5089,12 +5089,12 @@ private:
     }
 
     THashSet<TString> MakeFinalAttributeSet(
-        const TNullable<THashSet<TString>>& originalAttributes,
+        const std::optional<THashSet<TString>>& originalAttributes,
         const THashSet<TString>& requiredAttributes,
         const THashSet<TString>& defaultAttributes,
         const THashSet<TString>& ignoredAttributes)
     {
-        auto attributes = originalAttributes.Get(defaultAttributes);
+        auto attributes = originalAttributes.value_or(defaultAttributes);
         attributes.insert(requiredAttributes.begin(), requiredAttributes.end());
         for (const auto& attribute : ignoredAttributes) {
             attributes.erase(attribute);
@@ -5108,7 +5108,7 @@ private:
     void DoListOperationsFromCypress(
         TInstant deadline,
         TCountingFilter& countingFilter,
-        const TNullable<THashSet<TString>>& transitiveClosureOfOwnedBy,
+        const std::optional<THashSet<TString>>& transitiveClosureOfOwnedBy,
         const TListOperationsOptions& options,
         THashMap<NScheduler::TOperationId, TOperation>* idToOperation)
     {
@@ -5208,7 +5208,7 @@ private:
 
                 if (transitiveClosureOfOwnedBy &&
                     !(operation.AuthenticatedUser && transitiveClosureOfOwnedBy->contains(*operation.AuthenticatedUser)) &&
-                    !areIntersecting(*transitiveClosureOfOwnedBy, operation.Owners.Get({})))
+                    !areIntersecting(*transitiveClosureOfOwnedBy, operation.Owners.value_or(std::vector<TString>{})))
                 {
                     continue;
                 }
@@ -5341,7 +5341,7 @@ private:
                 .ValueOrThrow();
 
             for (auto row : resultCounts.Rowset->GetRows()) {
-                TNullable<std::vector<TString>> pools;
+                std::optional<std::vector<TString>> pools;
                 if (row[poolsIndex].Type != EValueType::Null) {
                     pools = ConvertTo<std::vector<TString>>(TYsonString(row[poolsIndex].Data.String, row[poolsIndex].Length));
                 }
@@ -5350,7 +5350,7 @@ private:
                 auto type = ParseEnum<EOperationType>(FromUnversionedValue<TStringBuf>(row[operationTypeIndex]));
                 if (row[poolIndex].Type != EValueType::Null) {
                     if (!pools) {
-                        pools.Emplace();
+                        pools.emplace();
                     }
                     pools->push_back(FromUnversionedValue<TString>(row[poolIndex]));
                 }
@@ -5375,7 +5375,7 @@ private:
                 Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
         }
 
-        TNullable<EOrderByDirection> orderByDirection;
+        std::optional<EOrderByDirection> orderByDirection;
 
         switch (options.CursorDirection) {
             case EOperationSortDirection::Past:
@@ -5584,7 +5584,7 @@ private:
     TListOperationsResult DoListOperations(
         const TListOperationsOptions& options)
     {
-        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultListOperationsTimeout);
+        auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListOperationsTimeout);
         auto deadline = timeout.ToDeadLine();
 
         if (options.CursorTime && (
@@ -5615,7 +5615,7 @@ private:
             idToOperation = DoListOperationsFromArchive(deadline, countingFilter, options);
         }
 
-        TNullable<THashSet<TString>> transitiveClosureOfOwnedBy;
+        std::optional<THashSet<TString>> transitiveClosureOfOwnedBy;
         if (options.OwnedBy) {
             auto writePermissionResult = DoCheckPermission(
                 *options.OwnedBy,
@@ -5633,7 +5633,7 @@ private:
                         << TErrorAttribute("owned_by", *options.OwnedBy)
                         << rspOrError;
                 }
-                transitiveClosureOfOwnedBy.Emplace(
+                transitiveClosureOfOwnedBy.emplace(
                     ConvertTo<THashSet<TString>>(TYsonString(rspOrError.Value()->value())));
                 transitiveClosureOfOwnedBy->insert(*options.OwnedBy);
             }
@@ -6066,7 +6066,7 @@ private:
 
     TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromControllerAgent(
         const TOperationId& operationId,
-        const TNullable<TString>& controllerAgentAddress,
+        const std::optional<TString>& controllerAgentAddress,
         TInstant deadline,
         const TListJobsOptions& options)
     {
@@ -6294,7 +6294,7 @@ private:
         const TOperationId& operationId,
         const TListJobsOptions& options)
     {
-        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultListJobsTimeout);
+        auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListJobsTimeout);
         auto deadline = timeout.ToDeadLine();
 
         TListJobsResult result;
@@ -6346,7 +6346,7 @@ private:
         TFuture<std::pair<std::vector<TJob>, int>> controllerAgentJobsFuture;
         TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> archiveJobsFuture;
 
-        TNullable<TListJobsStatistics> statistics;
+        std::optional<TListJobsStatistics> statistics;
 
         bool doesArchiveExists = DoesOperationsArchiveExist();
 
@@ -6507,7 +6507,7 @@ private:
         const TJobId& jobId,
         const TGetJobOptions& options)
     {
-        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultGetJobTimeout);
+        auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetJobTimeout);
         auto deadline = timeout.ToDeadLine();
 
         TJobTableDescriptor table;
@@ -6537,7 +6537,7 @@ private:
         };
 
         std::vector<int> columnIndexes;
-        auto fields = MakeJobArchiveAttributes(options.Attributes.Get(DefaultAttributes));
+        auto fields = MakeJobArchiveAttributes(options.Attributes.value_or(DefaultAttributes));
         for (const auto& field : fields) {
             columnIndexes.push_back(table.NameTable->GetIdOrThrow(field));
         }

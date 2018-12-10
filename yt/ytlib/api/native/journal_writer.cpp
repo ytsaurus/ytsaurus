@@ -632,7 +632,7 @@ private:
                 session->Id,
                 ReplicationFactor_,
                 WriteQuorum_,
-                Null,
+                std::nullopt,
                 Config_->PreferLocalHost,
                 GetBannedNodes(),
                 NodeDirectory_,
@@ -654,7 +654,7 @@ private:
                     Config_->NodeChannel,
                     lightChannel,
                     BIND([] (const TError& error) {
-                        return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
+                        return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
                     }));
                 auto node = New<TNode>(
                     target,

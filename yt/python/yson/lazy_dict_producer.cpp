@@ -9,12 +9,12 @@ using namespace NYTree;
 
 TLazyDictProducer::TLazyDictProducer() = default;
 
-TLazyDictProducer::TLazyDictProducer(const TNullable<TString>& encoding, bool alwaysCreateAttributes)
+TLazyDictProducer::TLazyDictProducer(const std::optional<TString>& encoding, bool alwaysCreateAttributes)
     : PythonObjectBuilder_(alwaysCreateAttributes, encoding)
 {
     Py::Object encodingParam;
     if (encoding) {
-        encodingParam = Py::String(encoding.Get());
+        encodingParam = Py::String(*encoding);
     } else {
         encodingParam = Py::None();
     }

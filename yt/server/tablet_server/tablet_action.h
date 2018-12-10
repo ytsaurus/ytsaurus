@@ -40,7 +40,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NTableClient::TOwningKey>, PivotKeys);
 
     //! Desired number of tablets (for reshard).
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<int>, TabletCount);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, TabletCount);
 
     //! Skip initial freezing pass while performing tablet action.
     DEFINE_BYVAL_RW_PROPERTY(bool, SkipFreezing);

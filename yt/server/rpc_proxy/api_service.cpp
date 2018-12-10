@@ -114,7 +114,7 @@ public:
 
 private:
     TOnPacket Callback_;
-    std::vector<TNullable<T>> Window_;
+    std::vector<std::optional<T>> Window_;
     size_t NextPacketSequenceNumber_ = 0;
     size_t NextPacketIndex_ = 0;
     int DeferredPacketCount_ = 0;
@@ -156,7 +156,7 @@ private:
             }
 
             Callback_(std::move(*nextSlot));
-            nextSlot.Reset();
+            nextSlot.reset();
             ++NextPacketSequenceNumber_;
             if (++NextPacketIndex_ == Window_.size()) {
                 NextPacketIndex_ = 0;
@@ -185,7 +185,7 @@ public:
     }
 
     void ModifyRows(
-        TNullable<i64> sequenceNumber,
+        std::optional<i64> sequenceNumber,
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<TRowModification> modifications,
@@ -955,7 +955,7 @@ private:
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             if (protoAttributes.all()) {
-                options.Attributes.Reset();
+                options.Attributes.reset();
             } else {
                 options.Attributes = std::vector<TString>();
                 options.Attributes->reserve(protoAttributes.columns_size());
@@ -1007,7 +1007,7 @@ private:
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             if (protoAttributes.all()) {
-                options.Attributes.Reset();
+                options.Attributes.reset();
             } else {
                 options.Attributes = std::vector<TString>();
                 options.Attributes->reserve(protoAttributes.columns_size());
@@ -1856,7 +1856,7 @@ private:
             FromProto(&options, request->master_read_options());
         }
         if (request->attributes_size() != 0) {
-            options.Attributes.Emplace();
+            options.Attributes.emplace();
             for (auto attribute_index = 0;
                 attribute_index < request->attributes_size();
                 ++attribute_index)
@@ -2373,7 +2373,7 @@ private:
             FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
         }
 
-        TNullable<size_t> sequenceNumber;
+        std::optional<size_t> sequenceNumber;
         if (Bootstrap_->GetConfig()->ApiService->EnableModifyRowsRequestReordering &&
             request->has_sequence_number())
         {

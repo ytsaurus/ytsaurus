@@ -87,7 +87,7 @@ private:
     // Job proxy peak memory usage.
     std::atomic<i64> JobProxyMaxMemoryUsage_ = {0};
     // If this limit for job proxy memory overcommit is exceeded, the job proxy is terminated.
-    TNullable<i64> JobProxyMemoryOvercommitLimit_;
+    std::optional<i64> JobProxyMemoryOvercommitLimit_;
 
     std::atomic<i64> UserJobCurrentMemoryUsage_ = {0};
 

@@ -109,7 +109,7 @@ private:
         : public IBus
     {
     public:
-        TSession(IClientResponseHandlerPtr handler, TNullable<TDuration> timeout)
+        TSession(IClientResponseHandlerPtr handler, std::optional<TDuration> timeout)
             : Handler_(std::move(handler))
         {
             if (timeout) {

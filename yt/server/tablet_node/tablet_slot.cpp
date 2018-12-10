@@ -720,7 +720,7 @@ public:
 
     double GetUsedCpu(double cpuPerTabletSlot) const
     {
-        return DynamicOptions_->CpuPerTabletSlot.Get(cpuPerTabletSlot);
+        return DynamicOptions_->CpuPerTabletSlot.value_or(cpuPerTabletSlot);
     }
 
 private:

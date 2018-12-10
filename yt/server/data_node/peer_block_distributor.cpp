@@ -322,8 +322,8 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
         auto block = cachedBlock->GetData();
         if (!source) {
             // TODO(max42): seems like the idea of remembering the source of a block
-            // is currently not working properly (it is almost always Null) as there
-            // are no calls of IBlockCache::Put with non-Null fourth argument except
+            // is currently not working properly (it is almost always null) as there
+            // are no calls of IBlockCache::Put with non-null fourth argument except
             // in the replication reader.
             // I'm trying to deal with it assuming that the origin of a block with
             // Null source is current node.

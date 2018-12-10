@@ -146,9 +146,9 @@ private:
         WrapAgentException([&] {
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
 
-            TNullable<TControllerTransactionIds> transactionIds;
+            std::optional<TControllerTransactionIds> transactionIds;
             if (!clean) {
-                transactionIds.Emplace();
+                transactionIds.emplace();
                 *transactionIds = FromProto<TControllerTransactionIds>(request->transaction_ids());
             }
 

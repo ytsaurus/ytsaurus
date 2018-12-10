@@ -37,7 +37,7 @@ static const auto& Logger = DataNodeLogger;
 TCachedBlock::TCachedBlock(
     const TBlockId& blockId,
     const TBlock& data,
-    const TNullable<TNodeDescriptor>& source)
+    const std::optional<TNodeDescriptor>& source)
     : TAsyncCacheValueBase<TBlockId, TCachedBlock>(blockId)
     , Data_(data)
     , Source_(source)
@@ -79,7 +79,7 @@ public:
     void PutCachedBlock(
         const TBlockId& blockId,
         const TBlock& data,
-        const TNullable<TNodeDescriptor>& source)
+        const std::optional<TNodeDescriptor>& source)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -210,7 +210,7 @@ TCachedBlockPtr TChunkBlockManager::FindCachedBlock(const TBlockId& blockId)
 void TChunkBlockManager::PutCachedBlock(
     const TBlockId& blockId,
     const TBlock& data,
-    const TNullable<TNodeDescriptor>& source)
+    const std::optional<TNodeDescriptor>& source)
 {
     Impl_->PutCachedBlock(blockId, data, source);
 }

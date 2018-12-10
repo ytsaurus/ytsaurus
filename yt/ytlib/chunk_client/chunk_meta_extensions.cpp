@@ -9,7 +9,7 @@ using namespace NChunkClient::NProto;
 
 TChunkMeta FilterChunkMetaByExtensionTags(
     const TChunkMeta& chunkMeta,
-    const TNullable<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags)
 {
     if (!extensionTags) {
         return chunkMeta;

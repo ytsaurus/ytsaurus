@@ -35,7 +35,7 @@ struct TEdgeDescriptor
     NTableClient::TTableWriterOptionsPtr TableWriterOptions;
     NTableClient::TTableUploadOptions TableUploadOptions;
     NYson::TYsonString TableWriterConfig;
-    TNullable<NTransactionClient::TTimestamp> Timestamp;
+    std::optional<NTransactionClient::TTimestamp> Timestamp;
     // Cell tag to allocate chunk lists.
     NObjectClient::TCellTag CellTag;
     bool ImmediatelyUnstageChunkLists = false;

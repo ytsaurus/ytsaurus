@@ -80,7 +80,7 @@ private:
 
     TRef ValueData_;
     TBitmap ValueNullFlags_;
-    TNullable<TBitmap> ValueAggregateFlags_;
+    std::optional<TBitmap> ValueAggregateFlags_;
 
     TRef TimestampsData_;
 

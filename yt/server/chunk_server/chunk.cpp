@@ -502,7 +502,7 @@ void TChunk::Seal(const TMiscExt& info)
 
 int TChunk::GetMaxReplicasPerRack(
     int mediumIndex,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     const TChunkRequisitionRegistry* registry) const
 {
     switch (GetType()) {

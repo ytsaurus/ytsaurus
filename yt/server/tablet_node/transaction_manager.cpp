@@ -489,7 +489,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return MinCommitTimestamp_.Get(GetLatestTimestamp());
+        return MinCommitTimestamp_.value_or(GetLatestTimestamp());
     }
 
 private:
@@ -509,7 +509,7 @@ private:
     THashMap<TCellTag, std::vector<TTransaction*>> SerializingTransactionHeaps_;
     THashMap<TCellTag, TTimestamp> LastSerializedCommitTimestamps_;
     TTimestamp TransientBarrierTimestamp_ = MinTimestamp;
-    TNullable<TTimestamp> MinCommitTimestamp_;
+    std::optional<TTimestamp> MinCommitTimestamp_;
 
     IYPathServicePtr OrchidService_;
 
@@ -560,7 +560,7 @@ private:
             transaction->GetId(),
             NullTransactionId,
             transaction->GetTimeout(),
-            /* deadline */ Null,
+            /* deadline */ std::nullopt,
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
                 .Via(invoker));
         transaction->SetHasLease(true);
@@ -818,7 +818,7 @@ private:
         SerializingTransactionHeaps_.clear();
         PreparedTransactions_.clear();
         LastSerializedCommitTimestamps_.clear();
-        MinCommitTimestamp_.Reset();
+        MinCommitTimestamp_.reset();
     }
 
 
@@ -886,7 +886,7 @@ private:
             }
         }
 
-        MinCommitTimestamp_.Reset();
+        MinCommitTimestamp_.reset();
         for (const auto& heap : SerializingTransactionHeaps_) {
             UpdateMinCommitTimestamp(heap.second);
         }
@@ -1008,7 +1008,7 @@ private:
         }
 
         auto timestamp = heap.front()->GetCommitTimestamp();
-        MinCommitTimestamp_ = std::min(timestamp, MinCommitTimestamp_.Get(timestamp));
+        MinCommitTimestamp_ = std::min(timestamp, MinCommitTimestamp_.value_or(timestamp));
     }
 
     static bool SerializingTransactionHeapComparer(

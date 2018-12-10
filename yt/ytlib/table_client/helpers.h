@@ -108,7 +108,7 @@ void ValidateKeyColumns(
     const TKeyColumns& chunkKeyColumns,
     bool requireUniqueKeys,
     bool validateColumnNames);
-TColumnFilter CreateColumnFilter(const TNullable<std::vector<TString>>& columns, TNameTablePtr nameTable);
+TColumnFilter CreateColumnFilter(const std::optional<std::vector<TString>>& columns, TNameTablePtr nameTable);
 int GetSystemColumnCount(TChunkReaderOptionsPtr options);
 
 ////////////////////////////////////////////////////////////////////////////////

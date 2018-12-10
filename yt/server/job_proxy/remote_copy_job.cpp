@@ -247,7 +247,7 @@ private:
 
     TDataStatistics DataStatistics_;
 
-    TNullable<TChunkId> FailedChunkId_;
+    std::optional<TChunkId> FailedChunkId_;
 
     const TActionQueuePtr RemoteCopyQueue_;
     TAsyncSemaphorePtr CopySemaphore_;

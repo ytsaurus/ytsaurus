@@ -61,8 +61,8 @@ IChannelPtr CreateCredentialsInjectingChannel(
         return CreateCookieInjectingChannel(
             underlying,
             options.PinnedUser,
-            options.SessionId.Get(TString()),
-            options.SslSessionId.Get(TString()));
+            options.SessionId.value_or(TString()),
+            options.SslSessionId.value_or(TString()));
     } else {
         return CreateUserInjectingChannel(underlying, options.PinnedUser);
     }
@@ -614,7 +614,7 @@ TFuture<NYson::TYsonString> TClient::GetOperation(
 
     ToProto(req->mutable_master_read_options(), options);
     if (options.Attributes) {
-        for (const auto& attribute: options.Attributes.Get()) {
+        for (const auto& attribute : *options.Attributes) {
             req->add_attributes(attribute);
         }
     }
@@ -734,7 +734,7 @@ TFuture<void> TClient::AbortJob(
 
     ToProto(req->mutable_job_id(), jobId);
     if (options.InterruptTimeout) {
-        req->set_interrupt_timeout(NYT::ToProto<i64>(options.InterruptTimeout.Get()));
+        req->set_interrupt_timeout(NYT::ToProto<i64>(*options.InterruptTimeout));
     }
 
     return req->Invoke().As<void>();

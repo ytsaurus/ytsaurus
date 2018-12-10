@@ -281,7 +281,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 96: // literal-value
       case 97: // const-value
-        value.copy< TNullable<TLiteralValue> > (other.value);
+        value.copy< std::optional<TLiteralValue> > (other.value);
         break;
 
       case 64: // join-predicate
@@ -393,7 +393,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 96: // literal-value
       case 97: // const-value
-        value.copy< TNullable<TLiteralValue> > (v);
+        value.copy< std::optional<TLiteralValue> > (v);
         break;
 
       case 64: // join-predicate
@@ -510,7 +510,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {}
 
   template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l)
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const std::optional<TLiteralValue> v, const location_type& l)
     : Base (t)
     , value (v)
     , location (l)
@@ -662,7 +662,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 96: // literal-value
       case 97: // const-value
-        value.template destroy< TNullable<TLiteralValue> > ();
+        value.template destroy< std::optional<TLiteralValue> > ();
         break;
 
       case 64: // join-predicate
@@ -780,7 +780,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 96: // literal-value
       case 97: // const-value
-        value.move< TNullable<TLiteralValue> > (s.value);
+        value.move< std::optional<TLiteralValue> > (s.value);
         break;
 
       case 64: // join-predicate
@@ -1298,7 +1298,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 96: // literal-value
       case 97: // const-value
-        value.move< TNullable<TLiteralValue> > (that.value);
+        value.move< std::optional<TLiteralValue> > (that.value);
         break;
 
       case 64: // join-predicate
@@ -1408,7 +1408,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 96: // literal-value
       case 97: // const-value
-        value.copy< TNullable<TLiteralValue> > (that.value);
+        value.copy< std::optional<TLiteralValue> > (that.value);
         break;
 
       case 64: // join-predicate
@@ -1730,7 +1730,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       case 96: // literal-value
       case 97: // const-value
-        yylhs.value.build< TNullable<TLiteralValue> > ();
+        yylhs.value.build< std::optional<TLiteralValue> > ();
         break;
 
       case 64: // join-predicate
@@ -2245,7 +2245,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 92:
     {
-            yylhs.value.as< TExpressionList > () = MakeExpression<TLiteralExpression>(yylhs.location, *yystack_[0].value.as< TNullable<TLiteralValue> > ());
+            yylhs.value.as< TExpressionList > () = MakeExpression<TLiteralExpression>(yylhs.location, *yystack_[0].value.as< std::optional<TLiteralValue> > ());
         }
     break;
 
@@ -2260,60 +2260,60 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     break;
 
   case 95:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< i64 > (); }
+    { yylhs.value.as< std::optional<TLiteralValue> > () = yystack_[0].value.as< i64 > (); }
     break;
 
   case 96:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< ui64 > (); }
+    { yylhs.value.as< std::optional<TLiteralValue> > () = yystack_[0].value.as< ui64 > (); }
     break;
 
   case 97:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< double > (); }
+    { yylhs.value.as< std::optional<TLiteralValue> > () = yystack_[0].value.as< double > (); }
     break;
 
   case 98:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TString > (); }
+    { yylhs.value.as< std::optional<TLiteralValue> > () = yystack_[0].value.as< TString > (); }
     break;
 
   case 99:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = false; }
+    { yylhs.value.as< std::optional<TLiteralValue> > () = false; }
     break;
 
   case 100:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = true; }
+    { yylhs.value.as< std::optional<TLiteralValue> > () = true; }
     break;
 
   case 101:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = TNullLiteralValue(); }
+    { yylhs.value.as< std::optional<TLiteralValue> > () = TNullLiteralValue(); }
     break;
 
   case 102:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = TNullLiteralValue(); }
+    { yylhs.value.as< std::optional<TLiteralValue> > () = TNullLiteralValue(); }
     break;
 
   case 103:
     {
             switch (yystack_[1].value.as< EUnaryOp > ()) {
                 case EUnaryOp::Minus: {
-                    if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<i64>()) {
-                        yylhs.value.as< TNullable<TLiteralValue> > () = -*data;
-                    } else if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<ui64>()) {
-                        yylhs.value.as< TNullable<TLiteralValue> > () = -*data;
-                    } else if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<double>()) {
-                        yylhs.value.as< TNullable<TLiteralValue> > () = -*data;
+                    if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<i64>()) {
+                        yylhs.value.as< std::optional<TLiteralValue> > () = -*data;
+                    } else if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<ui64>()) {
+                        yylhs.value.as< std::optional<TLiteralValue> > () = -*data;
+                    } else if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<double>()) {
+                        yylhs.value.as< std::optional<TLiteralValue> > () = -*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Negation of unsupported type");
                     }
                     break;
                 }
                 case EUnaryOp::Plus:
-                    yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TNullable<TLiteralValue> > ();
+                    yylhs.value.as< std::optional<TLiteralValue> > () = yystack_[0].value.as< std::optional<TLiteralValue> > ();
                     break;
                 case EUnaryOp::BitNot: {
-                    if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<i64>()) {
-                        yylhs.value.as< TNullable<TLiteralValue> > () = ~*data;
-                    } else if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<ui64>()) {
-                        yylhs.value.as< TNullable<TLiteralValue> > () = ~*data;
+                    if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<i64>()) {
+                        yylhs.value.as< std::optional<TLiteralValue> > () = ~*data;
+                    } else if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<ui64>()) {
+                        yylhs.value.as< std::optional<TLiteralValue> > () = ~*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Bitwise negation of unsupported type");
                     }
@@ -2327,25 +2327,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     break;
 
   case 104:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TNullable<TLiteralValue> > (); }
+    { yylhs.value.as< std::optional<TLiteralValue> > () = yystack_[0].value.as< std::optional<TLiteralValue> > (); }
     break;
 
   case 105:
     {
             yylhs.value.as< TLiteralValueList > ().swap(yystack_[2].value.as< TLiteralValueList > ());
-            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< std::optional<TLiteralValue> > ());
         }
     break;
 
   case 106:
     {
-            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< std::optional<TLiteralValue> > ());
         }
     break;
 
   case 107:
     {
-            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< std::optional<TLiteralValue> > ());
         }
     break;
 

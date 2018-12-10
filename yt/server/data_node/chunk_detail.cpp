@@ -166,7 +166,7 @@ void TChunkBase::StartAsyncRemove()
 
 TRefCountedChunkMetaPtr TChunkBase::FilterMeta(
     TRefCountedChunkMetaPtr meta,
-    const TNullable<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags)
 {
     return extensionTags
         ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*meta, extensionTags))

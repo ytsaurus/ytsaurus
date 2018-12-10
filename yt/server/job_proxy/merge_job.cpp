@@ -48,7 +48,7 @@ public:
     virtual void Initialize() override
     {
         TKeyColumns keyColumns;
-        TNullable<int> partitionTag;
+        std::optional<int> partitionTag;
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
             keyColumns = FromProto<TKeyColumns>(mergeJobSpec.key_columns());

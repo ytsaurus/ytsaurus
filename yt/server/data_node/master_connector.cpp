@@ -878,10 +878,10 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     }
 
     if (cellTag == primaryCellTag) {
-        auto rack = rsp->has_rack() ? MakeNullable(rsp->rack()) : Null;
+        auto rack = rsp->has_rack() ? std::make_optional(rsp->rack()) : std::nullopt;
         UpdateRack(rack);
 
-        auto dc = rsp->has_data_center() ? MakeNullable(rsp->data_center()) : Null;
+        auto dc = rsp->has_data_center() ? std::make_optional(rsp->data_center()) : std::nullopt;
         UpdateDataCenter(dc);
 
         auto tags = FromProto<std::vector<TString>>(rsp->tags());
@@ -1108,7 +1108,7 @@ IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
     return cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 }
 
-void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
+void TMasterConnector::UpdateRack(const std::optional<TString>& rack)
 {
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
@@ -1118,7 +1118,7 @@ void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
         LocalDescriptor_.GetTags());
 }
 
-void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
+void TMasterConnector::UpdateDataCenter(const std::optional<TString>& dc)
 {
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(

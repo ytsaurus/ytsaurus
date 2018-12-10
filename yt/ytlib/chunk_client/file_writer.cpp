@@ -51,7 +51,7 @@ TFileWriter::TFileWriter(
 #else
     constexpr bool initializeMemory = false;
 #endif
-    auto data = TSharedMutableRef::Allocate<TNull>(size + Alignment, initializeMemory);
+    auto data = TSharedMutableRef::Allocate<std::nullopt_t>(size + Alignment, initializeMemory);
     data = data.Slice(AlignUp(data.Begin(), Alignment), data.End());
     data = data.Slice(data.Begin(), data.Begin() + size);
     Buffer_ = data;
@@ -204,7 +204,7 @@ TFuture<void> TFileWriter::WriteMeta(const TRefCountedChunkMetaPtr& chunkMeta)
 
             TSharedMutableRef buffer = Buffer_;
             if (buffer.Size() < MetaDataSize_) {
-                auto data = TSharedMutableRef::Allocate<TNull>(MetaDataSize_ + Alignment, true);
+                auto data = TSharedMutableRef::Allocate<std::nullopt_t>(MetaDataSize_ + Alignment, true);
                 data = data.Slice(AlignUp(data.Begin(), Alignment), data.End());
                 data = data.Slice(data.Begin(), data.Begin() + MetaDataSize_);
                 buffer = data;

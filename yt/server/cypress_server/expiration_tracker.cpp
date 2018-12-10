@@ -136,7 +136,7 @@ void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TIn
 void TExpirationTracker::UnregisterNodeExpiration(TCypressNodeBase* trunkNode)
 {
     ExpirationMap_.erase(*trunkNode->GetExpirationIterator());
-    trunkNode->SetExpirationIterator(Null);
+    trunkNode->SetExpirationIterator(std::nullopt);
 }
 
 void TExpirationTracker::OnCheck()

@@ -12,7 +12,7 @@ using NYson::NDetail::KeyValueSeparatorSymbol;
 TLazyYsonConsumer::TLazyYsonConsumer(
     TCallback<TSharedRef()> extractPrefixCallback_,
     TPythonStringCache* keyCacher,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     bool alwaysCreateAttributes)
     : ExtractPrefixCallback_(extractPrefixCallback_)
     , KeyCacher_(keyCacher)

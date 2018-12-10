@@ -140,8 +140,8 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
         auto interruptTimeout = request->has_interrupt_timeout()
-            ? MakeNullable(FromProto<TDuration>(request->interrupt_timeout()))
-            : Null;
+            ? std::make_optional(FromProto<TDuration>(request->interrupt_timeout()))
+            : std::nullopt;
         context->SetRequestInfo("JobId: %v, InterruptTimeout: %v", jobId, interruptTimeout);
 
         auto scheduler = Bootstrap_->GetScheduler();

@@ -270,7 +270,7 @@ private:
 
     virtual i64 GetAdditionalSpace() const;
 
-    virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) = 0;
+    virtual std::optional<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) = 0;
 
     virtual std::vector<TString> GetChunkPartNames(const TChunkId& chunkId) const = 0;
 
@@ -345,9 +345,9 @@ private:
 
     virtual i64 GetAdditionalSpace() const override;
 
-    TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
-    TNullable<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
-    virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
+    std::optional<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
+    std::optional<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
+    virtual std::optional<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
 
     virtual std::vector<TString> GetChunkPartNames(const TChunkId& chunkId) const override;
     virtual bool ShouldSkipFileName(const TString& fileName) const override;
@@ -377,8 +377,8 @@ private:
 
     const NConcurrency::IThroughputThrottlerPtr InThrottler_;
 
-    TNullable<TChunkDescriptor> Repair(const TChunkId& chunkId, const TString& metaSuffix);
-    virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
+    std::optional<TChunkDescriptor> Repair(const TChunkId& chunkId, const TString& metaSuffix);
+    virtual std::optional<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
 
     virtual std::vector<TString> GetChunkPartNames(const TChunkId& chunkId) const override;
 };

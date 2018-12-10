@@ -81,9 +81,9 @@ TSlotLocation::TSlotLocation(
     DiskInfoUpdateExecutor_->Start();
 }
 
-TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotIndex, TUserSandboxOptions options, int userId)
+TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slotIndex, TUserSandboxOptions options, int userId)
 {
-    return BIND([=, this_ = MakeStrong(this)] () -> TNullable<TString> {
+    return BIND([=, this_ = MakeStrong(this)] () -> std::optional<TString> {
          ValidateEnabled();
 
          LOG_DEBUG("Making sandbox directiories (SlotIndex: %v)", slotIndex);
@@ -173,7 +173,7 @@ TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotInde
             }
 
             if (!EnableTmpfs_) {
-                return Null;
+                return std::nullopt;
             }
 
             try {
@@ -186,13 +186,13 @@ TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotInde
                     }
                 };
 
-                auto properties = TJobDirectoryProperties{getTmpfsSize(), Null, userId};
+                auto properties = TJobDirectoryProperties{getTmpfsSize(), std::nullopt, userId};
                 WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                     .ThrowOnError();
 
                 YCHECK(TmpfsPaths_.insert(tmpfsPath).second);
 
-                return MakeNullable(tmpfsPath);
+                return std::make_optional(tmpfsPath);
             } catch (const std::exception& ex) {
                 // Job will be aborted.
                 auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", *options.TmpfsPath, sandboxPath)
@@ -202,7 +202,7 @@ TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotInde
             }
         }
 
-        return Null;
+        return std::nullopt;
     })
     .AsyncVia(LocationQueue_->GetInvoker())
     .Run();
@@ -356,7 +356,7 @@ TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
                     config->UserId = static_cast<uid_t>(userId);
                     RunTool<TChownChmodTool>(config);
                 } else {
-                    ChownChmodDirectoriesRecursively(sandboxPath, Null, permissions);
+                    ChownChmodDirectoriesRecursively(sandboxPath, std::nullopt, permissions);
                 }
             } catch (const std::exception& ex) {
                 auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set owner and permissions for a job sandbox")
@@ -568,7 +568,7 @@ void TSlotLocation::UpdateDiskInfo()
         }
 
         i64 diskUsage = 0;
-        THashMap<int, TNullable<i64>> occupiedSlotToDiskLimit;
+        THashMap<int, std::optional<i64>> occupiedSlotToDiskLimit;
 
         {
             TReaderGuard guard(SlotsLock_);

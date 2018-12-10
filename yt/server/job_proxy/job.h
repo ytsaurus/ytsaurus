@@ -93,7 +93,7 @@ struct IJob
 
     virtual ui64 GetStderrSize() const = 0;
 
-    virtual TNullable<TString> GetFailContext() = 0;
+    virtual std::optional<TString> GetFailContext() = 0;
 
     virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
 

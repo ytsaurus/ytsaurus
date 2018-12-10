@@ -49,7 +49,7 @@ TString ToHttpContentType(EMessageFormat format)
     }
 }
 
-TNullable<EMessageFormat> FromHttpContentType(TStringBuf contentType)
+std::optional<EMessageFormat> FromHttpContentType(TStringBuf contentType)
 {
     if (contentType == "application/x-protobuf") {
         return EMessageFormat::Protobuf;

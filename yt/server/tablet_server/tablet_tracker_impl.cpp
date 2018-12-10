@@ -54,7 +54,7 @@ public:
 
     virtual std::vector<TNodeHolder> GetNodes() override
     {
-        BalanceRequestTime_.Reset();
+        BalanceRequestTime_.reset();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -112,7 +112,7 @@ public:
             ->TabletManager->TabletCellBalancer->RebalanceWaitTime;
 
         if (BalanceRequestTime_ && *BalanceRequestTime_ + waitTime < Now()) {
-            BalanceRequestTime_.Reset();
+            BalanceRequestTime_.reset();
             return true;
         }
 
@@ -121,7 +121,7 @@ public:
 
 private:
     const TBootstrap* Bootstrap_;
-    TNullable<TInstant> BalanceRequestTime_;
+    std::optional<TInstant> BalanceRequestTime_;
 
     void OnBundleNodesChanged(const TTabletCellBundle* /*bundle*/)
     {

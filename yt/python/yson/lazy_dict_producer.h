@@ -17,7 +17,7 @@ class TLazyDictProducer
 {
 public:
     TLazyDictProducer();
-    TLazyDictProducer(const TNullable<TString>& encoding, bool alwaysCreateAttributes);
+    TLazyDictProducer(const std::optional<TString>& encoding, bool alwaysCreateAttributes);
 
     Py::Object ExtractObject();
 

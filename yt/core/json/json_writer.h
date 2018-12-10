@@ -48,8 +48,8 @@ struct IJsonConsumer
 {
     virtual void SetAnnotateWithTypesParameter(bool value) = 0;
 
-    virtual void OnStringScalarWeightLimited(TStringBuf value, TNullable<i64> weightLimit) = 0;
-    virtual void OnNodeWeightLimited(TStringBuf yson, TNullable<i64> weightLimit) = 0;
+    virtual void OnStringScalarWeightLimited(TStringBuf value, std::optional<i64> weightLimit) = 0;
+    virtual void OnNodeWeightLimited(TStringBuf yson, std::optional<i64> weightLimit) = 0;
 };
 
 std::unique_ptr<IJsonConsumer> CreateJsonConsumer(

@@ -458,7 +458,7 @@ public:
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source) override
     {
         UnderlyingCache_->Put(id, type, data, source);
     }

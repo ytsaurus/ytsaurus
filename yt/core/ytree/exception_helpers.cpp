@@ -78,7 +78,7 @@ void ThrowNoSuchBuiltinAttribute(const TString& key)
         ToYPathLiteral(key));
 }
 
-void ThrowMethodNotSupported(const TString& method, const TNullable<TString>& resolveType)
+void ThrowMethodNotSupported(const TString& method, const std::optional<TString>& resolveType)
 {
     auto error = TError(
         NRpc::EErrorCode::NoSuchMethod,

@@ -44,8 +44,8 @@ size_t GetCurrentThreadId();
 
 void ChownChmodDirectoriesRecursively(
     const TString& path,
-    const TNullable<uid_t>& userId,
-    const TNullable<int>& permissions);
+    const std::optional<uid_t>& userId,
+    const std::optional<int>& permissions);
 
 void SetThreadPriority(int tid, int priority);
 
@@ -259,8 +259,8 @@ class TFSQuotaConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<i64> DiskSpaceLimit;
-    TNullable<i64> InodeLimit;
+    std::optional<i64> DiskSpaceLimit;
+    std::optional<i64> InodeLimit;
     int UserId;
     TString Path;
 
@@ -268,10 +268,10 @@ public:
     {
         RegisterParameter("disk_space_limit", DiskSpaceLimit)
             .GreaterThanOrEqual(0)
-            .Default(Null);
+            .Default();
         RegisterParameter("inode_limit", InodeLimit)
             .GreaterThanOrEqual(0)
-            .Default(Null);
+            .Default();
         RegisterParameter("user_id", UserId)
             .GreaterThanOrEqual(0);
         RegisterParameter("path", Path);
@@ -292,17 +292,17 @@ class TChownChmodConfig
 {
 public:
     TString Path;
-    TNullable<uid_t> UserId;
-    TNullable<int> Permissions;
+    std::optional<uid_t> UserId;
+    std::optional<int> Permissions;
 
     TChownChmodConfig()
     {
         RegisterParameter("path", Path)
             .NonEmpty();
         RegisterParameter("user_id", UserId)
-            .Default(Null);
+            .Default();
         RegisterParameter("permissions", Permissions)
-            .Default(Null);
+            .Default();
     }
 };
 

@@ -623,7 +623,7 @@ private:
                 }
             }
 
-            TNullable<int> tabletIndexColumnId;
+            std::optional<int> tabletIndexColumnId;
             if (!tableInfo->IsSorted()) {
                 tabletIndexColumnId = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
             }

@@ -404,7 +404,7 @@ private:
                 return;
             }
 
-            TNullable<ui32> messageBodySize;
+            std::optional<ui32> messageBodySize;
 
             auto messageBodySizeString = ResponseFinalMetadata_.Find(MessageBodySizeMetadataKey);
             if (messageBodySizeString) {

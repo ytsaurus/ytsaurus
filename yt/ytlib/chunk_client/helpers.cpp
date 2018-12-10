@@ -121,7 +121,7 @@ void ProcessFetchResponse(
     TCellTag fetchCellTag,
     TNodeDirectoryPtr nodeDirectory,
     int maxChunksPerLocateRequest,
-    TNullable<int> rangeIndex,
+    std::optional<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs,
     bool skipUnavialableChunks)
@@ -219,7 +219,7 @@ TChunkReplicaList AllocateWriteTargets(
     const TSessionId& sessionId,
     int desiredTargetCount,
     int minTargetCount,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     bool preferLocalHost,
     const std::vector<TString>& forbiddenAddresses,
     TNodeDirectoryPtr nodeDirectory,

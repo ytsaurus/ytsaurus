@@ -9,7 +9,7 @@ namespace NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<int> FindSignalIdBySignalName(const TString& signalName);
+std::optional<int> FindSignalIdBySignalName(const TString& signalName);
 void ValidateSignalName(const TString& signalName);
 
 ////////////////////////////////////////////////////////////////////////////////

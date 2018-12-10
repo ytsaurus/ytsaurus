@@ -40,7 +40,7 @@ namespace NYTree {
 void SerializeLazyMapFragment(
     const Py::Object& map,
     IYsonConsumer* consumer,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
     int depth,
@@ -60,7 +60,7 @@ void SerializeLazyMapFragment(
         context->Push(mapKey);
 
         if (value.Value) {
-            Serialize(value.Value.Get(), consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
+            Serialize(*value.Value, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
         } else {
             consumer->OnRaw(TStringBuf(value.Data.Begin(), value.Data.Size()), NYson::EYsonType::Node);
         }
@@ -71,7 +71,7 @@ void SerializeLazyMapFragment(
 void SerializeMapFragment(
     const Py::Object& map,
     IYsonConsumer* consumer,
-    const TNullable<TString> &encoding,
+    const std::optional<TString> &encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
     int depth,
@@ -176,7 +176,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
 void Serialize(
     const Py::Object& obj,
     IYsonConsumer* consumer,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
     int depth,
@@ -347,7 +347,7 @@ void TGilGuardedYsonConsumer::OnEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encoding)
+void Deserialize(Py::Object& obj, INodePtr node, const std::optional<TString>& encoding)
 {
     Py::Object attributes = Py::Dict();
     if (!node->Attributes().List().empty()) {
@@ -377,9 +377,9 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encod
         auto str = Py::Bytes(node->AsString()->GetValue().data());
         if (encoding) {
 #if PY_MAJOR_VERSION >= 3
-            obj = NPython::CreateYsonObject("YsonUnicode", str.decode(encoding.Get().data()), attributes);
+            obj = NPython::CreateYsonObject("YsonUnicode", str.decode(encoding->data()), attributes);
 #else
-            obj = NPython::CreateYsonObject("YsonString", str.decode(encoding.Get().data()).encode("utf-8"), attributes);
+            obj = NPython::CreateYsonObject("YsonString", str.decode(encoding->data()).encode("utf-8"), attributes);
 #endif
         } else {
             obj = NPython::CreateYsonObject("YsonString", Py::Bytes(node->AsString()->GetValue().data()), attributes);

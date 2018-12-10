@@ -49,7 +49,7 @@ static const std::vector<TString> OutputMimeTypePriorityForTabularType = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<TFormat> MimeTypeToFormat(const TString& mimeType)
+std::optional<TFormat> MimeTypeToFormat(const TString& mimeType)
 {
     auto format = MimeTypeToFormatTable.find(mimeType);
     if (format == MimeTypeToFormatTable.end()) {
@@ -144,7 +144,7 @@ NYTree::INodePtr ConvertBytesToNode(
         &stream));
 }
 
-TNullable<TString> GetBestAcceptedType(
+std::optional<TString> GetBestAcceptedType(
     NFormats::EDataType outputType,
     const TString& clientAcceptHeader)
 {

@@ -430,7 +430,7 @@ void ValidateKeyColumns(
     }
 }
 
-TColumnFilter CreateColumnFilter(const TNullable<std::vector<TString>>& columns, TNameTablePtr nameTable)
+TColumnFilter CreateColumnFilter(const std::optional<std::vector<TString>>& columns, TNameTablePtr nameTable)
 {
     if (!columns) {
         return TColumnFilter();
@@ -679,7 +679,7 @@ void ValidateDynamicTableTimestamp(
             path.GetPath());
     }
 
-    auto requested = nullableRequested.Get(AsyncLastCommittedTimestamp);
+    auto requested = nullableRequested.value_or(AsyncLastCommittedTimestamp);
     if (requested != AsyncLastCommittedTimestamp) {
         auto retained = attributes.Get<TTimestamp>("retained_timestamp");
         auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");

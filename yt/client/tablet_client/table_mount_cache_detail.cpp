@@ -74,8 +74,8 @@ void TTabletCache::RemoveExpiredEntries()
 
 TTableMountCacheKey::TTableMountCacheKey(
     const NYPath::TYPath& path,
-    TNullable<i64> refreshPrimaryRevision,
-    TNullable<i64> refreshSecondaryRevision)
+    std::optional<i64> refreshPrimaryRevision,
+    std::optional<i64> refreshSecondaryRevision)
     : Path(path)
     , RefreshPrimaryRevision(refreshPrimaryRevision)
     , RefreshSecondaryRevision(refreshSecondaryRevision)

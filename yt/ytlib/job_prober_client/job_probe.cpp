@@ -117,14 +117,14 @@ public:
 private:
     const TTcpBusClientConfigPtr TcpBusClientConfig_;
     const TJobId JobId_;
-    TNullable<TJobProberServiceProxy> JobProberProxy_;
+    std::optional<TJobProberServiceProxy> JobProberProxy_;
 
     void EnsureJobProberProxy()
     {
         if (!JobProberProxy_) {
             auto client = CreateTcpBusClient(TcpBusClientConfig_);
             auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
-            JobProberProxy_.Emplace(std::move(channel));
+            JobProberProxy_.emplace(std::move(channel));
         }
     }
 };

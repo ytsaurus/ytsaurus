@@ -7,7 +7,7 @@
 
 #include "mpl.h"
 #include "string.h"
-#include "nullable.h"
+#include "optional.h"
 #include "enum.h"
 #include "guid.h"
 #include "assert.h"
@@ -416,21 +416,21 @@ inline void FormatValue(TStringBuilder* builder, TGuid value, TStringBuf /*forma
     builder->Advance(end - begin);
 }
 
-// TNullable
-inline void FormatValue(TStringBuilder* builder, TNull, TStringBuf /*format*/)
+// std::optional
+inline void FormatValue(TStringBuilder* builder, std::nullopt_t, TStringBuf /*format*/)
 {
     builder->AppendString(AsStringBuf("<null>"));
 }
 
 template <class T>
-struct TValueFormatter<TNullable<T>>
+struct TValueFormatter<std::optional<T>>
 {
-    static void Do(TStringBuilder* builder, const TNullable<T>& value, TStringBuf format)
+    static void Do(TStringBuilder* builder, const std::optional<T>& value, TStringBuf format)
     {
         if (value) {
             FormatValue(builder, *value, format);
         } else {
-            FormatValue(builder, Null, format);
+            FormatValue(builder, std::nullopt, format);
         }
     }
 };

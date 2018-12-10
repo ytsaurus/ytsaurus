@@ -18,7 +18,7 @@
 
 #include <yt/core/actions/signal.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/small_vector.h>
 
 #include <yt/core/rpc/service_detail.h>
@@ -86,9 +86,9 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        TNullable<int> replicationFactorOverride,
+        std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const TNullable<TString>& preferredHostName);
+        const std::optional<TString>& preferredHostName);
 
     TChunkList* CreateChunkList(EChunkListKind kind);
 

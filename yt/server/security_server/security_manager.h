@@ -203,8 +203,8 @@ public:
     //! Returns the current user or |nullptr| if there's no one.
     TUser* GetAuthenticatedUser();
 
-    //! Returns the current user or Null if there's no one.
-    virtual TNullable<TString> GetAuthenticatedUserName() override;
+    //! Returns the current user or null if there's no one.
+    virtual std::optional<TString> GetAuthenticatedUserName() override;
 
     //! Resets the authenticated user.
     virtual void ResetAuthenticatedUser() override;

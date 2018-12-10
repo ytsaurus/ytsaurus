@@ -78,13 +78,13 @@ bool TCpuMonitor::TryUpdateSmoothedValue()
     }
 
     auto now = TInstant::Now();
-    bool canCalcSmoothedUsage = LastCheckTime_.HasValue() && LastTotalCpu_.HasValue();
+    bool canCalcSmoothedUsage = LastCheckTime_ && LastTotalCpu_;
     if (canCalcSmoothedUsage) {
         CheckedTimeInterval_ = (now - *LastCheckTime_);
         auto deltaCpu = totalCpu - *LastTotalCpu_;
         auto cpuUsage = deltaCpu / *CheckedTimeInterval_;
-        auto newSmoothedUsage = SmoothedUsage_.HasValue()
-            ? Config_->SmoothingFactor * cpuUsage + (1 - Config_->SmoothingFactor) * *SmoothedUsage_
+        auto newSmoothedUsage = SmoothedUsage_
+            ? Config_->SmoothingFactor * cpuUsage + (1 - Config_->SmoothingFactor) * (*SmoothedUsage_)
             : HardLimit_;
         LOG_DEBUG("Smoothed CPU usage updated (OldValue: %v, NewValue: %v)",
             SmoothedUsage_,
@@ -109,9 +109,9 @@ void TCpuMonitor::UpdateVotes()
     }
 }
 
-TNullable<double> TCpuMonitor::TryMakeDecision()
+std::optional<double> TCpuMonitor::TryMakeDecision()
 {
-    TNullable<double> result;
+    std::optional<double> result;
     if (Votes_.size() >= Config_->VoteWindowSize) {
         auto voteSum = 0;
         for (const auto vote : Votes_) {

@@ -63,13 +63,13 @@ public:
     // Job-specific parameters.
     int SlotIndex = -1;
 
-    TNullable<TString> TmpfsPath;
+    std::optional<TString> TmpfsPath;
     std::vector<NExecAgent::TBindConfigPtr> Binds;
 
     std::vector<TString> GpuDevices;
 
     //! Path for container root.
-    TNullable<TString> RootPath;
+    std::optional<TString> RootPath;
 
     // Job-independent parameters.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
@@ -84,8 +84,8 @@ public:
 
     //! Addresses derived from node local descriptor to leverage locality.
     NNodeTrackerClient::TAddressMap Addresses;
-    TNullable<TString> Rack;
-    TNullable<TString> DataCenter;
+    std::optional<TString> Rack;
+    std::optional<TString> DataCenter;
 
     TDuration CoreForwarderTimeout;
 
@@ -130,10 +130,10 @@ public:
             .Default();
 
         RegisterParameter("rack", Rack)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("data_center", DataCenter)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default();

@@ -123,8 +123,8 @@ private:
 
     TNodeResourceLimitsOverrides ResourceLimitsOverrides_;
 
-    TNullable<TInstant> UserMemoryOverdraftInstant_;
-    TNullable<TInstant> CpuOverdraftInstant_;
+    std::optional<TInstant> UserMemoryOverdraftInstant_;
+    std::optional<TInstant> CpuOverdraftInstant_;
 
     TProfiler ResourceLimitsProfiler_;
     TProfiler ResourceUsageProfiler_;
@@ -381,7 +381,7 @@ void TJobController::TImpl::AdjustResources()
             UserMemoryOverdraftInstant_ = TInstant::Now();
         }
     } else {
-        UserMemoryOverdraftInstant_ = Null;
+        UserMemoryOverdraftInstant_ = std::nullopt;
     }
 
     if (usage.cpu() > limits.cpu()) {
@@ -392,7 +392,7 @@ void TJobController::TImpl::AdjustResources()
             CpuOverdraftInstant_ = TInstant::Now();
         }
     } else {
-        CpuOverdraftInstant_ = Null;
+        CpuOverdraftInstant_ = std::nullopt;
     }
 
     LOG_DEBUG("Resource adjustment parameters (PreemptMemoryOverdraft: %v, PreemptCpuOverdraft: %v, "
@@ -428,8 +428,8 @@ void TJobController::TImpl::AdjustResources()
             schedulerJobs.pop_back();
         }
 
-        UserMemoryOverdraftInstant_ = Null;
-        CpuOverdraftInstant_ = Null;
+        UserMemoryOverdraftInstant_ = std::nullopt;
+        CpuOverdraftInstant_ = std::nullopt;
     }
 }
 

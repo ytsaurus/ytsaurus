@@ -180,11 +180,11 @@ void TSamplesFetcher::OnResponse(
     const auto& rsp = rspOrError.Value();
 
     // We keep reader in the scope as a holder for wire reader and uncompressed attachment.
-    TNullable<TKeySetReader> keysReader;
+    std::optional<TKeySetReader> keysReader;
     NYT::TRange<TKey> keySet;
     if (rsp->keys_in_attachment()) {
         YCHECK(rsp->Attachments().size() == 1);
-        keysReader.Emplace(rsp->Attachments().front());
+        keysReader.emplace(rsp->Attachments().front());
         keySet = keysReader->GetKeys();
     }
 

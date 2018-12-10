@@ -70,7 +70,7 @@ void GetUserObjectBasicAttributes(
         const auto& userObject = U::Unwrap(*iterator);
         auto req = NObjectClient::TObjectYPathProxy::GetBasicAttributes(userObject.GetPath());
         req->set_permissions(static_cast<ui32>(permission));
-        auto transactionId = userObject.TransactionId.Get(defaultTransactionId);
+        auto transactionId = userObject.TransactionId.value_or(defaultTransactionId);
         NCypressClient::SetTransactionId(req, transactionId);
         NCypressClient::SetSuppressAccessTracking(req, suppressAccessTracking);
         batchReq->AddRequest(req, "get_basic_attributes");

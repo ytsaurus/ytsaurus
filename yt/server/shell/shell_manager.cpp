@@ -59,9 +59,9 @@ class TShellManager
 public:
     TShellManager(
         const TString& workingDir,
-        TNullable<int> userId,
-        TNullable<TString> freezerFullPath,
-        TNullable<TString> messageOfTheDay,
+        std::optional<int> userId,
+        std::optional<TString> freezerFullPath,
+        std::optional<TString> messageOfTheDay,
         std::vector<TString> environment)
         : WorkingDir_(workingDir)
         , UserId_(userId)
@@ -202,9 +202,9 @@ public:
 
 private:
     const TString WorkingDir_;
-    TNullable<int> UserId_;
-    TNullable<TString> FreezerFullPath_;
-    TNullable<TString> MessageOfTheDay_;
+    std::optional<int> UserId_;
+    std::optional<TString> FreezerFullPath_;
+    std::optional<TString> MessageOfTheDay_;
 
     std::vector<TString> Environment_;
     THashMap<TShellId, IShellPtr> IdToShell_;
@@ -243,9 +243,9 @@ private:
 
 IShellManagerPtr CreateShellManager(
     const TString& workingDir,
-    TNullable<int> userId,
-    TNullable<TString> freezerFullPath,
-    TNullable<TString> messageOfTheDay,
+    std::optional<int> userId,
+    std::optional<TString> freezerFullPath,
+    std::optional<TString> messageOfTheDay,
     std::vector<TString> environment)
 {
     return New<TShellManager>(workingDir, userId, freezerFullPath, messageOfTheDay, std::move(environment));
@@ -255,9 +255,9 @@ IShellManagerPtr CreateShellManager(
 
 IShellManagerPtr CreateShellManager(
     const TString& workingDir,
-    TNullable<int> userId,
-    TNullable<TString> freezerFullPath,
-    TNullable<TString> messageOfTheDay,
+    std::optional<int> userId,
+    std::optional<TString> freezerFullPath,
+    std::optional<TString> messageOfTheDay,
     std::vector<TString> environment)
 {
     THROW_ERROR_EXCEPTION("Shell manager is supported only under Unix");

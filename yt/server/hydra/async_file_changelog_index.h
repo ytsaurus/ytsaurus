@@ -64,7 +64,7 @@ public:
         int lastRecordId,
         i64 maxBytes = -1) const;
 
-    void Read(const TNullable<i32>& truncatedRecordCount = Null);
+    void Read(const std::optional<i32>& truncatedRecordCount = std::nullopt);
     void TruncateInvalidRecords(i64 correctPrefixSize);
 
     template <class TTag>

@@ -116,7 +116,7 @@ size_t GetCurrentThreadId()
 #endif
 }
 
-void ChownChmodDirectoriesRecursively(const TString& path, const TNullable<uid_t>& userId, const TNullable<int>& permissions)
+void ChownChmodDirectoriesRecursively(const TString& path, const std::optional<uid_t>& userId, const std::optional<int>& permissions)
 {
 #ifdef _unix_
     for (const auto& directoryPath : NFS::EnumerateDirectories(path)) {

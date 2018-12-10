@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/variant.h>
 
 #include <util/generic/noncopyable.h>
@@ -258,17 +258,17 @@ TEST(TVariantTest, NullableVariant)
 {
     using TValue = TVariant<bool>;
 
-    TNullable<TValue> t;
+    std::optional<TValue> t;
     t = true;
-    EXPECT_TRUE(t.HasValue());
-    EXPECT_TRUE(t.Get().Is<bool>());
-    EXPECT_EQ(true, t.Get().As<bool>());
+    EXPECT_TRUE(t);
+    EXPECT_TRUE(t->Is<bool>());
+    EXPECT_EQ(true, t->As<bool>());
 
-    TNullable<TValue> f;
+    std::optional<TValue> f;
     f = false;
-    EXPECT_TRUE(f.HasValue());
-    EXPECT_TRUE(f.Get().Is<bool>());
-    EXPECT_EQ(false, f.Get().As<bool>());
+    EXPECT_TRUE(f);
+    EXPECT_TRUE(f->Is<bool>());
+    EXPECT_EQ(false, f->As<bool>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

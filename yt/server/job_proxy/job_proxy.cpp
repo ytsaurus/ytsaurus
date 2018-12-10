@@ -420,15 +420,15 @@ TJobResult TJobProxy::DoRun()
     try {
         // Use everything.
 
-        auto createRootFS = [&] () -> TNullable<TRootFS> {
+        auto createRootFS = [&] () -> std::optional<TRootFS> {
             if (!Config_->RootPath) {
                 LOG_DEBUG("Job is not using custom root fs");
-                return Null;
+                return std::nullopt;
             }
 
             if (Config_->TestRootFS) {
                 LOG_DEBUG("Job is running in testing root fs mode");
-                return Null;
+                return std::nullopt;
             }
 
             LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
@@ -516,8 +516,8 @@ TJobResult TJobProxy::DoRun()
     NYTAlloc::SetLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_large_unreclaimable_bytes());
     JobProxyMemoryOvercommitLimit_ =
         schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit() ?
-        MakeNullable(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) :
-        Null;
+        std::make_optional(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) :
+        std::nullopt;
 
     RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
 

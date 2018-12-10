@@ -200,8 +200,8 @@ IClientRequestControlPtr DoRedirectServiceRequest(
     IChannelPtr channel)
 {
     auto timeout = requestHeader->has_timeout()
-        ? MakeNullable(FromProto<TDuration>(requestHeader->timeout()))
-        : Null;
+        ? std::make_optional(FromProto<TDuration>(requestHeader->timeout()))
+        : std::nullopt;
 
     auto request = New<TRedirectedRequest>(
         std::move(requestHeader),

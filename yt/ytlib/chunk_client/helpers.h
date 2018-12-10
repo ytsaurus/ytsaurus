@@ -50,7 +50,7 @@ void ProcessFetchResponse(
     NObjectClient::TCellTag fetchCellTag,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int maxChunksPerLocateRequest,
-    TNullable<int> rangeIndex,
+    std::optional<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs,
     bool skipUnavailableChunks = false);
@@ -80,7 +80,7 @@ TChunkReplicaList AllocateWriteTargets(
     const TSessionId& sessionId,
     int desiredTargetCount,
     int minTargetCount,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     bool preferLocalHost,
     const std::vector<TString>& forbiddenAddresses,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -134,7 +134,7 @@ struct TUserObject
     NObjectClient::TObjectId ObjectId;
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
-    TNullable<NObjectClient::TTransactionId> TransactionId;
+    std::optional<NObjectClient::TTransactionId> TransactionId;
 
     virtual ~TUserObject() = default;
 

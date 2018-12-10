@@ -201,10 +201,10 @@ public:
     TDuration LeaderReassignmentTimeout;
 
     //! Maximum number of snapshots to keep for a tablet cell.
-    TNullable<int> MaxSnapshotCountToKeep;
+    std::optional<int> MaxSnapshotCountToKeep;
 
     //! Maximum total size of snapshots to keep for a tablet cell.
-    TNullable<i64> MaxSnapshotSizeToKeep;
+    std::optional<i64> MaxSnapshotSizeToKeep;
 
     //! Maximum number of snapshots to remove per a single check.
     int MaxSnapshotCountToRemovePerCheck;

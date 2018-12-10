@@ -282,13 +282,13 @@ private:
         NNet::TNetworkAddress PeerAddress_;
 
         TRequestId RequestId_;
-        TNullable<TString> User_;
-        TNullable<TString> UserAgent_;
-        TNullable<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
-        TNullable<NRpc::NProto::TCredentialsExt> RpcCredentialsExt_;
+        std::optional<TString> User_;
+        std::optional<TString> UserAgent_;
+        std::optional<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
+        std::optional<NRpc::NProto::TCredentialsExt> RpcCredentialsExt_;
         TString ServiceName_;
         TString MethodName_;
-        TNullable<TDuration> Timeout_;
+        std::optional<TDuration> Timeout_;
         IServicePtr Service_;
 
         TGrpcMetadataArrayBuilder InitialMetadataBuilder_;
@@ -298,7 +298,7 @@ private:
         TGrpcMetadataArray CallMetadata_;
         TGrpcCallPtr Call_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
-        TNullable<ui32> RequestMessageBodySize_;
+        std::optional<ui32> RequestMessageBodySize_;
         TProtocolVersion ProtocolVersion_ = DefaultProtocolVersion;
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TString ErrorMessage_;
@@ -461,7 +461,7 @@ private:
                 return;
             }
 
-            RpcCredentialsExt_.Emplace();
+            RpcCredentialsExt_.emplace();
 
             if (legacyTokenString) {
                 RpcCredentialsExt_->set_token(TString(legacyTokenString));
@@ -505,7 +505,7 @@ private:
             }
 
             if (!SslCredentialsExt_) {
-                SslCredentialsExt_.Emplace();
+                SslCredentialsExt_.emplace();
             }
             SslCredentialsExt_->set_peer_identity(TString(peerIdentityProperty->value, peerIdentityProperty->value_length));
         }
@@ -529,7 +529,7 @@ private:
             }
 
             if (!SslCredentialsExt_) {
-                SslCredentialsExt_.Emplace();
+                SslCredentialsExt_.emplace();
             }
             SslCredentialsExt_->set_issuer(std::move(*issuer));
         }

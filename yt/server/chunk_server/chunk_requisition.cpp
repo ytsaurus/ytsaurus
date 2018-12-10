@@ -236,7 +236,7 @@ void ValidateReplicationFactor(int replicationFactor)
 void ValidateChunkReplication(
     const TChunkManagerPtr& chunkManager,
     const TChunkReplication& replication,
-    TNullable<int> primaryMediumIndex)
+    std::optional<int> primaryMediumIndex)
 {
     if (!replication.IsValid()) {
         THROW_ERROR_EXCEPTION(
@@ -714,11 +714,11 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreate(
     return Insert(requisition, objectManager);
 }
 
-TNullable<TChunkRequisitionIndex> TChunkRequisitionRegistry::Find(
+std::optional<TChunkRequisitionIndex> TChunkRequisitionRegistry::Find(
     const TChunkRequisition& requisition) const
 {
     auto it = RequisitionToIndex_.find(requisition);
-    return it != RequisitionToIndex_.end() ? it->second : TNullable<TChunkRequisitionIndex>();
+    return it != RequisitionToIndex_.end() ? it->second : std::optional<TChunkRequisitionIndex>();
 }
 
 

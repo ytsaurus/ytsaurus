@@ -119,8 +119,8 @@ void TSimulatorNodeShard::RunOnce()
     if (!eventNullable) {
         return;
     }
-    auto event = eventNullable.Get();
 
+    auto event = *eventNullable;
     switch (event.Type) {
         case EEventType::Heartbeat: {
             OnHeartbeat(event);

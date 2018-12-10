@@ -140,7 +140,7 @@ private:
             auto req = TJournalYPathProxy::Fetch(objectIdPath);
 
             TReadLimit lowerLimit, upperLimit;
-            i64 firstRowIndex = Options_.FirstRowIndex.Get(0);
+            i64 firstRowIndex = Options_.FirstRowIndex.value_or(0);
             if (Options_.FirstRowIndex) {
                 lowerLimit.SetRowIndex(firstRowIndex);
             }
@@ -168,7 +168,7 @@ private:
                 cellTag,
                 NodeDirectory_,
                 std::numeric_limits<int>::max(), // no foreign chunks are possible anyway
-                Null,
+                std::nullopt,
                 Logger,
                 &ChunkSpecs_);
         }

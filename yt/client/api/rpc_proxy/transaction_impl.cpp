@@ -38,7 +38,7 @@ TTransaction::TTransaction(
     EAtomicity atomicity,
     EDurability durability,
     TDuration timeout,
-    TNullable<TDuration> pingPeriod,
+    std::optional<TDuration> pingPeriod,
     bool sticky)
     : Connection_(std::move(connection))
     , Client_(std::move(client))

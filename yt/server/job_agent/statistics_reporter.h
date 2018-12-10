@@ -10,7 +10,7 @@
 #include <yt/client/api/public.h>
 #include <yt/client/api/operation_archive_schema.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/yson/string.h>
 

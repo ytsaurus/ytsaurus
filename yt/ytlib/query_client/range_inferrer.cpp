@@ -304,9 +304,9 @@ ui64 Estimate(TUnversionedValue lower, TUnversionedValue upper, TDivisors partia
     return 1;
 }
 
-static TNullable<TUnversionedValue> TrimSentinel(TMutableRow row)
+static std::optional<TUnversionedValue> TrimSentinel(TMutableRow row)
 {
-    TNullable<TUnversionedValue> result;
+    std::optional<TUnversionedValue> result;
     for (int index = row.GetCount() - 1; index >= 0 && IsSentinelType(row[index].Type); --index) {
         result = row[index];
         row.SetCount(index);
@@ -322,13 +322,13 @@ void Copy(TRow source, TMutableRow dest, ui32 count)
     }
 }
 
-TMutableRow CaptureRowWithSentinel(TRowBuffer* buffer, TRow src, int size, TNullable<TUnversionedValue> sentinel)
+TMutableRow CaptureRowWithSentinel(TRowBuffer* buffer, TRow src, int size, std::optional<TUnversionedValue> sentinel)
 {
     int rowSize = size + static_cast<bool>(sentinel);
     auto row = buffer->AllocateUnversioned(rowSize);
     Copy(src, row, size);
     if (sentinel) {
-        row[size] = sentinel.Get();
+        row[size] = *sentinel;
     }
     return row;
 }
@@ -394,13 +394,13 @@ TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpress
     }
 }
 
-TNullable<TModuloRangeGenerator> GetModuloGeneratorForColumn(
+std::optional<TModuloRangeGenerator> GetModuloGeneratorForColumn(
     const TColumnEvaluator& evaluator,
     const TSchemaColumns& columns,
     int index)
 {
     if (!columns[index].Expression()) {
-        return Null;
+        return std::nullopt;
     }
     auto expr = evaluator.GetExpression(index)->As<TBinaryOpExpression>();
     if (expr && expr->Opcode == EBinaryOp::Modulo) {
@@ -412,7 +412,7 @@ TNullable<TModuloRangeGenerator> GetModuloGeneratorForColumn(
             }
         }
     }
-    return Null;
+    return std::nullopt;
 }
 
 void EnrichKeyRange(
@@ -453,7 +453,7 @@ void EnrichKeyRange(
     // In prefix there are only Fixed, computed columns and Bottom (undefined).
 
     // Collect here evalutable columns.
-    std::vector<std::pair<size_t, TNullable<TModuloRangeGenerator>>> computedColumns;
+    std::vector<std::pair<size_t, std::optional<TModuloRangeGenerator>>> computedColumns;
     std::vector<ui64> estimations;
 
     std::set<TUnversionedValue> divisorsSet;
@@ -505,13 +505,13 @@ void EnrichKeyRange(
                 // Here we solve whether create modulo generator or collect divisors.
                 if (enumEstimation < estimation) {
                     estimation = enumEstimation;
-                    moduloGenerator.Reset();
+                    moduloGenerator.reset();
                 } else {
                     partial.clear();
                 }
             } else {
                 estimation = 1;
-                moduloGenerator.Reset();
+                moduloGenerator.reset();
             }
         } else if (!moduloGenerator) {
             break;
@@ -565,7 +565,7 @@ void EnrichKeyRange(
         size_t evalIndex = computedColumns.size();
         while (evalIndex > 0) {
             auto columnIndex = computedColumns[evalIndex - 1].first;
-            auto generator = computedColumns[evalIndex - 1].second.GetPtr();
+            auto& generator = computedColumns[evalIndex - 1].second;
             if (!generator || generator->Finished()) {
                 --evalIndex;
             } else {
@@ -601,8 +601,8 @@ void EnrichKeyRange(
     std::function<TMutableRow(
         TUnversionedRow row,
         size_t size,
-        const TNullable<TUnversionedValue>& finalizeSentinel,
-        const TNullable<TUnversionedValue>& sentinel)> finalizeRow;
+        const std::optional<TUnversionedValue>& finalizeSentinel,
+        const std::optional<TUnversionedValue>& sentinel)> finalizeRow;
     if (shrinkSize < prefixSize) {
         // Shrinked.
         // If is shrinked, then we append fixed sentinels: No sentinel for lower bound and Max sentinel for
@@ -610,8 +610,8 @@ void EnrichKeyRange(
         finalizeRow = [&] (
             TUnversionedRow src,
             size_t size,
-            const TNullable<TUnversionedValue>& finalizeSentinel,
-            const TNullable<TUnversionedValue>& sentinel)
+            const std::optional<TUnversionedValue>& finalizeSentinel,
+            const std::optional<TUnversionedValue>& sentinel)
         {
             return CaptureRowWithSentinel(buffer, src, shrinkSize, finalizeSentinel);
         };
@@ -619,8 +619,8 @@ void EnrichKeyRange(
         finalizeRow = [&] (
             TUnversionedRow src,
             size_t size,
-            const TNullable<TUnversionedValue>& finalizeSentinel,
-            const TNullable<TUnversionedValue>& sentinel)
+            const std::optional<TUnversionedValue>& finalizeSentinel,
+            const std::optional<TUnversionedValue>& sentinel)
         {
             return CaptureRowWithSentinel(buffer, src, size, sentinel);
         };
@@ -630,10 +630,10 @@ void EnrichKeyRange(
     auto yieldRange = [&] (
         TMutableRow lowerRow,
         TMutableRow upperRow,
-        const TNullable<TUnversionedValue>& lowerSentinel,
-        const TNullable<TUnversionedValue>& upperSentinel)
+        const std::optional<TUnversionedValue>& lowerSentinel,
+        const std::optional<TUnversionedValue>& upperSentinel)
     {
-        auto lower = finalizeRow(lowerRow, lowerSize, Null, lowerSentinel);
+        auto lower = finalizeRow(lowerRow, lowerSize, std::nullopt, lowerSentinel);
         auto upper = finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
         Y_ASSERT(lower <= upper);
         if (lower < upper) {
@@ -667,10 +667,10 @@ void EnrichKeyRange(
             enumerateModulo(prefixRow, [&] () {
                 Copy(prefixRow, lowerRow, prefixSize);
                 Copy(prefixRow, upperRow, prefixSize);
-                yieldRange(lowerRow, upperRow, lowerSentinel, Null);
+                yieldRange(lowerRow, upperRow, lowerSentinel, std::nullopt);
             });
 
-            lowerSentinel.Reset();
+            lowerSentinel.reset();
         }
 
         prefixRow[prefixSize] = step;
@@ -679,7 +679,7 @@ void EnrichKeyRange(
         enumerateModulo(prefixRow, [&] () {
             Copy(prefixRow, lowerRow, prefixSize);
             Copy(prefixRow, upperRow, prefixSize);
-            yieldRange(lowerRow, upperRow, Null, upperSentinel);
+            yieldRange(lowerRow, upperRow, std::nullopt, upperSentinel);
         });
     } else {
         enumerateModulo(prefixRow, [&] () {

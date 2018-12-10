@@ -11,7 +11,7 @@ using namespace NConcurrency;
 TAssertionFailedException::TAssertionFailedException(
     const TString& expression,
     const TString& stackTrace,
-    const TNullable<TString>& corePath)
+    const std::optional<TString>& corePath)
     : Expression_(expression)
     , StackTrace_(stackTrace)
     , CorePath_(corePath)

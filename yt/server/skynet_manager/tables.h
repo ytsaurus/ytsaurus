@@ -79,9 +79,9 @@ struct TRequestState
 
     TInstant UpdateTime;
 
-    TNullable<TError> Error;
-    TNullable<NYson::TYsonString> Progress;
-    TNullable<std::vector<TResourceLinkPtr>> Resources;
+    std::optional<TError> Error;
+    std::optional<NYson::TYsonString> Progress;
+    std::optional<std::vector<TResourceLinkPtr>> Resources;
 
     bool IsExpired(TDuration ttl) const;
     void ValidateOwnerId(TGuid processId) const;
@@ -122,8 +122,8 @@ public:
     bool StartRequest(const TRequestKey& key, TRequestState* state);
     void UpdateStatus(
         const TRequestKey& key,
-        TNullable<NYson::TYsonString> progress,
-        TNullable<TError> error);
+        std::optional<NYson::TYsonString> progress,
+        std::optional<TError> error);
     std::vector<TResourceId> FinishRequest(const TRequestKey& key, const std::vector<TTableShard>& shards);
     void EraseRequest(const TRequestKey& key);
 

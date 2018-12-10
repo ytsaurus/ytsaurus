@@ -142,10 +142,10 @@ private:
     TFuture<void> CheckLock()
     {
         // TODO(sandello): Currently broken. See YT-7421.
-        return Null;
+        return std::nullopt;
         /*
         return Lock_->IsAcquired(Epoch_)
-            ? Null
+            ? std::nullopt
             : MakeFuture<void>(TError("Changelog store lock expired"));
         */
     }

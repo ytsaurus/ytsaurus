@@ -154,11 +154,11 @@ TYsonString TTransaction::GetErrorDescription() const
             .Item("id").Value(Id_)
             .Item("start_time").Value(StartTime_)
             .Item("owner").Value(Acd_.GetOwner()->GetName())
-            .DoIf(Timeout_.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(Timeout_.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("timeout").Value(*Timeout_);
             })
-            .DoIf(Title_.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(Title_.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("title").Value(*Title_);
             })

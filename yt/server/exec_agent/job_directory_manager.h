@@ -13,8 +13,8 @@ namespace NExecAgent {
 
 struct TJobDirectoryProperties
 {
-    TNullable<i64> DiskSpaceLimit;
-    TNullable<i64> InodeLimit;
+    std::optional<i64> DiskSpaceLimit;
+    std::optional<i64> InodeLimit;
     int UserId;
 };
 

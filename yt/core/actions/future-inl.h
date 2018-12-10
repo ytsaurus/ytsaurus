@@ -66,7 +66,7 @@ private:
     std::atomic<bool> Canceled_;
     std::atomic<bool> Set_;
     std::atomic<bool> AbandonedUnset_ = {false};
-    TNullable<TErrorOr<T>> Value_;
+    std::optional<TErrorOr<T>> Value_;
     mutable std::unique_ptr<NConcurrency::TEvent> ReadyEvent_;
     TResultHandlers ResultHandlers_;
     TCancelHandlers CancelHandlers_;
@@ -96,7 +96,7 @@ private:
                 }
             }
             // TODO(sandello): What about exceptions here?
-            Value_.Assign(TErrorOr<T>(std::forward<U>(value)));
+            Value_.emplace(std::forward<U>(value));
             Set_ = true;
             canceled = Canceled_;
             readyEvent = ReadyEvent_.get();
@@ -165,7 +165,7 @@ private:
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
         if (AbandonedUnset_ && !Set_) {
-            Value_.Assign(MakeAbandonedError());
+            Value_ = MakeAbandonedError();
             Set_ = true;
         }
     }
@@ -280,18 +280,18 @@ public:
         return ReadyEvent_->Wait(timeout.ToDeadLine());
     }
 
-    TNullable<TErrorOr<T>> TryGet() const
+    std::optional<TErrorOr<T>> TryGet() const
     {
         // Fast path.
         if (!Set_ && !AbandonedUnset_) {
-            return Null;
+            return std::nullopt;
         }
 
         // Slow path.
         {
             auto guard = Guard(SpinLock_);
             InstallAbandonedError();
-            return Set_ ? Value_ : Null;
+            return Set_ ? Value_ : std::nullopt;
         }
     }
 
@@ -690,7 +690,7 @@ bool TFutureBase<T>::TimedWait(TDuration timeout) const
 }
 
 template <class T>
-TNullable<TErrorOr<T>> TFutureBase<T>::TryGet() const
+std::optional<TErrorOr<T>> TFutureBase<T>::TryGet() const
 {
     Y_ASSERT(Impl_);
     return Impl_->TryGet();
@@ -766,7 +766,7 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
 }
 
 template <class T>
-TFuture<T> TFutureBase<T>::WithTimeout(TNullable<TDuration> timeout)
+TFuture<T> TFutureBase<T>::WithTimeout(std::optional<TDuration> timeout)
 {
     return timeout ? WithTimeout(*timeout) : TFuture<T>(Impl_);
 }
@@ -829,7 +829,7 @@ TFutureBase<T>::TFutureBase(TIntrusivePtr<NYT::NDetail::TFutureState<T>> impl)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TFuture<T>::TFuture(TNull)
+TFuture<T>::TFuture(std::nullopt_t)
 { }
 
 template <class T>
@@ -867,7 +867,7 @@ TFuture<T>::TFuture(TIntrusivePtr<NYT::NDetail::TFutureState<T>> impl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TFuture<void>::TFuture(TNull)
+inline TFuture<void>::TFuture(std::nullopt_t)
 { }
 
 template <class R>
@@ -977,7 +977,7 @@ const TErrorOr<T>& TPromiseBase<T>::Get() const
 }
 
 template <class T>
-TNullable<TErrorOr<T>> TPromiseBase<T>::TryGet() const
+std::optional<TErrorOr<T>> TPromiseBase<T>::TryGet() const
 {
     Y_ASSERT(Impl_);
     return Impl_->TryGet();
@@ -1016,7 +1016,7 @@ TPromiseBase<T>::TPromiseBase(TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TPromise<T>::TPromise(TNull)
+TPromise<T>::TPromise(std::nullopt_t)
 { }
 
 template <class T>
@@ -1078,7 +1078,7 @@ TPromise<T>::TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TPromise<void>::TPromise(TNull)
+inline TPromise<void>::TPromise(std::nullopt_t)
 { }
 
 inline void TPromise<void>::Set()
@@ -1160,7 +1160,7 @@ TFutureHolder<T>::TFutureHolder()
 { }
 
 template <class T>
-TFutureHolder<T>::TFutureHolder(TNull)
+TFutureHolder<T>::TFutureHolder(std::nullopt_t)
 { }
 
 template <class T>

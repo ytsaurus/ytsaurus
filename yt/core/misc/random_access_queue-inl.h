@@ -36,7 +36,7 @@ typename TRandomAccessQueue<TKey, TValue>::TEntry TRandomAccessQueue<TKey, TValu
 }
 
 template <class TKey, class TValue>
-TNullable<typename TRandomAccessQueue<TKey, TValue>::TEntry> TRandomAccessQueue<TKey, TValue>::Pop(
+std::optional<typename TRandomAccessQueue<TKey, TValue>::TEntry> TRandomAccessQueue<TKey, TValue>::Pop(
     const TKey& key)
 {
     if (auto it = KeyToEntryMap_.find(key)) {
@@ -46,7 +46,7 @@ TNullable<typename TRandomAccessQueue<TKey, TValue>::TEntry> TRandomAccessQueue<
         Queue_.erase(listIt);
         return entry;
     } else {
-        return Null;
+        return std::nullopt;
     }
 }
 

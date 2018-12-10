@@ -47,7 +47,7 @@ namespace NYT {
  *  (|some_name|, if lowercase mode is ON).
  *  
  *  Nullables:
- *  |Null| is emitted as |<null>|.
+ *  |std::nullopt| is emitted as |<null>|.
  *  
  *  All others:
  *  Emitted as strings by calling |ToString|.

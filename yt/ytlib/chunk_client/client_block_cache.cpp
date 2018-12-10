@@ -132,7 +132,7 @@ public:
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
-        const TNullable<TNodeDescriptor>& /*source*/) override
+        const std::optional<TNodeDescriptor>& /*source*/) override
     {
         auto cache = FindPerTypeCache(type);
         if (cache) {
@@ -184,7 +184,7 @@ public:
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*data*/,
-        const TNullable<TNodeDescriptor>& /*source*/) override
+        const std::optional<TNodeDescriptor>& /*source*/) override
     { }
 
     virtual TBlock Find(

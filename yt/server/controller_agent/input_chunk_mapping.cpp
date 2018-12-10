@@ -130,10 +130,10 @@ void TInputChunkMapping::ValidateSortedChunkConsistency(
     const TInputChunkPtr& oldChunk,
     const TInputChunkPtr& newChunk) const
 {
-    TNullable<TOwningBoundaryKeys> oldBoundaryKeys =
-        oldChunk->BoundaryKeys() ? MakeNullable(*oldChunk->BoundaryKeys()) : Null;
-    TNullable<TOwningBoundaryKeys> newBoundaryKeys =
-        newChunk->BoundaryKeys() ? MakeNullable(*newChunk->BoundaryKeys()) : Null;
+    std::optional<TOwningBoundaryKeys> oldBoundaryKeys =
+        oldChunk->BoundaryKeys() ? std::make_optional(*oldChunk->BoundaryKeys()) : std::nullopt;
+    std::optional<TOwningBoundaryKeys> newBoundaryKeys =
+        newChunk->BoundaryKeys() ? std::make_optional(*newChunk->BoundaryKeys()) : std::nullopt;
     if (oldBoundaryKeys != newBoundaryKeys) {
         // Due to some weird linkage error, I cannot use bare oldBoundaryKeys/newBoundaryKeys
         // as arguments in TErrorAttribute.

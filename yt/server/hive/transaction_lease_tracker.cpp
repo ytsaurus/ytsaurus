@@ -59,8 +59,8 @@ void TTransactionLeaseTracker::Stop()
 void TTransactionLeaseTracker::RegisterTransaction(
     const TTransactionId& transactionId,
     const TTransactionId& parentId,
-    TNullable<TDuration> timeout,
-    TNullable<TInstant> deadline,
+    std::optional<TDuration> timeout,
+    std::optional<TInstant> deadline,
     TTransactionLeaseExpirationHandler expirationHandler)
 {
     VERIFY_THREAD_AFFINITY_ANY();

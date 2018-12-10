@@ -168,7 +168,7 @@ private:
             IsObjectAlive(tablet) &&
             !tablet->GetAction() &&
             IsObjectAlive(tablet->GetTable()) &&
-            tablet->GetTable()->GetEnableTabletBalancer().Get(true) &&
+            tablet->GetTable()->GetEnableTabletBalancer().value_or(true) &&
             tablet->GetTable()->IsSorted() &&
             IsObjectAlive(tablet->GetCell()) &&
             IsObjectAlive(tablet->GetCell()->GetCellBundle()) &&

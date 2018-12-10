@@ -29,7 +29,7 @@ public:
 
     virtual bool CanRepair(const TPartIndexSet& erasedIndicesMask) const override;
 
-    virtual TNullable<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) const override;
+    virtual std::optional<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) const override;
 
     virtual int GetDataPartCount() const override;
 

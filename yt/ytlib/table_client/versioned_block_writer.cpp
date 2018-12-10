@@ -45,7 +45,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
 {
     ++RowCount_;
 
-    auto nullAggregateFlags = TNullable<TBitmap>();
+    std::optional<TBitmap> nullAggregateFlags;
     int keyOffset = KeyStream_.GetSize();
     for (const auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
         const auto& value = *it;
@@ -145,7 +145,7 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
 void TSimpleVersionedBlockWriter::WriteValue(
     TChunkedOutputStream& stream,
     TBitmap& nullFlags,
-    TNullable<TBitmap>& aggregateFlags,
+    std::optional<TBitmap>& aggregateFlags,
     const TUnversionedValue& value)
 {
     if (aggregateFlags) {
@@ -201,7 +201,7 @@ i64 TSimpleVersionedBlockWriter::GetBlockSize() const
         StringDataStream_.GetSize() +
         KeyNullFlags_.Size() +
         ValueNullFlags_.Size() +
-        (ValueAggregateFlags_.HasValue() ? ValueAggregateFlags_->Size() : 0);
+        (ValueAggregateFlags_.operator bool() ? ValueAggregateFlags_->Size() : 0);
 }
 
 i64 TSimpleVersionedBlockWriter::GetRowCount() const

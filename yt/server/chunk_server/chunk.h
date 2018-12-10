@@ -14,7 +14,7 @@
 
 #include <yt/core/erasure/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/format.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
@@ -243,7 +243,7 @@ public:
      */
     int GetMaxReplicasPerRack(
         int mediumIndex,
-        TNullable<int> replicationFactorOverride,
+        std::optional<int> replicationFactorOverride,
         const TChunkRequisitionRegistry* registry) const;
 
     //! Returns the export data w.r.t. to a cell with a given #index.

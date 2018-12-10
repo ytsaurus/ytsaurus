@@ -145,7 +145,7 @@ TNode::TNode(const TObjectId& objectId)
 
 void TNode::ComputeAggregatedState()
 {
-    TNullable<ENodeState> result;
+    std::optional<ENodeState> result;
     for (const auto& pair : MulticellDescriptors_) {
         if (result) {
             if (*result != pair.second.State) {
@@ -185,19 +185,19 @@ void TNode::ComputeFillFactors()
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
         i64 totalSpace = freeSpace[mediumIndex] + usedSpace[mediumIndex];
         FillFactors_[mediumIndex] = (totalSpace == 0)
-            ? Null
-            : MakeNullable(usedSpace[mediumIndex] / std::max<double>(1.0, totalSpace));
+            ? std::nullopt
+            : std::make_optional(usedSpace[mediumIndex] / std::max<double>(1.0, totalSpace));
     }
 }
 
 void TNode::ComputeSessionCount()
 {
-    SessionCount_.fill(Null);
+    SessionCount_.fill(std::nullopt);
 
     for (const auto& location : Statistics_.locations()) {
         auto mediumIndex = location.medium_index();
         if (location.enabled() && !location.full()) {
-            SessionCount_[mediumIndex] = SessionCount_[mediumIndex].Get(0) + location.session_count();
+            SessionCount_[mediumIndex] = SessionCount_[mediumIndex].value_or(0) + location.session_count();
         }
     }
 }
@@ -234,7 +234,7 @@ TDataCenter* TNode::GetDataCenter() const
     return rack ? rack->GetDataCenter() : nullptr;
 }
 
-bool TNode::HasTag(const TNullable<TString>& tag) const
+bool TNode::HasTag(const std::optional<TString>& tag) const
 {
     return !tag || Tags_.find(*tag) != Tags_.end();
 }
@@ -243,8 +243,8 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 {
     return TNodeDescriptor(
         GetAddressesOrThrow(addressType),
-        Rack_ ? MakeNullable(Rack_->GetName()) : Null,
-        (Rack_ && Rack_->GetDataCenter()) ? MakeNullable(Rack_->GetDataCenter()->GetName()) : Null,
+        Rack_ ? std::make_optional(Rack_->GetName()) : std::nullopt,
+        (Rack_ && Rack_->GetDataCenter()) ? std::make_optional(Rack_->GetDataCenter()->GetName()) : std::nullopt,
         std::vector<TString>(Tags_.begin(), Tags_.end()));
 }
 
@@ -629,7 +629,7 @@ void TNode::AddSessionHint(int mediumIndex, ESessionType sessionType)
 
 int TNode::GetHintedSessionCount(int mediumIndex) const
 {
-    return SessionCount_[mediumIndex].Get(0) +
+    return SessionCount_[mediumIndex].value_or(0) +
         HintedUserSessionCount_[mediumIndex] +
         HintedReplicationSessionCount_[mediumIndex] +
         HintedRepairSessionCount_[mediumIndex];
@@ -719,8 +719,8 @@ void TNode::Reset()
         queue.clear();
     }
     ChunkSealQueue_.clear();
-    FillFactorIterators_.fill(Null);
-    LoadFactorIterators_.fill(Null);
+    FillFactorIterators_.fill(std::nullopt);
+    LoadFactorIterators_.fill(std::nullopt);
 
     ClearCellStatistics();
 }
@@ -767,18 +767,18 @@ bool TNode::HasMedium(int mediumIndex) const
     return it != locations.end();
 }
 
-TNullable<double> TNode::GetFillFactor(int mediumIndex) const
+std::optional<double> TNode::GetFillFactor(int mediumIndex) const
 {
     return FillFactors_[mediumIndex];
 }
 
-TNullable<double> TNode::GetLoadFactor(int mediumIndex) const
+std::optional<double> TNode::GetLoadFactor(int mediumIndex) const
 {
     // NB: Avoid division by zero.
     return SessionCount_[mediumIndex]
-        ? MakeNullable(static_cast<double>(GetHintedSessionCount(mediumIndex)) /
+        ? std::make_optional(static_cast<double>(GetHintedSessionCount(mediumIndex)) /
             std::max(IOWeights_[mediumIndex], 0.000000001))
-        : Null;
+        : std::nullopt;
 }
 
 TNode::TFillFactorIterator TNode::GetFillFactorIterator(int mediumIndex)

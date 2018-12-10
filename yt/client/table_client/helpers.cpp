@@ -132,7 +132,7 @@ TUnversionedOwningRow YsonToSchemalessRow(const TString& valueYson)
     auto values = ConvertTo<std::vector<INodePtr>>(TYsonString(valueYson, EYsonType::ListFragment));
     for (const auto& value : values) {
         int id = value->Attributes().Get<int>("id");
-        bool aggregate = value->Attributes().Find<bool>("aggregate").Get(false);
+        bool aggregate = value->Attributes().Get<bool>("aggregate", false);
         YTreeNodeToUnversionedValue(&builder, value, id, aggregate);
     }
 
@@ -175,7 +175,7 @@ TVersionedRow YsonToVersionedRow(
     for (auto value : values) {
         int id = value->Attributes().Get<int>("id");
         auto timestamp = value->Attributes().Get<TTimestamp>("ts");
-        bool aggregate = value->Attributes().Find<bool>("aggregate").Get(false);
+        bool aggregate = value->Attributes().Get<bool>("aggregate", false);
         switch (value->GetType()) {
             case ENodeType::Entity:
                 builder.AddValue(MakeVersionedSentinelValue(EValueType::Null, timestamp, id, aggregate));
@@ -985,7 +985,7 @@ void UnversionedValueToMapImpl(
         const std::function<google::protobuf::Message*(TString)> Appender_;
         const TProtobufMessageType* const Type_;
 
-        TNullable<TString> Key_;
+        std::optional<TString> Key_;
         std::unique_ptr<IYsonConsumer> Underlying_;
         int Depth_ = 0;
 
@@ -1020,7 +1020,7 @@ void UnversionedValueToMapImpl(
                     value->GetTypeName());
             }
             Underlying_.reset();
-            Key_.Reset();
+            Key_.reset();
         }
     } consumer(std::move(appender), type);
 

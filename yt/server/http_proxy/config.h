@@ -28,7 +28,7 @@ public:
     bool Enable;
     bool Announce;
 
-    TNullable<TString> PublicFqdn;
+    std::optional<TString> PublicFqdn;
 
     TDuration HeartbeatInterval;
     TDuration DeathAge;

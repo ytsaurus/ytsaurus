@@ -139,15 +139,15 @@ bool HasProtoExtension(const NProto::TExtensionSet& extensions)
 }
 
 template <class T>
-TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
+std::optional<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
 {
-    TNullable<T> result;
+    std::optional<T> result;
     i32 tag = TProtoExtensionTag<T>::Value;
     for (const auto& extension : extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
-            result.Assign(T());
-            DeserializeProto(&result.Get(), TRef::FromString(data));
+            result.emplace();
+            DeserializeProto(&*result, TRef::FromString(data));
             break;
         }
     }

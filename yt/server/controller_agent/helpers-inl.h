@@ -37,9 +37,9 @@ TAvgSummary<T>::TAvgSummary(T sum, i64 count)
 { }
 
 template <class T>
-TNullable<T> TAvgSummary<T>::CalcAvg()
+std::optional<T> TAvgSummary<T>::CalcAvg()
 {
-    return Count_ == 0 ? TNullable<T>() : Sum_ / Count_;
+    return Count_ == 0 ? std::optional<T>() : Sum_ / Count_;
 }
 
 template <class T>

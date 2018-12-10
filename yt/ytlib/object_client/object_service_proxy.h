@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/ytree/ypath_client.h>
 
@@ -77,7 +77,7 @@ private:
             // True if the message contains a mutating request and has the
             // 'retry' flag set to false.
             bool NeedsPatchingForRetry = false;
-            TNullable<size_t> Hash;
+            std::optional<size_t> Hash;
         };
 
         std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
@@ -104,7 +104,7 @@ public:
         //! Overrides base method for fluent use.
         //! NB: the timeout only affects subbatch requests. The complete batch request
         //! time is essentially unbounded.
-        TReqExecuteBatchPtr SetTimeout(TNullable<TDuration> timeout);
+        TReqExecuteBatchPtr SetTimeout(std::optional<TDuration> timeout);
 
         //! Sets the upstream sync suppression option.
         TReqExecuteBatchPtr SetSuppressUpstreamSync(bool value);
@@ -123,7 +123,7 @@ public:
         TReqExecuteBatchPtr AddRequest(
             NYTree::TYPathRequestPtr innerRequest,
             const TString& key = TString(),
-            TNullable<size_t> hash = Null);
+            std::optional<size_t> hash = std::nullopt);
 
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
         //! #needsPatchingForRetry should be true iff the message contains a mutating request with
@@ -132,7 +132,7 @@ public:
             TSharedRefArray innerRequestMessage,
             bool needsPatchingForRetry,
             const TString& key = TString(),
-            TNullable<size_t> hash = Null);
+            std::optional<size_t> hash = std::nullopt);
 
     private:
         std::multimap<TString, int> KeyToIndexes_;
@@ -211,7 +211,7 @@ public:
 
         //! Returns the individual generic response with a given key or NULL if no request with
         //! this key is known. At most one such response must exist.
-        TNullable<TErrorOr<NYTree::TYPathResponsePtr>> FindResponse(const TString& key) const;
+        std::optional<TErrorOr<NYTree::TYPathResponsePtr>> FindResponse(const TString& key) const;
 
         //! Returns the individual generic response with a given key.
         //! Such a response must be unique.
@@ -220,7 +220,7 @@ public:
         //! Returns the individual response with a given key or NULL if no request with
         //! this key is known. At most one such response must exist.
         template <class TTypedResponse>
-        TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> FindResponse(const TString& key) const;
+        std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> FindResponse(const TString& key) const;
 
         //! Returns the individual response with a given key.
         //! Such a response must be unique.
@@ -238,7 +238,7 @@ public:
         TSharedRefArray GetResponseMessage(int index) const;
 
         //! Returns revision of specified response.
-        TNullable<i64> GetRevision(int index) const;
+        std::optional<i64> GetRevision(int index) const;
 
     private:
         friend class TReqExecuteSubbatch;

@@ -30,13 +30,13 @@ int TGpuSlot::GetDeviceNumber() const
 
 static const TString DevNvidia("/dev/nvidia");
 
-TNullable<int> GetDeviceNumber(const TString& deviceName)
+std::optional<int> GetDeviceNumber(const TString& deviceName)
 {
     int deviceNumber;
     if (TryFromString(deviceName.data() + DevNvidia.length(), deviceNumber)) {
         return deviceNumber;
     } else {
-        return Null;
+        return std::nullopt;
     }
 }
 

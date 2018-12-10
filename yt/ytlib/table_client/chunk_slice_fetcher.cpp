@@ -195,11 +195,11 @@ private:
         const auto& rsp = rspOrError.Value();
 
         // We keep reader in the scope as a holder for a wire reader and uncompressed attachment.
-        TNullable<TKeySetReader> keysReader;
+        std::optional<TKeySetReader> keysReader;
         NYT::TRange<TKey> keys;
         if (rsp->keys_in_attachment()) {
             YCHECK(rsp->Attachments().size() == 1);
-            keysReader.Emplace(rsp->Attachments().front());
+            keysReader.emplace(rsp->Attachments().front());
             keys = keysReader->GetKeys();
         }
 

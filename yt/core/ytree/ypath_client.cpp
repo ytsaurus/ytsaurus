@@ -370,7 +370,7 @@ void ExecuteVerb(
 TFuture<TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys)
+    const std::optional<std::vector<TString>>& attributeKeys)
 {
     auto request = TYPathProxy::Get(path);
     if (attributeKeys) {
@@ -393,7 +393,7 @@ TString SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
 TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys)
+    const std::optional<std::vector<TString>>& attributeKeys)
 {
     return
         AsyncYPathGet(
@@ -455,7 +455,7 @@ void SyncYPathRemove(
 std::vector<TString> SyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
-    TNullable<i64> limit)
+    std::optional<i64> limit)
 {
     return AsyncYPathList(service, path, limit)
         .Get()
@@ -465,7 +465,7 @@ std::vector<TString> SyncYPathList(
 TFuture<std::vector<TString>> AsyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
-    TNullable<i64> limit)
+    std::optional<i64> limit)
 {
     auto request = TYPathProxy::List(path);
     if (limit) {

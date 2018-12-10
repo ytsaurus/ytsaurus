@@ -119,7 +119,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
             {
                 // Default value of sizeof(TTimestamp) = 8 is used for versioned chunks that were written before
                 // we started to save the timestamp statistics to columnar statistics extension.
-                totalColumnDataWeight += statistics.TimestampTotalWeight.Get(sizeof(TTimestamp));
+                totalColumnDataWeight += statistics.TimestampTotalWeight.value_or(sizeof(TTimestamp));
             } else {
                 THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an old table format")
                     << TErrorAttribute("chunk_id", chunk->ChunkId())

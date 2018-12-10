@@ -98,7 +98,7 @@ protected:
 
     IBlackboxServicePtr CreateDefaultBlackboxService(TDefaultBlackboxServiceConfigPtr config = {})
     {
-        return CreateDefaultBlackboxService(
+        return NAuth::CreateDefaultBlackboxService(
             config ? config : CreateDefaultBlackboxServiceConfig(),
             CreateThreadPoolPoller(1, "HttpPoller"));
     }

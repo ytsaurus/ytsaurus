@@ -114,7 +114,7 @@ private:
                 .ValueOrThrow();
         }
 
-        return TNetworkAddress(address, parsedUrl.Port.Get(DefaultHttpPort));
+        return TNetworkAddress(address, parsedUrl.Port.value_or(DefaultHttpPort));
     }
 
     std::pair<THttpOutputPtr, THttpInputPtr> OpenHttp(const TNetworkAddress& address)

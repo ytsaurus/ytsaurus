@@ -56,8 +56,8 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     auto channel = GetStickyChannel();
     const auto& config = connection->GetConfig();
 
-    auto timeout = options.Timeout.Get(config->DefaultTransactionTimeout);
-    auto pingPeriod = options.PingPeriod.Get(config->DefaultPingPeriod);
+    auto timeout = options.Timeout.value_or(config->DefaultTransactionTimeout);
+    auto pingPeriod = options.PingPeriod.value_or(config->DefaultPingPeriod);
 
     TApiServiceProxy proxy(channel);
 
@@ -516,7 +516,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     TApiServiceProxy proxy(GetChannel());
 
     auto req = proxy.SelectRows();
-    req->SetTimeout(options.Timeout.Get(GetRpcProxyConnection()->GetConfig()->DefaultSelectRowsTimeout));
+    req->SetTimeout(options.Timeout.value_or(GetRpcProxyConnection()->GetConfig()->DefaultSelectRowsTimeout));
 
     req->set_query(query);
 

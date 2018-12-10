@@ -64,7 +64,7 @@ NTabletClient::TTabletInfoPtr GetSortedTabletForRow(
 NTabletClient::TTabletInfoPtr GetOrderedTabletForRow(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const NTabletClient::TTabletInfoPtr& randomTabletInfo,
-    TNullable<int> tabletIndexColumnId,
+    std::optional<int> tabletIndexColumnId,
     NTableClient::TKey key,
     bool validateWrite = false);
 

@@ -30,7 +30,7 @@ class TServiceCombiner::TImpl
 public:
     TImpl(
         std::vector<IYPathServicePtr> services,
-        TNullable<TDuration> keysUpdatePeriod)
+        std::optional<TDuration> keysUpdatePeriod)
         : Services_(std::move(services))
     {
         auto workerInvoker = TDispatcher::Get()->GetHeavyInvoker();
@@ -289,7 +289,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, TNullable<TDuration> keysUpdatePeriod)
+TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, std::optional<TDuration> keysUpdatePeriod)
     : Impl_(New<TImpl>(std::move(services), keysUpdatePeriod))
 { }
 

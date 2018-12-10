@@ -150,13 +150,13 @@ struct TJobSummary
     TJobId Id;
     EJobState State = EJobState::None;
 
-    TNullable<TInstant> FinishTime;
-    TNullable<TDuration> PrepareDuration;
-    TNullable<TDuration> DownloadDuration;
-    TNullable<TDuration> ExecDuration;
+    std::optional<TInstant> FinishTime;
+    std::optional<TDuration> PrepareDuration;
+    std::optional<TDuration> DownloadDuration;
+    std::optional<TDuration> ExecDuration;
 
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
-    TNullable<NJobTrackerClient::TStatistics> Statistics;
+    std::optional<NJobTrackerClient::TStatistics> Statistics;
     NYson::TYsonString StatisticsYson;
 
     bool LogAndProfile = false;
@@ -283,7 +283,7 @@ struct TScheduleJobResult
     bool IsBackoffNeeded() const;
     bool IsScheduleStopNeeded() const;
 
-    TNullable<TJobStartDescriptor> StartDescriptor;
+    std::optional<TJobStartDescriptor> StartDescriptor;
     TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
     TDuration Duration;
     TIncarnationId IncarnationId;
@@ -632,7 +632,7 @@ struct IOperationController
 
     virtual void RegisterOutputRows(i64 count, int tableIndex) = 0;
 
-    virtual TNullable<int> GetRowCountLimitTableIndex() = 0;
+    virtual std::optional<int> GetRowCountLimitTableIndex() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

@@ -244,8 +244,8 @@ public:
             SerializedMeta_ = serializedMeta;
 
             TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
-                ? Null
-                : MakeNullable(header.TruncatedRecordCount);
+                ? std::nullopt
+                : std::make_optional(header.TruncatedRecordCount);
 
             ReadIndex(dataFile, header);
             ReadChangelogUntilEnd(dataFile, header);
@@ -259,7 +259,7 @@ public:
 
         LOG_DEBUG("Changelog opened (RecordCount: %v, Truncated: %v)",
             RecordCount_,
-            TruncatedRecordCount_.HasValue());
+            TruncatedRecordCount_.operator bool());
     }
 
     void Close()
@@ -685,7 +685,7 @@ private:
                 TruncatedRecordCount_ ? *TruncatedRecordCount_ : TChangelogHeader::NotTruncatedRecordCount,
                 Alignment_);
 
-            auto data = TAsyncFileChangelogIndex::AllocateAligned<TNull>(header.HeaderSize, false, Alignment_);
+            auto data = TAsyncFileChangelogIndex::AllocateAligned<std::nullopt_t>(header.HeaderSize, false, Alignment_);
             ::memcpy(data.Begin(), &header, sizeof(header));
             ::memcpy(data.Begin() + sizeof(header), SerializedMeta_.Begin(), SerializedMeta_.Size());
 
@@ -699,8 +699,8 @@ private:
     {
         NFS::ExpectIOErrors([&] () {
             auto truncatedRecordCount = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
-                ? Null
-                : MakeNullable(header.TruncatedRecordCount);
+                ? std::nullopt
+                : std::make_optional(header.TruncatedRecordCount);
 
             IndexFile_.Read(truncatedRecordCount);
             auto correctPrefixSize = ComputeValidIndexPrefix(IndexFile_.Records(), header, &*dataFile);
@@ -742,7 +742,7 @@ private:
         });
 
         TCheckedReader<TFileWrapper> dataReader(*dataFile);
-        TNullable<TRecordInfo> lastCorrectRecordInfo;
+        std::optional<TRecordInfo> lastCorrectRecordInfo;
 
         if (!IndexFile_.IsEmpty()) {
             // Skip the first index record.
@@ -806,7 +806,7 @@ private:
         if (correctSize > CurrentFilePosition_) {
             YCHECK(lastCorrectRecordInfo);
 
-            auto totalRecordSize =  lastCorrectRecordInfo.Get().TotalSize;
+            auto totalRecordSize =  lastCorrectRecordInfo->TotalSize;
             auto offset = CurrentFilePosition_ - totalRecordSize;
             TFileWrapper file(FileName_, RdWr);
             TChangelogRecordHeader header;
@@ -851,7 +851,7 @@ private:
     TError Error_;
     bool Open_ = false;
     int RecordCount_ = -1;
-    TNullable<int> TruncatedRecordCount_;
+    std::optional<int> TruncatedRecordCount_;
     i64 CurrentFilePosition_ = -1;
 
     TChangelogMeta Meta_;

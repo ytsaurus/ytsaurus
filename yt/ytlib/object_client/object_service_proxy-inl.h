@@ -30,12 +30,12 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
 }
 
 template <class TTypedResponse>
-TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
+std::optional<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
 {
     YCHECK(!key.empty());
     auto range = KeyToIndexes_.equal_range(key);
     if (range.first == range.second) {
-        return Null;
+        return std::nullopt;
     }
     auto it = range.first;
     int index = it->second;

@@ -286,8 +286,8 @@ TString ToString(const TInputChunkPtr& inputChunk)
         inputChunk->GetCompressedDataSize(),
         inputChunk->GetDataWeight(),
         inputChunk->GetMaxBlockSize(),
-        inputChunk->LowerLimit() ? MakeNullable(*inputChunk->LowerLimit()) : Null,
-        inputChunk->UpperLimit() ? MakeNullable(*inputChunk->UpperLimit()) : Null,
+        inputChunk->LowerLimit() ? std::make_optional(*inputChunk->LowerLimit()) : std::nullopt,
+        inputChunk->UpperLimit() ? std::make_optional(*inputChunk->UpperLimit()) : std::nullopt,
         inputChunk->BoundaryKeys() ? boundaryKeys : "",
         inputChunk->PartitionsExt() ? inputChunk->PartitionsExt()->ShortDebugString() : "");
 }

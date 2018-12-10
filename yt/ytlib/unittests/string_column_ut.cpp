@@ -28,34 +28,34 @@ class TUnversionedStringColumnTest
     : public TUnversionedColumnTestBase<TString>
 {
 protected:
-    std::vector<TNullable<TString>> CreateDirectDense()
+    std::vector<std::optional<TString>> CreateDirectDense()
     {
-        return  {Null, A, B};
+        return  {std::nullopt, A, B};
     }
 
-    std::vector<TNullable<TString>> CreateDictionaryDense()
+    std::vector<std::optional<TString>> CreateDictionaryDense()
     {
-        return  {Abra, Bara, Null, Bara, Abra};
+        return  {Abra, Bara, std::nullopt, Bara, Abra};
     }
 
-    std::vector<TNullable<TString>> CreateDirectRle()
+    std::vector<std::optional<TString>> CreateDirectRle()
     {
-        // 50 * [B] + Null + 50 * [A]
-        std::vector<TNullable<TString>> values;
+        // 50 * [B] + null + 50 * [A]
+        std::vector<std::optional<TString>> values;
         AppendVector(&values, MakeVector(50, B));
-        values.push_back(Null);
+        values.push_back(std::nullopt);
         AppendVector(&values, MakeVector(50, A));
         return values;
     }
 
-    std::vector<TNullable<TString>> CreateDictionaryRle()
+    std::vector<std::optional<TString>> CreateDictionaryRle()
     {
-        // [ 50 * [A] + 50 * [B] + Null ] * 10
-        std::vector<TNullable<TString>> values;
+        // [ 50 * [A] + 50 * [B] + null ] * 10
+        std::vector<std::optional<TString>> values;
         for (int i = 0; i < 10; ++i) {
             AppendVector(&values, MakeVector(50, A));
             AppendVector(&values, MakeVector(50, B));
-            values.push_back(Null);
+            values.push_back(std::nullopt);
         }
         return values;
     }
@@ -114,13 +114,13 @@ TEST_F(TUnversionedStringColumnTest, GetEqualRange)
     EXPECT_EQ(std::make_pair(7L, 8L), Reader_->GetEqualRange(MakeValue(Abra), 7, 50));
     EXPECT_EQ(std::make_pair(8L, 50L), Reader_->GetEqualRange(MakeValue(B), 7, 50));
 
-    EXPECT_EQ(std::make_pair(1118L, 1119L), Reader_->GetEqualRange(MakeValue(Null), 1118, 1119));
+    EXPECT_EQ(std::make_pair(1118L, 1119L), Reader_->GetEqualRange(MakeValue(std::nullopt), 1118, 1119));
     EXPECT_EQ(std::make_pair(1119L, 1119L), Reader_->GetEqualRange(MakeValue(A), 1118, 1119));
 }
 
 TEST_F(TUnversionedStringColumnTest, ReadValues)
 {
-    std::vector<TNullable<TString>> expectedValues;
+    std::vector<std::optional<TString>> expectedValues;
     AppendVector(&expectedValues, CreateDirectDense());
     AppendVector(&expectedValues, CreateDictionaryDense());
     AppendVector(&expectedValues, CreateDirectRle());
@@ -135,7 +135,7 @@ TEST_F(TUnversionedStringColumnTest, ReadLast)
 
     auto actual = AllocateRows(1);
     Reader_->ReadValues(TMutableRange<TMutableVersionedRow>(actual.data(), actual.size()));
-    EXPECT_EQ(MakeValue(Null), *actual.front().BeginKeys());
+    EXPECT_EQ(MakeValue(std::nullopt), *actual.front().BeginKeys());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

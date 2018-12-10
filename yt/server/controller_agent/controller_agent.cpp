@@ -522,7 +522,7 @@ public:
 
     TFuture<TOperationControllerInitializeResult> InitializeOperation(
         const TOperationPtr& operation,
-        const TNullable<TControllerTransactionIds>& transactions)
+        const std::optional<TControllerTransactionIds>& transactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -1049,13 +1049,13 @@ private:
                     ToProto(protoEvent->mutable_error(), event.Error);
                 }
                 if (event.ArchiveJobSpec) {
-                    protoEvent->set_archive_job_spec(event.ArchiveJobSpec.Get());
+                    protoEvent->set_archive_job_spec(*event.ArchiveJobSpec);
                 }
                 if (event.ArchiveStderr) {
-                    protoEvent->set_archive_stderr(event.ArchiveStderr.Get());
+                    protoEvent->set_archive_stderr(*event.ArchiveStderr);
                 }
                 if (event.ArchiveFailContext) {
-                    protoEvent->set_archive_fail_context(event.ArchiveFailContext.Get());
+                    protoEvent->set_archive_fail_context(*event.ArchiveFailContext);
                 }
             });
 
@@ -1606,7 +1606,7 @@ TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(const TOperatio
 
 TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(
     const TOperationPtr& operation,
-    const TNullable<TControllerTransactionIds>& transactions)
+    const std::optional<TControllerTransactionIds>& transactions)
 {
     return Impl_->InitializeOperation(
         operation,

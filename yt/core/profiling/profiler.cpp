@@ -2,7 +2,7 @@
 #include "profile_manager.h"
 #include "timing.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/farm_hash.h>
 
 #include <yt/core/ypath/token.h>
@@ -229,26 +229,26 @@ TDuration TProfiler::TimingStop(
     TTimer& timer,
     TStringBuf key) const
 {
-    return DoTimingStop(timer, key, Null);
+    return DoTimingStop(timer, key, std::nullopt);
 }
 
 TDuration TProfiler::TimingStop(
     TTimer& timer,
     const TTagIdList& totalTagIds) const
 {
-    return DoTimingStop(timer, Null, totalTagIds);
+    return DoTimingStop(timer, std::nullopt, totalTagIds);
 }
 
 TDuration TProfiler::TimingStop(
     TTimer& timer) const
 {
-    return DoTimingStop(timer, Null, Null);
+    return DoTimingStop(timer, std::nullopt, std::nullopt);
 }
 
 TDuration TProfiler::DoTimingStop(
     TTimer& timer,
-    const TNullable<TStringBuf>& key,
-    const TNullable<TTagIdList>& totalTagIds) const
+    const std::optional<TStringBuf>& key,
+    const std::optional<TTagIdList>& totalTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
     Y_ASSERT(timer.Start_ != 0);
@@ -271,20 +271,20 @@ TDuration TProfiler::TimingCheckpoint(
     TTimer& timer,
     TStringBuf key) const
 {
-    return DoTimingCheckpoint(timer, key, Null);
+    return DoTimingCheckpoint(timer, key, std::nullopt);
 }
 
 TDuration TProfiler::TimingCheckpoint(
     TTimer& timer,
     const TTagIdList& tagIds) const
 {
-    return DoTimingCheckpoint(timer, Null, tagIds);
+    return DoTimingCheckpoint(timer, std::nullopt, tagIds);
 }
 
 TDuration TProfiler::DoTimingCheckpoint(
     TTimer& timer,
-    const TNullable<TStringBuf>& key,
-    const TNullable<TTagIdList>& checkpointTagIds) const
+    const std::optional<TStringBuf>& key,
+    const std::optional<TTagIdList>& checkpointTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
     Y_ASSERT(timer.Start_ != 0);

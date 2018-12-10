@@ -228,18 +228,18 @@ TRequestId TServiceContextBase::GetRequestId() const
     return RequestId_;
 }
 
-TNullable<TInstant> TServiceContextBase::GetStartTime() const
+std::optional<TInstant> TServiceContextBase::GetStartTime() const
 {
     return RequestHeader_->has_start_time()
-        ? MakeNullable(FromProto<TInstant>(RequestHeader_->start_time()))
-        : Null;
+        ? std::make_optional(FromProto<TInstant>(RequestHeader_->start_time()))
+        : std::nullopt;
 }
 
-TNullable<TDuration> TServiceContextBase::GetTimeout() const
+std::optional<TDuration> TServiceContextBase::GetTimeout() const
 {
     return RequestHeader_->has_timeout()
-        ? MakeNullable(FromProto<TDuration>(RequestHeader_->timeout()))
-        : Null;
+        ? std::make_optional(FromProto<TDuration>(RequestHeader_->timeout()))
+        : std::nullopt;
 }
 
 bool TServiceContextBase::IsRetry() const
@@ -343,12 +343,12 @@ TRequestId TServiceContextWrapper::GetRequestId() const
     return UnderlyingContext_->GetRequestId();
 }
 
-TNullable<TInstant> TServiceContextWrapper::GetStartTime() const
+std::optional<TInstant> TServiceContextWrapper::GetStartTime() const
 {
     return UnderlyingContext_->GetStartTime();
 }
 
-TNullable<TDuration> TServiceContextWrapper::GetTimeout() const
+std::optional<TDuration> TServiceContextWrapper::GetTimeout() const
 {
     return UnderlyingContext_->GetTimeout();
 }

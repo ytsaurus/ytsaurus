@@ -283,8 +283,8 @@ private:
 
         auto* mailbox = FindMailbox(srcCellId);
         auto lastOutcomingMessageId = mailbox
-            ? MakeNullable(mailbox->GetFirstOutcomingMessageId() + static_cast<int>(mailbox->OutcomingMessages().size()) - 1)
-            : Null;
+            ? std::make_optional(mailbox->GetFirstOutcomingMessageId() + static_cast<int>(mailbox->OutcomingMessages().size()) - 1)
+            : std::nullopt;
 
         if (lastOutcomingMessageId) {
             response->set_last_outcoming_message_id(*lastOutcomingMessageId);
@@ -669,7 +669,7 @@ private:
 
         return &CellIdToNextTransientIncomingMessageId_.emplace(
             cellId,
-            GetNextPersistentIncomingMessageId(cellId).Get(0)).first->second;
+            GetNextPersistentIncomingMessageId(cellId).value_or(0)).first->second;
     }
 
     TMessageId GetNextTransientIncomingMessageId(TMailbox* mailbox)
@@ -680,10 +680,10 @@ private:
             : it->second;
     }
 
-    TNullable<TMessageId> GetNextPersistentIncomingMessageId(const TCellId& cellId)
+    std::optional<TMessageId> GetNextPersistentIncomingMessageId(const TCellId& cellId)
     {
         auto* mailbox = FindMailbox(cellId);
-        return mailbox ? MakeNullable(mailbox->GetNextIncomingMessageId()) : Null;
+        return mailbox ? std::make_optional(mailbox->GetNextIncomingMessageId()) : std::nullopt;
     }
 
 
@@ -771,8 +771,8 @@ private:
 
         const auto& rsp = rspOrError.Value();
         auto lastOutcomingMessageId = rsp->has_last_outcoming_message_id()
-            ? MakeNullable(rsp->last_outcoming_message_id())
-            : Null;
+            ? std::make_optional(rsp->last_outcoming_message_id())
+            : std::nullopt;
 
         LOG_DEBUG("Periodic ping succeeded (SrcCellId: %v, DstCellId: %v, LastOutcomingMessageId: %v)",
             SelfCellId_,
@@ -996,8 +996,8 @@ private:
 
         const auto& rsp = rspOrError.Value();
         auto nextPersistentIncomingMessageId = rsp->has_next_persistent_incoming_message_id()
-            ? MakeNullable(rsp->next_persistent_incoming_message_id())
-            : Null;
+            ? std::make_optional(rsp->next_persistent_incoming_message_id())
+            : std::nullopt;
         auto nextTransientIncomingMessageId = rsp->next_transient_incoming_message_id();
         LOG_DEBUG("Outcoming reliable messages posted (SrcCellId: %v, DstCellId: %v, "
             "NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v)",

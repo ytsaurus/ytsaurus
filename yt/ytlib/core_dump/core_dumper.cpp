@@ -6,7 +6,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/core_dumper.h>
 
 #include <util/system/mutex.h>

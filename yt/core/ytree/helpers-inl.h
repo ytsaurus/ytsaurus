@@ -38,7 +38,7 @@ T IAttributeDictionary::GetAndRemove(const TString& key)
 template <class T>
 T IAttributeDictionary::Get(const TString& key, const T& defaultValue) const
 {
-    return Find<T>(key).Get(defaultValue);
+    return Find<T>(key).value_or(defaultValue);
 }
 
 template <class T>
@@ -54,11 +54,11 @@ T IAttributeDictionary::GetAndRemove(const TString& key, const T& defaultValue)
 }
 
 template <class T>
-typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const TString& key) const
+typename TOptionalTraits<T>::TOptional IAttributeDictionary::Find(const TString& key) const
 {
     auto yson = FindYson(key);
     if (!yson) {
-        return typename TNullableTraits<T>::TNullableType();
+        return typename TOptionalTraits<T>::TOptional();
     }
     try {
         return ConvertTo<T>(yson);
@@ -70,7 +70,7 @@ typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const TStr
 }
 
 template <class T>
-typename TNullableTraits<T>::TNullableType IAttributeDictionary::FindAndRemove(const TString& key)
+typename TOptionalTraits<T>::TOptional IAttributeDictionary::FindAndRemove(const TString& key)
 {
     auto result = Find<T>(key);
     if (result) {

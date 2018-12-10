@@ -327,10 +327,10 @@ public:
         return Underlying_->full_name();
     }
 
-    TNullable<int> FindValueByLiteral(TStringBuf literal) const
+    std::optional<int> FindValueByLiteral(TStringBuf literal) const
     {
         auto it = LiteralToValue_.find(literal);
-        return it == LiteralToValue_.end() ? Null : MakeNullable(it->second);
+        return it == LiteralToValue_.end() ? std::nullopt : std::make_optional(it->second);
     }
 
     TStringBuf FindLiteralByValue(int value) const
@@ -1804,8 +1804,8 @@ private:
             auto entryLength = readVarint64();
             LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(entryLength)));
 
-            TNullable<TStringBuf> key;
-            TNullable<TStringBuf> value;
+            std::optional<TStringBuf> key;
+            std::optional<TStringBuf> value;
             while (true) {
                 auto tag = CodedStream_.ReadTag();
                 if (tag == 0) {

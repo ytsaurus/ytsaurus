@@ -94,7 +94,7 @@ struct IOperationController
 
     //! Invokes IOperationControllerSchedulerHost::InitializeReviving or InitializeClean asynchronously.
     virtual TFuture<TOperationControllerInitializeResult> Initialize(
-        const TNullable<TOperationTransactions>& transactions) = 0;
+        const std::optional<TOperationTransactions>& transactions) = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Prepare asynchronously.
     virtual TFuture<TOperationControllerPrepareResult> Prepare() = 0;

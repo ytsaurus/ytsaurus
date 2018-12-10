@@ -295,7 +295,7 @@ private:
             // NB: Requests without timeout are rare but may occur.
             // For these requests we still need to register a timeout cookie with TDelayedExecutor
             // since this also provides proper cleanup and cancelation when global shutdown happens.
-            auto effectiveTimeout = options.Timeout.Get(TDuration::Hours(24));
+            auto effectiveTimeout = options.Timeout.value_or(TDuration::Hours(24));
             auto timeoutCookie = TDelayedExecutor::Submit(
                 BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
                 effectiveTimeout);
@@ -753,7 +753,7 @@ private:
         TClientRequestControl(
             TSessionPtr session,
             IClientRequestPtr request,
-            TNullable<TDuration> timeout,
+            std::optional<TDuration> timeout,
             IClientResponseHandlerPtr responseHandler)
             : Session_(std::move(session))
             , RealmId_(request->GetRealmId())
@@ -790,7 +790,7 @@ private:
             return RequestId_;
         }
 
-        TNullable<TDuration> GetTimeout() const
+        std::optional<TDuration> GetTimeout() const
         {
             return Timeout_;
         }
@@ -875,7 +875,7 @@ private:
         const TString Service_;
         const TString Method_;
         const TRequestId RequestId_;
-        const TNullable<TDuration> Timeout_;
+        const std::optional<TDuration> Timeout_;
         TSession::TMethodMetadata* const MethodMetadata_;
 
         TDelayedExecutorCookie TimeoutCookie_;

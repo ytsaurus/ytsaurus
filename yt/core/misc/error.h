@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "property.h"
-#include "nullable.h"
+#include "optional.h"
 
 #include <yt/core/yson/string.h>
 
@@ -94,7 +94,7 @@ public:
 
     void ThrowOnError() const;
 
-    TNullable<TError> FindMatching(TErrorCode code) const;
+    std::optional<TError> FindMatching(TErrorCode code) const;
 
     template <class... TArgs>
     TError Wrap(TArgs&&... args) const;
@@ -278,7 +278,7 @@ public:
     T&& ValueOrThrow() &&;
 
 private:
-    TNullable<T> Value_;
+    std::optional<T> Value_;
 
 };
 

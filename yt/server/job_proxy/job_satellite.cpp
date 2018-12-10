@@ -260,7 +260,7 @@ void TJobProbeTools::Init(const TJobId& jobId)
     ShellManager_ = CreateShellManager(
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
-        EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>("user_job_" + ToString(jobId)) : TNullable<TString>(),
+        EnvironmentType_ == EJobEnvironmentType::Cgroups ? std::optional<TString>("user_job_" + ToString(jobId)) : std::optional<TString>(),
         Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, AsStringBuf("\n"))),
         std::move(shellEnvironment));
 }

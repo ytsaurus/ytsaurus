@@ -143,12 +143,12 @@ private:
         }
 
 
-        TNullable<TDuration> ComputeAttemptTimeout(TInstant now)
+        std::optional<TDuration> ComputeAttemptTimeout(TInstant now)
         {
             auto attemptDeadline = Options_.Timeout ? now + *Options_.Timeout : TInstant::Max();
             auto actualDeadline = std::min(Deadline_, attemptDeadline);
             return actualDeadline == TInstant::Max()
-                ? TNullable<TDuration>(Null)
+                ? std::optional<TDuration>(std::nullopt)
                 : actualDeadline - now;
         }
 

@@ -39,17 +39,17 @@ private:
 
     TJobProxy* JobProxy_;
 
-    TNullable<TDuration> CheckedTimeInterval_;
+    std::optional<TDuration> CheckedTimeInterval_;
     double AggregatedSmoothedCpuUsage_ = 0;
     double AggregatedMaxCpuUsage_ = 0;
     double AggregatedPreemptableCpu_ = 0;
 
     const double HardLimit_;
     double SoftLimit_;
-    TNullable<double> SmoothedUsage_;
+    std::optional<double> SmoothedUsage_;
 
-    TNullable<TInstant> LastCheckTime_;
-    TNullable<TDuration> LastTotalCpu_;
+    std::optional<TInstant> LastCheckTime_;
+    std::optional<TDuration> LastTotalCpu_;
 
     std::deque<ECpuMonitorVote> Votes_;
 
@@ -57,7 +57,7 @@ private:
 
     bool TryUpdateSmoothedValue();
     void UpdateVotes();
-    TNullable<double> TryMakeDecision();
+    std::optional<double> TryMakeDecision();
     void UpdateAggregates();
 
     void DoCheck();

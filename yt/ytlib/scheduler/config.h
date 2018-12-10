@@ -39,20 +39,20 @@ const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
 class TPoolName
 {
 public:
-    TPoolName();
-    TPoolName(TString pool, TNullable<TString> parent);
+    TPoolName() = default;
+    TPoolName(TString pool, std::optional<TString> parent);
 
-    static const char DELIMITER;
+    static const char Delimiter;
 
     TString ToString() const;
     static TPoolName FromString(const TString& value);
 
     const TString& GetPool() const;
-    const TNullable<TString>& GetParentPool() const;
+    const std::optional<TString>& GetParentPool() const;
 
 private:
     TString Pool;
-    TNullable<TString> ParentPool;
+    std::optional<TString> ParentPool;
 };
 
 void Deserialize(TPoolName& value, NYTree::INodePtr node);
@@ -77,11 +77,11 @@ class TResourceLimitsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<int> UserSlots;
-    TNullable<double> Cpu;
-    TNullable<int> Network;
-    TNullable<i64> Memory;
-    TNullable<int> Gpu;
+    std::optional<int> UserSlots;
+    std::optional<double> Cpu;
+    std::optional<int> Network;
+    std::optional<i64> Memory;
+    std::optional<int> Gpu;
 
     TResourceLimitsConfig();
 };
@@ -94,28 +94,28 @@ class TSchedulableConfig
     : public TSupportsSchedulingTagsConfig
 {
 public:
-    TNullable<double> Weight;
+    std::optional<double> Weight;
 
     // Specifies resource limits in terms of a share of all cluster resources.
-    TNullable<double> MaxShareRatio;
+    std::optional<double> MaxShareRatio;
     // Specifies resource limits in absolute values.
     TResourceLimitsConfigPtr ResourceLimits;
 
     // Specifies guaranteed resources in terms of a share of all cluster resources.
-    TNullable<double> MinShareRatio;
+    std::optional<double> MinShareRatio;
     // Specifies guaranteed resources in absolute values.
     TResourceLimitsConfigPtr MinShareResources;
 
     // The following settings override scheduler configuration.
-    TNullable<TDuration> MinSharePreemptionTimeout;
-    TNullable<TDuration> FairSharePreemptionTimeout;
-    TNullable<double> FairShareStarvationTolerance;
+    std::optional<TDuration> MinSharePreemptionTimeout;
+    std::optional<TDuration> FairSharePreemptionTimeout;
+    std::optional<double> FairShareStarvationTolerance;
 
-    TNullable<TDuration> MinSharePreemptionTimeoutLimit;
-    TNullable<TDuration> FairSharePreemptionTimeoutLimit;
-    TNullable<double> FairShareStarvationToleranceLimit;
+    std::optional<TDuration> MinSharePreemptionTimeoutLimit;
+    std::optional<TDuration> FairSharePreemptionTimeoutLimit;
+    std::optional<double> FairShareStarvationToleranceLimit;
 
-    TNullable<bool> AllowAggressiveStarvationPreemption;
+    std::optional<bool> AllowAggressiveStarvationPreemption;
 
     TSchedulableConfig();
 };
@@ -126,7 +126,7 @@ class TExtendedSchedulableConfig
     : public TSchedulableConfig
 {
 public:
-    TNullable<TString> Pool;
+    std::optional<TString> Pool;
 
     TExtendedSchedulableConfig();
 };
@@ -141,8 +141,8 @@ class TPoolConfig
 public:
     ESchedulingMode Mode;
 
-    TNullable<int> MaxRunningOperationCount;
-    TNullable<int> MaxOperationCount;
+    std::optional<int> MaxRunningOperationCount;
+    std::optional<int> MaxOperationCount;
 
     std::vector<EFifoSortParameter> FifoSortParameters;
 
@@ -198,12 +198,12 @@ class TSamplingConfig
 {
 public:
     //! The probability for each particular row to remain in the output.
-    TNullable<double> SamplingRate;
+    std::optional<double> SamplingRate;
 
     //! An option regulating the total data slice count during the sampling job creation procedure.
     //! It should not be used normally and left only for manual setup in marginal cases.
     //! If not set, it is overriden with MaxTotalSliceCount from controller agent options.
-    TNullable<i64> MaxTotalSliceCount;
+    std::optional<i64> MaxTotalSliceCount;
 
     //! Size of IO block to consider when calculating the lower bound for sampling job size.
     i64 IOBlockSize;
@@ -220,7 +220,7 @@ class TStrategyOperationSpec
     , public virtual NPhoenix::TDynamicTag
 {
 public:
-    TNullable<TString> Pool;
+    std::optional<TString> Pool;
 
     //! This options have higher priority than Pool and other options
     //! defined in this class besides SchedulingTagFilter.
@@ -232,13 +232,13 @@ public:
     THashSet<TString> PoolTrees;
 
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
-    TNullable<int> MaxConcurrentControllerScheduleJobCalls;
+    std::optional<int> MaxConcurrentControllerScheduleJobCalls;
 
     //! Tentative pool trees to schedule operation in.
     //! Operation's job will be scheduled to these pool trees as long as they're
     //! not much slower than those in other (non-tentative) trees.
     //! If TentativePoolTrees is not empty, PoolTrees must not be empty, too.
-    TNullable<THashSet<TString>> TentativePoolTrees;
+    std::optional<THashSet<TString>> TentativePoolTrees;
 
     //! Enables using default tentative pool trees from scheduler config. It has effect only if TentativePoolTrees is not specified.
     bool UseDefaultTentativePoolTrees;
@@ -249,7 +249,7 @@ public:
 
     int UpdatePreemptableJobsListLoggingPeriod;
 
-    TNullable<TString> CustomProfilingTag;
+    std::optional<TString> CustomProfilingTag;
 
     TStrategyOperationSpec();
 
@@ -319,15 +319,15 @@ class TTestingOperationOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<TDuration> SchedulingDelay;
+    std::optional<TDuration> SchedulingDelay;
     ESchedulingDelayType SchedulingDelayType;
 
-    TNullable<TDuration> DelayInsideOperationCommit;
-    TNullable<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
+    std::optional<TDuration> DelayInsideOperationCommit;
+    std::optional<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
 
-    TNullable<TDuration> DelayInsideRevive;
+    std::optional<TDuration> DelayInsideRevive;
 
-    TNullable<TDuration> DelayInsideSuspend;
+    std::optional<TDuration> DelayInsideSuspend;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
     EControllerFailureType ControllerFailure;
@@ -347,8 +347,8 @@ class TAutoMergeConfig
 public:
     TJobIOConfigPtr JobIO;
 
-    TNullable<i64> MaxIntermediateChunkCount;
-    TNullable<i64> ChunkCountPerMergeJob;
+    std::optional<i64> MaxIntermediateChunkCount;
+    std::optional<i64> ChunkCountPerMergeJob;
     i64 ChunkSizeThreshold;
     EAutoMergeMode Mode;
 
@@ -395,15 +395,15 @@ public:
     //! Maximum number of saved stderr per job type.
     int MaxStderrCount;
 
-    TNullable<i64> JobProxyMemoryOvercommitLimit;
+    std::optional<i64> JobProxyMemoryOvercommitLimit;
 
     TDuration JobProxyRefCountedTrackerLogPeriod;
 
     //! An arbitrary user-provided string that is, however, logged by the scheduler.
-    TNullable<TString> Title;
+    std::optional<TString> Title;
 
     //! Limit on operation execution time.
-    TNullable<TDuration> TimeLimit;
+    std::optional<TDuration> TimeLimit;
 
     TTestingOperationOptionsPtr TestingOperationOptions;
 
@@ -475,7 +475,7 @@ public:
 
     //! If set, operation will be accessible through the scheduler API calls under this name
     //! (it should start with an asterisk).
-    TNullable<TString> Alias;
+    std::optional<TString> Alias;
 
     TOperationSpecBase();
 
@@ -499,18 +499,18 @@ public:
     std::vector<NYPath::TRichYPath> FilePaths;
     std::vector<NYPath::TRichYPath> LayerPaths;
 
-    TNullable<NFormats::TFormat> Format;
-    TNullable<NFormats::TFormat> InputFormat;
-    TNullable<NFormats::TFormat> OutputFormat;
+    std::optional<NFormats::TFormat> Format;
+    std::optional<NFormats::TFormat> InputFormat;
+    std::optional<NFormats::TFormat> OutputFormat;
 
-    TNullable<bool> EnableInputTableIndex;
+    std::optional<bool> EnableInputTableIndex;
 
     THashMap<TString, TString> Environment;
 
     double CpuLimit;
     int GpuLimit;
     int PortCount;
-    TNullable<TDuration> JobTimeLimit;
+    std::optional<TDuration> JobTimeLimit;
     i64 MemoryLimit;
     double UserJobMemoryDigestDefaultValue;
     double UserJobMemoryDigestLowerBound;
@@ -524,11 +524,11 @@ public:
 
     i64 CustomStatisticsCountLimit;
 
-    TNullable<i64> TmpfsSize;
-    TNullable<TString> TmpfsPath;
+    std::optional<i64> TmpfsSize;
+    std::optional<TString> TmpfsPath;
 
-    TNullable<i64> DiskSpaceLimit;
-    TNullable<i64> InodeLimit;
+    std::optional<i64> DiskSpaceLimit;
+    std::optional<i64> InodeLimit;
 
     bool CopyFiles;
 
@@ -570,8 +570,8 @@ class TInputlyQueryableSpec
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TNullable<TString> InputQuery;
-    TNullable<NTableClient::TTableSchema> InputSchema;
+    std::optional<TString> InputQuery;
+    std::optional<NTableClient::TTableSchema> InputSchema;
 
     TInputlyQueryableSpec();
 };
@@ -584,10 +584,10 @@ class TOperationWithUserJobSpec
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TNullable<NYPath::TRichYPath> StderrTablePath;
+    std::optional<NYPath::TRichYPath> StderrTablePath;
     NTableClient::TBlobTableWriterConfigPtr StderrTableWriter;
 
-    TNullable<NYPath::TRichYPath> CoreTablePath;
+    std::optional<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
 
     TJobCpuMonitorConfigPtr JobCpuMonitor;
@@ -607,10 +607,10 @@ public:
     //! groups of chunks are partitioned into tasks of this or smaller size.
     //! This number, however, is merely an estimate, i.e. some tasks may still
     //! be larger.
-    TNullable<i64> DataWeightPerJob;
+    std::optional<i64> DataWeightPerJob;
 
-    TNullable<int> JobCount;
-    TNullable<int> MaxJobCount;
+    std::optional<int> JobCount;
+    std::optional<int> MaxJobCount;
 
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
@@ -822,7 +822,7 @@ public:
     NTableClient::TKeyColumns ReduceBy;
     NTableClient::TKeyColumns SortBy;
 
-    TNullable<bool> EnableKeyGuarantee;
+    std::optional<bool> EnableKeyGuarantee;
 
     std::vector<NTableClient::TOwningKey> PivotKeys;
 
@@ -847,13 +847,13 @@ public:
 
     //! Amount of (uncompressed) data to be distributed to one partition.
     //! It used only to determine partition count.
-    TNullable<i64> PartitionDataWeight;
-    TNullable<int> PartitionCount;
+    std::optional<i64> PartitionDataWeight;
+    std::optional<int> PartitionCount;
 
     //! Amount of (uncompressed) data to be given to a single partition job.
     //! It used only to determine partition job count.
-    TNullable<i64> DataWeightPerPartitionJob;
-    TNullable<int> PartitionJobCount;
+    std::optional<i64> DataWeightPerPartitionJob;
+    std::optional<int> PartitionJobCount;
 
     //! Data size per shuffle job.
     i64 DataWeightPerShuffleJob;
@@ -895,7 +895,7 @@ public:
     //! unavailable chunk tactics).
     bool EnableIntermediateOutputRecalculation;
 
-    TNullable<i64> DataWeightPerSortedJob;
+    std::optional<i64> DataWeightPerSortedJob;
 
     TSortOperationSpecBase();
 
@@ -967,14 +967,14 @@ class TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
 {
 public:
-    TNullable<TString> ClusterName;
-    TNullable<TString> NetworkName;
-    TNullable<NApi::NNative::TConnectionConfigPtr> ClusterConnection;
+    std::optional<TString> ClusterName;
+    std::optional<TString> NetworkName;
+    std::optional<NApi::NNative::TConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     int MaxChunkCountPerJob;
     bool CopyAttributes;
-    TNullable<std::vector<TString>> AttributeKeys;
+    std::optional<std::vector<TString>> AttributeKeys;
 
     // Specifies how many chunks to read/write concurrently.
     int Concurrency;
@@ -1018,9 +1018,9 @@ class TOperationFairShareTreeRuntimeParameters
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<double> Weight;
+    std::optional<double> Weight;
 
-    TNullable<TPoolName> Pool;
+    std::optional<TPoolName> Pool;
 
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -1035,7 +1035,7 @@ class TOperationRuntimeParameters
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<std::vector<TString>> Owners;
+    std::optional<std::vector<TString>> Owners;
 
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
 
@@ -1050,9 +1050,9 @@ class TUserFriendlyOperationRuntimeParameters
     : public TOperationRuntimeParameters
 {
 public:
-    TNullable<double> Weight;
+    std::optional<double> Weight;
 
-    TNullable<TString> Pool;
+    std::optional<TString> Pool;
 
     TUserFriendlyOperationRuntimeParameters();
 

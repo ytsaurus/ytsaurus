@@ -111,7 +111,7 @@ int TTask::GetTotalJobCountDelta()
     return newValue - oldValue;
 }
 
-TNullable<i64> TTask::GetMaximumUsedTmpfsSize() const
+std::optional<i64> TTask::GetMaximumUsedTmpfsSize() const
 {
     return MaximumUsedTmfpsSize_;
 }
@@ -342,7 +342,7 @@ void TTask::ScheduleJob(
     })
         .AsyncVia(TaskHost_->GetCancelableInvoker())
         .Run();
-    scheduleJobResult->StartDescriptor.Emplace(
+    scheduleJobResult->StartDescriptor.emplace(
         joblet->JobId,
         jobType,
         neededResources.ToJobResources(),
@@ -635,9 +635,9 @@ void TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed");
 }
 
-TNullable<EScheduleJobFailReason> TTask::GetScheduleFailReason(ISchedulingContext* context)
+std::optional<EScheduleJobFailReason> TTask::GetScheduleFailReason(ISchedulingContext* context)
 {
-    return Null;
+    return std::nullopt;
 }
 
 void TTask::DoCheckResourceDemandSanity(
@@ -819,7 +819,7 @@ TInputChunkMappingPtr TTask::GetChunkMapping() const
 
 void TTask::ResetCachedMinNeededResources()
 {
-    CachedMinNeededResources_.Reset();
+    CachedMinNeededResources_.reset();
 }
 
 TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResources) const

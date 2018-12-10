@@ -269,7 +269,7 @@ TChunkSpecList TMultiTablesPartitioner::FetchAndFilterTableChunks(const size_t t
     auto dataSource = MakeUnversionedDataSource(
         table.GetPath(),
         table.Schema,
-        Null);
+        std::nullopt);
 
     DataSourceDirectory->DataSources().push_back(std::move(dataSource));
 

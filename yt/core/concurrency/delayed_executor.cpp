@@ -4,7 +4,7 @@
 #include "private.h"
 
 #include <yt/core/misc/lock_free.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
@@ -48,7 +48,7 @@ struct TDelayedExecutorEntry
     TInstant Deadline;
 
     bool Canceled = false;
-    TNullable<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
+    std::optional<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDelayedExecutorEntry)
@@ -318,7 +318,7 @@ private:
             entry->Callback.Reset();
             if (entry->Iterator) {
                 ScheduledEntries_.erase(*entry->Iterator);
-                entry->Iterator.Reset();
+                entry->Iterator.reset();
             }
         });
 
@@ -335,7 +335,7 @@ private:
             }
             YCHECK(entry->Callback);
             DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), false));
-            entry->Iterator.Reset();
+            entry->Iterator.reset();
             ScheduledEntries_.erase(it);
         }
     }

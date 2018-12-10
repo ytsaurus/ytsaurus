@@ -213,16 +213,16 @@ public:
         const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            return Null;
+            return std::nullopt;
         }
 
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!ext.has_session_id() && !ext.has_ssl_session_id()) {
-            return Null;
+            return std::nullopt;
         }
 
         if (!context.UserIP.IsIP4() && !context.UserIP.IsIP6()) {
-            return Null;
+            return std::nullopt;
         }
 
         TCookieCredentials credentials;

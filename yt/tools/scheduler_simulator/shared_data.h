@@ -103,7 +103,7 @@ public:
 
     void InsertNodeShardEvent(int workerId, TNodeShardEvent event);
 
-    TNullable<TNodeShardEvent> PopNodeShardEvent(int workerId);
+    std::optional<TNodeShardEvent> PopNodeShardEvent(int workerId);
 
     void WaitForStrugglingNodeShards(TInstant timeBarrier);
     void UpdateControlThreadTime(TInstant time);
