@@ -602,7 +602,6 @@ class TestPods(object):
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/resource_requests/vcpu_limit"])[0] == 100
         assert yp_client.select_objects("pod", selectors=["/spec/resource_requests"])[0] == [{"vcpu_limit": 100}]
         assert yp_client.select_objects("pod", selectors=["/spec/resource_requests/vcpu_limit"])[0] == [100]
-        #assert yp_client.select_objects("pod", selectors=["/spec"])[0][0]["resource_requests"] == {"vcpu_limit": 100}
 
         yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/resource_requests/vcpu_limit", "value": YsonUint64(200)}])
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/resource_requests"])[0] == {"vcpu_limit": 200}
@@ -610,7 +609,6 @@ class TestPods(object):
         assert yp_client.select_objects("pod", selectors=["/spec/resource_requests"])[0] == [{"vcpu_limit": 200}]
         assert yp_client.select_objects("pod", selectors=["/spec/resource_requests/vcpu_limit"])[0] == [200]
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/resource_requests"])[0] == {"vcpu_limit": 200}
-        #assert yp_client.select_objects("pod", selectors=["/spec"])[0][0]["resource_requests"] == {"vcpu_limit": 200}
 
     def test_host_device_constraints(self, yp_env):
         yp_client = yp_env.yp_client

@@ -43,6 +43,7 @@ public:
     const NAccessControl::TAccessControlManagerPtr& GetAccessControlManager();
     const NAccounting::TAccountingManagerPtr& GetAccountingManager();
     const NAuth::TAuthenticationManagerPtr& GetAuthenticationManager();
+    const NAuth::ISecretVaultServicePtr& GetSecretVaultService();
 
     const TString& GetFqdn();
     const TString& GetClientGrpcAddress();

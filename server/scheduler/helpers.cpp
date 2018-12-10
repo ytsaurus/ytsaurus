@@ -119,45 +119,6 @@ bool GetAllocationExclusive(const NClient::NApi::NProto::TResourceStatus_TAlloca
     return allocation.has_disk() && allocation.disk().exclusive();
 }
 
-void ValidateDiskVolumeRequests(
-    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& requests)
-{
-    THashSet<TString> ids;
-    for (const auto& request : requests) {
-        if (!ids.insert(request.id()).second) {
-            THROW_ERROR_EXCEPTION("Duplicate disk volume request %Qv",
-                request.id());
-        }
-        if (!request.has_quota_policy() &&
-            !request.has_exclusive_policy())
-        {
-            THROW_ERROR_EXCEPTION("Missing policy in disk volume request %Qv",
-                request.id());
-        }
-    }
-}
-
-void ValidateDiskVolumeRequestsUpdate(
-    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& oldRequests,
-    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& newRequests)
-{
-    THashMap<TString, const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest*> idToRequest;
-    for (const auto& request : oldRequests) {
-        idToRequest.emplace(request.id(), &request);
-    }
-    for (const auto& newRequest : newRequests) {
-        auto it = idToRequest.find(newRequest.id());
-        if (it == idToRequest.end()) {
-            continue;
-        }
-        const auto& oldRequest = *it->second;
-        if (!TScalarAttributeTraits<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>::Equals(oldRequest, newRequest)) {
-            THROW_ERROR_EXCEPTION("Cannot change disk volume request %Qv since pod is already assigned to node",
-                oldRequest.id());
-        }
-    }
-}
-
 TLocalResourceAllocator::TResource BuildAllocatorResource(
     const TObjectId& resourceId,
     const NClient::NApi::NProto::TResourceSpec& spec,
@@ -392,6 +353,18 @@ void UpdatePodDiskVolumeAllocations(
         volumeAllocation->mutable_labels()->CopyFrom(volumeRequest.labels());
     }
     allocations->Swap(&newAllocations);
+}
+
+void UpdatePodDiskVolumeAllocationLabels(
+    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& requests,
+    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>* allocations)
+{
+    if (requests.size() != allocations->size()) {
+        THROW_ERROR_EXCEPTION("Cannot update disk volume allocation labels: request vs allocation count mismatch");
+    }
+    for (int index = 0; index < requests.size(); ++index) {
+        (*allocations)[index].mutable_labels()->CopyFrom(requests[index].labels());
+    }
 }
 
 void UpdateScheduledResourceAllocations(

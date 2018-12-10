@@ -412,7 +412,7 @@ message TNodeStatus
     // Current epoch used for master-agent communication.
     optional string epoch_id = 1;
 
-    // Timestamp of last agent heartbeat.
+    // Timestamp of the last agent heartbeat.
     optional uint64 last_seen_time = 2;
 
     // Used for properly sequencing master-agent communication.
@@ -420,6 +420,9 @@ message TNodeStatus
 
     // Address of GPRC service at agent used for out-of-band notifications.
     optional string agent_address = 4;
+
+    // Version of the agent running at this node (as reported during the last handshake).
+    optional string agent_version = 8;
 
     message THfsm
     {
@@ -792,6 +795,12 @@ message TPodStatus
 
         // Error in pod execution passed from agent via heartbeat.
         optional NYT.NProto.TError execution_error = 6;
+
+        // Error occurred while installing this pod to the node.
+        optional NYT.NProto.TError install_error = 9;
+
+        // Contains the spec timestamps for which install_error was observed.
+        optional uint64 failed_install_attempt_spec_timestamp = 10;
 
         // Errors in pod spec validation passed from agent via heartbeat.
         repeated string validation_failures = 8;

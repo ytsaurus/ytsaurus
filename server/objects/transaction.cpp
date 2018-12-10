@@ -121,17 +121,15 @@ public:
     TQueryContext(
         NMaster::TBootstrap* bootstrap,
         EObjectType objectType,
-        TQuery* query,
-        bool areReadPermissionsAllowed)
+        TQuery* query)
         : Bootstrap_(bootstrap)
         , ObjectType_(objectType)
         , Query_(query)
-        , AreReadPermissionsAllowed_(areReadPermissionsAllowed)
     { }
 
-    virtual bool AreReadPermissionsAllowed() const override
+    virtual IObjectTypeHandler* GetTypeHandler() override
     {
-        return AreReadPermissionsAllowed_;
+        return Bootstrap_->GetObjectManager()->GetTypeHandler(ObjectType_);
     }
 
     virtual TExpressionPtr GetFieldExpression(const TDBField* field) override
@@ -176,7 +174,6 @@ private:
     NMaster::TBootstrap* const Bootstrap_;
     const EObjectType ObjectType_;
     TQuery* const Query_;
-    const bool AreReadPermissionsAllowed_;
 
     THashMap<const TDBField*, TExpressionPtr> FieldToExpression_;
     THashMap<TString, TExpressionPtr> AnnotationNameToExpression_;
@@ -358,16 +355,16 @@ public:
         TQueryContext queryContext(
             Bootstrap_,
             type,
-            query.get(),
-            /* areReadPermissionsAllowed */ true);
-        TAttributeFetcherContext fetcherContext;
+            query.get());
+        TAttributeFetcherContext fetcherContext(&queryContext);
+        TResolvePermissions permissions;
         auto fetchers = BuildAttributeFetchers(
-            typeHandler,
             Owner_,
             query.get(),
             &fetcherContext,
             &queryContext,
-            selector);
+            selector,
+            &permissions);
         auto queryString = FormatQuery(*query);
 
         LOG_DEBUG("Getting object (ObjectId: %v, Query: %v)",
@@ -389,14 +386,10 @@ public:
             fetcher.Prefetch(row);
         }
 
-        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-        for (const auto& fetcher : fetchers) {
-            const auto& permissions = fetcher.GetReadPermissions();
-            if (permissions.empty()) {
-                continue;
-            }
-            auto* object = fetcher.GetObject(row);
-            for (auto permission : permissions) {
+        if (!permissions.ReadPermissions.empty()) {
+            auto* object = fetcherContext.GetObject(Owner_, row);
+            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+            for (auto permission : permissions.ReadPermissions) {
                 accessControlManager->ValidatePermission(object, permission);
             }
         }
@@ -440,11 +433,9 @@ public:
         TQueryContext queryContext(
             Bootstrap_,
             type,
-            query.get(),
-            /* areReadPermissionsAllowed */ false);
-        TAttributeFetcherContext fetcherContext;
+            query.get());
+        TAttributeFetcherContext fetcherContext(&queryContext);
         auto fetchers = BuildAttributeFetchers(
-            typeHandler,
             Owner_,
             query.get(),
             &fetcherContext,
@@ -453,10 +444,7 @@ public:
 
         auto predicateExpr = BuildAndExpression(
             filter
-            ? BuildFilterExpression(
-                typeHandler,
-                &queryContext,
-                *filter)
+            ? BuildFilterExpression(&queryContext, *filter)
             : nullptr,
             New<TFunctionExpression>(
                 TSourceLocation(),
@@ -1986,12 +1974,10 @@ private:
     {
         object->ValidateExists();
 
-        auto* typeHandler = object->GetTypeHandler();
-
         std::vector<TAttributeUpdateMatch> matches;
         matches.reserve(requests.size());
         for (const auto& request : requests) {
-            matches.push_back(MatchAttributeUpdate(typeHandler, request));
+            matches.push_back(MatchAttributeUpdate(object, request));
         }
 
         for (const auto& match : matches) {
@@ -2070,14 +2056,27 @@ private:
     }
 
     TAttributeUpdateMatch MatchAttributeUpdate(
-        IObjectTypeHandler* typeHandler,
+        TObject* object,
         const TUpdateRequest& request)
     {
-        auto resolveResult = ResolveAttribute(typeHandler, GetRequestPath(request));
+        TResolvePermissions permissions;
+        auto resolveResult = ResolveAttribute(
+            object->GetTypeHandler(),
+            GetRequestPath(request),
+            &permissions);
+
         if (!resolveResult.Attribute->GetUpdatable()) {
             THROW_ERROR_EXCEPTION("Attribute %v does not support updates",
                 resolveResult.Attribute->GetPath());
         }
+
+        if (!resolveResult.SuffixPath.empty() && !permissions.ReadPermissions.empty()) {
+            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+            for (auto permission : permissions.ReadPermissions) {
+                accessControlManager->ValidatePermission(object, permission);
+            }
+        }
+
         return {resolveResult.Attribute, PatchRequestPath(request, resolveResult.SuffixPath)};
     }
 
@@ -2187,12 +2186,12 @@ private:
     }
 
     static std::vector<TAttributeFetcher> BuildAttributeFetchers(
-        IObjectTypeHandler* typeHandler,
         TTransaction* transaction,
         TQuery* query,
         TAttributeFetcherContext* fetcherContext,
         IQueryContext* queryContext,
-        const TAttributeSelector& selector)
+        const TAttributeSelector& selector,
+        TResolvePermissions* permissions = nullptr)
     {
         if (selector.Paths.empty()) {
             static const auto DummyExpr = New<TLiteralExpression>(TSourceLocation(), TLiteralValue(false));
@@ -2200,12 +2199,19 @@ private:
             return {};
         }
 
+        auto* typeHandler = queryContext->GetTypeHandler();
+
         std::vector<TAttributeFetcher> fetchers;
         for (const auto& path : selector.Paths) {
-            auto resolveResult = ResolveAttribute(typeHandler, path);
-            fetchers.emplace_back(typeHandler, resolveResult, transaction, fetcherContext, queryContext);
+            auto resolveResult = ResolveAttribute(typeHandler, path, permissions);
+            fetchers.emplace_back(resolveResult, transaction, fetcherContext, queryContext);
         }
-        query->SelectExprs = fetcherContext->SelectExprs;
+
+        if (permissions && !permissions->ReadPermissions.empty()) {
+            fetcherContext->WillNeedObject();
+        }
+
+        query->SelectExprs = fetcherContext->GetSelectExpressions();
         return fetchers;
     }
 

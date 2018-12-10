@@ -107,7 +107,7 @@ class TestHttpApi(object):
 
         assert client.get_object("pod_set", id, selectors=["/annotations/a"]) == [[1, 2]]
 
-    def test_custom_session(self, yp_env):
+    def test_client_custom_session(self, yp_env):
         session = CustomSession()
         assert session.get_request_count() == 0
         client = yp_env.yp_instance.create_client(transport="http", _http_session=session)
@@ -115,3 +115,15 @@ class TestHttpApi(object):
         ts2 = client.generate_timestamp()
         assert ts1 < ts2
         assert session.get_request_count() > 0
+
+    def test_client_connect_timeout(self, yp_env):
+        def create_client(connect_timeout):
+            return yp_env.yp_instance.create_client(
+                transport="http",
+                config=dict(connect_timeout=connect_timeout)
+            )
+        client = create_client(0)
+        with pytest.raises(requests.ConnectionError):
+            client.generate_timestamp()
+        client2 = create_client(2000)
+        client2.generate_timestamp()

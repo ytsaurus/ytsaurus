@@ -3,6 +3,8 @@
 #include "type_handler.h"
 #include "attribute_schema.h"
 #include "db_schema.h"
+#include "pod.h"
+#include "node.h"
 
 #include <yt/ytlib/query_client/ast.h>
 #include <yt/ytlib/query_client/query_preparer.h>
@@ -19,6 +21,8 @@ namespace NYP {
 namespace NServer {
 namespace NObjects {
 
+using namespace NAccessControl;
+
 using namespace NYT::NYPath;
 using namespace NYT::NYson;
 using namespace NYT::NQueryClient::NAst;
@@ -30,13 +34,32 @@ using NYT::NQueryClient::TSourceLocation;
 
 TResolveResult ResolveAttribute(
     IObjectTypeHandler* typeHandler,
-    const TYPath& path)
+    const TYPath& path,
+    TResolvePermissions* permissions)
 {
     NYPath::TTokenizer tokenizer(path);
 
+    auto addReadPermission = [&] (TAttributeSchema* attribute) {
+        auto permission = attribute->GetReadPermission();
+        if (permission == EAccessControlPermission::None) {
+            return;
+        }
+        if (!permissions) {
+            THROW_ERROR_EXCEPTION("Attribute %v cannot be referenced since it requires special read permission %Qlv",
+                attribute->GetPath(),
+                permission);
+        }
+        auto& readPermissions = permissions->ReadPermissions;
+        if (std::find(readPermissions.begin(), readPermissions.end(), permission) == readPermissions.end()) {
+            readPermissions.push_back(permission);
+        }
+    };
+
+    std::vector<EAccessControlPermission> readPermissions;
     auto* current = typeHandler->GetRootAttributeSchema();
     try {
         while (true) {
+            addReadPermission(current);
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                 break;
             }
@@ -120,11 +143,10 @@ TExpressionPtr BuildSelector(
 }
 
 TExpressionPtr BuildAttributeSelector(
-    IObjectTypeHandler* typeHandler,
     IQueryContext* context,
     const TYPath& path)
 {
-    auto resolveResult = ResolveAttribute(typeHandler, path);
+    auto resolveResult = ResolveAttribute(context->GetTypeHandler(), path);
     return BuildSelector(context, resolveResult.Attribute, resolveResult.SuffixPath);
 }
 
@@ -132,23 +154,71 @@ TExpressionPtr BuildAttributeSelector(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAttributeFetcherContext::TAttributeFetcherContext(IQueryContext* queryContext)
+    : QueryContext_(queryContext)
+{ }
+
+void TAttributeFetcherContext::AddSelectExpression(TExpressionPtr expr)
+{
+    SelectExprs_.push_back(std::move(expr));
+}
+
+const TExpressionList& TAttributeFetcherContext::GetSelectExpressions() const
+{
+    return SelectExprs_;
+}
+
+void TAttributeFetcherContext::WillNeedObject()
+{
+    if (ObjectIdIndex_ >= 0) {
+        return;
+    }
+    ObjectIdIndex_ = static_cast<int>(SelectExprs_.size());
+    auto* typeHandler = QueryContext_->GetTypeHandler();
+    SelectExprs_.push_back(QueryContext_->GetFieldExpression(typeHandler->GetIdField()));
+    if (typeHandler->GetParentType() != EObjectType::Null) {
+        ParentIdIndex_ = static_cast<int>(SelectExprs_.size());
+        SelectExprs_.push_back(QueryContext_->GetFieldExpression(typeHandler->GetParentIdField()));
+    }
+}
+
+TObject* TAttributeFetcherContext::GetObject(
+    TTransaction* transaction,
+    TUnversionedRow row) const
+{
+    YCHECK(ObjectIdIndex_ >= 0);
+    auto* typeHandler = QueryContext_->GetTypeHandler();
+    auto objectId = FromUnversionedValue<TObjectId>(row[ObjectIdIndex_]);
+    auto parentId = typeHandler->GetParentType() == EObjectType::Null
+        ? TObjectId()
+        : FromUnversionedValue<TObjectId>(row[ParentIdIndex_]);
+    return transaction->GetObject(typeHandler->GetType(), objectId, parentId);
+}
+
+TUnversionedValue TAttributeFetcherContext::RetrieveNextValue(TUnversionedRow row, int* currentIndex) const
+{
+    if (*currentIndex == ObjectIdIndex_) {
+        ++(*currentIndex);
+    }
+    if (*currentIndex == ParentIdIndex_) {
+        ++(*currentIndex);
+    }
+    return row[(*currentIndex)++];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAttributeFetcher::TAttributeFetcher(
-    IObjectTypeHandler* typeHandler,
     const TResolveResult& resolveResult,
     TTransaction* transaction,
     TAttributeFetcherContext* fetcherContext,
     IQueryContext* queryContext)
-    : TypeHandler_(typeHandler)
-    , RootResolveResult_(resolveResult)
+    : RootResolveResult_(resolveResult)
     , Transaction_(std::move(transaction))
     , FetcherContext_(fetcherContext)
-    , QueryContext_(queryContext)
-    , StartIndex_(static_cast<int>(fetcherContext->SelectExprs.size()))
+    , StartIndex_(static_cast<int>(fetcherContext->GetSelectExpressions().size()))
 {
     DoPrepare(RootResolveResult_, queryContext);
-
-    std::sort(ReadPermissions_.begin(), ReadPermissions_.end());
-    ReadPermissions_.erase(std::unique(ReadPermissions_.begin(), ReadPermissions_.end()), ReadPermissions_.end());
 }
 
 void TAttributeFetcher::Prefetch(TUnversionedRow row)
@@ -164,21 +234,6 @@ TYsonString TAttributeFetcher::Fetch(TUnversionedRow row)
     CurrentIndex_ = StartIndex_;
     DoFetch(row, RootResolveResult_, &valueWriter);
     return TYsonString(std::move(valueYson));
-}
-
-const std::vector<NAccessControl::EAccessControlPermission>& TAttributeFetcher::GetReadPermissions() const
-{
-    return ReadPermissions_;
-}
-
-TObject* TAttributeFetcher::GetObject(TUnversionedRow row) const
-{
-    YCHECK(FetcherContext_->ObjectIdIndex >= 0);
-    auto objectId = FromUnversionedValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
-    auto parentId = TypeHandler_->GetParentType() == EObjectType::Null
-        ? TObjectId()
-        : FromUnversionedValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
-    return Transaction_->GetObject(TypeHandler_->GetType(), objectId, parentId);
 }
 
 EAttributeFetchMethod TAttributeFetcher::GetFetchMethod(const TResolveResult& resolveResult)
@@ -205,7 +260,6 @@ void TAttributeFetcher::DoPrepare(
     IQueryContext* queryContext)
 {
     auto* attribute = resolveResult.Attribute;
-    ProcessReadPermissions(attribute, queryContext);
     switch (GetFetchMethod(resolveResult)) {
         case EAttributeFetchMethod::Composite: {
             for (const auto& pair : attribute->KeyToChild()) {
@@ -224,12 +278,12 @@ void TAttributeFetcher::DoPrepare(
 
         case EAttributeFetchMethod::ExpressionBuilder: {
             auto expr = attribute->RunExpressionBuilder(queryContext, resolveResult.SuffixPath);
-            FetcherContext_->SelectExprs.push_back(std::move(expr));
+            FetcherContext_->AddSelectExpression(std::move(expr));
             break;
         }
 
         case EAttributeFetchMethod::Evaluator:
-            WillNeedObject();
+            FetcherContext_->WillNeedObject();
             break;
 
         default:
@@ -263,7 +317,7 @@ void TAttributeFetcher::DoPrefetch(
 
         case EAttributeFetchMethod::Evaluator:
             if (attribute->HasPreevaluator()) {
-                auto* object = GetObject(row);
+                auto* object = FetcherContext_->GetObject(Transaction_, row);
                 attribute->RunPreevaluator(Transaction_, object);
             }
             break;
@@ -322,13 +376,13 @@ void TAttributeFetcher::DoFetch(
         }
 
         case EAttributeFetchMethod::ExpressionBuilder: {
-            const auto& value = RetrieveNextValue(row);
+            const auto& value = FetcherContext_->RetrieveNextValue(row, &CurrentIndex_);
             UnversionedValueToYson(value, consumer);
             break;
         }
 
         case EAttributeFetchMethod::Evaluator: {
-            auto* object = GetObject(row);
+            auto* object = FetcherContext_->GetObject(Transaction_, row);
             if (resolveResult.SuffixPath.empty()) {
                 attribute->RunEvaluator(Transaction_, object, consumer);
             } else {
@@ -348,68 +402,17 @@ void TAttributeFetcher::DoFetch(
     }
 }
 
-void TAttributeFetcher::ProcessReadPermissions(
-    TAttributeSchema* attribute,
-    IQueryContext* queryContext)
-{
-    NLogging::TLogger Logger("XXX");
-    LOG_ERROR("ProcessReadPermissions %v", attribute->GetPath());
-    auto* current = attribute;
-    while (current) {
-        LOG_ERROR("ProcessReadPermissions checks %v", current->GetPath());
-        auto readPermission = current->GetReadPermission();
-        if (readPermission != NAccessControl::EAccessControlPermission::None) {
-            if (!queryContext->AreReadPermissionsAllowed()) {
-                THROW_ERROR_EXCEPTION("Attribute %v cannot be referenced since it requires special read permission %Qlv",
-                    current->GetPath(),
-                    readPermission);
-            }
-            ReadPermissions_.push_back(readPermission);
-            WillNeedObject();
-        }
-        current = current->GetParent();
-    }
-}
-
-TUnversionedValue TAttributeFetcher::RetrieveNextValue(TUnversionedRow row)
-{
-    if (CurrentIndex_ == FetcherContext_->ObjectIdIndex) {
-        ++CurrentIndex_;
-    }
-    if (CurrentIndex_ == FetcherContext_->ParentIdIndex) {
-        ++CurrentIndex_;
-    }
-    return row[CurrentIndex_++];
-}
-
-void TAttributeFetcher::WillNeedObject()
-{
-    if (FetcherContext_->ObjectIdIndex >= 0) {
-        return;
-    }
-    FetcherContext_->ObjectIdIndex = static_cast<int>(FetcherContext_->SelectExprs.size());
-    FetcherContext_->SelectExprs.push_back(QueryContext_->GetFieldExpression(TypeHandler_->GetIdField()));
-    if (TypeHandler_->GetParentType() != EObjectType::Null) {
-        FetcherContext_->ParentIdIndex = static_cast<int>(FetcherContext_->SelectExprs.size());
-        FetcherContext_->SelectExprs.push_back(QueryContext_->GetFieldExpression(TypeHandler_->GetParentIdField()));
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TExpressionPtr BuildFilterExpression(
-    IObjectTypeHandler* typeHandler,
     IQueryContext* context,
     const TObjectFilter& filter)
 {
     class TQueryRewriter
     {
     public:
-        TQueryRewriter(
-            IObjectTypeHandler* typeHandler,
-            IQueryContext* context)
-            : TypeHandler_(typeHandler)
-            , Context_(context)
+        explicit TQueryRewriter(IQueryContext* context)
+            : Context_(context)
         { }
 
         TExpressionPtr Run(const TExpressionPtr& expr)
@@ -420,7 +423,6 @@ TExpressionPtr BuildFilterExpression(
         }
 
     private:
-        IObjectTypeHandler* const TypeHandler_;
         IQueryContext* const Context_;
 
         void Visit(TExpressionPtr* expr)
@@ -461,9 +463,9 @@ TExpressionPtr BuildFilterExpression(
             if (ref.TableName) {
                 THROW_ERROR_EXCEPTION("Table references are not supported");
             }
-            *expr = BuildAttributeSelector(TypeHandler_, Context_, ref.ColumnName);
+            *expr = BuildAttributeSelector(Context_, ref.ColumnName);
         }
-    } rewriter(typeHandler, context);
+    } rewriter(context);
 
     auto parsedQuery = NQueryClient::ParseSource(filter.Query, NQueryClient::EParseMode::Expression);
     auto queryExpr = parsedQuery->AstHead.Ast.As<TExpressionPtr>();
@@ -584,6 +586,26 @@ TString GetObjectDisplayName(const TObject* object)
 TObjectId GenerateUuid()
 {
     return ToString(TGuid::Create());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateDiskVolumeRequests(TPod* pod)
+{
+    THashSet<TString> ids;
+    const auto& requests = pod->Spec().Other().Load().disk_volume_requests();
+    for (const auto& request : requests) {
+        if (!ids.insert(request.id()).second) {
+            THROW_ERROR_EXCEPTION("Duplicate disk volume request %Qv",
+                request.id());
+        }
+        if (!request.has_quota_policy() &&
+            !request.has_exclusive_policy())
+        {
+            THROW_ERROR_EXCEPTION("Missing policy in disk volume request %Qv",
+                request.id());
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

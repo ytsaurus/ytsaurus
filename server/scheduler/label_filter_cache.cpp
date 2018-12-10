@@ -43,9 +43,13 @@ class TQueryContext
     : public IQueryContext
 {
 public:
-    virtual bool AreReadPermissionsAllowed() const override
+    explicit TQueryContext(IObjectTypeHandler* typeHandler)
+        : TypeHandler_(typeHandler)
+    { }
+
+    virtual IObjectTypeHandler* GetTypeHandler() override
     {
-        return false;
+        return TypeHandler_;
     }
 
     virtual NAst::TExpressionPtr GetFieldExpression(const TDBField* field) override
@@ -64,11 +68,14 @@ public:
     }
 
 private:
+    IObjectTypeHandler* const TypeHandler_;
+
+private:
     void ThrowNotSupported()
     {
         THROW_ERROR_EXCEPTION("Only labels are supported during object filtering");
     }
-} QueryContext;
+};
 
 } // namespace
 
@@ -93,10 +100,8 @@ TErrorOr<std::vector<TObject*>> TLabelFilterCacheBase::DoGetFilteredObjects(cons
 
     try {
         TObjectFilter filter{query};
-        auto astExpression = BuildFilterExpression(
-            TypeHandler_,
-            &QueryContext,
-            filter);
+        TQueryContext queryContext(TypeHandler_);
+        auto astExpression = BuildFilterExpression(&queryContext, filter);
 
         auto expressionSource = FormatExpression(*astExpression);
 

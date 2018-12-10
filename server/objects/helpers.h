@@ -20,17 +20,42 @@ struct TResolveResult
     NYT::NYPath::TYPath SuffixPath;
 };
 
+struct TResolvePermissions
+{
+    std::vector<NAccessControl::EAccessControlPermission> ReadPermissions;
+};
+
 TResolveResult ResolveAttribute(
     IObjectTypeHandler* typeHandler,
-    const NYT::NYPath::TYPath& path);
+    const NYT::NYPath::TYPath& path,
+    TResolvePermissions* permissions = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAttributeFetcherContext
+class TAttributeFetcherContext
 {
-    NYT::NQueryClient::NAst::TExpressionList SelectExprs;
-    int ObjectIdIndex = -1;
-    int ParentIdIndex = -1;
+public:
+    explicit TAttributeFetcherContext(IQueryContext* queryContext);
+
+    void AddSelectExpression(NYT::NQueryClient::NAst::TExpressionPtr expr);
+    const NYT::NQueryClient::NAst::TExpressionList& GetSelectExpressions() const;
+
+    void WillNeedObject();
+    TObject* GetObject(
+        TTransaction* transaction,
+        NYT::NTableClient::TUnversionedRow row) const;
+
+    NYT::NTableClient::TUnversionedValue RetrieveNextValue(
+        NYT::NTableClient::TUnversionedRow row,
+        int* currentIndex) const;
+
+private:
+    IQueryContext* const QueryContext_;
+
+    int ObjectIdIndex_ = -1;
+    int ParentIdIndex_ = -1;
+
+    NYT::NQueryClient::NAst::TExpressionList SelectExprs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +70,6 @@ class TAttributeFetcher
 {
 public:
     TAttributeFetcher(
-        IObjectTypeHandler* typeHandler,
         const TResolveResult& resolveResult,
         TTransaction* transaction,
         TAttributeFetcherContext* fetcherContext,
@@ -54,19 +78,13 @@ public:
     void Prefetch(NYT::NTableClient::TUnversionedRow row);
     NYT::NYson::TYsonString Fetch(NYT::NTableClient::TUnversionedRow row);
 
-    const std::vector<NAccessControl::EAccessControlPermission>& GetReadPermissions() const;
-    TObject* GetObject(NYT::NTableClient::TUnversionedRow row) const;
-
 private:
-    IObjectTypeHandler* const TypeHandler_;
     const TResolveResult RootResolveResult_;
     TTransaction* const Transaction_;
     TAttributeFetcherContext* const FetcherContext_;
-    IQueryContext* const QueryContext_;
     const int StartIndex_;
     
     int CurrentIndex_;
-    std::vector<NAccessControl::EAccessControlPermission> ReadPermissions_;
 
     static EAttributeFetchMethod GetFetchMethod(const TResolveResult& resolveResult);
 
@@ -80,20 +98,11 @@ private:
         NYT::NTableClient::TUnversionedRow row,
         const TResolveResult& resolveResult,
         NYson::IYsonConsumer* consumer);
-
-    void ProcessReadPermissions(
-        TAttributeSchema* attribute,
-        IQueryContext* queryContext);
-
-    NYT::NTableClient::TUnversionedValue RetrieveNextValue(NYT::NTableClient::TUnversionedRow row);
-
-    void WillNeedObject();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NYT::NQueryClient::NAst::TExpressionPtr BuildFilterExpression(
-    IObjectTypeHandler* typeHandler,
     IQueryContext* context,
     const TObjectFilter& filter);
 
@@ -110,6 +119,10 @@ TString GetObjectDisplayName(const TObject* object);
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectId GenerateUuid();
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateDiskVolumeRequests(TPod* pod);
 
 ////////////////////////////////////////////////////////////////////////////////
 

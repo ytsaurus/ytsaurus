@@ -10,6 +10,8 @@
 #include "helpers.h"
 #include "config.h"
 
+#include <yt/core/misc/random.h>
+
 namespace NYP {
 namespace NServer {
 namespace NScheduler {
@@ -153,19 +155,9 @@ DEFINE_ENUM(EAllocationErrorType,
 class TGlobalResourceAllocatorStatistics
 {
 public:
-    void RegisterAttempt()
-    {
-        ++AttemptCount_;
-    }
-
     void RegisterError(EAllocationErrorType errorType)
     {
         ++ErrorCountPerType_[errorType];
-    }
-
-    int GetAttemptCount() const
-    {
-        return AttemptCount_;
     }
 
     TString FormatErrors() const
@@ -174,7 +166,6 @@ public:
     }
 
 private:
-    int AttemptCount_ = 0;
     TEnumIndexedVector<int, EAllocationErrorType> ErrorCountPerType_;
 };
 
@@ -236,15 +227,25 @@ public:
         TGlobalResourceAllocatorStatistics statistics;
         switch (NodeSelectionStrategy_) {
             case EAllocatorNodeSelectionStrategy::Random: {
-                const int MaxAttempts = 10;
-                for (int attempt = 0; attempt < MaxAttempts; ++attempt) {
-                    auto* node = nodes[RandomNumber(nodes.size())];
+                const int SampleSize = 10;
+
+                std::vector<TNode*> sampledNodes;
+                sampledNodes.reserve(SampleSize);
+                NYT::RandomSampleN(
+                    nodes.cbegin(),
+                    nodes.cend(),
+                    std::back_inserter(sampledNodes),
+                    SampleSize,
+                    [] (size_t max) { return RandomNumber(max); });
+
+                for (auto* node : sampledNodes) {
                     if (TryAllocation(node, pod, &statistics)) {
                         return node;
                     }
                 }
+
                 return TError("No matching node from a random sample of size %v could be allocated for pod due to errors %v",
-                    statistics.GetAttemptCount(),
+                    sampledNodes.size(),
                     statistics.FormatErrors());
             }
             case EAllocatorNodeSelectionStrategy::Every: {
@@ -253,6 +254,7 @@ public:
                         return node;
                     }
                 }
+
                 return TError("No matching alive node (from %v in total after filtering) could be allocated for pod due to errors %v",
                     nodes.size(),
                     statistics.FormatErrors());
@@ -272,8 +274,6 @@ private:
         TPod* pod,
         TGlobalResourceAllocatorStatistics* statistics)
     {
-        statistics->RegisterAttempt();
-
         TNodeAllocationContext nodeAllocationContext(node, pod);
         TInternetAddressAllocationContext internetAddressAllocationContext(
             GetNodeNetworkModule(node, Cluster_),

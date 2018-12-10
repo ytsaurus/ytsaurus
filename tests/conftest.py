@@ -7,6 +7,10 @@ from yp.logger import logger
 from yt.wrapper.common import generate_uuid
 from yt.wrapper.retries import run_with_retries
 
+from yt.common import update
+
+import yt.subprocess_wrapper as subprocess
+
 # TODO(ignat): avoid this hacks
 try:
     import yatest.common as yatest_common
@@ -20,9 +24,10 @@ else:
 
 import pytest
 
+import copy
+import logging
 import os
 import sys
-import logging
 import time
 
 
@@ -58,8 +63,37 @@ ZERO_RESOURCE_REQUESTS = {
 
 logger.setLevel(logging.DEBUG)
 
+
+class Cli(object):
+    def __init__(self, directory_path, yamake_subdirectory_name, binary_name):
+        if yatest_common is not None:
+            yatest_binary_path = os.path.join(directory_path, yamake_subdirectory_name, binary_name)
+            self._cli_execute = [yatest_common.binary_path(yatest_binary_path)]
+        else:
+            binary_path = os.path.join(TESTS_LOCATION, "..", directory_path, binary_name)
+            self._cli_execute = [
+                os.environ.get("PYTHON_BINARY", sys.executable),
+                os.path.normpath(binary_path),
+            ]
+        self._env = None
+
+    def update_env(self, env):
+        self._env = update(copy.deepcopy(os.environ), env)
+
+    def _check_output(self, *args, **kwargs):
+        return subprocess.check_output(*args, env=self._env, stderr=sys.stderr, **kwargs)
+
+    def __call__(self, *args):
+        return self._check_output(self._cli_execute + list(args)).strip()
+
+
 class YpTestEnvironment(object):
-    def __init__(self, yp_master_config=None, enable_ssl=False, start=True, db_version=ACTUAL_DB_VERSION):
+    def __init__(self,
+                 yp_master_config=None,
+                 enable_ssl=False,
+                 start=True,
+                 db_version=ACTUAL_DB_VERSION,
+                 local_yt_options=None):
         if yatest_common is not None:
             destination = os.path.join(yatest_common.work_path(), "yt_build_" + generate_uuid())
             os.makedirs(destination)
@@ -76,7 +110,8 @@ class YpTestEnvironment(object):
                                       yp_master_config=yp_master_config,
                                       enable_ssl=enable_ssl,
                                       db_version=db_version,
-                                      port_locks_path=os.path.join(self.test_sandbox_base_path, "ports"))
+                                      port_locks_path=os.path.join(self.test_sandbox_base_path, "ports"),
+                                      local_yt_options=local_yt_options)
         if start:
             self._start()
         else:
@@ -152,7 +187,10 @@ def yp_env(request, test_environment):
 def test_environment_configurable(request):
     environment = YpTestEnvironment(
         yp_master_config=getattr(request.cls, "YP_MASTER_CONFIG", None),
-        enable_ssl=getattr(request.cls, "ENABLE_SSL", False))
+        enable_ssl=getattr(request.cls, "ENABLE_SSL", False),
+        local_yt_options=getattr(request.cls, "LOCAL_YT_OPTIONS", None),
+        start=getattr(request.cls, "START", True),
+    )
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
@@ -161,8 +199,3 @@ def yp_env_configurable(request, test_environment_configurable):
     test_method_setup(test_environment_configurable)
     request.addfinalizer(lambda: test_method_teardown(test_environment_configurable))
     return test_environment_configurable
-
-@pytest.fixture(scope="function")
-def yp_env_migration(request):
-    environment = YpTestEnvironment(start=False, db_version=1)
-    return environment

@@ -10,7 +10,7 @@ namespace NObjects {
 
 extern const NYT::NLogging::TLogger Logger;
 
-static constexpr int DBVersion = 13;
+static constexpr int DBVersion = 14;
 
 ////////////////////////////////////////////////////////////////////////////////
 

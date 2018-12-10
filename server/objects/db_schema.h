@@ -97,6 +97,7 @@ extern const struct TNodesTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec{"spec"};
+        // TODO(babenko): consider moving to status.other
         TDBField Status_AgentAddress{"status.agent_address"};
         TDBField Status_EpochId{"status.epoch_id"};
         TDBField Status_LastSeenTime{"status.last_seen_time"};

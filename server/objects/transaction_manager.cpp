@@ -103,6 +103,7 @@ public:
         }
         if (MasterInstanceTagFromId(id) != ytConnector->GetInstanceTag()) {
             THROW_ERROR_EXCEPTION("Invalid master instance tag in transaction id %v: expected %v, got %v",
+                id,
                 ytConnector->GetInstanceTag(),
                 MasterInstanceTagFromId(id));
         }

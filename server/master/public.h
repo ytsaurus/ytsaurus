@@ -17,6 +17,7 @@ class TBootstrap;
 DECLARE_REFCOUNTED_CLASS(TYTConnector)
 
 DECLARE_REFCOUNTED_CLASS(TYTConnectorConfig)
+DECLARE_REFCOUNTED_CLASS(TSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

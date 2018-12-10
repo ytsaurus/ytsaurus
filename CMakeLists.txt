@@ -1,5 +1,0 @@
-add_subdirectory(build)
-add_subdirectory(client)
-add_subdirectory(server)
-add_subdirectory(server/unittests)
-add_subdirectory(python)

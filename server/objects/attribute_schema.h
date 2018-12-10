@@ -22,8 +22,7 @@ struct IQueryContext
 {
     virtual ~IQueryContext() = default;
 
-    virtual bool AreReadPermissionsAllowed() const = 0;
-
+    virtual IObjectTypeHandler* GetTypeHandler() = 0;
     virtual NYT::NQueryClient::NAst::TExpressionPtr GetFieldExpression(const TDBField* field) = 0;
     virtual NYT::NQueryClient::NAst::TExpressionPtr GetAnnotationExpression(const TString& name) = 0;
 };

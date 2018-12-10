@@ -23,7 +23,8 @@ public:
     NObjects::TNode* ProcessHandshake(
         const NObjects::TTransactionPtr& transaction,
         const NObjects::TObjectId& nodeId,
-        const TString& address);
+        const TString& address,
+        const TString& version);
 
     /*!
      * The returned error is replied to the agent.

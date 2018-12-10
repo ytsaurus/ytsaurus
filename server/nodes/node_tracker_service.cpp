@@ -52,10 +52,13 @@ private:
     {
         const auto& nodeId = request->node_id();
         const auto& address = request->address();
+        // COMPAT(babenko): make required
+        const auto& version = request->has_version() ? request->version() : TString("unknown");
 
-        context->SetRequestInfo("NodeId: %v, Address: %v",
+        context->SetRequestInfo("NodeId: %v, Address: %v, Version: %v",
             nodeId,
-            address);
+            address,
+            version);
 
         ValidateAgentCertificate(context, nodeId);
 
@@ -64,14 +67,17 @@ private:
             .ValueOrThrow();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->ProcessHandshake(transaction, nodeId, address);
+        auto* node = nodeTracker->ProcessHandshake(
+            transaction,
+            nodeId,
+            address,
+            version);
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
         auto epochId = node->Status().EpochId().Load();
 
-        ToProto(response->mutable_node_id(), nodeId);
         ToProto(response->mutable_epoch_id(), epochId);
 
         context->SetResponseInfo("NodeId: %v, EpochId: %v",

@@ -39,8 +39,14 @@ enum EAccessControlAction
 
 enum EAccessControlPermission
 {
+    ACP_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
     ACP_READ = 1
     [(NYT.NYson.NProto.enum_value_name) = "read"];
+
+    ACP_READ_SECRETS = 8
+    [(NYT.NYson.NProto.enum_value_name) = "read_secrets"];
 
     ACA_WRITE = 2
     [(NYT.NYson.NProto.enum_value_name) = "write"];

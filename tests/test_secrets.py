@@ -2,6 +2,11 @@ from yp.common import YtResponseError, YpAuthorizationError
 
 import pytest
 
+MY_SECRET = {
+    "secret_id": "id",
+    "secret_version": "version",
+    "delegation_token": "token"
+}
 
 @pytest.mark.usefixtures("yp_env")
 class TestSecrets(object):
@@ -11,13 +16,7 @@ class TestSecrets(object):
         pod_set_id = yp_client.create_object("pod_set")
         pod_id = yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
 
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/secrets", "value": {
-            "my_secret": {
-                "secret_id": "id",
-                "secret_version": "version",
-                "delegation_token": "token"
-            }
-        }}])
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/secrets", "value": {"my_secret": MY_SECRET}}])
 
     def test_secrets_writable_unless_allowed(self, yp_env):
         yp_client = yp_env.yp_client
@@ -80,3 +79,33 @@ class TestSecrets(object):
 
         with pytest.raises(YtResponseError):
             yp_client.select_objects("pod", selectors=["/spec/secrets"])
+
+    def test_partial_secrets_update_requires_read(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        yp_client1 = yp_env.yp_instance.create_client(config={"user": "u"})
+        yp_env.sync_access_control()
+
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+        
+        with pytest.raises(YpAuthorizationError):
+            yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/spec/secrets/my_secret", "value": MY_SECRET}])
+
+        yp_client.update_object("pod_set", pod_set_id, set_updates=[
+            {"path": "/meta/acl", "value": [
+                {"action": "allow", "permissions": ["write"], "subjects": ["u"]}
+            ]}
+        ])
+
+        with pytest.raises(YpAuthorizationError):
+            yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/spec/secrets/my_secret", "value": MY_SECRET}])
+
+        yp_client.update_object("pod_set", pod_set_id, set_updates=[
+            {"path": "/meta/acl", "value": [
+                {"action": "allow", "permissions": ["read_secrets", "write"], "subjects": ["u"]}
+            ]}
+        ])
+
+        yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/spec/secrets/my_secret", "value": MY_SECRET}])

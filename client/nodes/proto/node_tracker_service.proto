@@ -16,14 +16,14 @@ message TReqHandshake
 
     // GRPC address of AgentService.
     required string address = 2;
+
+    // Agent version.
+    // COMPAT(babenko): make required
+    optional string version = 3;
 }
 
 message TRspHandshake
 {
-    // TODO(babenko): drop
-    // Unique (and opaque) node id.
-    optional string node_id = 1;
-
     // Unique (and opaque) epoch id.
     required string epoch_id = 2;
 }
@@ -40,7 +40,7 @@ message TPodStatus
     }
 
     // The current state of POD's FSM at the agent.
-    // TODO(babenko): this is deprecated and moved to TReqHeartbeat.TPodEntry
+    // COMPAT(babenko): this is deprecated and moved to TReqHeartbeat.TPodEntry
     optional NYP.NClient.NApi.NProto.EPodCurrentState current_state = 2;
 
     // If given, contains the error occurred during pod lifecycle at agent.
@@ -72,7 +72,7 @@ message TPodSpec
     // Controls pod state transitions.
     // If target_state == ETargetState.Removed and current_state == ECurrentState.Stopped then
     // the master is allowed to forget about the pod and stop passing it in heartbeat responses.
-    // TODO(babenko): this is deprecated and moved to TRspHeartbeat.TPodEntry
+    // COMPAT(babenko): this is deprecated and moved to TRspHeartbeat.TPodEntry
     optional NYP.NClient.NApi.NProto.EPodTargetState target_state = 3;
 
     // The following section of fields contains values obtained from pod spec/status.
@@ -88,7 +88,7 @@ message TPodSpec
 
     // Contains (raw, unencrypted) secrets to be injected into the pod.
     // These are obtained via TVM magic from secret descriptors provided in /pod/spec/secrets.
-    repeated NYP.NClient.NApi.NProto.TSecret secrets = 11;
+    repeated NYP.NClient.NApi.NProto.TSecret secrets = 12;
 }
 
 message TReqHeartbeat
@@ -107,7 +107,7 @@ message TReqHeartbeat
         optional TPodStatus status = 4;
 
         // The current state of POD's FSM at the agent.
-        // TODO(babenko): mark as required
+        // COMPAT(babenko): mark as required
         optional NYP.NClient.NApi.NProto.EPodCurrentState current_state = 5;
     }
 

@@ -35,12 +35,6 @@ TResourceCapacities GetDiskVolumeRequestCapacities(const NClient::NApi::NProto::
 bool GetDiskVolumeRequestExclusive(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
 NClient::NApi::NProto::EDiskVolumePolicy GetDiskVolumeRequestPolicy(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
 
-void ValidateDiskVolumeRequests(
-    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& requests);
-void ValidateDiskVolumeRequestsUpdate(
-    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& oldRequests,
-    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& newRequests);
-
 TLocalResourceAllocator::TResource BuildAllocatorResource(
     const TObjectId& resourceId,
     const NClient::NApi::NProto::TResourceSpec& spec,
@@ -57,6 +51,10 @@ void UpdatePodDiskVolumeAllocations(
     google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>* allocations,
     const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
     const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses);
+
+void UpdatePodDiskVolumeAllocationLabels(
+    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& requests,
+    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>* allocations);
 
 void UpdateScheduledResourceAllocations(
     const TObjectId& podId,

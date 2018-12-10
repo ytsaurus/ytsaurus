@@ -27,6 +27,10 @@
 #include <yt/ytlib/monitoring/http_integration.h>
 
 #include <yt/ytlib/auth/authentication_manager.h>
+#include <yt/ytlib/auth/default_secret_vault_service.h>
+#include <yt/ytlib/auth/batching_secret_vault_service.h>
+#include <yt/ytlib/auth/caching_secret_vault_service.h>
+#include <yt/ytlib/auth/dummy_secret_vault_service.h>
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -146,6 +150,11 @@ public:
         return AuthenticationManager_;
     }
 
+    const ISecretVaultServicePtr& GetSecretVaultService()
+    {
+        return SecretVaultService_;
+    }
+
     const TString& GetFqdn()
     {
         return Fqdn_;
@@ -202,6 +211,7 @@ private:
     TAccessControlManagerPtr AccessControlManager_;
     TAccountingManagerPtr AccountingManager_;
     TAuthenticationManagerPtr AuthenticationManager_;
+    ISecretVaultServicePtr SecretVaultService_;
     TSchedulerPtr Scheduler_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
 
@@ -266,6 +276,8 @@ private:
         LOG_INFO("Initializing master (Fqdn: %v)",
             Fqdn_);
 
+        HttpPoller_ = CreateThreadPoolPoller(1, "Http");
+
         YTConnector_ = New<TYTConnector>(Bootstrap_, Config_->YTConnector);
         ObjectManager_ = New<TObjectManager>(Bootstrap_, Config_->ObjectManager);
         NetManager_ = New<TNetManager>(Bootstrap_, Config_->NetManager);
@@ -278,6 +290,22 @@ private:
             Config_->AuthenticationManager,
             GetWorkerPoolInvoker(),
             YTConnector_->GetClient());
+        if (Config_->SecretVaultService && AuthenticationManager_->GetTvmService()) {
+            NProfiling::TProfiler secretVaultProfiler("/secret_vault");
+            SecretVaultService_ = CreateCachingSecretVaultService(
+                Config_->SecretVaultService,
+                CreateBatchingSecretVaultService(
+                    Config_->SecretVaultService,
+                    CreateDefaultSecretVaultService(
+                        Config_->SecretVaultService,
+                        AuthenticationManager_->GetTvmService(),
+                        HttpPoller_,
+                        secretVaultProfiler.AppendPath("/remote")),
+                    secretVaultProfiler.AppendPath("/batcher")),
+                secretVaultProfiler.AppendPath("/cache"));
+        } else {
+            SecretVaultService_ = CreateDummySecretVaultService();
+        }
         Scheduler_ = New<TScheduler>(Bootstrap_, Config_->Scheduler);
 
         YTConnector_->Initialize();
@@ -300,8 +328,6 @@ private:
             orchidRoot,
             "/profiling",
             CreateVirtualNode(NProfiling::TProfileManager::Get()->GetService()));
-
-        HttpPoller_ = CreateThreadPoolPoller(1, "Http");
 
         HttpMonitoringServer_ = NHttp::CreateServer(
             Config_->MonitoringServer,
@@ -456,6 +482,11 @@ const TAccountingManagerPtr& TBootstrap::GetAccountingManager()
 const TAuthenticationManagerPtr& TBootstrap::GetAuthenticationManager()
 {
     return Impl_->GetAuthenticationManager();
+}
+
+const ISecretVaultServicePtr& TBootstrap::GetSecretVaultService()
+{
+    return Impl_->GetSecretVaultService();
 }
 
 const TString& TBootstrap::GetFqdn()

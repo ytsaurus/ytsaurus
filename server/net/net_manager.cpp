@@ -141,7 +141,7 @@ public:
 
         if (ShouldReassignPodAddresses(transaction, pod)) {
             ReleasePodAddresses(transaction, pod);
-            AcquirePodAddresss(transaction, pod);
+            AcquirePodAddress(transaction, pod);
         }
 
         if (ShouldUpdateAddressAllocations(pod)) {
@@ -415,7 +415,7 @@ private:
         ip6SubnetAllocations->Clear();
     }
 
-    void AcquirePodAddresss(const TTransactionPtr& transaction, TPod* pod)
+    void AcquirePodAddress(const TTransactionPtr& transaction, TPod* pod)
     {
         if (pod->IsRemoving()) {
             return;
@@ -593,7 +593,7 @@ private:
             if (!virtualService->DoesExist()) {
                 // TODO(babenko): similar to YP-322
                 if (!pod->Spec().Node().IsChanged()) {
-                    LOG_DEBUG("Pod refers to non-existing virtual service; sliently skipping update since pod's node did not change"
+                    LOG_DEBUG("Pod refers to non-existing virtual service; silently skipping update since pod's node did not change"
                         " (PodId: %v, VirtualServiceId: %v)",
                         pod->GetId(),
                         virtualServiceId);

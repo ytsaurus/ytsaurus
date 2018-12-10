@@ -58,12 +58,12 @@ TObject::TObject(
 
 void TObject::InitializeCreating()
 {
-    State_= EObjectState::Creating;
+    State_ = EObjectState::Creating;
 }
 
 void TObject::InitializeInstantiated()
 {
-    State_= EObjectState::Instantiated;
+    State_ = EObjectState::Instantiated;
     ExistenceChecker_.ScheduleCheck();
     InheritAcl_.ScheduleLoad();
     Acl_.ScheduleLoad();

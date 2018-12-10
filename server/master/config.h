@@ -77,6 +77,16 @@ DEFINE_REFCOUNTED_TYPE(TYTConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSecretVaultServiceConfig
+    : public NAuth::TBatchingSecretVaultServiceConfig
+    , public NAuth::TCachingSecretVaultServiceConfig
+    , public NAuth::TDefaultSecretVaultServiceConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TSecretVaultServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMasterConfig
     : public NYT::TSingletonsConfig
 {
@@ -96,6 +106,7 @@ public:
     NAccessControl::TAccessControlManagerConfigPtr AccessControlManager;
     NAccounting::TAccountingManagerConfigPtr AccountingManager;
     NAuth::TAuthenticationManagerConfigPtr AuthenticationManager;
+    TSecretVaultServiceConfigPtr SecretVaultService;
     int WorkerThreadPoolSize;
 
     TMasterConfig()
@@ -128,6 +139,8 @@ public:
             .DefaultNew();
         RegisterParameter("authentication_manager", AuthenticationManager)
             .DefaultNew();
+        RegisterParameter("secret_vault_service", SecretVaultService)
+            .Optional();
         RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
             .GreaterThan(0)
             .Default(8);

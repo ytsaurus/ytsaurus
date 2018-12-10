@@ -315,12 +315,7 @@ private:
                 ValidateSysctlProperty(spec);
             }
 
-            ValidateDiskVolumeRequests(specOther.Load().disk_volume_requests());
-            if (pod->Spec().Node().Load()) {
-                ValidateDiskVolumeRequestsUpdate(
-                    specOther.Load().disk_volume_requests(),
-                    specOther.LoadOld().disk_volume_requests());
-            }
+            ValidateDiskVolumeRequests(pod);
         }
     }
 

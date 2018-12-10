@@ -75,6 +75,7 @@ private:
         auto result = TObjectTypeHandlerBase::GetDefaultPermissions();
         result.push_back(EAccessControlPermission::SshAccess);
         result.push_back(EAccessControlPermission::RootSshAccess);
+        result.push_back(EAccessControlPermission::ReadSecrets);
         return result;
     }
 
