@@ -469,7 +469,7 @@ private:
             !Replied_)
         {
             while (CurrentSubrequestIndex_ > ThrottledSubrequestIndex_) {
-                EUserWorkloadType workloadType = Subrequests_[CurrentSubrequestIndex_].Mutation
+                auto workloadType = Subrequests_[CurrentSubrequestIndex_].Mutation
                     ? EUserWorkloadType::Write
                     : EUserWorkloadType::Read;
                 ++ThrottledSubrequestIndex_;
