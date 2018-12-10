@@ -647,6 +647,8 @@ private:
                 transactionId,
                 prepareTimestamp);
 
+            SyncWithUpstream();
+
             auto owner = GetOwnerOrThrow();
             NHiveServer::NProto::TReqParticipantPrepareTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
