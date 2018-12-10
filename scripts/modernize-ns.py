@@ -3,50 +3,69 @@
 import fileinput
 import sys
 
-begin_ns = []
+begin_nss = []
 NAMESPACE_BEGIN = "namespace "
 
-def flush_begin_ns():
-    global begin_ns
-    if len(begin_ns) > 0:
+def get_begin_ns(line):
+    if not line.startswith(NAMESPACE_BEGIN):
+        return None
+    ns = line[len(NAMESPACE_BEGIN):-1].strip()
+    if len(ns) == 0:
+        return None
+    if "::" in ns:
+        return None
+    return ns
+
+def flush_begin_nss():
+    global begin_nss
+    if len(begin_nss) > 0:
         sys.stdout.write("namespace ")
-        for i in xrange(len(begin_ns)):
-            print begin_ns[i],
-            if i < len(begin_ns) - 1:
+        for i in xrange(len(begin_nss)):
+            print begin_nss[i],
+            if i < len(begin_nss) - 1:
                 sys.stdout.write("::")
         sys.stdout.write(" {\n")
-    begin_ns = []
+    begin_nss = []
 
-end_ns = []
+end_nss = []
 NAMESPACE_END = "} // namespace "
 
-def flush_end_ns():
-    global end_ns
-    if len(end_ns) > 0:
+def get_end_ns(line):
+    if not line.startswith(NAMESPACE_END):
+        return None
+    ns = line[len(NAMESPACE_END):].strip()
+    if len(ns) == 0:
+        return None
+    if "::" in ns:
+        return None
+    return ns    
+
+def flush_end_nss():
+    global end_nss
+    if len(end_nss) > 0:
         sys.stdout.write("} // namespace ")
-        for i in xrange(len(end_ns)):
-            print end_ns[i],
-            if i < len(end_ns) - 1:
+        for i in reversed(xrange(len(end_nss))):
+            print end_nss[i],
+            if i > 0:
                 sys.stdout.write("::")
         sys.stdout.write("\n")
-    end_ns = []
+    end_nss = []
 
-def flush_ns():
-    flush_begin_ns()
-    flush_end_ns()
+def flush_nss():
+    flush_begin_nss()
+    flush_end_nss()
 
 if __name__ == "__main__":
     for line in fileinput.input():
         line = line[:-1]
-        if line.startswith(NAMESPACE_BEGIN):
-            ns = line[len(NAMESPACE_BEGIN):-1].strip()
-            begin_ns.append(ns)
-        elif line.startswith(NAMESPACE_END):
-            ns = line[len(NAMESPACE_END):].strip()
-            end_ns.append(ns)
+        begin_ns = get_begin_ns(line)
+        end_ns = get_end_ns(line)
+        if begin_ns is not None:
+            begin_nss.append(begin_ns)
+        elif end_ns is not None:
+            end_nss.append(end_ns)
         else:
-            flush_ns()
-            sys.stdout.write(line + "\n")
+            flush_nss()
+            sys.stdout.write( line + "\n")
 
-    flush_begin_ns()
-
+    flush_nss()
