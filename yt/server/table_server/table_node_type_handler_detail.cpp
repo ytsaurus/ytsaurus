@@ -19,8 +19,7 @@
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_manager.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NTableClient;
 using namespace NCellMaster;
@@ -312,6 +311,5 @@ ICypressNodeProxyPtr TReplicatedTableNodeTypeHandler::DoGetProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

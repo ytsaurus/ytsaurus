@@ -6,8 +6,7 @@
 
 #include <util/generic/buffer.h>
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,8 +39,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff
 
 #define PARSER_INL_H_
 #include "parser-inl.h"

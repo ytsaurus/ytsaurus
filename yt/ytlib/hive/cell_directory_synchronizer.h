@@ -6,8 +6,7 @@
 
 #include <yt/core/logging/public.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,5 +41,4 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

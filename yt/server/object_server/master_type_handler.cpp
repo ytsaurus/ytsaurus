@@ -3,8 +3,7 @@
 #include "master.h"
 #include "master_proxy.h"
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NCellMaster;
 
@@ -56,5 +55,4 @@ IObjectTypeHandlerPtr CreateMasterTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

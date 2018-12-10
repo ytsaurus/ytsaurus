@@ -5,8 +5,7 @@
 #include "chunk.h"
 #endif
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -329,5 +328,4 @@ inline int TChunk::ExportCounter() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

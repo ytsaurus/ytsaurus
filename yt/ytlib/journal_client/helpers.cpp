@@ -13,8 +13,7 @@
 
 #include <yt/core/rpc/dispatcher.h>
 
-namespace NYT {
-namespace NJournalClient {
+namespace NYT::NJournalClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
@@ -300,6 +299,5 @@ TFuture<TMiscExt> ComputeQuorumInfo(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalClient
-} // namespace NYT
+} // namespace NYT::NJournalClient
 

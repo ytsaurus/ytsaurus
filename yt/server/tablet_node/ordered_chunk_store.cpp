@@ -22,8 +22,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NYTree;
 using namespace NTableClient;
@@ -263,5 +262,4 @@ TKeyComparer TOrderedChunkStore::GetKeyComparer()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

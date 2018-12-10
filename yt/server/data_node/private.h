@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,5 +24,4 @@ extern const TString ArtifactMetaSuffix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

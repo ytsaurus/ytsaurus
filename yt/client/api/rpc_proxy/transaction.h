@@ -6,9 +6,7 @@
 
 #include <yt/client/api/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +25,4 @@ NApi::ITransactionPtr CreateTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

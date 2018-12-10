@@ -1,7 +1,6 @@
 #include "chunk_pools_helpers.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,5 +12,4 @@ void PrintTo(const TInputChunk& /* chunk */, std::ostream* /* os */)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namesapce NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient:

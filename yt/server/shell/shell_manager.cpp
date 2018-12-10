@@ -18,8 +18,7 @@
 #include <util/system/execpath.h>
 #include <util/system/fs.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 using namespace NYTree;
 using namespace NYson;
@@ -267,5 +266,4 @@ IShellManagerPtr CreateShellManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NShell
-} // namespace NYT
+} // namespace NYT::NShell

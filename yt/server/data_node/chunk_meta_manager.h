@@ -12,8 +12,7 @@
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,5 +85,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkMetaManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

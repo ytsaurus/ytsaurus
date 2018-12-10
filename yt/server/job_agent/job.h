@@ -19,8 +19,7 @@
 
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,5 +113,4 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

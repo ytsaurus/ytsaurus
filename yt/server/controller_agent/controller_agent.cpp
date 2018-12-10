@@ -43,8 +43,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/service_combiner.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 using namespace NConcurrency;
@@ -1691,5 +1690,4 @@ DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerDisconnected, *Impl_);
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -30,8 +30,7 @@
 #include <yt/client/table_client/schemaful_writer.h>
 #include <yt/client/table_client/name_table.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NYTree;
 using namespace NYson;
@@ -488,5 +487,4 @@ ISchemafulReaderPtr TOrderedDynamicStore::DoCreateReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

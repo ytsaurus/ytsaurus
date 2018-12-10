@@ -4,8 +4,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +37,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

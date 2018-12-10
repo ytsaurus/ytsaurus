@@ -9,8 +9,7 @@
 
 #include <yt/core/yson/public.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -440,6 +439,5 @@ NYson::TYsonString ConvertToYsonStringStable(const INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

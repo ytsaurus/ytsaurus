@@ -22,8 +22,7 @@
 #include <yt/core/http/helpers.h>
 #include <yt/core/http/client.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NHttp;
 using namespace NYson;
@@ -363,5 +362,4 @@ std::vector<TRowRangeLocation> FetchSkynetPartsLocations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

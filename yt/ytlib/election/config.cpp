@@ -2,8 +2,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 using namespace NYson;
 using namespace NYTree;
@@ -98,6 +97,5 @@ void TCellConfig::ValidateAllPeersPresent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection
 

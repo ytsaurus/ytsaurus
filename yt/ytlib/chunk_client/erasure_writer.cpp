@@ -29,8 +29,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NErasure;
 using namespace NConcurrency;
@@ -518,5 +517,4 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

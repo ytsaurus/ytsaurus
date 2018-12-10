@@ -22,9 +22,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 using namespace NRpc;
 using namespace NBus;
@@ -838,6 +836,4 @@ IServerPtr CreateServer(TServerConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

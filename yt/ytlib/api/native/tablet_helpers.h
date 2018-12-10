@@ -16,9 +16,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +68,4 @@ NTabletClient::TTabletInfoPtr GetOrderedTabletForRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

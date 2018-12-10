@@ -7,8 +7,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NTableClient;
 using namespace NNodeTrackerClient;
@@ -318,5 +317,4 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, TNodeId nodeId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

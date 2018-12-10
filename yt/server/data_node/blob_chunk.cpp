@@ -21,8 +21,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NConcurrency;
 using namespace NCellNode;
@@ -525,5 +524,4 @@ TCachedBlobChunk::~TCachedBlobChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

@@ -15,8 +15,7 @@
 
 #include <util/string/util.h>
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 
 using namespace NYTree;
 using namespace NYson;
@@ -594,5 +593,4 @@ void TStatisticsConsumer::OnMyListItem()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient

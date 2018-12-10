@@ -4,8 +4,7 @@
 
 #include <yt/client/api/public.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,5 +31,4 @@ DEFINE_REFCOUNTED_TYPE(TNodeDirectorySynchronizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

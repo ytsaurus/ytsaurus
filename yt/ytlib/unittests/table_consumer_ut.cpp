@@ -8,8 +8,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/yson/parser.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 namespace {
 
 using ::testing::InSequence;
@@ -106,6 +105,5 @@ TEST(TYsonParserTest, ContextInExceptions_TableConsumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NVersionedTableClient
-} // namespace NYT
+} // namespace NYT::NVersionedTableClient
 

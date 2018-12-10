@@ -4,8 +4,7 @@
 
 #include <yt/server/controller_agent/operation_controller.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
@@ -76,5 +75,4 @@ std::unique_ptr<IChunkPoolOutput> CreateVanillaChunkPool(int jobCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

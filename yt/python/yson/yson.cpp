@@ -30,8 +30,7 @@
 
 #include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYTree;
 using namespace NYson;
@@ -660,8 +659,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython
 
 ////////////////////////////////////////////////////////////////////////////////
 

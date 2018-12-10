@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -164,5 +163,4 @@ void TPutFileToCacheCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

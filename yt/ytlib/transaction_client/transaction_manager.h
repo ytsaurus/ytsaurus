@@ -15,8 +15,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,5 +182,4 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

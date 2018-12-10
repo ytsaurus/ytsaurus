@@ -16,8 +16,7 @@
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -238,8 +237,7 @@ DEFINE_REFCOUNTED_TYPE(IService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc
 
 //! A hasher for TServiceId.
 template <>

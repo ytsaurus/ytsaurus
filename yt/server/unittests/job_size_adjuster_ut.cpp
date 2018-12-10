@@ -3,8 +3,7 @@
 #include <yt/server/controller_agent/config.h>
 #include <yt/server/controller_agent/job_size_adjuster.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +32,5 @@ TEST(TJobSizeAdjusterTest, Simple)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

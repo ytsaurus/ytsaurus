@@ -9,8 +9,7 @@
 
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NRpc::NProto;
@@ -339,5 +338,4 @@ IServicePtr CreateRedirectorService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

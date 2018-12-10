@@ -12,8 +12,7 @@
 
 #include <yt/core/tracing/trace_context.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,5 +71,4 @@ void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

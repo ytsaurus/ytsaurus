@@ -1,7 +1,6 @@
 #include "operation_id_or_alias.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,5 +15,4 @@ TString GetOperationIdOrAliasContextInfo(const TOperationIdOrAlias& operationIdO
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

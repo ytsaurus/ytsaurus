@@ -22,8 +22,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,5 +85,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

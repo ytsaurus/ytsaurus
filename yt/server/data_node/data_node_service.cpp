@@ -53,8 +53,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NRpc;
 using namespace NChunkClient;
@@ -1340,5 +1339,4 @@ IServicePtr CreateDataNodeService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

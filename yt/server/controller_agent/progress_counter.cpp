@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
@@ -362,6 +361,5 @@ void SerializeBriefVersion(const TProgressCounterPtr& counter, NYTree::TFluentAn
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

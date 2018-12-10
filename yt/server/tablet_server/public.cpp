@@ -1,7 +1,6 @@
 #include "public.h"
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ const TTimeFormula DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

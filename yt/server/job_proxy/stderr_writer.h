@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/file_client/file_chunk_output.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,5 +66,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

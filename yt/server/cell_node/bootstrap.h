@@ -41,8 +41,7 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/lazy_ptr.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,5 +199,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

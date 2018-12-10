@@ -1,7 +1,6 @@
 #include "static_channel_factory.h"
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,5 +21,4 @@ IChannelPtr TStaticChannelFactory::CreateChannel(const TString& address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

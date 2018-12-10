@@ -9,8 +9,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NRpc;
 using namespace NChunkClient;
@@ -199,5 +198,4 @@ void TSessionBase::ValidateActive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

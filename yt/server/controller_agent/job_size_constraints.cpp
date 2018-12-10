@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 using namespace NTableClient;
@@ -975,5 +974,4 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

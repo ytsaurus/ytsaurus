@@ -25,8 +25,7 @@
 
 #include <yt/ytlib/table_client/skynet_column_evaluator.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NApi;
 using namespace NCypressClient;
@@ -576,5 +575,4 @@ TFuture<TCachedResourcePtr> TSkynetService::DoGet(const TCacheKey& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

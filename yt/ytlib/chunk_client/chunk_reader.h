@@ -7,8 +7,7 @@
 
 #include <yt/client/misc/workload.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,5 +53,4 @@ DEFINE_REFCOUNTED_TYPE(IChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

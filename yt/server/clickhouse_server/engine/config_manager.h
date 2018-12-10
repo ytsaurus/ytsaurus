@@ -12,9 +12,7 @@
 
 #include <memory>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +43,4 @@ IConfigManagerPtr CreateConfigManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

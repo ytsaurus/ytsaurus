@@ -1,7 +1,6 @@
 #include "async_rw_lock.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,5 +88,4 @@ void TAsyncReaderWriterLock::ReleaseWriter()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

@@ -13,8 +13,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,5 +81,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

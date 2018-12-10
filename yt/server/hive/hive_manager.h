@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,5 +88,4 @@ DEFINE_REFCOUNTED_TYPE(THiveManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

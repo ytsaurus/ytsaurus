@@ -8,8 +8,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +62,5 @@ DEFINE_REFCOUNTED_TYPE(TJournalDispatcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

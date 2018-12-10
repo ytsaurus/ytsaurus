@@ -22,8 +22,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NRpc;
 using namespace NChunkClient;
@@ -245,5 +244,4 @@ IServicePtr CreateInMemoryService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -5,8 +5,7 @@
 
 #include <bitset>
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,5 +28,4 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure

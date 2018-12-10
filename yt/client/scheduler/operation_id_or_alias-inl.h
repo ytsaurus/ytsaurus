@@ -9,8 +9,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,5 +52,4 @@ void ToProto(TProtoClassPtr enclosingProtoMessage, const TOperationIdOrAlias& op
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

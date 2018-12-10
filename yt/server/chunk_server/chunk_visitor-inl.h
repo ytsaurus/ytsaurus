@@ -8,8 +8,7 @@
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +105,5 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 

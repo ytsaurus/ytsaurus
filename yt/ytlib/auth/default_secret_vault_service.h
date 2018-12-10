@@ -6,8 +6,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ ISecretVaultServicePtr CreateDefaultSecretVaultService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

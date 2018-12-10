@@ -18,8 +18,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,5 +87,4 @@ std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

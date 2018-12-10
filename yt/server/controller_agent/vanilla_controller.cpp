@@ -15,8 +15,7 @@
 
 #include <yt/client/ypath/rich.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NJobTrackerClient::NProto;
 using namespace NScheduler;
@@ -378,5 +377,4 @@ IOperationControllerPtr CreateVanillaController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -10,8 +10,7 @@
 
 #include <yt/core/concurrency/event_count.h>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -209,5 +208,4 @@ TEST(TBusTest, ManyReplies)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

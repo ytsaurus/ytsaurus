@@ -4,8 +4,7 @@
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,5 +155,4 @@ TString ToString(const TColumnFilter& columnFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

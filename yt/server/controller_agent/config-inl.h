@@ -6,8 +6,7 @@
 #include "config.h"
 #endif
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +29,5 @@ void TControllerAgentConfig::UpdateOptions(TOptions* options, NYT::NYTree::INode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

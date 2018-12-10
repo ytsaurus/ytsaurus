@@ -7,9 +7,7 @@
 
 #include <vector>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,6 +122,4 @@ using TRow = std::vector<TValue>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

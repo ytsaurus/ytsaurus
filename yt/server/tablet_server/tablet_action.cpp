@@ -2,8 +2,7 @@
 #include "tablet_cell.h"
 #include "tablet_action.h"
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NObjectServer;
@@ -72,6 +71,5 @@ TString ToString(const TTabletAction& action)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

@@ -7,8 +7,7 @@
 
 #include <yt/ytlib/table_chunk_format/public.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 
@@ -69,5 +68,4 @@ TEST_F(TUnversionedBooleanColumnTest, ReadValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

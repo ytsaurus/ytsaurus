@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +16,4 @@ DEFINE_REFCOUNTED_TYPE(TJournalManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace ТJournalServer
-} // namespace NYT
+} // namespace NYT::ТJournalServer

@@ -21,8 +21,7 @@
 
 #include <yt/core/misc/small_set.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NConcurrency;
 using namespace NTabletClient;
@@ -395,5 +394,4 @@ int TTabletTrackerImplOld::FindGoodPeer(const TTabletCell* cell)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

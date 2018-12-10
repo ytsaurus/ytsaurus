@@ -19,8 +19,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,5 +192,4 @@ DEFINE_REFCOUNTED_TYPE(TRefCountedExecNodeDescriptorMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

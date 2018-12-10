@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/assert.h>
 
-namespace NYT {
-namespace NCodegen {
+namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,6 +12,5 @@ extern const NLogging::TLogger CodegenLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodegen
-} // namespace NYT
+} // namespace NYT::NCodegen
 

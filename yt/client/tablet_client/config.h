@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/config.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +16,4 @@ DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

@@ -8,9 +8,7 @@ namespace DB {
     class Context;
 }
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +28,4 @@ NNative::IAuthorizationTokenPtr CreateAuthToken(
     NNative::IStorage& storage,
     const DB::Context& context);
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

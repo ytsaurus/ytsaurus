@@ -23,8 +23,7 @@
 #include <atomic>
 #include <map>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -421,8 +420,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 
 #define LOCATION_INL_H_
 #include "location-inl.h"

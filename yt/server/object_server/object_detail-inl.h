@@ -12,8 +12,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,5 +101,4 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

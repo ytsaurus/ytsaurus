@@ -23,8 +23,7 @@
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NApi;
 using namespace NScheduler;
@@ -570,6 +569,5 @@ IOperationControllerPtr CreateControllerForOperation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

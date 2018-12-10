@@ -7,8 +7,7 @@
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,5 +169,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff

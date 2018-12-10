@@ -11,8 +11,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -71,6 +70,5 @@ ITimestampProviderPtr CreateRemoteTimestampProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient
 

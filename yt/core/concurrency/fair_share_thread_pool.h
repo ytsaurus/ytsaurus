@@ -6,8 +6,7 @@
 
 #include <yt/core/actions/public.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +27,5 @@ IFairShareThreadPoolPtr CreateFairShareThreadPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

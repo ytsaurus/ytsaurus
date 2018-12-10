@@ -16,8 +16,7 @@
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NYson;
 using namespace NYTree;
@@ -156,5 +155,4 @@ ICypressNodeProxyPtr CreateSysNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

@@ -14,8 +14,7 @@
 
 #include <yt/ytlib/auth/public.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,5 +116,4 @@ DEFINE_REFCOUNTED_TYPE(TContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

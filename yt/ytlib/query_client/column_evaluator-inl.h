@@ -6,8 +6,7 @@
 #include "column_evaluator.h"
 #endif
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +17,5 @@ Y_FORCE_INLINE bool TColumnEvaluator::IsAggregate(int index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

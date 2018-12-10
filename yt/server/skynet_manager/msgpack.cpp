@@ -12,8 +12,7 @@
 #include <contrib/libs/msgpack/include/msgpack/pack.hpp>
 #include <contrib/libs/msgpack/include/msgpack/sbuffer.hpp>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NYson;
 using namespace NYTree;
@@ -178,5 +177,4 @@ TSharedRef SerializeToMsgpack(const INodePtr& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

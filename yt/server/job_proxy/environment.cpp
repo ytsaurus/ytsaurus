@@ -20,8 +20,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NConcurrency;
 using namespace NContainers;
@@ -653,6 +652,5 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy
 

@@ -10,8 +10,7 @@
 #include <util/generic/hash.h>
 
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,8 +51,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython
 
 #define ROWS_ITERATOR_BASE_INL_H_
 #include "rows_iterator_base-inl.h"

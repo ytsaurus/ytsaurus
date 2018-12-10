@@ -6,8 +6,7 @@
 #endif
 #undef TIMING_INL_H_
 
-namespace NYT {
-namespace NProfiling {
+namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,5 +21,4 @@ Y_FORCE_INLINE TCpuInstant GetCpuInstant()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling

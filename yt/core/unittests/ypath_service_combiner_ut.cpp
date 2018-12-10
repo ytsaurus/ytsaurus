@@ -4,8 +4,7 @@
 #include <yt/core/ytree/service_combiner.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 
@@ -109,6 +108,5 @@ TEST(TYPathServiceCombinerTest, DynamicAndStatic)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

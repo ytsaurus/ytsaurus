@@ -8,8 +8,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 extern const NLogging::TLogger QueryClientLogger;
 
@@ -53,6 +52,5 @@ TQueryStatistics CoordinateAndExecute(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

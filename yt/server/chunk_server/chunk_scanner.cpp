@@ -4,8 +4,7 @@
 
 #include <yt/server/object_server/object_manager.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 
@@ -113,5 +112,4 @@ void TChunkScanner::AdvanceGlobalIterator()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

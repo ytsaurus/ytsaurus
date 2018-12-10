@@ -2,8 +2,7 @@
 
 #include <yt/client/cypress_client/public.h>
 
-namespace NYT {
-namespace NCypressClient {
+namespace NYT::NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,5 +15,4 @@ class TRspCreate;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressClient
-} // namespace NYT
+} // namespace NYT::NCypressClient

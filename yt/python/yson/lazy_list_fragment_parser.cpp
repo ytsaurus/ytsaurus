@@ -1,8 +1,7 @@
 #include "lazy_list_fragment_parser.h"
 #include "lazy_yson_consumer.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYTree;
 
@@ -89,5 +88,4 @@ PyObject* TLazyListFragmentParser::NextItem()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

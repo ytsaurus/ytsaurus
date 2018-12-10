@@ -7,8 +7,7 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,5 +54,4 @@ IShellPtr CreateShell(std::unique_ptr<TShellOptions> options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NShell
-} // namespace NYT
+} // namespace NYT::NShell

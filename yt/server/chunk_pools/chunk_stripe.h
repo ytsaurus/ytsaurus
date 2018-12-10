@@ -7,8 +7,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,5 +104,4 @@ extern const TChunkStripeListPtr NullStripeList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

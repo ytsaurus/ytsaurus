@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -409,5 +408,4 @@ void TCheckedSkiffWriter::Finish()
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff

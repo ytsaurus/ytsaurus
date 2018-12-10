@@ -13,8 +13,7 @@
 
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 using namespace NYTree;
 using namespace NBus;
@@ -190,5 +189,4 @@ IChannelPtr TCellManager::CreatePeerChannel(TPeerId id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

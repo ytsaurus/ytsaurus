@@ -5,8 +5,7 @@
 #include "ypath_client.h"
 #endif
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,5 +35,4 @@ SyncExecuteVerb(const IYPathServicePtr& service, const TIntrusivePtr<TTypedReque
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

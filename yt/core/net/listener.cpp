@@ -6,8 +6,7 @@
 #include <yt/core/net/socket.h>
 #include <yt/core/misc/proc.h>
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 using namespace NConcurrency;
 
@@ -219,5 +218,4 @@ IListenerPtr CreateListener(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet

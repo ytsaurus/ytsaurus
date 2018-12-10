@@ -22,8 +22,7 @@
 
 #include <cerrno>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -501,6 +500,5 @@ IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus
 

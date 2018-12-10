@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,5 +69,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

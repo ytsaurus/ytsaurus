@@ -16,8 +16,7 @@
 
 #include <util/system/tempfile.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 namespace {
 
 using namespace NConcurrency;
@@ -130,5 +129,4 @@ TEST_F(TFileChangelogTest, ReadWithSizeLimit)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NMetaState
-} // namespace NYT
+} // namespace NYT::NMetaState

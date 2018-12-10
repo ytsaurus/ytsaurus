@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,5 +77,4 @@ DEFINE_REFCOUNTED_TYPE(TRequestTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

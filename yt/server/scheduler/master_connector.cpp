@@ -39,8 +39,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NYTree;
 using namespace NYson;
@@ -1767,6 +1766,5 @@ DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

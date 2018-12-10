@@ -4,8 +4,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +15,5 @@ extern const TString ChunkMetaSuffix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

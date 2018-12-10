@@ -25,8 +25,7 @@
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using NChunkClient::TDataSliceDescriptor;
 using NYT::TRange;
@@ -55,12 +54,10 @@ void PrintTo(TIdentityComparableVersionedRow row, ::std::ostream* os)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 namespace {
 
 using namespace NYTree;
@@ -1763,5 +1760,4 @@ TEST_F(TVersionedMergingReaderTest, Merge1)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,5 +32,4 @@ void TAttributeSet::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

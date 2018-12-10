@@ -12,8 +12,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/sync_cache.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NNodeTrackerClient;
 
@@ -207,6 +206,5 @@ IBlockCachePtr GetNullBlockCache()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

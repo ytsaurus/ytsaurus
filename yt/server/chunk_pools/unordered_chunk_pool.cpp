@@ -17,8 +17,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NControllerAgent;
@@ -964,5 +963,4 @@ std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

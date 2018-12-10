@@ -21,8 +21,7 @@
 
 #include <library/openssl/io/stream.h>
 
-namespace NYT {
-namespace NCrypto {
+namespace NYT::NCrypto {
 
 using namespace NNet;
 using namespace NConcurrency;
@@ -679,5 +678,4 @@ IListenerPtr TSslContext::CreateListener(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCrypto
-} // namespace NYT
+} // namespace NYT::NCrypto

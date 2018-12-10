@@ -30,8 +30,7 @@
 
 #include <yt/core/rpc/channel.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -412,6 +411,5 @@ IFileReaderPtr CreateFileMultiChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient
 

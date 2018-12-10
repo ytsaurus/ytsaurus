@@ -7,8 +7,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 namespace {
 
 using namespace NYTree;
@@ -234,5 +233,4 @@ TEST(TYsonTest, UpdateNodes)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

@@ -5,8 +5,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/phoenix.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,5 +22,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -2,8 +2,7 @@
 
 #include <memory>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,8 +35,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 
 #define FUNCTION_CONTEXT_INL_H_
 #include "function_context-inl.h"

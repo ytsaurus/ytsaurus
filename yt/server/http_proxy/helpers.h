@@ -8,8 +8,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,5 +43,4 @@ std::optional<TNetworkStatistics> GetNetworkStatistics();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

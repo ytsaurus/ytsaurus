@@ -16,8 +16,7 @@
 
 #include <syslog.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 using namespace NFS;
 using namespace NProto;
@@ -160,8 +159,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump
 
 int main(int argc, const char** argv)
 {

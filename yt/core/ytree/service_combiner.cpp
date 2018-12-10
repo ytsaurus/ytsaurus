@@ -14,8 +14,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -316,6 +315,5 @@ void TServiceCombiner::Invoke(const NRpc::IServiceContextPtr& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

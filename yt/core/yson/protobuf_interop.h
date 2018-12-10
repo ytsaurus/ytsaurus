@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,8 +86,7 @@ void ParseProtobuf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson
 
 #define PROTOBUF_INTEROP_INL_H_
 #include "protobuf_interop-inl.h"

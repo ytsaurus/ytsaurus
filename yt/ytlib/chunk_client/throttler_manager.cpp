@@ -4,8 +4,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NObjectClient;
@@ -55,5 +54,4 @@ IThroughputThrottlerPtr TThrottlerManager::GetThrottler(TCellTag cellTag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

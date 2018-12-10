@@ -13,8 +13,7 @@
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +47,5 @@ NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats
 

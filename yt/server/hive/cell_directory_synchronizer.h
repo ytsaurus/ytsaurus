@@ -10,8 +10,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,5 +39,4 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

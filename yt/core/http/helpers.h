@@ -8,8 +8,7 @@
 
 #include <yt/core/tracing/public.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,5 +44,4 @@ void SetParentSpanId(const IResponseWriterPtr &rsp, NTracing::TSpanId traceId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

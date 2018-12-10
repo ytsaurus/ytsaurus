@@ -8,8 +8,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,5 +90,4 @@ inline void LogStructuredEvent(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NProfiling {
+namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,8 +103,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling
 
 template <>
 struct TSingletonTraits<NYT::NProfiling::TProfileManager>

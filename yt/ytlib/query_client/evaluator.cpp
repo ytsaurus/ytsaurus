@@ -19,8 +19,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
@@ -271,5 +270,4 @@ TQueryStatistics TEvaluator::Run(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

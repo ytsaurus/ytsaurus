@@ -6,8 +6,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NClickHouseProxy {
+namespace NYT::NClickHouseProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,5 +15,4 @@ extern const NProfiling::TProfiler ClickHouseProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseProxy
-} // namespace NYT
+} // namespace NYT::NClickHouseProxy

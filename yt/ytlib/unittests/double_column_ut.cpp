@@ -6,8 +6,7 @@
 #include <yt/ytlib/table_chunk_format/double_column_reader.h>
 
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 
@@ -207,5 +206,4 @@ TEST_F(TUnversionedDoubleSegmentTest, ReadNull)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

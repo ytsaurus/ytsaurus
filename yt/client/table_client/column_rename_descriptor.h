@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,5 +24,4 @@ void FromProto(TColumnRenameDescriptor* descriptor, const NProto::TColumnRenameD
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

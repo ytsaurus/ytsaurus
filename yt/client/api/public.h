@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +105,5 @@ DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

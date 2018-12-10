@@ -15,8 +15,7 @@
 
 #include <set>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,5 +101,4 @@ DEFINE_REFCOUNTED_TYPE(TGarbageCollector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

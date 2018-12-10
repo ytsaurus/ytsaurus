@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 
@@ -99,5 +98,4 @@ void TIntermediateTable::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

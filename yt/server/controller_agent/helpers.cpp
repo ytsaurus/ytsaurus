@@ -25,8 +25,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -237,6 +236,5 @@ NNative::IConnectionPtr GetRemoteConnectionOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

@@ -19,8 +19,7 @@
 
 #include <yt/core/rpc/channel.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NTableClient;
 using namespace NChunkClient;
@@ -224,6 +223,5 @@ void TSamplesFetcher::OnResponse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

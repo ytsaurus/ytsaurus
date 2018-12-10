@@ -36,8 +36,7 @@
 
 #include <util/system/execpath.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NCGroup;
 using namespace NCellNode;
@@ -733,5 +732,4 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, TBootstrap* bootstr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

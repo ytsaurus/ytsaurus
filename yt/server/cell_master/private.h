@@ -2,8 +2,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ extern const NLogging::TLogger CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

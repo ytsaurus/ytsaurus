@@ -7,8 +7,7 @@
 
 #include <yt/server/transaction_server/transaction_manager.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -288,6 +287,5 @@ bool IsAncestorOf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 

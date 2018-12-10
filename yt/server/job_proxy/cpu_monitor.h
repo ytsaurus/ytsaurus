@@ -7,8 +7,7 @@
 
 #include <util/datetime/base.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,5 +66,4 @@ DEFINE_REFCOUNTED_TYPE(TCpuMonitor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

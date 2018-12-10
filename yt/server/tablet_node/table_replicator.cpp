@@ -43,8 +43,7 @@
 
 #include <yt/core/misc/finally.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -876,5 +875,4 @@ void TTableReplicator::Disable()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

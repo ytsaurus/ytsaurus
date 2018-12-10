@@ -11,8 +11,7 @@
 
 #include <util/string/strip.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NAuth;
 using namespace NHttp;
@@ -131,5 +130,4 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

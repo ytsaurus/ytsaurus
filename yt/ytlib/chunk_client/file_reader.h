@@ -11,8 +11,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,5 +111,4 @@ DEFINE_REFCOUNTED_TYPE(TFileReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

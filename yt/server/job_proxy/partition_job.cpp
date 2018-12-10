@@ -15,8 +15,7 @@
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -152,5 +151,4 @@ IJobPtr CreatePartitionJob(IJobHostPtr host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

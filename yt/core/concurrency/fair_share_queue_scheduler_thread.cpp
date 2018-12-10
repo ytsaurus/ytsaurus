@@ -1,7 +1,6 @@
 #include "fair_share_queue_scheduler_thread.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +40,5 @@ void TFairShareQueueSchedulerThread::EndExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

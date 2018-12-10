@@ -7,8 +7,7 @@
 
 #include "serialize.h"
 
-namespace NYT {
-namespace NYTAlloc {
+namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,8 +19,7 @@ Y_WEAK size_t GetAllocationSize(void* /*ptr*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTAlloc
-} // namespace NYT
+} // namespace NYT::NYTAlloc
 
 namespace NYT {
 

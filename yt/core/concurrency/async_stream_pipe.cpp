@@ -1,7 +1,6 @@
 #include "async_stream_pipe.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,5 +45,4 @@ TFuture<void> TAsyncStreamPipe::Close()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

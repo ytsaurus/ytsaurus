@@ -13,8 +13,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,5 +80,4 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

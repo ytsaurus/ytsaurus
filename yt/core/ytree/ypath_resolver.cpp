@@ -9,8 +9,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/variant.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using NYPath::ETokenType;
 using NYPath::TTokenizer;
@@ -353,5 +352,4 @@ std::optional<TString> TryGetAny(TStringBuf yson, const TYPath& ypath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

@@ -12,8 +12,7 @@
 
 #include <yt/core/rpc/config.h>
 
-namespace NYT {
-namespace NOrchid {
+namespace NYT::NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,5 +45,4 @@ NCypressServer::INodeTypeHandlerPtr CreateOrchidTypeHandler(NCellMaster::TBootst
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NOrchid
-} // namespace NYT
+} // namespace NYT::NOrchid

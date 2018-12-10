@@ -6,9 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,9 +238,7 @@ DEFINE_REFCOUNTED_TYPE(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy
 
 #define TRANSACTION_IMPL_INL_H_
 #include "transaction_impl-inl.h"

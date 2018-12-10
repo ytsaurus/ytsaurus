@@ -15,8 +15,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NYPath;
 using namespace NRpc;
@@ -279,5 +278,4 @@ INodeTypeHandlerPtr CreateTabletActionMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

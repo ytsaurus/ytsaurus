@@ -7,8 +7,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,11 +28,9 @@ void PrintTo(const TUnversionedRow& value, ::std::ostream* os)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 void PrintTo(TConstExpressionPtr expr, ::std::ostream* os)
 {
@@ -143,5 +140,4 @@ TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path, TTimestamp /*timestam
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

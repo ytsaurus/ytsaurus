@@ -8,8 +8,7 @@
 
 #include <yt/client/ypath/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,5 +21,4 @@ ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

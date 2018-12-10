@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,6 +9,5 @@ const NProfiling::TProfiler HttpProxyProfiler("/http_proxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy
 

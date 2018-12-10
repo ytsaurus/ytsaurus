@@ -18,8 +18,7 @@ namespace NYT { namespace NTableClient { namespace NProto {
     class TTabletInfo;
 } } }
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,6 +162,5 @@ typedef std::vector<TMutableRowRange> TMutableRowRanges;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

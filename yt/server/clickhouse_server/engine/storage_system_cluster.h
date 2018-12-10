@@ -4,9 +4,7 @@
 
 #include "cluster_tracker.h"
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +14,4 @@ DB::StoragePtr CreateStorageSystemCluster(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

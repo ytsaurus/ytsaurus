@@ -7,8 +7,7 @@
 
 #include <yt/core/yson/writer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 
@@ -224,5 +223,4 @@ TYsonString ConvertToYsonStringStable(const INodePtr& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

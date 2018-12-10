@@ -53,8 +53,7 @@
 
 #include <yt/core/ypath/token.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
@@ -2911,5 +2910,4 @@ DELEGATE_SIGNAL(TSecurityManager, void(TUser*, const TUserWorkload&), UserCharge
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

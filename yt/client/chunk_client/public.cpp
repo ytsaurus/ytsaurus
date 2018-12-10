@@ -4,8 +4,7 @@
 
 #include <yt/client/object_client/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ const TString DefaultCacheMediumName("cache");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

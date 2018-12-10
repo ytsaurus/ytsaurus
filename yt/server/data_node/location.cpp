@@ -30,8 +30,7 @@
 
 #include <yt/core/concurrency/thread_pool.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NCellNode;
@@ -1293,5 +1292,4 @@ void swap(TPendingIOGuard& lhs, TPendingIOGuard& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

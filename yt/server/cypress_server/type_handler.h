@@ -10,8 +10,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,5 +101,4 @@ DEFINE_REFCOUNTED_TYPE(INodeTypeHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

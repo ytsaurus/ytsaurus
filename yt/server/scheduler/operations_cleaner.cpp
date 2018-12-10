@@ -30,8 +30,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -1207,5 +1206,4 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

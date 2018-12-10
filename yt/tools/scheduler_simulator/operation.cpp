@@ -2,8 +2,7 @@
 #include "operation_controller.h"
 
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,5 +82,4 @@ bool TOperation::SetCompleting()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

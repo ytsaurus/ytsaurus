@@ -10,8 +10,7 @@
 
 #include <bitset>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,5 +69,4 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

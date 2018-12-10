@@ -5,8 +5,7 @@
 #include <queue>
 #include <vector>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,8 +65,7 @@ using TNonblockingBatchPtr = TIntrusivePtr<TNonblockingBatch<T>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define NONBLOCKING_BATCH_INL_H_
 #include "nonblocking_batch-inl.h"

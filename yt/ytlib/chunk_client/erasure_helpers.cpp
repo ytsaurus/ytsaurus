@@ -14,9 +14,7 @@
 
 #include <util/random/random.h>
 
-namespace NYT {
-namespace NChunkClient {
-namespace NErasureHelpers {
+namespace NYT::NChunkClient::NErasureHelpers {
 
 using namespace NYT::NErasure;
 using namespace NConcurrency;
@@ -654,7 +652,5 @@ void TErasureChunkReaderBase::OnGotPlacementMeta(const TErasurePlacementExt& pla
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasureHelpers
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient::NErasureHelpers
 

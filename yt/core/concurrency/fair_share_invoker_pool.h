@@ -12,8 +12,7 @@
 
 #include <functional>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,5 +55,4 @@ IInvokerPoolPtr CreateFairShareInvokerPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

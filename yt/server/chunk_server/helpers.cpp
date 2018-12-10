@@ -20,8 +20,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -541,5 +540,4 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

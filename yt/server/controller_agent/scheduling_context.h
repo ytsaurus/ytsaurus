@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,5 +27,4 @@ struct ISchedulingContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

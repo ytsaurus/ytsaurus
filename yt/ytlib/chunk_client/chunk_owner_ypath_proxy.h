@@ -8,8 +8,7 @@
 
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,5 +31,4 @@ struct TChunkOwnerYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

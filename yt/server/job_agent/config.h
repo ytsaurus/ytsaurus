@@ -6,8 +6,7 @@
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,5 +199,4 @@ DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

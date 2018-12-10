@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NProto;
 
@@ -107,6 +106,5 @@ TRefCountedChunkMetaPtr TMemoryWriter::GetChunkMeta()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

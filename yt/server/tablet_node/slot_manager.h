@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,5 +104,4 @@ DEFINE_REFCOUNTED_TYPE(TSlotManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

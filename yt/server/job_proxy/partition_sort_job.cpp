@@ -13,8 +13,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -139,5 +138,4 @@ IJobPtr CreatePartitionSortJob(IJobHostPtr host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

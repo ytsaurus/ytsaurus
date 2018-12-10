@@ -2,8 +2,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,5 +78,4 @@ DEFINE_REFCOUNTED_TYPE(TJsonFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

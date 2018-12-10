@@ -1,7 +1,6 @@
 #include "scheduler_strategy_host.h"
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
 
@@ -163,5 +162,4 @@ TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
     return VoidFuture;
 }
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

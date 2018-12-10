@@ -15,8 +15,7 @@
     #define be32toh(x) OSSwapBigToHostInt32(x)
 #endif
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NConcurrency;
 using namespace NNet;
@@ -154,5 +153,4 @@ const TNetworkAddress& TPeerConnection::PeerAddress() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

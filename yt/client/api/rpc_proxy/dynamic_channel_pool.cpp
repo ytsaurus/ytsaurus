@@ -13,9 +13,7 @@
 
 #include <util/random/shuffle.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -294,6 +292,4 @@ NRpc::IChannelPtr CreateStickyChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

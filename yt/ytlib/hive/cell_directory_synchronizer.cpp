@@ -11,8 +11,7 @@
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/hive_service_proxy.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 using namespace NConcurrency;
 
@@ -178,5 +177,4 @@ TFuture<void> TCellDirectorySynchronizer::Sync()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

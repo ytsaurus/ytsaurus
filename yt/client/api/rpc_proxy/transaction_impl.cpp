@@ -8,9 +8,7 @@
 
 #include <yt/client/api/transaction.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -846,7 +844,5 @@ TTransactionStartOptions TTransaction::PatchTransactionId(const TTransactionStar
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy
 

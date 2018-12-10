@@ -5,8 +5,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 using namespace NObjectClient;
 
@@ -21,5 +20,4 @@ void ValidateTabletTransaction(const TTransactionId& transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

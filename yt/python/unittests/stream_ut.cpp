@@ -4,8 +4,7 @@
 
 #include <util/stream/mem.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +45,5 @@ TEST(TStreamReaderTest, Simple)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

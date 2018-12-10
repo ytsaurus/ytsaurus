@@ -6,8 +6,7 @@
 
 #include <yt/client/tablet_client/public.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +52,5 @@ DECLARE_REFCOUNTED_CLASS(TTabletCellConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient
 

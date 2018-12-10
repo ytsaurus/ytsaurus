@@ -1,7 +1,6 @@
 #include "config.h"
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYTree;
@@ -24,5 +23,4 @@ const int TDispatcherConfig::DefaultHeavyPoolSize = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

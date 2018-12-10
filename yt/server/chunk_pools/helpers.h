@@ -9,8 +9,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +78,5 @@ DEFINE_REFCOUNTED_TYPE(TBernoulliSampler);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT;
+} // namespace NYT;::NChunkPools
 

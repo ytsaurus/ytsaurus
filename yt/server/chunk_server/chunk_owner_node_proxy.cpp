@@ -41,8 +41,7 @@
 
 #include <type_traits>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NCrypto;
 using namespace NConcurrency;
@@ -1125,5 +1124,4 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

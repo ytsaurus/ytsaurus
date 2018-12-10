@@ -2,8 +2,7 @@
 
 #include "column_writer.h"
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,5 +12,4 @@ std::unique_ptr<IValueColumnWriter> CreateSchemalessColumnWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

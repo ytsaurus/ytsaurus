@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +16,4 @@ NYTree::IYPathServicePtr CreateCachedChunkMapService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

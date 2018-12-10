@@ -15,8 +15,7 @@
 
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NCypressClient;
 using namespace NObjectClient;
@@ -161,5 +160,4 @@ void TChunkListPool::OnChunkListsCreated(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

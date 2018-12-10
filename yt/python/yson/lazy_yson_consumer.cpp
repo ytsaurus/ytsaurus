@@ -1,7 +1,6 @@
 #include "lazy_yson_consumer.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYTree;
 
@@ -219,5 +218,4 @@ void TLazyYsonConsumer::OnItem()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

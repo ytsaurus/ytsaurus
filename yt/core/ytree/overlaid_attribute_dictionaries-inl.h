@@ -4,8 +4,7 @@
 #include "overlaid_attribute_dictionaries.h"
 #endif
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -155,5 +154,4 @@ OverlayAttributeDictionaries(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

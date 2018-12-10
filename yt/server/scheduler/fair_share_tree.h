@@ -4,8 +4,7 @@
 #include "job_metrics.h"
 #include "fair_share_tree_element.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 
 //! Thread affinity: any
@@ -472,5 +471,4 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTree)
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -42,8 +42,7 @@
 
 #include <set>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -1136,5 +1135,4 @@ DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionTransientRe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

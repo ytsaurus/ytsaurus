@@ -11,8 +11,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,5 +61,4 @@ DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

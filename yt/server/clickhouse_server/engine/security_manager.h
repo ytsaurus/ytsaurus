@@ -4,9 +4,7 @@
 
 #include <Interpreters/ISecurityManager.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +14,4 @@ std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

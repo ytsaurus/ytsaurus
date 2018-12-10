@@ -3,8 +3,7 @@
 #include "public.h"
 #include "data_slice_descriptor.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,5 +28,4 @@ IReaderFactoryPtr CreateReaderFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

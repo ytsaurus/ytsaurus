@@ -10,8 +10,7 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,5 +131,4 @@ DEFINE_REFCOUNTED_TYPE(TSortedStoreManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

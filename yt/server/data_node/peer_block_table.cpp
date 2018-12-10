@@ -6,8 +6,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NCellNode;
@@ -120,5 +119,4 @@ std::vector<TPeerInfo>& TPeerBlockTable::GetMutablePeers(const TBlockId& blockId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

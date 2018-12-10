@@ -12,9 +12,7 @@
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 #include <contrib/libs/grpc/include/grpc/byte_buffer_reader.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,9 +200,7 @@ std::optional<TString> ParseIssuerFromX509(TStringBuf x509String);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

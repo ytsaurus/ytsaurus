@@ -8,8 +8,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,5 +43,4 @@ TString ToString(const TNodeStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

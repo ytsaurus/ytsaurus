@@ -8,8 +8,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,5 +28,4 @@ std::vector<TRowRangeLocation> FetchSkynetPartsLocations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

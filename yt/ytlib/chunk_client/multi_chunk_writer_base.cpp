@@ -24,8 +24,7 @@
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
@@ -235,5 +234,4 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

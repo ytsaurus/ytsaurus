@@ -18,8 +18,7 @@
 
 #include <util/random/shuffle.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
@@ -271,5 +270,4 @@ void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

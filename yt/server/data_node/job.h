@@ -10,8 +10,7 @@
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +23,5 @@ NJobAgent::IJobPtr CreateChunkJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

@@ -1,8 +1,6 @@
 #include "coroutine.h"
 
-namespace NYT {
-namespace NConcurrency {
-namespace NDetail {
+namespace NYT::NConcurrency::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +46,4 @@ bool TCoroutineBase::IsCompleted() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency::NDetail

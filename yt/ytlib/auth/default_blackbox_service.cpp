@@ -13,8 +13,7 @@
 
 #include <yt/core/rpc/dispatcher.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NYTree;
 using namespace NHttp;
@@ -290,5 +289,4 @@ IBlackboxServicePtr CreateDefaultBlackboxService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

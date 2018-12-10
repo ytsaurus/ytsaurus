@@ -6,8 +6,7 @@
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/config.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,5 +76,4 @@ IChannelPtr CreateThrottlingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

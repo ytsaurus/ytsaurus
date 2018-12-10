@@ -14,8 +14,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/serialize.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,5 +229,4 @@ bool TTabletWriteCommandBase<
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

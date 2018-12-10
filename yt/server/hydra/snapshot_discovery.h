@@ -7,8 +7,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,5 +38,4 @@ TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

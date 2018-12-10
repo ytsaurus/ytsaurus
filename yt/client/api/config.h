@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,6 +247,5 @@ DEFINE_REFCOUNTED_TYPE(TJournalWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

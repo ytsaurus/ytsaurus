@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/arithmetic_formula.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,5 +94,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

@@ -6,8 +6,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,5 +154,4 @@ i64 TMemoryTagQueue::GetTotalUsage()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

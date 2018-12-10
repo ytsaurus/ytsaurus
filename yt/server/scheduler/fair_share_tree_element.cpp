@@ -11,8 +11,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 using namespace NJobTrackerClient;
@@ -2937,5 +2936,4 @@ TRootElementPtr TRootElement::Clone()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -14,8 +14,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_service.pb.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,5 +73,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkTeleporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

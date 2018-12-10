@@ -2,8 +2,7 @@
 
 #include <yt/server/controller_agent/job_size_constraints.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NControllerAgent;
 using namespace NChunkClient;
@@ -622,5 +621,4 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

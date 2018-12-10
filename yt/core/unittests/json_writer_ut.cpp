@@ -5,8 +5,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 namespace {
 
 using namespace NYson;
@@ -709,5 +708,4 @@ TEST(TJsonWriterTest, TestSetAnnotateWithTypesParameter)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

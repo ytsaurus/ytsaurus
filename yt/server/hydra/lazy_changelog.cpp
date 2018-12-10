@@ -3,8 +3,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NHydra::NProto;
@@ -188,5 +187,4 @@ IChangelogPtr CreateLazyChangelog(TFuture<IChangelogPtr> futureChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

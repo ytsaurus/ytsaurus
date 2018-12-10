@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,5 +40,4 @@ NRpc::IAuthenticatorPtr CreateCookieAuthenticatorWrapper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ NRpc::IServicePtr CreateChunkService(NCellMaster::TBootstrap* boostrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

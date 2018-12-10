@@ -59,8 +59,7 @@
 #include <array>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -2639,5 +2638,4 @@ TDecayingMaxMinBalancer<int, double>& TChunkReplicator::ChunkRepairQueueBalancer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

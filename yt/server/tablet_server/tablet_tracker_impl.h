@@ -10,8 +10,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +48,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 
 

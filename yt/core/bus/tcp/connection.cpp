@@ -24,8 +24,7 @@
 
 #include <cerrno>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 using namespace NConcurrency;
 using namespace NNet;
@@ -1213,6 +1212,5 @@ void TTcpConnection::InitSocketTosLevel(TTosLevel tosLevel)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus
 

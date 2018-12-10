@@ -23,8 +23,7 @@
 
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NHydra;
 using namespace NJobTrackerClient;
@@ -237,5 +236,4 @@ NRpc::IServicePtr CreateJobTrackerService(TBootstrap* boostrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

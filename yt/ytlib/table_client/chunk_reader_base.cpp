@@ -7,8 +7,7 @@
 
 #include <algorithm>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -318,5 +317,4 @@ TKey TChunkReaderBase::WidenKey(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

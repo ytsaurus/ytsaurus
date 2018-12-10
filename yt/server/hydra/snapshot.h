@@ -8,8 +8,7 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,5 +77,4 @@ DEFINE_REFCOUNTED_TYPE(ISnapshotStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

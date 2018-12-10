@@ -7,8 +7,7 @@
 
 #include <yt/contrib/zstd-legacy/lib/zstd_static.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,5 +175,4 @@ void ZstdLegacyDecompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NCompression
+} // namespace NCompression::NYT

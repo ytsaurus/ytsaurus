@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ IChunkReaderPtr CreateCacheReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

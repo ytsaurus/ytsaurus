@@ -10,8 +10,7 @@
 
 #include <yt/core/misc/enum.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,5 +87,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

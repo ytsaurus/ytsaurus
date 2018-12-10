@@ -57,8 +57,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NAdmin;
 using namespace NBus;
@@ -243,5 +242,4 @@ const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

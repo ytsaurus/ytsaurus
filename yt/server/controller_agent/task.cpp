@@ -18,8 +18,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NChunkPools;
@@ -1163,5 +1162,4 @@ void TTaskGroup::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

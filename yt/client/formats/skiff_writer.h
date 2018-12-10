@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,5 +32,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormat
-} // namespace NYT
+} // namespace NYT::NFormat

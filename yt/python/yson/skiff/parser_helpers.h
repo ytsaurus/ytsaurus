@@ -17,8 +17,7 @@
 
 #include <vector>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,8 +30,7 @@ std::unique_ptr<NSkiff::TSkiffMultiTableParser<TConsumer>> CreateSkiffMultiTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython
 
 #define PARSER_HELPERS_INL_H_
 #include "parser_helpers-inl.h"

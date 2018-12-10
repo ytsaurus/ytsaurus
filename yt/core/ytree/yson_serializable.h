@@ -12,8 +12,7 @@
 
 #include <functional>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,8 +181,7 @@ bool ReconfigureYsonSerializable(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 
 namespace NYT {

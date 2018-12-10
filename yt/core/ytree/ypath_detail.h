@@ -21,8 +21,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -559,5 +558,4 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

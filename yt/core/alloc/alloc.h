@@ -3,8 +3,7 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/enum.h>
 
-namespace NYT {
-namespace NYTAlloc {
+namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Allocation API
@@ -138,5 +137,4 @@ TString FormatCounters();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTAlloc
-} // namespace NYT
+} // namespace NYT::NYTAlloc

@@ -17,8 +17,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,5 +198,4 @@ DEFINE_REFCOUNTED_TYPE(TFollowerCommitter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
@@ -157,6 +156,5 @@ size_t GetSignificantWidth(TRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

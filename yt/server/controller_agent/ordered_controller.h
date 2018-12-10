@@ -2,8 +2,7 @@
 
 #include "private.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,5 +28,4 @@ IOperationControllerPtr CreateRemoteCopyController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

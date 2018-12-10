@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NRpc;
 using namespace NRpc::NProto;
@@ -47,5 +46,4 @@ IChannelPtr CreatePeerChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

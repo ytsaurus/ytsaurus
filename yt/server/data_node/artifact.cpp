@@ -6,8 +6,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NObjectClient;
@@ -192,6 +191,4 @@ TString ToString(const TArtifactKey& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespaca NYT
-
+} // namespaca NYT::NDataNode

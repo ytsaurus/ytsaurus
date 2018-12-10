@@ -5,8 +5,7 @@
 #include "transaction_detail.h"
 #endif
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,5 +53,4 @@ void TTransactionBase<TBase>::Load(TStreamLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

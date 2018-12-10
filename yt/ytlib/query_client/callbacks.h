@@ -9,8 +9,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,6 +71,5 @@ using TJoinSubqueryProfiler = std::function<TJoinSubqueryEvaluator(TQueryPtr, TC
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

@@ -6,9 +6,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +17,4 @@ TFuture<IFileReaderPtr> CreateFileReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

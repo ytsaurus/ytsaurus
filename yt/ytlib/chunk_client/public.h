@@ -11,8 +11,7 @@
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,5 +165,4 @@ struct IBlocksExtCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

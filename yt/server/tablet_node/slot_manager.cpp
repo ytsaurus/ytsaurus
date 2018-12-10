@@ -26,8 +26,7 @@
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -578,5 +577,4 @@ DELEGATE_SIGNAL(TSlotManager, void(), EndSlotScan, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTabletNode
+} // namespace NTabletNode::NYT

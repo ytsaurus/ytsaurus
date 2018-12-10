@@ -7,8 +7,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NHydra;
 
@@ -60,5 +59,4 @@ void TMailbox::Load(TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

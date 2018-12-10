@@ -10,8 +10,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1036,5 +1035,4 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderCheckLastRows)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -3,8 +3,7 @@
 #include "transaction.h"
 #include <yt/core/concurrency/lease_manager.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,5 +125,4 @@ IStickyTransactionPoolPtr CreateStickyTransactionPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi

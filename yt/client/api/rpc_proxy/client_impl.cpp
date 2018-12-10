@@ -30,9 +30,7 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -787,6 +785,4 @@ TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

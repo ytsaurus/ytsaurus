@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,5 +56,4 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

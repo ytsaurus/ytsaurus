@@ -7,8 +7,7 @@
 
 #include <yt/core/ypath/token.h>
 
-namespace NYT {
-namespace NProfiling  {
+namespace NYT::NProfiling {
 
 using namespace NYPath;
 
@@ -475,8 +474,7 @@ void TProfiler::OnUpdated(TCounterBase& counter, EMetricType metricType) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling
 
 ////////////////////////////////////////////////////////////////////////////////
 

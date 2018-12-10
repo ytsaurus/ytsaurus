@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,5 +41,4 @@ DECLARE_REFCOUNTED_CLASS(TCellTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

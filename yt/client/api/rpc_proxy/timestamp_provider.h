@@ -6,9 +6,7 @@
 
 #include <yt/client/transaction_client/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +16,4 @@ NTransactionClient::ITimestampProviderPtr CreateTimestampProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

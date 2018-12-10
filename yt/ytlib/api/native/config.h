@@ -30,9 +30,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,7 +115,5 @@ DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

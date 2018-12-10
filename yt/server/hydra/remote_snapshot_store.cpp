@@ -27,8 +27,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NFS;
 using namespace NConcurrency;
@@ -408,5 +407,4 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

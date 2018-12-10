@@ -22,8 +22,7 @@
 
 #include <util/datetime/base.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,6 +137,5 @@ DEFINE_REFCOUNTED_TYPE(ITableMountCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient
 

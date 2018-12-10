@@ -9,8 +9,7 @@
 #include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/client/chunk_client/writer_base.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,5 +31,4 @@ DEFINE_REFCOUNTED_TYPE(IMultiChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

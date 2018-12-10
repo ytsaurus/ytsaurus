@@ -2,8 +2,7 @@
 
 #include <yt/client/job_tracker_client/public.h>
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,5 +37,4 @@ DEFINE_ENUM(EJobPhase,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient

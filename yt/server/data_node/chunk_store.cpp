@@ -22,8 +22,7 @@
 #include <limits>
 #include <utility>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -633,5 +632,4 @@ void TChunkStore::OnProfiling()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

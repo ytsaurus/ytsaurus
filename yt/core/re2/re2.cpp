@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NRe2 {
+namespace NYT::NRe2 {
 
 using namespace NYson;
 using namespace NYTree;
@@ -30,5 +29,4 @@ void Deserialize(TRe2Ptr& re, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRe2
-} // namespace NYT
+} // namespace NYT::NRe2

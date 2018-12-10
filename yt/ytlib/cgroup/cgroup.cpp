@@ -19,8 +19,7 @@
     #include <errno.h>
 #endif
 
-namespace NYT {
-namespace NCGroup {
+namespace NYT::NCGroup {
 
 using namespace NTools;
 
@@ -785,5 +784,4 @@ bool IsValidCGroupType(const TString& type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCGroup
-} // namespace NYT
+} // namespace NYT::NCGroup

@@ -18,8 +18,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,5 +60,4 @@ DEFINE_REFCOUNTED_TYPE(TCoreProcessorService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

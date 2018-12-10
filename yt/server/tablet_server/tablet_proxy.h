@@ -6,8 +6,7 @@
 
 #include <yt/server/object_server/public.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +17,5 @@ NObjectServer::IObjectProxyPtr CreateTabletProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

@@ -7,8 +7,7 @@
 // Someone above has defined this by including one of Windows headers.
 #undef Yield
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,8 +134,7 @@ TClosure GetCurrentFiberCanceler();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define SCHEDULER_INL_H_
 #include "scheduler-inl.h"

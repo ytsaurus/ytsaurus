@@ -2,8 +2,7 @@
 #include "dsv_parser.h"
 #include "yamr_parser_base.h"
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NYTree;
 using namespace NYson;
@@ -127,6 +126,5 @@ void ParseYamredDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats
 

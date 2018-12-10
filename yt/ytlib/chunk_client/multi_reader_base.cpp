@@ -7,8 +7,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -477,5 +476,4 @@ TMultiReaderBase::TUnreadState TParallelMultiReaderBase::GetUnreadState() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

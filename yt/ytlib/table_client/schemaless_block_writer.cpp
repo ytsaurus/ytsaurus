@@ -1,7 +1,6 @@
 #include "schemaless_block_writer.h"
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NProto;
 
@@ -91,5 +90,4 @@ i64 THorizontalSchemalessBlockWriter::GetCapacity() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

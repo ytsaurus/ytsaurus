@@ -6,8 +6,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +36,4 @@ DEFINE_REFCOUNTED_TYPE(TPeerBlockUpdater)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

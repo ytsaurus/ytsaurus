@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NYson;
 using namespace NYTree;
@@ -554,6 +553,5 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

@@ -90,8 +90,7 @@
 #include <util/system/execpath.h>
 #include <util/system/fs.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NTools;
 using namespace NYTree;
@@ -1411,5 +1410,4 @@ IJobPtr CreateUserJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

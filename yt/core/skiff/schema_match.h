@@ -3,8 +3,7 @@
 #include "public.h"
 #include "skiff_schema.h"
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,5 +72,4 @@ std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff

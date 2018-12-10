@@ -10,8 +10,7 @@
 
 #include <util/stream/mem.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 namespace {
 
 using ::testing::InSequence;
@@ -624,5 +623,4 @@ TEST(TYsonTest, ContextInExceptions_Margin)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

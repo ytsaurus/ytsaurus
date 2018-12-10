@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/enum.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,5 +44,4 @@ DEFINE_ENUM(EJobProxyExitCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

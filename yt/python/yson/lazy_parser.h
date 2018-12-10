@@ -8,8 +8,7 @@
 #include <util/stream/input.h>
 #include <util/generic/string.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,5 +20,4 @@ Py::Object ParseLazyYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

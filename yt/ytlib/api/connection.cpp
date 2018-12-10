@@ -8,8 +8,7 @@
 #include <yt/client/api/rpc_proxy/config.h>
 #include <yt/client/api/rpc_proxy/connection.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 using namespace NYTree;
 
@@ -38,6 +37,5 @@ IConnectionPtr CreateConnection(INodePtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

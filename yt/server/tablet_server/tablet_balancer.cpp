@@ -21,8 +21,7 @@
 
 #include <queue>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NConcurrency;
 using namespace NCypressClient;
@@ -961,6 +960,5 @@ void TTabletBalancer::OnTabletHeartbeat(TTablet* tablet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

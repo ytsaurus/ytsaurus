@@ -10,8 +10,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,8 +83,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 
 #define MESSAGE_QUEUE_INL_H_
 #include "message_queue-inl.h"

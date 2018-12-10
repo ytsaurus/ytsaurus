@@ -5,8 +5,7 @@
 #include "string_column_reader.h"
 #include "boolean_column_reader.h"
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NProto;
@@ -94,5 +93,4 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

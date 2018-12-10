@@ -12,8 +12,7 @@
 #include <deque>
 #include <map>
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,5 +35,4 @@ ISimulatorOperationControllerPtr CreateSimulatorOperationController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

@@ -4,8 +4,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 using namespace NProfiling;
@@ -32,5 +31,4 @@ void TControllerAgentCounterManager::IncrementAssertionsFailed(EOperationType op
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

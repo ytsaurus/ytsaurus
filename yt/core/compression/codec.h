@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +34,5 @@ ICodec* GetCodec(ECodec id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression
 

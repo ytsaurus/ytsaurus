@@ -2,9 +2,7 @@
 
 #include <yt/ytlib/query_client/parser.hpp>
 
-namespace NYT {
-namespace NQueryClient {
-namespace NAst {
+namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +45,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAst
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient::NAst
 

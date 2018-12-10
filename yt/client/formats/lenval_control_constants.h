@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/common.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +13,4 @@ constexpr ui32 LenvalRowIndexMarker = static_cast<ui32>(-4);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

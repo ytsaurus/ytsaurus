@@ -6,8 +6,7 @@
 #include <yt/core/concurrency/nonblocking_queue.h>
 
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,5 +37,4 @@ DEFINE_REFCOUNTED_TYPE(TAsyncStreamPipe)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

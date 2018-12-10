@@ -4,8 +4,7 @@
 
 #include <yt/client/ypath/public.h>
 
-namespace NYT {
-namespace NSecurityClient {
+namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,6 +13,5 @@ NYPath::TYPath GetGroupPath(const TString& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityClient
-} // namespace NYT
+} // namespace NYT::NSecurityClient
 

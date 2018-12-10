@@ -4,8 +4,7 @@
 
 #include <yt/client/table_client/name_table.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NYTree;
 using namespace NTableClient;
@@ -235,6 +234,5 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats
 

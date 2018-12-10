@@ -1,7 +1,6 @@
 #include "chunk_visitor.h"
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
 using namespace NYTree;
@@ -80,5 +79,4 @@ void TChunkIdsAttributeVisitor::OnSuccess()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

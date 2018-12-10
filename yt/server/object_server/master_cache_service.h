@@ -4,8 +4,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,5 +15,4 @@ NRpc::IServicePtr CreateMasterCacheService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

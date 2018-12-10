@@ -7,8 +7,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,8 +167,7 @@ NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

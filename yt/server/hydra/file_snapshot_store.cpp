@@ -18,8 +18,7 @@
 
 #include <util/stream/file.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NFS;
 using namespace NCompression;
@@ -618,5 +617,4 @@ ISnapshotWriterPtr TFileSnapshotStore::CreateRawWriter(int snapshotId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

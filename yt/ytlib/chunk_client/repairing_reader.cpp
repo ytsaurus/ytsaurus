@@ -18,8 +18,7 @@
 
 static constexpr double SpeedComparisonPrecision = 1e-9;
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NErasure;
 using namespace NLogging;
@@ -412,5 +411,4 @@ IChunkReaderPtr CreateRepairingReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

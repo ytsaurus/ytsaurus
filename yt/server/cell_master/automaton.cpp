@@ -5,8 +5,7 @@
 
 #include <yt/server/object_server/object_manager.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 using namespace NObjectServer;
 
@@ -68,6 +67,5 @@ TObjectBase* TLoadContext::GetWeakGhostObject(const TObjectId& id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster
 

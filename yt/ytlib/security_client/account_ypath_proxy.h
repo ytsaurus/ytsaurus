@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NSecurityClient {
+namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ struct TAccountYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityClient
-} // namespace NYT
+} // namespace NYT::NSecurityClient

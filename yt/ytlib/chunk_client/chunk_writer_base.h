@@ -5,8 +5,7 @@
 #include <yt/client/chunk_client/writer_base.h>
 #include <yt/client/chunk_client/data_statistics.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,5 +34,4 @@ DEFINE_REFCOUNTED_TYPE(IChunkWriterBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

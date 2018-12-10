@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,5 +59,4 @@ IVersionedReaderPtr CreateEmptyVersionedReader(int rowCount = 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

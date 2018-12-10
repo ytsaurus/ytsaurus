@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +13,4 @@ ISchedulerStrategyPtr CreateFairShareStrategy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

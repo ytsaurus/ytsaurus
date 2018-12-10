@@ -15,8 +15,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,5 +62,4 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

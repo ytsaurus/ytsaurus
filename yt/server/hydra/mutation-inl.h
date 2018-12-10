@@ -15,8 +15,7 @@
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,5 +111,4 @@ std::unique_ptr<TMutation> CreateMutation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

@@ -10,8 +10,7 @@
 
 #include <yt/core/misc/async_expiring_cache.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,5 +136,4 @@ DEFINE_REFCOUNTED_TYPE(TSkynetService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

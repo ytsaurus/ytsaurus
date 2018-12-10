@@ -2,9 +2,7 @@
 
 #include <yt/server/clickhouse_server/native/public.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,6 +10,4 @@ void RegisterTableFunctionsExt(NNative::IStoragePtr storage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

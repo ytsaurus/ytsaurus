@@ -12,8 +12,7 @@
 
 #include <yt/ytlib/query_client/functions_cache.pb.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,5 +112,4 @@ void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

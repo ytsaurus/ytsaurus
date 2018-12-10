@@ -5,8 +5,7 @@
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
@@ -184,5 +183,4 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

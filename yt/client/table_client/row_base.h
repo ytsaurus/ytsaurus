@@ -5,8 +5,7 @@
 #include <yt/core/misc/dense_map.h>
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -290,5 +289,4 @@ TValue MakeAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

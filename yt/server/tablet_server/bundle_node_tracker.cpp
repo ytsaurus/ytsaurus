@@ -7,8 +7,7 @@
 
 #include <yt/server/node_tracker_server/node_tracker.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerServer::NProto;
@@ -227,6 +226,5 @@ bool CheckIfNodeCanHostTabletCells(const TNode* node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

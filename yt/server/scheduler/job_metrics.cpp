@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NProfiling;
 using namespace NJobTrackerClient;
@@ -185,5 +184,4 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NRpc;
 using namespace NHydra;
@@ -97,5 +96,4 @@ void TCommit::Load(TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

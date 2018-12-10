@@ -17,8 +17,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -337,5 +336,4 @@ IUserJobReadControllerPtr CreateUserJobReadController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

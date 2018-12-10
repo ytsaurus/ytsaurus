@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/common.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,5 +24,4 @@ DEFINE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

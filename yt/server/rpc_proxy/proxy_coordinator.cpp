@@ -7,8 +7,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 using namespace NRpc;
 
@@ -96,5 +95,4 @@ IProxyCoordinatorPtr CreateProxyCoordinator()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

@@ -18,8 +18,7 @@
 #include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,6 +97,5 @@ DEFINE_REFCOUNTED_TYPE(ISession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

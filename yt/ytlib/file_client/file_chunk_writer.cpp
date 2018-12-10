@@ -12,8 +12,7 @@
 #include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 #include <yt/ytlib/chunk_client/config.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -269,5 +268,4 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient

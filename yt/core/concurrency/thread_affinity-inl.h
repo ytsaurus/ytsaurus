@@ -7,8 +7,7 @@
 #endif
 #undef THREAD_AFFINITY_INL_H_
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,5 +27,4 @@ bool VerifyInvokersAffinity(const T& invokers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

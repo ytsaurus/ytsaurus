@@ -2,8 +2,7 @@
 
 #include <yt/core/concurrency/nonblocking_queue.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +60,5 @@ TEST(TNonblockingQueueTest, Mixed)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

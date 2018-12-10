@@ -22,8 +22,7 @@
 
 #include <yt/core/re2/re2.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -486,5 +485,4 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

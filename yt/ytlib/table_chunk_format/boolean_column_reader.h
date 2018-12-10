@@ -2,8 +2,7 @@
 
 #include "column_reader.h"
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,5 +20,4 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedBooleanColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

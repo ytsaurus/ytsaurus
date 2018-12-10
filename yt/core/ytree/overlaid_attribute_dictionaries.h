@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/attributes.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,8 +69,7 @@ TOverlaidAttributeDictionary<typename std::remove_reference<T>::type> OverlayAtt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 #define OVERLAID_ATTRIBUTE_DICTIONARIES_INL_H_
 #include "overlaid_attribute_dictionaries-inl.h"

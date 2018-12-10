@@ -30,8 +30,7 @@
 
 #include <util/string/join.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -1361,5 +1360,4 @@ void TControllerAgentTracker::ProcessAgentHandshake(const TCtxAgentHandshakePtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

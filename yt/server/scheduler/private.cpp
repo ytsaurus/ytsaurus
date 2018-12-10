@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,6 +12,5 @@ const NProfiling::TProfiler SchedulerProfiler("/scheduler");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

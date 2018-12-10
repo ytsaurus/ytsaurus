@@ -5,8 +5,7 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,8 +60,7 @@ TString ToString(const TYsonString& yson);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson
 
 //! A hasher for TYsonString
 template <>

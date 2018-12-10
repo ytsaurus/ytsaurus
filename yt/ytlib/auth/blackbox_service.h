@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,5 +26,4 @@ DEFINE_REFCOUNTED_TYPE(IBlackboxService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

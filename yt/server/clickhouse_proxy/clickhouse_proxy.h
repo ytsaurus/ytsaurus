@@ -4,8 +4,7 @@
 
 #include <yt/core/http/http.h>
 
-namespace NYT {
-namespace NClickHouseProxy {
+namespace NYT::NClickHouseProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,5 +33,4 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseProxyHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseProxy
-} // namespace NYT
+} // namespace NYT::NClickHouseProxy

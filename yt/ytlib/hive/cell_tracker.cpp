@@ -1,7 +1,6 @@
 #include "cell_tracker.h"
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 using namespace NElection;
 
@@ -37,6 +36,5 @@ void TCellTracker::Update(const std::vector<TCellId>& toRemove, const std::vecto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient
 

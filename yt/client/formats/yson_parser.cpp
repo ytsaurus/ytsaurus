@@ -5,8 +5,7 @@
 
 #include <yt/core/yson/parser.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NYson;
 
@@ -51,5 +50,4 @@ std::unique_ptr<IParser> CreateParserForYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

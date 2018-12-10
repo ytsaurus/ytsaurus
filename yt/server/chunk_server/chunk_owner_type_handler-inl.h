@@ -23,8 +23,7 @@
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -363,5 +362,4 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

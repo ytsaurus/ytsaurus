@@ -7,8 +7,7 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,5 +22,4 @@ const TString& GetCGroupUserJobPrefix();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

@@ -19,8 +19,7 @@
 #include <util/string/join.h>
 #include <util/string/cast.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 static const auto& Logger = HttpLogger;
 
@@ -346,5 +345,4 @@ void SetParentSpanId(const IResponseWriterPtr& rsp, NTracing::TSpanId parentSpan
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

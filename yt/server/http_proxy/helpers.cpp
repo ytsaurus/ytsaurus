@@ -14,8 +14,7 @@
 
 #include <re2/re2.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NHttp;
 using namespace NYTree;
@@ -303,6 +302,5 @@ std::optional<TNetworkStatistics> GetNetworkStatistics()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy
 

@@ -15,8 +15,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -308,5 +307,4 @@ TValue* TCGVariables::GetLiteralValues() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

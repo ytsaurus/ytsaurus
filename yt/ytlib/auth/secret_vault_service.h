@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/hash.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +53,5 @@ DEFINE_REFCOUNTED_TYPE(ISecretVaultService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth
 

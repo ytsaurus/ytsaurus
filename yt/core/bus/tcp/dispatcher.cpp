@@ -6,8 +6,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,5 +47,4 @@ REGISTER_SHUTDOWN_CALLBACK(6, TTcpDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

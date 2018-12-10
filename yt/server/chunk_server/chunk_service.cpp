@@ -24,8 +24,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NHydra;
 using namespace NChunkClient;
@@ -340,5 +339,4 @@ IServicePtr CreateChunkService(TBootstrap* boostrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

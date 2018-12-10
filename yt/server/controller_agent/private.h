@@ -6,8 +6,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +70,5 @@ using TOperationIdToWeakControllerMap = THashMap<TOperationId, IOperationControl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

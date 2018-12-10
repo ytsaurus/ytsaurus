@@ -4,8 +4,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,5 +12,4 @@ NYPath::TYPath GetClusterNodesPath();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

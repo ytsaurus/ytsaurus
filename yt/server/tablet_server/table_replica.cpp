@@ -5,8 +5,7 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NYPath;
 using namespace NTableServer;
@@ -101,6 +100,5 @@ std::vector<TError> TTableReplica::GetErrors(std::optional<int> limit) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

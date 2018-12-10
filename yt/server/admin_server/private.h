@@ -2,8 +2,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NAdmin {
+namespace NYT::NAdmin {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ extern const NLogging::TLogger AdminLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAdmin
-} // namespace NYT
+} // namespace NYT::NAdmin

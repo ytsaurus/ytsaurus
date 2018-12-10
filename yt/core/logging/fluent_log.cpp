@@ -1,7 +1,6 @@
 #include "fluent_log.h"
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 using namespace NYson;
 using namespace NYTree;
@@ -16,5 +15,4 @@ TOneShotFluentLogEvent LogStructuredEventFluently(const TLogger& logger, ELogLev
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

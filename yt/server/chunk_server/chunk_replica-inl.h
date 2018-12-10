@@ -10,8 +10,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,8 +244,7 @@ Y_FORCE_INLINE void TPtrWithIndexes<T>::Load(C& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 template <class T>
 struct THash<NYT::NChunkServer::TPtrWithIndex<T>>

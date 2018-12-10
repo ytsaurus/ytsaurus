@@ -4,8 +4,7 @@
 
 #include <yt/client/object_client/public.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,5 +64,4 @@ extern const TNetworkPreferenceList DefaultNetworkPreferences;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

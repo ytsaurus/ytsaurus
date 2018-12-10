@@ -17,8 +17,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,5 +106,4 @@ DEFINE_REFCOUNTED_TYPE(TJobController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

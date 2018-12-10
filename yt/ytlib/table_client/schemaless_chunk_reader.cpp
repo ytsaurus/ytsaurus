@@ -42,8 +42,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -2731,5 +2730,4 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -5,8 +5,7 @@
 
 #include <yt/server/controller_agent/scheduling_context.h>
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -477,5 +476,4 @@ TString TSimulatorOperationController::GetLoggingProgress() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

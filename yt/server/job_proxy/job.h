@@ -26,8 +26,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,5 +103,4 @@ DEFINE_REFCOUNTED_TYPE(IJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

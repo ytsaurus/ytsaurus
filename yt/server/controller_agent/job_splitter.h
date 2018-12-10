@@ -9,8 +9,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,5 +39,4 @@ std::unique_ptr<IJobSplitter> CreateJobSplitter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

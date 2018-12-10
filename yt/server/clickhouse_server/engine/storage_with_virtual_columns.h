@@ -3,9 +3,7 @@
 #include <Core/NamesAndTypes.h>
 #include <Storages/IStorage.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,6 +34,4 @@ private:
     bool FindColumnImpl(const std::string& name, DB::NameAndTypePair& found) const;
 };
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

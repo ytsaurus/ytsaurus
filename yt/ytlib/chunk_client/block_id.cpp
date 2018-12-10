@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +52,5 @@ void FromProto(TBlockId* blockId, const NProto::TBlockId& protoBlockId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

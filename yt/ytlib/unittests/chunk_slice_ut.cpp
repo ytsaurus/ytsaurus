@@ -17,6 +17,7 @@
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
 // Function is defined here due to ADL.
 void PrintTo(const NChunkClient::TChunkSlice& slice, ::std::ostream* os)
 {

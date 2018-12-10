@@ -23,8 +23,7 @@
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,5 +178,4 @@ DEFINE_REFCOUNTED_TYPE(TCellNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
-} // namespace NYT
+} // namespace NYT::NCellNode

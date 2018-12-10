@@ -11,8 +11,7 @@
 
 #include <yt/client/table_client/schema.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,5 +107,4 @@ std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

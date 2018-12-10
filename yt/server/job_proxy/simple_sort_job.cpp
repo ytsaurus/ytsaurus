@@ -15,8 +15,7 @@
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaless_sorting_reader.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -118,5 +117,4 @@ IJobPtr CreateSimpleSortJob(IJobHostPtr host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

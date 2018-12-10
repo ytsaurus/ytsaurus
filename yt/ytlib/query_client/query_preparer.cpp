@@ -19,8 +19,7 @@
 
 #include <unordered_set>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -2819,5 +2818,4 @@ TConstExpressionPtr PrepareExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

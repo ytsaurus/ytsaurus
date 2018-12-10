@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,5 +110,4 @@ TString ToString(const TYsonString& yson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

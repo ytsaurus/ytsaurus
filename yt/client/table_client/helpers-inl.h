@@ -13,8 +13,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -334,5 +333,4 @@ T FromUnversionedValue(TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

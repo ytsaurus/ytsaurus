@@ -1,7 +1,6 @@
 #include "chunk_stripe_key.h"
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,5 +110,4 @@ TString ToString(const TChunkStripeKey& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

@@ -7,8 +7,7 @@
 
 #include <util/system/fs.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using NJobTrackerClient::TJobId;
 using NYson::EYsonFormat;
@@ -64,5 +63,4 @@ void TJobSatelliteConnection::MakeConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

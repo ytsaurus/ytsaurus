@@ -15,8 +15,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NCellNode;
 using namespace NDataNode;
@@ -256,5 +255,4 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NExecAgent
+} // namespace NExecAgent::NYT

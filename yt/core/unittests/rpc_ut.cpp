@@ -30,8 +30,7 @@
 #include <yt/core/rpc/grpc/server.h>
 #include <yt/core/rpc/grpc/proto/grpc.pb.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 namespace {
 
 using namespace NYT::NBus;
@@ -822,5 +821,4 @@ TYPED_TEST(TRpcTest, NoMoreRequestsAfterStop)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

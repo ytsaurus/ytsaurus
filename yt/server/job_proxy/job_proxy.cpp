@@ -66,8 +66,7 @@
 
 #include <util/folder/dirut.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NScheduler;
 using namespace NExecAgent;
@@ -864,5 +863,4 @@ IInvokerPtr TJobProxy::GetControlInvoker() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

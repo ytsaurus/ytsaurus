@@ -9,8 +9,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NRpc;
 using namespace NJobProberClient;
@@ -161,5 +160,4 @@ IServicePtr CreateJobProberService(NCellNode::TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

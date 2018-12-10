@@ -4,8 +4,7 @@
 #include "escape.h"
 #include "parser.h"
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NYTree;
 using namespace NYson;
@@ -234,5 +233,4 @@ std::unique_ptr<IParser> CreateParserForDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

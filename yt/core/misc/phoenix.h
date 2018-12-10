@@ -8,8 +8,7 @@
 
 #include <typeinfo>
 
-namespace NYT {
-namespace NPhoenix {
+namespace NYT::NPhoenix {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -272,8 +271,7 @@ using IPersistent = ICustomPersistent<TPersistenceContext>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPhoenix
-} // namespace NYT
+} // namespace NYT::NPhoenix
 
 #define PHOENIX_INL_H_
 #include "phoenix-inl.h"

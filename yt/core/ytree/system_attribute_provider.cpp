@@ -2,8 +2,7 @@
 
 #include <yt/core/yson/writer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 
@@ -66,5 +65,4 @@ TYsonString ISystemAttributeProvider::FindBuiltinAttribute(TInternedAttributeKey
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

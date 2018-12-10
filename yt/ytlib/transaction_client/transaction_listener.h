@@ -4,8 +4,7 @@
 
 #include <yt/client/api/public.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,5 +42,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

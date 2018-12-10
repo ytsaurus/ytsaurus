@@ -10,8 +10,7 @@
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NConcurrency;
 
@@ -346,5 +345,4 @@ bool TResponseKeeper::IsWarmingUp() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

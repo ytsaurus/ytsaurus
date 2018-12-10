@@ -1,7 +1,6 @@
 #include "input_stream.h"
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,5 +87,4 @@ TInputStreamDirectory TeleportableIntermediateInputStreamDirectory({}, Teleporta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

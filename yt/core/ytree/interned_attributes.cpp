@@ -1,7 +1,6 @@
 #include "interned_attributes.h"
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -64,5 +63,4 @@ REGISTER_INTERNED_ATTRIBUTE(count, CountInternedAttribute)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

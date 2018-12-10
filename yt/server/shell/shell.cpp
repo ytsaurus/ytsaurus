@@ -20,8 +20,7 @@
 
 #include <util/stream/file.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 using namespace NConcurrency;
 using namespace NCGroup;
@@ -323,5 +322,4 @@ IShellPtr CreateShell(std::unique_ptr<TShellOptions> /*options*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NShell
-} // namespace NYT
+} // namespace NYT::NShell

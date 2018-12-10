@@ -5,8 +5,7 @@
 
 #include <yt/core/actions/callback.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,5 +41,4 @@ void Serialize(const TYsonCallback& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

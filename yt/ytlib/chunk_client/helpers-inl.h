@@ -21,8 +21,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,5 +137,4 @@ void SetRpcAttachedBlocks(const TRpcPtr& rpc, const std::vector<TBlock>& blocks)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

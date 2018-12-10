@@ -18,8 +18,7 @@
 
 #include <yt/core/rpc/retrying_channel.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -370,5 +369,4 @@ void TFetcherBase::OnFetchingCompleted()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

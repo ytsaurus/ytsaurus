@@ -6,8 +6,7 @@
 #include <random>
 
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,5 +376,4 @@ void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationSt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

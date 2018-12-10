@@ -4,8 +4,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,5 +12,4 @@ extern const NLogging::TLogger NodeTrackerClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

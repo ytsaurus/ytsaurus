@@ -21,8 +21,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,5 +120,4 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

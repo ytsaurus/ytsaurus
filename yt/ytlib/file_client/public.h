@@ -2,8 +2,7 @@
 
 #include <yt/client/file_client/public.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,5 +17,4 @@ DECLARE_REFCOUNTED_STRUCT(IFileMultiChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient

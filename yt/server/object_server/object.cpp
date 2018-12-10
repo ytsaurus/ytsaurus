@@ -7,8 +7,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NObjectClient;
 using namespace NCypressServer;
@@ -116,5 +115,4 @@ void TObjectIdFormatter::operator()(TStringBuilder* builder, const TObjectBase* 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

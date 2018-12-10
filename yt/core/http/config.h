@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,5 +65,4 @@ DEFINE_REFCOUNTED_TYPE(TClientConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

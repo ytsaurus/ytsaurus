@@ -62,8 +62,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NAdmin;
 using namespace NBus;
@@ -263,5 +262,4 @@ const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

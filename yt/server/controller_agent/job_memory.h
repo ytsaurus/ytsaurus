@@ -4,8 +4,7 @@
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +23,5 @@ i64 GetOutputWindowMemorySize(NScheduler::TJobIOConfigPtr ioConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

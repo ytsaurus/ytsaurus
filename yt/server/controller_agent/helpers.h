@@ -13,8 +13,7 @@
 
 #include <yt/ytlib/scheduler/config.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 
@@ -111,8 +110,7 @@ NApi::NNative::IConnectionPtr GetRemoteConnectionOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

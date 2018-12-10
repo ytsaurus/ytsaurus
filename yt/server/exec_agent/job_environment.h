@@ -17,8 +17,7 @@
 
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,5 +60,4 @@ IJobEnvironmentPtr CreateJobEnvironment(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

@@ -1,7 +1,6 @@
 #include "serialize.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ bool ValidateSnapshotVersion(int version)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

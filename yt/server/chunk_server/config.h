@@ -9,8 +9,7 @@
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,5 +376,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

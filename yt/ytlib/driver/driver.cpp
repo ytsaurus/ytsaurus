@@ -18,8 +18,7 @@
 
 #include <yt/core/misc/sync_cache.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYTree;
 using namespace NYson;
@@ -553,6 +552,5 @@ IDriverPtr CreateDriver(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver
 

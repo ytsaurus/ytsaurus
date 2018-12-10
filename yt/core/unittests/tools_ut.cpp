@@ -5,8 +5,7 @@
 
 #include <yt/core/ytree/serialize.h>
 
-namespace NYT {
-namespace NTools {
+namespace NYT::NTools {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,5 +75,4 @@ TEST(TTools, Faulty)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTools
-} // namespace NYT
+} // namespace NYT::NTools

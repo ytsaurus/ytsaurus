@@ -8,8 +8,7 @@
 #include <yt/core/rpc/service.h>
 #include <yt/core/rpc/client.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,5 +87,4 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient

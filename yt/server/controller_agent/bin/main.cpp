@@ -12,8 +12,7 @@
 
 #include <yt/core/alloc/alloc.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,8 +64,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 
 int main(int argc, const char** argv)
 {

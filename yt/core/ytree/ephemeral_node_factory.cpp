@@ -11,8 +11,7 @@
 
 #include <algorithm>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NRpc;
 using namespace NYson;
@@ -514,6 +513,5 @@ INodeFactory* GetEphemeralNodeFactory(bool shouldHideAttributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

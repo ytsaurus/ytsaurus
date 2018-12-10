@@ -13,8 +13,7 @@
 #include <util/string/split.h>
 #include <util/string/iterator.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NYTree;
 using namespace NYPath;
@@ -248,5 +247,4 @@ NRpc::IAuthenticatorPtr CreateCookieAuthenticatorWrapper(ICookieAuthenticatorPtr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

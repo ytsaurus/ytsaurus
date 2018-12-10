@@ -10,9 +10,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +42,4 @@ NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

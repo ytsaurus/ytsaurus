@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NYson;
 using namespace NYTree;
@@ -194,6 +193,5 @@ void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

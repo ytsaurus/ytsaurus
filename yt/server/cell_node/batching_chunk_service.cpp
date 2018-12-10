@@ -27,8 +27,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -478,5 +477,4 @@ IServicePtr CreateBatchingChunkService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
-} // namespace NYT
+} // namespace NYT::NCellNode

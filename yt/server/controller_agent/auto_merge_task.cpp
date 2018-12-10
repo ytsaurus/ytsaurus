@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -264,5 +263,4 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

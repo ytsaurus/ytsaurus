@@ -22,8 +22,7 @@
 #include <util/string/ascii.h>
 #include <util/string/strip.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
 using namespace NYson;
@@ -897,5 +896,4 @@ void TContext::OnOutputParameters()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

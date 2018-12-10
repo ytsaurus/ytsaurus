@@ -6,8 +6,7 @@
 
 #include <yt/server/object_server/public.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,5 +21,4 @@ NCypressServer::INodeTypeHandlerPtr CreateTabletActionMapTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

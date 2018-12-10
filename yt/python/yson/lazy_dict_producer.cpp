@@ -1,7 +1,6 @@
 #include "lazy_dict_producer.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYTree;
 
@@ -83,5 +82,4 @@ NYTree::TPythonObjectBuilder* TLazyDictProducer::GetPythonObjectBuilder()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

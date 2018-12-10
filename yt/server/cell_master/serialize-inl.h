@@ -17,8 +17,7 @@
 
 #include <yt/server/chunk_server/chunk.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,8 +94,7 @@ struct TVersionedObjectRefSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster
 
 
 namespace NYT {

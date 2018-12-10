@@ -7,9 +7,7 @@
 
 #include <yt/core/logging/public.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +21,4 @@ TTablePartList PartitionTables(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

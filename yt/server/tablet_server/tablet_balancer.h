@@ -6,8 +6,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,5 +33,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

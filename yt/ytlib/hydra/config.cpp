@@ -2,8 +2,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NYTree;
 
@@ -79,5 +78,4 @@ TRemoteChangelogStoreOptions::TRemoteChangelogStoreOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

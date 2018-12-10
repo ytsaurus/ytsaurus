@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,5 +21,4 @@ NJobAgent::IJobPtr CreateUserJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

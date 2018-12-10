@@ -11,8 +11,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,5 +35,4 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

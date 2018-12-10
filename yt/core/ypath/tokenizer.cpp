@@ -5,8 +5,7 @@
 
 #include <yt/core/yson/token.h>
 
-namespace NYT {
-namespace NYPath {
+namespace NYT::NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,5 +249,4 @@ bool HasPrefix(const TYPath& fullPath, const TYPath& prefixPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYPath
-} // namespace NYT
+} // namespace NYT::NYPath

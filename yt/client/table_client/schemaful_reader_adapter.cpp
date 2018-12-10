@@ -11,8 +11,7 @@
 
 #include <yt/core/yson/writer.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NYson;
 using namespace NChunkClient::NProto;
@@ -179,5 +178,4 @@ ISchemafulReaderPtr CreateSchemafulReaderAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

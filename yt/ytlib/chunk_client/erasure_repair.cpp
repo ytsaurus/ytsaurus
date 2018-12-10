@@ -14,8 +14,7 @@
 
 #include <numeric>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NErasure;
 using namespace NConcurrency;
@@ -629,6 +628,5 @@ TFuture<void> RepairErasedParts(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

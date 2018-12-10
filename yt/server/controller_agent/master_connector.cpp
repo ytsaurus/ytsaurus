@@ -38,8 +38,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NApi;
 using namespace NRpc;
@@ -1397,7 +1396,6 @@ TFuture<void> TMasterConnector::UpdateConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 
 

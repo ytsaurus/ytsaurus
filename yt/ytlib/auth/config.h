@@ -10,8 +10,7 @@
 
 #include <yt/core/https/config.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -374,5 +373,4 @@ DEFINE_REFCOUNTED_TYPE(TAuthenticationManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

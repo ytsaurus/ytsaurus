@@ -2,8 +2,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 using namespace NTableClient;
 using namespace NObjectClient;
@@ -142,6 +141,5 @@ void TTableMountInfo::ValidateReplicated() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient
 

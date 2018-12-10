@@ -17,8 +17,7 @@
 
 #include <yt/server/object_server/object_manager.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -183,5 +182,4 @@ DELEGATE_SIGNAL(TClusterDirectorySynchronizer, void(const TError&), Synchronized
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

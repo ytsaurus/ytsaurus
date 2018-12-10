@@ -28,8 +28,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,8 +168,7 @@ void DumpCodecStatistics(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

@@ -2,8 +2,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 using namespace NRpc;
 
@@ -48,5 +47,4 @@ INodeChannelFactoryPtr CreateNodeChannelFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

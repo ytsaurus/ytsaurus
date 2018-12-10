@@ -5,8 +5,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,6 +151,5 @@ TEST_W(TCoroutineTest, WaitFor)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

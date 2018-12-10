@@ -8,9 +8,7 @@
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +43,4 @@ DEFINE_REFCOUNTED_TYPE(TConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

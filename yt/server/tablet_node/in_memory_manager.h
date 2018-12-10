@@ -17,8 +17,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,5 +120,4 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

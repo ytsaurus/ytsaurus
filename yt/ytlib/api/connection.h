@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,6 +12,5 @@ IConnectionPtr CreateConnection(NYTree::INodePtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

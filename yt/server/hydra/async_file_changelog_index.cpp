@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/chunk_client/io_engine.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -406,5 +405,4 @@ bool TAsyncFileChangelogIndex::IsEmpty() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

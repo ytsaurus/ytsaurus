@@ -18,8 +18,7 @@
 
 #include <util/generic/string.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,5 +80,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

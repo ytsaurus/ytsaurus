@@ -27,8 +27,7 @@
 #include <functional>
 #include <deque>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -353,5 +352,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkReplicator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

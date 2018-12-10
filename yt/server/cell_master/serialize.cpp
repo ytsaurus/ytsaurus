@@ -1,7 +1,6 @@
 #include "serialize.h"
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,5 +104,4 @@ TLoadContext::TLoadContext(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

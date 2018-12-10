@@ -13,8 +13,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 using namespace NCellMaster;
 using namespace NCypressServer;
@@ -351,6 +350,5 @@ INodeTypeHandlerPtr CreateJournalTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
-} // namespace NYT
+} // namespace NYT::NJournalServer
 

@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,6 +8,5 @@ const NLogging::TLogger TableServerLogger("TableServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

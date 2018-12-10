@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NTracing {
+namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,5 +12,4 @@ extern const NLogging::TLogger TracingLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTracing
-} // namespace NYT
+} // namespace NYT::NTracing

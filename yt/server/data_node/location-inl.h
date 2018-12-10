@@ -5,8 +5,7 @@
 #include "location.h"
 #endif
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,5 +24,4 @@ TCallback<T()> TLocation::DisableOnError(const TCallback<T()> callback)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

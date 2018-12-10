@@ -8,9 +8,7 @@
 
 #include <util/generic/string.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,6 +106,4 @@ TTablePtr CreateTableSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

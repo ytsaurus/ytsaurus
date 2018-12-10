@@ -27,8 +27,7 @@
 
 #include <util/system/fs.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NConcurrency;
 using namespace NTools;
@@ -626,5 +625,4 @@ NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

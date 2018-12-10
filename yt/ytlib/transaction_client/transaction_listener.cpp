@@ -3,8 +3,7 @@
 
 #include <yt/client/api/transaction.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 using namespace NApi;
 
@@ -70,5 +69,4 @@ void TTransactionListener::OnTransactionAborted(const TTransactionId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

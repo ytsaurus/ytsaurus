@@ -11,8 +11,7 @@
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 #include <yt/client/hydra/version.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NElection;
 using namespace NConcurrency;
@@ -388,5 +387,4 @@ bool TCheckpointer::CanRotateChangelogs() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

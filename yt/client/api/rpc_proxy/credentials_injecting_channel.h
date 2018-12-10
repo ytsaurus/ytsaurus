@@ -4,9 +4,7 @@
 
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +25,4 @@ NRpc::IChannelPtr CreateCookieInjectingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

@@ -20,8 +20,7 @@
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
@@ -959,5 +958,4 @@ std::vector<TChunk*> EnumerateChunksInChunkTree(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

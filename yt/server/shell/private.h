@@ -4,8 +4,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,6 +12,5 @@ extern const NLogging::TLogger ShellLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NShell
-} // namespace NYT
+} // namespace NYT::NShell
 

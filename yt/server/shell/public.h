@@ -3,8 +3,7 @@
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/intrusive_ptr.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,5 +28,4 @@ DEFINE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NShell
-} // namespace NYT
+} // namespace NYT::NShell

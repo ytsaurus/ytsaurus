@@ -18,8 +18,7 @@
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/static_channel_factory.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 namespace {
 
 using namespace NConcurrency;
@@ -549,5 +548,4 @@ INSTANTIATE_TEST_CASE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

@@ -11,8 +11,7 @@
 #include <yt/core/yson/public.h>
 
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
 using namespace NLogging;
@@ -297,6 +296,5 @@ TControlThreadEvent TSimulatorControlThread::PopControlThreadEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator
 

@@ -1,7 +1,6 @@
 #include "public.h"
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,6 +9,5 @@ const TOperationId NullOperationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient
 

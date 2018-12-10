@@ -1,8 +1,7 @@
 #pragma once
 #include "public.h"
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,5 +9,4 @@ void ValidateTabletTransaction(const NObjectClient::TTransactionId& transactionI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

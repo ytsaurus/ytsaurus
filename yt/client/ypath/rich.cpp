@@ -17,8 +17,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NYPath {
+namespace NYT::NYPath {
 
 using namespace NYTree;
 using namespace NYson;
@@ -628,5 +627,4 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYPath
-} // namespace NYT
+} // namespace NYT::NYPath

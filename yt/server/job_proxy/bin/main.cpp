@@ -11,8 +11,7 @@
 
 #include <yt/core/alloc/alloc.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 static const auto& Logger = JobProxyLogger;
 
@@ -87,8 +86,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy
 
 int main(int argc, const char** argv)
 {

@@ -20,8 +20,7 @@
 #include <util/string/vector.h>
 #include <util/string/cgiparam.h>
 
-namespace NYT {
-namespace NMonitoring {
+namespace NYT::NMonitoring {
 
 using namespace NYTree;
 using namespace NYson;
@@ -93,5 +92,4 @@ IHttpHandlerPtr GetOrchidYPathHttpHandler(const IYPathServicePtr& service)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMonitoring
-} // namespace NYT
+} // namespace NYT::NMonitoring

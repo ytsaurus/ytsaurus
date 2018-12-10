@@ -1,7 +1,6 @@
 #include "async_semaphore.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -259,5 +258,4 @@ TAsyncSemaphoreGuard::operator bool() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

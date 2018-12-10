@@ -5,8 +5,7 @@
 #include <limits>
 #include <vector>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,5 +111,4 @@ TEST(TThresholdSnapshotId, ZeroSize)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

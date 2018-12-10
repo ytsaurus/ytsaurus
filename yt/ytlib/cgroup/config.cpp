@@ -1,8 +1,7 @@
 #include "config.h"
 #include "private.h"
 
-namespace NYT {
-namespace NCGroup {
+namespace NYT::NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ bool TCGroupConfig::IsCGroupSupported(const TString& cgroupType) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCGroup
-} // namespace NYT
+} // namespace NYT::NCGroup

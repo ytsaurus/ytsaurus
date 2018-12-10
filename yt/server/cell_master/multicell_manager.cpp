@@ -32,8 +32,7 @@
 
 #include <yt/server/cell_master/multicell_manager.pb.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 using namespace NElection;
 using namespace NRpc;
@@ -766,5 +765,4 @@ DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ReplicateValuesToSecondaryMas
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

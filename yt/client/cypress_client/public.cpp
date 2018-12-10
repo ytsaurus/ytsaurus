@@ -1,7 +1,6 @@
 #include "public.h"
 
-namespace NYT {
-namespace NCypressClient {
+namespace NYT::NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,6 +8,5 @@ const TLockId NullLockId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressClient
-} // namespace NYT
+} // namespace NYT::NCypressClient
 

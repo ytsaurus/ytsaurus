@@ -17,8 +17,7 @@
 
 #include <util/string/vector.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NConcurrency;
 #ifdef _linux_
@@ -277,5 +276,4 @@ IJobDirectoryManagerPtr CreateSimpleJobDirectoryManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

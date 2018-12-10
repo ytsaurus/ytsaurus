@@ -20,8 +20,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -686,5 +685,4 @@ int TChunkPlacement::GetMaxReplicasPerRack(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

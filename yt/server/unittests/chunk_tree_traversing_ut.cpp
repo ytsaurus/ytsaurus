@@ -24,8 +24,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 namespace {
 
 using namespace NChunkClient::NProto;
@@ -633,5 +632,4 @@ TEST(TraverseChunkTree, OrderedDynamic)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

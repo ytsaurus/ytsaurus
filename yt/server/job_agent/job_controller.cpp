@@ -39,8 +39,7 @@
 
 #include <yt/core/net/helpers.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 using namespace NRpc;
 using namespace NObjectClient;
@@ -1277,5 +1276,4 @@ DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

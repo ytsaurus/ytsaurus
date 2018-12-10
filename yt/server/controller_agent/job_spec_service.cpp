@@ -18,8 +18,7 @@
 #include <yt/core/misc/format.h>
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NRpc;
 using namespace NScheduler;
@@ -108,6 +107,5 @@ IServicePtr CreateJobSpecService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

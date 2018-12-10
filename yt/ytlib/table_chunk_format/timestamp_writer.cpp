@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/zigzag.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NProto;
@@ -241,5 +240,4 @@ std::unique_ptr<ITimestampWriter> CreateTimestampWriter(TDataBlockWriter* blockW
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

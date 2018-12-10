@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/async_cache.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,6 +145,5 @@ DEFINE_REFCOUNTED_TYPE(TCachedBlobChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

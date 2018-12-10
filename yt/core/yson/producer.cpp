@@ -1,7 +1,6 @@
 #include "producer.h"
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,5 +33,4 @@ void Serialize(const TYsonCallback& value, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

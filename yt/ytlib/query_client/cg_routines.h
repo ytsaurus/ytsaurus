@@ -2,8 +2,7 @@
 
 #include <yt/core/codegen/routine_registry.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,6 +10,5 @@ NCodegen::TRoutineRegistry* GetQueryRoutineRegistry();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

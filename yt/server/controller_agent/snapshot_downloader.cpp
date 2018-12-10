@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -62,5 +61,4 @@ std::vector<TSharedRef> TSnapshotDownloader::Run()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

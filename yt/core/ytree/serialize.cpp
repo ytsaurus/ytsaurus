@@ -6,8 +6,7 @@
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 using namespace google::protobuf;
@@ -253,5 +252,4 @@ void DeserializeProtobufMessage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

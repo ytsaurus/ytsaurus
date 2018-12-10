@@ -5,8 +5,7 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +84,6 @@ ICodec* GetCodec(ECodec id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure
 
 

@@ -24,9 +24,7 @@
 
 #include <yt/client/table_client/wire_protocol.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -551,6 +549,4 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

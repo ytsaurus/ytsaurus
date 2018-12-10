@@ -7,8 +7,7 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,5 +29,4 @@ void IServiceContext::SetResponseInfo(const char* format, const TArgs&... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

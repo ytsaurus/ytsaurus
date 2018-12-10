@@ -23,8 +23,7 @@
 
 #include <iostream>
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -857,5 +856,4 @@ TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure

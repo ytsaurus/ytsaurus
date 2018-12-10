@@ -16,8 +16,7 @@
 
 #include <util/stream/zerocopy.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -275,5 +274,4 @@ DEFINE_REFCOUNTED_TYPE(IHttpHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

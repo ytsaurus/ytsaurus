@@ -11,8 +11,7 @@
 #define MOVE(name) name = std::move(name)
 #endif
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +19,5 @@ extern const NLogging::TLogger QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

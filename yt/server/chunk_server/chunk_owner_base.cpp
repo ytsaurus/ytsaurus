@@ -10,8 +10,7 @@
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NCrypto;
 using namespace NYTree;
@@ -268,5 +267,4 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

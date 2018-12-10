@@ -10,8 +10,7 @@
 #include <yt/core/yson/tokenizer.h>
 #include <yt/core/yson/async_writer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NRpc;
 using namespace NYPath;
@@ -630,6 +629,5 @@ void TTransactionalNodeFactoryBase::RollbackIfNeeded()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

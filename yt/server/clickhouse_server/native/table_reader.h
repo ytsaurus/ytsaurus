@@ -8,9 +8,7 @@
 
 #include <yt/ytlib/table_client/public.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +48,4 @@ ITableReaderPtr CreateTableReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

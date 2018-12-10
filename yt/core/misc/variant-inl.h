@@ -13,8 +13,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-namespace NVariant {
+namespace NDetail::NVariant {
 
 template <class T, class... Ts>
 struct TStorageTraits<T, Ts...>
@@ -121,8 +120,7 @@ struct TTypeTraits<>
     static const bool NoDuplicates = true;
 };
 
-} // namespace NVariant
-} // namespace NDetail
+} // namespace NDetail::NVariant
 
 template <class... Ts>
 template <class T>

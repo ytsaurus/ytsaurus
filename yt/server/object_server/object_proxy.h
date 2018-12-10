@@ -6,8 +6,7 @@
 #include <yt/core/ytree/system_attribute_provider.h>
 #include <yt/core/ytree/ypath_service.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +27,5 @@ DEFINE_REFCOUNTED_TYPE(IObjectProxy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 

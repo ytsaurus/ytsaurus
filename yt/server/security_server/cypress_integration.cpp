@@ -20,8 +20,7 @@
 
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NYTree;
 using namespace NCypressServer;
@@ -186,5 +185,4 @@ INodeTypeHandlerPtr CreateGroupMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

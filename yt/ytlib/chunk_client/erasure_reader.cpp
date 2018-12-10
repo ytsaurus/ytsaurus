@@ -25,8 +25,7 @@
 
 #include <numeric>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NApi;
 using namespace NErasure;
@@ -133,6 +132,5 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

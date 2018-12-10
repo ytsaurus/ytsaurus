@@ -1,8 +1,7 @@
 #include "routine_registry.h"
 #include "private.h"
 
-namespace NYT {
-namespace NCodegen {
+namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,6 +61,5 @@ void TRoutineRegistry::RegisterRoutineImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodegen
-} // namespace NYT
+} // namespace NYT::NCodegen
 

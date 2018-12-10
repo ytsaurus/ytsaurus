@@ -1,7 +1,6 @@
 #include "shared_table_schema.h"
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NTableClient;
 
@@ -93,5 +92,4 @@ bool TSharedTableSchemaRegistry::TSharedTableSchemaEqual::operator()(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer

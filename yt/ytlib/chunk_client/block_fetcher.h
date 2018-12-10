@@ -16,8 +16,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,5 +181,4 @@ DEFINE_REFCOUNTED_TYPE(TSequentialBlockFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

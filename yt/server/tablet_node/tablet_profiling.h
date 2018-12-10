@@ -6,8 +6,7 @@
 
 #include <yt/core/profiling/public.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,5 +63,4 @@ void ProfileDynamicMemoryUsage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

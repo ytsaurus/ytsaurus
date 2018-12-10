@@ -21,8 +21,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,8 +124,7 @@ NYTree::IYPathServicePtr CreateVirtualObjectMap(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 
 #define VIRTUAL_INL_H_
 #include "virtual-inl.h"

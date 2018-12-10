@@ -10,8 +10,7 @@
 
 #include <queue>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -444,5 +443,4 @@ IThroughputThrottlerPtr CreateCombinedThrottler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

@@ -1,7 +1,6 @@
 #include "row_sampler.h"
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +16,4 @@ std::unique_ptr<IRowSampler> CreateChunkRowSampler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTableClient
+} // namespace NTableClient::NYT

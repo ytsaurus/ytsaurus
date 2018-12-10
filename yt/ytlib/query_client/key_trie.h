@@ -5,8 +5,7 @@
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,5 +98,4 @@ TString ToString(TKeyTriePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

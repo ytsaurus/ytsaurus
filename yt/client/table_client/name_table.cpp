@@ -3,8 +3,7 @@
 
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,6 +259,5 @@ void FromProto(TNameTablePtr* nameTable, const NProto::TNameTableExt& protoNameT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

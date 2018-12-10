@@ -5,8 +5,7 @@
 
 #include <library/streams/brotli/brotli.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,6 +116,5 @@ void BrotliDecompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NCompression
+} // namespace NCompression::NYT
 

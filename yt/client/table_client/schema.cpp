@@ -10,8 +10,7 @@
 
 #include <yt/client/tablet_client/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NYTree;
 using namespace NYson;
@@ -996,5 +995,4 @@ void FromProto(TKeyColumns* keyColumns, const TKeyColumnsExt& protoKeyColumns)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

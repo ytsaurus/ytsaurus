@@ -84,8 +84,7 @@
 
 #include <algorithm>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NChunkClient::NProto;
@@ -6388,5 +6387,4 @@ DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleNodeTa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

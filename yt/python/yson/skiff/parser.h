@@ -17,8 +17,7 @@
 #include <util/generic/hash.h>
 
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,5 +51,4 @@ Py::Object LoadSkiff(Py::Tuple& args, Py::Dict& kwargs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

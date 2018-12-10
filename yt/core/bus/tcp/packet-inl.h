@@ -7,8 +7,7 @@
 
 #include <yt/core/misc/checksum.h>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,5 +93,4 @@ TDerived* TPacketTranscoderBase<TDerived>::AsDerived()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

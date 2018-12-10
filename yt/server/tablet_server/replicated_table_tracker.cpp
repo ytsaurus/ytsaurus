@@ -45,8 +45,7 @@
 #include <yt/client/api/public.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
@@ -593,5 +592,4 @@ TReplicatedTableTracker::TReplicatedTableTracker(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

@@ -5,8 +5,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 namespace {
 
 using namespace NYson;
@@ -99,5 +98,4 @@ TEST(TAttributesTest, TrySerializeProtoToRef)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

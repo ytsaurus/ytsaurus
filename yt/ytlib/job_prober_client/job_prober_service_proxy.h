@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/client.h>
 
-namespace NYT {
-namespace NJobProberClient {
+namespace NYT::NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,5 +30,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProberClient
-} // namespace NYT
+} // namespace NYT::NJobProberClient

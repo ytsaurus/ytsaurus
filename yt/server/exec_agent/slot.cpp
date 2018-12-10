@@ -25,8 +25,7 @@
 
 #include <util/system/fs.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NBus;
 using namespace NConcurrency;
@@ -232,5 +231,4 @@ ISlotPtr CreateSlot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

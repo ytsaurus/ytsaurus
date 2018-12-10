@@ -1,7 +1,6 @@
 #include "profiler.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NProfiling;
 
@@ -42,5 +41,4 @@ void TProfileCollector::Publish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

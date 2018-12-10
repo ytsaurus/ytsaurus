@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,5 +8,4 @@ const NLogging::TLogger NodeTrackerClientLogger("NodeTrackerClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

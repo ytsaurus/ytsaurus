@@ -37,8 +37,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NQueryAgent {
+namespace NYT::NQueryAgent {
 
 using namespace NCellNode;
 using namespace NChunkClient;
@@ -368,6 +367,5 @@ IServicePtr CreateQueryService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryAgent
-} // namespace NYT
+} // namespace NYT::NQueryAgent
 

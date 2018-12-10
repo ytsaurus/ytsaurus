@@ -9,8 +9,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTools {
+namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,5 +100,4 @@ TYsonString ExecuteTool(const TString& toolName, const TYsonString& serializedAr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTools
-} // namespace NYT
+} // namespace NYT::NTools

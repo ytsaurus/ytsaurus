@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,5 +19,4 @@ struct TObjectYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient

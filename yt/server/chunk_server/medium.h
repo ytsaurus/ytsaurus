@@ -8,8 +8,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,5 +38,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

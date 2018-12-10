@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NHydra;
 using namespace NChunkClient;
@@ -158,5 +157,4 @@ void TJournalSession::OnFinished()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

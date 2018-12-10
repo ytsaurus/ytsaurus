@@ -10,8 +10,7 @@
 
 #include <util/datetime/base.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -406,5 +405,4 @@ REGISTER_SHUTDOWN_CALLBACK(3, TDelayedExecutor::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

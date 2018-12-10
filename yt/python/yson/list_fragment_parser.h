@@ -14,11 +14,9 @@
 #include <queue>
 #include <stack>
 
-namespace NYT {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NPython {
 
 class TListFragmentConsumer
     : public NYson::IYsonConsumer
@@ -123,5 +121,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NPython

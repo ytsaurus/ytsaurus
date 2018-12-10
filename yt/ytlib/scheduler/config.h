@@ -25,8 +25,7 @@
 
 #include <yt/core/misc/phoenix.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1105,5 +1104,4 @@ DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

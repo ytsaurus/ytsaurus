@@ -7,8 +7,7 @@
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,8 +113,7 @@ DEFINE_REFCOUNTED_TYPE(TAutoMergeTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 
 #define AUTO_MERGE_TASK_INL_H
 #include "auto_merge_task-inl.h"

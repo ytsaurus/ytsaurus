@@ -33,9 +33,7 @@
 
 #include <yt/core/compression/codec.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NYPath;
 using namespace NTransactionClient;
@@ -1686,6 +1684,4 @@ ITransactionPtr CreateTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

@@ -11,8 +11,7 @@
 
 #include <yt/core/alloc/alloc.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,8 +69,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
-} // namespace NYT
+} // namespace NYT::NCellNode
 
 int main(int argc, const char** argv)
 {

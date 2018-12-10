@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,5 +9,4 @@ const NProfiling::TProfiler TabletNodeProfiler("/tablet_node");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

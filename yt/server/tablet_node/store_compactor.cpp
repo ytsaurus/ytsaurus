@@ -53,8 +53,7 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/heap.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -1499,5 +1498,4 @@ void StartStoreCompactor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -288,8 +287,7 @@ TError GetCumulativeError(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient
 
 #define OBJECT_SERVICE_PROXY_INL_H_
 #include "object_service_proxy-inl.h"

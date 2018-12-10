@@ -14,8 +14,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NYTree;
 using namespace NYson;
@@ -91,5 +90,4 @@ IYPathServicePtr CreateCachedChunkMapService(TChunkCachePtr chunkCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

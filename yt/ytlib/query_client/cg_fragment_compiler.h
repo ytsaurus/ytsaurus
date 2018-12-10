@@ -5,8 +5,7 @@
 #include "cg_types.h"
 #include "query_common.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,5 +270,4 @@ TCGAggregateCallbacks CodegenAggregate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

@@ -39,8 +39,7 @@
 
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -755,5 +754,4 @@ IExecutorPtr CreateQueryExecutor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

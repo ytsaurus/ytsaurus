@@ -18,8 +18,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -717,5 +716,4 @@ std::unique_ptr<IChunkPool> CreateSortedChunkPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

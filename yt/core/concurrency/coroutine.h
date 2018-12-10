@@ -7,8 +7,7 @@
 
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,8 +105,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define COROUTINE_INL_H_
 #include "coroutine-inl.h"

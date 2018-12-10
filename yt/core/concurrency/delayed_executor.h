@@ -4,8 +4,7 @@
 
 #include <yt/core/actions/callback.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,5 +108,4 @@ extern const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

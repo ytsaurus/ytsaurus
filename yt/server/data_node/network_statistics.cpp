@@ -5,8 +5,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -59,5 +58,4 @@ void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TNodeStati
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

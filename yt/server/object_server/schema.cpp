@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -120,5 +119,4 @@ IObjectTypeHandlerPtr CreateSchemaTypeHandler(NCellMaster::TBootstrap* bootstrap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,5 +125,4 @@ DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

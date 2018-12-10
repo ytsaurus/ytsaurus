@@ -4,9 +4,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +57,4 @@ DEFINE_REFCOUNTED_TYPE(TGrpcLibraryLock);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

@@ -6,8 +6,7 @@
 
 #include <yt/core/profiling/public.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,5 +17,4 @@ ITvmServicePtr CreateDefaultTvmService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

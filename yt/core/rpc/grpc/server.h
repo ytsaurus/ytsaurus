@@ -4,9 +4,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,6 +12,4 @@ NRpc::IServerPtr CreateServer(TServerConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

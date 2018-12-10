@@ -29,8 +29,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/misc/finally.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYson;
 using namespace NYTree;
@@ -943,5 +942,4 @@ void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

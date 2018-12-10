@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/table_client/table_ypath.pb.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,5 +27,4 @@ struct TTableYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

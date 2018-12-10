@@ -8,8 +8,7 @@
 
 #include <util/string/escape.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 namespace {
 
 using ::testing::InSequence;
@@ -445,5 +444,4 @@ TEST(TYsonFragmentWriterTest, NoFirstIndent)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

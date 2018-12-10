@@ -15,8 +15,7 @@
 
 #include <yt/core/utilex/random.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -621,6 +620,5 @@ TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

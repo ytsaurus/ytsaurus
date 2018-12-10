@@ -37,8 +37,7 @@
 #include <atomic>
 #include <deque>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -1154,6 +1153,5 @@ IChunkWriterPtr CreateReplicationWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

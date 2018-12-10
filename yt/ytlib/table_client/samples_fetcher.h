@@ -11,8 +11,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,5 +95,4 @@ DEFINE_REFCOUNTED_TYPE(TSamplesFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

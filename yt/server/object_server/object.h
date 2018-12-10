@@ -7,8 +7,7 @@
 
 #include <yt/server/hydra/entity_map.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,8 +252,7 @@ struct TObjectIdFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 
 #define OBJECT_INL_H_
 #include "object-inl.h"

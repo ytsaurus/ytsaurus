@@ -2,8 +2,7 @@
 
 #include <yt/ytlib/query_client/query_builder.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,5 +45,4 @@ TEST(TQueryBuilderTest, Simple)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

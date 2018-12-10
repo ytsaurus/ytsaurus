@@ -14,8 +14,7 @@
 
 #include <cstdlib>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -869,6 +868,5 @@ TRangeInferrer CreateRangeInferrer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

@@ -25,8 +25,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NHydra;
 using namespace NHydra::NProto;
@@ -71,13 +70,11 @@ struct TMultiplexedRecord
     TSharedRef Data;
 };
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 
 Y_DECLARE_PODTYPE(NYT::NDataNode::TMultiplexedRecordHeader);
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1234,5 +1231,4 @@ TFuture<void> TJournalManager::SealChangelog(const TJournalChunkPtr& chunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

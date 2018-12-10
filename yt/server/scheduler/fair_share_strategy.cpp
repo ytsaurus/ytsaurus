@@ -20,8 +20,7 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 using namespace NJobTrackerClient;
@@ -1230,5 +1229,4 @@ ISchedulerStrategyPtr CreateFairShareStrategy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -13,8 +13,7 @@
 
 #include <yt/server/election/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,5 +182,4 @@ DEFINE_REFCOUNTED_TYPE(IHydraManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
-namespace NYT {
-namespace NFileServer {
+namespace NYT::NFileServer {
 
 using namespace NCrypto;
 using namespace NCellMaster;
@@ -179,6 +178,5 @@ INodeTypeHandlerPtr CreateFileTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
-} // namespace NYT
+} // namespace NYT::NFileServer
 

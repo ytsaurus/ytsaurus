@@ -4,8 +4,7 @@
 #include "chunk_reader.h"
 #include "block_cache.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient;
 
@@ -97,5 +96,4 @@ IChunkReaderPtr CreateCacheReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

@@ -20,8 +20,7 @@
 
 #include <utility>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NElection;
 using namespace NYTree;
@@ -685,5 +684,4 @@ TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& reques
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

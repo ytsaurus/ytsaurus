@@ -4,8 +4,7 @@
 
 #include <util/generic/string.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,5 +29,4 @@ constexpr TProtocolVersion DefaultProtocolVersion{0, 0};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

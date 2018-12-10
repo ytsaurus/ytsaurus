@@ -126,8 +126,7 @@
 
 #include <yt/core/alloc/alloc.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 using namespace NAdmin;
 using namespace NBus;
@@ -1019,5 +1018,4 @@ void TBootstrap::UpdateFootprintMemoryUsage()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
-} // namespace NYT
+} // namespace NYT::NCellNode

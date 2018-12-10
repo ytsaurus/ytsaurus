@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,5 +9,4 @@ const NProfiling::TProfiler SecurityServerProfiler("/security");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

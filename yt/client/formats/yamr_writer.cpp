@@ -9,8 +9,7 @@
 
 #include <yt/core/yson/format.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -199,5 +198,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

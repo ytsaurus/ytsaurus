@@ -12,8 +12,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,5 +152,4 @@ struct ISystemAttributeProvider
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

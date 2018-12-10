@@ -2,8 +2,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NContainers {
+namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ extern NLogging::TLogger ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NContainers
-} // namespace NYT
+} // namespace NYT::NContainers

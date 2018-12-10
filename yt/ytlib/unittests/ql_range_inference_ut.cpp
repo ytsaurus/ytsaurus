@@ -10,8 +10,7 @@
 // TKeyRangeTest
 // TRefineKeyRangeTest
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1021,5 +1020,4 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

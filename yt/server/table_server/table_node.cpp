@@ -7,8 +7,7 @@
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell_bundle.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
@@ -629,6 +628,5 @@ DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, Dy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

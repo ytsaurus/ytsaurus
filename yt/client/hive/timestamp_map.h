@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,5 +26,4 @@ void FormatValue(TStringBuilder* builder, const TTimestampMap& map, TStringBuf s
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

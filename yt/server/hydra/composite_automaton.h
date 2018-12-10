@@ -10,8 +10,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -326,8 +325,7 @@ DEFINE_REFCOUNTED_TYPE(TCompositeAutomaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 
 #define COMPOSITE_AUTOMATON_INL_H_
 #include "composite_automaton-inl.h"

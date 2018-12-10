@@ -20,8 +20,7 @@
     #include <sys/socket.h>
 #endif
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 using namespace NNet;
 using namespace NYson;
@@ -186,5 +185,4 @@ IBusClientPtr CreateTcpBusClient(TTcpBusClientConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

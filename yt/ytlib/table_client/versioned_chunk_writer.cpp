@@ -28,8 +28,7 @@
 #include <yt/core/misc/range.h>
 #include <yt/core/misc/random.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NTableChunkFormat;
 using namespace NChunkClient;
@@ -725,5 +724,4 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

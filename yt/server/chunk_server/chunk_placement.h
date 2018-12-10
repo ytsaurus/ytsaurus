@@ -12,8 +12,7 @@
 
 #include <util/generic/map.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,5 +146,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkPlacement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

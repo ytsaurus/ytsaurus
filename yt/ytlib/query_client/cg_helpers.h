@@ -6,8 +6,7 @@
 #include <yt/core/codegen/module.h>
 #include <yt/core/codegen/llvm_migrate_helpers.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 // Import extensively used LLVM types.
 using llvm::BasicBlock;
@@ -839,5 +838,4 @@ Function* MakeFunction(const TCGModulePtr& module, llvm::Twine name, TBody&& bod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

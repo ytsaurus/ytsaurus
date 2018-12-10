@@ -6,8 +6,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,5 +37,4 @@ DEFINE_REFCOUNTED_TYPE(IAutomaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

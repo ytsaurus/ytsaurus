@@ -37,8 +37,7 @@
 #include <atomic>
 #include <queue>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NHydra;
 using namespace NRpc;
@@ -885,5 +884,4 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/zigzag.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
 using namespace NTableClient;
@@ -186,5 +185,4 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

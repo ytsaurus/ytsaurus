@@ -6,8 +6,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NYTree;
 using namespace NCellMaster;
@@ -33,5 +32,4 @@ INodeTypeHandlerPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

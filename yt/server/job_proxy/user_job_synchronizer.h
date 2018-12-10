@@ -11,8 +11,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,5 +73,4 @@ NRpc::IServicePtr CreateUserJobSynchronizerService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

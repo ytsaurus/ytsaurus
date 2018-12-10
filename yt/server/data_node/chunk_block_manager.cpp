@@ -19,8 +19,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -256,5 +255,4 @@ IPrioritizedInvokerPtr TChunkBlockManager::GetReaderInvoker() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

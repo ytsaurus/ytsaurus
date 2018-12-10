@@ -15,8 +15,7 @@
 
 #include <library/openssl/io/stream.h>
 
-namespace NYT {
-namespace NHttps {
+namespace NYT::NHttps {
 
 using namespace NNet;
 using namespace NHttp;
@@ -104,5 +103,4 @@ IClientPtr CreateClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttps
-} // namespace NYT
+} // namespace NYT::NHttps

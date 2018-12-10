@@ -6,8 +6,7 @@
 
 #include <yt/client/table_client/wire_protocol.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 // ToDo(psushin): move to NTableClient.
 
@@ -45,5 +44,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

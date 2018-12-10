@@ -16,8 +16,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,5 +69,4 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient

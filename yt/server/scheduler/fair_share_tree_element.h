@@ -13,8 +13,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -957,8 +956,7 @@ inline TJobResources ComputeAvailableResources(
     return resourceLimits - resourceUsage + resourceDiscount;
 }
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 
 #define FAIR_SHARE_TREE_ELEMENT_INL_H_
 #include "fair_share_tree_element-inl.h"

@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
 
-namespace NYT {
-namespace NCypressClient {
+namespace NYT::NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,5 +26,4 @@ struct TCypressYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressClient
-} // namespace NYT
+} // namespace NYT::NCypressClient

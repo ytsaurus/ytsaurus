@@ -24,8 +24,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NRpc;
 using namespace NObjectClient;
@@ -234,5 +233,4 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

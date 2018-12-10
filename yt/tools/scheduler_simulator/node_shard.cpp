@@ -6,8 +6,7 @@
 #include <yt/core/yson/public.h>
 
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
 using namespace NLogging;
@@ -303,5 +302,4 @@ int GetNodeShardId(TNodeId nodeId, int nodeShardCount)
     return THash<TNodeId>()(nodeId) % nodeShardCount;
 }
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

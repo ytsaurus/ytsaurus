@@ -8,8 +8,7 @@
 
 #include <yt/core/ytree/proto/attributes.pb.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,8 +52,7 @@ void ValidateYTreeKey(TStringBuf key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 namespace NYT {
 

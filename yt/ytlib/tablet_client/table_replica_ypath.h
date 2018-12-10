@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ struct TTableReplicaYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

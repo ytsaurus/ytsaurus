@@ -5,8 +5,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,5 +54,4 @@ TString ToString(const TChunkStripeKey& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

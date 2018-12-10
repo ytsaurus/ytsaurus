@@ -17,8 +17,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,6 +250,5 @@ IWireProtocolRowsetWriterPtr CreateWireProtocolRowsetWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

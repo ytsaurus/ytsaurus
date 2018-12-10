@@ -4,8 +4,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ ITimestampProviderPtr CreateRemoteTimestampProvider(
     
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

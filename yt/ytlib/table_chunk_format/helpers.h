@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/chunked_output_stream.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,5 +189,4 @@ inline TRange<NTableClient::TVersionedValue> FindValues(const NTableClient::TVer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

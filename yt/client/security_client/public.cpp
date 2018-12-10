@@ -1,7 +1,6 @@
 #include "public.h"
 
-namespace NYT {
-namespace NSecurityClient {
+namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +23,4 @@ const TString SuperusersGroupName("superusers");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityClient
-} // namespace NYT
+} // namespace NYT::NSecurityClient

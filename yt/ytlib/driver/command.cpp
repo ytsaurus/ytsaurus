@@ -5,8 +5,7 @@
 
 #include <yt/core/ypath/tokenizer.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYPath;
 
@@ -148,5 +147,4 @@ TYPath RewritePath(const TYPath& path, bool rewriteOperationPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

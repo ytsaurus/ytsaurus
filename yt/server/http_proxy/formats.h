@@ -4,8 +4,7 @@
 
 #include <yt/client/formats/format.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +23,4 @@ std::optional<TString> GetBestAcceptedType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

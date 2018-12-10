@@ -3,8 +3,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 
@@ -84,5 +83,4 @@ void TAttributeConsumer::ThrowMapExpected()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

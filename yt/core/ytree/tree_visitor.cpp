@@ -10,8 +10,7 @@
 #include <yt/core/yson/producer.h>
 #include <yt/core/yson/async_consumer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 
@@ -176,5 +175,4 @@ void VisitTree(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

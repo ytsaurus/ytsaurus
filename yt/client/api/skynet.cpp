@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 using namespace NYson;
 using namespace NYTree;
@@ -47,5 +46,4 @@ void Serialize(const TSkynetSharePartsLocations& skynetPartsLocations, IYsonCons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi

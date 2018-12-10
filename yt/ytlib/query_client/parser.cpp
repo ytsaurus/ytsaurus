@@ -3048,9 +3048,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NQueryClient {
-namespace NAst {
+namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3069,6 +3067,4 @@ void TParser::error(const location_type& location, const std::string& message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAst
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient::NAst

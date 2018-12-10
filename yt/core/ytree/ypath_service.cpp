@@ -16,8 +16,7 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 using namespace NRpc;
@@ -388,5 +387,4 @@ void IYPathService::WriteAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

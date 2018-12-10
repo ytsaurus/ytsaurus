@@ -7,8 +7,7 @@
 #include "object.h"
 #endif
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -257,5 +256,4 @@ std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByK
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

@@ -26,9 +26,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NRpc {
-namespace NBus {
+namespace NYT::NRpc::NBus {
 
 using namespace NYT::NBus;
 using namespace NYPath;
@@ -930,6 +928,4 @@ IChannelFactoryPtr CreateBusChannelFactory(TTcpBusConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NBus

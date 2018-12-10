@@ -20,8 +20,7 @@
 
 #include <yt/core/misc/digest.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -306,5 +305,4 @@ DEFINE_REFCOUNTED_TYPE(TTaskGroup)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

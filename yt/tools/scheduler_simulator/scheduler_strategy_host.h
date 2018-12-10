@@ -15,8 +15,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/size_literals.h>
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,5 +76,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

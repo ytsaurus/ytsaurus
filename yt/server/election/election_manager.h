@@ -8,8 +8,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,5 +106,4 @@ DEFINE_REFCOUNTED_TYPE(TEpochContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

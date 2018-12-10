@@ -5,8 +5,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 
@@ -114,5 +113,4 @@ bool TEncodingChunkWriter::HasSickReplicas() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

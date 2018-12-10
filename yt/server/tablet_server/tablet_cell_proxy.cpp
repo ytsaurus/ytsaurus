@@ -22,8 +22,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NConcurrency;
 using namespace NNodeTrackerServer;
@@ -370,6 +369,5 @@ IObjectProxyPtr CreateTabletCellProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

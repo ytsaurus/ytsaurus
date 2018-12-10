@@ -8,9 +8,7 @@
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/hash.h>
 
-namespace NYT {
-namespace NQueryClient {
-namespace NAst {
+namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -421,6 +419,4 @@ TString InferColumnName(const TReference& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAst
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient::NAst

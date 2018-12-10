@@ -14,8 +14,7 @@
 
 #include <yt/core/misc/signaler.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -161,5 +160,4 @@ IServicePtr CreateJobProberService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

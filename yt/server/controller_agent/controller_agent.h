@@ -23,8 +23,7 @@
 
 #include <yt/core/actions/signal.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -181,5 +180,4 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgent)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

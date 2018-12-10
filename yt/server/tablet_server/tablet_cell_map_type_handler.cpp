@@ -3,8 +3,7 @@
 
 #include <yt/server/cypress_server/node_detail.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NCypressServer;
 using namespace NTransactionServer;
@@ -46,5 +45,4 @@ INodeTypeHandlerPtr CreateTabletCellMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

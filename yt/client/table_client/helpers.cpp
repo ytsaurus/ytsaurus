@@ -10,8 +10,7 @@
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NYTree;
 using namespace NYson;
@@ -1073,5 +1072,4 @@ TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTableClient
+} // namespace NTableClient::NYT

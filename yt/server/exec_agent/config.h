@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -360,5 +359,4 @@ DEFINE_REFCOUNTED_TYPE(TExecAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

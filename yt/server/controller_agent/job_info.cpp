@@ -9,8 +9,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkPools;
 using namespace NJobTrackerClient;
@@ -165,5 +164,4 @@ void TCompletedJob::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -10,8 +10,7 @@
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NYson;
 using namespace NRpc::NProto;
@@ -385,5 +384,4 @@ void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

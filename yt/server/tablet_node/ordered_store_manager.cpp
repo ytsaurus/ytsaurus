@@ -30,8 +30,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NApi;
@@ -302,6 +301,5 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

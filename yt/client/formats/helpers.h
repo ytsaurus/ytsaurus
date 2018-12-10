@@ -7,8 +7,7 @@
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/parser.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,5 +32,4 @@ void WriteUnversionedValue(const NTableClient::TUnversionedValue& value, IOutput
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

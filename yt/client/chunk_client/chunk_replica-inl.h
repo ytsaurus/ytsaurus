@@ -5,8 +5,7 @@
 #include "chunk_replica.h"
 #endif
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,5 +105,4 @@ Y_FORCE_INLINE bool operator!=(const TChunkIdWithIndexes& lhs, const TChunkIdWit
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

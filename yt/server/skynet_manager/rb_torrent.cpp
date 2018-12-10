@@ -9,8 +9,7 @@
 
 #include <util/string/hex.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NCrypto;
 using namespace NYson;
@@ -437,5 +436,4 @@ INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRang
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

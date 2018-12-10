@@ -15,8 +15,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NBus;
 using namespace NRpc;
@@ -144,5 +143,4 @@ IChannelPtr CreateSchedulerChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

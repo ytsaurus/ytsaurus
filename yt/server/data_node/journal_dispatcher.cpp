@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/async_cache.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NHydra;
 using namespace NHydra::NProto;
@@ -368,5 +367,4 @@ TFuture<void> TJournalDispatcher::SealChangelog(TJournalChunkPtr chunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

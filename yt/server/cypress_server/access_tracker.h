@@ -13,8 +13,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,5 +56,4 @@ DEFINE_REFCOUNTED_TYPE(TAccessTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

@@ -3,9 +3,7 @@
 #include <util/datetime/base.h>
 #include <util/system/types.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 // Objects in storage
 
@@ -36,6 +34,4 @@ struct TObjectAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

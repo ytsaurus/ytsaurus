@@ -26,8 +26,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NApi;
 using namespace NRpc;
@@ -344,5 +343,4 @@ IChunkWriterPtr CreateConfirmingWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

@@ -32,8 +32,7 @@
 
 #include <yt/build/build.h>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 using namespace NApi;
 using namespace NApi::NRpcProxy;
@@ -372,5 +371,4 @@ IServicePtr CreateDiscoveryService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

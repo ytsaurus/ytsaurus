@@ -6,8 +6,7 @@
 
 #include <yt/server/cypress_server/node_detail.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +50,5 @@ NCypressServer::INodeTypeHandlerPtr CreateJournalTypeHandler(NCellMaster::TBoots
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
-} // namespace NYT
+} // namespace NYT::NJournalServer
 

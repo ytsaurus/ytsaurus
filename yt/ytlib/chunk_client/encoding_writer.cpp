@@ -15,8 +15,7 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/checksum.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 
@@ -307,5 +306,4 @@ const TCodecDuration& TEncodingWriter::GetCompressionDuration() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

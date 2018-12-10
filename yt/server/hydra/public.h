@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,5 +87,4 @@ using TEntityHash = typename TEntityTraits<T>::THash;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

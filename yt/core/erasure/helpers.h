@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +26,5 @@ bool Contains(const TPartIndexList& set, int elem);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure
 

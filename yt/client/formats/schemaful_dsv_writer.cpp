@@ -13,8 +13,7 @@
 
 #include <limits>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -386,5 +385,4 @@ ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
 ////////////////////////////////////////////////////////////////////////////////
 
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

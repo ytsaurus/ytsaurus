@@ -12,8 +12,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,5 +128,4 @@ DEFINE_REFCOUNTED_TYPE(IOrderedStoreManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

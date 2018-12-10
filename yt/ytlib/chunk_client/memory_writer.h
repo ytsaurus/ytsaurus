@@ -6,8 +6,7 @@
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +51,5 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

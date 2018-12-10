@@ -50,8 +50,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -1857,5 +1856,4 @@ TFuture<ISchemalessWriterPtr> CreateSchemalessTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

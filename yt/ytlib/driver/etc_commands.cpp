@@ -14,8 +14,7 @@
 
 #include <yt/core/yson/async_writer.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYPath;
 using namespace NYTree;
@@ -337,5 +336,4 @@ void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

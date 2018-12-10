@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,5 +11,4 @@ IBusClientPtr CreateTcpBusClient(TTcpBusClientConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

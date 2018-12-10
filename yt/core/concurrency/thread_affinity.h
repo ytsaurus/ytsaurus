@@ -8,8 +8,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,8 +83,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define THREAD_AFFINITY_INL_H_
 #include "thread_affinity-inl.h"

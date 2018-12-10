@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,8 +301,7 @@ NYPath::TYPath RewritePath(const NYPath::TYPath& path, bool rewriteOperationPath
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver
 
 #define COMMAND_INL_H
 #include "command-inl.h"

@@ -15,8 +15,7 @@
 #include <memory>
 #include <limits>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,5 +145,4 @@ void WriteYsonValue(NYson::IYsonConsumer* writer, const NTableClient::TUnversion
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

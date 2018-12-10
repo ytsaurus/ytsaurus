@@ -5,8 +5,7 @@
 
 #include <stack>
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -362,5 +361,4 @@ IValidatorNodePtr CreateUsageValidatorNode(const TSkiffSchemaPtr& skiffSchema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff

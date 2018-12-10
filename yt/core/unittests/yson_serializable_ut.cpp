@@ -11,8 +11,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 namespace {
 
 using namespace NYson;
@@ -739,5 +738,4 @@ TEST(TYsonSerializableTest, NullableWithNonNullDefault)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

@@ -2,12 +2,11 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail  {
+namespace NDetail {
 
 typedef uintptr_t (*TFlsSlotCtor)();
 typedef void (*TFlsSlotDtor)(uintptr_t);
@@ -51,8 +50,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define FLS_INL_H_
 #include "fls-inl.h"

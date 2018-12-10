@@ -76,8 +76,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NCompression;
 using namespace NConcurrency;
@@ -3581,5 +3580,4 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

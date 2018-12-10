@@ -2,9 +2,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +30,4 @@ constexpr int GenericErrorStatusCode = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

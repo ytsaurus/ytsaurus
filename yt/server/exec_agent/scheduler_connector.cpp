@@ -16,8 +16,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NNodeTrackerClient;
 using namespace NJobTrackerClient;
@@ -155,5 +154,4 @@ void TSchedulerConnector::SendHeartbeat()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

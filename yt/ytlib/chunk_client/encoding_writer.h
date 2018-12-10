@@ -11,8 +11,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,5 +92,4 @@ DEFINE_REFCOUNTED_TYPE(TEncodingWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

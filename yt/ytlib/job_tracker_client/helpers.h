@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/scheduler/job.h>
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,5 +28,4 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient

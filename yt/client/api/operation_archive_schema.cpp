@@ -1,7 +1,6 @@
 #include "operation_archive_schema.h"
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 using namespace NTableClient;
 
@@ -145,5 +144,4 @@ TOperationAliasesTableDescriptor::TIndex::TIndex(const NTableClient::TNameTableP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi

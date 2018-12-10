@@ -16,8 +16,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -618,5 +617,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

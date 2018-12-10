@@ -7,8 +7,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,5 +374,4 @@ void TEntityMap<TValue, TTraits>::FreeDynamicData(TDynamicData* data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

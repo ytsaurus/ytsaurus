@@ -19,8 +19,7 @@
 #include <yt/core/http/http.h>
 #include <yt/core/http/helpers.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NConcurrency;
 using namespace NJson;
@@ -278,5 +277,4 @@ ISecretVaultServicePtr CreateDefaultSecretVaultService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

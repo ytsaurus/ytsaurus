@@ -10,4 +10,4 @@ DECLARE_PROTO_EXTENSION(NChunkClient::NProto::TDataSourceDirectoryExt, 420)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NY

@@ -2,8 +2,7 @@
 
 #include "chunk_reader.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,5 +17,4 @@ DEFINE_REFCOUNTED_TYPE(IChunkReaderAllowingRepair)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

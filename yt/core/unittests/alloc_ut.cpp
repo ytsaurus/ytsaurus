@@ -4,8 +4,7 @@
 
 #include <thread>
 
-namespace NYT {
-namespace NYTAlloc {
+namespace NYT::NYTAlloc {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,5 +131,4 @@ TEST(TYTAllocTest, PerThreadCacheReclaim)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTAlloc
-} // namespace NYT
+} // namespace NYT::NYTAlloc

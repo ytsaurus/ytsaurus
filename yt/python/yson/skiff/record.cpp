@@ -3,8 +3,7 @@
 
 #include <yt/python/common/helpers.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -439,5 +438,4 @@ void TSkiffRecordItemsIterator::InitType()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

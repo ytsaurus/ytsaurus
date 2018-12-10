@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/range.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +60,5 @@ std::vector<TMutableRowRange> MergeOverlappingRanges(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

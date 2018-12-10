@@ -8,8 +8,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,6 +104,5 @@ DEFINE_REFCOUNTED_TYPE(TOperationControllerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

@@ -12,8 +12,7 @@
 
 #include <util/stream/buffer.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,5 +54,4 @@ NYTree::INodePtr MakeLinks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

@@ -40,8 +40,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 using namespace NApi;
 using namespace NYson;
@@ -2646,5 +2645,4 @@ IServicePtr CreateApiService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

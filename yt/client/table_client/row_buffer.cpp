@@ -2,8 +2,7 @@
 #include "unversioned_row.h"
 #include "versioned_row.h"
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,5 +229,4 @@ void TRowBuffer::Purge()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -276,6 +276,6 @@ void PrintTo(const TCoercibleToProbe& arg, ::std::ostream* os)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace <anonymous>
+} // namepsace 
 } // namespace NYT
 

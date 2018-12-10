@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,6 +61,5 @@ void ValidateOperationAccess(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

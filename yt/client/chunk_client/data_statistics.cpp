@@ -6,8 +6,7 @@
 
 #include <yt/client/chunk_client/data_statistics.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NCompression;
 using namespace NYTree;
@@ -187,5 +186,4 @@ TDuration TCodecStatistics::GetTotalDuration() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

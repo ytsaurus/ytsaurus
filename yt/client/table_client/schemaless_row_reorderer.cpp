@@ -2,8 +2,7 @@
 
 #include <yt/client/table_client/name_table.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,5 +89,4 @@ TUnversionedOwningRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -1,7 +1,6 @@
 #include "ordered_dynamic_store_ut_helpers.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 namespace {
 
 using namespace NChunkClient;
@@ -322,6 +321,5 @@ TEST_F(TOrderedDynamicStoreTimestampColumnTest, Serialize)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NJobProberClient {
+namespace NYT::NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,5 +28,4 @@ IJobProbePtr CreateJobProbe(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProberClient
-} // namespace NYT
+} // namespace NYT::NJobProberClient

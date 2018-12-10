@@ -11,8 +11,7 @@
 #include <stddef.h>
 
 // Forward declarations
-namespace google {
-namespace protobuf {
+namespace google::protobuf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,8 +23,7 @@ class RepeatedPtrField;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace protobuf
-} // namespace google
+} // namespace google::protobuf
 
 // Forward declarations
 namespace NYT {

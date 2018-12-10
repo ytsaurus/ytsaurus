@@ -38,8 +38,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -419,5 +418,4 @@ void VersionedLookupRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -22,8 +22,7 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYPath;
@@ -1084,5 +1083,4 @@ DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

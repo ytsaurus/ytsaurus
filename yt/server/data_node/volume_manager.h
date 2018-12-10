@@ -6,8 +6,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,5 +38,4 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

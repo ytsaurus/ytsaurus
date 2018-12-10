@@ -6,8 +6,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NYson;
 using namespace NConcurrency;
@@ -522,5 +521,4 @@ void TTableConsumer::SwitchToTable(int tableIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

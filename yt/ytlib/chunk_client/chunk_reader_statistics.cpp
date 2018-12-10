@@ -2,8 +2,7 @@
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NProfiling;
 using namespace NYPath;
@@ -66,5 +65,4 @@ void TChunkReaderStatisticsCounters::Increment(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

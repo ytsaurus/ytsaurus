@@ -14,8 +14,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NTableClient;
 using namespace NControllerAgent;
@@ -186,5 +185,4 @@ const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>()->SetSplittabl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

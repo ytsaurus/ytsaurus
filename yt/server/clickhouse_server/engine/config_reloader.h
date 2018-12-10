@@ -4,9 +4,7 @@
 
 #include <functional>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +31,4 @@ IConfigReloaderPtr CreateConfigReloader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

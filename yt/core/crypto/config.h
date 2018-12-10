@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NCrypto {
+namespace NYT::NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,5 +25,4 @@ DEFINE_REFCOUNTED_TYPE(TPemBlobConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCrypto
-} // namespace NYT
+} // namespace NYT::NCrypto

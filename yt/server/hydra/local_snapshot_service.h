@@ -4,8 +4,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ NRpc::IServicePtr CreateLocalSnapshotService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

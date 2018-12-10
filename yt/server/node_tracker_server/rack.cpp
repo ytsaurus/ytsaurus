@@ -3,8 +3,7 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +37,5 @@ void TRack::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer
 

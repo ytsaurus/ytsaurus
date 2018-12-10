@@ -11,9 +11,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 using namespace NConcurrency;
 
@@ -207,6 +205,4 @@ REGISTER_SHUTDOWN_CALLBACK(7, TDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

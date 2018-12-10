@@ -50,8 +50,7 @@
 
 #include <errno.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -1107,5 +1106,4 @@ REGISTER_SHUTDOWN_CALLBACK(5, TLogManager::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

@@ -46,8 +46,7 @@
 // TQueryCoordinateTest
 // TQueryEvaluateTest
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -5281,5 +5280,4 @@ TEST_F(TQueryEvaluateTest, TestMakeMapFailure)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

@@ -6,8 +6,7 @@
 
 #include <yt/server/cypress_server/public.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,5 +22,4 @@ NCypressServer::INodeTypeHandlerPtr CreateMediumMapTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

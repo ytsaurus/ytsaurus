@@ -34,8 +34,7 @@
     #include <unistd.h>
 #endif
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 using namespace NConcurrency;
 using namespace NYson;
@@ -1086,6 +1085,5 @@ REGISTER_SHUTDOWN_CALLBACK(2, TAddressResolver::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet
 

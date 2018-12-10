@@ -40,8 +40,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -798,5 +797,4 @@ void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

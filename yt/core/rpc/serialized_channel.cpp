@@ -4,8 +4,7 @@
 
 #include <queue>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,5 +147,4 @@ IChannelPtr CreateSerializedChannel(IChannelPtr underlyingChannel)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

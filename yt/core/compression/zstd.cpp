@@ -7,8 +7,7 @@
 #define ZSTD_STATIC_LINKING_ONLY
 #include <contrib/libs/zstd/zstd.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,6 +172,5 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NCompression
+} // namespace NCompression::NYT
 

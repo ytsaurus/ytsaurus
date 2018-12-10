@@ -6,8 +6,7 @@
 #include "evaluation_helpers.h"
 #endif
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +32,5 @@ int TCGVariables::AddOpaque(TArgs&& ... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

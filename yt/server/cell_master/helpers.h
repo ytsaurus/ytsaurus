@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,5 +15,4 @@ NProto::TCellStatistics  operator +  (const NProto::TCellStatistics& lhs, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

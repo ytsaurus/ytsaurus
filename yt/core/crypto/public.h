@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/intrusive_ptr.h>
 
-namespace NYT {
-namespace NCrypto {
+namespace NYT::NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +13,4 @@ DECLARE_REFCOUNTED_CLASS(TSslContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCrypto
-} // namespace NYT
+} // namespace NYT::NCrypto

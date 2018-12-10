@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/client.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +22,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient
 

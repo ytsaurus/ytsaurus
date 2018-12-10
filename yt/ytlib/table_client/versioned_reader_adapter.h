@@ -5,8 +5,7 @@
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/schema.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,5 +19,4 @@ IVersionedReaderPtr CreateVersionedReaderAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

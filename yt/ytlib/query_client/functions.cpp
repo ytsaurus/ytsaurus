@@ -1,7 +1,6 @@
 #include "functions.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,5 +139,4 @@ const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const TString& f
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,5 +34,4 @@ static constexpr size_t DefaultStreamBufferSize = 32_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

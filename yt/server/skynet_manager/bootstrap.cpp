@@ -35,8 +35,7 @@
 
 #include <util/string/hex.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NYTree;
 using namespace NMonitoring;
@@ -190,5 +189,4 @@ const std::vector<TClusterConnectionPtr>& TBootstrap::GetClusters() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

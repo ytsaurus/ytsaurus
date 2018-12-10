@@ -8,8 +8,7 @@
 
 #include <yt/core/actions/callback.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,5 +173,4 @@ DEFINE_ENUM(EAccessType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -9,8 +9,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,5 +74,4 @@ DEFINE_REFCOUNTED_TYPE(IChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

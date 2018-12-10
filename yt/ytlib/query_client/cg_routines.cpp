@@ -53,9 +53,10 @@ class TypeBuilder<re2::RE2*, Cross>
 
 } // namespace llvm
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace NRoutines {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -2124,5 +2125,4 @@ TRoutineRegistry* GetQueryRoutineRegistry()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

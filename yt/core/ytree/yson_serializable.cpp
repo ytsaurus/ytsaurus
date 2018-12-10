@@ -6,8 +6,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/ypath_detail.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYPath;
 using namespace NYson;
@@ -220,8 +219,7 @@ DEFINE_REFCOUNTED_TYPE(TYsonSerializable);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 
 namespace NYT {

@@ -5,8 +5,7 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NTableClient;
 using namespace NYTree;
@@ -79,5 +78,4 @@ void WriteUnversionedValue(const TUnversionedValue& value, IOutputStream* output
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

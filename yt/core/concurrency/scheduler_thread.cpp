@@ -4,8 +4,7 @@
 
 #include <util/system/sigset.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 using namespace NYPath;
 using namespace NProfiling;
@@ -535,5 +534,4 @@ void TSchedulerThread::SetCurrentFiber(TFiberPtr fiber)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

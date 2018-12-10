@@ -8,8 +8,7 @@
 #include <yt/core/misc/source_location.h>
 #endif
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -642,5 +641,4 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail

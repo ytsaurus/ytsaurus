@@ -1,8 +1,7 @@
 #include "scheduling_context.h"
 #include "scheduling_context_detail.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NObjectClient;
 
@@ -43,5 +42,4 @@ ISchedulingContextPtr CreateSchedulingContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

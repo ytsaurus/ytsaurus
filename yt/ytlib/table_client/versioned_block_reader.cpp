@@ -8,8 +8,7 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/algorithm_helpers.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NTransactionClient;
 using namespace NProto;
@@ -507,5 +506,4 @@ i64 THorizontalSchemalessVersionedBlockReader::GetRowIndex() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

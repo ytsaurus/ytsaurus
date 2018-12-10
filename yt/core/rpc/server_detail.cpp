@@ -9,8 +9,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NConcurrency;
 using namespace NBus;
@@ -639,5 +638,4 @@ std::vector<IServicePtr> TServerBase::DoFindServices(const TString& serviceName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

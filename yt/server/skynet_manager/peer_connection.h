@@ -7,8 +7,7 @@
 #include <yt/core/logging/log.h>
 #include <yt/core/misc/guid.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,5 +60,4 @@ DEFINE_REFCOUNTED_TYPE(TPeerConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

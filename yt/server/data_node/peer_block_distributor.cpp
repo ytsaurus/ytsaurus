@@ -29,8 +29,7 @@
 
 #include <util/random/random.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NCellNode;
 using namespace NChunkClient;
@@ -416,5 +415,4 @@ void TPeerBlockDistributor::OnBlockDistributed(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

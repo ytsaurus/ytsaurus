@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/hash.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 using namespace NConcurrency;
 
@@ -182,5 +181,4 @@ void TTableMountCacheBase::Clear()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

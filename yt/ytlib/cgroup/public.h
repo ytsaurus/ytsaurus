@@ -2,8 +2,7 @@
 
 #include <util/generic/string.h>
 
-namespace NYT {
-namespace NCGroup {
+namespace NYT::NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ bool IsValidCGroupType(const TString& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCGroup
-} // namespace NYT
+} // namespace NYT::NCGroup

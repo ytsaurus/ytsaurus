@@ -2,8 +2,7 @@
 
 #include <yt/server/controller_agent/auto_merge_director.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 namespace {
 
 using namespace ::testing;
@@ -183,5 +182,4 @@ TEST(TAutoMergeTest, JobFailure)
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NY::NChunkPools

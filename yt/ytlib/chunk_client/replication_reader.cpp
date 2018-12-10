@@ -44,8 +44,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -1938,5 +1937,4 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

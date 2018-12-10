@@ -25,8 +25,7 @@
 #include <yt/core/compression/public.h>
 #include <yt/core/misc/random.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 namespace {
 
 using namespace NChunkClient;
@@ -719,5 +718,4 @@ TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaLookup)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -1,8 +1,7 @@
 #include "lazy_dict.h"
 #include "yson_lazy_map.h"
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,5 +89,4 @@ Py::Object TLazyDict::GetConsumerParams()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

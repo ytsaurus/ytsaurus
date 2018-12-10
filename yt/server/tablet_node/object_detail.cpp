@@ -1,7 +1,6 @@
 #include "object_detail.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NObjectClient;
 
@@ -18,5 +17,4 @@ TObjectBase::TObjectBase(const TObjectId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

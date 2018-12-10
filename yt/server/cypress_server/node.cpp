@@ -10,8 +10,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/server/object_server/object.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -238,6 +237,5 @@ TVersionedObjectId GetObjectId(const TCypressNodeBase* object)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 

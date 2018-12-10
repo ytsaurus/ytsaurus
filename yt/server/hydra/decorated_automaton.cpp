@@ -35,8 +35,7 @@
 
 #include <util/system/file.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NElection;
@@ -1239,5 +1238,4 @@ bool TDecoratedAutomaton::IsRecovery()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

@@ -29,8 +29,7 @@
 
 #include <vector>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -624,5 +623,4 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

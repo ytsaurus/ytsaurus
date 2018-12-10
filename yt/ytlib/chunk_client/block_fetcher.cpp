@@ -11,8 +11,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 
@@ -373,5 +372,4 @@ TFuture<TBlock> TSequentialBlockFetcher::FetchNextBlock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

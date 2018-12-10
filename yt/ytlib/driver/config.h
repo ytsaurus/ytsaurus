@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,6 +81,5 @@ DEFINE_REFCOUNTED_TYPE(TDriverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver
 

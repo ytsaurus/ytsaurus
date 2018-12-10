@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/zigzag.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,5 +28,4 @@ void PrepareDiffFromExpected(std::vector<ui32>* values, ui32* expected, ui32* ma
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

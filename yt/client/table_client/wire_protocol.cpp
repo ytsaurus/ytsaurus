@@ -21,8 +21,7 @@
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -1229,6 +1228,5 @@ IWireProtocolRowsetWriterPtr CreateWireProtocolRowsetWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

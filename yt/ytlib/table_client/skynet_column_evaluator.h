@@ -4,8 +4,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,5 +61,4 @@ DEFINE_REFCOUNTED_TYPE(TSkynetColumnEvaluator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

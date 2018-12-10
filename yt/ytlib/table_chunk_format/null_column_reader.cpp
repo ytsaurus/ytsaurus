@@ -2,8 +2,7 @@
 
 #include "helpers.h"
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
 using namespace NTableClient;
@@ -101,5 +100,4 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(int 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

@@ -4,8 +4,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +36,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkSealer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

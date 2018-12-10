@@ -6,8 +6,7 @@
 
 #include <yt/core/crypto/config.h>
 
-namespace NYT {
-namespace NHttps {
+namespace NYT::NHttps {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,5 +65,4 @@ DEFINE_REFCOUNTED_TYPE(TClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttps
-} // namespace NYT
+} // namespace NYT::NHttps

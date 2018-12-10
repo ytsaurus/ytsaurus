@@ -7,8 +7,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NCrypto;
 
@@ -219,5 +218,4 @@ bool TSkynetColumnEvaluator::IsKeySwitched(TUnversionedRow fullRow, bool isLastR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

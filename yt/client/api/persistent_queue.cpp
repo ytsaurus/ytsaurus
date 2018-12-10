@@ -15,8 +15,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/delayed_executor.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 using namespace NYPath;
 using namespace NYTree;
@@ -1065,6 +1064,5 @@ TFuture<void> UpdatePersistentQueueTabletsState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

@@ -21,8 +21,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,8 +376,7 @@ void Deserialize(TSerializableChunkRequisition& serializer, NYTree::INodePtr nod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 template <>
 struct THash<NYT::NChunkServer::TRequisitionEntry>
@@ -398,8 +396,7 @@ struct THash<NYT::NChunkServer::TChunkRequisition>
     }
 };
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -523,8 +520,7 @@ void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request, const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 #define CHUNK_REQUISITION_INL_H_
 #include "chunk_requisition-inl.h"

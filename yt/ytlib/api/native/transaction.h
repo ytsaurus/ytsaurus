@@ -7,9 +7,7 @@
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +41,5 @@ ITransactionPtr CreateTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

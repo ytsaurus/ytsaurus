@@ -20,8 +20,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -381,8 +380,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc
 
 #define CLIENT_INL_H_
 #include "client-inl.h"

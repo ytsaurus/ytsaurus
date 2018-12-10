@@ -13,8 +13,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NTableClient;
 using namespace NTableClient::NProto;
@@ -508,5 +507,4 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

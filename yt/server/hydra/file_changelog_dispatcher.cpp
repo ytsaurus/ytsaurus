@@ -16,8 +16,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NHydra::NProto;
@@ -656,6 +655,5 @@ TFuture<void> TFileChangelogDispatcher::FlushChangelogs()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 

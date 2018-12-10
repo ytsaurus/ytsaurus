@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NHydra;
 using namespace NObjectServer;
@@ -96,5 +95,4 @@ IObjectTypeHandlerPtr CreateTabletCellBundleTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

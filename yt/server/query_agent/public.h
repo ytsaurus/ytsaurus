@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NQueryAgent {
+namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ DECLARE_REFCOUNTED_CLASS(TQueryAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryAgent
-} // namespace NYT
+} // namespace NYT::NQueryAgent

@@ -85,8 +85,7 @@
 
 #include <functional>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkPools;
 using namespace NCypressClient;
@@ -7669,5 +7668,4 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationControllerBase::TSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -12,8 +12,7 @@
 #define UDF_BC(name) TSharedRef(name ## _bc, name ## _bc_len, nullptr)
 #endif
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,5 +70,4 @@ struct TFunctionRegistryBuilder
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

@@ -13,8 +13,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -238,5 +237,4 @@ IChunkReaderPtr CreateLocalChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

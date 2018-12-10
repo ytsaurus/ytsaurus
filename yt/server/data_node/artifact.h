@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +31,5 @@ TString ToString(const TArtifactKey& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

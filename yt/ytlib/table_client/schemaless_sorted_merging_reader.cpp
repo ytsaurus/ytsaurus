@@ -9,8 +9,7 @@
 
 #include <yt/core/misc/heap.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -658,5 +657,4 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessJoinReduceJoiningReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

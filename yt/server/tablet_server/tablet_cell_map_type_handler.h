@@ -6,8 +6,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ NCypressServer::INodeTypeHandlerPtr CreateTabletCellMapTypeHandler(NCellMaster::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

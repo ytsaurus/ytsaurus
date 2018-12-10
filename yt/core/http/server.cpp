@@ -17,8 +17,7 @@
 
 #include <yt/core/tracing/trace_context.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -393,5 +392,4 @@ IHttpHandlerPtr TRequestPathMatcher::Match(TStringBuf path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

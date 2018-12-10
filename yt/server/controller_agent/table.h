@@ -13,8 +13,7 @@
 
 #include <yt/client/table_client/column_rename_descriptor.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,6 +116,5 @@ DEFINE_REFCOUNTED_TYPE(TIntermediateTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

@@ -6,8 +6,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,5 +76,4 @@ std::unique_ptr<IRowSampler> CreateChunkRowSampler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

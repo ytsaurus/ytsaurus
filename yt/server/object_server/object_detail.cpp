@@ -54,8 +54,7 @@
 #include <yt/core/yson/async_consumer.h>
 #include <yt/core/yson/attribute_consumer.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NRpc;
 using namespace NYPath;
@@ -826,6 +825,5 @@ TAccessControlDescriptor* TNontemplateNonversionedObjectProxyBase::FindThisAcd()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 

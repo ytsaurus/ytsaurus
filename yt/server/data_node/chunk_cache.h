@@ -12,8 +12,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +86,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

@@ -27,8 +27,7 @@
 
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -381,5 +380,4 @@ DEFINE_REFCOUNTED_TYPE(TOperationRuntimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

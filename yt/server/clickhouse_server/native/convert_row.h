@@ -6,9 +6,7 @@
 
 #include <yt/ytlib/table_client/public.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +16,4 @@ TRow ConvertRow(const NTableClient::TUnversionedRow& src);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

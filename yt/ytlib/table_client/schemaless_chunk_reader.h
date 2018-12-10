@@ -17,8 +17,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,5 +144,4 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

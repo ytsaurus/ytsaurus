@@ -17,8 +17,7 @@
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/ring_queue.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,5 +111,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

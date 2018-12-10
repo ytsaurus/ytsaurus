@@ -18,8 +18,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,5 +94,4 @@ DEFINE_REFCOUNTED_TYPE(TDataFlowGraph);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

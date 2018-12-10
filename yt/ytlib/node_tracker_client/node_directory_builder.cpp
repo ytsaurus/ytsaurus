@@ -4,8 +4,7 @@
 
 #include <yt/client/node_tracker_client/proto/node_directory.pb.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 using namespace NChunkClient;
 
@@ -39,6 +38,5 @@ void TNodeDirectoryBuilder::Add(const TChunkReplicaList& replicas)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient
 

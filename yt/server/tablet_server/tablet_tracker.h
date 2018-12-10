@@ -12,8 +12,7 @@
 #include <yt/core/misc/small_set.h>
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +36,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

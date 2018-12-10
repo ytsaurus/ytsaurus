@@ -9,8 +9,7 @@
 #include <array>
 #include <atomic>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,5 +93,4 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

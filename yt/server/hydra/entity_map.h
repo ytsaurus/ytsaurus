@@ -9,8 +9,7 @@
 
 #include <type_traits>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -235,8 +234,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 
 #define ENTITY_MAP_INL_H_
 #include "entity_map-inl.h"

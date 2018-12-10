@@ -35,8 +35,7 @@
 
 #include <util/datetime/base.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -374,6 +373,5 @@ ITableMountCachePtr CreateNativeTableMountCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient
 

@@ -3,8 +3,7 @@
 
 #include <yt/core/misc/async_expiring_cache.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +65,5 @@ ITvmServicePtr CreateCachingTvmService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth
 

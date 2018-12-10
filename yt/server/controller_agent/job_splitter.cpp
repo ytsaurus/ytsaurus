@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkPools;
 using namespace NProfiling;
@@ -419,6 +418,5 @@ std::unique_ptr<IJobSplitter> CreateJobSplitter(const TJobSplitterConfigPtr& con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

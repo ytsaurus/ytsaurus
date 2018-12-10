@@ -13,8 +13,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,5 +113,4 @@ DEFINE_REFCOUNTED_TYPE(IFetcherChunkScraper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

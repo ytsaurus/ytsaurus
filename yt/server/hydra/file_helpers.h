@@ -6,8 +6,7 @@
 
 #include <util/system/file.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,8 +87,7 @@ void RemoveChangelogFiles(const TString& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 
 #define FILE_HELPERS_INL_H_
 #include "file_helpers-inl.h"

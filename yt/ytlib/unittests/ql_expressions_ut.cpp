@@ -25,8 +25,7 @@
 // TEvaluateExpressionTest
 // TEvaluateAggregationTest
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace {
 
 using namespace NYson;
@@ -1773,5 +1772,4 @@ TEST_F(TExpressionErrorTest, ConvertFromAny)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

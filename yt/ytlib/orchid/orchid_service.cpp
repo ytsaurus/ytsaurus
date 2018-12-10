@@ -7,8 +7,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_detail.h>
 
-namespace NYT {
-namespace NOrchid {
+namespace NYT::NOrchid {
 
 using namespace NBus;
 using namespace NRpc;
@@ -84,6 +83,5 @@ IServicePtr CreateOrchidService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NOrchid
-} // namespace NYT
+} // namespace NYT::NOrchid
 

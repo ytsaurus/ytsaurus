@@ -5,8 +5,7 @@
 
 #include <util/system/thread.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +33,5 @@ bool VerifyInvokerAffinity(const IInvokerPtr& invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

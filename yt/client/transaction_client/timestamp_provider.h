@@ -4,8 +4,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +29,5 @@ DEFINE_REFCOUNTED_TYPE(ITimestampProvider)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient
 

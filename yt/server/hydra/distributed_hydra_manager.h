@@ -10,8 +10,7 @@
 
 #include <yt/core/profiling/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,5 +37,4 @@ IHydraManagerPtr CreateDistributedHydraManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

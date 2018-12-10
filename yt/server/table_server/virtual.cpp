@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -212,6 +211,5 @@ void TVirtualStaticTable::DoWriteAttributesFragment(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

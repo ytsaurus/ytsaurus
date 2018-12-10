@@ -7,8 +7,7 @@
 #endif
 #undef FLUENT_LOG_INL_H_
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -35,5 +34,4 @@ TOneShotFluentLogEventImpl<TParent>::~TOneShotFluentLogEventImpl()
 }
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

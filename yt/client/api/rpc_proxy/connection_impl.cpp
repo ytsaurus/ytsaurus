@@ -25,9 +25,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 using namespace NBus;
 using namespace NRpc;
@@ -270,6 +268,4 @@ void TConnection::OnProxyListUpdate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

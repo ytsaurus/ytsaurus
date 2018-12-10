@@ -399,5 +399,5 @@ void Deserialize(Py::Object& obj, INodePtr node, const std::optional<TString>& e
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
 } // namespace NYT
+} // namespace NYTree

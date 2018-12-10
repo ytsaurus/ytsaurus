@@ -7,8 +7,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +56,5 @@ DEFINE_REFCOUNTED_TYPE(TFairShareInvokerQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

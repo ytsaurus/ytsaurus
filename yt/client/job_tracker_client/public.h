@@ -3,8 +3,7 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/guid.h>
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,5 +66,4 @@ DEFINE_ENUM(EJobState,
 );
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient

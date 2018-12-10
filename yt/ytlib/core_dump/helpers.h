@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/core_dumper.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ void Serialize(const TCoreInfo& coreInfo, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

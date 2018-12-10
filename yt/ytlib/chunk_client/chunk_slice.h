@@ -12,8 +12,7 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/phoenix.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,6 +80,5 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

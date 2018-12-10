@@ -34,8 +34,7 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/tls_cache.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -1371,6 +1370,5 @@ i64 TTablet::GetTabletLockCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 
