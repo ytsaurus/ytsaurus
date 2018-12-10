@@ -50,7 +50,7 @@ TReadTableCommand::TReadTableCommand()
 {
     RegisterParameter("path", Path);
     RegisterParameter("table_reader", TableReader)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("control_attributes", ControlAttributes)
         .DefaultNew();
     RegisterParameter("unordered", Unordered)
@@ -135,7 +135,7 @@ TReadBlobTableCommand::TReadBlobTableCommand()
     RegisterParameter("path", Path);
     RegisterParameter("part_size", PartSize);
     RegisterParameter("table_reader", TableReader)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("part_index_column_name", PartIndexColumnName)
         .Default();
     RegisterParameter("data_column_name", DataColumnName)
@@ -234,7 +234,7 @@ TWriteTableCommand::TWriteTableCommand()
 {
     RegisterParameter("path", Path);
     RegisterParameter("table_writer", TableWriter)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("max_row_buffer_size", MaxRowBufferSize)
         .Default(1_MB);
     RegisterPostprocessor([&] {
@@ -540,7 +540,7 @@ TSelectRowsCommand::TSelectRowsCommand()
     RegisterParameter("allow_join_without_index", Options.AllowJoinWithoutIndex)
         .Optional();
     RegisterParameter("udf_registry_path", Options.UdfRegistryPath)
-        .Default(Null);
+        .Default();
 }
 
 void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
