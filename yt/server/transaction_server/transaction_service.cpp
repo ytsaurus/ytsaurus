@@ -81,8 +81,6 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
-        SyncWithUpstream();
-
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         context->SetRequestInfo("TransactionId: %v, ActionCount: %v",
