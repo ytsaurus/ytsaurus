@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/actions/public.h>
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NAuth {
@@ -11,7 +11,8 @@ namespace NAuth {
 
 IBlackboxServicePtr CreateDefaultBlackboxService(
     TDefaultBlackboxServiceConfigPtr config,
-    IInvokerPtr invoker);
+    NConcurrency::IPollerPtr poller,
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

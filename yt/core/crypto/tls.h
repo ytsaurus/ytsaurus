@@ -21,6 +21,8 @@ class TSslContext
 public:
     TSslContext();
 
+    void UseBuiltinOpenSslX509Store();
+
     void SetCipherList(const TString& list);
 
     void AddCertificateFromFile(const TString& path);

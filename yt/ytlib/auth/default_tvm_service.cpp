@@ -10,13 +10,16 @@
 
 #include <yt/core/ypath/token.h>
 
-#include <library/http/simple/http_client.h>
+#include <yt/core/http/client.h>
+#include <yt/core/http/http.h>
 
 namespace NYT {
 namespace NAuth {
 
 using namespace NYTree;
+using namespace NHttp;
 using namespace NYPath;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,9 +33,11 @@ class TDefaultTvmService
 public:
     TDefaultTvmService(
         TDefaultTvmServiceConfigPtr config,
-        IInvokerPtr invoker)
+        IPollerPtr poller,
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
-        , Invoker_(std::move(invoker))
+        , Profiler_(std::move(profiler))
+        , HttpClient_(CreateClient(Config_->HttpClient, std::move(poller)))
     { }
 
     virtual TFuture<TString> GetTicket(const TString& serviceId) override
@@ -40,101 +45,144 @@ public:
         LOG_DEBUG("Retrieving TVM ticket (ServiceId: %v)",
             serviceId);
 
-        auto deadline = TInstant::Now() + Config_->RequestTimeout;
-        return BIND(&TDefaultTvmService::DoGetTicket, MakeStrong(this), serviceId, deadline)
-            .AsyncVia(Invoker_)
-            .Run();
-    }
+        auto headers = MakeRequestHeaders();
 
-private:
-    const TDefaultTvmServiceConfigPtr Config_;
-    const IInvokerPtr Invoker_;
-
-private:
-    TString DoGetTicket(const TString& serviceId, TInstant deadline)
-    {
         TSafeUrlBuilder builder;
-        builder.AppendString(AsStringBuf("/tvm/tickets?"));
+        builder.AppendString(Format("http://%v:%v/tvm/tickets?", Config_->Host, Config_->Port));
         builder.AppendParam(AsStringBuf("dsts"), serviceId);
         builder.AppendString("&format=json");
-
         auto safeUrl = builder.FlushSafeUrl();
         auto realUrl = builder.FlushRealUrl();
 
-        auto result = DoCallOnce(
-            realUrl,
-            safeUrl,
-            deadline);
-
-        static const TString ErrorPath("/error");
-        auto errorNode = FindNodeByYPath(result, ErrorPath);
-        if (errorNode) {
-            THROW_ERROR_EXCEPTION("TVM daemon returned an error")
-                << TErrorAttribute("message", errorNode->GetValue<TString>());
-        }
-
-        try {
-            auto ticketPath = "/" + ToYPathLiteral(serviceId) + "/ticket";
-            return GetNodeByYPath(result, ticketPath)->GetValue<TString>();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing TVM daemon reply")
-                << ex;
-        }
-    }
-
-    INodePtr DoCallOnce(
-        const TString& realUrl,
-        const TString& safeUrl,
-        TInstant deadline)
-    {
         auto callId = TGuid::Create();
-
-        TString resultString;
-        INodePtr resultNode;
 
         LOG_DEBUG("Calling TVM daemon (Url: %v, CallId: %v)",
             safeUrl,
             callId);
 
-        {
-            auto timeout = deadline - TInstant::Now();
-            static const TString Host("localhost");
-            TSimpleHttpClient httpClient(Host, Config_->Port, timeout, timeout);
-            TSimpleHttpClient::THeaders headers{
-                {"Authorization", Config_->Token}
-            };
-            TStringOutput outputStream(resultString);
-            httpClient.DoGet(realUrl, &outputStream, headers);
+        Profiler_.Increment(CallCountCounter_);
+
+        NProfiling::TWallTimer timer;
+        return HttpClient_->Get(realUrl, headers)
+            .WithTimeout(Config_->RequestTimeout)
+            .Apply(BIND(
+                &TDefaultTvmService::OnTvmCallResult,
+                MakeStrong(this),
+                callId,
+                serviceId,
+                timer));
+    }
+
+private:
+    const TDefaultTvmServiceConfigPtr Config_;
+    const NProfiling::TProfiler Profiler_;
+
+    const IClientPtr HttpClient_;
+
+    NProfiling::TMonotonicCounter CallCountCounter_{"/call_count"};
+    NProfiling::TAggregateGauge CallTimeGauge_{"/call_time"};
+    NProfiling::TMonotonicCounter SuccessfulCallCountCounter_{"/successful_call_count"};
+    NProfiling::TMonotonicCounter FailedCallCountCounter_{"/failed_call_count"};
+
+private:
+    THeadersPtr MakeRequestHeaders()
+    {
+        auto headers = New<THeaders>();
+        static const TString AuthorizationHeaderName("Authorization");
+        headers->Add(AuthorizationHeaderName, Config_->Token);
+        return headers;
+    }
+
+    static NJson::TJsonFormatConfigPtr MakeJsonFormatConfig()
+    {
+        auto config = New<NJson::TJsonFormatConfig>();
+        config->EncodeUtf8 = false; // Hipsters use real Utf8.
+        return config;
+    }
+
+    TString OnTvmCallResult(
+        const TGuid& callId,
+        const TString& serviceId,
+        const NProfiling::TWallTimer& timer,
+        const TErrorOr<IResponsePtr>& rspOrError)
+    {
+        Profiler_.Update(CallTimeGauge_, timer.GetElapsedValue());
+
+        auto onError = [&] (TError error) {
+            error.Attributes().Set("call_id", callId);
+            Profiler_.Increment(FailedCallCountCounter_);
+            LOG_DEBUG(error);
+            THROW_ERROR(error);
+        };
+
+        if (!rspOrError.IsOK()) {
+            onError(TError("TVM call failed")
+                << rspOrError);
         }
 
-        LOG_DEBUG("Received TVM daemon reply (CallId: %v)\n%v",
-            callId,
-            resultString);
-
-        {
-            TStringInput inputStream(resultString);
-            auto factory = NYTree::CreateEphemeralNodeFactory();
-            auto builder = NYTree::CreateBuilderFromFactory(factory.get());
-            auto config = New<NJson::TJsonFormatConfig>();
-            config->EncodeUtf8 = false; // Hipsters use real Utf8.
-            NJson::ParseJson(&inputStream, builder.get(), std::move(config));
-            resultNode = builder->EndTree();
+        const auto& rsp = rspOrError.Value();
+        if (rsp->GetStatusCode() != EStatusCode::OK) {
+            onError(TError("TVM call returned HTTP status code %v",
+                static_cast<int>(rsp->GetStatusCode())));
         }
 
-        LOG_DEBUG("Parsed TVM daemon reply (CallId: %v)",
+        INodePtr rootNode;
+        try {
+
+            LOG_DEBUG("Started reading response body from TVM (CallId: %v)",
             callId);
 
-        return resultNode;
+            auto body = rsp->ReadAll();
+
+            LOG_DEBUG("Finished reading response body from TVM (CallId: %v)\n%v",
+                callId,
+                body);
+
+            TMemoryInput stream(body.Begin(), body.Size());
+            auto factory = NYTree::CreateEphemeralNodeFactory();
+            auto builder = NYTree::CreateBuilderFromFactory(factory.get());
+            static const auto Config = MakeJsonFormatConfig();
+            NJson::ParseJson(&stream, builder.get(), Config);
+            rootNode = builder->EndTree();
+
+            LOG_DEBUG("Parsed TVM daemon reply (CallId: %v)",
+                callId);
+        } catch (const std::exception& ex) {
+            onError(TError(
+                "Error parsing TVM response")
+                << ex);
+        }
+
+        static const TString ErrorPath("/error");
+        auto errorNode = FindNodeByYPath(rootNode, ErrorPath);
+        if (errorNode) {
+            onError(TError("TVM daemon returned an error")
+                << TErrorAttribute("message", errorNode->GetValue<TString>()));
+        }
+
+        TString ticket;
+        try {
+            auto ticketPath = "/" + ToYPathLiteral(serviceId) + "/ticket";
+            ticket = GetNodeByYPath(rootNode, ticketPath)->GetValue<TString>();
+            Profiler_.Increment(SuccessfulCallCountCounter_);
+        } catch (const std::exception& ex) {
+            onError(TError("Error parsing TVM daemon reply")
+                << ex);
+        }
+
+        return ticket;
     }
 };
 
 ITvmServicePtr CreateDefaultTvmService(
     TDefaultTvmServiceConfigPtr config,
-    IInvokerPtr invoker)
+    IPollerPtr poller,
+    NProfiling::TProfiler profiler)
 {
     return New<TDefaultTvmService>(
         std::move(config),
-        std::move(invoker));
+        std::move(poller),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

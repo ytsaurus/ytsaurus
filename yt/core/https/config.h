@@ -56,6 +56,7 @@ class TClientConfig
     : public NHttp::TClientConfig
 {
 public:
+    // If missing then builtin certificate store is used.
     TClientCredentialsConfigPtr Credentials;
 
     TClientConfig();

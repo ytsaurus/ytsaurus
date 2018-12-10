@@ -19,6 +19,8 @@
 #include <contrib/libs/openssl/include/openssl/evp.h>
 #include <contrib/libs/openssl/include/openssl/pem.h>
 
+#include <library/openssl/io/stream.h>
+
 namespace NYT {
 namespace NCrypto {
 
@@ -518,6 +520,11 @@ private:
 TSslContext::TSslContext()
     : Impl_(New<TSslContextImpl>())
 { }
+
+void TSslContext::UseBuiltinOpenSslX509Store()
+{
+    SSL_CTX_set_cert_store(Impl_->Ctx, GetBuiltinOpenSslX509Store().Release());
+}
 
 void TSslContext::SetCipherList(const TString& list)
 {

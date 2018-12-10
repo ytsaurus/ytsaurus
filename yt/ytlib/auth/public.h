@@ -9,6 +9,10 @@ namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const NProfiling::TProfiler AuthProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TDefaultBlackboxServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDefaultTvmServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingDefaultTvmServiceConfig)

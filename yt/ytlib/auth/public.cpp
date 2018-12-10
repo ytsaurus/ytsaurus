@@ -1,22 +1,14 @@
-#pragma once
-
 #include "public.h"
-
-#include <yt/core/concurrency/public.h>
-
-#include <yt/core/profiling/public.h>
 
 namespace NYT {
 namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITvmServicePtr CreateDefaultTvmService(
-    TDefaultTvmServiceConfigPtr config,
-    NConcurrency::IPollerPtr poller,
-    NProfiling::TProfiler profiler = {});
+const NProfiling::TProfiler AuthProfiler("/auth");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NAuth
 } // namespace NYT
+

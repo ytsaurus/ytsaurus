@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT {
 namespace NAuth {
 
@@ -9,7 +11,8 @@ namespace NAuth {
 
 ITvmServicePtr CreateCachingTvmService(
     ITvmServicePtr underlying,
-    TAsyncExpiringCacheConfigPtr config);
+    TAsyncExpiringCacheConfigPtr config,
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

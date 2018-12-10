@@ -64,9 +64,8 @@ private:
 
     const NHttp::IClientPtr HttpClient_;
 
-
-    NProfiling::TAggregateGauge SubrequestsPerRequestGauge_{"/subrequests_per_request"};
-    NProfiling::TMonotonicCounter RequestCountCounter_{"/request_count"};
+    NProfiling::TAggregateGauge SubrequestsPerCallGauge_{"/subrequests_per_call"};
+    NProfiling::TMonotonicCounter CallCountCounter_{"/call_count"};
     NProfiling::TMonotonicCounter SubrequestCountCounter_{"/subrequest_count"};
     NProfiling::TAggregateGauge CallTimeGauge_{"/call_time"};
     NProfiling::TMonotonicCounter SuccessfulCallCountCounter_{"/successful_call_count"};
@@ -74,7 +73,7 @@ private:
     NProfiling::TMonotonicCounter SuccessfulSubrequestCountCounter_{"/successful_subrequest_count"};
     NProfiling::TMonotonicCounter FailedSubrequestCountCounter_{"/failed_subrequest_count"};
 
-
+private:
     TFuture<std::vector<TErrorOrSecretSubresponse>> OnTvmCallResult(const std::vector<TSecretSubrequest>& subrequests, const TString& vaultTicket)
     {
         auto callId = TGuid::Create();
@@ -83,15 +82,18 @@ private:
             subrequests.size(),
             callId);
 
-        Profiler_.Increment(RequestCountCounter_);
+        Profiler_.Increment(CallCountCounter_);
         Profiler_.Increment(SubrequestCountCounter_, subrequests.size());
-        Profiler_.Update(SubrequestsPerRequestGauge_, subrequests.size());
+        Profiler_.Update(SubrequestsPerCallGauge_, subrequests.size());
 
-        auto url = Format("https://%v:%v/1/tokens/", Config_->Host, Config_->Port);
+        auto url = Format("https://%v:%v/1/tokens/",
+            Config_->Host,
+            Config_->Port);
         auto body = MakeRequestBody(vaultTicket, subrequests);
         static const auto Headers = MakeRequestHeaders();
         NProfiling::TWallTimer timer;
         return HttpClient_->Post(url, body, Headers)
+            .WithTimeout(Config_->RequestTimeout)
             .Apply(BIND(
                 &TDefaultSecretVaultService::OnVaultCallResult,
                 MakeStrong(this),
@@ -102,17 +104,26 @@ private:
     std::vector<TErrorOrSecretSubresponse> OnVaultCallResult(
         const TGuid& callId,
         const NProfiling::TWallTimer& timer,
-        const NHttp::IResponsePtr& rsp)
+        const TErrorOr<NHttp::IResponsePtr>& rspOrError)
     {
         Profiler_.Update(CallTimeGauge_, timer.GetElapsedValue());
 
-        if (rsp->GetStatusCode() != EStatusCode::OK) {
+        auto onError = [&] (TError error) {
+            error.Attributes().Set("call_id", callId);
             Profiler_.Increment(FailedCallCountCounter_);
-            auto error = TError("Vault HTTP call returned an error")
-                << TErrorAttribute("call_id", callId)
-                << TErrorAttribute("status_code", rsp->GetStatusCode());
             LOG_DEBUG(error);
             THROW_ERROR(error);
+        };
+
+        if (!rspOrError.IsOK()) {
+            onError(TError("Vault call failed")
+                << rspOrError);
+        }
+
+        const auto& rsp = rspOrError.Value();
+        if (rsp->GetStatusCode() != EStatusCode::OK) {
+            onError(TError("Vault call returned HTTP status code %v",
+                static_cast<int>(rsp->GetStatusCode())));
         }
 
         IMapNodePtr rootNode;
@@ -122,36 +133,30 @@ private:
 
             auto body = rsp->ReadAll();
 
-            LOG_DEBUG("Finished reading response body from Vault (CallId: %v)",
-                callId);
+            LOG_DEBUG("Finished reading response body from Vault (CallId: %v)\n%v",
+                callId,
+                body);
 
             TMemoryInput stream(body.Begin(), body.Size());
             auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
             ParseJson(&stream, builder.get());
             rootNode = builder->EndTree()->AsMap();
         } catch (const std::exception& ex) {
-            Profiler_.Increment(FailedCallCountCounter_);
-            auto error = TError(
+            onError(TError(
                 ESecretVaultErrorCode::MalformedResponse,
                 "Error parsing Vault response")
-                << TErrorAttribute("call_id", callId)
-                << ex;
-            LOG_DEBUG(error);
-            THROW_ERROR(error);
+                << ex);
         }
 
         auto responseError = GetErrorFromResponse(rootNode);
         if (!responseError.IsOK()) {
-            Profiler_.Increment(FailedCallCountCounter_);
-            LOG_DEBUG(responseError);
-            THROW_ERROR(responseError);
+            onError(responseError);
         }
 
+        std::vector<TErrorOrSecretSubresponse> subresponses;
         try {
             static const TString SecretsKey("secrets");
             auto secretsNode = rootNode->GetChild(SecretsKey)->AsList();
-
-            std::vector<TErrorOrSecretSubresponse> subresponses;
 
             int successCount = 0;
             int errorCount = 0;
@@ -188,18 +193,13 @@ private:
                 callId,
                 successCount,
                 errorCount);
-
-            return subresponses;
         } catch (const std::exception& ex) {
-            Profiler_.Increment(FailedCallCountCounter_);
-            auto error = TError(
+            onError(TError(
                 ESecretVaultErrorCode::MalformedResponse,
                 "Error parsing Vault response")
-                << TErrorAttribute("call_id", callId)
-                << ex;
-            LOG_DEBUG(error);
-            THROW_ERROR(error);
+                << ex);
         }
+        return subresponses;
     }
 
     static ESecretVaultErrorCode ParseErrorCode(TStringBuf codeString)

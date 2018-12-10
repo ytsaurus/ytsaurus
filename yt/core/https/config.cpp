@@ -34,7 +34,8 @@ TClientCredentialsConfig::TClientCredentialsConfig()
 
 TClientConfig::TClientConfig()
 {
-    RegisterParameter("credentials", Credentials);
+    RegisterParameter("credentials", Credentials)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
