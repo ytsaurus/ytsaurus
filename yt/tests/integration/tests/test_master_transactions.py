@@ -359,6 +359,20 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists("//sys/transactions/" + tx_a)
         assert not exists("//sys/transactions/" + tx_b)
 
+
+    def test_very_deep_transactions_yt_9961(self):
+        tx = None
+        for i in xrange(100):
+            if tx is None:
+                tx = start_transaction()
+            else:
+                tx = start_transaction(tx=tx)
+
+        lock("//tmp", tx=tx)
+
+        another_tx = start_transaction()
+        with pytest.raises(YtError): lock("//tmp", tx=another_tx)
+
 ##################################################################
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
