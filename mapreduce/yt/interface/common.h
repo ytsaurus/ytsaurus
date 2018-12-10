@@ -216,6 +216,9 @@ public:
     TTableSchema& AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &;
     TTableSchema AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &&;
 
+    TTableSchema& SortBy(const TVector<TString>& columns) &;
+    TTableSchema SortBy(const TVector<TString>& columns) &&;
+
     TNode ToNode() const;
 };
 

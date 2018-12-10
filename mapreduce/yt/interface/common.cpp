@@ -1,4 +1,6 @@
 #include "common.h"
+#include <util/generic/xrange.h>
+#include <util/generic/algorithm.h>
 
 namespace NYT {
 namespace NDetail {
@@ -80,6 +82,35 @@ TTableSchema& TTableSchema::AddColumn(const TString& name, EValueType type, ESor
 TTableSchema TTableSchema::AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &&
 {
     return std::move(AddColumn(name, type, sortOrder));
+}
+
+
+TTableSchema& TTableSchema::SortBy(const TVector<TString>& columns) &
+{
+    THashMap<TString, ui64> columnsIndex;
+    for (auto i: xrange(columns.size())) {
+        columnsIndex[columns[i]] = i;
+    }
+    for (auto i: xrange(Columns_.size())) {
+        if (columnsIndex.contains(Columns_[i].Name_)) {
+            Columns_[i].SortOrder(ESortOrder::SO_ASCENDING);
+        } else {
+            columnsIndex[Columns_[i].Name_] = i + columns.size();
+            Columns_[i].SortOrder_ = Nothing();
+        }
+    }
+    ::SortBy(
+        Columns_,
+        [&columnsIndex](const TColumnSchema& column) {
+            return columnsIndex.at(column.Name_);
+        }
+    );
+    return *this;
+}
+
+TTableSchema TTableSchema::SortBy(const TVector<TString>& columns) &&
+{
+    return std::move(SortBy(columns));
 }
 
 TNode TTableSchema::ToNode() const
