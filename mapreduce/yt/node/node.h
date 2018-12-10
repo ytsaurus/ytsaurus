@@ -376,17 +376,17 @@ inline bool TNode::ConvertTo<bool>() const {
 
 template<typename T>
 inline bool TNode::IsOfType() const noexcept {
-    return (Value_.Tag() == TValue::TagOf<T>());
+    return (Value_.index() == TValue::TagOf<T>());
 }
 
 template<typename T>
 inline T& TNode::As() {
-    return Value_.As<T>();
+    return Get<T>(Value_);
 }
 
 template<typename T>
 inline const T& TNode::As() const {
-    return Value_.As<T>();
+    return Get<T>(Value_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

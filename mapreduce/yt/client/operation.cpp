@@ -336,17 +336,16 @@ public:
         , Options_(options)
     {
         auto jobBinary = TConfig::Get()->GetJobBinary();
-        if (!Spec_.GetJobBinary().Is<TJobBinaryDefault>()) {
+        if (!HoldsAlternative<TJobBinaryDefault>(Spec_.GetJobBinary())) {
             jobBinary = Spec_.GetJobBinary();
         }
-        auto originalJobBinary = jobBinary;
-        if (jobBinary.Is<TJobBinaryDefault>()) {
+        if (HoldsAlternative<TJobBinaryDefault>(jobBinary)) {
             if (GetInitStatus() != EInitStatus::FullInitialization) {
                 ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
             }
             jobBinary = TJobBinaryLocalPath{GetExecPath()};
         }
-        Y_ASSERT(!jobBinary.Is<TJobBinaryDefault>());
+        Y_ASSERT(!HoldsAlternative<TJobBinaryDefault>(jobBinary));
 
         CreateStorage();
         auto cypressFileList = CanonizePaths(OperationPreparer_.GetAuth(), spec.Files_);
@@ -365,8 +364,8 @@ public:
         }
 
         TString binaryPathInsideJob;
-        if (UseLocalModeOptimization(OperationPreparer_.GetAuth()) && jobBinary.Is<TJobBinaryLocalPath>()) {
-            binaryPathInsideJob = TFsPath(jobBinary.As<TJobBinaryLocalPath>().Path).RealPath();
+        if (UseLocalModeOptimization(OperationPreparer_.GetAuth()) && HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
+            binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
         } else {
             UploadBinary(jobBinary);
             binaryPathInsideJob = "./cppbinary";
@@ -590,17 +589,17 @@ private:
 
     void UploadBinary(const TJobBinaryConfig& jobBinary)
     {
-        if (jobBinary.Is<TJobBinaryLocalPath>()) {
-            auto binaryLocalPath = jobBinary.As<TJobBinaryLocalPath>().Path;
+        if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
+            auto binaryLocalPath = ::Get<TJobBinaryLocalPath>(jobBinary).Path;
             UploadLocalFile(binaryLocalPath, TAddLocalFileOptions().PathInJob("cppbinary"));
-        } else if (jobBinary.Is<TJobBinaryCypressPath>()) {
-            auto binaryCypressPath = jobBinary.As<TJobBinaryCypressPath>().Path;
+        } else if (HoldsAlternative<TJobBinaryCypressPath>(jobBinary)) {
+            auto binaryCypressPath = ::Get<TJobBinaryCypressPath>(jobBinary).Path;
             UseFileInCypress(
                 TRichYPath(binaryCypressPath)
                     .FileName("cppbinary")
                     .Executable(true));
         } else {
-            Y_FAIL("%s", (TStringBuilder() << "Unexpected jobBinary tag: " << jobBinary.Index()).data());
+            Y_FAIL("%s", (TStringBuilder() << "Unexpected jobBinary tag: " << jobBinary.index()).data());
         }
     }
 

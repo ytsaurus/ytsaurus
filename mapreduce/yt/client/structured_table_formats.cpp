@@ -232,7 +232,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateYamrFormat(
     bool allowFormatFromTableAttribute)
 {
     for (const auto& table: structuredTableList) {
-        if (!table.Description.Is<TUnspecifiedTableStructure>()) {
+        if (!HoldsAlternative<TUnspecifiedTableStructure>(table.Description)) {
             ythrow TApiUsageError()
                 << "cannot use " << direction << " table '" << JobTablePathString(table)
                 << "' with job " << TJobFactory::Get()->GetJobName(&job) << "; "
@@ -275,7 +275,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeFormat(
     bool /*allowFormatFromTableAttribute*/)
 {
     for (const auto& table: structuredTableList) {
-        if (!table.Description.Is<TUnspecifiedTableStructure>()) {
+        if (!HoldsAlternative<TUnspecifiedTableStructure>(table.Description)) {
             ythrow TApiUsageError()
                 << "cannot use " << direction << " table '" << JobTablePathString(table)
                 << "' with job " << TJobFactory::Get()->GetJobName(&job) << "; "
@@ -334,15 +334,15 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
         };
     }
     const ::google::protobuf::Descriptor* const jobDescriptor =
-        GetJobStreamDescription(job, direction).As<TProtobufStructuredRowStream>().Descriptor;
+        Get<TProtobufStructuredRowStream>(GetJobStreamDescription(job, direction)).Descriptor;
     Y_ENSURE(!structuredTableList.empty(),
              "empty " << direction << " tables for job " << TJobFactory::Get()->GetJobName(&job));
 
     TVector<const ::google::protobuf::Descriptor*> descriptorList;
     for (const auto& table : structuredTableList) {
         const ::google::protobuf::Descriptor* descriptor = nullptr;
-        if (table.Description.Is<TProtobufTableStructure>()) {
-            descriptor = table.Description.As<TProtobufTableStructure>().Descriptor;
+        if (HoldsAlternative<TProtobufTableStructure>(table.Description)) {
+            descriptor = Get<TProtobufTableStructure>(table.Description).Descriptor;
         } else if (table.RichYPath) {
             ythrow TApiUsageError()
                 << "cannot use " << direction << " table '" << JobTablePathString(table)

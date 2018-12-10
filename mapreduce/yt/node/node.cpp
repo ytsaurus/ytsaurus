@@ -114,37 +114,37 @@ void TNode::Clear()
 
 bool TNode::IsString() const
 {
-    return Value_.Is<TString>();
+    return HoldsAlternative<TString>(Value_);
 }
 
 bool TNode::IsInt64() const
 {
-    return Value_.Is<i64>();
+    return HoldsAlternative<i64>(Value_);
 }
 
 bool TNode::IsUint64() const
 {
-    return Value_.Is<ui64>();
+    return HoldsAlternative<ui64>(Value_);
 }
 
 bool TNode::IsDouble() const
 {
-    return Value_.Is<double>();
+    return HoldsAlternative<double>(Value_);
 }
 
 bool TNode::IsBool() const
 {
-    return Value_.Is<bool>();
+    return HoldsAlternative<bool>(Value_);
 }
 
 bool TNode::IsList() const
 {
-    return Value_.Is<TListType>();
+    return HoldsAlternative<TListType>(Value_);
 }
 
 bool TNode::IsMap() const
 {
-    return Value_.Is<TMapType>();
+    return HoldsAlternative<TMapType>(Value_);
 }
 
 bool TNode::IsEntity() const
@@ -154,23 +154,23 @@ bool TNode::IsEntity() const
 
 bool TNode::IsNull() const
 {
-    return Value_.Is<TNull>();
+    return HoldsAlternative<TNull>(Value_);
 }
 
 bool TNode::IsUndefined() const
 {
-    return Value_.Is<TUndefined>();
+    return HoldsAlternative<TUndefined>(Value_);
 }
 
 bool TNode::Empty() const
 {
     switch (GetType()) {
         case String:
-            return Value_.As<TString>().empty();
+            return Get<TString>(Value_).empty();
         case List:
-            return Value_.As<TListType>().empty();
+            return Get<TListType>(Value_).empty();
         case Map:
-            return Value_.As<TMapType>().empty();
+            return Get<TMapType>(Value_).empty();
         default:
             ythrow TTypeError() << "Empty() called for type " << GetType();
     }
@@ -180,11 +180,11 @@ size_t TNode::Size() const
 {
     switch (GetType()) {
         case String:
-            return Value_.As<TString>().size();
+            return Get<TString>(Value_).size();
         case List:
-            return Value_.As<TListType>().size();
+            return Get<TListType>(Value_).size();
         case Map:
-            return Value_.As<TMapType>().size();
+            return Get<TMapType>(Value_).size();
         default:
             ythrow TTypeError() << "Size() called for type " << GetType();
     }
@@ -192,7 +192,7 @@ size_t TNode::Size() const
 
 TNode::EType TNode::GetType() const
 {
-    switch (Value_.Tag()) {
+    switch (Value_.index()) {
         case TValue::TagOf<TUndefined>():
             return Undefined;
         case TValue::TagOf<TString>():
@@ -218,100 +218,100 @@ TNode::EType TNode::GetType() const
 const TString& TNode::AsString() const
 {
     CheckType(String);
-    return Value_.As<TString>();
+    return Get<TString>(Value_);
 }
 
 i64 TNode::AsInt64() const
 {
     CheckType(Int64);
-    return Value_.As<i64>();
+    return Get<i64>(Value_);
 }
 
 ui64 TNode::AsUint64() const
 {
     CheckType(Uint64);
-    return Value_.As<ui64>();
+    return Get<ui64>(Value_);
 }
 
 double TNode::AsDouble() const
 {
     CheckType(Double);
-    return Value_.As<double>();
+    return Get<double>(Value_);
 }
 
 bool TNode::AsBool() const
 {
     CheckType(Bool);
-    return Value_.As<bool>();
+    return Get<bool>(Value_);
 }
 
 const TNode::TListType& TNode::AsList() const
 {
     CheckType(List);
-    return Value_.As<TListType>();
+    return Get<TListType>(Value_);
 }
 
 const TNode::TMapType& TNode::AsMap() const
 {
     CheckType(Map);
-    return Value_.As<TMapType>();
+    return Get<TMapType>(Value_);
 }
 
 TNode::TListType& TNode::AsList()
 {
     CheckType(List);
-    return Value_.As<TListType>();
+    return Get<TListType>(Value_);
 }
 
 TNode::TMapType& TNode::AsMap()
 {
     CheckType(Map);
-    return Value_.As<TMapType>();
+    return Get<TMapType>(Value_);
 }
 
 const TString& TNode::UncheckedAsString() const noexcept
 {
-    return Value_.As<TString>();
+    return Get<TString>(Value_);
 }
 
 i64 TNode::UncheckedAsInt64() const noexcept
 {
-    return Value_.As<i64>();
+    return Get<i64>(Value_);
 }
 
 ui64 TNode::UncheckedAsUint64() const noexcept
 {
-    return Value_.As<ui64>();
+    return Get<ui64>(Value_);
 }
 
 double TNode::UncheckedAsDouble() const noexcept
 {
-    return Value_.As<double>();
+    return Get<double>(Value_);
 }
 
 bool TNode::UncheckedAsBool() const noexcept
 {
-    return Value_.As<bool>();
+    return Get<bool>(Value_);
 }
 
 const TNode::TListType& TNode::UncheckedAsList() const noexcept
 {
-    return Value_.As<TListType>();
+    return Get<TListType>(Value_);
 }
 
 const TNode::TMapType& TNode::UncheckedAsMap() const noexcept
 {
-    return Value_.As<TMapType>();
+    return Get<TMapType>(Value_);
 }
 
 TNode::TListType& TNode::UncheckedAsList() noexcept
 {
-    return Value_.As<TListType>();
+    return Get<TListType>(Value_);
 }
 
 TNode::TMapType& TNode::UncheckedAsMap() noexcept
 {
-    return Value_.As<TMapType>();
+    return Get<TMapType>(Value_);
 }
 
 TNode TNode::CreateList()
@@ -338,19 +338,19 @@ TNode TNode::CreateEntity()
 const TNode& TNode::operator[](size_t index) const
 {
     CheckType(List);
-    return Value_.As<TListType>()[index];
+    return Get<TListType>(Value_)[index];
 }
 
 TNode& TNode::operator[](size_t index)
 {
     CheckType(List);
-    return Value_.As<TListType>()[index];
+    return Get<TListType>(Value_)[index];
 }
 
 TNode& TNode::Add() &
 {
     AssureList();
-    return Value_.As<TListType>().emplace_back();
+    return Get<TListType>(Value_).emplace_back();
 }
 
 TNode TNode::Add() &&
@@ -361,7 +361,7 @@ TNode TNode::Add() &&
 TNode& TNode::Add(const TNode& node) &
 {
     AssureList();
-    Value_.As<TListType>().emplace_back(node);
+    Get<TListType>(Value_).emplace_back(node);
     return *this;
 }
 
@@ -373,7 +373,7 @@ TNode TNode::Add(const TNode& node) &&
 TNode& TNode::Add(TNode&& node) &
 {
     AssureList();
-    Value_.As<TListType>().emplace_back(std::move(node));
+    Get<TListType>(Value_).emplace_back(std::move(node));
     return *this;
 }
 
@@ -385,13 +385,13 @@ TNode TNode::Add(TNode&& node) &&
 bool TNode::HasKey(const TStringBuf key) const
 {
     CheckType(Map);
-    return Value_.As<TMapType>().contains(key);
+    return Get<TMapType>(Value_).contains(key);
 }
 
 TNode& TNode::operator()(const TString& key, const TNode& value) &
 {
     AssureMap();
-    Value_.As<TMapType>()[key] = value;
+    Get<TMapType>(Value_)[key] = value;
     return *this;
 }
 
@@ -403,7 +403,7 @@ TNode TNode::operator()(const TString& key, const TNode& value) &&
 TNode& TNode::operator()(const TString& key, TNode&& value) &
 {
     AssureMap();
-    Value_.As<TMapType>()[key] = std::move(value);
+    Get<TMapType>(Value_)[key] = std::move(value);
     return *this;
 }
 
@@ -416,7 +416,7 @@ const TNode& TNode::operator[](const TStringBuf key) const
 {
     CheckType(Map);
     static TNode notFound;
-    const auto& map = Value_.As<TMapType>();
+    const auto& map = Get<TMapType>(Value_);
     TMapType::const_iterator i = map.find(key);
     if (i == map.end()) {
         return notFound;
@@ -428,12 +428,12 @@ const TNode& TNode::operator[](const TStringBuf key) const
 TNode& TNode::operator[](const TStringBuf key)
 {
     AssureMap();
-    return Value_.As<TMapType>()[key];
+    return Get<TMapType>(Value_)[key];
 }
 
 const TNode& TNode::At(const TStringBuf key) const {
     CheckType(Map);
-    const auto& map = Value_.As<TMapType>();
+    const auto& map = Get<TMapType>(Value_);
     TMapType::const_iterator i = map.find(key);
     if (i == map.end()) {
         throw yexception() << "Cannot find key " << key;
@@ -504,7 +504,7 @@ void TNode::CheckType(EType type) const
 
 void TNode::AssureMap()
 {
-    if (Value_.Is<TUndefined>()) {
+    if (HoldsAlternative<TUndefined>(Value_)) {
         Value_ = TMapType();
     } else {
         CheckType(Map);
@@ -513,7 +513,7 @@ void TNode::AssureMap()
 
 void TNode::AssureList()
 {
-    if (Value_.Is<TUndefined>()) {
+    if (HoldsAlternative<TUndefined>(Value_)) {
         Value_ = TListType();
     } else {
         CheckType(List);
@@ -541,8 +541,8 @@ void TNode::Load(IInputStream* in)
 
 bool operator==(const TNode& lhs, const TNode& rhs)
 {
-    if (lhs.Value_.Is<TNode::TUndefined>() ||
-        rhs.Value_.Is<TNode::TUndefined>())
+    if (HoldsAlternative<TNode::TUndefined>(lhs.Value_) ||
+        HoldsAlternative<TNode::TUndefined>(rhs.Value_))
     {
         // TODO: should try to remove this behaviour if nobody uses it.
         return false;
