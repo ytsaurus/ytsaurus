@@ -350,7 +350,6 @@ private:
                     break;
                 }
 
-                RequireLeader();
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
                     .DoMapFor(0, NChunkClient::MaxMediumCount, [&] (TFluentMap fluent, int mediumIndex) {
@@ -369,7 +368,6 @@ private:
                 if (!isGood) {
                     break;
                 }
-                RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceUsage());
                 return true;
@@ -378,7 +376,6 @@ private:
                 if (!isGood) {
                     break;
                 }
-                RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceLimits());
                 return true;

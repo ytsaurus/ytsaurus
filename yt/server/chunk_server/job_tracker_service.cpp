@@ -30,6 +30,7 @@ using namespace NJobTrackerClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
+using namespace NNodeTrackerServer::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient::NProto;
 using namespace NCellMaster;
@@ -63,7 +64,7 @@ private:
         auto nodeId = request->node_id();
 
         const auto& resourceLimits = request->resource_limits();
-        const auto& resourceUsage = request->resource_usage();
+        auto resourceUsage = request->resource_usage();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
@@ -79,9 +80,6 @@ private:
                 "Cannot process a heartbeat in %Qlv state",
                 node->GetLocalState());
         }
-
-        node->ResourceLimits() = resourceLimits;
-        node->ResourceUsage() = resourceUsage;
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         std::vector<TJobPtr> currentJobs;
@@ -138,10 +136,16 @@ private:
         std::vector<TJobPtr> jobsToRemove;
         chunkManager->ScheduleJobs(
             node,
+            resourceUsage,
+            resourceLimits,
             currentJobs,
             &jobsToStart,
             &jobsToAbort,
             &jobsToRemove);
+
+        for (const auto& job : jobsToStart) {
+            resourceUsage += job->ResourceUsage();
+        }
 
         for (const auto& job : jobsToStart) {
             const auto& chunkIdWithIndexes = job->GetChunkIdWithIndexes();
@@ -223,6 +227,16 @@ private:
 
         for (const auto& job : jobsToRemove) {
             ToProto(response->add_jobs_to_remove(), {job->GetJobId(), false /* ArchiveJobSpec */});
+        }
+
+        if (node->ResourceUsage() != resourceUsage || node->ResourceLimits() != resourceLimits) {
+            TReqUpdateNodeResources request;
+            request.set_node_id(node->GetId());
+            request.mutable_resource_usage()->CopyFrom(resourceUsage);
+            request.mutable_resource_limits()->CopyFrom(resourceLimits);
+
+            nodeTracker->CreateUpdateNodeResourcesMutation(request)
+                ->CommitAndLog(Logger);
         }
 
         context->Reply();

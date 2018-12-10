@@ -942,6 +942,8 @@ public:
 
     void ScheduleJobs(
         TNode* node,
+        const TNodeResources& resourceUsage,
+        const TNodeResources& resourceLimits,
         const std::vector<TJobPtr>& currentJobs,
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort,
@@ -949,6 +951,8 @@ public:
     {
         ChunkReplicator_->ScheduleJobs(
             node,
+            resourceUsage,
+            resourceLimits,
             currentJobs,
             jobsToStart,
             jobsToAbort,
@@ -2278,7 +2282,7 @@ private:
         NeedInitializeMediumMaxReplicasPerRack_ = context.GetVersion() < 629;
 
         // COMPAT(shakurov)
-        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < 816;
+        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < 817;
 
         // COMPAT(shakurov)
         NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 710;
@@ -3406,6 +3410,8 @@ void TChunkManager::ClearChunkList(TChunkList* chunkList)
 
 void TChunkManager::ScheduleJobs(
     TNode* node,
+    const TNodeResources& resourceUsage,
+    const TNodeResources& resourceLimits,
     const std::vector<TJobPtr>& currentJobs,
     std::vector<TJobPtr>* jobsToStart,
     std::vector<TJobPtr>* jobsToAbort,
@@ -3413,6 +3419,8 @@ void TChunkManager::ScheduleJobs(
 {
     Impl_->ScheduleJobs(
         node,
+        resourceUsage,
+        resourceLimits,
         currentJobs,
         jobsToStart,
         jobsToAbort,

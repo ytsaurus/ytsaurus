@@ -141,19 +141,6 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
     node->ClearSessionHints();
 
-    // Update IO weights from statistics.
-    auto& ioWeights = node->IOWeights();
-    ioWeights.fill(0.0);
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    for (const auto& statistics : node->Statistics().media()) {
-        int mediumIndex = statistics.medium_index();
-        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!medium || medium->GetCache()) {
-            continue;
-        }
-        ioWeights[mediumIndex] = statistics.io_weight();
-    }
-
     OnNodeUnregistered(node);
     OnNodeRegistered(node);
 }

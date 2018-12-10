@@ -915,6 +915,8 @@ void TChunkReplicator::ComputeJournalChunkStatisticsCrossMedia(
 
 void TChunkReplicator::ScheduleJobs(
     TNode* node,
+    const TNodeResources& resourceUsage,
+    const TNodeResources& resourceLimits,
     const std::vector<TJobPtr>& runningJobs,
     std::vector<TJobPtr>* jobsToStart,
     std::vector<TJobPtr>* jobsToAbort,
@@ -930,6 +932,8 @@ void TChunkReplicator::ScheduleJobs(
 
     ScheduleNewJobs(
         node,
+        resourceUsage,
+        resourceLimits,
         jobsToStart,
         jobsToAbort);
 }
@@ -1424,6 +1428,8 @@ bool TChunkReplicator::CreateSealJob(
 
 void TChunkReplicator::ScheduleNewJobs(
     TNode* node,
+    TNodeResources resourceUsage,
+    const TNodeResources& resourceLimits,
     std::vector<TJobPtr>* jobsToStart,
     std::vector<TJobPtr>* jobsToAbort)
 {
@@ -1431,8 +1437,6 @@ void TChunkReplicator::ScheduleNewJobs(
         return;
     }
 
-    const auto& resourceLimits = node->ResourceLimits();
-    auto& resourceUsage = node->ResourceUsage();
     const auto* nodeDataCenter = node->GetDataCenter();
 
     auto registerJob = [&] (const TJobPtr& job) {
