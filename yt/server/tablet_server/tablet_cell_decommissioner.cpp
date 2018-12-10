@@ -13,8 +13,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NConcurrency;
 using namespace NSecurityClient;
@@ -232,6 +231,5 @@ void TTabletCellDecommissioner::Reconfigure(TTabletCellDecommissionerConfigPtr c
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

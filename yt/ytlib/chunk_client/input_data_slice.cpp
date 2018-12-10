@@ -7,8 +7,7 @@
 #include <yt/client/table_client/serialize.h>
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NTableClient;
 
@@ -354,6 +353,5 @@ std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(const std::vector<TI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

@@ -19,8 +19,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 namespace {
 
 using namespace NControllerAgent;
@@ -3054,5 +3053,4 @@ INSTANTIATE_TEST_CASE_P(VariousOperationsWithPoolInstantiation,
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

@@ -52,9 +52,7 @@
 #include <deque>
 #include <queue>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
@@ -1270,6 +1268,4 @@ IJournalWriterPtr CreateJournalWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

@@ -10,8 +10,7 @@
 
 #include <yt/core/alloc/alloc.h>
 
-namespace NYT {
-namespace NCellProxy {
+namespace NYT::NCellProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,8 +62,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellProxy
-} // namespace NYT
+} // namespace NYT::NCellProxy
 
 int main(int argc, const char** argv)
 {

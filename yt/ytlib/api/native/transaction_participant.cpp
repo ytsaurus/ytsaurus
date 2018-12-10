@@ -9,9 +9,7 @@
 
 #include <yt/client/api/connection.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NHiveClient;
 using namespace NTransactionClient;
@@ -169,6 +167,4 @@ ITransactionParticipantPtr CreateTransactionParticipant(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

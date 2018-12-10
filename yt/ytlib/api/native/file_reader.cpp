@@ -31,9 +31,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -251,6 +249,4 @@ TFuture<IFileReaderPtr> CreateFileReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

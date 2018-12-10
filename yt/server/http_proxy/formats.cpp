@@ -3,8 +3,7 @@
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NFormats;
 using namespace NYson;
@@ -183,6 +182,5 @@ std::optional<TString> GetBestAcceptedType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy
 

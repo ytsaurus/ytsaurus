@@ -11,9 +11,7 @@
 
 #include <yt/core/rpc/latency_taming_channel.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NObjectClient;
 using namespace NTabletClient;
@@ -269,6 +267,4 @@ TTabletInfoPtr GetOrderedTabletForRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

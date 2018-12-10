@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 using namespace NYTree;
 using namespace NYson;
@@ -319,5 +318,4 @@ void TJobStatistics::SetFailContext(const TString& failContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

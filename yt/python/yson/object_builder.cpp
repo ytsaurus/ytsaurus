@@ -2,8 +2,7 @@
 
 #include <yt/python/common/helpers.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using NPython::GetYsonTypeClass;
 
@@ -216,5 +215,4 @@ bool TPythonObjectBuilder::HasObject() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

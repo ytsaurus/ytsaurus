@@ -4,8 +4,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,6 +131,5 @@ TFuture<void> UpdatePersistentQueueTabletsState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

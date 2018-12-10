@@ -6,8 +6,7 @@
 
 #include <yt/client/table_client/schema.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,5 +49,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NY::NTableClient

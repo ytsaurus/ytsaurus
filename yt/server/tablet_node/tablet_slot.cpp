@@ -75,8 +75,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -1120,5 +1119,4 @@ void TTabletSlot::UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTablet
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTabletNode
+} // namespace NTabletNode::NYT

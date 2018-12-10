@@ -18,8 +18,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 /*
 // WHAT IS THIS
@@ -751,6 +750,5 @@ inline auto BuildYsonNodeFluently(INodeFactory* factory = GetEphemeralNodeFactor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

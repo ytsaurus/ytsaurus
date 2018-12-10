@@ -23,8 +23,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -320,6 +319,5 @@ DEFINE_RPC_SERVICE_METHOD(TCoreProcessorService, StartCoreDump)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump
 

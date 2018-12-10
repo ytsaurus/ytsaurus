@@ -2,8 +2,7 @@
 #include "chunk_meta_extensions.h"
 #include "chunk_reader.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 
@@ -95,5 +94,4 @@ IChunkReaderPtr CreateMemoryReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

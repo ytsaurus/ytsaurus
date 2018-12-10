@@ -34,8 +34,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NApi;
 using namespace NYTree;
@@ -1309,5 +1308,4 @@ IOperationControllerPtr CreateRemoteCopyController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-namespace NYT {
-namespace NJobProberClient {
+namespace NYT::NJobProberClient {
 
 using NBus::TTcpBusClientConfigPtr;
 using NChunkClient::TChunkId;
@@ -140,5 +139,4 @@ IJobProbePtr CreateJobProbe(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NJobProberClient
+} // namespace NJobProberClient::NYT

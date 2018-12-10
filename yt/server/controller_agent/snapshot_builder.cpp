@@ -26,8 +26,7 @@
 
 #include <thread>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NObjectClient;
@@ -452,5 +451,4 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -129,9 +129,7 @@
 
 #include <util/string/join.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NCrypto;
 using namespace NConcurrency;
@@ -6735,6 +6733,4 @@ IClientPtr CreateClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

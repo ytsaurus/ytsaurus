@@ -24,8 +24,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NNet;
 using namespace NObjectClient;
@@ -923,5 +922,4 @@ void TNodePtrAddressFormatter::operator()(TStringBuilder* builder, TNode* node) 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

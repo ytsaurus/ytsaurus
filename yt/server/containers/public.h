@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NContainers {
+namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +36,4 @@ DECLARE_REFCOUNTED_STRUCT(IPortoExecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NContainers
-} // namespace NYT
+} // namespace NYT::NContainers

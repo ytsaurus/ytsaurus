@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NYTree;
 using namespace NQueryClient;
@@ -508,5 +507,4 @@ void ValidateTableSchemaHeavy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

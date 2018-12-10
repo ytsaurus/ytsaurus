@@ -13,8 +13,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -412,5 +411,4 @@ void TCellDirectory::Clear()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

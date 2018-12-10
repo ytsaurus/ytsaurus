@@ -16,9 +16,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 using TStringList = std::vector<TString>;
 
@@ -120,6 +118,4 @@ IStoragePtr CreateStorage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

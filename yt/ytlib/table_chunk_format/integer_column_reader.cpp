@@ -4,8 +4,7 @@
 #include "column_reader_detail.h"
 #include "private.h"
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
 using namespace NTableClient;
@@ -491,5 +490,4 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedUint64ColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 using namespace NYTree;
 using namespace NYson;
@@ -948,5 +947,4 @@ IElectionManagerPtr CreateDistributedElectionManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

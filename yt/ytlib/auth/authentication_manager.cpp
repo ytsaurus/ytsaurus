@@ -10,8 +10,7 @@
 
 #include <yt/core/rpc/authenticator.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NApi;
 using namespace NRpc;
@@ -180,5 +179,4 @@ const ITvmServicePtr& TAuthenticationManager::GetTvmService() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

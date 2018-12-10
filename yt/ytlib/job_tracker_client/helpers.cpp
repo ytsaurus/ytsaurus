@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,5 +39,4 @@ void FromProto(TJobToRelease* jobToRelease, const TJobToRemove& protoJobToRemove
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient

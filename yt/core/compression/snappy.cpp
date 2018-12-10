@@ -4,8 +4,7 @@
 #include <contrib/libs/snappy/snappy-stubs-internal.h>
 #include <contrib/libs/snappy/snappy.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,5 +94,5 @@ void SnappyDecompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}} // namespace NYT::NCompression
+} // namespace NYT::NCompression
 

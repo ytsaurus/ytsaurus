@@ -9,8 +9,7 @@
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 
@@ -810,6 +809,5 @@ std::vector<TMutableRowRange> MergeOverlappingRanges(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

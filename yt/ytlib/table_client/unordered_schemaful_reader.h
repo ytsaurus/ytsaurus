@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +23,4 @@ ISchemafulReaderPtr CreateFullPrefetchingOrderedSchemafulReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

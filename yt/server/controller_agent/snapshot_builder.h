@@ -15,8 +15,7 @@
 
 #include <util/system/file.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,5 +77,4 @@ DEFINE_REFCOUNTED_TYPE(TSnapshotBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

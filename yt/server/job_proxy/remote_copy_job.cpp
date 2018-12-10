@@ -34,8 +34,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_semaphore.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -566,5 +565,4 @@ IJobPtr CreateRemoteCopyJob(IJobHostPtr host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

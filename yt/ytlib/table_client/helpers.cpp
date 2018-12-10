@@ -39,8 +39,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -853,5 +852,4 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<TChu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTableClient
+} // namespace NTableClient::NYT

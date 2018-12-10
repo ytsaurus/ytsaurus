@@ -20,8 +20,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NYson;
 using namespace NYTree;
@@ -512,6 +511,5 @@ IObjectProxyPtr CreateClusterNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer
 

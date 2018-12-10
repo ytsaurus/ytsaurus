@@ -5,8 +5,7 @@
 #include "session_id.h"
 #endif
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,5 +42,4 @@ Y_FORCE_INLINE bool operator!=(const TSessionId& lhs, const TSessionId& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

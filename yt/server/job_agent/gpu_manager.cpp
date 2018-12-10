@@ -4,8 +4,7 @@
 
 #include <util/folder/iterator.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 static const auto& Logger = JobTrackerServerLogger;
 
@@ -137,5 +136,4 @@ TString TGpuManager::GetDeviceName(int deviceNumber)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

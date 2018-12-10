@@ -3,8 +3,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -204,5 +203,4 @@ IThroughputThrottlerPtr CreateOutJobRpsThrottler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

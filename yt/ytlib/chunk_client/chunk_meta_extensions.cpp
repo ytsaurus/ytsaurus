@@ -1,7 +1,6 @@
 #include "chunk_meta_extensions.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 
@@ -29,5 +28,4 @@ TChunkMeta FilterChunkMetaByExtensionTags(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

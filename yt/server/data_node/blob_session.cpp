@@ -22,8 +22,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NProfiling;
 using namespace NRpc;
@@ -674,5 +673,4 @@ void TBlobSession::OnFinishCanceled()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

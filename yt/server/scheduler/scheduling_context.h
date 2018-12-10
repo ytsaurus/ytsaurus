@@ -15,8 +15,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,5 +77,4 @@ ISchedulingContextPtr CreateSchedulingContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

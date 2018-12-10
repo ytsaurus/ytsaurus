@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/config.h>
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,5 +89,4 @@ DEFINE_REFCOUNTED_TYPE(TAddressResolverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet

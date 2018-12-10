@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/chunk_client/session_id.pb.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,8 +30,7 @@ void FromProto(TSessionId* sessionId, const NProto::TSessionId& protoSessionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 
 Y_DECLARE_PODTYPE(NYT::NChunkClient::TSessionId);
 

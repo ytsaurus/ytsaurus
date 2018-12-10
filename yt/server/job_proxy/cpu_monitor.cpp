@@ -3,8 +3,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,5 +152,4 @@ void TCpuMonitor::UpdateAggregates()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NOrchid {
+namespace NYT::NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,6 +8,5 @@ const NLogging::TLogger OrchidLogger("Orchid");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NOrchid
-} // namespace NYT
+} // namespace NYT::NOrchid
 

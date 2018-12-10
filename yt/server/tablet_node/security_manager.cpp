@@ -14,8 +14,7 @@
 
 #include <yt/core/misc/async_expiring_cache.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -386,5 +385,4 @@ void TSecurityManager::ValidateResourceLimits(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

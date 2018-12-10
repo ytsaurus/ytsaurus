@@ -4,8 +4,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +23,4 @@ IStickyTransactionPoolPtr CreateStickyTransactionPool(const NLogging::TLogger& l
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi

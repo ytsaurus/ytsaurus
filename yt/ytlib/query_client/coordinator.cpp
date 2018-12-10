@@ -16,8 +16,7 @@
 
 #include <numeric>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -246,6 +245,5 @@ TQueryStatistics CoordinateAndExecute(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

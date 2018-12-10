@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NTracing {
+namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,8 +181,7 @@ void TraceEvent(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTracing
-} // namespace NYT
+} // namespace NYT::NTracing
 
 #define TRACE_CONTEXT_INL_H_
 #include "trace_context-inl.h"

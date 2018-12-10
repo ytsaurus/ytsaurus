@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NProto;
 
@@ -128,5 +127,4 @@ i64 TBlockMetaCache::GetWeight(const TCachedBlockMetaPtr& value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

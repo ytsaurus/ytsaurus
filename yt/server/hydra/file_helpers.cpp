@@ -3,8 +3,7 @@
 
 #include <yt/core/misc/fs.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,5 +115,4 @@ void RemoveChangelogFiles(const TString& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

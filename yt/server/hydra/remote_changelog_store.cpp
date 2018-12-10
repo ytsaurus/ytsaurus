@@ -21,8 +21,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NApi;
@@ -529,5 +528,4 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

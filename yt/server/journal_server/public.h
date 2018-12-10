@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ class TJournalNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
-} // namespace NYT
+} // namespace NYT::NJournalServer

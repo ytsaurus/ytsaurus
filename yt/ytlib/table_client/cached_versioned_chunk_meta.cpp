@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/bloom_filter.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NTableClient::NProto;
@@ -188,5 +187,4 @@ i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -7,9 +7,7 @@
     #include <pthread.h>
 #endif
 
-namespace NYT {
-namespace NConcurrency {
-namespace NDetail {
+namespace NYT::NConcurrency::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,7 +132,5 @@ uintptr_t& FlsAt(int index, TFiber* fiber)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency::NDetail
 

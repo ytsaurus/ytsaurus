@@ -24,8 +24,7 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,5 +198,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

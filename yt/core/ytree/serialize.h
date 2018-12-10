@@ -11,8 +11,7 @@
 
 #include <yt/core/yson/writer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,8 +226,7 @@ void Deserialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 #define SERIALIZE_INL_H_
 #include "serialize-inl.h"

@@ -5,8 +5,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,5 +145,4 @@ void TControllerAgent::SetMemoryStatistics(TControllerAgentMemoryStatistics memo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -11,8 +11,7 @@
 #include <yt/core/ytree/ypath_detail.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NMonitoring {
+namespace NYT::NMonitoring {
 
 using namespace NYTree;
 using namespace NYPath;
@@ -165,5 +164,4 @@ void TMonitoringManager::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMonitoring
-} // namespace NYT
+} // namespace NYT::NMonitoring

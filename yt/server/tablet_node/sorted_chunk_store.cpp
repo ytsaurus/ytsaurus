@@ -39,8 +39,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -364,6 +363,5 @@ ISortedStorePtr TSortedChunkStore::GetSortedBackingStore()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

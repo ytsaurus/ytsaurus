@@ -13,8 +13,7 @@
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/overlaid_attribute_dictionaries.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,8 +79,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 #define CHUNK_OWNER_TYPE_HANDLER_INL_H_
 #include "chunk_owner_type_handler-inl.h"

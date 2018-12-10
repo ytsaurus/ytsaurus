@@ -9,8 +9,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NHydra;
 using namespace NObjectServer;
@@ -92,5 +91,4 @@ IObjectTypeHandlerPtr CreateTabletCellTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

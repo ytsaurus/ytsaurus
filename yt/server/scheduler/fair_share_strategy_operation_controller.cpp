@@ -2,8 +2,7 @@
 
 #include "operation_controller.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 using namespace NControllerAgent;
@@ -156,5 +155,4 @@ bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(NProfilin
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -2,8 +2,7 @@
 
 #include <yt/core/compression/codec.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 
@@ -227,5 +226,4 @@ std::vector<TVersionedRow> TVersionedColumnTestBase::GetExpectedRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

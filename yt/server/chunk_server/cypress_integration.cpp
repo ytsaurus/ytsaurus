@@ -13,8 +13,7 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NYTree;
 using namespace NYPath;
@@ -272,5 +271,4 @@ INodeTypeHandlerPtr CreateMediumMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

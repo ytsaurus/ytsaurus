@@ -5,8 +5,7 @@
 #include "transaction_manager_detail.h"
 #endif
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,5 +82,4 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(TTransact
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

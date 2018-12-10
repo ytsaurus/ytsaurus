@@ -5,8 +5,7 @@
 #include "key_trie.h"
 #include "functions_common.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,5 +153,4 @@ bool IsUserCastFunction(const TString& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

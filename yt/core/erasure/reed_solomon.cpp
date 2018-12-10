@@ -9,8 +9,7 @@ extern "C" {
 
 #include <algorithm>
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,5 +96,4 @@ int TCauchyReedSolomon::GetWordSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure

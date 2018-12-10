@@ -38,8 +38,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 using namespace NConcurrency;
 using namespace NCypressClient;
@@ -628,6 +627,5 @@ bool TWorldInitializer::HasProvisionLock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster
 

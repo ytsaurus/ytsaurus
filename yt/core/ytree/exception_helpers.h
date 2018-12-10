@@ -6,8 +6,7 @@
 
 #include <yt/core/yson/public.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,5 +27,4 @@ void ThrowCannotMoveFromAnotherTransaction();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

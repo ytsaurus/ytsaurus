@@ -26,8 +26,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NYTree;
@@ -1885,6 +1884,5 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TKey lowerBound, TKey upperBound)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

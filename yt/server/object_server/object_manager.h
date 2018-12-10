@@ -24,8 +24,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 // WinAPI is great.
 #undef GetObject
@@ -310,6 +309,5 @@ DEFINE_REFCOUNTED_TYPE(TObjectManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 

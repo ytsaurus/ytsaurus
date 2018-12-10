@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/ring_queue.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using NChunkClient::NProto::TDataStatistics;
 
@@ -273,5 +272,4 @@ void TSchemafulPipe::Fail(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

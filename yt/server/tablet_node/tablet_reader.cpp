@@ -25,8 +25,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/range.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NTableClient;
@@ -503,6 +502,5 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

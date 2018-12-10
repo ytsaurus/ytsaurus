@@ -25,8 +25,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,5 +188,4 @@ DEFINE_REFCOUNTED_TYPE(TJobProxy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

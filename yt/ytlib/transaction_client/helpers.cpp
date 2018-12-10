@@ -9,8 +9,7 @@
 
 #include <yt/core/rpc/client.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 using namespace NApi;
 using namespace NRpc;
@@ -119,6 +118,5 @@ void ValidateMasterTransactionId(const TTransactionId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient
 

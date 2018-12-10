@@ -31,8 +31,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NNet;
 using namespace NRpc;
@@ -1459,5 +1458,4 @@ DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

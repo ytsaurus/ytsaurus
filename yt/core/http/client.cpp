@@ -10,8 +10,7 @@
 
 #include <yt/core/concurrency/poller.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 using namespace NConcurrency;
 using namespace NNet;
@@ -173,5 +172,4 @@ IClientPtr CreateClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

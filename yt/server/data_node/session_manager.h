@@ -10,8 +10,7 @@
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +73,5 @@ DEFINE_REFCOUNTED_TYPE(TSessionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

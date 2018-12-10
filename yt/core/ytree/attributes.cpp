@@ -3,8 +3,7 @@
 #include "ephemeral_node_factory.h"
 #include "exception_helpers.h"
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 
@@ -78,5 +77,4 @@ IMapNodePtr IAttributeDictionary::ToMap() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

@@ -69,8 +69,7 @@
 #define PARANOID_CHECK(condition) (void)(0)
 #endif
 
-namespace NYT {
-namespace NYTAlloc {
+namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3418,6 +3417,5 @@ TString FormatCounters()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTAlloc
-} // namespace NYT
+} // namespace NYT::NYTAlloc
 

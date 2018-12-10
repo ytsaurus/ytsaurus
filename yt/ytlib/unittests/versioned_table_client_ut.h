@@ -7,8 +7,7 @@
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/versioned_reader.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +90,5 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

@@ -17,8 +17,7 @@
 
 #include <util/system/align.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NHydra::NProto;
 using namespace NConcurrency;
@@ -963,5 +962,4 @@ void TSyncFileChangelog::Preallocate(size_t size)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

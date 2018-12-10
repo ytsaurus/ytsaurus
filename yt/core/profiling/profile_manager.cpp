@@ -21,8 +21,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_detail.h>
 
-namespace NYT {
-namespace NProfiling  {
+namespace NYT::NProfiling {
 
 using namespace NYTree;
 using namespace NYson;
@@ -474,5 +473,4 @@ TTagId TProfileManager::RegisterTag(const TTag& tag)
 
 REGISTER_SHUTDOWN_CALLBACK(4, TProfileManager::StaticShutdown);
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling

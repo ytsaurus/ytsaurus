@@ -49,9 +49,7 @@
 
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -627,7 +625,5 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
         }));
 }
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

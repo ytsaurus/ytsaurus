@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/phoenix.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,5 +136,4 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,5 +83,4 @@ std::vector<TSharedRef> BitMatrixDecode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure

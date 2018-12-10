@@ -6,8 +6,7 @@
 #include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NObjectClient;
 using namespace NControllerAgent;
@@ -101,5 +100,4 @@ TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

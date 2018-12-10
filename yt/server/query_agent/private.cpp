@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NQueryAgent {
+namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,6 +9,5 @@ const NProfiling::TProfiler QueryAgentProfiler("/query_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryAgent
-} // namespace NYT
+} // namespace NYT::NQueryAgent
 

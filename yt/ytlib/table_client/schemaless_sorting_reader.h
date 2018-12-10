@@ -3,8 +3,7 @@
 #include "public.h"
 #include "schemaless_chunk_reader.h"
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSortingReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

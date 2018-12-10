@@ -5,8 +5,7 @@
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,5 +157,4 @@ DEFINE_REFCOUNTED_TYPE(TLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

@@ -11,8 +11,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -327,5 +326,4 @@ IChannelPtr CreateLatencyTamingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

@@ -7,8 +7,7 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,5 +97,4 @@ DEFINE_ENUM(EDirectIOPolicy,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

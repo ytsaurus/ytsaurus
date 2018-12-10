@@ -10,8 +10,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/versioned_row.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,5 +104,4 @@ DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -4,8 +4,7 @@
 
 #include <yt/server/tablet_server/public.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +51,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

@@ -20,8 +20,7 @@
 
 #include <errno.h>
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail {
 
 using namespace NConcurrency;
 
@@ -76,5 +75,4 @@ void AssertTrapImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail

@@ -1,7 +1,6 @@
 #include "auto_merge_director.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NLogging;
 
@@ -155,5 +154,4 @@ void TAutoMergeDirector::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NY::NControllerAgent

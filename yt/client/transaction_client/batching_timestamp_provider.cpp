@@ -5,8 +5,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 using namespace NConcurrency;
 
@@ -171,5 +170,4 @@ ITimestampProviderPtr CreateBatchingTimestampProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

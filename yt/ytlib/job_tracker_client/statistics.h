@@ -19,8 +19,7 @@
 
 #include <util/generic/iterator_range.h>
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,8 +132,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient
 
 #define STATISTICS_INL_H_
 #include "statistics-inl.h"

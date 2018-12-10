@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,5 +91,4 @@ DECLARE_REFCOUNTED_CLASS(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

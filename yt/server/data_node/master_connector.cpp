@@ -61,8 +61,7 @@
 
 #include <yt/build/build.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NYTree;
 using namespace NElection;
@@ -1152,5 +1151,4 @@ TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(const TObjectId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

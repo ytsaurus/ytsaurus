@@ -2,8 +2,7 @@
 
 #include <yt/core/concurrency/fls.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,5 +94,4 @@ TMutationContextGuard::~TMutationContextGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

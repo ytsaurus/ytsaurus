@@ -36,8 +36,7 @@
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -241,5 +240,4 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

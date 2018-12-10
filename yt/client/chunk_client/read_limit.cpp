@@ -7,8 +7,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NYTree;
 using namespace NYson;
@@ -486,5 +485,4 @@ void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

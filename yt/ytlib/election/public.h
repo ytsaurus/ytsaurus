@@ -2,8 +2,7 @@
 
 #include <yt/client/election/public.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +13,4 @@ DECLARE_REFCOUNTED_CLASS(TCellConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

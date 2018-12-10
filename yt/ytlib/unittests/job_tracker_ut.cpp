@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 namespace {
 
 using namespace NYTree;
@@ -52,5 +51,4 @@ TEST(TYsonTest, ConvertToUsingBuildingYsonConsumer)
 }
 
 } // namespace
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

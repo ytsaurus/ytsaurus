@@ -11,8 +11,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NJournalClient {
+namespace NYT::NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,5 +42,4 @@ TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalClient
-} // namespace NYT
+} // namespace NYT::NJournalClient

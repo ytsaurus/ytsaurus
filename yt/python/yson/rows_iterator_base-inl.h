@@ -9,8 +9,7 @@
 
 #include <yt/core/misc/ref_counted_tracker.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,5 +84,4 @@ void TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::InitType(const TStri
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

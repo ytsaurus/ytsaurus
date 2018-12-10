@@ -1,7 +1,6 @@
 #include "config.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -646,5 +645,4 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

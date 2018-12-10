@@ -7,8 +7,7 @@
 #include <util/string/split.h>
 #include <util/string/iterator.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1275,5 +1274,4 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

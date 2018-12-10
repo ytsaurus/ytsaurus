@@ -8,8 +8,7 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,5 +130,4 @@ void TNonblockingBatch<T>::OnBatchTimeout(ui64 gen)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

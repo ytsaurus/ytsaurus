@@ -27,8 +27,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
@@ -799,6 +798,5 @@ IOperationControllerPtr CreateUnorderedMergeController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

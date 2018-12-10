@@ -12,8 +12,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
@@ -94,5 +93,4 @@ IBlockCachePtr CreateServerBlockCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

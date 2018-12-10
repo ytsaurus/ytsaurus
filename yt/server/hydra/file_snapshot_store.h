@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,5 +53,4 @@ ISnapshotWriterPtr CreateFileSnapshotWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

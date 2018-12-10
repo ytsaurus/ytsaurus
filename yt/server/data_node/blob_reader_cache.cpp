@@ -13,8 +13,7 @@
 
 #include <yt/core/misc/async_cache.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 
@@ -168,5 +167,4 @@ void TBlobReaderCache::EvictReader(TBlobChunkBase* chunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

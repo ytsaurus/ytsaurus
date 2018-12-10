@@ -17,8 +17,7 @@
 
 #include <initializer_list>
 
-namespace NYT {
-namespace NContainers {
+namespace NYT::NContainers {
 
 using namespace NConcurrency;
 
@@ -484,7 +483,6 @@ IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NContainers
-} // namespace NYT
+} // namespace NYT::NContainers
 
 #endif

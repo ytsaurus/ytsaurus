@@ -28,8 +28,7 @@
 
 #include <util/system/info.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 static auto& Logger = HttpProxyLogger;
 
@@ -582,5 +581,4 @@ TYsonString TDiscoverVersionsHandler::GetAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

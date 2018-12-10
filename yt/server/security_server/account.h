@@ -12,8 +12,7 @@
 
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,5 +89,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

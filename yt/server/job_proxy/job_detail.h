@@ -13,8 +13,7 @@
 #include <yt/client/table_client/schemaful_reader_adapter.h>
 #include <yt/client/table_client/schemaful_writer_adapter.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,5 +94,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

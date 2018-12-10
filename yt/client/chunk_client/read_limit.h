@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,5 +119,4 @@ void Deserialize(TReadRange& readRange, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

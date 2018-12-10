@@ -6,8 +6,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,6 +45,5 @@ size_t GetSignificantWidth(TRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

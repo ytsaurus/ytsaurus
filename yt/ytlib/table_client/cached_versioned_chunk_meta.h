@@ -22,8 +22,7 @@
 
 #include <memory>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,5 +76,4 @@ DEFINE_REFCOUNTED_TYPE(TCachedVersionedChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -36,8 +36,7 @@
 
 #include <yt/core/rpc/config.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -195,5 +194,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicClusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

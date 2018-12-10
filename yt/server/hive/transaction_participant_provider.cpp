@@ -11,8 +11,7 @@
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NApi;
 using namespace NHiveClient;
@@ -115,5 +114,4 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

@@ -4,8 +4,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,6 +12,5 @@ extern const NLogging::TLogger TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

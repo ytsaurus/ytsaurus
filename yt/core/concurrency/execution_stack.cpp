@@ -17,8 +17,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/object_pool.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,8 +158,7 @@ std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStackKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 
 namespace NYT {

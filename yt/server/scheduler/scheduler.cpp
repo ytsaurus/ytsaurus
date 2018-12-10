@@ -72,8 +72,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/exception_helpers.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NProfiling;
 using namespace NConcurrency;
@@ -3582,5 +3581,4 @@ void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -16,8 +16,7 @@
 
 #include <yt/client/transaction_client/public.h>
 
-namespace NYT {
-namespace NYPath {
+namespace NYT::NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,5 +127,4 @@ void Deserialize(TRichYPath& richPath, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYPath
-} // namespace NYT
+} // namespace NYT::NYPath

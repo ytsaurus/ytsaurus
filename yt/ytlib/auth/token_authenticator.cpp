@@ -10,8 +10,7 @@
 
 #include <yt/core/rpc/authenticator.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NYTree;
 using namespace NYson;
@@ -416,5 +415,4 @@ NRpc::IAuthenticatorPtr CreateTokenAuthenticatorWrapper(ITokenAuthenticatorPtr u
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

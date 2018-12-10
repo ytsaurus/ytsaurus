@@ -2,8 +2,7 @@
 
 #include <yt/core/ytree/ypath_resolver.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,5 +88,4 @@ TEST(TYPathResolver, InvalidYson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

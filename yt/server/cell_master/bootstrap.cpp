@@ -112,8 +112,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_service.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 using namespace NApi;
 using namespace NAdmin;
@@ -726,5 +725,4 @@ void TBootstrap::DoLoadSnapshot(const TString& fileName, bool dump)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

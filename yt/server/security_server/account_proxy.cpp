@@ -15,8 +15,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NYTree;
 using namespace NRpc;
@@ -172,6 +171,5 @@ IObjectProxyPtr CreateAccountProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

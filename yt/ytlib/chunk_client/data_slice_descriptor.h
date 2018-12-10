@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,5 +74,4 @@ i64 GetDataSliceDescriptorReaderMemoryEstimate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

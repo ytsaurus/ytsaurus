@@ -2,8 +2,7 @@
 #include "functions.h"
 #include "functions_cg.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,5 +98,4 @@ void TFunctionRegistryBuilder::RegisterAggregate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

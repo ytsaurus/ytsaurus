@@ -14,8 +14,7 @@
 
 #include <util/generic/hash.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NRpc;
 using namespace NYson;
@@ -578,5 +577,4 @@ bool TVirtualListBase::RemoveBuiltinAttribute(TInternedAttributeKey /*key*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

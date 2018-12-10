@@ -1,7 +1,6 @@
 #include "helpers.h"
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,6 +8,5 @@ const TStringBuf ObjectIdPathPrefix("#");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient
 

@@ -9,8 +9,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,5 +37,4 @@ MakeEmptyTransactionActionHandler()
 ////////////////////////////////////////////////////////////////////////////////
 
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

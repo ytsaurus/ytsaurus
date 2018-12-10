@@ -8,8 +8,7 @@
 #include <yt/core/misc/linear_probe.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,5 +32,4 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

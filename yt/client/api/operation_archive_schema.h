@@ -2,8 +2,7 @@
 
 #include <yt/client/table_client/name_table.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,5 +178,4 @@ struct TOperationAliasesTableDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} //namespace NAPI
-} //namespace NYT
+} //namespace NYT::NApi

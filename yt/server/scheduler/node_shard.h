@@ -23,8 +23,7 @@
 
 #include <yt/core/misc/sync_expiring_cache.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -367,5 +366,4 @@ DEFINE_REFCOUNTED_TYPE(TNodeShard)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

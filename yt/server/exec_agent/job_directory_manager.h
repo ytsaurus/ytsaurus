@@ -6,8 +6,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,5 +52,4 @@ IJobDirectoryManagerPtr CreateSimpleJobDirectoryManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NY::NExecAgent

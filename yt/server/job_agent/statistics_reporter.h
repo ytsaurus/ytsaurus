@@ -14,8 +14,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,5 +50,4 @@ DEFINE_REFCOUNTED_TYPE(TStatisticsReporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

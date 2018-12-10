@@ -14,8 +14,7 @@
 
 #include <yt/core/actions/callback.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,5 +81,4 @@ DEFINE_ENUM(ETransactionState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

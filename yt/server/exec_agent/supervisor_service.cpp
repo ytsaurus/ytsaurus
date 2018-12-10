@@ -18,8 +18,7 @@
 
 #include <yt/core/concurrency/scheduler-inl.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NJobAgent;
 using namespace NNodeTrackerClient;
@@ -258,5 +257,4 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, PollThrottlingRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

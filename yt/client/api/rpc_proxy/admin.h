@@ -6,9 +6,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +38,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

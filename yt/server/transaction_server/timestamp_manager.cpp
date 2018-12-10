@@ -24,8 +24,7 @@
 
 #include <time.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 using namespace NRpc;
 using namespace NHydra;
@@ -365,5 +364,4 @@ IServicePtr TTimestampManager::GetRpcService()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

@@ -2,8 +2,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NJournalClient {
+namespace NYT::NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ extern const NLogging::TLogger JournalClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalClient
-} // namespace NYT
+} // namespace NYT::NJournalClient

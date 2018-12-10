@@ -17,8 +17,7 @@
 
 #include <contrib/libs/protobuf/wire_format_lite_inl.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NYson;
 using namespace NTableClient;
@@ -457,6 +456,5 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats
 

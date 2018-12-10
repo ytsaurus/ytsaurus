@@ -7,8 +7,7 @@
 
 #include <yt/client/table_client/row_buffer.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NTransactionClient;
 using namespace NQueryClient;
@@ -732,6 +731,5 @@ void TSamplingRowMerger::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

@@ -8,8 +8,7 @@
 
 #include <yt/core/crypto/crypto.h>
 
-namespace NYT {
-namespace NFileServer {
+namespace NYT::NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +42,5 @@ NCypressServer::INodeTypeHandlerPtr CreateFileTypeHandler(NCellMaster::TBootstra
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
-} // namespace NYT
+} // namespace NYT::NFileServer
 

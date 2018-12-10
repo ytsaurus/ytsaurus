@@ -5,8 +5,7 @@ extern "C" {
 #include <contrib/libs/lzmasdk/LzmaDec.h>
 }
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 namespace {
 
@@ -185,5 +184,4 @@ void LzmaDecompress(StreamSource* source, TBlob* output)
     LzmaDec_Free(&handle, &Alloc);
 }
 
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression

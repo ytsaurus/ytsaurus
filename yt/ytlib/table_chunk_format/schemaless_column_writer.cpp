@@ -6,8 +6,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
 using namespace NTableClient;
@@ -146,5 +145,4 @@ std::unique_ptr<IValueColumnWriter> CreateSchemalessColumnWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

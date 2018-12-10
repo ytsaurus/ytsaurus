@@ -19,8 +19,7 @@
 
 #include <yt/core/logging/public.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,5 +162,4 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

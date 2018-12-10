@@ -14,8 +14,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NApi;
 using namespace NTransactionClient;
@@ -405,6 +404,5 @@ void TOperationRuntimeData::SetMinNeededJobResources(const TJobResourcesWithQuot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

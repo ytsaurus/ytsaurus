@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ DECLARE_REFCOUNTED_CLASS(TFileChunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient

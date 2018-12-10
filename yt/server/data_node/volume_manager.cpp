@@ -30,8 +30,7 @@
 
 #include <yt/core/tools/tools.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NConcurrency;
 using namespace NContainers;
@@ -1261,7 +1260,6 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 
 #endif

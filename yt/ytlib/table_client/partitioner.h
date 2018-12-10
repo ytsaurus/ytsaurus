@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,5 +26,4 @@ IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

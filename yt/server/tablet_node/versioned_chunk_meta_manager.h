@@ -4,8 +4,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,5 +31,4 @@ DEFINE_REFCOUNTED_TYPE(TVersionedChunkMetaManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

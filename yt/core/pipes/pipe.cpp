@@ -10,8 +10,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-namespace NYT {
-namespace NPipes {
+namespace NYT::NPipes {
 
 using namespace NNet;
 
@@ -218,5 +217,4 @@ void TPipeFactory::Clear()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPipes
-} // namespace NYT
+} // namespace NYT::NPipes

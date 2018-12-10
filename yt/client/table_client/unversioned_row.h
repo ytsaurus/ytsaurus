@@ -15,8 +15,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -849,8 +848,7 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TKey lowerBound, TKey upperBound);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 
 //! A hasher for TUnversionedValue.
 template <>

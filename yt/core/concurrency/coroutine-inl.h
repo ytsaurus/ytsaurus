@@ -6,12 +6,11 @@
 #endif
 #undef COROUTINE_INL_H_
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace  NDetail {
+namespace NDetail {
 
 template <class TCallee, class TCaller, class TArguments, unsigned... Indexes>
 void Invoke(
@@ -117,5 +116,4 @@ typename TCoroutine<void(TArgs...)>::TArguments&& TCoroutine<void(TArgs...)>::Yi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

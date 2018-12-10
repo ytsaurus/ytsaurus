@@ -9,8 +9,7 @@
 
 #include <yt/core/misc/lock_free.h>
 
-namespace NYT {
-namespace NEventLog {
+namespace NYT::NEventLog {
 
 using namespace NApi;
 using namespace NYson;
@@ -188,6 +187,5 @@ void TEventLogWriter::UpdateConfig(const TEventLogConfigPtr& config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEventLog
-} // namespace NYT
+} // namespace NYT::NEventLog
 

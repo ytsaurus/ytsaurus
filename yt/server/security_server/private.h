@@ -8,8 +8,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,5 +17,4 @@ extern const NProfiling::TProfiler SecurityServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

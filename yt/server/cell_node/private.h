@@ -2,8 +2,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ extern const NLogging::TLogger CellNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
-} // namespace NYT
+} // namespace NYT::NCellNode

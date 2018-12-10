@@ -5,8 +5,7 @@
 
 #include <yt/server/hydra/composite_automaton.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,8 +33,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer
 
 #define TRANSACTION_MANAGER_DETAIL_INL_H_
 #include "transaction_manager_detail-inl.h"

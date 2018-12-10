@@ -6,8 +6,7 @@
 #include <yt/ytlib/table_chunk_format/string_column_reader.h>
 #include <yt/ytlib/table_chunk_format/private.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NCompression;
@@ -140,5 +139,4 @@ TEST_F(TUnversionedStringColumnTest, ReadLast)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

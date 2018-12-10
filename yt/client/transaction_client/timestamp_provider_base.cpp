@@ -1,8 +1,7 @@
 #include "timestamp_provider_base.h"
 #include "private.h"
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,5 +56,4 @@ TFuture<TTimestamp> TTimestampProviderBase::OnGenerateTimestamps(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

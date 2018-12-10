@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,5 +168,4 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

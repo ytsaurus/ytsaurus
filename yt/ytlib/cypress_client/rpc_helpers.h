@@ -5,8 +5,7 @@
 #include <yt/core/rpc/public.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NCypressClient {
+namespace NYT::NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,5 +41,4 @@ bool GetSuppressModificationTracking(const NRpc::NProto::TRequestHeader& header)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressClient
-} // namespace NYT
+} // namespace NYT::NCypressClient

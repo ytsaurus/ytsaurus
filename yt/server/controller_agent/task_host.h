@@ -19,8 +19,7 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,5 +139,4 @@ DEFINE_REFCOUNTED_TYPE(ITaskHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

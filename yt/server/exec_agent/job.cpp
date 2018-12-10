@@ -46,8 +46,7 @@
 
 #include <yt/core/misc/proc.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NRpc;
 using namespace NJobProxy;
@@ -1418,8 +1417,7 @@ NJobAgent::IJobPtr CreateUserJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent
 
 
 

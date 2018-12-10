@@ -9,9 +9,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-namespace NYT {
-namespace NChunkClient {
-namespace NErasureHelpers {
+namespace NYT::NChunkClient::NErasureHelpers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,7 +203,5 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasureHelpers
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient::NErasureHelpers
 

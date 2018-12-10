@@ -15,8 +15,7 @@
 
 #include <util/stream/buffered.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -517,5 +516,4 @@ bool TCompositeAutomaton::IsRecovery() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

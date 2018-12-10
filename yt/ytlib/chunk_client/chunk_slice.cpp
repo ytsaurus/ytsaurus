@@ -13,8 +13,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NTableClient;
 using namespace NTableClient::NProto;
@@ -433,5 +432,4 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

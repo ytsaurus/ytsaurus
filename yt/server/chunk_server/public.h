@@ -21,8 +21,7 @@
 #include <map>
 #include <array>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,5 +196,4 @@ constexpr TChunkRequisitionIndex MigrationErasureChunkRequisitionIndex = Migrati
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

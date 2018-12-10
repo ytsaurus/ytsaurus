@@ -16,8 +16,7 @@
 
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,5 +161,4 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

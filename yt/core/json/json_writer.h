@@ -5,8 +5,7 @@
 
 #include <yt/core/yson/public.h>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,5 +58,4 @@ std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

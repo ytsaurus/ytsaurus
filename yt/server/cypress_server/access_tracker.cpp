@@ -13,8 +13,7 @@
 
 #include <yt/server/transaction_server/transaction.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NConcurrency;
 using namespace NHydra;
@@ -148,5 +147,4 @@ void TAccessTracker::OnFlush()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

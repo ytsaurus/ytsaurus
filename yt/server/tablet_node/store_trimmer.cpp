@@ -27,8 +27,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -248,5 +247,4 @@ void StartStoreTrimmer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

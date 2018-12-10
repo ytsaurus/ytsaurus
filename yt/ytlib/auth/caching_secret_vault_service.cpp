@@ -11,8 +11,7 @@
 //
 //#include <queue>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NConcurrency;
 
@@ -77,5 +76,4 @@ ISecretVaultServicePtr CreateCachingSecretVaultService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

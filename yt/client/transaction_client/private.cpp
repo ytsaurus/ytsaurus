@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,6 +8,5 @@ const NLogging::TLogger TransactionClientLogger("TransactionClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient
 

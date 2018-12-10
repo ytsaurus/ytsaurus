@@ -10,8 +10,7 @@
 
 #include <yt/server/object_server/public.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +22,5 @@ NCypressServer::ICypressNodeProxyPtr CreateJournalNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
-} // namespace NYT
+} // namespace NYT::NJournalServer
 

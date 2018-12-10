@@ -43,8 +43,7 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
@@ -1172,5 +1171,4 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, *I
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

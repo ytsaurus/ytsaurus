@@ -10,8 +10,7 @@
 
 #include <yt/core/logging/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,8 +70,7 @@ std::unique_ptr<TMutation> CreateMutation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 
 #define MUTATION_INL_H_
 #include "mutation-inl.h"

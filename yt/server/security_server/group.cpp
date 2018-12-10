@@ -2,8 +2,7 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
 
@@ -31,6 +30,5 @@ void TGroup::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

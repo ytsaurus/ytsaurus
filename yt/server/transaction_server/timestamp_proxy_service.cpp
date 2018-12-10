@@ -9,8 +9,7 @@
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 using namespace NRpc;
 using namespace NTransactionClient;
@@ -63,5 +62,4 @@ IServicePtr CreateTimestampProxyService(ITimestampProviderPtr provider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

@@ -39,8 +39,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -537,5 +536,4 @@ void StartPartitionBalancer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

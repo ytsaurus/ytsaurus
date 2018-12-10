@@ -16,8 +16,7 @@
 #include <unistd.h>
 #endif
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 using namespace NYTree;
 using namespace NYson;
@@ -288,5 +287,4 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

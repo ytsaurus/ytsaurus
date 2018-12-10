@@ -22,8 +22,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NBus;
 using namespace NRpc;
@@ -1444,5 +1443,4 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

@@ -5,8 +5,7 @@
 
 #include <yt/core/misc/string.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NErasure;
 using namespace NNodeTrackerServer;
@@ -125,5 +124,4 @@ TJobPtr TJob::CreateSeal(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

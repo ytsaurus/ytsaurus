@@ -1,7 +1,6 @@
 #include "hydra_manager.h"
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,5 +59,4 @@ void IHydraManager::ValidatePeer(EPeerKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

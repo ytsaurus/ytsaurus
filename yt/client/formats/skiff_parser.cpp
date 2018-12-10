@@ -16,8 +16,7 @@
 #include <util/generic/strbuf.h>
 #include <util/stream/zerocopy.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NTableClient;
 using namespace NSkiff;
@@ -392,5 +391,4 @@ std::unique_ptr<IParser> CreateParserForSkiff(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

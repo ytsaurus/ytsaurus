@@ -6,8 +6,7 @@
 #endif
 #undef PROFILE_MANAGER_INL_H_
 
-namespace NYT {
-namespace NProfiling {
+namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,5 +44,4 @@ TTagId TProfileManager::RegisterTag(const TString& key, const T& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling

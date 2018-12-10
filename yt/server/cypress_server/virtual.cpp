@@ -40,8 +40,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -780,5 +779,4 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

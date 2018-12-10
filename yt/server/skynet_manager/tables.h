@@ -16,8 +16,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,5 +165,4 @@ DEFINE_REFCOUNTED_TYPE(TTables)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

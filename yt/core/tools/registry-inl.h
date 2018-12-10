@@ -9,9 +9,7 @@
 
 #include <yt/core/misc/function_traits.h>
 
-namespace NYT {
-namespace NTools {
-namespace NDetail {
+namespace NYT::NTools::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +67,4 @@ struct TToolRegistrator
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTools
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail::NTools

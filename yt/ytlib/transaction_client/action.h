@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/hive/public.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,8 +26,7 @@ TTransactionActionData MakeTransactionActionData(const TProto& message);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient
 
 #define ACTION_INL_H_
 #include "action-inl.h"

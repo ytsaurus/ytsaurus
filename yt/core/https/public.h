@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/common.h>
 
-namespace NYT {
-namespace NHttps {
+namespace NYT::NHttps {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +13,4 @@ DECLARE_REFCOUNTED_CLASS(TClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttps
-} // namespace NYT
+} // namespace NYT::NHttps

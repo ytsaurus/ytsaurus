@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/table_client/config.h>
 
-namespace NYT {
-namespace NEventLog {
+namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,5 +22,4 @@ DEFINE_REFCOUNTED_TYPE(TEventLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEventLog
-} // namespace NYT
+} // namespace NYT::NEventLog

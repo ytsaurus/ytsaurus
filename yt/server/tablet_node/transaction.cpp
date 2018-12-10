@@ -17,8 +17,7 @@
 
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NHiveServer;
 using namespace NObjectClient;
@@ -201,6 +200,5 @@ TCellTag TTransaction::GetCellTag() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

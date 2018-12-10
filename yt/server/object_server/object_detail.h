@@ -21,8 +21,7 @@
 #include <yt/core/ytree/system_attribute_provider.h>
 #include <yt/core/ytree/ypath_detail.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,8 +219,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 
 #define OBJECT_DETAIL_INL_H_
 #include "object_detail-inl.h"

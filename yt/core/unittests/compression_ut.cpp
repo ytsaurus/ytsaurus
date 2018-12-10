@@ -5,8 +5,7 @@
 #include <contrib/libs/snappy/snappy-sinksource.h>
 #include <contrib/libs/snappy/snappy.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,5 +133,4 @@ INSTANTIATE_TEST_CASE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression

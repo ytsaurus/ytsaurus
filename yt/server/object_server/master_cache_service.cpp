@@ -21,8 +21,7 @@
 
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -563,5 +562,4 @@ IServicePtr CreateMasterCacheService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

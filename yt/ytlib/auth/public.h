@@ -4,8 +4,7 @@
 
 #include <yt/core/net/address.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,8 +116,7 @@ inline bool operator ==(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth
 
 template <>
 struct THash<NYT::NAuth::TTokenCredentials>

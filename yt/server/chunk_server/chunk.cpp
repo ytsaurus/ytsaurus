@@ -16,8 +16,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -608,8 +607,7 @@ void TChunk::FixExportRequisitionIndexes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore400);
 Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore619);

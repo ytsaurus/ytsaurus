@@ -12,8 +12,7 @@
 
 #include <yt/ytlib/journal_client/journal_ypath.pb.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 using namespace NChunkClient;
 using namespace NChunkServer;
@@ -202,5 +201,4 @@ ICypressNodeProxyPtr CreateJournalNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
-} // namespace NYT
+} // namespace NYT::NJournalServer

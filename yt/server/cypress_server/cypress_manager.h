@@ -31,8 +31,7 @@
 #include <yt/core/ytree/tree_builder.h>
 #include <yt/core/ytree/ypath_service.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,5 +191,4 @@ DEFINE_REFCOUNTED_TYPE(TCypressManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

@@ -18,8 +18,7 @@
 
 #include <util/digest/numeric.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 using namespace NChunkClient;
 using namespace NYson;
@@ -538,8 +537,7 @@ const TAddressMap& GetAddressesOrThrow(const TNodeAddressMap& nodeAddresses, EAd
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient
 
 ////////////////////////////////////////////////////////////////////////////////
 

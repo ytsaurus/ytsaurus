@@ -10,8 +10,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,5 +55,4 @@ DEFINE_REFCOUNTED_TYPE(TTransactionSupervisor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

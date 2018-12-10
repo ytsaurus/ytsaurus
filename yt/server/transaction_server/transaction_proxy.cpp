@@ -19,8 +19,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -532,6 +531,5 @@ IObjectProxyPtr CreateTransactionProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer
 

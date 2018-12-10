@@ -8,8 +8,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 using namespace NProfiling;
 
@@ -328,5 +327,4 @@ void TFileLogWriter::Reload()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

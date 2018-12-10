@@ -1,7 +1,6 @@
 #include "columnar_statistics.h"
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +23,4 @@ TColumnarStatistics TColumnarStatistics::MakeEmpty(int columnCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

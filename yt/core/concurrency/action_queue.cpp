@@ -12,8 +12,7 @@
 
 #include <yt/core/misc/ring_queue.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 using namespace NYPath;
@@ -643,6 +642,5 @@ IInvokerPtr CreateMemoryTaggingInvoker(IInvokerPtr underlyingInvoker, TMemoryTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

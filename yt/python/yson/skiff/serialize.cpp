@@ -12,8 +12,7 @@
 
 #include <yt/core/skiff/skiff.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYson;
 using namespace NYTree;
@@ -215,5 +214,4 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

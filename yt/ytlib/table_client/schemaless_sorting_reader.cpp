@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -189,5 +188,4 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSortingReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

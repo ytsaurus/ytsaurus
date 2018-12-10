@@ -18,8 +18,7 @@
 
 #include <limits>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 using namespace NObjectClient;
@@ -935,5 +934,4 @@ void FromProto(const NTabletClient::TTableMountInfoPtr& mountInfo, const NProto:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

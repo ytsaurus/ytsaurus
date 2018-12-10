@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NRpc;
 using namespace NElection;
@@ -119,5 +118,4 @@ IServicePtr CreateLocalSnapshotService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

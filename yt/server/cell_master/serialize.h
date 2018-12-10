@@ -21,8 +21,7 @@
 
 #include <yt/server/transaction_server/public.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,8 +30,7 @@ bool ValidateSnapshotVersion(int version);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster
      
 #define SERIALIZE_INL_H_
 #include "serialize-inl.h"

@@ -21,8 +21,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
@@ -105,5 +104,4 @@ void TJournalManager::SealJournal(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
-} // namespace NYT
+} // namespace NYT::NJournalServer

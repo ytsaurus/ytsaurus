@@ -4,8 +4,7 @@
 
 #include <util/random/random.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 namespace {
 
 using namespace NChunkClient;
@@ -150,5 +149,4 @@ TEST_F(TSortedDynamicStorePerfTest, DISABLED_DynamicReadWrite)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -10,8 +10,7 @@
 
 #include <yt/core/misc/sync_cache.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 using namespace NYTree;
@@ -253,5 +252,4 @@ TColumnEvaluatorPtr TColumnEvaluatorCache::Find(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

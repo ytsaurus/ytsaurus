@@ -9,8 +9,7 @@
 
 #include <util/random/random.h>
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 using namespace NConcurrency;
 
@@ -390,5 +389,4 @@ IAsyncDialerPtr CreateAsyncDialer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet

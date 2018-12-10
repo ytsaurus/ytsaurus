@@ -2,8 +2,7 @@
 
 #include <yt/core/rpc/service.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,5 +73,4 @@ void TMutation::SetMutationId(const NRpc::TMutationId& mutationId, bool retry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

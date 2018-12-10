@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,5 +156,4 @@ DEFINE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

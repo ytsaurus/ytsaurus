@@ -6,8 +6,7 @@
 
 #include <yt/core/concurrency/periodic_yielder.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NTableClient;
 using namespace NChunkClient;
@@ -606,5 +605,4 @@ ISortedJobBuilderPtr CreateSortedJobBuilder(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

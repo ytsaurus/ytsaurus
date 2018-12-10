@@ -19,8 +19,7 @@
 
 #include <yt/core/misc/phoenix.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -732,8 +731,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 
 #define CONFIG_INL_H_
 #include "config-inl.h"

@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NTracing {
+namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +54,5 @@ DEFINE_REFCOUNTED_TYPE(TTraceManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTracing
-} // namespace NYT
+} // namespace NYT::NTracing
 

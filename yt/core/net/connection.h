@@ -8,8 +8,7 @@
 
 #include <yt/core/net/address.h>
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,5 +104,4 @@ IConnectionWriterPtr CreateOutputConnectionFromPath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet

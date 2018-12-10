@@ -20,9 +20,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -522,6 +520,4 @@ IChannelFactoryPtr GetGrpcChannelFactory()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

@@ -26,8 +26,7 @@
 
 #include <queue>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,8 +220,7 @@ NObjectServer::TVersionedObjectId GetObjectId(const TCypressNodeBase* object);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 
 #define NODE_INL_H_
 #include "node-inl.h"

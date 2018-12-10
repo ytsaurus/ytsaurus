@@ -2,8 +2,7 @@
 #include "chunk.h"
 #include "chunk_list.h"
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 
@@ -55,5 +54,4 @@ void TChunkTree::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

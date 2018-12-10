@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,5 +82,4 @@ TError CheckBusMessageLimits(const TSharedRefArray& message);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

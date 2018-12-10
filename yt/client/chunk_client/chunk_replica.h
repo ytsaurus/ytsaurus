@@ -4,8 +4,7 @@
 
 #include <yt/client/node_tracker_client/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,8 +120,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 
 Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndex);
 

@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NApi;
 using namespace NObjectClient;
@@ -206,6 +205,5 @@ void TChunkTeleporter::Import()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

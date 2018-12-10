@@ -37,8 +37,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NApi;
 using namespace NRpc;
@@ -557,5 +556,4 @@ void DumpCodecStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

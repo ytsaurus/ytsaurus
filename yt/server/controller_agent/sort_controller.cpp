@@ -46,8 +46,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
@@ -3533,6 +3532,5 @@ IOperationControllerPtr CreateMapReduceController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

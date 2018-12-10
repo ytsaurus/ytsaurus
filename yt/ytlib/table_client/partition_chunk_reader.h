@@ -16,8 +16,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,8 +118,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 
 #define PARTITION_CHUNK_READER_INL_H_
 #include "partition_chunk_reader-inl.h"

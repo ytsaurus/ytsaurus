@@ -2,8 +2,7 @@
 
 #include "private.h"
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,5 +60,4 @@ extern TInputStreamDirectory TeleportableIntermediateInputStreamDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

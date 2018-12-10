@@ -28,8 +28,7 @@
 
 #include <yt/core/utilex/random.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
@@ -801,5 +800,4 @@ bool TStatisticsReporter::GetQueueIsTooLarge()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

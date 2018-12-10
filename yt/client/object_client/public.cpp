@@ -4,8 +4,7 @@
 
 #include <util/string/vector.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,6 +72,5 @@ bool operator < (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient
 

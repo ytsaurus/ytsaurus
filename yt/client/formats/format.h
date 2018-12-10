@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/attributes.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,5 +140,4 @@ void ConfigureEscapeTables(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

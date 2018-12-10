@@ -4,8 +4,7 @@
 
 #include <yt/server/chunk_server/chunk_requisition.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 namespace {
 
 using NSecurityServer::TAccount;
@@ -172,5 +171,4 @@ TEST(TChunkRequisitionTest, RequisitionReplicationEquivalency)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

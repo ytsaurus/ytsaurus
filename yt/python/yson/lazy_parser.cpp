@@ -1,8 +1,7 @@
 #include "lazy_parser.h"
 #include "lazy_yson_consumer.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYTree;
 
@@ -62,5 +61,4 @@ Py::Object ParseLazyYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

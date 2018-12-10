@@ -4,8 +4,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,5 +17,4 @@ extern const NLogging::TLogger DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

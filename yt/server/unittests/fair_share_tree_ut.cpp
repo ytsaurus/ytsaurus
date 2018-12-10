@@ -11,8 +11,7 @@
 #include <contrib/libs/gmock/gmock/gmock-matchers.h>
 #include <contrib/libs/gmock/gmock/gmock-actions.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 namespace {
 
 using namespace NControllerAgent;
@@ -651,5 +650,4 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

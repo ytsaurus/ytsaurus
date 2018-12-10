@@ -8,9 +8,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +22,5 @@ NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

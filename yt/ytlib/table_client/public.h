@@ -2,8 +2,7 @@
 
 #include <yt/client/table_client/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,5 +90,4 @@ DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

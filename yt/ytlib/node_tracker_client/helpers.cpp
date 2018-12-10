@@ -9,8 +9,7 @@
 
 #include <limits>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 using namespace NYson;
 using namespace NYTree;
@@ -366,6 +365,5 @@ void Deserialize(TNodeResourceLimitsOverrides& overrides, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient
 

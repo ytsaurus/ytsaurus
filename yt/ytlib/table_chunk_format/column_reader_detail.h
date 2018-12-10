@@ -14,8 +14,7 @@
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/algorithm_helpers.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1104,5 +1103,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

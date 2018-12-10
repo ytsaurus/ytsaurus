@@ -5,8 +5,7 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,5 +67,4 @@ void ParseYsonStringBuffer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

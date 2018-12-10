@@ -6,8 +6,7 @@
 
 #include <contrib/libs/protobuf/wire_format_lite.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using ::google::protobuf::Descriptor;
 using ::google::protobuf::FileDescriptor;
@@ -391,5 +390,4 @@ void TProtobufFormatDescription::InitFromProtobufSchema(const TProtobufFormatCon
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

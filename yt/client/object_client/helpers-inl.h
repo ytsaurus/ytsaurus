@@ -7,8 +7,7 @@
 
 #include <util/random/random.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,5 +229,4 @@ Y_FORCE_INLINE size_t TDirectVersionedObjectIdHash::operator()(const TVersionedO
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient

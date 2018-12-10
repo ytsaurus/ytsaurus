@@ -19,8 +19,7 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -267,6 +266,5 @@ void TSimpleJobBase::Interrupt()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy
 

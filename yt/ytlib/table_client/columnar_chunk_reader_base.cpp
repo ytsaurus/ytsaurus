@@ -10,8 +10,7 @@
 
 #include <yt/core/concurrency/async_semaphore.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NTableClient::NProto;
@@ -417,5 +416,4 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

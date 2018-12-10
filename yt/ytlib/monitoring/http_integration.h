@@ -5,8 +5,7 @@
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/http/public.h>
 
-namespace NYT {
-namespace NMonitoring {
+namespace NYT::NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ NHttp::IHttpHandlerPtr GetOrchidYPathHttpHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMonitoring
-} // namespace NYT
+} // namespace NYT::NMonitoring

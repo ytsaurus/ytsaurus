@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,5 +199,4 @@ DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

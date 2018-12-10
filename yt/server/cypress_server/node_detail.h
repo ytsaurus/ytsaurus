@@ -28,8 +28,7 @@
 #include <yt/core/ytree/tree_builder.h>
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -908,5 +907,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

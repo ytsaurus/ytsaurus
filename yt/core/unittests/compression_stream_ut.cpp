@@ -4,8 +4,7 @@
 
 #include <library/streams/brotli/brotli.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 namespace {
 
 template <typename TCompressStream>
@@ -89,5 +88,4 @@ TEST(TBrotliStreamTest, Empty)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression

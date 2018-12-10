@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/fs.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NCellNode;
 using namespace NChunkClient;
@@ -175,5 +174,4 @@ TRefCountedChunkMetaPtr TChunkBase::FilterMeta(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

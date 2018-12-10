@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,5 +43,4 @@ DEFINE_REFCOUNTED_TYPE(ISecurityManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

@@ -11,9 +11,7 @@
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NBus {
+namespace NYT::NRpc::NBus {
 
 using namespace NConcurrency;
 using namespace NYT::NBus;
@@ -173,6 +171,4 @@ IServerPtr CreateBusServer(NBus::IBusServerPtr busServer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NBus

@@ -23,8 +23,7 @@
 //    It is possible to do better memory management here.
 //  - TBAA is a king
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 using namespace NConcurrency;
@@ -3201,6 +3200,5 @@ TCGAggregateCallbacks CodegenAggregate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

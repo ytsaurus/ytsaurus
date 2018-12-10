@@ -23,8 +23,7 @@
 
 #include <yt/core/rpc/service.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -305,5 +304,4 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

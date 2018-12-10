@@ -19,8 +19,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,6 +166,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

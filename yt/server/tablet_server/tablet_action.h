@@ -14,8 +14,7 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,5 +66,4 @@ TString ToString(const TTabletAction& action);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

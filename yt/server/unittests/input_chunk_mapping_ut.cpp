@@ -10,8 +10,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 namespace {
 
 using namespace NChunkClient;
@@ -301,5 +300,4 @@ TEST_F(TInputChunkMappingTest, TestChunkSliceLimits)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

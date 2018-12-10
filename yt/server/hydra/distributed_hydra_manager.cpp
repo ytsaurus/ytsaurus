@@ -35,8 +35,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NElection;
 using namespace NRpc;
@@ -1727,5 +1726,4 @@ IHydraManagerPtr CreateDistributedHydraManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

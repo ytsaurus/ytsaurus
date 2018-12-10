@@ -7,8 +7,7 @@
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/signal.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,5 +44,4 @@ DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

@@ -1,7 +1,6 @@
 #include "query_common.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,5 +118,4 @@ bool IsRelationalBinaryOp(EBinaryOp opcode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

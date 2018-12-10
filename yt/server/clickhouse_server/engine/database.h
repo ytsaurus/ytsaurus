@@ -7,9 +7,7 @@
 #include <Databases/IDatabase.h>
 #include <Interpreters/Cluster.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +17,4 @@ DB::DatabasePtr CreateDatabase(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

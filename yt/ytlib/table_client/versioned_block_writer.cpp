@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NProto;
 using namespace NTransactionClient;
@@ -224,5 +223,4 @@ int TSimpleVersionedBlockWriter::GetPaddedKeySize(int keyColumnCount, int schema
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

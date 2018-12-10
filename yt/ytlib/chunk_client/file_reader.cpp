@@ -9,8 +9,7 @@
 
 #include <yt/client/misc/workload.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
@@ -350,5 +349,4 @@ const std::shared_ptr<TFileHandle>& TFileReader::GetDataFile()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

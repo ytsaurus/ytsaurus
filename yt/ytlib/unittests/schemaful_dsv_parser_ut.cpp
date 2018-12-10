@@ -6,8 +6,7 @@
 
 #include <yt/core/yson/null_consumer.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 namespace {
 
 using namespace NYson;
@@ -257,5 +256,4 @@ TEST(TSchemafulDsvParserTest, MissingValueModePrintSentinel)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

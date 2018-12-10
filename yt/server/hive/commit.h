@@ -16,8 +16,7 @@
 #include <yt/core/rpc/public.h>
 #include <yt/client/api/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,5 +74,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

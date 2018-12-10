@@ -32,8 +32,7 @@
 
 #include <deque>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -371,6 +370,5 @@ int TChunkSealer::GetQueueSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 

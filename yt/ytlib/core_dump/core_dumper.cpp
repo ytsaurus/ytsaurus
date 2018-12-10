@@ -17,8 +17,7 @@
 
 #include <util/system/getpid.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 using namespace NConcurrency;
 
@@ -116,5 +115,4 @@ ICoreDumperPtr CreateCoreDumper(TCoreDumperConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

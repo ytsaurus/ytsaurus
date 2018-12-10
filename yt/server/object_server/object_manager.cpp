@@ -49,8 +49,7 @@
 
 #include <yt/core/misc/crash_handler.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -1445,6 +1444,5 @@ void TObjectManager::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 

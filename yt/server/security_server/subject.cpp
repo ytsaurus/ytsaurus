@@ -4,8 +4,7 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
@@ -76,6 +75,5 @@ void TSubject::UnlinkObject(TObjectBase* object)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

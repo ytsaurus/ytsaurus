@@ -8,8 +8,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,5 +79,4 @@ DEFINE_ENUM(EUserWorkloadType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

@@ -5,8 +5,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/serialize.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 namespace {
 
 using namespace NYTree;
@@ -153,5 +152,4 @@ TEST(TAsyncYsonWriterTest, AsyncMap)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

@@ -6,8 +6,7 @@
 
 #include <yt/core/compression/codec.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NCompression;
 
@@ -209,5 +208,4 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

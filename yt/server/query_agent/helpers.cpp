@@ -6,8 +6,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NQueryAgent {
+namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,6 +45,5 @@ void ExecuteRequestWithRetries(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryAgent
-} // namespace NYT
+} // namespace NYT::NQueryAgent
 

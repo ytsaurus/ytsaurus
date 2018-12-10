@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,5 +52,4 @@ void ValidateMasterTransactionId(const TTransactionId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

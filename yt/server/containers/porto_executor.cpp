@@ -14,8 +14,7 @@
 
 #include <yt/contrib/portoapi/rpc.pb.h>
 
-namespace NYT {
-namespace NContainers {
+namespace NYT::NContainers {
 
 using namespace NConcurrency;
 using ::rpc::EError;
@@ -442,7 +441,6 @@ IPortoExecutorPtr CreatePortoExecutor(TDuration retryTime, TDuration pollPeriod)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NContainers
-} // namespace NYT
+} // namespace NYT::NContainers
 
 #endif

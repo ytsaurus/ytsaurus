@@ -30,8 +30,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -1287,5 +1286,4 @@ void TTransactionManager::AbortAll()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

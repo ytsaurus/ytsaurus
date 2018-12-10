@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NCodegen {
+namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,6 +13,5 @@ DECLARE_REFCOUNTED_CLASS(TCGModule)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodegen
-} // namespace NYT
+} // namespace NYT::NCodegen
 

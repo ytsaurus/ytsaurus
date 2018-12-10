@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/message.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 using namespace NYTree;
 using namespace NRpc;
@@ -448,5 +447,4 @@ TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient

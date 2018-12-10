@@ -4,9 +4,7 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
-namespace NProto {
+namespace NYT::NNodeTrackerClient::NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +26,4 @@ TString ToString(const TNodeStatistics& statistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProto
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient::NProto

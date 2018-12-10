@@ -11,8 +11,7 @@
 
 #include <yt/ytlib/scheduler/config.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -388,6 +387,5 @@ IServicePtr CreateControllerAgentService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

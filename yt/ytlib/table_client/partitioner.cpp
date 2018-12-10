@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/blob_output.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 
@@ -102,5 +101,4 @@ IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

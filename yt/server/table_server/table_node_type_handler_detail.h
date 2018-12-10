@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,6 +108,5 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

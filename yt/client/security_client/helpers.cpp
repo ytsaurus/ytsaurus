@@ -2,8 +2,7 @@
 
 #include <yt/core/ypath/token.h>
 
-namespace NYT {
-namespace NSecurityClient {
+namespace NYT::NSecurityClient {
 
 using namespace NYPath;
 
@@ -21,6 +20,5 @@ TYPath GetGroupPath(const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityClient
-} // namespace NYT
+} // namespace NYT::NSecurityClient
 

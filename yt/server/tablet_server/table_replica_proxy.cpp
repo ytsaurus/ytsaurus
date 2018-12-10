@@ -20,8 +20,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -270,6 +269,5 @@ IObjectProxyPtr CreateTableReplicaProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

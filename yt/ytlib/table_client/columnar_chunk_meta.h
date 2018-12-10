@@ -5,8 +5,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,5 +47,4 @@ DEFINE_REFCOUNTED_TYPE(TColumnarChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -10,8 +10,7 @@
 #include <array>
 #include <iostream>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,5 +136,4 @@ void ZlibDecompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression

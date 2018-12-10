@@ -27,8 +27,7 @@
 
 #include <util/string/ascii.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -569,6 +568,5 @@ void BuildOperationAce(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

@@ -17,8 +17,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,5 +103,4 @@ TFuture<ISchemalessWriterPtr> CreateSchemalessTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

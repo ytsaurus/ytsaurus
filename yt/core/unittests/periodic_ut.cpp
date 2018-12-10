@@ -14,8 +14,7 @@
 
 #include <exception>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 namespace {
 
@@ -163,5 +162,4 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

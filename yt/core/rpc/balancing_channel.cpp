@@ -19,8 +19,7 @@
 
 #include <util/random/random.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NYson;
 using namespace NYTree;
@@ -717,5 +716,4 @@ IChannelPtr CreateBalancingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

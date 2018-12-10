@@ -3,8 +3,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/client/node_tracker_client/node_directory.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +29,5 @@ TEST(TFindAddress, Test)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient
 

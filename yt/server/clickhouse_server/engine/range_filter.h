@@ -7,9 +7,7 @@
 #include <Interpreters/Context.h>
 #include <Storages/SelectQueryInfo.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +18,4 @@ NNative::IRangeFilterPtr CreateRangeFilter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

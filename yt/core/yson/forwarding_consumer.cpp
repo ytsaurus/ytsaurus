@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/assert.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -274,5 +273,4 @@ void TForwardingYsonConsumer::OnMyRaw(TStringBuf yson, EYsonType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

@@ -10,8 +10,7 @@
 
 #include <yt/core/alloc/alloc.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,8 +62,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 
 int main(int argc, const char** argv)
 {

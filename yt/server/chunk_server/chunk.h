@@ -21,8 +21,7 @@
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/intrusive_linked_list.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -326,8 +325,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 #define CHUNK_INL_H_
 #include "chunk-inl.h"

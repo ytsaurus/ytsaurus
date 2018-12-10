@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,5 +9,4 @@ const NProfiling::TProfiler ObjectServerProfiler("/object_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

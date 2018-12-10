@@ -9,8 +9,7 @@ extern "C" {
 
 #include <algorithm>
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,6 +346,5 @@ int TLrc::GetWordSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure
 

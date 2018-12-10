@@ -29,8 +29,7 @@
 #include <util/system/align.h>
 #include <util/system/sanitizers.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -968,5 +967,4 @@ IIOEnginePtr CreateIOEngine(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

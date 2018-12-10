@@ -22,9 +22,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 using NYTree::ENodeType;
 
@@ -479,6 +477,4 @@ std::optional<TString> ParseIssuerFromX509(TStringBuf x509String)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

@@ -5,8 +5,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/core/yson/lexer.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NProto;
@@ -185,5 +184,4 @@ std::unique_ptr<ISchemalessColumnReader> CreateSchemalessColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

@@ -10,8 +10,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 
@@ -578,6 +577,5 @@ IFairShareThreadPoolPtr CreateFairShareThreadPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

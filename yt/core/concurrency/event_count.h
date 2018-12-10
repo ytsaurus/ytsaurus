@@ -12,8 +12,7 @@
 #include <limits>
 #include <atomic>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,8 +142,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define EVENT_COUNT_INL_H_
 #include "event_count-inl.h"

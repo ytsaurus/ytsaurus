@@ -7,9 +7,7 @@
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/helpers.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NTableClient;
 using namespace NConcurrency;
@@ -50,7 +48,5 @@ TFuture<ITableWriterPtr> CreateTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

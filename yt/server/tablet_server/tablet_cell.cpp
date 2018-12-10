@@ -10,8 +10,7 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NYTree;
 using namespace NHiveClient;
@@ -264,6 +263,5 @@ ETabletCellHealth TTabletCell::CombineHealths(ETabletCellHealth lhs, ETabletCell
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

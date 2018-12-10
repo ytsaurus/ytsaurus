@@ -19,8 +19,7 @@
 #include <queue>
 #include <array>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -295,5 +294,4 @@ ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 using namespace NRpc;
 using namespace NTransactionClient;
@@ -101,5 +100,4 @@ IServicePtr CreateTransactionService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

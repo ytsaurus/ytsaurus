@@ -5,8 +5,7 @@
 #include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/shutdown.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 
@@ -38,5 +37,4 @@ REGISTER_SHUTDOWN_CALLBACK(11, ShutdownHydraIOInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

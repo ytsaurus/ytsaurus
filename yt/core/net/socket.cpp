@@ -12,8 +12,7 @@
     #include <sys/stat.h>
 #endif
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -426,5 +425,4 @@ bool TrySetSocketTosLevel(SOCKET socket, int tosLevel)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet

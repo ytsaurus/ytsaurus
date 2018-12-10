@@ -15,8 +15,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,8 +166,7 @@ void LogStructuredEvent(const TLogger& logger,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging
 
 #define LOG_INL_H_
 #include "log-inl.h"

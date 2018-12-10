@@ -15,8 +15,7 @@
 #include <yt/core/json/json_writer.h>
 #include <yt/core/json/config.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -410,5 +409,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

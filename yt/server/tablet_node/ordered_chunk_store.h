@@ -3,8 +3,7 @@
 #include "public.h"
 #include "store_detail.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,5 +51,4 @@ DEFINE_REFCOUNTED_TYPE(TOrderedChunkStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

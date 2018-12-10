@@ -1,8 +1,7 @@
 #include "dummy_secret_vault_service.h"
 #include "secret_vault_service.h"
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,5 +26,4 @@ ISecretVaultServicePtr CreateDummySecretVaultService()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

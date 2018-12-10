@@ -9,8 +9,7 @@
 
 #include <limits>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -477,5 +476,4 @@ TEST_F(TSchemalessWriterForWebJson, SliceColumnsByName)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,5 +8,4 @@ const NLogging::TLogger ChunkPoolLogger("ChunkPool");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

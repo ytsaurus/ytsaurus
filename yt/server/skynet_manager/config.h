@@ -12,8 +12,7 @@
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,5 +155,4 @@ DEFINE_REFCOUNTED_TYPE(TSkynetManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

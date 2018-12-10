@@ -8,8 +8,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/ephemeral_node_factory.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 namespace {
 
 using namespace NYson;
@@ -151,5 +150,4 @@ TEST_F(TTreeBuilderTest, MapWithAttributes)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

@@ -4,8 +4,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,5 +85,4 @@ DEFINE_REFCOUNTED_TYPE(IPoller)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

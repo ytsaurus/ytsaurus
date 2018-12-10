@@ -10,8 +10,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,5 +22,4 @@ NCypressServer::ICypressNodeProxyPtr CreateSysNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

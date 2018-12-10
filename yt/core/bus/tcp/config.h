@@ -7,8 +7,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +87,5 @@ DEFINE_REFCOUNTED_TYPE(TTcpBusClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus
 

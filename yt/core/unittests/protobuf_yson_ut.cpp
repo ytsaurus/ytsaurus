@@ -17,8 +17,7 @@
 
 #include <contrib/libs/protobuf/wire_format.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 namespace {
 
 using namespace NYTree;
@@ -1083,5 +1082,4 @@ TEST(TProtobufToYsonTest, UnknownFields)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

@@ -8,9 +8,7 @@
 
 #include <yt/client/tablet_client/table_mount_cache_detail.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 using namespace NRpc;
 using namespace NTableClient;
@@ -138,6 +136,4 @@ ITableMountCachePtr CreateTableMountCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

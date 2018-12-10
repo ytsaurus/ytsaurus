@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,5 +89,4 @@ DEFINE_REFCOUNTED_TYPE(TMasterAutomatonPart)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

@@ -8,8 +8,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NCrypto {
+namespace NYT::NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,5 +53,4 @@ DEFINE_REFCOUNTED_TYPE(TSslContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCrypto
-} // namespace NYT
+} // namespace NYT::NCrypto

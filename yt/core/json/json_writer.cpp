@@ -8,8 +8,7 @@
 
 #include <iostream>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 
 using namespace NYTree;
 using namespace NYson;
@@ -554,5 +553,4 @@ std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

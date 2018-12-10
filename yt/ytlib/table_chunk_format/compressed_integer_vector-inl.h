@@ -7,8 +7,7 @@
 
 #include <util/generic/bitops.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -331,5 +330,4 @@ void TCompressedUnsignedVectorReader<T, Scan>::UnpackValues()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

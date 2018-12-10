@@ -30,8 +30,7 @@
 
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -129,5 +128,4 @@ i64 TFileChunkOutput::GetSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient

@@ -21,9 +21,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
 using namespace NYson;
@@ -129,6 +127,4 @@ TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

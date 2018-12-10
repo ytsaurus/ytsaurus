@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -139,5 +138,4 @@ TChunkIdWithIndex DecodeChunkId(const TChunkId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

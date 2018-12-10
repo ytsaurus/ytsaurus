@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,5 +8,4 @@ const NLogging::TLogger ConcurrencyLogger("Concurrency");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

@@ -16,8 +16,7 @@
 
 #include <map>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,5 +170,4 @@ DEFINE_REFCOUNTED_TYPE(TAnnouncer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

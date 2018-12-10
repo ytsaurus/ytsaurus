@@ -10,8 +10,7 @@
 
 #include <yt/core/misc/arithmetic_formula.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -416,5 +415,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

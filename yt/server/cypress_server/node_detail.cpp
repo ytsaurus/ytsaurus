@@ -9,8 +9,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -819,6 +818,5 @@ void TDocumentNodeTypeHandler::DoClone(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 

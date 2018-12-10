@@ -13,8 +13,7 @@
 #include <yt/core/http/client.h>
 #include <yt/core/http/http.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NYTree;
 using namespace NHttp;
@@ -187,5 +186,4 @@ ITvmServicePtr CreateDefaultTvmService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

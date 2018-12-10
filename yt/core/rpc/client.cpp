@@ -9,8 +9,7 @@
 
 #include <iterator>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYTree;
@@ -420,5 +419,4 @@ TGenericProxy::TGenericProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

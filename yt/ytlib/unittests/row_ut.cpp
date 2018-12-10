@@ -6,8 +6,7 @@
 
 #include <limits>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,5 +80,4 @@ TEST(TUnversionedValueTest, CompareNaN)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

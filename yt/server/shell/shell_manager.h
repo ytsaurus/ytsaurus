@@ -9,8 +9,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,5 +34,4 @@ IShellManagerPtr CreateShellManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

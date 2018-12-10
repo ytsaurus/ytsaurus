@@ -24,8 +24,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -196,5 +195,4 @@ IObjectProxyPtr CreateMasterProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

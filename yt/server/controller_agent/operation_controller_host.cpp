@@ -5,8 +5,7 @@
 #include "bootstrap.h"
 #include "private.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -298,5 +297,4 @@ void TOperationControllerHost::ValidateOperationAccess(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

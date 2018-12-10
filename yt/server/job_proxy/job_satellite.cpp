@@ -50,8 +50,7 @@
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NRpc;
 using namespace NYT::NBus;
@@ -584,5 +583,4 @@ void NotifyExecutorPrepared(TJobSatelliteConnectionConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

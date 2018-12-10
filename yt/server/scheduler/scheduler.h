@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,6 +138,5 @@ DEFINE_REFCOUNTED_TYPE(TScheduler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

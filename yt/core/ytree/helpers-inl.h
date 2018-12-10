@@ -9,8 +9,7 @@
 #include "serialize.h"
 #include "convert.h"
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,5 +130,4 @@ IYPathServicePtr IYPathService::FromMethod(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

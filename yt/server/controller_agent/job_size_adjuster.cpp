@@ -2,8 +2,7 @@
 #include "operation_controller.h"
 #include "config.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 
@@ -145,6 +144,5 @@ std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

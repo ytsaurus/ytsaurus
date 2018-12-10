@@ -2,8 +2,7 @@
 
 #include "private.h"
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NFileClient;
 
@@ -169,5 +168,4 @@ void TStderrWriter::Upload(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

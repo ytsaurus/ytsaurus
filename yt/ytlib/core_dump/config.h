@@ -6,8 +6,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,5 +31,4 @@ DEFINE_REFCOUNTED_TYPE(TCoreDumperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

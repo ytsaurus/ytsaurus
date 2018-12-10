@@ -4,8 +4,7 @@
 
 #include <map>
 
-namespace NYT {
-namespace NJobProberClient {
+namespace NYT::NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,5 +35,4 @@ void ValidateSignalName(const TString& signalName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProberClient
-} // namespace NYT
+} // namespace NYT::NJobProberClient

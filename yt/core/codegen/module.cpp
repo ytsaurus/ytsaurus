@@ -57,8 +57,7 @@ extern "C" void* yt__emutls_get_address(__emutls_control* control) Y_NO_SANITIZE
 }
 
 
-namespace NYT {
-namespace NCodegen {
+namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -556,6 +555,5 @@ void TCGModule::AddLoadedModule(TRef data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodegen
-} // namespace NYT
+} // namespace NYT::NCodegen
 

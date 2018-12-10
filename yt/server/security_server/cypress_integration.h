@@ -4,8 +4,7 @@
 
 #include <yt/server/cypress_server/public.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ NCypressServer::INodeTypeHandlerPtr CreateGroupMapTypeHandler(NCellMaster::TBoot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

@@ -10,8 +10,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
@@ -163,5 +162,4 @@ i64 TDataBalancer::GetNodeDataWeightLimit(const TDataBalancer::TNode& node) cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

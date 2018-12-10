@@ -10,8 +10,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 
@@ -93,5 +92,4 @@ TEST(TSchemalessColumnTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

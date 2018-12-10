@@ -13,8 +13,7 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
@@ -422,5 +421,4 @@ bool TGarbageCollector::IsRecovery()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

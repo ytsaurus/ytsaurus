@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,5 +17,4 @@ std::optional<TString> TryGetAny(TStringBuf yson, const NYPath::TYPath& ypath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

@@ -15,8 +15,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 using namespace NRpc;
 using namespace NApi;
@@ -164,6 +163,5 @@ TCellTag TClusterDirectory::GetCellTag(const TClusterDirectory::TCluster& cluste
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient
 

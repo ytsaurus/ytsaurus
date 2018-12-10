@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,5 +44,4 @@ DEFINE_REFCOUNTED_TYPE(ITransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

@@ -14,8 +14,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NClickHouseProxy {
+namespace NYT::NClickHouseProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,5 +52,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseProxy
-} // namespace NYT
+} // namespace NYT::NClickHouseProxy

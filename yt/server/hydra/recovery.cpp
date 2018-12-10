@@ -17,8 +17,7 @@
 
 #include <yt/core/rpc/response_keeper.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NRpc;
 using namespace NElection;
@@ -533,5 +532,4 @@ bool TFollowerRecovery::IsLeader() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

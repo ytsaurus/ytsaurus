@@ -4,9 +4,7 @@
 #include <yt/core/rpc/channel_detail.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 using namespace NRpc;
 
@@ -139,6 +137,4 @@ IChannelPtr CreateCookieInjectingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

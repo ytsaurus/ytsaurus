@@ -4,8 +4,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,5 +82,4 @@ void TClientRequestControlThunk::PropagateCancel(TGuard<TSpinLock>& guard)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

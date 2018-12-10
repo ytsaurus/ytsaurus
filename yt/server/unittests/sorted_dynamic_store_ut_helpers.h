@@ -2,8 +2,7 @@
 
 #include "dynamic_store_ut_helpers.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +100,5 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

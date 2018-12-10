@@ -22,8 +22,7 @@
 
 #include <yt/core/misc/finally.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NConcurrency;
 using namespace NYson;
@@ -170,5 +169,4 @@ void TUserJobWriteController::PopulateStderrResult(NScheduler::NProto::TSchedule
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

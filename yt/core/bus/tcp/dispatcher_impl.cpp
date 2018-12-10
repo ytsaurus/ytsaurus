@@ -9,8 +9,7 @@
 
 #include <yt/core/actions/invoker_util.h>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -190,5 +189,4 @@ void TTcpDispatcher::TImpl::OnProfiling()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

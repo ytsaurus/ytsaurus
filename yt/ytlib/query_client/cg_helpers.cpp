@@ -1,8 +1,7 @@
 #include "cg_helpers.h"
 #include "cg_fragment_compiler.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -257,5 +256,4 @@ Value* MakePhi(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

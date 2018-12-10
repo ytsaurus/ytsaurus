@@ -15,8 +15,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,6 +122,5 @@ DEFINE_REFCOUNTED_TYPE(IObjectTypeHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 

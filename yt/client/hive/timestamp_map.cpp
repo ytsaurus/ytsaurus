@@ -4,8 +4,7 @@
 
 #include <yt/client/hive/proto/timestamp_map.pb.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 using namespace NObjectClient;
 
@@ -66,5 +65,4 @@ void FormatValue(TStringBuilder* builder, const TTimestampMap& map, TStringBuf /
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

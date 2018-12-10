@@ -6,8 +6,7 @@
 #include "llvm_folding_set.h"
 #include "helpers.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1476,6 +1475,5 @@ TCGQueryCallbackGenerator Profile(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

@@ -4,8 +4,7 @@
 
 #include <functional>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,5 +38,4 @@ IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

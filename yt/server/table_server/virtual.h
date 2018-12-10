@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,5 +61,4 @@ DEFINE_REFCOUNTED_TYPE(TVirtualStaticTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer

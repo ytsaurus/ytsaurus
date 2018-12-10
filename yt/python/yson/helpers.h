@@ -4,8 +4,7 @@
 
 #include "serialize.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +14,5 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython
 

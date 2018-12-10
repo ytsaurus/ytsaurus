@@ -19,8 +19,7 @@
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/retrying_channel.h>
 
-namespace NYT {
-namespace NOrchid {
+namespace NYT::NOrchid {
 
 using namespace NRpc;
 using namespace NYT::NBus;
@@ -174,5 +173,4 @@ INodeTypeHandlerPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NOrchid
-} // namespace NYT
+} // namespace NYT::NOrchid

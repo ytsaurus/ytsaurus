@@ -50,8 +50,7 @@
 
 #include <yt/core/yson/async_consumer.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -1344,7 +1343,6 @@ bool TReplicatedTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, c
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 
 

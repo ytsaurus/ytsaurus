@@ -11,9 +11,7 @@
 #include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/client/table_client/wire_protocol.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -537,6 +535,4 @@ template NApi::IVersionedRowsetPtr DeserializeRowset(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

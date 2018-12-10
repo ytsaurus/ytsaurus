@@ -1,7 +1,6 @@
 #include "security_manager_base.h"
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +23,4 @@ TAuthenticatedUserGuardBase::~TAuthenticatedUserGuardBase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

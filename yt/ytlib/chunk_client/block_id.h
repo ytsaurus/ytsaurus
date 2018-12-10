@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/chunk_client/block_id.pb.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,8 +34,7 @@ void FromProto(TBlockId* blockId, const NProto::TBlockId& protoBlockId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 
 //! A hasher for TBlockId.
 template <>

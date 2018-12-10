@@ -10,8 +10,7 @@
 
 #include <yt/core/misc/fs.h>
 
-namespace NYT {
-namespace NContainers {
+namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,5 +86,4 @@ IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NContainers
-} // namespace NYT
+} // namespace NYT::NContainers

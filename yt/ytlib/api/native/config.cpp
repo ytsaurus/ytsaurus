@@ -14,9 +14,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NObjectClient;
 
@@ -173,7 +171,5 @@ TConnectionConfig::TConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

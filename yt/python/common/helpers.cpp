@@ -78,8 +78,7 @@ Object CreateIterator(const Object& obj)
 
 } // namespace Py
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,5 +231,4 @@ bool WaitForSettingFuture(TFuture<void> future)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

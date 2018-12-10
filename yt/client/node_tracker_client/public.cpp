@@ -1,7 +1,6 @@
 #include "public.h"
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,6 +9,5 @@ const TNetworkPreferenceList DefaultNetworkPreferences{DefaultNetworkName};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient
 

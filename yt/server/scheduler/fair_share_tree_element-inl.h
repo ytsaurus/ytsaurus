@@ -5,8 +5,7 @@
 #include "fair_share_tree_element.h"
 #endif
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,5 +66,4 @@ inline double TSchedulerElement::GetFairShareRatio() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

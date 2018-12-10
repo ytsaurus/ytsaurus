@@ -93,8 +93,7 @@ void FormatValue(NYT::TStringBuilder* builder, struct hostent* hostent, TStringB
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 using namespace NConcurrency;
 
@@ -534,6 +533,5 @@ TFuture<TNetworkAddress> TDnsResolver::ResolveName(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet
 

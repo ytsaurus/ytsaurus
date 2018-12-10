@@ -8,8 +8,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NCellNode;
@@ -59,5 +58,4 @@ IChunkPtr TChunkRegistry::GetChunkOrThrow(const TChunkId& chunkId, int mediumInd
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

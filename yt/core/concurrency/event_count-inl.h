@@ -10,8 +10,7 @@
 
 #include <errno.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,5 +169,4 @@ inline bool TEvent::Wait(std::optional<TInstant> deadline)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

@@ -8,8 +8,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/serialize.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NYson;
 using namespace NYTree;
@@ -51,5 +50,4 @@ void FromProto(TColumnRenameDescriptor* descriptor, const NProto::TColumnRenameD
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

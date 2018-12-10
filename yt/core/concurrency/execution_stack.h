@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,6 +77,5 @@ std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStackKind kind);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NTY
+} // namespace NTY::NConcurrency
 

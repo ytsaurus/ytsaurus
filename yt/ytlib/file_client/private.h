@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,6 +12,5 @@ extern const NLogging::TLogger FileClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient
 

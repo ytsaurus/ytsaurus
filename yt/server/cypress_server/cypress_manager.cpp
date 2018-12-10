@@ -33,8 +33,7 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/ypath_detail.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NBus;
 using namespace NCellMaster;
@@ -2675,5 +2674,4 @@ DELEGATE_SIGNAL(TCypressManager, void(TCypressNodeBase*), NodeCreated, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

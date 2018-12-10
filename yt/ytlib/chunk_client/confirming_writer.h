@@ -13,8 +13,7 @@
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +31,5 @@ IChunkWriterPtr CreateConfirmingWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

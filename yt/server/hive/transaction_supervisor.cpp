@@ -40,8 +40,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -1938,5 +1937,4 @@ TFuture<void> TTransactionSupervisor::AbortTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

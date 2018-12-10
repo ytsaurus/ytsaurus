@@ -8,8 +8,7 @@
 
 #include <util/generic/strbuf.h>
 
-namespace NYT {
-namespace NCrypto {
+namespace NYT::NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,5 +76,4 @@ void FromProto(std::optional<NYT::NCrypto::TMD5Hasher>* hasher, const NCrypto::N
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCrypto
-} // namespace NYT
+} // namespace NYT::NCrypto

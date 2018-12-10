@@ -45,8 +45,7 @@
 
 #include <type_traits>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NYTree;
 using namespace NLogging;
@@ -2771,5 +2770,4 @@ void TDocumentNodeProxy::SetImplValue(const TYsonString& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

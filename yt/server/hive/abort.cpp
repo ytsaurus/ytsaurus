@@ -1,8 +1,7 @@
 #include <yt/core/misc/ref.h>
 #include "abort.h"
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,5 +24,4 @@ void TAbort::SetResponseMessage(TSharedRefArray message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

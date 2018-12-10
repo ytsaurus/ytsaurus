@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
@@ -130,5 +129,4 @@ TCachedChunkMetaCookie TChunkMetaManager::BeginInsertCachedMeta(TChunkId chunkId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

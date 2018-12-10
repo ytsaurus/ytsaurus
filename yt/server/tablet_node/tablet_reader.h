@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/range.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,5 +71,4 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -13,8 +13,7 @@
 #include <util/system/align.h>
 #include <util/system/compiler.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 
@@ -305,6 +304,5 @@ bool TFileWriter::HasSickReplicas() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

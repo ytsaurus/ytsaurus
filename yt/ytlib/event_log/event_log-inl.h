@@ -5,8 +5,7 @@
 #include "event_log.h"
 #endif
 
-namespace NYT {
-namespace NEventLog {
+namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,5 +71,4 @@ void TFluentLogEventImpl<TParent>::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEventLog
-} // namespace NYT
+} // namespace NYT::NEventLog

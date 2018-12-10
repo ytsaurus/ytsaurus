@@ -29,8 +29,7 @@
 
 #include <yt/server/misc/object_helpers.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -449,5 +448,4 @@ INodeTypeHandlerPtr CreateDataCenterMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

@@ -24,8 +24,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NBus;
 using namespace NRpc;
@@ -838,5 +837,4 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

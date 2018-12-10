@@ -4,8 +4,7 @@
 
 #include <yt/server/scheduler/config.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NJobTrackerClient;
 
@@ -220,5 +219,4 @@ bool TTentativeTreeEligibility::IsTreeBanned(const TString& treeId) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

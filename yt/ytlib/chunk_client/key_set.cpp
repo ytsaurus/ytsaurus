@@ -2,8 +2,7 @@
 
 #include <yt/core/compression/codec.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NTableClient;
 
@@ -44,5 +43,4 @@ TRange<TKey> TKeySetReader::GetKeys() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

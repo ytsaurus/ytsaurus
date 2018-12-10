@@ -5,8 +5,7 @@
 #include <yt/core/logging/log.h>
 #include <yt/core/profiling/public.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ extern const NProfiling::TProfiler SkynetManagerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

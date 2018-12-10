@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NScheduler;
 using namespace NYTree;
@@ -688,5 +687,4 @@ void TGetOperationCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

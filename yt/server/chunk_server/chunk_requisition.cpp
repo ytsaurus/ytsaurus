@@ -16,8 +16,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NYTree;
 
@@ -873,5 +872,4 @@ void TEphemeralRequisitionRegistry::Clear()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

@@ -35,8 +35,7 @@
 
 #include <yt/client/api/transaction.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -757,6 +756,5 @@ TError TSortedStoreManager::CheckOverflow() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

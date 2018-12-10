@@ -26,8 +26,7 @@
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -721,5 +720,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

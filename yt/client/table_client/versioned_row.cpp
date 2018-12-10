@@ -6,8 +6,7 @@
 
 #include <numeric>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NTransactionClient;
 
@@ -534,5 +533,4 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

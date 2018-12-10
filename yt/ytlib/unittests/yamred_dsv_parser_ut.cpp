@@ -4,8 +4,7 @@
 
 #include <yt/client/formats/yamred_dsv_parser.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 namespace {
 
 using namespace NYson;
@@ -185,5 +184,4 @@ TEST(TYamredDsvParserTest, EOM)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

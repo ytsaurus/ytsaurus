@@ -19,8 +19,7 @@
 
 #include <util/system/yield.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -613,6 +612,5 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

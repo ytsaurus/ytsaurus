@@ -13,8 +13,7 @@
 
 #include <yt/core/utilex/random.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -491,5 +490,4 @@ void TAnnouncer::ExpireRequests()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

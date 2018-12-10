@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,8 +285,7 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 #define YPATH_CLIENT_INL_H_
 #include "ypath_client-inl.h"

@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/assert.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,5 +12,4 @@ extern const NLogging::TLogger CompressionLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression

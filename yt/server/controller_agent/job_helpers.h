@@ -7,8 +7,7 @@
 
 #include <yt/server/scheduler/job.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,5 +72,4 @@ DEFINE_REFCOUNTED_TYPE(TScheduleJobStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -7,8 +7,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,8 +66,7 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 #define CHUNK_VISITOR_INL_H
 #include "chunk_visitor-inl.h"

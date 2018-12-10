@@ -4,8 +4,7 @@
 #include "helpers.h"
 #include "operation.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NObjectClient;
 
@@ -49,5 +48,4 @@ bool TJob::IsRevived() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

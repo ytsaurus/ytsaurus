@@ -3,8 +3,7 @@
 
 #include <yt/server/cypress_server/node_detail.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NCypressServer;
 using namespace NTransactionServer;
@@ -45,5 +44,4 @@ INodeTypeHandlerPtr CreateSysNodeTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

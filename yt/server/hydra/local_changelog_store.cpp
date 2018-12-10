@@ -10,8 +10,7 @@
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/fs.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NHydra::NProto;
@@ -454,6 +453,5 @@ IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 

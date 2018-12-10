@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/lazy_ptr.h>
 
-namespace NYT {
-namespace NProfiling {
+namespace NYT::NProfiling {
 namespace {
 
 using namespace NConcurrency;
@@ -72,5 +71,4 @@ TEST_F(TTimerTest, CpuWallCompare)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling

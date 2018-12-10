@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NControllerAgent;
@@ -217,5 +216,4 @@ void TChunkPoolOutputWithJobManagerBase::Persist(const TPersistenceContext& cont
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

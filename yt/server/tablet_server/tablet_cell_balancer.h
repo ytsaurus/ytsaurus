@@ -6,8 +6,7 @@
 
 #include <yt/server/hydra/entity_map.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,6 +85,5 @@ std::unique_ptr<ITabletCellBalancer> CreateTabletCellBalancer(
     
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

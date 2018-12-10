@@ -69,8 +69,7 @@
 #include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/chunked_memory_pool.h>
 
-namespace NYT {
-namespace NQueryAgent {
+namespace NYT::NQueryAgent {
 
 using namespace NCellNode;
 using namespace NChunkClient;
@@ -1349,6 +1348,5 @@ ISubexecutorPtr CreateQuerySubexecutor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryAgent
-} // namespace NYT
+} // namespace NYT::NQueryAgent
 

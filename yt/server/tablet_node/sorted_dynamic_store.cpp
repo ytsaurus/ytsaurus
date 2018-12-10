@@ -33,8 +33,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient::NProto;
@@ -2047,5 +2046,4 @@ TOwningKey TSortedDynamicStore::GetMaxDataWeightWitnessKey() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

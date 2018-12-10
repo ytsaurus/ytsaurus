@@ -16,8 +16,7 @@
 
 #include <yt/core/yson/writer.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -560,5 +559,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

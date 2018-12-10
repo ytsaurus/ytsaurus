@@ -13,8 +13,7 @@
 #include <yt/core/misc/new.h>
 #include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,6 +177,5 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

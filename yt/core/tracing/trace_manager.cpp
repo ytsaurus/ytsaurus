@@ -19,8 +19,7 @@
 
 #include <util/system/byteorder.h>
 
-namespace NYT {
-namespace NTracing {
+namespace NYT::NTracing {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -357,6 +356,5 @@ REGISTER_SHUTDOWN_CALLBACK(8, TTraceManager::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTracing
-} // namespace NYT
+} // namespace NYT::NTracing
 

@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +36,4 @@ DEFINE_REFCOUNTED_TYPE(TSnapshotDownloader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

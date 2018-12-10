@@ -27,8 +27,7 @@
 
 #include <yt/core/yson/public.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -645,5 +644,4 @@ IOperationControllerPtr CreateControllerForOperation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

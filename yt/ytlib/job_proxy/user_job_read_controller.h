@@ -12,30 +12,13 @@
 
 #include <yt/client/table_client/schemaful_reader_adapter.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/core/actions/future.h>
 
 #include <yt/core/concurrency/public.h>
 
-#include <yt/core/logging/log.h>
-
 #include <yt/core/misc/blob.h>
-#include <yt/core/misc/common.h>
 
-#include <vector>
-
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NScheduler {
-namespace NProto {
-
-class TQuerySpec;
-
-} // namespace NProto
-} // namespace NScheduler
-
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,18 +42,17 @@ DEFINE_REFCOUNTED_TYPE(IUserJobReadController);
 ////////////////////////////////////////////////////////////////////////////////
 
 IUserJobReadControllerPtr CreateUserJobReadController(
-        IJobSpecHelperPtr jobSpecHelper,
-        NApi::NNative::IClientPtr client,
-        IInvokerPtr invoker,
-        NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
-        TClosure onNetworkRelease,
-        std::optional<TString> udfDirectory,
-        NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        NChunkClient::TTrafficMeterPtr trafficMeter,
-        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-        NConcurrency::IThroughputThrottlerPtr rpsThrottler);
+    IJobSpecHelperPtr jobSpecHelper,
+    NApi::NNative::IClientPtr client,
+    IInvokerPtr invoker,
+    NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
+    TClosure onNetworkRelease,
+    std::optional<TString> udfDirectory,
+    NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

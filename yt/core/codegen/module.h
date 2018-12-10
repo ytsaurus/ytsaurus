@@ -26,8 +26,7 @@
 #  undef DEFINED_DEBUG
 #endif
 
-namespace NYT {
-namespace NCodegen {
+namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,8 +74,7 @@ DEFINE_REFCOUNTED_TYPE(TCGModule)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodegen
-} // namespace NYT
+} // namespace NYT::NCodegen
 
 #define CODEGEN_MODULE_INL_H_
 #include "module-inl.h"

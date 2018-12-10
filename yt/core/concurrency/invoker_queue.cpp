@@ -3,8 +3,7 @@
 
 #include <util/thread/lfqueue.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 
@@ -369,5 +368,4 @@ bool TInvokerQueue::IsRunning() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

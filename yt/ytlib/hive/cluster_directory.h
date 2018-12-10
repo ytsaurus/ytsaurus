@@ -8,8 +8,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +70,5 @@ DEFINE_REFCOUNTED_TYPE(TClusterDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient
 

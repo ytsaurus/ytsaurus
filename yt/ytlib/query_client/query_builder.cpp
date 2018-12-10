@@ -5,8 +5,7 @@
 #include <util/string/join.h>
 #include <util/stream/str.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,5 +152,4 @@ void AppendToString(TString& dst, const TQueryBuilder::TOrderByEntry& entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

@@ -18,8 +18,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,5 +124,4 @@ DEFINE_REFCOUNTED_TYPE(TCellProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

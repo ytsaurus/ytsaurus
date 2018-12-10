@@ -32,8 +32,7 @@
 
 #include <yt/core/compression/codec.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
@@ -731,5 +730,4 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

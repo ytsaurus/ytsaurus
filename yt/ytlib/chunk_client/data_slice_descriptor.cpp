@@ -4,8 +4,7 @@
 
 #include <yt/client/chunk_client/read_limit.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NTableClient;
 using namespace NTransactionClient;
@@ -205,5 +204,4 @@ i64 GetDataSliceDescriptorReaderMemoryEstimate(const TDataSliceDescriptor& dataS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

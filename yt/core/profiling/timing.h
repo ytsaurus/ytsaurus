@@ -6,8 +6,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NProfiling {
+namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,8 +120,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling
 
 #define TIMING_INL_H_
 #include "timing-inl.h"

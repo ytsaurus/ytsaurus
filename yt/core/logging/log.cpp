@@ -3,8 +3,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,5 +113,4 @@ TString TLogger::GetMessageWithContext(const TString& originalMessage, const TSt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

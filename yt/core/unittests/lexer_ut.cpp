@@ -4,8 +4,7 @@
 
 #include <yt/core/yson/lexer.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 namespace {
 
 using ::ToString;
@@ -189,5 +188,4 @@ TEST_F(TStatelessLexerTest, IncorrectFinish)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

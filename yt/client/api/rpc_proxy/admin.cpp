@@ -2,9 +2,7 @@
 
 #include "api_service_proxy.h"
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 using namespace NRpc;
 using namespace NJobTrackerClient;
@@ -60,6 +58,4 @@ TFuture<TString> TAdmin::WriteOperationControllerCoreDump(const TOperationId& /*
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

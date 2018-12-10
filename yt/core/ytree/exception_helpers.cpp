@@ -9,8 +9,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYPath;
 
@@ -133,5 +132,4 @@ void ThrowCannotMoveFromAnotherTransaction()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

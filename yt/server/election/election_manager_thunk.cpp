@@ -2,8 +2,7 @@
 
 #include <yt/core/yson/producer.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +38,5 @@ void TElectionManagerThunk::SetUnderlying(IElectionManagerPtr underlying)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection
 

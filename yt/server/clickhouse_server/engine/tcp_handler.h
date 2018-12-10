@@ -4,9 +4,7 @@
 
 #include <Poco/Net/TCPServerConnectionFactory.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +13,4 @@ Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

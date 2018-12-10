@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NClickHouseProxy {
+namespace NYT::NClickHouseProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ DECLARE_REFCOUNTED_CLASS(TClickHouseProxyHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseProxy
-} // namespace NYT
+} // namespace NYT::NClickHouseProxy

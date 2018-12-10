@@ -10,8 +10,7 @@
 
 #include <util/string/escape.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 using namespace NConcurrency;
 using namespace NNet;
@@ -794,5 +793,4 @@ const TSharedRef THttpOutput::ZeroCrLfCrLf = TSharedRef::FromString("0\r\n\r\n")
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

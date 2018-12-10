@@ -8,8 +8,7 @@
 
 #include <yt/client/hydra/version.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,8 +108,7 @@ struct TDirectVersionedObjectIdHash
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

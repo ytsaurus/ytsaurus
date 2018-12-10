@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 using namespace NHydra;
 using namespace NObjectClient;
@@ -125,5 +124,4 @@ DELEGATE_SIGNAL(TConfigManager, void(), ConfigChanged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/table_client/public.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,5 +63,4 @@ ISortedJobBuilderPtr CreateSortedJobBuilder(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

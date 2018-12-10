@@ -4,8 +4,7 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 using namespace NCellMaster;
@@ -214,5 +213,4 @@ bool TChunkList::IsOrdered() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

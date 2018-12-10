@@ -22,8 +22,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,5 +92,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

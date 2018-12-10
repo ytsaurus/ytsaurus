@@ -11,8 +11,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 using namespace NConcurrency;
 using namespace NApi;
@@ -184,5 +183,4 @@ DELEGATE_SIGNAL(TClusterDirectorySynchronizer, void(const TError&), Synchronized
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

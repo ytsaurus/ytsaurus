@@ -2,8 +2,7 @@
 
 #include "scheduler.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 
@@ -41,5 +40,4 @@ void TPeriodicYielder::SetPeriod(TDuration value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

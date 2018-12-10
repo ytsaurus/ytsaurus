@@ -6,8 +6,7 @@
 #include "message_queue.h"
 #endif
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,5 +152,4 @@ void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

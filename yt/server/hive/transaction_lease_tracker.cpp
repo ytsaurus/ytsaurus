@@ -4,8 +4,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NConcurrency;
 
@@ -310,5 +309,4 @@ void TTransactionLeaseTracker::ValidateActive()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

@@ -1,7 +1,6 @@
 #include "changelog_store_factory_thunk.h"
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +23,4 @@ IChangelogStoreFactoryPtr TChangelogStoreFactoryThunk::GetUnderlying()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

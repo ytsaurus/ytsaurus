@@ -36,8 +36,7 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -975,6 +974,5 @@ void TOrderedStoreBase::Load(TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

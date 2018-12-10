@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,5 +45,4 @@ DEFINE_REFCOUNTED_TYPE(TCellConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

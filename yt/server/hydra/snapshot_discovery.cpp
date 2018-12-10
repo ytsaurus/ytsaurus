@@ -8,8 +8,7 @@
 
 #include <yt/core/rpc/dispatcher.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NElection;
 using namespace NConcurrency;
@@ -168,5 +167,4 @@ TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

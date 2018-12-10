@@ -55,8 +55,7 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NConcurrency;
 using namespace NNet;
@@ -2117,5 +2116,4 @@ void TNodeTracker::TDataCenterTypeHandler::DoZombifyObject(TDataCenter* dc)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

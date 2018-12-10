@@ -20,8 +20,7 @@
 
 #include <yt/core/misc/range.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NApi;
 using namespace NYson;
@@ -564,5 +563,4 @@ void TTables::DeleteRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

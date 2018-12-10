@@ -29,8 +29,7 @@
 
 #include <yt/core/misc/phoenix.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,8 +169,7 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<NChu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

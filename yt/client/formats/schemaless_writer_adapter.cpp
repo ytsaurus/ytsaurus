@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NTableClient;
 using namespace NConcurrency;
@@ -399,5 +398,4 @@ void WriteYsonValue(IYsonConsumer* writer, const TUnversionedValue& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

@@ -8,8 +8,7 @@
 
 #include <util/system/align.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,8 +147,7 @@ static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 
 Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogHeader);
 Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogRecordHeader);
