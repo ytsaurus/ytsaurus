@@ -63,8 +63,8 @@ void TRequestTracker::Stop()
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     for (const auto& pair : securityManager->Users()) {
         auto* user = pair.second;
-        user->SetReadRequestRateThrottler(nullptr);
-        user->SetWriteRequestRateThrottler(nullptr);
+        user->SetRequestRateThrottler(nullptr, EUserWorkloadType::Read);
+        user->SetRequestRateThrottler(nullptr, EUserWorkloadType::Write);
         user->SetRequestQueueSize(0);
     }
 
@@ -85,7 +85,7 @@ void TRequestTracker::ChargeUser(
             if (hydraManager->IsLeader()) {
                 DoChargeUser(user, workload);
             } else {
-                user->GetWriteRequestRateThrottler()->Acquire(workload.RequestCount);
+                user->GetRequestRateThrottler(workload.Type)->Acquire(workload.RequestCount);
             }
             break;
         }
@@ -131,14 +131,9 @@ void TRequestTracker::DoChargeUser(
     statistics->set_access_time(ToProto<i64>(now));
 }
 
-TFuture<void> TRequestTracker::ThrottleUserReadRequest(TUser* user, int requestCount)
+TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount, EUserWorkloadType workloadType)
 {
-    return user->GetReadRequestRateThrottler()->Throttle(requestCount);
-}
-
-TFuture<void> TRequestTracker::ThrottleUserWriteRequest(TUser* user, int requestCount)
-{
-    return user->GetWriteRequestRateThrottler()->Throttle(requestCount);
+    return user->GetRequestRateThrottler(workloadType)->Throttle(requestCount);
 }
 
 void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
@@ -149,23 +144,15 @@ void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkl
 
 void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 {
-    if (!user->GetReadRequestRateThrottler()) {
-        user->SetReadRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()));
-    }
-    if (!user->GetWriteRequestRateThrottler()) {
-        user->SetWriteRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()));
-    }
-    {
+    for (auto workloadType : {EUserWorkloadType::Read, EUserWorkloadType::Write}) {
+        if (!user->GetRequestRateThrottler(workloadType)) {
+            user->SetRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()), workloadType);
+        }
+
         auto config = New<TThroughputThrottlerConfig>();
         config->Period = Config_->RequestRateSmoothingPeriod;
-        config->Limit = user->GetRequestRateLimit(EUserWorkloadType::Read);
-        user->GetReadRequestRateThrottler()->Reconfigure(std::move(config));
-    }
-    {
-        auto config = New<TThroughputThrottlerConfig>();
-        config->Period = Config_->RequestRateSmoothingPeriod;
-        config->Limit = user->GetRequestRateLimit(EUserWorkloadType::Write);
-        user->GetWriteRequestRateThrottler()->Reconfigure(std::move(config));
+        config->Limit = user->GetRequestRateLimit(workloadType);
+        user->GetRequestRateThrottler(workloadType)->Reconfigure(std::move(config));
     }
 }
 

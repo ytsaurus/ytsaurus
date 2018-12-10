@@ -1331,14 +1331,7 @@ public:
 
     TFuture<void> ThrottleUser(TUser* user, int requestCount, EUserWorkloadType workloadType)
     {
-        switch (workloadType) {
-            case EUserWorkloadType::Read:
-                return RequestTracker_->ThrottleUserReadRequest(user, requestCount);
-            case EUserWorkloadType::Write:
-                return RequestTracker_->ThrottleUserWriteRequest(user, requestCount);
-            default:
-                Y_UNREACHABLE();
-        }
+        return RequestTracker_->ThrottleUserRequest(user, requestCount, workloadType);
     }
 
     void SetUserReadRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
