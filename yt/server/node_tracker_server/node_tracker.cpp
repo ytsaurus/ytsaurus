@@ -21,8 +21,6 @@
 
 #include <yt/server/cypress_server/cypress_manager.h>
 
-#include <yt/server/node_tracker_server/node_tracker.pb.h>
-
 #include <yt/server/object_server/attribute_set.h>
 #include <yt/server/object_server/object_manager.h>
 #include <yt/server/object_server/type_handler_detail.h>
@@ -237,6 +235,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetCellNodeDescriptors, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateNodeResources, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -577,6 +576,14 @@ public:
         UpdateNodeCounters(node, +1);
     }
 
+    std::unique_ptr<TMutation> CreateUpdateNodeResourcesMutation(const NProto::TReqUpdateNodeResources& request)
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            &TImpl::HydraUpdateNodeResources,
+            this);
+    }
 
     TRack* CreateRack(const TString& name, const TObjectId& hintId)
     {
@@ -1007,7 +1014,7 @@ private:
         node->SetNodeTags(tags);
         UpdateNodeCounters(node, +1);
 
-        node->SetStatistics(std::move(statistics));
+        node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
 
         if (request->has_cypress_annotations()) {
             node->SetAnnotations(TYsonString(request->cypress_annotations(), EYsonType::Node));
@@ -1094,7 +1101,7 @@ private:
             node->SetLocalState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
 
-            node->SetStatistics(std::move(statistics));
+            node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
 
             UpdateLastSeenTime(node);
 
@@ -1129,7 +1136,7 @@ private:
                 node->GetLocalState(),
                 statistics);
 
-            node->SetStatistics(std::move(statistics));
+            node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
             node->Alerts() = FromProto<std::vector<TError>>(request->alerts());
 
             UpdateLastSeenTime(node);
@@ -1177,6 +1184,20 @@ private:
             node->SetCellDescriptor(cellTag, newDescriptor);
             UpdateNodeCounters(node, +1);
         }
+    }
+
+    void HydraUpdateNodeResources(NProto::TReqUpdateNodeResources* request)
+    {
+        auto* node = FindNode(request->node_id());
+        if (!node) {
+            LOG_ERROR_UNLESS(IsRecovery(),
+                "Error updating cluster node resource usage and limits: node not found (NodeId: %v)",
+                request->node_id());
+            return;
+        }
+
+        node->SetResourceUsage(request->resource_usage());
+        node->SetResourceLimits(request->resource_limits());
     }
 
 
@@ -1256,6 +1277,7 @@ private:
 
             node->RebuildTags();
             InitializeNodeStates(node);
+            InitializeNodeIOWeights(node);
             InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
@@ -1357,6 +1379,11 @@ private:
     void InitializeNodeStates(TNode* node)
     {
         node->InitializeStates(Bootstrap_->GetCellTag(), Bootstrap_->GetSecondaryCellTags());
+    }
+
+    void InitializeNodeIOWeights(TNode* node)
+    {
+        node->RecomputeIOWeights(Bootstrap_->GetChunkManager());
     }
 
     void UpdateNodeCounters(TNode* node, int delta)
@@ -1930,6 +1957,12 @@ void TNodeTracker::SetNodeRack(TNode* node, TRack* rack)
 void TNodeTracker::SetNodeUserTags(TNode* node, const std::vector<TString>& tags)
 {
     Impl_->SetNodeUserTags(node, tags);
+}
+
+std::unique_ptr<TMutation> TNodeTracker::CreateUpdateNodeResourcesMutation(
+    const NProto::TReqUpdateNodeResources& request)
+{
+    return Impl_->CreateUpdateNodeResourcesMutation(request);
 }
 
 TRack* TNodeTracker::CreateRack(const TString& name)

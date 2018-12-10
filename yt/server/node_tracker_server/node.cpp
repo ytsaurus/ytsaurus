@@ -5,7 +5,9 @@
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/job.h>
+#include <yt/server/chunk_server/medium.h>
 
 #include <yt/server/node_tracker_server/config.h>
 
@@ -163,11 +165,14 @@ void TNode::ComputeDefaultAddress()
     DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(GetAddressesOrThrow(EAddressType::InternalRpc));
 }
 
-void TNode::SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statistics)
+void TNode::SetStatistics(
+    NNodeTrackerClient::NProto::TNodeStatistics&& statistics,
+    const NChunkServer::TChunkManagerPtr& chunkManager)
 {
     Statistics_.Swap(&statistics);
     ComputeFillFactors();
     ComputeSessionCount();
+    RecomputeIOWeights(chunkManager);
 }
 
 void TNode::ComputeFillFactors()
@@ -266,6 +271,19 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
     ComputeAggregatedState();
 }
 
+void TNode::RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager)
+{
+    IOWeights_.fill(0.0);
+    for (const auto& statistics : Statistics_.media()) {
+        auto mediumIndex = statistics.medium_index();
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (!medium || medium->GetCache()) {
+            continue;
+        }
+        IOWeights_[mediumIndex] = statistics.io_weight();
+    }
+}
+
 ENodeState TNode::GetLocalState() const
 {
     return *LocalStatePtr_;
@@ -326,6 +344,8 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, LastSeenTime_);
     Save(context, Statistics_);
     Save(context, Alerts_);
+    Save(context, ResourceLimits_);
+    Save(context, ResourceUsage_);
     Save(context, ResourceLimitsOverrides_);
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
@@ -390,6 +410,11 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, LastSeenTime_);
     Load(context, Statistics_);
     Load(context, Alerts_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= 817) {
+        Load(context, ResourceLimits_);
+        Load(context, ResourceUsage_);
+    }
     Load(context, ResourceLimitsOverrides_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
@@ -883,6 +908,16 @@ void TNode::RebuildTags()
             Tags_.insert(dc->GetName());
         }
     }
+}
+
+void TNode::SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
+{
+    ResourceUsage_ = resourceUsage;
+}
+
+void TNode::SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& resourceLimits)
+{
+    ResourceLimits_ = resourceLimits;
 }
 
 TCellNodeStatistics TNode::ComputeCellStatistics() const

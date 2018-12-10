@@ -80,8 +80,9 @@ public:
     using TPerMediumArray = NChunkServer::TPerMediumArray<T>;
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
-    // Transient properties.
     DEFINE_BYREF_RW_PROPERTY(TPerMediumArray<double>, IOWeights);
+
+    // Transient property.
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
 
     ui64 GetVisitMark(int mediumIndex);
@@ -104,12 +105,14 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Version);
 
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
-    void SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statistics);
+    void SetStatistics(
+        NNodeTrackerClient::NProto::TNodeStatistics&& statistics,
+        const NChunkServer::TChunkManagerPtr& chunkManager);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, Alerts);
 
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
     DEFINE_BYVAL_RO_PROPERTY(TRack*, Rack);
@@ -215,6 +218,10 @@ public:
     //! Prepares per-cell state map.
     //! Inserts new entries into the map, fills missing onces with ENodeState::Offline value.
     void InitializeStates(NObjectClient::TCellTag cellTag, const NObjectClient::TCellTagList& secondaryCellTags);
+
+    //! Recomputes node IO weights from statistics.
+    void RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager);
+
     //! Gets the local state by dereferencing local state pointer.
     ENodeState GetLocalState() const;
     //! Sets the local state by dereferencing local state pointer.
@@ -345,6 +352,8 @@ private:
     void SetUserTags(const std::vector<TString>& tags);
     void RebuildTags();
 
+    void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
+    void SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& resourceLimits);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

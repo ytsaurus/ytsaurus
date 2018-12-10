@@ -100,6 +100,8 @@ public:
 
     void ScheduleJobs(
         TNode* node,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
         const std::vector<TJobPtr>& currentJobs,
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort,
@@ -231,6 +233,8 @@ private:
         TJobPtr* job);
     void ScheduleNewJobs(
         TNode* node,
+        NNodeTrackerClient::NProto::TNodeResources resourceUsage,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort);
 
