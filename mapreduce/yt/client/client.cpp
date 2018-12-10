@@ -408,6 +408,18 @@ IOperationPtr TClientBase::Erase(
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
 
+IOperationPtr TClientBase::RemoteCopy(
+    const TRemoteCopyOperationSpec& spec,
+    const TOperationOptions& options)
+{
+    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
+    auto operationId = ExecuteRemoteCopy(
+        preparer,
+        spec,
+        options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+}
+
 IOperationPtr TClientBase::RunVanilla(
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options)

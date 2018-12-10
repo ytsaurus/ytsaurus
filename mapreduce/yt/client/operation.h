@@ -136,6 +136,11 @@ TOperationId ExecuteErase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options);
 
+TOperationId ExecuteRemoteCopy(
+    TOperationPreparer& preparer,
+    const TRemoteCopyOperationSpec& spec,
+    const TOperationOptions& options);
+
 TOperationId ExecuteVanilla(
     TOperationPreparer& preparer,
     const TVanillaOperationSpec& spec,

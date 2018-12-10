@@ -166,6 +166,10 @@ public:
         const TEraseOperationSpec& spec,
         const TOperationOptions& options) override;
 
+    IOperationPtr RemoteCopy(
+        const TRemoteCopyOperationSpec& spec,
+        const TOperationOptions& options = TOperationOptions()) override;
+
     IOperationPtr RunVanilla(
         const TVanillaOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) override;
