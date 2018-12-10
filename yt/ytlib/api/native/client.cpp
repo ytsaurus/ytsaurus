@@ -5014,29 +5014,19 @@ private:
         TOperation operation;
 
         if (!attributes || attributes->contains("id")) {
-            if (auto id = nodeAttributes.Find<TString>("key")) {
-                operation.Id = TGuid::FromString(*id);
-            }
+            operation.Id = nodeAttributes.Find<TGuid>("key");
         }
         if (!attributes || attributes->contains("type")) {
-            if (auto type = nodeAttributes.Find<TString>("operation_type")) {
-                operation.Type = ParseEnum<NScheduler::EOperationType>(*type);
-            }
+            operation.Type = nodeAttributes.Find<NScheduler::EOperationType>("operation_type");
         }
         if (!attributes || attributes->contains("state")) {
-            if (auto state = nodeAttributes.Find<TString>("state")) {
-                operation.State = ParseEnum<NScheduler::EOperationState>(*state);
-            }
+            operation.State = nodeAttributes.Find<NScheduler::EOperationState>("state");
         }
         if (!attributes || attributes->contains("start_time")) {
-            if (auto startTime = nodeAttributes.Find<TString>("start_time")) {
-                operation.StartTime = ConvertTo<TInstant>(*startTime);
-            }
+            operation.StartTime = nodeAttributes.Find<TInstant>("start_time");
         }
         if (!attributes || attributes->contains("finish_time")) {
-            if (auto finishTime = nodeAttributes.Find<TString>("finish_time")) {
-                operation.FinishTime = ConvertTo<TInstant>(*finishTime);
-            }
+            operation.FinishTime = nodeAttributes.Find<TInstant>("finish_time");
         }
         if (!attributes || attributes->contains("authenticated_user")) {
             operation.AuthenticatedUser = nodeAttributes.Find<TString>("authenticated_user");
