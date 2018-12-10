@@ -139,9 +139,12 @@ void TSchedulerThread::Shutdown()
             BeforeShutdown();
 
             // Avoid deadlock.
-            YCHECK(TThread::CurrentThreadId() != ThreadId_);
+            if (TThread::CurrentThreadId() == ThreadId_) {
+                Thread_.Detach();
+            } else {
+                Thread_.Join();
+            }
 
-            Thread_.Join();
 
             AfterShutdown();
         } else {
