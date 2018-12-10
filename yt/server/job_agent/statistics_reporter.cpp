@@ -604,7 +604,7 @@ private:
             builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
             builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
             builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
-            if (statistics.FailContext()) {
+            if (statistics.FailContext() && statistics.FailContext()->Size() <= MaxStringValueLength) {
                 builder.AddValue(MakeUnversionedStringValue(*statistics.FailContext(), Table_.Index.FailContext));
             }
 

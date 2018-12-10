@@ -486,7 +486,7 @@ private:
             LOG_DEBUG("Create new directory for layer (LayerId: %v, Tag: %v)",
                 id,
                 tag);
-            
+
             auto layerDirectory = GetLayerPath(id);
 
             try {
