@@ -81,6 +81,7 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
+        // Wait for transaction to appear on secondary master.
         SyncWithUpstream();
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
