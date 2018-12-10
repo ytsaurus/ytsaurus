@@ -556,6 +556,38 @@ struct TEraseOperationSpec
     FLUENT_FIELD_DEFAULT(bool, CombineChunks, false);
 };
 
+// See https://wiki.yandex-team.ru/yt/userdoc/static_schema/#sxemaisistemnyeoperacii
+enum class ESchemaInferenceMode : int
+{
+    FromInput   /* from_input */,
+    FromOutput  /* from_output */,
+    Auto        /* auto */,
+};
+
+// See https://wiki.yandex-team.ru/yt/userdoc/operations/#remotecopy
+struct TRemoteCopyOperationSpec
+{
+    using TSelf = TRemoteCopyOperationSpec;
+
+    // Source cluster name.
+    FLUENT_FIELD(TString, ClusterName);
+
+    // Network to use for copy (all remote cluster nodes must have it configured).
+    FLUENT_FIELD_OPTION(TString, NetworkName);
+
+    FLUENT_VECTOR_FIELD(TRichYPath, Input);
+    FLUENT_FIELD(TRichYPath, Output);
+
+    FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
+
+    // Should user attributes be copied to the output table (allowed only for single output table).
+    // 'AttributeKey's vector allows to choose what attributes to copy.
+    FLUENT_FIELD_DEFAULT(bool, CopyAttributes, false);
+    FLUENT_VECTOR_FIELD(TString, AttributeKey);
+
+private:
+    FLUENT_FIELD_OPTION(TNode, ClusterConnection);
+};
 
 class IVanillaJob;
 
@@ -1338,6 +1370,10 @@ struct IOperationClient
 
     virtual IOperationPtr Erase(
         const TEraseOperationSpec& spec,
+        const TOperationOptions& options = TOperationOptions()) = 0;
+
+    virtual IOperationPtr RemoteCopy(
+        const TRemoteCopyOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
     virtual IOperationPtr RunVanilla(

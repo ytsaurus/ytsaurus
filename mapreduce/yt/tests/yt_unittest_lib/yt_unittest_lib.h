@@ -19,7 +19,7 @@ namespace NTesting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClientPtr CreateTestClient();
+IClientPtr CreateTestClient(TString proxy = "");
 
 TString GenerateRandomData(size_t size, ui64 seed = 42);
 

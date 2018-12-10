@@ -41,6 +41,7 @@ namespace NTesting {
         MOCK_METHOD2(Sort, IOperationPtr(const TSortOperationSpec&, const TOperationOptions&));
         MOCK_METHOD2(Merge, IOperationPtr(const TMergeOperationSpec&, const TOperationOptions&));
         MOCK_METHOD2(Erase, IOperationPtr(const TEraseOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD2(RemoteCopy, IOperationPtr(const TRemoteCopyOperationSpec&, const TOperationOptions&));
         MOCK_METHOD1(AbortOperation, void(const TOperationId&));
         MOCK_METHOD1(CompleteOperation, void(const TOperationId&));
         MOCK_METHOD1(WaitForOperation, void(const TOperationId&));

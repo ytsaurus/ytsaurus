@@ -1728,6 +1728,51 @@ TOperationId ExecuteErase(
     return operationId;
 }
 
+TOperationId ExecuteRemoteCopy(
+    TOperationPreparer& preparer,
+    const TRemoteCopyOperationSpec& spec,
+    const TOperationOptions& options)
+{
+    auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
+    auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
+
+    if (options.CreateOutputTables_) {
+        CreateOutputTable(preparer.GetAuth(), preparer.GetTransactionId(), output);
+    }
+
+    Y_ENSURE_EX(!spec.ClusterName_.Empty(), TApiUsageError() << "ClusterName parameter is required");
+
+    TNode specNode = BuildYsonNodeFluently()
+    .BeginMap().Item("spec").BeginMap()
+        .Item("cluster_name").Value(spec.ClusterName_)
+        .Item("input_table_paths").List(inputs)
+        .Item("output_table_path").Value(output)
+        .DoIf(spec.NetworkName_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("network_name").Value(*spec.NetworkName_);
+        })
+        .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
+        })
+        .Item("copy_attributes").Value(spec.CopyAttributes_)
+        .DoIf(!spec.AttributeKeys_.empty(), [&] (TFluentMap fluent) {
+            Y_ENSURE_EX(spec.CopyAttributes_, TApiUsageError() <<
+                "Specifying nonempty AttributeKeys in RemoteCopy "
+                "doesn't make sense without CopyAttributes == true");
+            fluent.Item("attribute_keys").Value(spec.AttributeKeys_);
+        })
+        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+    .EndMap().EndMap();
+
+    auto operationId = preparer.StartOperation(
+        "remote_copy",
+        MergeSpec(specNode, options));
+
+    LogYPaths(operationId, inputs, "input");
+    LogYPath(operationId, output, "output");
+
+    return operationId;
+}
+
 TOperationId ExecuteVanilla(
     TOperationPreparer& preparer,
     const TVanillaOperationSpec& spec,
