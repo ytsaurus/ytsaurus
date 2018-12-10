@@ -1,4 +1,5 @@
 #include <mapreduce/yt/interface/common.h>
+#include <util/generic/xrange.h>
 
 #include <library/unittest/registar.h>
 
@@ -21,5 +22,33 @@ Y_UNIT_TEST_SUITE(Common)
         auto keys3 = TKeyColumns(keys1).Add("e").Add("f").Add("g");
         UNIT_ASSERT((keys1.Parts_ == TVector<TString>{"a", "b", "c", "d"}));
         UNIT_ASSERT((keys3.Parts_ == TVector<TString>{"a", "b", "c", "d", "e", "f", "g"}));
+    }
+
+    Y_UNIT_TEST(TTableSchema)
+    {
+        TTableSchema schema;
+        schema
+            .AddColumn(TColumnSchema().Name("a").Type(EValueType::VT_STRING).SortOrder(SO_ASCENDING))
+            .AddColumn(TColumnSchema().Name("b").Type(EValueType::VT_UINT64))
+            .AddColumn(TColumnSchema().Name("c").Type(EValueType::VT_INT64))
+            ;
+        auto checkSortBy = [](TTableSchema schema, const TVector<TString>& columns) {
+            auto initialSchema = schema;
+            schema.SortBy(columns);
+            for (const auto& i: xrange(columns.size())) {
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[i].Name_, columns[i]);
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[i].SortOrder_, ESortOrder::SO_ASCENDING);
+            }
+            for (const auto& i: xrange(columns.size(), (size_t)initialSchema.Columns_.size())) {
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[i].SortOrder_, Nothing());
+            }
+            UNIT_ASSERT_VALUES_EQUAL(initialSchema.Columns_.size(), schema.Columns_.size());
+            return schema;
+        };
+        auto newSchema = checkSortBy(schema, {"b"});
+        UNIT_ASSERT_VALUES_EQUAL(newSchema.Columns_[1].Name_, TString("a"));
+        UNIT_ASSERT_VALUES_EQUAL(newSchema.Columns_[2].Name_, TString("c"));
+        checkSortBy(schema, {"b", "c"});
+        checkSortBy(schema, {"c", "a"});
     }
 }
