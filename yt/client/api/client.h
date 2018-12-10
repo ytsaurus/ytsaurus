@@ -411,7 +411,7 @@ struct TSelectRowsOptions
     //! Allow queries with join condition which implies foreign query with IN operator.
     bool AllowJoinWithoutIndex = false;
     //! Path in Cypress with UDFs.
-    TNullable<TString> UdfRegistryPath;
+    std::optional<TString> UdfRegistryPath;
 };
 
 struct TGetNodeOptions
