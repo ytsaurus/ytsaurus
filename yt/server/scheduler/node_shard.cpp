@@ -1318,6 +1318,10 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
         RemoveRecentlyFinishedJob(jobId);
     }
 
+    if (node->GetJobReporterQueueIsTooLarge()) {
+        --JobReporterQueueIsTooLargeNodeCount_;
+    }
+
     YCHECK(IdToNode_.erase(node->GetId()) == 1);
 
     const auto& address = node->GetDefaultAddress();

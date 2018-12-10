@@ -2217,12 +2217,16 @@ private:
         for (const auto &path : paths) {
             LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
+            const auto& transactionId = path.GetTransactionId();
+
             auto inputChunks = CollectTableInputChunks(
                 path,
                 this,
                 nodeDirectory,
                 options.FetchChunkSpecConfig,
-                options.TransactionId,
+                transactionId
+                    ? *transactionId
+                    : options.TransactionId,
                 Logger);
 
             LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
@@ -4961,6 +4965,12 @@ private:
             const EOperationType& type,
             i64 count)
         {
+            UserCounts[user] += count;
+
+            if (Options.UserFilter && *Options.UserFilter != user) {
+                return false;
+            }
+
             if (pools) {
                 for (const auto& pool : *pools) {
                     PoolCounts[pool] += count;
@@ -4968,12 +4978,6 @@ private:
             }
 
             if (Options.Pool && (!pools || std::find(pools->begin(), pools->end(), *Options.Pool) == pools->end())) {
-                return false;
-            }
-
-            UserCounts[user] += count;
-
-            if (Options.UserFilter && *Options.UserFilter != user) {
                 return false;
             }
 
