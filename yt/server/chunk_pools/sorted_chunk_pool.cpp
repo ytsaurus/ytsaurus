@@ -660,7 +660,7 @@ private:
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
-            Null /* samplingRate */);
+            std::nullopt /* samplingRate */);
 
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.

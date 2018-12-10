@@ -80,7 +80,7 @@ TJobSummary::TJobSummary(const TJobId& id, EJobState state)
 TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : Id(FromProto<TJobId>(event->status().job_id()))
     , State(static_cast<EJobState>(event->status().state()))
-    , FinishTime(event->has_finish_time() ? MakeNullable(FromProto<TInstant>(event->finish_time())) : Null)
+    , FinishTime(event->has_finish_time() ? std::make_optional(FromProto<TInstant>(event->finish_time())) : std::nullopt)
     , LogAndProfile(event->log_and_profile())
 {
     auto* status = event->mutable_status();
@@ -444,7 +444,7 @@ public:
         return Underlying_->RegisterOutputRows(count, tableIndex);
     }
 
-    virtual TNullable<int> GetRowCountLimitTableIndex() override
+    virtual std::optional<int> GetRowCountLimitTableIndex() override
     {
         return Underlying_->GetRowCountLimitTableIndex();
     }

@@ -243,7 +243,7 @@ protected:
 
     void InitJobSizeConstraints()
     {
-        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
         switch (OperationType) {
             case EOperationType::Merge:
@@ -553,7 +553,7 @@ private:
         return Spec->OutputTablePaths;
     }
 
-    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    virtual std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec->StderrTablePath;
     }
@@ -563,7 +563,7 @@ private:
         return Spec->StderrTableWriter;
     }
 
-    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    virtual std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec->CoreTablePath;
     }

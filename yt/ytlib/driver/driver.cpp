@@ -329,10 +329,10 @@ public:
             .Run();
     }
 
-    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const override
+    virtual std::optional<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const override
     {
         auto it = CommandNameToEntry_.find(commandName);
-        return it == CommandNameToEntry_.end() ? Null : MakeNullable(it->second.Descriptor);
+        return it == CommandNameToEntry_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
     }
 
     virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const override
@@ -537,8 +537,8 @@ private:
         const TCommandDescriptor Descriptor_;
         TDriverRequest Request_;
 
-        TNullable<TFormat> InputFormat_;
-        TNullable<TFormat> OutputFormat_;
+        std::optional<TFormat> InputFormat_;
+        std::optional<TFormat> OutputFormat_;
     };
 };
 

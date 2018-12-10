@@ -40,7 +40,7 @@ TString TJobSatelliteConnection::GetConfigPath() const
 
 TTcpBusClientConfigPtr TJobSatelliteConnection::GetRpcClientConfig() const
 {
-    return TTcpBusClientConfig::CreateUnixDomain(ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName.Get());
+    return TTcpBusClientConfig::CreateUnixDomain(*ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName);
 }
 
 const NJobTrackerClient::TJobId& TJobSatelliteConnection::GetJobId() const

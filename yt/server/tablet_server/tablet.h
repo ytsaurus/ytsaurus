@@ -19,7 +19,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/enum.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 

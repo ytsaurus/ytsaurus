@@ -37,7 +37,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NTabletNode {

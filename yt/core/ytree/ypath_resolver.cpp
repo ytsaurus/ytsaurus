@@ -307,7 +307,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TNullable<T> TryGetValue(TStringBuf yson, const TYPath& ypath, bool isAny = false)
+std::optional<T> TryGetValue(TStringBuf yson, const TYPath& ypath, bool isAny = false)
 {
     TYPathResolver resolver(ypath, isAny);
     resolver.Parse(yson);
@@ -321,32 +321,32 @@ TNullable<T> TryGetValue(TStringBuf yson, const TYPath& ypath, bool isAny = fals
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<i64> TryGetInt64(TStringBuf yson, const TYPath& ypath)
+std::optional<i64> TryGetInt64(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<i64>(yson, ypath);
 }
 
-TNullable<ui64> TryGetUint64(TStringBuf yson, const TYPath& ypath)
+std::optional<ui64> TryGetUint64(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<ui64>(yson, ypath);
 }
 
-TNullable<bool> TryGetBoolean(TStringBuf yson, const TYPath& ypath)
+std::optional<bool> TryGetBoolean(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<bool>(yson, ypath);
 }
 
-TNullable<double> TryGetDouble(TStringBuf yson, const TYPath& ypath)
+std::optional<double> TryGetDouble(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<double>(yson, ypath);
 }
 
-TNullable<TString> TryGetString(TStringBuf yson, const TYPath& ypath)
+std::optional<TString> TryGetString(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<TString>(yson, ypath);
 }
 
-TNullable<TString> TryGetAny(TStringBuf yson, const TYPath& ypath)
+std::optional<TString> TryGetAny(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<TString>(yson, ypath, true);
 }

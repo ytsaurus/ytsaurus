@@ -532,7 +532,7 @@ public:
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout = Null) override
+        std::optional<TDuration> timeout = std::nullopt) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -995,7 +995,7 @@ public:
             .Run();
     }
 
-    TFuture<void> AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
+    TFuture<void> AbortJob(const TJobId& jobId, std::optional<TDuration> interruptTimeout, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return
@@ -1377,7 +1377,7 @@ private:
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout = Null)
+        std::optional<TDuration> timeout = std::nullopt)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2163,7 +2163,7 @@ private:
 
             const auto& controller = operation->GetController();
 
-            auto initializeResult = WaitFor(controller->Initialize(/* transactions */ Null))
+            auto initializeResult = WaitFor(controller->Initialize(/* transactions */ std::nullopt))
                 .ValueOrThrow();
 
             ValidateOperationState(operation, EOperationState::Initializing);
@@ -2279,7 +2279,7 @@ private:
             LOG_INFO("Operation has been revived (OperationId: %v)",
                 operationId);
 
-            operation->RevivalDescriptor().Reset();
+            operation->RevivalDescriptor().reset();
             operation->SetStateAndEnqueueEvent(EOperationState::Pending);
             operation->SetPrepared(true);
 
@@ -3570,7 +3570,7 @@ TFuture<void> TScheduler::AbandonJob(const TJobId& jobId, const TString& user)
     return Impl_->AbandonJob(jobId, user);
 }
 
-TFuture<void> TScheduler::AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
+TFuture<void> TScheduler::AbortJob(const TJobId& jobId, std::optional<TDuration> interruptTimeout, const TString& user)
 {
     return Impl_->AbortJob(jobId, interruptTimeout, user);
 }

@@ -142,10 +142,10 @@ public:
 
     void AlterTableReplica(
         TTableReplica* replica,
-        TNullable<bool> enabled,
-        TNullable<ETableReplicaMode> mode,
-        TNullable<NTransactionClient::EAtomicity> atomicity,
-        TNullable<bool> preserveTimestamps);
+        std::optional<bool> enabled,
+        std::optional<ETableReplicaMode> mode,
+        std::optional<NTransactionClient::EAtomicity> atomicity,
+        std::optional<bool> preserveTimestamps);
 
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
 
@@ -203,7 +203,7 @@ private:
         bool preserveTimestamps,
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::TTimestamp startReplicationTimestamp,
-        const TNullable<std::vector<i64>>& startReplicationRowIndexes);
+        const std::optional<std::vector<i64>>& startReplicationRowIndexes);
     void DestroyTableReplica(TTableReplica* replica);
 
     TTabletAction* CreateTabletAction(
@@ -212,7 +212,7 @@ private:
         const std::vector<TTablet*>& tabletIds,
         const std::vector<TTabletCell*>& cellIds,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
-        const TNullable<int>& tabletCount,
+        const std::optional<int>& tabletCount,
         bool skipFreezing,
         bool preserve);
 

@@ -114,7 +114,7 @@ TYPath GetControllerAgentOrchidOperationPath(
         ToYPathLiteral(ToString(operationId));
 }
 
-TNullable<TString> GetControllerAgentAddressFromCypress(
+std::optional<TString> GetControllerAgentAddressFromCypress(
     const TOperationId& operationId,
     const IChannelPtr& channel)
 {
@@ -137,7 +137,7 @@ TNullable<TString> GetControllerAgentAddressFromCypress(
 
     auto responseOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_agent_address");
     if (responseOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-        return Null;
+        return std::nullopt;
     }
 
     const auto& response = responseOrError.ValueOrThrow();

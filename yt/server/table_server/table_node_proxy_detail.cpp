@@ -642,48 +642,48 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         case EInternedAttributeKey::EnableTabletBalancer: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
-            lockedTable->SetEnableTabletBalancer(Null);
+            lockedTable->SetEnableTabletBalancer(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::DisableTabletBalancer: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
-            lockedTable->SetEnableTabletBalancer(Null);
+            lockedTable->SetEnableTabletBalancer(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::MinTabletSize: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
-            lockedTable->SetMinTabletSize(Null);
+            lockedTable->SetMinTabletSize(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::MaxTabletSize: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
-            lockedTable->SetMaxTabletSize(Null);
+            lockedTable->SetMaxTabletSize(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::DesiredTabletSize: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
-            lockedTable->SetDesiredTabletSize(Null);
+            lockedTable->SetDesiredTabletSize(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::DesiredTabletCount: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
-            lockedTable->SetDesiredTabletCount(Null);
+            lockedTable->SetDesiredTabletCount(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::ForcedCompactionRevision: {
             auto* lockedTable = LockThisImpl();
-            lockedTable->SetForcedCompactionRevision(Null);
+            lockedTable->SetForcedCompactionRevision(std::nullopt);
             return true;
         }
 
@@ -1154,9 +1154,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     struct TAlterTableOptions
     {
-        TNullable<NTableClient::TTableSchema> Schema;
-        TNullable<bool> Dynamic;
-        TNullable<NTabletClient::TTableReplicaId> UpstreamReplicaId;
+        std::optional<NTableClient::TTableSchema> Schema;
+        std::optional<bool> Dynamic;
+        std::optional<NTabletClient::TTableReplicaId> UpstreamReplicaId;
     } options;
 
     if (request->has_schema()) {
@@ -1176,8 +1176,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();
-    auto dynamic = options.Dynamic.Get(table->IsDynamic());
-    auto schema = options.Schema.Get(table->GetTableSchema());
+    auto dynamic = options.Dynamic.value_or(table->IsDynamic());
+    auto schema = options.Schema.value_or(table->GetTableSchema());
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {

@@ -369,7 +369,7 @@ private:
             const TBlockId& id,
             EBlockType type,
             const TBlock& block,
-            const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+            const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
         {
             if (type != BlockType_) {
                 return;
@@ -750,7 +750,7 @@ public:
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
         if (type != MapInMemoryModeToBlockType(InMemoryMode_)) {
             return;
@@ -941,7 +941,7 @@ public:
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*data*/,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     { }
 
     virtual TBlock Find(

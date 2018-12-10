@@ -3,7 +3,7 @@
 #include "row_base.h"
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 
 #include <yt/core/yson/public.h>
@@ -29,11 +29,11 @@ public:
     // Keep in sync with hasher below.
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
     DEFINE_BYREF_RO_PROPERTY(ELogicalValueType, LogicalType, ELogicalValueType::Null);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<ESortOrder>, SortOrder);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Lock);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Expression);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Aggregate);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Group);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<ESortOrder>, SortOrder);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Lock);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Expression);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Aggregate);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Group);
     DEFINE_BYREF_RO_PROPERTY(bool, Required, false);
 
 public:
@@ -41,11 +41,11 @@ public:
     TColumnSchema(
         const TString& name,
         EValueType type,
-        TNullable<ESortOrder> SortOrder = Null);
+        std::optional<ESortOrder> SortOrder = std::nullopt);
     TColumnSchema(
         const TString& name,
         ELogicalValueType type,
-        TNullable<ESortOrder> SortOrder = Null);
+        std::optional<ESortOrder> SortOrder = std::nullopt);
 
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema(TColumnSchema&&) = default;
@@ -55,11 +55,11 @@ public:
 
     TColumnSchema& SetName(const TString& name);
     TColumnSchema& SetLogicalType(ELogicalValueType valueType);
-    TColumnSchema& SetSortOrder(const TNullable<ESortOrder>& value);
-    TColumnSchema& SetLock(const TNullable<TString>& value);
-    TColumnSchema& SetExpression(const TNullable<TString>& value);
-    TColumnSchema& SetAggregate(const TNullable<TString>& value);
-    TColumnSchema& SetGroup(const TNullable<TString>& value);
+    TColumnSchema& SetSortOrder(const std::optional<ESortOrder>& value);
+    TColumnSchema& SetLock(const std::optional<TString>& value);
+    TColumnSchema& SetExpression(const std::optional<TString>& value);
+    TColumnSchema& SetAggregate(const std::optional<TString>& value);
+    TColumnSchema& SetGroup(const std::optional<TString>& value);
     TColumnSchema& SetRequired(bool value);
 
     EValueType GetPhysicalType() const;
@@ -103,7 +103,7 @@ public:
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema Filter(const THashSet<TString>& columns) const;
-    TTableSchema Filter(const TNullable<std::vector<TString>>& columns) const;
+    TTableSchema Filter(const std::optional<std::vector<TString>>& columns) const;
 
     bool HasComputedColumns() const;
     bool IsSorted() const;

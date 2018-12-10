@@ -38,12 +38,12 @@ class TTcpBusServerConfig
     : public TTcpBusConfig
 {
 public:
-    TNullable<int> Port;
-    TNullable<TString> UnixDomainName;
+    std::optional<int> Port;
+    std::optional<TString> UnixDomainName;
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
     //! "Default" network is considered when checking if the network is under heavy load.
-    TNullable<TString> DefaultNetwork;
+    std::optional<TString> DefaultNetwork;
 
     THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
 
@@ -63,8 +63,8 @@ class TTcpBusClientConfig
     : public TTcpBusConfig
 {
 public:
-    TNullable<TString> Address;
-    TNullable<TString> UnixDomainName;
+    std::optional<TString> Address;
+    std::optional<TString> UnixDomainName;
 
     TTcpBusClientConfig()
     {

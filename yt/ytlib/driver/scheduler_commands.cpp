@@ -525,7 +525,7 @@ void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStartOperationCommand::TStartOperationCommand(TNullable<NScheduler::EOperationType> operationType)
+TStartOperationCommand::TStartOperationCommand(std::optional<NScheduler::EOperationType> operationType)
 {
     RegisterParameter("spec", Spec);
     if (operationType) {

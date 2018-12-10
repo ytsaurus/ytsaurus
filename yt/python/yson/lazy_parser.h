@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/yson/public.h>
 
 #include <Objects.hxx> // pycxx
@@ -15,7 +15,7 @@ namespace NPython {
 
 Py::Object ParseLazyYson(
     IInputStream* inputStream,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     bool alwaysCreateAttributes,
     NYson::EYsonType ysonType);
 

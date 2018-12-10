@@ -122,7 +122,7 @@ void TSessionBase::Cancel(const TError& error)
     DoCancel(error);
 }
 
-TFuture<IChunkPtr> TSessionBase::Finish(const TRefCountedChunkMetaPtr& chunkMeta, TNullable<int> blockCount)
+TFuture<IChunkPtr> TSessionBase::Finish(const TRefCountedChunkMetaPtr& chunkMeta, std::optional<int> blockCount)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

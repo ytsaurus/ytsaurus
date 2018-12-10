@@ -173,10 +173,10 @@ private:
         TDelayedExecutor::CancelAndClear(DeadlineCookie_);
     }
 
-    TNullable<TDuration> GetBackupTimeout()
+    std::optional<TDuration> GetBackupTimeout()
     {
         if (!Options_.Timeout) {
-            return Null;
+            return std::nullopt;
         }
 
         auto timeout = *Options_.Timeout;
@@ -199,7 +199,7 @@ private:
         }
 
         auto backupTimeout = GetBackupTimeout();
-        if (backupTimeout == MakeNullable(TDuration())) {
+        if (backupTimeout == std::make_optional(TDuration())) {
             // Makes no sense to send the request anyway.
             return;
         }

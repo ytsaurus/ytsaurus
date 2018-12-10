@@ -289,12 +289,12 @@ public:
         return StartTime_;
     }
 
-    virtual TNullable<TDuration> GetPrepareDuration() const override
+    virtual std::optional<TDuration> GetPrepareDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         if (!PrepareTime_) {
-            return Null;
+            return std::nullopt;
         } else if (!ExecTime_) {
             return TInstant::Now() - *PrepareTime_;
         } else {
@@ -302,12 +302,12 @@ public:
         }
     }
 
-    virtual TNullable<TDuration> GetDownloadDuration() const override
+    virtual std::optional<TDuration> GetDownloadDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         if (!PrepareTime_) {
-            return Null;
+            return std::nullopt;
         } else if (!CopyTime_) {
             return TInstant::Now() - *PrepareTime_;
         } else {
@@ -315,12 +315,12 @@ public:
         }
     }
 
-    virtual TNullable<TDuration> GetExecDuration() const override
+    virtual std::optional<TDuration> GetExecDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         if (!ExecTime_) {
-            return Null;
+            return std::nullopt;
         } else if (!FinishTime_) {
             return TInstant::Now() - *ExecTime_;
         } else {
@@ -353,7 +353,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        return JobResult_.Get();
+        return *JobResult_;
     }
 
     virtual double GetProgress() const override
@@ -472,7 +472,7 @@ public:
         }
     }
 
-    virtual TNullable<TString> GetFailContext() override
+    virtual std::optional<TString> GetFailContext() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
@@ -632,25 +632,25 @@ private:
     double Progress_ = 0.0;
     ui64 StderrSize_ = 0;
 
-    TNullable<TString> Stderr_;
-    TNullable<TString> FailContext_;
+    std::optional<TString> Stderr_;
+    std::optional<TString> FailContext_;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();
 
     bool Signaled_ = false;
 
-    TNullable<TJobResult> JobResult_;
+    std::optional<TJobResult> JobResult_;
 
-    TNullable<TInstant> PrepareTime_;
-    TNullable<TInstant> CopyTime_;
-    TNullable<TInstant> ExecTime_;
-    TNullable<TInstant> FinishTime_;
+    std::optional<TInstant> PrepareTime_;
+    std::optional<TInstant> CopyTime_;
+    std::optional<TInstant> ExecTime_;
+    std::optional<TInstant> FinishTime_;
 
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
 
     ISlotPtr Slot_;
-    TNullable<TString> TmpfsPath_;
+    std::optional<TString> TmpfsPath_;
 
     struct TArtifact
     {
@@ -1037,7 +1037,7 @@ private:
                 break;
             }
 
-            TNullable<TNodeId> unresolvedNodeId;
+            std::optional<TNodeId> unresolvedNodeId;
 
             auto validateNodeIds = [&] (
                 const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
@@ -1292,7 +1292,7 @@ private:
         return jobProxyError;
     }
 
-    TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
+    std::optional<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
         auto resultError = FromProto<TError>(jobResult.error());
 
@@ -1309,7 +1309,7 @@ private:
 
         auto abortReason = resultError.Attributes().Find<EAbortReason>("abort_reason");
         if (abortReason) {
-            return abortReason.Get();
+            return *abortReason;
         }
 
         if (AbortJobIfAccountLimitExceeded_ &&
@@ -1373,7 +1373,7 @@ private:
             return EAbortReason::UserRequest;
         }
 
-        return Null;
+        return std::nullopt;
     }
 
     bool IsFatalError(const TError& error)

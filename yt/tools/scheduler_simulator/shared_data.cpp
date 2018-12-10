@@ -193,19 +193,19 @@ void TSharedEventQueue::InsertNodeShardEvent(int workerId, TNodeShardEvent event
     NodeShardEvents_[workerId]->insert(event);
 }
 
-TNullable<TNodeShardEvent> TSharedEventQueue::PopNodeShardEvent(int workerId)
+std::optional<TNodeShardEvent> TSharedEventQueue::PopNodeShardEvent(int workerId)
 {
     auto& localEventsSet = NodeShardEvents_[workerId];
     if (localEventsSet->empty()) {
         NodeShardClocks_[workerId]->store(ControlThreadTime_.load() + MaxAllowedOutrunning_);
-        return Null;
+        return std::nullopt;
     }
     auto beginIt = localEventsSet->begin();
     auto event = *beginIt;
 
     NodeShardClocks_[workerId]->store(event.Time);
     if (event.Time > ControlThreadTime_.load() + MaxAllowedOutrunning_) {
-        return Null;
+        return std::nullopt;
     }
 
     localEventsSet->erase(beginIt);

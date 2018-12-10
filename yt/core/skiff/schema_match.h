@@ -44,9 +44,9 @@ struct TSkiffTableDescription
     std::vector<TSparseFieldDescription> SparseFieldDescriptionList;
 
     // Indexes of $key_switch/$row_index/$range_index field inside dense part of the row.
-    TNullable<size_t> KeySwitchFieldIndex;
-    TNullable<size_t> RowIndexFieldIndex;
-    TNullable<size_t> RangeIndexFieldIndex;
+    std::optional<size_t> KeySwitchFieldIndex;
+    std::optional<size_t> RowIndexFieldIndex;
+    std::optional<size_t> RangeIndexFieldIndex;
 
     // Whether or not row contains $other_columns field.
     bool HasOtherColumns = false;

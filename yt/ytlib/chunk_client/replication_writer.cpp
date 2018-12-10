@@ -676,7 +676,7 @@ private:
             Config_->NodeChannel,
             Client_->GetChannelFactory()->CreateChannel(address),
             BIND([] (const TError& error) {
-                return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
+                return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
             }));
 
         TDataNodeServiceProxy proxy(channel);
@@ -833,7 +833,7 @@ private:
             EnsureCurrentGroup();
 
             auto blockId = TBlockId(SessionId_.ChunkId, currentBlockIndex);
-            BlockCache_->Put(blockId, EBlockType::CompressedData, block, Null);
+            BlockCache_->Put(blockId, EBlockType::CompressedData, block, std::nullopt);
 
             CurrentGroup_->AddBlock(block);
 
@@ -934,7 +934,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    TNullable<int> selectedIndex;
+    std::optional<int> selectedIndex;
     for (int index = 0; index < writer->Nodes_.size(); ++index) {
         const auto& node = writer->Nodes_[index];
 

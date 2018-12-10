@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -23,7 +23,7 @@ public:
 
     void SetEnableColumnNameValidation();
 
-    TNullable<int> FindId(TStringBuf name) const;
+    std::optional<int> FindId(TStringBuf name) const;
     int GetIdOrThrow(TStringBuf name) const;
     int GetId(TStringBuf name) const;
     int RegisterName(TStringBuf name);
@@ -77,7 +77,7 @@ class TNameTableWriter
 public:
     explicit TNameTableWriter(TNameTablePtr nameTable);
 
-    TNullable<int> FindId(TStringBuf name) const;
+    std::optional<int> FindId(TStringBuf name) const;
     int GetIdOrThrow(TStringBuf name) const;
     int GetIdOrRegisterName(TStringBuf name);
 

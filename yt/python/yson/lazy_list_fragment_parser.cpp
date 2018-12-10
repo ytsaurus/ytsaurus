@@ -14,7 +14,7 @@ class TLazyListFragmentParser::TImpl
 public:
     explicit TImpl(
         IInputStream* stream,
-        const TNullable<TString>& encoding,
+        const std::optional<TString>& encoding,
         bool alwaysCreateAttributes,
         TPythonStringCache* keyCacher)
         : InputStream_(TStreamReader(stream))
@@ -74,7 +74,7 @@ TLazyListFragmentParser::TLazyListFragmentParser() = default;
 
 TLazyListFragmentParser::TLazyListFragmentParser(
     IInputStream* stream,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     bool alwaysCreateAttributes,
     TPythonStringCache* keyCacher)
     : Impl_(New<TImpl>(stream, encoding, alwaysCreateAttributes, keyCacher))

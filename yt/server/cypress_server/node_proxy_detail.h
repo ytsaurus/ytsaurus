@@ -181,8 +181,8 @@ protected:
 
     // If some argument is null, eschews corresponding parts of validation.
     void ValidateMediaChange(
-        const TNullable<NChunkServer::TChunkReplication>& oldReplication,
-        TNullable<int> primaryMediumIndex,
+        const std::optional<NChunkServer::TChunkReplication>& oldReplication,
+        std::optional<int> primaryMediumIndex,
         const NChunkServer::TChunkReplication& newReplication);
 
     //! Validates an attempt to set #newPrimaryMedium as a primary medium.
@@ -194,7 +194,7 @@ protected:
     bool ValidatePrimaryMediumChange(
         NChunkServer::TMedium* newPrimaryMedium,
         const NChunkServer::TChunkReplication& oldReplication,
-        TNullable<int> oldPrimaryMediumIndex,
+        std::optional<int> oldPrimaryMediumIndex,
         NChunkServer::TChunkReplication* newReplication);
 
     void SetModified(EModificationType modificationType = EModificationType::Content);
@@ -467,7 +467,7 @@ public:
     virtual bool RemoveChild(const TString& key) override;
     virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     virtual void RemoveChild(const NYTree::INodePtr& child) override;
-    virtual TNullable<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
+    virtual std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
 private:
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
@@ -524,7 +524,7 @@ public:
     virtual bool RemoveChild(int index) override;
     virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     virtual void RemoveChild(const NYTree::INodePtr& child) override;
-    virtual TNullable<int> FindChildIndex(const NYTree::IConstNodePtr& child) override;
+    virtual std::optional<int> FindChildIndex(const NYTree::IConstNodePtr& child) override;
 
 private:
     virtual void SetChildNode(

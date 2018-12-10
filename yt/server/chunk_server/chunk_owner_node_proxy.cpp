@@ -878,12 +878,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
            lockMode == ELockMode::Exclusive);
 
     auto uploadTransactionTitle = request->has_upload_transaction_title()
-        ? MakeNullable(request->upload_transaction_title())
-        : Null;
+        ? std::make_optional(request->upload_transaction_title())
+        : std::nullopt;
 
     auto uploadTransactionTimeout = request->has_upload_transaction_timeout()
-        ? MakeNullable(FromProto<TDuration>(request->upload_transaction_timeout()))
-        : Null;
+        ? std::make_optional(FromProto<TDuration>(request->upload_transaction_timeout()))
+        : std::nullopt;
 
     auto uploadTransactionIdHint = FromProto<TTransactionId>(request->upload_transaction_id());
 
@@ -929,7 +929,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         uploadTransactionSecondaryCellTags,
         uploadTransactionReplicationCellTags,
         uploadTransactionTimeout,
-        /* deadline */ Null,
+        /* deadline */ std::nullopt,
         uploadTransactionTitle,
         EmptyAttributes(),
         uploadTransactionIdHint);
@@ -1058,7 +1058,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         ToProto(response->mutable_last_key(), lastKey);
     }
 
-    TNullable<TMD5Hasher> md5Hasher;
+    std::optional<TMD5Hasher> md5Hasher;
     node->GetUploadParams(&md5Hasher);
     ToProto(response->mutable_md5_hasher(), md5Hasher);
 
@@ -1080,7 +1080,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
 
-    TNullable<EOptimizeFor> optimizeFor;
+    std::optional<EOptimizeFor> optimizeFor;
     if (request->has_optimize_for()) {
         optimizeFor = EOptimizeFor(request->optimize_for());
     }
@@ -1101,7 +1101,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         YCHECK(node->GetType() == EObjectType::File);
     }
 
-    TNullable<TMD5Hasher> md5Hasher;
+    std::optional<TMD5Hasher> md5Hasher;
     if (request->has_md5_hasher()) {
         FromProto(&md5Hasher, request->md5_hasher());
     }

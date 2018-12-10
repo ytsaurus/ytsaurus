@@ -227,7 +227,7 @@ socklen_t* TNetworkAddress::GetLengthPtr()
 TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
 {
     TString ipAddress(address);
-    TNullable<int> port;
+    std::optional<int> port;
 
     int closingBracketIndex = address.find(']');
     if (closingBracketIndex != TString::npos) {

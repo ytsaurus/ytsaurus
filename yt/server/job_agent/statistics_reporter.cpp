@@ -72,7 +72,7 @@ static const TLogger ReporterLogger("JobReporter");
 
 bool IsSpecEntry(const TJobStatistics& stat)
 {
-    return stat.Spec().HasValue();
+    return stat.Spec().operator bool();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -436,13 +436,13 @@ private:
                 builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), Table_.Index.UpdateTime));
             }
             if (GetSharedData()->GetOperationArchiveVersion() >= 20 && statistics.Spec()) {
-                builder.AddValue(MakeUnversionedBooleanValue(statistics.Spec().HasValue(), Table_.Index.HasSpec));
+                builder.AddValue(MakeUnversionedBooleanValue(statistics.Spec().operator bool(), Table_.Index.HasSpec));
             }
             if (statistics.FailContext()) {
                 if (GetSharedData()->GetOperationArchiveVersion() >= 23) {
                     builder.AddValue(MakeUnversionedUint64Value(statistics.FailContext()->Size(), Table_.Index.FailContextSize));
                 } else if (GetSharedData()->GetOperationArchiveVersion() >= 21) {
-                    builder.AddValue(MakeUnversionedBooleanValue(statistics.FailContext().HasValue(), Table_.Index.HasFailContext));
+                    builder.AddValue(MakeUnversionedBooleanValue(statistics.FailContext().operator bool(), Table_.Index.HasFailContext));
                 }
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));

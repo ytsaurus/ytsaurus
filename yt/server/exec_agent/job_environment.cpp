@@ -146,14 +146,14 @@ public:
             BasicConfig_->Type);
     }
 
-    virtual TNullable<i64> GetMemoryLimit() const override
+    virtual std::optional<i64> GetMemoryLimit() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
-    virtual TNullable<double> GetCpuLimit() const override
+    virtual std::optional<double> GetCpuLimit() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
     virtual bool ExternalJobMemory() const override
@@ -472,13 +472,13 @@ public:
 #endif
     }
 
-    virtual TNullable<i64> GetMemoryLimit() const override
+    virtual std::optional<i64> GetMemoryLimit() const override
     {
         auto guard = Guard(LimitsLock_);
         return MemoryLimit_;
     }
 
-    virtual TNullable<double> GetCpuLimit() const override
+    virtual std::optional<double> GetCpuLimit() const override
     {
         auto guard = Guard(LimitsLock_);
         return CpuLimit_;
@@ -486,7 +486,7 @@ public:
 
     virtual bool ExternalJobMemory() const override
     {
-        return Config_->ExternalJobContainer.HasValue();
+        return Config_->ExternalJobContainer.operator bool();
     }
 
 private:
@@ -497,8 +497,8 @@ private:
     THashMap<int, IInstancePtr> JobProxyInstances_;
 
     TSpinLock LimitsLock_;
-    TNullable<double> CpuLimit_;
-    TNullable<i64> MemoryLimit_;
+    std::optional<double> CpuLimit_;
+    std::optional<i64> MemoryLimit_;
 
     TPeriodicExecutorPtr LimitsUpdateExecutor_;
     IVolumeManagerPtr RootVolumeManager_;

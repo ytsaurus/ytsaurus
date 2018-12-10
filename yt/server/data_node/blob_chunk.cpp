@@ -69,7 +69,7 @@ bool TBlobChunkBase::IsActive() const
 
 TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     const TBlockReadOptions& options,
-    const TNullable<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -121,14 +121,14 @@ TFuture<void> TBlobChunkBase::ReadBlocksExt(const TBlockReadOptions& options)
 {
     // Shortcut.
     if (HasCachedBlocksExt_.load(std::memory_order_relaxed)) {
-        return Null;
+        return std::nullopt;
     }
 
     TPromise<void> promise;
     {
         TWriterGuard guard(CachedBlocksExtLock_);
         if (HasCachedBlocksExt_) {
-            return Null;
+            return std::nullopt;
         }
         if (CachedBlocksExtPromise_) {
             return CachedBlocksExtPromise_;
@@ -313,7 +313,7 @@ void TBlobChunkBase::DoReadBlockSet(
             session->Options,
             firstBlockIndex,
             blocksToRead,
-            Null));
+            std::nullopt));
         auto readTime = readTimer.GetElapsedTime();
 
         if (!blocksOrError.IsOK()) {
@@ -351,7 +351,7 @@ void TBlobChunkBase::DoReadBlockSet(
                 }
 
                 auto blockId = TBlockId(Id_, entry.BlockIndex);
-                auto cachedBlock = New<TCachedBlock>(blockId, std::move(data), Null);
+                auto cachedBlock = New<TCachedBlock>(blockId, std::move(data), std::nullopt);
                 entry.Cookie.EndInsert(cachedBlock);
             }
         }

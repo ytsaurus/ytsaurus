@@ -463,7 +463,7 @@ private:
     TSystemLockGuard SystemLockGuard_;
 
     IChangelogStorePtr ChangelogStore_;
-    TNullable<TVersion> ReachableVersion_;
+    std::optional<TVersion> ReachableVersion_;
 
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
@@ -1453,7 +1453,7 @@ private:
         SystemLockGuard_.Release();
 
         ChangelogStore_.Reset();
-        ReachableVersion_.Reset();
+        ReachableVersion_.reset();
     }
 
     TEpochContextPtr GetEpochContext(const TEpochId& epochId)
@@ -1620,7 +1620,7 @@ private:
 
         epochContext->LeaderSyncPromise.Set();
         epochContext->LeaderSyncPromise.Reset();
-        epochContext->LeaderSyncVersion.Reset();
+        epochContext->LeaderSyncVersion.reset();
     }
 
 

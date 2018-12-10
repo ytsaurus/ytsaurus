@@ -20,7 +20,7 @@
 #include <yt/core/concurrency/lease_manager.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -188,7 +188,7 @@ private:
                 blockId,
                 session->InterceptingBlockCache->GetSupportedBlockTypes(),
                 TBlock(request->Attachments()[index]),
-                Null);
+                std::nullopt);
         }
 
         bool dropped = Bootstrap_->GetMemoryUsageTracker()->IsExceeded(

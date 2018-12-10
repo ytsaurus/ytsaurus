@@ -1,5 +1,7 @@
 #include "snapshot_quota_helpers.h"
 
+#include <yt/core/misc/assert.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -7,8 +9,8 @@ namespace NHydra {
 
 int GetSnapshotThresholdId(
     std::vector<TSnapshotInfo> snapshots,
-    TNullable<int> maxSnapshotCountToKeep,
-    TNullable<i64> maxSnapshotSizeToKeep)
+    std::optional<int> maxSnapshotCountToKeep,
+    std::optional<i64> maxSnapshotSizeToKeep)
 {
     if (snapshots.size() <= 1) {
         return -1;

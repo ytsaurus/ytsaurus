@@ -23,7 +23,7 @@ Py::Exception CreateYsonError(const TString& message, TContext* context)
     Py::Dict attributes;
     if (context) {
         if (context->RowIndex) {
-            attributes.setItem("row_index", Py::Long(context->RowIndex.Get()));
+            attributes.setItem("row_index", Py::Long(*context->RowIndex));
         }
 
         bool endedWithDelimiter = false;

@@ -925,7 +925,7 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const TString& user)
     OnJobCompleted(job, nullptr /* jobStatus */, true /* abandoned */);
 }
 
-void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
+void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, std::optional<TDuration> interruptTimeout, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -943,7 +943,7 @@ void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration>
             job->GetOperationId());
     }
 
-    if (interruptTimeout.Get(TDuration::Zero()) != TDuration::Zero()) {
+    if (interruptTimeout.value_or(TDuration::Zero()) != TDuration::Zero()) {
         if (!job->GetInterruptible()) {
             THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv because such job type does not support interruption",
                 jobId,
@@ -1220,7 +1220,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 
     auto result = New<TScheduleJobResult>();
     if (response.has_job_type()) {
-        result->StartDescriptor.Emplace(
+        result->StartDescriptor.emplace(
             jobId,
             static_cast<EJobType>(response.job_type()),
             FromProto<TJobResources>(response.resource_limits()),
@@ -1404,7 +1404,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     bool forceJobsLogging = false;
     auto lastJobsLogTime = node->GetLastJobsLogTime();
-    if (!lastJobsLogTime || now > lastJobsLogTime.Get() + DurationToCpuDuration(Config_->JobsLoggingPeriod)) {
+    if (!lastJobsLogTime || now > *lastJobsLogTime + DurationToCpuDuration(Config_->JobsLoggingPeriod)) {
         forceJobsLogging = true;
         node->SetLastJobsLogTime(now);
     }
@@ -1412,7 +1412,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     bool checkMissingJobs = false;
     auto lastCheckMissingJobsTime = node->GetLastCheckMissingJobsTime();
     if ((!lastCheckMissingJobsTime ||
-        now > lastCheckMissingJobsTime.Get() + DurationToCpuDuration(Config_->MissingJobsCheckPeriod)) &&
+        now > *lastCheckMissingJobsTime + DurationToCpuDuration(Config_->MissingJobsCheckPeriod)) &&
         node->UnconfirmedJobIds().empty())
     {
         checkMissingJobs = true;
@@ -1899,7 +1899,7 @@ void TNodeShard::ProcessScheduledJobs(
             }
             // Else do nothing: job was already interrupted, by deadline not reached yet.
         } else {
-            PreemptJob(job, Null);
+            PreemptJob(job, std::nullopt);
             ToProto(response->add_jobs_to_abort(), job->GetId());
         }
     }
@@ -2222,7 +2222,7 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
     operationState->RecentlyFinishedJobIds.clear();
 }
 
-void TNodeShard::PreemptJob(const TJobPtr& job, TNullable<TCpuDuration> interruptTimeout)
+void TNodeShard::PreemptJob(const TJobPtr& job, std::optional<TCpuDuration> interruptTimeout)
 {
     LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, Interruptible: %v, Reason: %v)",
         job->GetId(),
@@ -2241,7 +2241,7 @@ void TNodeShard::DoInterruptJob(
     const TJobPtr& job,
     EInterruptReason reason,
     TCpuDuration interruptTimeout,
-    const TNullable<TString>& interruptUser)
+    const std::optional<TString>& interruptUser)
 {
     LOG_DEBUG("Interrupting job (Reason: %v, InterruptTimeout: %.3g, JobId: %v, OperationId: %v, User: %v)",
         reason,

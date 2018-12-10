@@ -272,7 +272,7 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
 void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow row)
 {
-    // NB: Since we don't have delete timestamps here we need to write Null into all columns.
+    // NB: Since we don't have delete timestamps here we need to write null into all columns.
 
     InitPartialRow(row);
 

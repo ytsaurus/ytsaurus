@@ -207,7 +207,7 @@ public:
     {
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
-        config->Size = properties.DiskSpaceLimit.Get(std::numeric_limits<i64>::max());
+        config->Size = properties.DiskSpaceLimit.value_or(std::numeric_limits<i64>::max());
         config->UserId = properties.UserId;
 
         LOG_DEBUG("Mounting tmpfs (Config: %v)",

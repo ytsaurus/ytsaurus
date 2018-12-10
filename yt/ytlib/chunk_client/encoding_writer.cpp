@@ -94,7 +94,7 @@ void TEncodingWriter::CacheUncompressedBlock(const TSharedRef& block, int blockI
 {
     // We cannot cache blocks before chunk writer is open, since we do not know the #ChunkId.
     auto blockId = TBlockId(ChunkWriter_->GetChunkId(), blockIndex);
-    BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(block), Null);
+    BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(block), std::nullopt);
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).

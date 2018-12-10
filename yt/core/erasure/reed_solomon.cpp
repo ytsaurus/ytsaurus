@@ -48,7 +48,7 @@ std::vector<TSharedRef> TCauchyReedSolomon::Decode(
     return BitMatrixDecode(DataPartCount_, ParityPartCount_, WordSize_, BitMatrix_, blocks, erasedIndices);
 }
 
-TNullable<TPartIndexList> TCauchyReedSolomon::GetRepairIndices(const TPartIndexList& erasedIndices) const
+std::optional<TPartIndexList> TCauchyReedSolomon::GetRepairIndices(const TPartIndexList& erasedIndices) const
 {
     if (erasedIndices.empty()) {
         return TPartIndexList();
@@ -59,7 +59,7 @@ TNullable<TPartIndexList> TCauchyReedSolomon::GetRepairIndices(const TPartIndexL
     indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 
     if (indices.size() > ParityPartCount_) {
-        return Null;
+        return std::nullopt;
     }
 
     return Difference(0, DataPartCount_ + ParityPartCount_, indices);

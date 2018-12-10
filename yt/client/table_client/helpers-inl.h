@@ -101,7 +101,7 @@ void FromUnversionedValue(
 template <class T>
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
-    const TNullable<T>& value,
+    const std::optional<T>& value,
     const TRowBufferPtr& rowBuffer,
     int id)
 {
@@ -114,13 +114,13 @@ void ToUnversionedValue(
 
 template <class T>
 void FromUnversionedValue(
-    TNullable<T>* value,
+    std::optional<T>* value,
     TUnversionedValue unversionedValue)
 {
     if (unversionedValue.Type == EValueType::Null) {
-        *value = Null;
+        *value = std::nullopt;
     } else {
-        value->Emplace();
+        value->emplace();
         FromUnversionedValue(value->GetPtr(), unversionedValue);
     }
 }

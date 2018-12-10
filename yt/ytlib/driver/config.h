@@ -41,7 +41,7 @@ public:
 
     TSlruCacheConfigPtr ClientCache;
 
-    TNullable<TString> Token;
+    std::optional<TString> Token;
 
     TDriverConfig()
     {

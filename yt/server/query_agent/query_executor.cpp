@@ -370,7 +370,7 @@ private:
     TTabletSnapshotCache TabletSnapshots_;
     const IInvokerPtr Invoker_;
 
-    TNullable<TString> MaybeUser_;
+    std::optional<TString> MaybeUser_;
 
     typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
 

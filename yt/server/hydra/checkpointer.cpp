@@ -77,7 +77,7 @@ private:
     TVersion Version_;
     TPromise<TRemoteSnapshotParams> SnapshotPromise_ = NewPromise<TRemoteSnapshotParams>();
     TPromise<void> ChangelogPromise_ = NewPromise<void>();
-    std::vector<TNullable<TChecksum>> SnapshotChecksums_;
+    std::vector<std::optional<TChecksum>> SnapshotChecksums_;
 
 
     void OnQuorumFlushed(const TError& error)
@@ -179,7 +179,7 @@ private:
 
         int successCount = 0;
         bool checksumMismatch = false;
-        TNullable<TChecksum> canonicalChecksum;
+        std::optional<TChecksum> canonicalChecksum;
         for (TPeerId id = 0; id < SnapshotChecksums_.size(); ++id) {
             auto checksum = SnapshotChecksums_[id];
             if (checksum) {

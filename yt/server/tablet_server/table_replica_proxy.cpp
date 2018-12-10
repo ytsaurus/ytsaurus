@@ -235,10 +235,10 @@ private:
 
         DeclareMutating();
 
-        auto enabled = request->has_enabled() ? MakeNullable(request->enabled()) : Null;
-        auto mode = request->has_mode() ? MakeNullable(ETableReplicaMode(request->mode())) : Null;
-        auto atomicity = request->has_atomicity() ? MakeNullable(NTransactionClient::EAtomicity(request->atomicity())) : Null;
-        auto preserveTimestamps = request->has_preserve_timestamps() ? MakeNullable(request->preserve_timestamps()) : Null;
+        auto enabled = request->has_enabled() ? std::make_optional(request->enabled()) : std::nullopt;
+        auto mode = request->has_mode() ? std::make_optional(ETableReplicaMode(request->mode())) : std::nullopt;
+        auto atomicity = request->has_atomicity() ? std::make_optional(NTransactionClient::EAtomicity(request->atomicity())) : std::nullopt;
+        auto preserveTimestamps = request->has_preserve_timestamps() ? std::make_optional(request->preserve_timestamps()) : std::nullopt;
 
         context->SetRequestInfo("Enabled: %v, Mode: %v",
             enabled,

@@ -148,7 +148,7 @@ public:
     }
 
 
-    virtual TFuture<TOperationControllerInitializeResult> Initialize(const TNullable<TOperationTransactions>& transactions) override
+    virtual TFuture<TOperationControllerInitializeResult> Initialize(const std::optional<TOperationTransactions>& transactions) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IncarnationId_);

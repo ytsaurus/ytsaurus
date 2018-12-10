@@ -67,7 +67,7 @@ TCellPeerConfig TCellPeerDescriptor::ToConfig(const TNetworkPreferenceList& netw
 {
     TCellPeerConfig config;
     config.Voting = Voting_;
-    config.Address = IsNull() ? Null : MakeNullable(GetAddressOrThrow(networks));
+    config.Address = IsNull() ? std::nullopt : std::make_optional(GetAddressOrThrow(networks));
     return config;
 }
 
@@ -197,11 +197,11 @@ public:
         return UnregisteredCellIds_.find(cellId) != UnregisteredCellIds_.end();
     }
 
-    TNullable<TCellDescriptor> FindDescriptor(const TCellId& cellId)
+    std::optional<TCellDescriptor> FindDescriptor(const TCellId& cellId)
     {
         TReaderGuard guard(SpinLock_);
         auto it = RegisteredCellMap_.find(cellId);
-        return it == RegisteredCellMap_.end() ? Null : MakeNullable(it->second.Descriptor);
+        return it == RegisteredCellMap_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
     }
 
     TCellDescriptor GetDescriptorOrThrow(const TCellId& cellId)
@@ -360,7 +360,7 @@ IChannelPtr TCellDirectory::GetChannel(const TCellId& cellId, EPeerKind peerKind
     return Impl_->GetChannel(cellId, peerKind);
 }
 
-TNullable<TCellDescriptor> TCellDirectory::FindDescriptor(const TCellId& cellId)
+std::optional<TCellDescriptor> TCellDirectory::FindDescriptor(const TCellId& cellId)
 {
     return Impl_->FindDescriptor(cellId);
 }

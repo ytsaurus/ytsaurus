@@ -10,7 +10,7 @@ using namespace NYTree;
 
 Py::Object ParseLazyYson(
     IInputStream* inputStream,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     bool alwaysCreateAttributes,
     NYson::EYsonType ysonType)
 {

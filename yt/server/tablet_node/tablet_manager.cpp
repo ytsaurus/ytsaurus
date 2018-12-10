@@ -67,7 +67,7 @@
 
 #include <yt/core/compression/codec.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/tls_cache.h>
@@ -934,9 +934,9 @@ private:
             pivotKey,
             nextPivotKey,
             request->stores_size(),
-            tablet->IsPhysicallySorted() ? MakeNullable(tablet->PartitionList().size()) : Null,
-            tablet->IsPhysicallySorted() ? Null : MakeNullable(tablet->GetTotalRowCount()),
-            tablet->IsPhysicallySorted() ? Null : MakeNullable(tablet->GetTrimmedRowCount()),
+            tablet->IsPhysicallySorted() ? std::make_optional(tablet->PartitionList().size()) : std::nullopt,
+            tablet->IsPhysicallySorted() ? std::nullopt : std::make_optional(tablet->GetTotalRowCount()),
+            tablet->IsPhysicallySorted() ? std::nullopt : std::make_optional(tablet->GetTrimmedRowCount()),
             tablet->GetAtomicity(),
             tablet->GetCommitOrdering(),
             freeze,
@@ -1890,14 +1890,14 @@ private:
             return;
         }
 
-        auto enabled = request->has_enabled() ? MakeNullable(request->enabled()) : Null;
-        auto mode = request->has_mode() ? MakeNullable(ETableReplicaMode(request->mode())) : Null;
+        auto enabled = request->has_enabled() ? std::make_optional(request->enabled()) : std::nullopt;
+        auto mode = request->has_mode() ? std::make_optional(ETableReplicaMode(request->mode())) : std::nullopt;
         auto atomicity = request->has_atomicity()
-            ? MakeNullable(NTransactionClient::EAtomicity(request->atomicity()))
-            : Null;
+            ? std::make_optional(NTransactionClient::EAtomicity(request->atomicity()))
+            : std::nullopt;
         auto preserveTimestamps = request->has_preserve_timestamps()
-            ? MakeNullable(request->preserve_timestamps())
-            : Null;
+            ? std::make_optional(request->preserve_timestamps())
+            : std::nullopt;
 
 
         if (enabled) {

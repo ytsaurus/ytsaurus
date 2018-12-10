@@ -201,7 +201,7 @@ private:
 
     bool IsPushEnabled()
     {
-        return Config_->Address.HasValue() && Channel_;
+        return Config_->Address.operator bool() && Channel_;
     }
 
     void PushBatch()

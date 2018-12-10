@@ -173,14 +173,14 @@ void ToProto(
 
     ToProto(proto->mutable_object_id(), result.ObjectId);
     if (result.ObjectName) {
-        proto->set_object_name(result.ObjectName.Get());
+        proto->set_object_name(*result.ObjectName);
     } else {
         proto->clear_object_name();
     }
 
     ToProto(proto->mutable_subject_id(), result.SubjectId);
     if (result.SubjectName) {
-        proto->set_subject_name(result.SubjectName.Get());
+        proto->set_subject_name(*result.SubjectName);
     } else {
         proto->clear_subject_name();
     }
@@ -196,14 +196,14 @@ void FromProto(
     if (proto.has_object_name()) {
         result->ObjectName = proto.object_name();
     } else {
-        result->ObjectName.Reset();
+        result->ObjectName.reset();
     }
 
     FromProto(&result->SubjectId, proto.subject_id());
     if (proto.has_subject_name()) {
         result->SubjectName = proto.subject_name();
     } else {
-        result->SubjectName.Reset();
+        result->SubjectName.reset();
     }
 }
 
@@ -241,11 +241,11 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
     } else {
         schema->SetLogicalType(GetLogicalType(CheckedEnumCast<EValueType>(protoSchema.type())));
     }
-    schema->SetLock(protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null);
-    schema->SetExpression(protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null);
-    schema->SetAggregate(protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null);
-    schema->SetSortOrder(protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null);
-    schema->SetGroup(protoSchema.has_group() ? MakeNullable(protoSchema.group()) : Null);
+    schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
+    schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);
+    schema->SetAggregate(protoSchema.has_aggregate() ? std::make_optional(protoSchema.aggregate()) : std::nullopt);
+    schema->SetSortOrder(protoSchema.has_sort_order() ? std::make_optional(ESortOrder(protoSchema.sort_order())) : std::nullopt);
+    schema->SetGroup(protoSchema.has_group() ? std::make_optional(protoSchema.group()) : std::nullopt);
     schema->SetRequired(protoSchema.required());
 }
 

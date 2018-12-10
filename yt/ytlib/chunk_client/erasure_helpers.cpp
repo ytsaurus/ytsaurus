@@ -305,7 +305,7 @@ private:
     const std::vector<TPartRange> BlockRanges_;
 
     THashMap<int, TSharedRef> RequestedBlocks_;
-    TNullable<TPartRange> PreviousRange_;
+    std::optional<TPartRange> PreviousRange_;
 
     TSharedRef LastResult_;
 
@@ -510,7 +510,7 @@ TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
 {
     return reader->GetMeta(
         options,
-        Null,
+        std::nullopt,
         std::vector<int>{
             TProtoExtensionTag<NProto::TErasurePlacementExt>::Value
         }).Apply(BIND([] (const TRefCountedChunkMetaPtr& meta) {
@@ -608,8 +608,8 @@ TErasureChunkReaderBase::TErasureChunkReaderBase(
 
 TFuture<TRefCountedChunkMetaPtr> TErasureChunkReaderBase::GetMeta(
     const TClientBlockReadOptions& options,
-    TNullable<int> partitionTag,
-    const TNullable<std::vector<int>>& extensionTags)
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
 {
     YCHECK(!partitionTag);
     if (extensionTags) {

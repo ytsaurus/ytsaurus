@@ -62,7 +62,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
-    using TSubrequestResponse = std::pair<TSharedRefArray, TNullable<i64>>;
+    using TSubrequestResponse = std::pair<TSharedRefArray, std::optional<i64>>;
 
     struct TKey
     {
@@ -126,7 +126,7 @@ private:
         TEntry(
             const TKey& key,
             bool success,
-            TNullable<i64> revision,
+            std::optional<i64> revision,
             TInstant timestamp,
             TSharedRefArray responseMessage)
             : TAsyncCacheValueBase(key)
@@ -141,7 +141,7 @@ private:
         DEFINE_BYVAL_RO_PROPERTY(TSharedRefArray, ResponseMessage);
         DEFINE_BYVAL_RO_PROPERTY(i64, TotalSpace);
         DEFINE_BYVAL_RO_PROPERTY(TInstant, Timestamp);
-        DEFINE_BYVAL_RO_PROPERTY(TNullable<i64>, Revision);
+        DEFINE_BYVAL_RO_PROPERTY(std::optional<i64>, Revision);
     };
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
@@ -164,7 +164,7 @@ private:
             TSharedRefArray requestMessage,
             TDuration successExpirationTime,
             TDuration failureExpirationTime,
-            TNullable<i64> refreshRevision)
+            std::optional<i64> refreshRevision)
         {
             return New<TLookupSession>(
                 this,
@@ -190,7 +190,7 @@ private:
                 const TKey& key,
                 TDuration successExpirationTime,
                 TDuration failureExpirationTime,
-                TNullable<i64> refreshRevision)
+                std::optional<i64> refreshRevision)
                 : Owner_(owner)
                 , SuccessExpirationTime_(successExpirationTime)
                 , FailureExpirationTime_(failureExpirationTime)
@@ -265,7 +265,7 @@ private:
             TIntrusivePtr<TCache> Owner_;
             const TDuration SuccessExpirationTime_;
             const TDuration FailureExpirationTime_;
-            const TNullable<i64> RefreshRevision_;
+            const std::optional<i64> RefreshRevision_;
 
             NLogging::TLogger Logger;
 
@@ -288,7 +288,7 @@ private:
                 TResponseHeader responseHeader;
                 YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
                 auto responseError = FromProto<TError>(responseHeader.error());
-                auto revision = rsp->revisions_size() > 0 ? MakeNullable(rsp->revisions(0)) : Null;
+                auto revision = rsp->revisions_size() > 0 ? std::make_optional(rsp->revisions(0)) : std::nullopt;
 
                 LOG_DEBUG("Cache population request succeeded (Key: %v, Revision: %v, Error: %v)",
                     key,
@@ -424,7 +424,7 @@ private:
                 auto parts = std::vector<TSharedRef>(
                     attachments.begin() + attachmentIndex,
                     attachments.begin() + attachmentIndex + partCount);
-                Promises_[subresponseIndex].Set(std::make_pair(TSharedRefArray(std::move(parts)), Null));
+                Promises_[subresponseIndex].Set(std::make_pair(TSharedRefArray(std::move(parts)), std::nullopt));
                 attachmentIndex += partCount;
             }
         }
@@ -480,8 +480,8 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         if (subrequestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
             const auto& cachingRequestHeaderExt = subrequestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
             auto refreshRevision = cachingRequestHeaderExt.has_refresh_revision()
-                ? MakeNullable(cachingRequestHeaderExt.refresh_revision())
-                : Null;
+                ? std::make_optional(cachingRequestHeaderExt.refresh_revision())
+                : std::nullopt;
 
             if (ypathExt.mutating()) {
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");

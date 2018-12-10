@@ -121,7 +121,7 @@ private:
             if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
                 WaitFor(RequestTableAttributes(PrimaryRevision_))
                     .ThrowOnError();
-                mountInfoOrError = WaitFor(RequestMountInfo(Null));
+                mountInfoOrError = WaitFor(RequestMountInfo(std::nullopt));
             }
 
             if (!mountInfoOrError.IsOK() && SecondaryRevision_) {
@@ -146,12 +146,12 @@ private:
 
         TTableId TableId_;
         TCellTag CellTag_;
-        TNullable<i64> PrimaryRevision_;
-        TNullable<i64> SecondaryRevision_;
+        std::optional<i64> PrimaryRevision_;
+        std::optional<i64> SecondaryRevision_;
 
         NLogging::TLogger Logger;
 
-        TFuture<void> RequestTableAttributes(TNullable<i64> refreshPrimaryRevision)
+        TFuture<void> RequestTableAttributes(std::optional<i64> refreshPrimaryRevision)
         {
             LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
                 refreshPrimaryRevision);
@@ -209,7 +209,7 @@ private:
             }
         }
 
-        TFuture<TTableMountInfoPtr> RequestMountInfo(TNullable<i64> refreshSecondaryRevision)
+        TFuture<TTableMountInfoPtr> RequestMountInfo(std::optional<i64> refreshSecondaryRevision)
         {
             LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
                 TableId_,
@@ -283,8 +283,8 @@ private:
 
                 // COMPAT(savrus)
                 tabletInfo->InMemoryMode = protoTabletInfo.has_in_memory_mode()
-                    ? MakeNullable(EInMemoryMode(protoTabletInfo.in_memory_mode()))
-                    : Null;
+                    ? std::make_optional(EInMemoryMode(protoTabletInfo.in_memory_mode()))
+                    : std::nullopt;
 
                 if (tableInfo->IsSorted()) {
                     // Take the actual pivot from master response.

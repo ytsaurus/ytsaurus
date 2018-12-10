@@ -84,7 +84,7 @@ public:
         OperationIdToOperationState_.clear();
         IdToTree_.clear();
 
-        DefaultTreeId_.Reset();
+        DefaultTreeId_.reset();
 
         {
             TWriterGuard guard(TreeIdToSnapshotLock_);
@@ -413,7 +413,7 @@ public:
         const auto& pools = operationState->TreeIdToPoolNameMap();
 
         fluent
-            .DoIf(DefaultTreeId_.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(DefaultTreeId_.operator bool(), [&] (TFluentMap fluent) {
                 auto it = pools.find(*DefaultTreeId_);
                 if (it != pools.end()) {
                     fluent
@@ -535,7 +535,7 @@ public:
         }
 
         fluent
-            .DoIf(DefaultTreeId_.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(DefaultTreeId_.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     // COMPAT(asaitgalin): Remove it when UI will use scheduling_info_per_pool_tree
                     .Item("fair_share_info").BeginMap()
@@ -823,7 +823,7 @@ private:
     using TFairShareTreeMap = THashMap<TString, TFairShareTreePtr>;
     TFairShareTreeMap IdToTree_;
 
-    TNullable<TString> DefaultTreeId_;
+    std::optional<TString> DefaultTreeId_;
 
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
@@ -896,7 +896,7 @@ private:
     {
         THashMap<TString, TPoolName> pools;
         for (const auto& pair : runtimeParams->SchedulingOptionsPerPoolTree) {
-            pools.emplace(pair.first, pair.second->Pool.Get());
+            pools.emplace(pair.first, *pair.second->Pool);
         }
         return pools;
     }

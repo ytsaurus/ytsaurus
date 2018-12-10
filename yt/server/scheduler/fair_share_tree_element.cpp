@@ -677,7 +677,7 @@ void TSchedulerElement::CheckForStarvationImpl(
         case ESchedulableStatus::BelowMinShare:
             if (!BelowFairShareSince_) {
                 BelowFairShareSince_ = now;
-            } else if (BelowFairShareSince_.Get() < now - minSharePreemptionTimeout) {
+            } else if (*BelowFairShareSince_ < now - minSharePreemptionTimeout) {
                 SetStarving(true);
             }
             break;
@@ -685,13 +685,13 @@ void TSchedulerElement::CheckForStarvationImpl(
         case ESchedulableStatus::BelowFairShare:
             if (!BelowFairShareSince_) {
                 BelowFairShareSince_ = now;
-            } else if (BelowFairShareSince_.Get() < now - fairSharePreemptionTimeout) {
+            } else if (*BelowFairShareSince_ < now - fairSharePreemptionTimeout) {
                 SetStarving(true);
             }
             break;
 
         case ESchedulableStatus::Normal:
-            BelowFairShareSince_ = Null;
+            BelowFairShareSince_ = std::nullopt;
             SetStarving(false);
             break;
 
@@ -704,7 +704,7 @@ void TSchedulerElement::SetOperationAlert(
     const TOperationId& operationId,
     EOperationAlertType alertType,
     const TError& alert,
-    TNullable<TDuration> timeout)
+    std::optional<TDuration> timeout)
 {
     Host_->SetOperationAlert(operationId, alertType, alert, timeout);
 }
@@ -1445,12 +1445,12 @@ bool TPool::IsDefaultConfigured() const
     return DefaultConfigured_;
 }
 
-void TPool::SetUserName(const TNullable<TString>& userName)
+void TPool::SetUserName(const std::optional<TString>& userName)
 {
     UserName_ = userName;
 }
 
-const TNullable<TString>& TPool::GetUserName() const
+const std::optional<TString>& TPool::GetUserName() const
 {
     return UserName_;
 }
@@ -1478,7 +1478,7 @@ void TPool::SetDefaultConfig()
 
 bool TPool::IsAggressiveStarvationPreemptionAllowed() const
 {
-    return Config_->AllowAggressiveStarvationPreemption.Get(true);
+    return Config_->AllowAggressiveStarvationPreemption.value_or(true);
 }
 
 bool TPool::IsExplicit() const
@@ -1497,14 +1497,14 @@ TString TPool::GetId() const
     return Id_;
 }
 
-TNullable<double> TPool::GetSpecifiedWeight() const
+std::optional<double> TPool::GetSpecifiedWeight() const
 {
     return Config_->Weight;
 }
 
 double TPool::GetMinShareRatio() const
 {
-    return Config_->MinShareRatio.Get(0.0);
+    return Config_->MinShareRatio.value_or(0.0);
 }
 
 TJobResources TPool::GetMinShareResources() const
@@ -1514,7 +1514,7 @@ TJobResources TPool::GetMinShareResources() const
 
 double TPool::GetMaxShareRatio() const
 {
-    return Config_->MaxShareRatio.Get(1.0);
+    return Config_->MaxShareRatio.value_or(1.0);
 }
 
 ESchedulableStatus TPool::GetStatus() const
@@ -1524,32 +1524,32 @@ ESchedulableStatus TPool::GetStatus() const
 
 double TPool::GetFairShareStarvationTolerance() const
 {
-    return Config_->FairShareStarvationTolerance.Get(Parent_->Attributes().AdjustedFairShareStarvationTolerance);
+    return Config_->FairShareStarvationTolerance.value_or(Parent_->Attributes().AdjustedFairShareStarvationTolerance);
 }
 
 TDuration TPool::GetMinSharePreemptionTimeout() const
 {
-    return Config_->MinSharePreemptionTimeout.Get(Parent_->Attributes().AdjustedMinSharePreemptionTimeout);
+    return Config_->MinSharePreemptionTimeout.value_or(Parent_->Attributes().AdjustedMinSharePreemptionTimeout);
 }
 
 TDuration TPool::GetFairSharePreemptionTimeout() const
 {
-    return Config_->FairSharePreemptionTimeout.Get(Parent_->Attributes().AdjustedFairSharePreemptionTimeout);
+    return Config_->FairSharePreemptionTimeout.value_or(Parent_->Attributes().AdjustedFairSharePreemptionTimeout);
 }
 
 double TPool::GetFairShareStarvationToleranceLimit() const
 {
-    return Config_->FairShareStarvationToleranceLimit.Get(TreeConfig_->FairShareStarvationToleranceLimit);
+    return Config_->FairShareStarvationToleranceLimit.value_or(TreeConfig_->FairShareStarvationToleranceLimit);
 }
 
 TDuration TPool::GetMinSharePreemptionTimeoutLimit() const
 {
-    return Config_->MinSharePreemptionTimeoutLimit.Get(TreeConfig_->MinSharePreemptionTimeoutLimit);
+    return Config_->MinSharePreemptionTimeoutLimit.value_or(TreeConfig_->MinSharePreemptionTimeoutLimit);
 }
 
 TDuration TPool::GetFairSharePreemptionTimeoutLimit() const
 {
-    return Config_->FairSharePreemptionTimeoutLimit.Get(TreeConfig_->FairSharePreemptionTimeoutLimit);
+    return Config_->FairSharePreemptionTimeoutLimit.value_or(TreeConfig_->FairSharePreemptionTimeoutLimit);
 }
 
 void TPool::SetStarving(bool starving)
@@ -1595,12 +1595,12 @@ void TPool::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
 
 int TPool::GetMaxRunningOperationCount() const
 {
-    return Config_->MaxRunningOperationCount.Get(TreeConfig_->MaxRunningOperationCountPerPool);
+    return Config_->MaxRunningOperationCount.value_or(TreeConfig_->MaxRunningOperationCountPerPool);
 }
 
 int TPool::GetMaxOperationCount() const
 {
-    return Config_->MaxOperationCount.Get(TreeConfig_->MaxOperationCountPerPool);
+    return Config_->MaxOperationCount.value_or(TreeConfig_->MaxOperationCountPerPool);
 }
 
 std::vector<EFifoSortParameter> TPool::GetFifoSortParameters() const
@@ -1865,12 +1865,12 @@ int TOperationElementSharedState::GetScheduledJobCount() const
     return ScheduledJobCount_;
 }
 
-TNullable<TJobResources> TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
+std::optional<TJobResources> TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
     if (!Enabled_ && !force) {
-        return Null;
+        return std::nullopt;
     }
 
     LastScheduleJobSuccessTime_ = TInstant::Now();
@@ -1960,10 +1960,10 @@ TEnumIndexedVector<int, EDeactivationReason> TOperationElement::GetDeactivationR
     return SharedState_->GetDeactivationReasonsFromLastNonStarvingTime();
 }
 
-TNullable<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
+std::optional<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
 {
     if (GetParent() == nullptr) {
-        return Null;
+        return std::nullopt;
     }
 
     auto tagName = Spec_->CustomProfilingTag;
@@ -1980,7 +1980,7 @@ TNullable<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
             (TreeConfig_->CustomProfilingTagFilter && NRe2::TRe2::FullMatch(NRe2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter))
         ))
     {
-        tagName = Null;
+        tagName = std::nullopt;
     }
 
     if (tagName) {
@@ -2005,12 +2005,12 @@ void TOperationElement::Enable()
     return SharedState_->Enable();
 }
 
-TNullable<TJobResources> TOperationElementSharedState::RemoveJob(const TJobId& jobId)
+std::optional<TJobResources> TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
     if (!Enabled_) {
-        return Null;
+        return std::nullopt;
     }
 
     auto it = JobPropertiesMap_.find(jobId);
@@ -2035,7 +2035,7 @@ TNullable<TJobResources> TOperationElementSharedState::RemoveJob(const TJobId& j
     return resourceUsage;
 }
 
-TNullable<EDeactivationReason> TOperationElement::TryStartScheduleJob(
+std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     NProfiling::TCpuInstant now,
     const TJobResources& minNeededResources,
     const TFairShareContext& context,
@@ -2043,7 +2043,7 @@ TNullable<EDeactivationReason> TOperationElement::TryStartScheduleJob(
 {
     auto blocked = Controller_->IsBlocked(
         now,
-        Spec_->MaxConcurrentControllerScheduleJobCalls.Get(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
+        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
         ControllerConfig_->ScheduleJobFailBackoffTime);
     if (blocked) {
         return EDeactivationReason::IsBlocked;
@@ -2073,7 +2073,7 @@ TNullable<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     Controller_->IncreaseConcurrentScheduleJobCalls();
 
     *availableResourcesOutput = Min(availableResourceLimits, nodeFreeResources);
-    return Null;
+    return std::nullopt;
 }
 
 void TOperationElement::FinishScheduleJob(
@@ -2154,17 +2154,17 @@ TOperationElement::TOperationElement(
 
 double TOperationElement::GetFairShareStarvationTolerance() const
 {
-    return Spec_->FairShareStarvationTolerance.Get(Parent_->Attributes().AdjustedFairShareStarvationTolerance);
+    return Spec_->FairShareStarvationTolerance.value_or(Parent_->Attributes().AdjustedFairShareStarvationTolerance);
 }
 
 TDuration TOperationElement::GetMinSharePreemptionTimeout() const
 {
-    return Spec_->MinSharePreemptionTimeout.Get(Parent_->Attributes().AdjustedMinSharePreemptionTimeout);
+    return Spec_->MinSharePreemptionTimeout.value_or(Parent_->Attributes().AdjustedMinSharePreemptionTimeout);
 }
 
 TDuration TOperationElement::GetFairSharePreemptionTimeout() const
 {
-    return Spec_->FairSharePreemptionTimeout.Get(Parent_->Attributes().AdjustedFairSharePreemptionTimeout);
+    return Spec_->FairSharePreemptionTimeout.value_or(Parent_->Attributes().AdjustedFairSharePreemptionTimeout);
 }
 
 void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
@@ -2420,17 +2420,17 @@ TString TOperationElement::GetId() const
 
 bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 {
-    return Spec_->AllowAggressiveStarvationPreemption.Get(true);
+    return Spec_->AllowAggressiveStarvationPreemption.value_or(true);
 }
 
-TNullable<double> TOperationElement::GetSpecifiedWeight() const
+std::optional<double> TOperationElement::GetSpecifiedWeight() const
 {
     return RuntimeParams_->Weight;
 }
 
 double TOperationElement::GetMinShareRatio() const
 {
-    return Spec_->MinShareRatio.Get(0.0);
+    return Spec_->MinShareRatio.value_or(0.0);
 }
 
 TJobResources TOperationElement::GetMinShareResources() const
@@ -2440,7 +2440,7 @@ TJobResources TOperationElement::GetMinShareResources() const
 
 double TOperationElement::GetMaxShareRatio() const
 {
-    return Spec_->MaxShareRatio.Get(1.0);
+    return Spec_->MaxShareRatio.value_or(1.0);
 }
 
 const TSchedulingTagFilter& TOperationElement::GetSchedulingTagFilter() const
@@ -2666,7 +2666,7 @@ bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
         GetPendingJobCount() == 0 ||
         Controller_->IsBlocked(
             now,
-            Spec_->MaxConcurrentControllerScheduleJobCalls.Get(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
+            Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
             ControllerConfig_->ScheduleJobFailBackoffTime);
 }
 
@@ -2860,9 +2860,9 @@ TString TRootElement::GetId() const
     return TString(RootPoolName);
 }
 
-TNullable<double> TRootElement::GetSpecifiedWeight() const
+std::optional<double> TRootElement::GetSpecifiedWeight() const
 {
-    return Null;
+    return std::nullopt;
 }
 
 double TRootElement::GetMinShareRatio() const

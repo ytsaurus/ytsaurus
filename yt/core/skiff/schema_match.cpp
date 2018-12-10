@@ -252,7 +252,7 @@ class TSkiffSchemaRepresentation
 public:
     TString Name;
     NSkiff::EWireType WireType;
-    TNullable<std::vector<INodePtr>> Children;
+    std::optional<std::vector<INodePtr>> Children;
 
     TSkiffSchemaRepresentation()
     {

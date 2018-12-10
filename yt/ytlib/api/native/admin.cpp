@@ -175,7 +175,7 @@ private:
             operationId,
             Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
-        if (!address.HasValue()) {
+        if (!address) {
             THROW_ERROR_EXCEPTION("Cannot find the address of the controller agent for the operation %v", operationId);
         }
 

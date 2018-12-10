@@ -154,7 +154,7 @@ static TEnumerationDescription CreateEnumerationMap(const TString& enumName, con
     Y_UNREACHABLE();
 }
 
-TNullable<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::FieldDescriptor::Type type, bool enumAsStrings)
+std::optional<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::FieldDescriptor::Type type, bool enumAsStrings)
 {
     using namespace ::google::protobuf;
     switch (type) {
@@ -177,7 +177,7 @@ TNullable<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::Field
         case FieldDescriptor::TYPE_STRING:
             return EProtobufType::String;
         case FieldDescriptor::TYPE_GROUP:
-            return Null;
+            return std::nullopt;
         case FieldDescriptor::TYPE_MESSAGE:
             return EProtobufType::Message;
         case FieldDescriptor::TYPE_BYTES:
@@ -195,7 +195,7 @@ TNullable<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::Field
         case FieldDescriptor::TYPE_SINT64:
             return EProtobufType::Sint64;
     }
-    return Null;
+    return std::nullopt;
 }
 
 TEnumerationDescription ConvertToEnumMap(const ::google::protobuf::EnumDescriptor& enumDescriptor)

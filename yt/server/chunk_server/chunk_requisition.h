@@ -192,7 +192,7 @@ void ValidateReplicationFactor(int replicationFactor);
 void ValidateChunkReplication(
     const TChunkManagerPtr& chunkManager,
     const TChunkReplication& replication,
-    TNullable<int> primaryMediumIndex);
+    std::optional<int> primaryMediumIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -438,8 +438,8 @@ public:
         const TChunkRequisition& requisition,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
-    //! Returns specified requisition's index or Null if no such requisition is registered.
-    TNullable<TChunkRequisitionIndex> Find(const TChunkRequisition& requisition) const;
+    //! Returns specified requisition's index or null if no such requisition is registered.
+    std::optional<TChunkRequisitionIndex> Find(const TChunkRequisition& requisition) const;
 
     // NB: even though items are refcounted, items with zero RC may be
     // intermittently present in the registry.

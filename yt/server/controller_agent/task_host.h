@@ -33,9 +33,9 @@ struct ITaskHost
     virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     //! Called to extract stderr table path from the spec.
-    virtual TNullable<NYPath::TRichYPath> GetStderrTablePath() const = 0;
+    virtual std::optional<NYPath::TRichYPath> GetStderrTablePath() const = 0;
     //! Called to extract core table path from the spec.
-    virtual TNullable<NYPath::TRichYPath> GetCoreTablePath() const = 0;
+    virtual std::optional<NYPath::TRichYPath> GetCoreTablePath() const = 0;
 
     virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) = 0;
     virtual void AddTaskLocalityHint(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) = 0;
@@ -95,7 +95,7 @@ struct ITaskHost
 
     virtual IJobSplitter* GetJobSplitter() = 0;
 
-    virtual const TNullable<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
+    virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
 
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const = 0;
 

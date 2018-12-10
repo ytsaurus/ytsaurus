@@ -212,7 +212,7 @@ void TBlockFetcher::DecompressBlocks(
             Codec_->GetId());
 
         if (Codec_->GetId() != NCompression::ECodec::None) {
-            BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), Null);
+            BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
         }
     }
 }

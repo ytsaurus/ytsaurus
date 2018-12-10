@@ -52,8 +52,8 @@ public:
         const TString& endpointDescription,
         const NYTree::IAttributeDictionary& endpointAttributes,
         const NNet::TNetworkAddress& endpointAddress,
-        const TNullable<TString>& address,
-        const TNullable<TString>& unixDomainName,
+        const std::optional<TString>& address,
+        const std::optional<TString>& unixDomainName,
         IMessageHandlerPtr handler,
         NConcurrency::IPollerPtr poller);
 
@@ -88,7 +88,7 @@ private:
         TQueuedMessage() = default;
 
         TQueuedMessage(TSharedRefArray message, const TSendOptions& options)
-            : Promise(options.TrackingLevel != EDeliveryTrackingLevel::None ? NewPromise<void>() : Null)
+            : Promise(options.TrackingLevel != EDeliveryTrackingLevel::None ? NewPromise<void>() : std::nullopt)
             , Message(std::move(message))
             , PayloadSize(GetByteSize(Message))
             , Options(options)
@@ -149,8 +149,8 @@ private:
     const TString EndpointDescription_;
     const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
     const NNet::TNetworkAddress EndpointAddress_;
-    const TNullable<TString> Address_;
-    const TNullable<TString> UnixDomainName_;
+    const std::optional<TString> Address_;
+    const std::optional<TString> UnixDomainName_;
     const IMessageHandlerPtr Handler_;
     const NConcurrency::IPollerPtr Poller_;
 

@@ -227,7 +227,7 @@ public:
 
     virtual const TNetworkPreferenceList& GetNetworks() const override
     {
-        return Config_->Networks.Get(DefaultNetworkPreferences);
+        return Config_->Networks ? *Config_->Networks : DefaultNetworkPreferences;
     }
 
     virtual const TCellId& GetPrimaryMasterCellId() const override

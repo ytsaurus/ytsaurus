@@ -56,7 +56,7 @@ class TConnectionConfig
     , public NChunkClient::TChunkTeleporterConfig
 {
 public:
-    TNullable<NNodeTrackerClient::TNetworkPreferenceList> Networks;
+    std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
     TMasterConnectionConfigPtr PrimaryMaster;
     std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
     TMasterConnectionConfigPtr MasterCache;
@@ -92,7 +92,7 @@ public:
     TAsyncExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
 
-    TNullable<int> ThreadPoolSize;
+    std::optional<int> ThreadPoolSize;
 
     int MaxConcurrentRequests;
 

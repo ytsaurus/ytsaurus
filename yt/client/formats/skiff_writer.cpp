@@ -173,16 +173,16 @@ public:
     void Init(std::vector<TSkiffSchemaPtr> tableSkiffSchemas)
     {
         auto streamSchema = CreateVariant16Schema(tableSkiffSchemas);
-        SkiffWriter_.Emplace(streamSchema, GetOutputStream());
+        SkiffWriter_.emplace(streamSchema, GetOutputStream());
 
         auto tableDescriptionList = CreateTableDescriptionList(tableSkiffSchemas, RangeIndexColumnName, RowIndexColumnName);
         for (const auto& commonTableDescription : tableDescriptionList) {
             TableDescriptionList_.emplace_back();
             auto& writerTableDescription = TableDescriptionList_.back();
             writerTableDescription.HasOtherColumns = commonTableDescription.HasOtherColumns;
-            writerTableDescription.KeySwitchFieldIndex = commonTableDescription.KeySwitchFieldIndex.Get(MissingSystemColumn);
-            writerTableDescription.RowIndexFieldIndex = commonTableDescription.RowIndexFieldIndex.Get(MissingSystemColumn);
-            writerTableDescription.RangeIndexFieldIndex = commonTableDescription.RangeIndexFieldIndex.Get(MissingSystemColumn);
+            writerTableDescription.KeySwitchFieldIndex = commonTableDescription.KeySwitchFieldIndex.value_or(MissingSystemColumn);
+            writerTableDescription.RowIndexFieldIndex = commonTableDescription.RowIndexFieldIndex.value_or(MissingSystemColumn);
+            writerTableDescription.RangeIndexFieldIndex = commonTableDescription.RangeIndexFieldIndex.value_or(MissingSystemColumn);
 
             auto& knownFields = writerTableDescription.KnownFields;
 
@@ -242,7 +242,7 @@ private:
         }
 
         i64 tableIndex = 0;
-        TNullable<i64> rowIndex;
+        std::optional<i64> rowIndex;
 
         // We don't use tableIndex / rowIndex from DoWrite function because sometimes we want
         // to throw error before DoWrite knows table index / row index.
@@ -498,7 +498,7 @@ private:
     using TSkiffEncodingInfoList = std::vector<TSkiffEncodingInfo>;
 
     const NSkiff::TSkiffSchemaPtr SkiffSchema_;
-    TNullable<NSkiff::TCheckedInDebugSkiffWriter> SkiffWriter_;
+    std::optional<NSkiff::TCheckedInDebugSkiffWriter> SkiffWriter_;
 
     std::vector<ui16> DenseIndexes_;
     std::vector<TSparseFieldInfo> SparseFields_;

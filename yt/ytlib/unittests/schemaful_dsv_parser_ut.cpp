@@ -196,8 +196,7 @@ TEST(TSchemafulDsvParserTest, ColumnsNamesHeader)
     config->Columns->push_back("b");
     config->EnableColumnNamesHeader = true;
 
-    auto Null = GetNullYsonConsumer();
-    EXPECT_THROW(ParseSchemafulDsv(input, Null, config), std::exception);
+    EXPECT_THROW(ParseSchemafulDsv(input, GetNullYsonConsumer(), config), std::exception);
 }
 
 TEST(TSchemafulDsvParserTest, MissingValueModePrintSentinel)

@@ -153,13 +153,13 @@ TRequestState TRequestState::FromRow(
         state.Resources = ConvertTo<std::vector<TResourceLinkPtr>>(resourcesYson);
     }
 
-    if (state.State == ERequestState::Failed && !state.Error.HasValue()) {
+    if (state.State == ERequestState::Failed && !state.Error) {
         THROW_ERROR_EXCEPTION("Inconsistent error state");
     }
-    if (state.State == ERequestState::Creating && !state.Progress.HasValue()) {
+    if (state.State == ERequestState::Creating && !state.Progress) {
         THROW_ERROR_EXCEPTION("Inconsistent starting state");
     }
-    if (state.State == ERequestState::Active && !state.Resources.HasValue()) {
+    if (state.State == ERequestState::Active && !state.Resources) {
         THROW_ERROR_EXCEPTION("Invonsistent active state");
     }
 
@@ -335,8 +335,8 @@ bool TTables::StartRequest(const TRequestKey& key, TRequestState* state)
 
 void TTables::UpdateStatus(
     const TRequestKey& key,
-    TNullable<TYsonString> progress,
-    TNullable<TError> error)
+    std::optional<TYsonString> progress,
+    std::optional<TError> error)
 {
     auto nameTable = New<TNameTable>();
 
@@ -394,7 +394,7 @@ std::vector<TResourceId> TTables::FinishRequest(
 
     state.ValidateOwnerId(ProcessId_);
     state.State = ERequestState::Active;
-    state.Progress.Reset();
+    state.Progress.reset();
 
     auto duplicateId = TGuid::Create();
     std::vector<TResourceId> resourceIds;

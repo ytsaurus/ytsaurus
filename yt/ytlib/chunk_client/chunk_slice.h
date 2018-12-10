@@ -9,7 +9,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/new.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
@@ -38,8 +38,8 @@ public:
         const NProto::TChunkMeta& meta,
         const NTableClient::TOwningKey& lowerKey,
         const NTableClient::TOwningKey& upperKey,
-        TNullable<i64> dataWeight = Null,
-        TNullable<i64> rowCount = Null);
+        std::optional<i64> dataWeight = std::nullopt,
+        std::optional<i64> rowCount = std::nullopt);
 
     TChunkSlice(
         const TChunkSlice& chunkSlice,

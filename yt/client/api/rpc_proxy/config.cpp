@@ -59,7 +59,7 @@ TConnectionConfig::TConnectionConfig()
                 THROW_ERROR_EXCEPTION("\"addresses\" must be specified");
             }
 
-            ClusterUrl.Reset();
+            ClusterUrl.reset();
         }
     });
 }

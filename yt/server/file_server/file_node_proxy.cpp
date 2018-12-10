@@ -59,7 +59,7 @@ private:
             .SetCustom(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MD5)
-            .SetPresent(node->GetMD5Hasher().HasValue())
+            .SetPresent(node->GetMD5Hasher().operator bool())
             .SetReplicated(true));
     }
 

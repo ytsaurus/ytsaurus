@@ -42,19 +42,19 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags) override;
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& estimatedSize) override;
+        const std::optional<i64>& estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& estimatedSize) override;
+        const std::optional<i64>& estimatedSize) override;
 
     virtual bool IsValid() const override;
 
@@ -69,8 +69,8 @@ private:
 
     TRefCountedChunkMetaPtr GetMetaAsync(
         const TClientBlockReadOptions& options,
-        TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags);
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags);
 
     const TErasureReaderConfigPtr Config_;
     TLogger Logger;
@@ -94,7 +94,7 @@ public:
         const TClientBlockReadOptions& options,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& estimatedSize,
+        const std::optional<i64>& estimatedSize,
         const TWeakPtr<TRepairingReader>& reader)
         : Codec_(codec)
         , Config_(config)
@@ -129,7 +129,7 @@ private:
     const TClientBlockReadOptions BlockReadOptions_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
-    const TNullable<i64> EstimatedSize_;
+    const std::optional<i64> EstimatedSize_;
     TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
     TWeakPtr<TRepairingReader> Reader_;
 
@@ -141,7 +141,7 @@ private:
                 .ValueOrThrow();
         }
 
-        TNullable<TPartIndexSet> erasedIndicesOnPreviousIteration;
+        std::optional<TPartIndexSet> erasedIndicesOnPreviousIteration;
         std::vector<TError> innerErrors;
         while (true) {
             auto reader = Reader_.Lock();
@@ -238,8 +238,8 @@ TRepairingReader::TRepairingReader(
 
 TFuture<TRefCountedChunkMetaPtr> TRepairingReader::GetMeta(
     const TClientBlockReadOptions& options,
-    TNullable<int> partitionTag,
-    const TNullable<std::vector<int>>& extensionTags)
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
 {
     YCHECK(!partitionTag);
     if (extensionTags) {
@@ -262,7 +262,7 @@ TFuture<TRefCountedChunkMetaPtr> TRepairingReader::GetMeta(
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     const std::vector<int>& blockIndexes,
-    const TNullable<i64>& estimatedSize)
+    const std::optional<i64>& estimatedSize)
 {
     // We don't use estimatedSize here, because during repair actual use of bandwidth is much higher that the size of blocks;
     return PreparePlacementMeta(options).Apply(
@@ -285,7 +285,7 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    const TNullable<i64>& estimatedSize)
+    const std::optional<i64>& estimatedSize)
 {
     Y_UNIMPLEMENTED();
 }
@@ -372,8 +372,8 @@ TError TRepairingReader::CheckPartReaderIsSlow(int partIndex, i64 bytesReceived,
 
 TRefCountedChunkMetaPtr TRepairingReader::GetMetaAsync(
     const TClientBlockReadOptions& options,
-    TNullable<int> partitionTag,
-    const TNullable<std::vector<int>>& extensionTags)
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
 {
     std::vector<TError> errors;
 

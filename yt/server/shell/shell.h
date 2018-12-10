@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
 namespace NYT {
@@ -15,17 +15,17 @@ namespace NShell {
 struct TShellOptions
 {
     TString ExePath = "/bin/bash";
-    TNullable<int> Uid;
+    std::optional<int> Uid;
     TString Term = "xterm";
     int Height = 24;
     int Width = 80;
     TString WorkingDir = "/";
-    TNullable<TString> CGroupBasePath;
+    std::optional<TString> CGroupBasePath;
     std::vector<TString> Environment;
-    TNullable<TString> Bashrc;
-    TNullable<TString> MessageOfTheDay;
+    std::optional<TString> Bashrc;
+    std::optional<TString> MessageOfTheDay;
     TDuration InactivityTimeout;
-    TNullable<TString> Command;
+    std::optional<TString> Command;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

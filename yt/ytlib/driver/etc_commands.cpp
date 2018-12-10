@@ -98,13 +98,13 @@ void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
             .DoIf(result.ObjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("object_id").Value(result.ObjectId);
             })
-            .DoIf(result.ObjectName.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(result.ObjectName.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("object_name").Value(result.ObjectName);
             })
             .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_id").Value(result.SubjectId);
             })
-            .DoIf(result.SubjectName.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(result.SubjectName.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_name").Value(result.SubjectName);
             })
         .EndMap());
@@ -135,7 +135,7 @@ void TCheckPermissionByAclCommand::DoExecute(ICommandContextPtr context)
             .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_id").Value(result.SubjectId);
             })
-            .DoIf(result.SubjectName.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(result.SubjectName.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_name").Value(result.SubjectName);
             })
         .EndMap());

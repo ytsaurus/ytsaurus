@@ -28,8 +28,8 @@ TChunkSlice::TChunkSlice(
     const NProto::TChunkMeta& meta,
     const TOwningKey& lowerKey,
     const TOwningKey& upperKey,
-    TNullable<i64> dataWeight,
-    TNullable<i64> rowCount)
+    std::optional<i64> dataWeight,
+    std::optional<i64> rowCount)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta.extensions());
     DataWeight_ = miscExt.has_data_weight()

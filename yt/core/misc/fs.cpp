@@ -676,8 +676,8 @@ TString GetFilesystemName(TStringBuf path)
 void SetQuota(
     int userId,
     TStringBuf path,
-    TNullable<i64> diskSpaceLimit,
-    TNullable<i64> inodeLimit)
+    std::optional<i64> diskSpaceLimit,
+    std::optional<i64> inodeLimit)
 {
 #ifdef _linux_
     dqblk info;
@@ -704,8 +704,8 @@ void SetQuota(
     if (result < 0) {
         THROW_ERROR_EXCEPTION("Failed to set FS quota for user")
             << TErrorAttribute("user_id", userId)
-            << TErrorAttribute("disk_space_limit", diskSpaceLimit.Get(0))
-            << TErrorAttribute("inode_limit", inodeLimit.Get(0))
+            << TErrorAttribute("disk_space_limit", diskSpaceLimit.value_or(0))
+            << TErrorAttribute("inode_limit", inodeLimit.value_or(0))
             << TErrorAttribute("path", path)
             << TError::FromSystem();
     }

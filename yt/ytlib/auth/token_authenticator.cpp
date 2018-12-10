@@ -386,12 +386,12 @@ public:
         const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            return Null;
+            return std::nullopt;
         }
 
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!ext.has_token()) {
-            return Null;
+            return std::nullopt;
         }
 
         TTokenCredentials credentials;

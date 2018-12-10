@@ -7,7 +7,7 @@
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/column_rename_descriptor.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/enum.h>
 
@@ -29,9 +29,9 @@ class TDataSource
 public:
     DEFINE_BYVAL_RW_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
     DEFINE_BYVAL_RW_PROPERTY(bool, Foreign, false);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TString>, Path);
-    DEFINE_BYREF_RW_PROPERTY(TNullable<NTableClient::TTableSchema>, Schema);
-    DEFINE_BYREF_RW_PROPERTY(TNullable<std::vector<TString>>, Columns);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Path);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<NTableClient::TTableSchema>, Schema);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, Columns);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, Timestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TColumnRenameDescriptors, ColumnRenameDescriptors);
 
@@ -39,27 +39,27 @@ public:
 
     TDataSource(
         EDataSourceType type,
-        const TNullable<TString>& path,
-        const TNullable<NTableClient::TTableSchema>& schema,
-        const TNullable<std::vector<TString>>& columns,
+        const std::optional<TString>& path,
+        const std::optional<NTableClient::TTableSchema>& schema,
+        const std::optional<std::vector<TString>>& columns,
         NTransactionClient::TTimestamp timestamp,
         const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors);
 };
 
 TDataSource MakeVersionedDataSource(
-    const TNullable<TString>& path,
+    const std::optional<TString>& path,
     const NTableClient::TTableSchema& schema,
-    const TNullable<std::vector<TString>>& columns,
+    const std::optional<std::vector<TString>>& columns,
     NTransactionClient::TTimestamp timestamp,
     const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
 TDataSource MakeUnversionedDataSource(
-    const TNullable<TString>& path,
-    const TNullable<NTableClient::TTableSchema>& schema,
-    const TNullable<std::vector<TString>>& columns,
+    const std::optional<TString>& path,
+    const std::optional<NTableClient::TTableSchema>& schema,
+    const std::optional<std::vector<TString>>& columns,
     const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
-TDataSource MakeFileDataSource(const TNullable<TString>& path);
+TDataSource MakeFileDataSource(const std::optional<TString>& path);
 
 void FromProto(
     TDataSource* dataSource,

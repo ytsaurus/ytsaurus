@@ -14,7 +14,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Object LoadYsonFromStringBuf(TStringBuf string, const TNullable<TString>& encoding)
+Py::Object LoadYsonFromStringBuf(TStringBuf string, const std::optional<TString>& encoding)
 {
     TPythonObjectBuilder consumer(/* alwaysCreateAttributes */ false, encoding);
     ParseYsonStringBuffer(string, EYsonType::Node, &consumer);
@@ -25,7 +25,7 @@ Py::Object LoadYsonFromStringBuf(TStringBuf string, const TNullable<TString>& en
 
 TPythonSkiffRecordBuilder::TPythonSkiffRecordBuilder(
     const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& schemas,
-    const TNullable<TString>& encoding)
+    const std::optional<TString>& encoding)
     : Schemas_(schemas)
     , Encoding_(encoding)
 { }
@@ -58,7 +58,7 @@ void TPythonSkiffRecordBuilder::OnStringScalar(TStringBuf value, ui16 columnId)
     // TODO(ignat): remove this copy/paste.
     if (Encoding_) {
         auto decodedString = Py::Object(
-            PyUnicode_FromEncodedObject(*bytes, Encoding_.Get().data(), "strict"),
+            PyUnicode_FromEncodedObject(*bytes, Encoding_->data(), "strict"),
             /* owned */ true);
 #if PY_MAJOR_VERSION < 3
         auto utf8String = Py::Object(

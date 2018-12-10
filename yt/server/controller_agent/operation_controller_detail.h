@@ -66,7 +66,7 @@
 #include <yt/core/misc/histogram.h>
 #include <yt/core/misc/id_generator.h>
 #include <yt/core/misc/memory_tag.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/safe_assert.h>
 
@@ -252,8 +252,8 @@ public:
 
     virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
-    virtual TNullable<NYPath::TRichYPath> GetStderrTablePath() const override;
-    virtual TNullable<NYPath::TRichYPath> GetCoreTablePath() const override;
+    virtual std::optional<NYPath::TRichYPath> GetStderrTablePath() const override;
+    virtual std::optional<NYPath::TRichYPath> GetCoreTablePath() const override;
 
     virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
     virtual void AddTaskLocalityHint(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
@@ -314,7 +314,7 @@ public:
 
     virtual IJobSplitter* GetJobSplitter() override;
 
-    virtual const TNullable<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
+    virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
 
@@ -345,7 +345,7 @@ public:
     //! Needed for row_count_limit.
     virtual void RegisterOutputRows(i64 count, int tableIndex) override;
 
-    virtual TNullable<int> GetRowCountLimitTableIndex() override;
+    virtual std::optional<int> GetRowCountLimitTableIndex() override;
 
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
@@ -444,7 +444,7 @@ protected:
         NQueryClient::TExternalCGInfoPtr ExternalCGInfo;
     };
 
-    TNullable<TInputQuery> InputQuery;
+    std::optional<TInputQuery> InputQuery;
 
     //! All tasks declared by calling #RegisterTask, mostly for debugging purposes.
     std::vector<TTaskPtr> Tasks;
@@ -579,7 +579,7 @@ protected:
 
     void ParseInputQuery(
         const TString& queryString,
-        const TNullable<NQueryClient::TTableSchema>& schema);
+        const std::optional<NQueryClient::TTableSchema>& schema);
     void WriteInputQueryToJobSpec(
         NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
     virtual void PrepareInputQuery();
@@ -876,7 +876,7 @@ protected:
     virtual void InitOutputTables();
 
     //! One output table can have row_count_limit attribute in operation.
-    TNullable<int> RowCountLimitTableIndex;
+    std::optional<int> RowCountLimitTableIndex;
     i64 RowCountLimit = std::numeric_limits<i64>::max();
 
     // Current row count in table with attribute row_count_limit.
@@ -972,7 +972,7 @@ private:
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
 
-    TNullable<TJobResources> CachedMaxAvailableExecNodeResources_;
+    std::optional<TJobResources> CachedMaxAvailableExecNodeResources_;
 
     const std::unique_ptr<NYson::IYsonConsumer> EventLogConsumer_;
 
@@ -1032,7 +1032,7 @@ private:
     //! Number of times `OnSnapshotStarted()` was called up to this moment.
     int SnapshotIndex_ = 0;
     //! Index of a snapshot that is building right now.
-    TNullable<int> RecentSnapshotIndex_ = Null;
+    std::optional<int> RecentSnapshotIndex_ = std::nullopt;
     //! Timestamp of last successfull uploaded snapshot.
     TInstant LastSuccessfulSnapshotTime_ = TInstant::Zero();
 
@@ -1087,7 +1087,7 @@ private:
 
     TControllerTransactionIds GetTransactionIds();
 
-    TNullable<TDuration> GetTimeLimit() const;
+    std::optional<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;
 
     //! Sets finish time and other timing statistics.

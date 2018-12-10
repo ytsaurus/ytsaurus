@@ -255,7 +255,7 @@ struct TMessageTag
 
 TMessageWithAttachments ByteBufferToMessageWithAttachments(
     grpc_byte_buffer* buffer,
-    TNullable<ui32> messageBodySize)
+    std::optional<ui32> messageBodySize)
 {
     TMessageWithAttachments result;
 
@@ -448,7 +448,7 @@ TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPt
         nullptr));
 }
 
-TNullable<TString> ParseIssuerFromX509(TStringBuf x509String)
+std::optional<TString> ParseIssuerFromX509(TStringBuf x509String)
 {
     auto* bio = BIO_new(BIO_s_mem());
     auto bioGuard = Finally([&] {
@@ -463,7 +463,7 @@ TNullable<TString> ParseIssuerFromX509(TStringBuf x509String)
     });
 
     if (!x509) {
-        return Null;
+        return std::nullopt;
     }
 
     auto* issuerName = X509_get_issuer_name(x509);
@@ -471,7 +471,7 @@ TNullable<TString> ParseIssuerFromX509(TStringBuf x509String)
     std::array<char, 1024> buf;
     auto* issuerString = X509_NAME_oneline(issuerName, buf.data(), buf.size());
     if (!issuerString) {
-        return Null;
+        return std::nullopt;
     }
 
     return TString(issuerString);

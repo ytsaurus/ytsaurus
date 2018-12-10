@@ -11,7 +11,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/new.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -28,7 +28,7 @@ struct TInputSliceLimit
         const NTableClient::TRowBufferPtr& rowBuffer,
         TRange<NTableClient::TKey> keySet);
 
-    TNullable<i64> RowIndex;
+    std::optional<i64> RowIndex;
     NTableClient::TKey Key;
 
     void MergeLowerRowIndex(i64 rowIndex);

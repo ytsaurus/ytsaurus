@@ -18,7 +18,7 @@
 #include <yt/core/erasure/public.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/small_set.h>
 
@@ -154,8 +154,8 @@ private:
     struct TChunkRequisitionCache
     {
         TChunk::TParents LastChunkParents;
-        TNullable<TChunkRequisition> LastChunkUpdatedRequisition;
-        TNullable<TChunkRequisition> LastErasureChunkUpdatedRequisition;
+        std::optional<TChunkRequisition> LastChunkUpdatedRequisition;
+        std::optional<TChunkRequisition> LastErasureChunkUpdatedRequisition;
     };
 
     TChunkRequisitionCache ChunkRequisitionCache_;
@@ -194,7 +194,7 @@ private:
 
     const NConcurrency::IThroughputThrottlerPtr JobThrottler_;
 
-    TNullable<bool> Enabled_;
+    std::optional<bool> Enabled_;
 
     NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime = {};
     // Cached from InterDCEdgeConsumption and InterDCEdgeCapacities.

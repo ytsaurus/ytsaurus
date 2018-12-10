@@ -30,7 +30,7 @@ TColumnSchema::TColumnSchema()
 TColumnSchema::TColumnSchema(
     const TString& name,
     EValueType type,
-    TNullable<ESortOrder> SortOrder)
+    std::optional<ESortOrder> SortOrder)
     : Name_(name)
     , LogicalType_(GetLogicalType(type))
     , SortOrder_(SortOrder)
@@ -39,7 +39,7 @@ TColumnSchema::TColumnSchema(
 TColumnSchema::TColumnSchema(
     const TString& name,
     ELogicalValueType type,
-    TNullable<ESortOrder> SortOrder)
+    std::optional<ESortOrder> SortOrder)
     : Name_(name)
     , LogicalType_(type)
     , SortOrder_(SortOrder)
@@ -51,31 +51,31 @@ TColumnSchema& TColumnSchema::SetName(const TString& value)
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetSortOrder(const TNullable<ESortOrder>& value)
+TColumnSchema& TColumnSchema::SetSortOrder(const std::optional<ESortOrder>& value)
 {
     SortOrder_ = value;
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetLock(const TNullable<TString>& value)
+TColumnSchema& TColumnSchema::SetLock(const std::optional<TString>& value)
 {
     Lock_ = value;
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetGroup(const TNullable<TString>& value)
+TColumnSchema& TColumnSchema::SetGroup(const std::optional<TString>& value)
 {
     Group_ = value;
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetExpression(const TNullable<TString>& value)
+TColumnSchema& TColumnSchema::SetExpression(const std::optional<TString>& value)
 {
     Expression_ = value;
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetAggregate(const TNullable<TString>& value)
+TColumnSchema& TColumnSchema::SetAggregate(const std::optional<TString>& value)
 {
     Aggregate_ = value;
     return *this;
@@ -211,11 +211,11 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     } else {
         schema->SetLogicalType(GetLogicalType(static_cast<EValueType>(protoSchema.type())));
     }
-    schema->SetLock(protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null);
-    schema->SetExpression(protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null);
-    schema->SetAggregate(protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null);
-    schema->SetSortOrder(protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null);
-    schema->SetGroup(protoSchema.has_group() ? MakeNullable(protoSchema.group()) : Null);
+    schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
+    schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);
+    schema->SetAggregate(protoSchema.has_aggregate() ? std::make_optional(protoSchema.aggregate()) : std::nullopt);
+    schema->SetSortOrder(protoSchema.has_sort_order() ? std::make_optional(ESortOrder(protoSchema.sort_order())) : std::nullopt);
+    schema->SetGroup(protoSchema.has_group() ? std::make_optional(protoSchema.group()) : std::nullopt);
     schema->SetRequired(protoSchema.required());
 }
 
@@ -305,7 +305,7 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         columns.push_back(Columns_[id]);
 
         if (!inKeyColumns) {
-            columns.back().SetSortOrder(Null);
+            columns.back().SetSortOrder(std::nullopt);
         }
 
         if (columns.back().SortOrder()) {
@@ -330,7 +330,7 @@ TTableSchema TTableSchema::Filter(const THashSet<TString>& columns) const
     return Filter(TColumnFilter(std::move(indexes)));
 }
 
-TTableSchema TTableSchema::Filter(const TNullable<std::vector<TString>>& columns) const
+TTableSchema TTableSchema::Filter(const std::optional<std::vector<TString>>& columns) const
 {
     if (!columns) {
         return *this;
@@ -534,7 +534,7 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
     auto uniqueKeys = UniqueKeys_ && oldKeyColumnCount == GetKeyColumnCount();
 
     for (auto it = columns.begin() + keyColumns.size(); it != columns.end(); ++it) {
-        it->SetSortOrder(Null);
+        it->SetSortOrder(std::nullopt);
     }
 
     return TTableSchema(columns, Strict_, uniqueKeys);

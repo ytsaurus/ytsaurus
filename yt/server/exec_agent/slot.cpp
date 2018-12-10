@@ -164,9 +164,9 @@ public:
         return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
     }
 
-    virtual TFuture<TNullable<TString>> CreateSandboxDirectories(TUserSandboxOptions options)
+    virtual TFuture<std::optional<TString>> CreateSandboxDirectories(TUserSandboxOptions options)
     {
-        return RunPrepareAction<TNullable<TString>>([&] () {
+        return RunPrepareAction<std::optional<TString>>([&] () {
                 return Location_->CreateSandboxDirectories(
                     SlotIndex_,
                     options,

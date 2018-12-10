@@ -129,7 +129,7 @@ class TStoreLocationConfigBase
 public:
     //! Maximum space chunks are allowed to occupy.
     //! (If not initialized then indicates to occupy all available space on drive).
-    TNullable<i64> Quota;
+    std::optional<i64> Quota;
 
     // NB: actually registered as parameter by subclasses (because default value
     // is subclass-specific).
@@ -159,7 +159,7 @@ public:
     {
         RegisterParameter("quota", Quota)
             .GreaterThanOrEqual(0)
-            .Default(TNullable<i64>());
+            .Default(std::optional<i64>());
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
             .DefaultNew();
         RegisterParameter("tablet_compaction_and_partitioning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
@@ -391,7 +391,7 @@ public:
 
     //! Maximum space layers are allowed to occupy.
     //! (If not initialized then indicates to occupy all available space on drive).
-    TNullable<i64> Quota;
+    std::optional<i64> Quota;
 
     TLayerLocationConfig()
     {
@@ -400,7 +400,7 @@ public:
             .GreaterThanOrEqual(0);
 
         RegisterParameter("quota", Quota)
-            .Default(Null);
+            .Default();
     }
 };
 
@@ -455,7 +455,7 @@ public:
     TDuration IncrementalHeartbeatPeriod;
 
     //! Period between consequent full heartbeats.
-    TNullable<TDuration> FullHeartbeatPeriod;
+    std::optional<TDuration> FullHeartbeatPeriod;
 
     //! Period between consequent registration attempts.
     TDuration RegisterRetryPeriod;

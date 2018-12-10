@@ -9,7 +9,7 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/property.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/net/public.h>
@@ -153,7 +153,7 @@ TStringBuf ToHttpString(EStatusCode code);
 //! {Protocol}://{User}@{Host}:{Port}{Path}?{RawQuery}
 struct TUrlRef
 {
-    TNullable<ui16> Port;
+    std::optional<ui16> Port;
 
     TStringBuf Protocol;
     TStringBuf User;
@@ -239,7 +239,7 @@ struct IResponseWriter
     virtual const THeadersPtr& GetTrailers() = 0;
     virtual bool IsHeadersFlushed() const = 0;
 
-    virtual TNullable<EStatusCode> GetStatus() const = 0;
+    virtual std::optional<EStatusCode> GetStatus() const = 0;
     virtual void SetStatus(EStatusCode status) = 0;
     virtual void AddConnectionCloseHeader() = 0;
     virtual i64 GetWriteByteCount() const = 0;

@@ -63,8 +63,8 @@ TString NormalizeHttpProxyUrl(TString url)
 std::vector<TString> GetRpcProxiesFromHttp(
     const NHttp::TClientConfigPtr& config,
     const TString& proxyUrl,
-    const TNullable<TString>& oauthToken,
-    const TNullable<TString>& role)
+    const std::optional<TString>& oauthToken,
+    const std::optional<TString>& role)
 {
     auto client = CreateClient(config, TTcpDispatcher::Get()->GetXferPoller());
     auto headers = New<THeaders>();
@@ -82,7 +82,7 @@ std::vector<TString> GetRpcProxiesFromHttp(
             .EndAttributes()
             .Value("yson")
             .DoIf(
-                role.HasValue(), [&](auto fluent) {
+                role.operator bool(), [&] (auto fluent) {
                     fluent.Item("role").Value(*role);
                 })
             .EndMap().GetData());

@@ -31,7 +31,7 @@ public:
 
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TBlockReadOptions& options,
-        const TNullable<std::vector<int>>& extensionTags = Null) override;
+        const std::optional<std::vector<int>>& extensionTags = std::nullopt) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,

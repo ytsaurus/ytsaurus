@@ -143,7 +143,7 @@ public:
     TDuration TentativeTreeSaturationDeactivationPeriod;
 
     //! Enables infer of weight from effective min share ratios (if weight is not implicitly specified); inferred weight is this number mupltiplied by min share ratio.
-    TNullable<double> InferWeightFromMinShareRatioMultiplier;
+    std::optional<double> InferWeightFromMinShareRatioMultiplier;
 
     TFairShareStrategyTreeConfig();
 };
@@ -201,10 +201,10 @@ public:
     TDuration RandomMasterDisconnectionMaxBackoff;
 
     // Testing option that enables sleeping during master disconnect.
-    TNullable<TDuration> MasterDisconnectDelay;
+    std::optional<TDuration> MasterDisconnectDelay;
 
     // Testing option that enables sleeping between intermediate and final states of operation.
-    TNullable<TDuration> FinishOperationTransitionDelay;
+    std::optional<TDuration> FinishOperationTransitionDelay;
 
     TTestingOptions();
 };
@@ -365,7 +365,7 @@ public:
     TDuration OperationToAgentAssignmentBackoff;
 
     //! Maximum number of jobs to start within a single heartbeat.
-    TNullable<int> MaxStartedJobsPerHeartbeat;
+    std::optional<int> MaxStartedJobsPerHeartbeat;
 
     //! Timeout to store cached value of exec nodes information
     //! for scheduling tag filter without access.

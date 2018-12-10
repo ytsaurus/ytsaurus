@@ -23,7 +23,7 @@ public:
     TLazyYsonConsumer(
         TCallback<TSharedRef()> extractPrefixCallback_,
         TPythonStringCache* keyCacher,
-        const TNullable<TString>& encoding,
+        const std::optional<TString>& encoding,
         bool alwaysCreateAttributes);
 
     void OnListItem();

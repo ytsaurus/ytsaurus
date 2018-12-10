@@ -28,9 +28,9 @@ THashMap<TString, TString> ParseCookies(TStringBuf cookies);
 
 void ProtectCsrfToken(const IResponseWriterPtr& rsp);
 
-TNullable<TString> GetBalancerRequestId(const IRequestPtr& req);
-TNullable<TString> GetBalancerRealIP(const IRequestPtr& req);
-TNullable<TString> GetUserAgent(const IRequestPtr& req);
+std::optional<TString> GetBalancerRequestId(const IRequestPtr& req);
+std::optional<TString> GetBalancerRealIP(const IRequestPtr& req);
+std::optional<TString> GetUserAgent(const IRequestPtr& req);
 
 void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer);
 

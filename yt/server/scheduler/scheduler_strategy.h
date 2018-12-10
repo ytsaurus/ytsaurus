@@ -49,7 +49,7 @@ struct ISchedulerStrategyHost
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout = Null) = 0;
+        std::optional<TDuration> timeout = std::nullopt) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +66,7 @@ struct TJobUpdate
     TJobId JobId;
     TString TreeId;
     TJobResources Delta;
-    TNullable<int> SnapshotRevision;
+    std::optional<int> SnapshotRevision;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

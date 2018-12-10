@@ -24,7 +24,7 @@ using namespace NTabletClient;
  *  - Optional column doesn't become required.
  *  - Column expression remains the same.
  *  - Column aggregate method either was introduced or remains the same.
- *  - Column sort order either changes to Null or remains the same.
+ *  - Column sort order either changes to std::nullopt or remains the same.
  */
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
 {
@@ -41,7 +41,7 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
             oldColumn.Name());
     }
 
-    if (newColumn.SortOrder().HasValue() && newColumn.SortOrder() != oldColumn.SortOrder()) {
+    if (newColumn.SortOrder().operator bool() && newColumn.SortOrder() != oldColumn.SortOrder()) {
         THROW_ERROR_EXCEPTION("Sort order mismatch for column %Qv: old %Qlv, new %Qlv",
             oldColumn.Name(),
             oldColumn.SortOrder(),
@@ -183,13 +183,13 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             const auto& name = *columnSchema.Aggregate();
             if (auto descriptor = BuiltinTypeInferrersMap->GetFunction(name)->As<TAggregateTypeInferrer>()) {
                 TTypeSet constraint;
-                TNullable<EValueType> stateType;
-                TNullable<EValueType> resultType;
+                std::optional<EValueType> stateType;
+                std::optional<EValueType> resultType;
 
                 descriptor->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
                 if (!constraint.Get(columnSchema.GetPhysicalType())) {
                     THROW_ERROR_EXCEPTION("Argument type mismatch in aggregate function %Qv from column %Qv: expected %Qlv, got %Qlv",
-                        columnSchema.Aggregate().Get(),
+                        *columnSchema.Aggregate(),
                         columnSchema.Name(),
                         constraint,
                         columnSchema.GetPhysicalType());
@@ -197,7 +197,7 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
 
                 if (stateType && *stateType != columnSchema.GetPhysicalType()) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qlv differs from column %Qv type %Qlv",
-                        columnSchema.Aggregate().Get(),
+                        *columnSchema.Aggregate(),
                         stateType,
                         columnSchema.Name(),
                         columnSchema.GetPhysicalType());
@@ -205,14 +205,14 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
 
                 if (resultType && *resultType != columnSchema.GetPhysicalType()) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qlv differs from column %Qv type %Qlv",
-                        columnSchema.Aggregate().Get(),
+                        *columnSchema.Aggregate(),
                         resultType,
                         columnSchema.Name(),
                         columnSchema.GetPhysicalType());
                 }
             } else {
                 THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",
-                    columnSchema.Aggregate().Get(),
+                    *columnSchema.Aggregate(),
                     columnSchema.Name());
             }
         }
@@ -238,7 +238,7 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
                 THROW_ERROR_EXCEPTION("Non-key column %Qv cannot be computed", columnSchema.Name());
             }
             THashSet<TString> references;
-            auto expr = PrepareExpression(columnSchema.Expression().Get(), schema, BuiltinTypeInferrersMap, &references);
+            auto expr = PrepareExpression(*columnSchema.Expression(), schema, BuiltinTypeInferrersMap, &references);
             if (GetLogicalType(expr->Type) != columnSchema.LogicalType()) {
                 THROW_ERROR_EXCEPTION(
                     "Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
@@ -385,12 +385,12 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         for (int columnIndex = 0; columnIndex < schema.Columns().size(); ++columnIndex) {
             auto column = schema.Columns()[columnIndex];
             if (columnIndex >= commonKeyColumnPrefix) {
-                column = column.SetSortOrder(Null);
+                column = column.SetSortOrder(std::nullopt);
             }
             column = column
-                .SetExpression(Null)
-                .SetAggregate(Null)
-                .SetLock(Null);
+                .SetExpression(std::nullopt)
+                .SetAggregate(std::nullopt)
+                .SetLock(std::nullopt);
 
             auto it = nameToColumnSchema.find(column.Name());
             if (it == nameToColumnSchema.end()) {

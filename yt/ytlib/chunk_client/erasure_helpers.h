@@ -185,8 +185,8 @@ public:
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags) override;
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TChunkId GetChunkId() const override;
 

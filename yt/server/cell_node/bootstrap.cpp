@@ -423,7 +423,7 @@ void TBootstrap::DoRun()
         if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
             config->RpcTimeout = *config->RetryTimeout;
         }
-        config->RetryTimeout = Null;
+        config->RetryTimeout = std::nullopt;
         config->RetryAttempts = 1;
     };
 
@@ -927,7 +927,7 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks()
         : GetIths<0>(Config->Addresses);
 }
 
-TNullable<TString> TBootstrap::GetDefaultNetworkName()
+std::optional<TString> TBootstrap::GetDefaultNetworkName()
 {
     return Config->BusServer->DefaultNetwork;
 }

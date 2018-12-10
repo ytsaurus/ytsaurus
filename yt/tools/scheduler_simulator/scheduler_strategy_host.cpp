@@ -158,7 +158,7 @@ TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
     const TOperationId& operationId,
     EOperationAlertType alertType,
     const TError& alert,
-    TNullable<TDuration> timeout)
+    std::optional<TDuration> timeout)
 {
     return VoidFuture;
 }

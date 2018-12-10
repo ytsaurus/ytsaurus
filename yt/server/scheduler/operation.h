@@ -45,7 +45,7 @@ void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
 
 struct TControllerAttributes
 {
-    TNullable<NControllerAgent::TOperationControllerInitializeAttributes> InitializeAttributes;
+    std::optional<NControllerAgent::TOperationControllerInitializeAttributes> InitializeAttributes;
     NYson::TYsonString PrepareAttributes;
 };
 
@@ -107,7 +107,7 @@ struct IOperationStrategyHost
 
     virtual TInstant GetStartTime() const = 0;
 
-    virtual TNullable<int> FindSlotIndex(const TString& treeId) const = 0;
+    virtual std::optional<int> FindSlotIndex(const TString& treeId) const = 0;
     virtual int GetSlotIndex(const TString& treeId) const = 0;
     virtual void SetSlotIndex(const TString& treeId, int index) = 0;
 
@@ -197,7 +197,7 @@ public:
     //! Marks that operation ACL should be flushed to Cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlushAcl);
 
-    DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(TNullable<TInstant>, FinishTime);
+    DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::optional<TInstant>, FinishTime);
 
     //! List of events that happened to operation.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TOperationEvent>, Events);
@@ -218,10 +218,10 @@ public:
 
     //! If this operation needs revive, the corresponding revive descriptor is provided
     //! by Master Connector.
-    DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationRevivalDescriptor>, RevivalDescriptor);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TOperationRevivalDescriptor>, RevivalDescriptor);
 
     //! Structure with operation transactions.
-    DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationTransactions>, Transactions);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TOperationTransactions>, Transactions);
 
     //! Scheduling tag filters of operation pool trees.
     DEFINE_BYREF_RW_PROPERTY(TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
@@ -230,7 +230,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobs);
 
     //! Alias for the operation.
-    DEFINE_BYREF_RO_PROPERTY(TNullable<TString>, Alias);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Alias);
 
     //! Returns operation id.
     const TOperationId& GetId() const override;
@@ -277,7 +277,7 @@ public:
     void SetStateAndEnqueueEvent(EOperationState state);
 
     //! Slot index machinery.
-    TNullable<int> FindSlotIndex(const TString& treeId) const override;
+    std::optional<int> FindSlotIndex(const TString& treeId) const override;
     int GetSlotIndex(const TString& treeId) const override;
     void SetSlotIndex(const TString& treeId, int value) override;
     const THashMap<TString, int>& GetSlotIndices() const;
@@ -287,7 +287,7 @@ public:
 
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;
-    void SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout = Null);
+    void SetAlert(EOperationAlertType alertType, const TError& error, std::optional<TDuration> timeout = std::nullopt);
     void ResetAlert(EOperationAlertType alertType);
 
     //! Returns a cancelable control invoker corresponding to this operation.
@@ -318,7 +318,7 @@ public:
         const TString& authenticatedUser,
         TInstant startTime,
         IInvokerPtr controlInvoker,
-        const TNullable<TString>& alias,
+        const std::optional<TString>& alias,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false);

@@ -78,7 +78,7 @@ protected:
 
     static NChunkClient::TRefCountedChunkMetaPtr FilterMeta(
         NChunkClient::TRefCountedChunkMetaPtr meta,
-        const TNullable<std::vector<int>>& extensionTags);
+        const std::optional<std::vector<int>>& extensionTags);
 
 };
 

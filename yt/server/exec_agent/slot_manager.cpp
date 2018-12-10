@@ -192,18 +192,18 @@ bool TSlotManager::IsEnabled() const
     return isEnabled && Enabled_;
 }
 
-TNullable<i64> TSlotManager::GetMemoryLimit() const
+std::optional<i64> TSlotManager::GetMemoryLimit() const
 {
     return JobEnvironment_ && JobEnvironment_->IsEnabled()
         ? JobEnvironment_->GetMemoryLimit()
-        : Null;
+        : std::nullopt;
 }
 
-TNullable<i64> TSlotManager::GetCpuLimit() const
+std::optional<i64> TSlotManager::GetCpuLimit() const
 {
     return JobEnvironment_ && JobEnvironment_->IsEnabled()
        ? JobEnvironment_->GetCpuLimit()
-       : Null;
+       : std::nullopt;
 }
 
 bool TSlotManager::ExternalJobMemory() const

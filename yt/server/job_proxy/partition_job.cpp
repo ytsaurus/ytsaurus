@@ -75,7 +75,7 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 TKeyColumns(),
-                /* partitionTag */ Null,
+                /* partitionTag */ std::nullopt,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
                 Host_->GetOutRpsThrottler());

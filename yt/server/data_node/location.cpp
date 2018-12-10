@@ -199,7 +199,7 @@ TString TLocation::GetPath() const
 
 i64 TLocation::GetQuota() const
 {
-    return Config_->Quota.Get(std::numeric_limits<i64>::max());
+    return Config_->Quota.value_or(std::numeric_limits<i64>::max());
 }
 
 IInvokerPtr TLocation::GetWritePoolInvoker()
@@ -945,7 +945,7 @@ i64 TStoreLocation::GetAdditionalSpace() const
     return TrashDiskSpace_;
 }
 
-TNullable<TChunkDescriptor> TStoreLocation::RepairBlobChunk(const TChunkId& chunkId)
+std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(const TChunkId& chunkId)
 {
     auto fileName = GetChunkPath(chunkId);
     auto trashFileName = GetTrashChunkPath(chunkId);
@@ -985,10 +985,10 @@ TNullable<TChunkDescriptor> TStoreLocation::RepairBlobChunk(const TChunkId& chun
             metaFileName);
         NFS::Replace(metaFileName, trashMetaFileName);
     }
-    return Null;
+    return std::nullopt;
 }
 
-TNullable<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkId& chunkId)
+std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkId& chunkId)
 {
     auto fileName = GetChunkPath(chunkId);
     auto trashFileName = GetTrashChunkPath(chunkId);
@@ -1021,12 +1021,12 @@ TNullable<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkId& c
         NFS::Replace(indexFileName, trashIndexFileName);
     }
 
-    return Null;
+    return std::nullopt;
 }
 
-TNullable<TChunkDescriptor> TStoreLocation::RepairChunk(const TChunkId& chunkId)
+std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(const TChunkId& chunkId)
 {
-    TNullable<TChunkDescriptor> maybeDescriptor;
+    std::optional<TChunkDescriptor> maybeDescriptor;
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
     switch (chunkType) {
         case EObjectType::Chunk:
@@ -1154,7 +1154,7 @@ IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
     return InThrottler_;
 }
 
-TNullable<TChunkDescriptor> TCacheLocation::Repair(
+std::optional<TChunkDescriptor> TCacheLocation::Repair(
     const TChunkId& chunkId,
     const TString& metaSuffix)
 {
@@ -1194,12 +1194,12 @@ TNullable<TChunkDescriptor> TCacheLocation::Repair(
         NFS::Remove(metaFileName);
     }
 
-    return Null;
+    return std::nullopt;
 }
 
-TNullable<TChunkDescriptor> TCacheLocation::RepairChunk(const TChunkId& chunkId)
+std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(const TChunkId& chunkId)
 {
-    TNullable<TChunkDescriptor> maybeDescriptor;
+    std::optional<TChunkDescriptor> maybeDescriptor;
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
     switch (chunkType) {
         case EObjectType::Chunk:

@@ -266,7 +266,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, Null);
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, std::nullopt);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 hasUnsafelyPlacedReplicas[mediumIndex] = true;
             }
@@ -742,7 +742,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, Null);
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, std::nullopt);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 // A journal chunk is considered placed unsafely if some non-null rack
                 // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.
@@ -1162,7 +1162,7 @@ bool TChunkReplicator::CreateReplicationJob(
         chunk,
         replicasNeeded,
         1,
-        Null,
+        std::nullopt,
         UnsaturatedInterDCEdges[sourceNode->GetDataCenter()],
         ESessionType::Replication);
     if (targetNodes.empty()) {
@@ -1352,7 +1352,7 @@ bool TChunkReplicator::CreateRepairJob(
         chunk,
         erasedPartCount,
         erasedPartCount,
-        Null,
+        std::nullopt,
         UnsaturatedInterDCEdges[node->GetDataCenter()],
         ESessionType::Repair);
     if (targetNodes.empty()) {
@@ -1972,7 +1972,7 @@ void TChunkReplicator::OnRefresh()
 
 bool TChunkReplicator::IsEnabled()
 {
-    return Enabled_.Get(false);
+    return Enabled_.value_or(false);
 }
 
 void TChunkReplicator::OnCheckEnabled()
@@ -2288,8 +2288,8 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
 void TChunkReplicator::ClearChunkRequisitionCache()
 {
     ChunkRequisitionCache_.LastChunkParents.clear();
-    ChunkRequisitionCache_.LastChunkUpdatedRequisition = Null;
-    ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition = Null;
+    ChunkRequisitionCache_.LastChunkUpdatedRequisition = std::nullopt;
+    ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition = std::nullopt;
 }
 
 bool TChunkReplicator::CanServeRequisitionFromCache(const TChunk* chunk)
@@ -2299,8 +2299,8 @@ bool TChunkReplicator::CanServeRequisitionFromCache(const TChunk* chunk)
     }
 
     return chunk->IsErasure()
-        ? ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition.HasValue()
-        : ChunkRequisitionCache_.LastChunkUpdatedRequisition.HasValue();
+        ? ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition.operator bool()
+        : ChunkRequisitionCache_.LastChunkUpdatedRequisition.operator bool();
 }
 
 TChunkRequisition TChunkReplicator::GetRequisitionFromCache(const TChunk* chunk)
@@ -2478,16 +2478,16 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
     auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
-        const TNullable<TString>& srcDataCenterName = srcDataCenter
-            ? static_cast<TNullable<TString>>(srcDataCenter->GetName())
-            : Null;
+        const std::optional<TString>& srcDataCenterName = srcDataCenter
+            ? static_cast<std::optional<TString>>(srcDataCenter->GetName())
+            : std::nullopt;
         auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
         const auto& newInterDCEdgeCapacities = capacities[srcDataCenterName];
 
         auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
-            const TNullable<TString>& dstDataCenterName = dstDataCenter
-                ? static_cast<TNullable<TString>>(dstDataCenter->GetName())
-                : Null;
+            const std::optional<TString>& dstDataCenterName = dstDataCenter
+                ? static_cast<std::optional<TString>>(dstDataCenter->GetName())
+                : std::nullopt;
             auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
             if (it != newInterDCEdgeCapacities.end()) {
                 interDCEdgeCapacities[dstDataCenter] = it->second / secondaryCellCount;

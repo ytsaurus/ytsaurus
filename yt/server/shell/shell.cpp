@@ -50,7 +50,7 @@ public:
         : Options_(std::move(options))
         , Id_(TGuid::Create())
         , Process_(New<TSimpleProcess>(Options_->ExePath, false))
-        , Freezer_(Options_->CGroupBasePath.Get("") + CGroupShellPrefix + ToString(Id_))
+        , Freezer_(Options_->CGroupBasePath.value_or(TString()) + CGroupShellPrefix + ToString(Id_))
         , CurrentHeight_(Options_->Height)
         , CurrentWidth_(Options_->Width)
         , InactivityTimeout_(Options_->InactivityTimeout)
@@ -68,7 +68,7 @@ public:
         YCHECK(!IsRunning_);
         IsRunning_ = true;
 
-        int uid = Options_->Uid.Get(::getuid());
+        int uid = Options_->Uid.value_or(::getuid());
         auto user = SafeGetUsernameByUid(uid);
         auto home = Options_->WorkingDir;
 
@@ -262,7 +262,7 @@ private:
     TError InactivityError_;
     TPromise<void> TerminatedPromise_ = NewPromise<void>();
 
-    TNullable<TString> Command_;
+    std::optional<TString> Command_;
 
     NLogging::TLogger Logger = ShellLogger;
 

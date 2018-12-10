@@ -144,7 +144,7 @@ public:
 
     void SetAccessed(TCypressNodeBase* trunkNode);
 
-    void SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time);
+    void SetExpirationTime(TCypressNodeBase* trunkNode, std::optional<TInstant> time);
 
     typedef SmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
     TSubtreeNodes ListSubtreeNodes(

@@ -83,7 +83,7 @@ static const THashSet<TString> V2CommandWhitelist = {
     "upload", 
 };
 
-TNullable<TString> CommandNameV2ToV3(TString commandName)
+std::optional<TString> CommandNameV2ToV3(TString commandName)
 {
     if (V2CommandWhitelist.find(commandName) == V2CommandWhitelist.end()) {
         return {};
@@ -97,7 +97,7 @@ TNullable<TString> CommandNameV2ToV3(TString commandName)
     return commandName;
 }
 
-TNullable<TString> CommandNameV3ToV2(TString commandName)
+std::optional<TString> CommandNameV3ToV2(TString commandName)
 {
     for (const auto& patch : V2CommandMapping) {
         if (commandName == patch.second) {

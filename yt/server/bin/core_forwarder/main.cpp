@@ -67,7 +67,7 @@ protected:
             TString jobProxySocketNameFile = JobProxySocketNameDirectory_ + "/" + ToString(UserId_);
             if (JobProxySocketPath_ || Exists(jobProxySocketNameFile)) {
                 auto jobProxySocketName = JobProxySocketPath_
-                    ? JobProxySocketPath_.Get()
+                    ? *JobProxySocketPath_
                     : TUnbufferedFileInput(jobProxySocketNameFile).ReadLine();
                 ForwardCore(jobProxySocketName);
             } else {
@@ -155,7 +155,7 @@ protected:
 
     TString JobProxySocketNameDirectory_;
     TString FallbackPath_;
-    TNullable<TString> JobProxySocketPath_;
+    std::optional<TString> JobProxySocketPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

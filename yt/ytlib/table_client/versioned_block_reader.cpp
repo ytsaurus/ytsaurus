@@ -394,7 +394,7 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
 
     value->Id = id;
     value->Timestamp = timestamp;
-    value->Aggregate = ValueAggregateFlags_.HasValue() ? ValueAggregateFlags_->operator[](valueIndex) : false;
+    value->Aggregate = ValueAggregateFlags_ ? ValueAggregateFlags_->operator[](valueIndex) : false;
 
     bool isNull = ValueNullFlags_[valueIndex];
     if (Y_UNLIKELY(isNull)) {

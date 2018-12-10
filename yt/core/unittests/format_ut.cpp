@@ -113,10 +113,10 @@ TEST(TFormatTest, Quotes)
 
 TEST(TFormatTest, Nullable)
 {
-    EXPECT_EQ("1", Format("%v", MakeNullable<int>(1)));
-    EXPECT_EQ("<null>", Format("%v", Null));
-    EXPECT_EQ("<null>", Format("%v", TNullable<int>()));
-    EXPECT_EQ("3.14", Format("%.2f", TNullable<double>(3.1415)));
+    EXPECT_EQ("1", Format("%v", std::make_optional<int>(1)));
+    EXPECT_EQ("<null>", Format("%v", std::nullopt));
+    EXPECT_EQ("<null>", Format("%v", std::optional<int>()));
+    EXPECT_EQ("3.14", Format("%.2f", std::optional<double>(3.1415)));
 }
 
 TEST(TFormatTest, Pointers)

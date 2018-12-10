@@ -20,7 +20,7 @@
 #include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
@@ -124,10 +124,10 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(bool, Decommissioned);
 
-    using TFillFactorIterator = TNullable<NChunkServer::TFillFactorToNodeIterator>;
+    using TFillFactorIterator = std::optional<NChunkServer::TFillFactorToNodeIterator>;
     using TFillFactorIterators = TPerMediumArray<TFillFactorIterator>;
 
-    using TLoadFactorIterator = TNullable<NChunkServer::TLoadFactorToNodeIterator>;
+    using TLoadFactorIterator = std::optional<NChunkServer::TLoadFactorToNodeIterator>;
     using TLoadFactorIterators = TPerMediumArray<TLoadFactorIterator>;
 
     DEFINE_BYREF_RW_PROPERTY(TFillFactorIterators, FillFactorIterators);
@@ -211,7 +211,7 @@ public:
      */
     TDataCenter* GetDataCenter() const;
 
-    bool HasTag(const TNullable<TString>& tag) const;
+    bool HasTag(const std::optional<TString>& tag) const;
 
     //! Prepares per-cell state map.
     //! Inserts new entries into the map, fills missing onces with ENodeState::Offline value.
@@ -273,9 +273,9 @@ public:
     bool HasMedium(int mediumIndex) const;
 
     //! Returns null if there's no storage of specified medium on this node.
-    TNullable<double> GetFillFactor(int mediumIndex) const;
+    std::optional<double> GetFillFactor(int mediumIndex) const;
     //! Returns null if there's no storage of specified medium on this node.
-    TNullable<double> GetLoadFactor(int mediumIndex) const;
+    std::optional<double> GetLoadFactor(int mediumIndex) const;
 
     bool IsWriteEnabled(int mediumIndex) const;
 
@@ -316,8 +316,8 @@ private:
 
     TPerMediumArray<ui64> VisitMarks_{};
 
-    TPerMediumArray<TNullable<double>> FillFactors_;
-    TPerMediumArray<TNullable<int>> SessionCount_;
+    TPerMediumArray<std::optional<double>> FillFactors_;
+    TPerMediumArray<std::optional<int>> SessionCount_;
 
     ENodeState* LocalStatePtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;

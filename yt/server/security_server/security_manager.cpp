@@ -45,7 +45,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/logging/fluent_log.h>
 
@@ -919,17 +919,17 @@ public:
         return result ? result : RootUser_;
     }
 
-    TNullable<TString> GetAuthenticatedUserName()
+    std::optional<TString> GetAuthenticatedUserName()
     {
         if (auto* user = GetAuthenticatedUser()) {
             return user->GetName();
         }
-        return Null;
+        return std::nullopt;
     }
 
-    static TNullable<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
+    static std::optional<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
     {
-        auto nothing = TNullable<EAceInheritanceMode>();
+        auto nothing = std::optional<EAceInheritanceMode>();
         switch (mode) {
             case EAceInheritanceMode::ObjectAndDescendants:
                 return EAceInheritanceMode::ObjectAndDescendants;
@@ -945,7 +945,7 @@ public:
 
     static bool CheckInheritanceMode(EAceInheritanceMode mode, int depth)
     {
-        return GetInheritedInheritanceMode(mode, depth).HasValue();
+        return GetInheritedInheritanceMode(mode, depth).operator bool();
     }
 
     bool IsUserRootOrSuperuser(const TUser* user)
@@ -2808,7 +2808,7 @@ TUser* TSecurityManager::GetAuthenticatedUser()
     return Impl_->GetAuthenticatedUser();
 }
 
-TNullable<TString> TSecurityManager::GetAuthenticatedUserName()
+std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
 {
     return Impl_->GetAuthenticatedUserName();
 }

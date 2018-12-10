@@ -208,7 +208,7 @@ class TStartOperationCommand
 {
 public:
     explicit TStartOperationCommand(
-        TNullable<NScheduler::EOperationType> operationType = TNullable<NScheduler::EOperationType>());
+        std::optional<NScheduler::EOperationType> operationType = std::optional<NScheduler::EOperationType>());
 
 private:
     NYTree::INodePtr Spec;
@@ -297,7 +297,7 @@ class TSimpleOperationCommandBase
 {
 private:
     NScheduler::TOperationId OperationId;
-    TNullable<TString> OperationAlias;
+    std::optional<TString> OperationAlias;
 
 protected:
     // Is calculated by two fields above.
@@ -309,13 +309,13 @@ public:
         this->RegisterParameter("operation_id", OperationId)
             .Default();
         this->RegisterParameter("operation_alias", OperationAlias)
-            .Default(Null);
+            .Default();
 
         this->RegisterPostprocessor([&] {
-            if (((!OperationId.IsEmpty()) && (OperationAlias.HasValue())) ||
-                ((OperationId.IsEmpty()) && (!OperationAlias.HasValue())))
+            if (!OperationId.IsEmpty() && OperationAlias.operator bool() ||
+                OperationId.IsEmpty() && !OperationAlias.operator bool())
             {
-                THROW_ERROR_EXCEPTION("Exactly one of operation_id and operation_alias should be set")
+                THROW_ERROR_EXCEPTION("Exactly one of \"operation_id\" and \"operation_alias\" should be set")
                     << TErrorAttribute("operation_id", OperationId)
                     << TErrorAttribute("operation_alias", OperationAlias);
             }

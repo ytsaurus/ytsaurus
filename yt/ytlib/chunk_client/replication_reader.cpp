@@ -174,18 +174,18 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& estimatedSize) override;
+        const std::optional<i64>& estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& estimatedSize) override;
+        const std::optional<i64>& estimatedSize) override;
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags) override;
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -1003,7 +1003,7 @@ public:
         TReplicationReader* reader,
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& estimatedSize)
+        const std::optional<i64>& estimatedSize)
         : TSessionBase(reader, options)
         , BlockIndexes_(blockIndexes)
     {
@@ -1029,7 +1029,7 @@ private:
     //! Block indexes to read during the session.
     const std::vector<int> BlockIndexes_;
 
-    const TNullable<i64> EstimatedSize_;
+    const std::optional<i64> EstimatedSize_;
 
     i64 BytesThrottled_ = 0;
 
@@ -1102,7 +1102,7 @@ private:
         }
     }
 
-    TNullable<TPeer> SelectBestPeer(
+    std::optional<TPeer> SelectBestPeer(
         const std::vector<TPeer>& candidates,
         const std::vector<int>& blockIndexes,
         const TReplicationReaderPtr& reader)
@@ -1110,7 +1110,7 @@ private:
         LOG_DEBUG("Gathered candidate peers (Addresses: %v)", candidates);
 
         if (candidates.empty()) {
-            return Null;
+            return std::nullopt;
         }
 
         // Multiple candidates - send probing requests.
@@ -1142,13 +1142,13 @@ private:
 
         auto errorOrResults = WaitFor(CombineAll(asyncResults));
         if (!errorOrResults.IsOK()) {
-            return Null;
+            return std::nullopt;
         }
 
         const auto& results = errorOrResults.Value();
 
         TDataNodeServiceProxy::TRspGetBlockSetPtr bestRsp;
-        TNullable<TPeer> bestPeer;
+        std::optional<TPeer> bestPeer;
 
         auto getLoad = [&] (const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp) {
             return ReaderConfig_->NetQueueSizeFactor * rsp->net_queue_size() +
@@ -1197,7 +1197,7 @@ private:
                     bestPeer->Address,
                     bestPeer->Type);
                 ReinstallPeer(bestPeer->Address);
-                bestPeer = Null;
+                bestPeer = std::nullopt;
             } else {
                 LOG_DEBUG("Best peer selected (Address: %v, DiskQueueSize: %v, NetQueueSize: %v)",
                     bestPeer->Address,
@@ -1267,7 +1267,7 @@ private:
             return;
         }
 
-        TNullable<TPeer> maybePeer;
+        std::optional<TPeer> maybePeer;
         while (!maybePeer) {
             auto candidates = PickPeerCandidates(
                 ReaderConfig_->ProbePeerCount,
@@ -1391,8 +1391,8 @@ private:
             }
 
             auto sourceDescriptor = ReaderOptions_->EnableP2P
-                ? TNullable<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
-                : TNullable<TNodeDescriptor>(Null);
+                ? std::optional<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
+                : std::optional<TNodeDescriptor>(std::nullopt);
 
             reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
@@ -1469,7 +1469,7 @@ private:
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     const std::vector<int>& blockIndexes,
-    const TNullable<i64>& estimatedSize)
+    const std::optional<i64>& estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1488,7 +1488,7 @@ public:
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64> estimatedSize)
+        const std::optional<i64> estimatedSize)
         : TSessionBase(reader, options)
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
@@ -1516,7 +1516,7 @@ private:
     //! Number of blocks to fetch.
     const int BlockCount_;
 
-    TNullable<i64> EstimatedSize_;
+    std::optional<i64> EstimatedSize_;
 
     //! Promise representing the session.
     TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
@@ -1730,7 +1730,7 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    const TNullable<i64>& estimatedSize)
+    const std::optional<i64>& estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1747,8 +1747,8 @@ public:
     TGetMetaSession(
         TReplicationReader* reader,
         const TClientBlockReadOptions& options,
-        const TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags)
+        const std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags)
         : TSessionBase(reader, options)
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
@@ -1767,8 +1767,8 @@ public:
     }
 
 private:
-    const TNullable<int> PartitionTag_;
-    const TNullable<std::vector<int>> ExtensionTags_;
+    const std::optional<int> PartitionTag_;
+    const std::optional<std::vector<int>> ExtensionTags_;
 
     //! Promise representing the session.
     TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
@@ -1832,7 +1832,7 @@ private:
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
         if (PartitionTag_) {
-            req->set_partition_tag(PartitionTag_.Get());
+            req->set_partition_tag(*PartitionTag_);
         }
         if (ExtensionTags_) {
             ToProto(req->mutable_extension_tags(), *ExtensionTags_);
@@ -1891,8 +1891,8 @@ private:
 
 TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
     const TClientBlockReadOptions& options,
-    TNullable<int> partitionTag,
-    const TNullable<std::vector<int>>& extensionTags)
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

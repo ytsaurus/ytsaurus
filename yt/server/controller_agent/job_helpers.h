@@ -25,10 +25,10 @@ struct TBriefJobStatistics
     i64 ProcessedOutputUncompressedDataSize = 0;
     i64 ProcessedOutputCompressedDataSize = 0;
     // Time is given in milliseconds.
-    TNullable<i64> InputPipeIdleTime = Null;
+    std::optional<i64> InputPipeIdleTime = std::nullopt;
     // Maximum across all output tables. This should work fine.
-    TNullable<i64> OutputPipeIdleTime = Null;
-    TNullable<i64> JobProxyCpuUsage = Null;
+    std::optional<i64> OutputPipeIdleTime = std::nullopt;
+    std::optional<i64> JobProxyCpuUsage = std::nullopt;
 
     void Persist(const NPhoenix::TPersistenceContext& context);
 };

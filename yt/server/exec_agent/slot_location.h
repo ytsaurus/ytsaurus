@@ -34,7 +34,7 @@ public:
 
     //! Make ./sandbox, ./home/, ./udf and other directories.
     //! Returns tmpfs path if any.
-    TFuture<TNullable<TString>> CreateSandboxDirectories(
+    TFuture<std::optional<TString>> CreateSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
         int userId);
@@ -86,7 +86,7 @@ private:
     std::set<int> SlotsWithQuota_;
 
     NConcurrency::TReaderWriterSpinLock SlotsLock_;
-    THashMap<int, TNullable<i64>> OccupiedSlotToDiskLimit_;
+    THashMap<int, std::optional<i64>> OccupiedSlotToDiskLimit_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 

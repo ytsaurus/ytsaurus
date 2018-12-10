@@ -129,7 +129,7 @@ protected:
         Reader_->ResetBlock(Data_, 0);
     }
 
-    NTableClient::TUnversionedValue MakeValue(const TNullable<TValue>& value)
+    NTableClient::TUnversionedValue MakeValue(const std::optional<TValue>& value)
     {
         if (value) {
             return DoMakeUnversionedValue(*value, ColumnId);
@@ -138,7 +138,7 @@ protected:
         }
     }
 
-    std::vector<NTableClient::TVersionedRow> CreateRows(std::vector<TNullable<TValue>> values)
+    std::vector<NTableClient::TVersionedRow> CreateRows(std::vector<std::optional<TValue>> values)
     {
         std::vector<NTableClient::TVersionedRow> rows;
         for (const auto& value : values) {
@@ -159,7 +159,7 @@ protected:
         return rows;
     }
 
-    void WriteSegment(IValueColumnWriter* columnWriter, std::vector<TNullable<TValue>> values)
+    void WriteSegment(IValueColumnWriter* columnWriter, std::vector<std::optional<TValue>> values)
     {
         auto rows = CreateRows(values);
         columnWriter->WriteValues(MakeRange(rows));
@@ -195,9 +195,9 @@ protected:
         ValidateEqual(MakeRange(expectedBegin, expectedBegin + rowCount), actual);
     }
 
-    std::vector<TNullable<TValue>> MakeVector(int count, const TValue& value)
+    std::vector<std::optional<TValue>> MakeVector(int count, const TValue& value)
     {
-        return std::vector<TNullable<TValue>>(count, value);
+        return std::vector<std::optional<TValue>>(count, value);
     }
 
     virtual void Write(IValueColumnWriter* columnWriter) = 0;

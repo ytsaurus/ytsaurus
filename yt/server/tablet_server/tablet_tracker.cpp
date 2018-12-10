@@ -56,7 +56,7 @@ private:
 
     TInstant StartTime_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-    TNullable<bool> LastEnabled_;
+    std::optional<bool> LastEnabled_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

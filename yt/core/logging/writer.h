@@ -20,11 +20,11 @@ class TRateLimitCounter
 {
 public:
     TRateLimitCounter(
-        TNullable<size_t> limit,
+        std::optional<size_t> limit,
         const NProfiling::TMonotonicCounter& bytesCounter,
         const NProfiling::TMonotonicCounter& skippedEventsCounter);
 
-    void SetRateLimit(TNullable<size_t> rateLimit);
+    void SetRateLimit(std::optional<size_t> rateLimit);
     void SetBytesCounter(const NProfiling::TMonotonicCounter& counter);
     void SetSkippedEventsCounter(const NProfiling::TMonotonicCounter& counter);
     bool IsLimitReached();
@@ -38,7 +38,7 @@ private:
     i64 SkippedEvents_ = 0;
     TDuration UpdatePeriod_ = TDuration::Seconds(1);
     TInstant LastUpdate_;
-    TNullable<size_t> RateLimit_;
+    std::optional<size_t> RateLimit_;
     NProfiling::TMonotonicCounter BytesCounter_;
     NProfiling::TMonotonicCounter SkippedEventsCounter_;
 };
@@ -52,7 +52,7 @@ struct ILogWriter
     virtual void Flush() = 0;
     virtual void Reload() = 0;
     virtual void CheckSpace(i64 minSpace) = 0;
-    virtual void SetRateLimit(TNullable<size_t> limit) = 0;
+    virtual void SetRateLimit(std::optional<size_t> limit) = 0;
     virtual void SetCategoryRateLimits(const THashMap<TString, size_t>& categoryRateLimits) = 0;
 };
 
@@ -73,7 +73,7 @@ public:
     virtual void Reload() override;
     virtual void CheckSpace(i64 minSpace) override;
 
-    virtual void SetRateLimit(TNullable<size_t> limit) override;
+    virtual void SetRateLimit(std::optional<size_t> limit) override;
     virtual void SetCategoryRateLimits(const THashMap<TString, size_t>& categoryRateLimits) override;
 
 protected:

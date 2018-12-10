@@ -388,7 +388,7 @@ struct TStatus
 
 struct TElectionTestData
 {
-    TNullable<TStatus> Statuses[2];
+    std::optional<TStatus> Statuses[2];
     int ExpectedLeader;
 
     TElectionTestData(int expectedLeader, TStatus status)
@@ -422,7 +422,7 @@ TEST_P(TElectionGenericTest, Basic)
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
-                const auto* status = data.Statuses[id - 1].GetPtr();
+                const auto& status = data.Statuses[id - 1];
                 if (status) {
                     response->set_state(static_cast<int>(status->State));
                     response->set_vote_id(status->VoteId);

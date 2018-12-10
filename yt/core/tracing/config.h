@@ -16,8 +16,8 @@ class TTraceManagerConfig
 {
 public:
     //! Address where all trace events are pushed to.
-    //! If |Null| then push is disabled.
-    TNullable<TString> Address;
+    //! If null then push is disabled.
+    std::optional<TString> Address;
 
     //! Timeout for push requests.
     TDuration RpcTimeout;

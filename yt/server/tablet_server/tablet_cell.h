@@ -17,7 +17,7 @@
 #include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/small_vector.h>

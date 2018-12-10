@@ -505,7 +505,7 @@ public:
     TSuspiciousJobsOptionsPtr SuspiciousJobs;
 
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
-    TNullable<TDuration> OperationTimeLimit;
+    std::optional<TDuration> OperationTimeLimit;
 
     TDuration OperationTimeLimitCheckPeriod;
 
@@ -602,8 +602,8 @@ public:
     double ResourceOverdraftFactor;
 
     //! If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
-    TNullable<int> IopsThreshold;
-    TNullable<int> IopsThrottlerLimit;
+    std::optional<int> IopsThreshold;
+    std::optional<int> IopsThrottlerLimit;
 
     //! Patch for all operation options.
     NYT::NYTree::INodePtr OperationOptions;
@@ -636,7 +636,7 @@ public:
 
     NChunkClient::TFetcherConfigPtr Fetcher;
 
-    TNullable<NYPath::TYPath> UdfRegistryPath;
+    std::optional<NYPath::TYPath> UdfRegistryPath;
 
     //! Discriminates between "heavy" and "light" job specs. For those with slice count
     //! not exceeding this threshold no throttling is done.
@@ -663,7 +663,7 @@ public:
     // Cypress path to a special layer containing YT-specific data required to
     // run jobs with custom rootfs, e.g. statically linked job-satellite.
     // Is applied on top of user layers if they are used.
-    TNullable<TString> SystemLayerPath;
+    std::optional<TString> SystemLayerPath;
 
     // Running jobs cached YSON string update period.
     TDuration CachedRunningJobsUpdatePeriod;
@@ -681,7 +681,7 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
-    TNullable<i64> TotalControllerMemoryLimit;
+    std::optional<i64> TotalControllerMemoryLimit;
 
     TControllerAgentConfig();
 

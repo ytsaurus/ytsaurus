@@ -206,13 +206,13 @@ TString SyncYPathGetKey(
 TFuture<NYson::TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys = Null);
+    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
 
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
 NYson::TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys = Null);
+    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
 
 //! Asynchronously executes |Exists| verb.
 TFuture<bool> AsyncYPathExists(
@@ -242,13 +242,13 @@ void SyncYPathRemove(
 std::vector<TString> SyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
-    TNullable<i64> limit = Null);
+    std::optional<i64> limit = std::nullopt);
 
 //! Asynchronously executes |List| verb.
 TFuture<std::vector<TString>> AsyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
-    TNullable<i64> limit = Null);
+    std::optional<i64> limit = std::nullopt);
 
 /*!
  *  Throws exception if the specified node does not exist.

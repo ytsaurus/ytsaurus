@@ -321,7 +321,7 @@ class TSerializableNodeResourceLimitsOverrides
     : public NYTree::TYsonSerializableLite
 {
 public:
-    #define XX(name, Name) TNullable<decltype(TNodeResourceLimitsOverrides::default_instance().name())> Name;
+    #define XX(name, Name) std::optional<decltype(TNodeResourceLimitsOverrides::default_instance().name())> Name;
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
 

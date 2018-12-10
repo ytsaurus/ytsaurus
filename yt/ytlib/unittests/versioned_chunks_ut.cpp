@@ -98,7 +98,7 @@ protected:
             MemoryWriter->GetBlocks());
     }
 
-    void FillKey(TMutableVersionedRow row, TNullable<TString> k1, TNullable<i64> k2, TNullable<double> k3)
+    void FillKey(TMutableVersionedRow row, std::optional<TString> k1, std::optional<i64> k2, std::optional<double> k3)
     {
         row.BeginKeys()[0] = k1
                              ? MakeUnversionedStringValue(*k1, 0)
@@ -114,7 +114,7 @@ protected:
     TVersionedRow CreateSingleRow(int index)
     {
         auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
-        FillKey(row, MakeNullable(A), MakeNullable(index), Null);
+        FillKey(row, std::make_optional(A), std::make_optional(index), std::nullopt);
 
         // v1
         row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
@@ -201,7 +201,7 @@ protected:
             owningKeys.push_back(builder.FinishRow());
 
             auto row = TMutableVersionedRow::Allocate(&pool, 3, 1, 1, 1);
-            FillKey(row, MakeNullable(A), MakeNullable(0), Null);
+            FillKey(row, std::make_optional(A), std::make_optional(0), std::nullopt);
             row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
             row.BeginWriteTimestamps()[0] = 11;
             row.BeginDeleteTimestamps()[0] = 9;
@@ -214,7 +214,7 @@ protected:
             owningKeys.push_back(builder.FinishRow());
 
             row = TMutableVersionedRow::Allocate(&pool, 3, 1, 1, 1);
-            FillKey(row, MakeNullable(A), MakeNullable(150000), Null);
+            FillKey(row, std::make_optional(A), std::make_optional(150000), std::nullopt);
             row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
             row.BeginWriteTimestamps()[0] = 11;
             row.BeginDeleteTimestamps()[0] = 9;

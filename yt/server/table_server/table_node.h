@@ -46,13 +46,13 @@ private:
         TTabletStateIndexedVector TabletCountByState;
         TTabletStateIndexedVector TabletCountByExpectedState;
         TTabletList Tablets;
-        TNullable<bool> EnableTabletBalancer;
-        TNullable<i64> MinTabletSize;
-        TNullable<i64> MaxTabletSize;
-        TNullable<i64> DesiredTabletSize;
-        TNullable<int> DesiredTabletCount;
+        std::optional<bool> EnableTabletBalancer;
+        std::optional<i64> MinTabletSize;
+        std::optional<i64> MaxTabletSize;
+        std::optional<i64> DesiredTabletSize;
+        std::optional<int> DesiredTabletCount;
         int TabletErrorCount = 0;
-        TNullable<i64> ForcedCompactionRevision;
+        std::optional<i64> ForcedCompactionRevision;
         bool Dynamic = false;
         TString MountPath;
         NSecurityServer::TClusterResources ExternalTabletResourceUsage;
@@ -110,8 +110,8 @@ public:
         const NChunkClient::NProto::TDataStatistics* statistics,
         const TSharedTableSchemaPtr& schema,
         NTableClient::ETableSchemaMode schemaMode,
-        TNullable<NTableClient::EOptimizeFor> optimizeFor,
-        const TNullable<NCrypto::TMD5Hasher>& md5Hasher) override;
+        std::optional<NTableClient::EOptimizeFor> optimizeFor,
+        const std::optional<NCrypto::TMD5Hasher>& md5Hasher) override;
 
     virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
@@ -155,7 +155,7 @@ public:
     void ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const;
     void ValidateAllTabletsUnmounted(TStringBuf message) const;
 
-    std::vector<TError> GetTabletErrors(TNullable<int> limit = Null) const;
+    std::vector<TError> GetTabletErrors(std::optional<int> limit = std::nullopt) const;
 
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;

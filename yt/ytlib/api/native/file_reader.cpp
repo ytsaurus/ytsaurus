@@ -185,7 +185,7 @@ private:
             auto req = TFileYPathProxy::Fetch(objectIdPath);
 
             TReadLimit lowerLimit, upperLimit;
-            i64 offset = Options_.Offset.Get(0);
+            i64 offset = Options_.Offset.value_or(0);
             if (Options_.Offset) {
                 lowerLimit.SetOffset(offset);
             }
@@ -213,7 +213,7 @@ private:
                 cellTag,
                 nodeDirectory,
                 Config_->MaxChunksPerLocateRequest,
-                Null,
+                std::nullopt,
                 Logger,
                 &chunkSpecs);
         }

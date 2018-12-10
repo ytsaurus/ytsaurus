@@ -184,9 +184,9 @@ public:
         std::vector<TTransaction*> prerequisiteTransactions,
         const TCellTagList& secondaryCellTags,
         const TCellTagList& replicateToCellTags,
-        TNullable<TDuration> timeout,
-        TNullable<TInstant> deadline,
-        const TNullable<TString>& title,
+        std::optional<TDuration> timeout,
+        std::optional<TInstant> deadline,
+        const std::optional<TString>& title,
         const IAttributeDictionary& attributes,
         const TTransactionId& hintId)
     {
@@ -704,10 +704,10 @@ private:
             ? FromProto(request->attributes())
             : CreateEphemeralAttributes();
 
-        auto title = request->has_title() ? MakeNullable(request->title()) : Null;
+        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
 
         auto timeout = FromProto<TDuration>(request->timeout());
-        TNullable<TInstant> deadline;
+        std::optional<TInstant> deadline;
         if (request->has_deadline()) {
             deadline = FromProto<TInstant>(request->deadline());
         }
@@ -849,7 +849,7 @@ private:
         }
         transaction->DependentTransactions().clear();
 
-        transaction->SetDeadline(Null);
+        transaction->SetDeadline(std::nullopt);
 
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
@@ -1019,9 +1019,9 @@ TTransaction* TTransactionManager::StartTransaction(
     std::vector<TTransaction*> prerequisiteTransactions,
     const TCellTagList& secondaryCellTags,
     const TCellTagList& replicateToCellTags,
-    TNullable<TDuration> timeout,
-    TNullable<TInstant> deadline,
-    const TNullable<TString>& title,
+    std::optional<TDuration> timeout,
+    std::optional<TInstant> deadline,
+    const std::optional<TString>& title,
     const IAttributeDictionary& attributes,
     const TTransactionId& hintId)
 {

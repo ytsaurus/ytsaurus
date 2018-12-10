@@ -90,8 +90,8 @@ public:
     TFuture<TSharedRef> JobSpecProtoFuture;
 
     NScheduler::TExtendedJobResources EstimatedResourceUsage;
-    TNullable<double> JobProxyMemoryReserveFactor;
-    TNullable<double> UserJobMemoryReserveFactor;
+    std::optional<double> JobProxyMemoryReserveFactor;
+    std::optional<double> UserJobMemoryReserveFactor;
     TJobResources ResourceLimits;
 
     NChunkPools::TChunkStripeListPtr InputStripeList;

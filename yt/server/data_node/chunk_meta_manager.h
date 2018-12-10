@@ -8,7 +8,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/property.h>
 

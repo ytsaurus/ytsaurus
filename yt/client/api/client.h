@@ -38,7 +38,7 @@
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -72,13 +72,13 @@ void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYTree::INodePtr n
 
 struct TTimeoutOptions
 {
-    TNullable<TDuration> Timeout;
+    std::optional<TDuration> Timeout;
 };
 
 struct TTabletRangeOptions
 {
-    TNullable<int> FirstTabletIndex;
-    TNullable<int> LastTabletIndex;
+    std::optional<int> FirstTabletIndex;
+    std::optional<int> LastTabletIndex;
 };
 
 struct TTransactionalOptions
@@ -182,9 +182,9 @@ struct TAlterTableOptions
     , public TMutatingOptions
     , public TTransactionalOptions
 {
-    TNullable<NTableClient::TTableSchema> Schema;
-    TNullable<bool> Dynamic;
-    TNullable<NTabletClient::TTableReplicaId> UpstreamReplicaId;
+    std::optional<NTableClient::TTableSchema> Schema;
+    std::optional<bool> Dynamic;
+    std::optional<NTabletClient::TTableReplicaId> UpstreamReplicaId;
 };
 
 struct TTrimTableOptions
@@ -194,10 +194,10 @@ struct TTrimTableOptions
 struct TAlterTableReplicaOptions
     : public TTimeoutOptions
 {
-    TNullable<bool> Enabled;
-    TNullable<NTabletClient::ETableReplicaMode> Mode;
-    TNullable<bool> PreserveTimestamps;
-    TNullable<NTransactionClient::EAtomicity> Atomicity;
+    std::optional<bool> Enabled;
+    std::optional<NTabletClient::ETableReplicaMode> Mode;
+    std::optional<bool> PreserveTimestamps;
+    std::optional<NTransactionClient::EAtomicity> Atomicity;
 };
 
 struct TGetInSyncReplicasOptions
@@ -239,9 +239,9 @@ struct TCheckPermissionResult
 
     NSecurityClient::ESecurityAction Action;
     NObjectClient::TObjectId ObjectId;
-    TNullable<TString> ObjectName;
+    std::optional<TString> ObjectName;
     NSecurityClient::TSubjectId SubjectId;
-    TNullable<TString> SubjectName;
+    std::optional<TString> SubjectName;
 };
 
 struct TCheckPermissionByAclOptions
@@ -258,7 +258,7 @@ struct TCheckPermissionByAclResult
 
     NSecurityClient::ESecurityAction Action;
     NSecurityClient::TSubjectId SubjectId;
-    TNullable<TString> SubjectName;
+    std::optional<TString> SubjectName;
     std::vector<TString> MissingSubjects;
 };
 
@@ -266,7 +266,7 @@ struct TCheckPermissionByAclResult
 struct TTransactionStartOptions
     : public TMutatingOptions
 {
-    TNullable<TDuration> Timeout;
+    std::optional<TDuration> Timeout;
 
     //! If not null then the transaction must use this externally provided id.
     //! Only applicable to tablet transactions.
@@ -275,12 +275,12 @@ struct TTransactionStartOptions
     NTransactionClient::TTransactionId ParentId;
     std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
 
-    TNullable<TInstant> Deadline;
+    std::optional<TInstant> Deadline;
 
     bool AutoAbort = true;
     bool Sticky = false;
 
-    TNullable<TDuration> PingPeriod;
+    std::optional<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = true;
 
@@ -303,7 +303,7 @@ struct TTransactionAttachOptions
 {
     bool AutoAbort = false;
     bool Sticky = false;
-    TNullable<TDuration> PingPeriod;
+    std::optional<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = false;
 };
@@ -363,7 +363,7 @@ struct TTabletReadOptions
     : public TTimeoutOptions
 {
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
-    TNullable<TDuration> BackupRequestDelay;
+    std::optional<TDuration> BackupRequestDelay;
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
 };
@@ -389,9 +389,9 @@ struct TSelectRowsOptions
     : public TTabletReadOptions
 {
     //! If null then connection defaults are used.
-    TNullable<i64> InputRowLimit;
+    std::optional<i64> InputRowLimit;
     //! If null then connection defaults are used.
-    TNullable<i64> OutputRowLimit;
+    std::optional<i64> OutputRowLimit;
     //! Limits range expanding.
     ui64 RangeExpansionLimit = 200000;
     //! If |true| then incomplete result would lead to a failure.
@@ -423,8 +423,8 @@ struct TGetNodeOptions
 {
     // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
     std::shared_ptr<const NYTree::IAttributeDictionary> Options;
-    TNullable<std::vector<TString>> Attributes;
-    TNullable<i64> MaxSize;
+    std::optional<std::vector<TString>> Attributes;
+    std::optional<i64> MaxSize;
 };
 
 struct TSetNodeOptions
@@ -455,8 +455,8 @@ struct TListNodeOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
-    TNullable<std::vector<TString>> Attributes;
-    TNullable<i64> MaxSize;
+    std::optional<std::vector<TString>> Attributes;
+    std::optional<i64> MaxSize;
 };
 
 struct TCreateObjectOptions
@@ -483,8 +483,8 @@ struct TLockNodeOptions
     , public TPrerequisiteOptions
 {
     bool Waitable = false;
-    TNullable<TString> ChildKey;
-    TNullable<TString> AttributeKey;
+    std::optional<TString> ChildKey;
+    std::optional<TString> AttributeKey;
 };
 
 struct TLockNodeResult
@@ -551,8 +551,8 @@ struct TFileReaderOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
 {
-    TNullable<i64> Offset;
-    TNullable<i64> Length;
+    std::optional<i64> Offset;
+    std::optional<i64> Length;
     TFileReaderConfigPtr Config;
 };
 
@@ -562,8 +562,8 @@ struct TFileWriterOptions
 {
     bool Append = true;
     bool ComputeMD5 = false;
-    TNullable<NCompression::ECodec> CompressionCodec;
-    TNullable<NErasure::ECodec> ErasureCodec;
+    std::optional<NCompression::ECodec> CompressionCodec;
+    std::optional<NErasure::ECodec> ErasureCodec;
     TFileWriterConfigPtr Config;
 };
 
@@ -588,8 +588,8 @@ struct TJournalReaderOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
 {
-    TNullable<i64> FirstRowIndex;
-    TNullable<i64> RowCount;
+    std::optional<i64> FirstRowIndex;
+    std::optional<i64> RowCount;
     TJournalReaderConfigPtr Config;
 };
 
@@ -638,7 +638,7 @@ struct TStartOperationOptions
 struct TAbortOperationOptions
     : public TTimeoutOptions
 {
-    TNullable<TString> AbortMessage;
+    std::optional<TString> AbortMessage;
 };
 
 struct TSuspendOperationOptions
@@ -690,26 +690,26 @@ struct TListOperationsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
-    TNullable<TInstant> FromTime;
-    TNullable<TInstant> ToTime;
-    TNullable<TInstant> CursorTime;
+    std::optional<TInstant> FromTime;
+    std::optional<TInstant> ToTime;
+    std::optional<TInstant> CursorTime;
     EOperationSortDirection CursorDirection = EOperationSortDirection::Past;
-    TNullable<TString> UserFilter;
+    std::optional<TString> UserFilter;
 
     // XXX(lesysotsky): OwnedBy filter is currently supported only
     // for Cypress operations, so IncludeArchive must be |false|.
-    TNullable<TString> OwnedBy;
+    std::optional<TString> OwnedBy;
 
-    TNullable<NScheduler::EOperationState> StateFilter;
-    TNullable<NScheduler::EOperationType> TypeFilter;
-    TNullable<TString> SubstrFilter;
-    TNullable<TString> Pool;
-    TNullable<bool> WithFailedJobs;
+    std::optional<NScheduler::EOperationState> StateFilter;
+    std::optional<NScheduler::EOperationType> TypeFilter;
+    std::optional<TString> SubstrFilter;
+    std::optional<TString> Pool;
+    std::optional<bool> WithFailedJobs;
     bool IncludeArchive = false;
     bool IncludeCounters = true;
     ui64 Limit = 100;
 
-    TNullable<THashSet<TString>> Attributes;
+    std::optional<THashSet<TString>> Attributes;
 
     // TODO(ignat): Remove this mode when UI migrate to list_operations without enabled UI mode.
     // See st/YTFRONT-1360.
@@ -750,12 +750,12 @@ struct TListJobsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
-    TNullable<NJobTrackerClient::EJobType> Type;
-    TNullable<NJobTrackerClient::EJobState> State;
-    TNullable<TString> Address;
-    TNullable<bool> WithStderr;
-    TNullable<bool> WithFailContext;
-    TNullable<bool> WithSpec;
+    std::optional<NJobTrackerClient::EJobType> Type;
+    std::optional<NJobTrackerClient::EJobState> State;
+    std::optional<TString> Address;
+    std::optional<bool> WithStderr;
+    std::optional<bool> WithFailContext;
+    std::optional<bool> WithSpec;
 
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
@@ -794,14 +794,14 @@ struct TPollJobShellOptions
 struct TAbortJobOptions
     : public TTimeoutOptions
 {
-    TNullable<TDuration> InterruptTimeout;
+    std::optional<TDuration> InterruptTimeout;
 };
 
 struct TGetOperationOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
-    TNullable<THashSet<TString>> Attributes;
+    std::optional<THashSet<TString>> Attributes;
     bool IncludeRuntime = false;
 
     TGetOperationOptions()
@@ -811,7 +811,7 @@ struct TGetOperationOptions
 struct TGetJobOptions
     : public TTimeoutOptions
 {
-    TNullable<THashSet<TString>> Attributes;
+    std::optional<THashSet<TString>> Attributes;
 };
 
 struct TSelectRowsResult
@@ -838,18 +838,18 @@ struct TClusterMeta
 
 struct TOperation
 {
-    TNullable<NScheduler::TOperationId> Id;
+    std::optional<NScheduler::TOperationId> Id;
 
-    TNullable<NScheduler::EOperationType> Type;
-    TNullable<NScheduler::EOperationState> State;
+    std::optional<NScheduler::EOperationType> Type;
+    std::optional<NScheduler::EOperationState> State;
 
-    TNullable<TInstant> StartTime;
-    TNullable<TInstant> FinishTime;
+    std::optional<TInstant> StartTime;
+    std::optional<TInstant> FinishTime;
 
-    TNullable<TString> AuthenticatedUser;
-    TNullable<std::vector<TString>> Owners;
+    std::optional<TString> AuthenticatedUser;
+    std::optional<std::vector<TString>> Owners;
 
-    TNullable<std::vector<TString>> Pools;
+    std::optional<std::vector<TString>> Pools;
 
     NYson::TYsonString BriefSpec;
     NYson::TYsonString Spec;
@@ -861,7 +861,7 @@ struct TOperation
 
     NYson::TYsonString RuntimeParameters;
 
-    TNullable<bool> Suspended;
+    std::optional<bool> Suspended;
 
     NYson::TYsonString Events;
     NYson::TYsonString Result;
@@ -872,11 +872,11 @@ struct TOperation
 struct TListOperationsResult
 {
     std::vector<TOperation> Operations;
-    TNullable<THashMap<TString, i64>> PoolCounts;
-    TNullable<THashMap<TString, i64>> UserCounts;
-    TNullable<TEnumIndexedVector<i64, NScheduler::EOperationState>> StateCounts;
-    TNullable<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
-    TNullable<i64> FailedJobsCount;
+    std::optional<THashMap<TString, i64>> PoolCounts;
+    std::optional<THashMap<TString, i64>> UserCounts;
+    std::optional<TEnumIndexedVector<i64, NScheduler::EOperationState>> StateCounts;
+    std::optional<TEnumIndexedVector<i64, NScheduler::EOperationType>> TypeCounts;
+    std::optional<i64> FailedJobsCount;
     bool Incomplete = false;
 };
 
@@ -886,12 +886,12 @@ struct TJob
     NJobTrackerClient::EJobType Type;
     NJobTrackerClient::EJobState State;
     TInstant StartTime;
-    TNullable<TInstant> FinishTime;
+    std::optional<TInstant> FinishTime;
     TString Address;
-    TNullable<double> Progress;
-    TNullable<ui64> StderrSize;
-    TNullable<ui64> FailContextSize;
-    TNullable<bool> HasSpec;
+    std::optional<double> Progress;
+    std::optional<ui64> StderrSize;
+    std::optional<ui64> FailContextSize;
+    std::optional<bool> HasSpec;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString InputPaths;
@@ -907,9 +907,9 @@ struct TListJobsStatistics
 struct TListJobsResult
 {
     std::vector<TJob> Jobs;
-    TNullable<int> CypressJobCount;
-    TNullable<int> ControllerAgentJobCount;
-    TNullable<int> ArchiveJobCount;
+    std::optional<int> CypressJobCount;
+    std::optional<int> ControllerAgentJobCount;
+    std::optional<int> ArchiveJobCount;
 
     TListJobsStatistics Statistics;
 };
@@ -1172,7 +1172,7 @@ struct IClient
         const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
 
     virtual TFuture<TCheckPermissionByAclResult> CheckPermissionByAcl(
-        const TNullable<TString>& user,
+        const std::optional<TString>& user,
         NYTree::EPermission permission,
         NYTree::INodePtr acl,
         const TCheckPermissionByAclOptions& options = TCheckPermissionByAclOptions()) = 0;

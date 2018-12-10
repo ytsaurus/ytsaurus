@@ -76,7 +76,7 @@ public:
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*block*/,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
         Y_UNREACHABLE();
     }
@@ -277,7 +277,7 @@ private:
             DecompressionStatistics_.Append(TCodecDuration{codecId, timer.GetElapsedTime()});
 
             if (codecId != NCompression::ECodec::None) {
-                blockCache->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), Null);
+                blockCache->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
             }
             return uncompressedBlock;
         }

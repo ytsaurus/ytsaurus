@@ -70,8 +70,8 @@ bool ConstantTimeCompare(const TString& trusted, const TString& untrusted);
 
 namespace NProto {
 
-void ToProto(NCrypto::NProto::TMD5Hasher* protoHasher, const TNullable<NYT::NCrypto::TMD5Hasher>& hasher);
-void FromProto(TNullable<NYT::NCrypto::TMD5Hasher>* hasher, const NCrypto::NProto::TMD5Hasher& protoHasher);
+void ToProto(NCrypto::NProto::TMD5Hasher* protoHasher, const std::optional<NYT::NCrypto::TMD5Hasher>& hasher);
+void FromProto(std::optional<NYT::NCrypto::TMD5Hasher>* hasher, const NCrypto::NProto::TMD5Hasher& protoHasher);
 
 } // namespace NProto
 

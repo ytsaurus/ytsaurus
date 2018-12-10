@@ -512,8 +512,8 @@ void TOperationControllerBase::InitializeStructures()
     for (const auto& path : GetInputTablePaths()) {
         auto table = New<TInputTable>();
         table->Path = path;
-        table->TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
-        table->ColumnRenameDescriptors = path.GetColumnRenameDescriptors().Get({});
+        table->TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
+        table->ColumnRenameDescriptors = path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors());
         InputTables_.emplace_back(std::move(table));
     }
 
@@ -538,7 +538,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : userJobSpec->FilePaths) {
             TUserFile file;
             file.Path = path;
-            file.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
+            file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
             file.IsLayer = false;
             files.emplace_back(std::move(file));
         }
@@ -551,7 +551,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : layerPaths) {
             TUserFile file;
             file.Path = path;
-            file.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
+            file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
             file.IsLayer = true;
             files.emplace_back(std::move(file));
         }
@@ -2006,7 +2006,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     if (!abandoned) {
-        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation || jobSummary->ExecDuration.Get({}) > Config->MinJobDurationToArchiveJobSpec) &&
+        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation || jobSummary->ExecDuration.value_or(TDuration()) > Config->MinJobDurationToArchiveJobSpec) &&
            JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
         {
             ++JobSpecCompletedArchiveCount_;
@@ -2015,7 +2015,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     // We want to know row count before moving jobSummary to ProcessFinishedJobResult.
-    TNullable<i64> maybeRowCount;
+    std::optional<i64> maybeRowCount;
     if (RowCountLimitTableIndex) {
         maybeRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
     }
@@ -2853,10 +2853,10 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
         auto maxUsedTmpfsSize = pair.second;
 
-        bool minUnusedSpaceThresholdOvercome = userJobSpecPtr->TmpfsSize.Get() - maxUsedTmpfsSize >
+        bool minUnusedSpaceThresholdOvercome = *userJobSpecPtr->TmpfsSize - maxUsedTmpfsSize >
             Config->OperationAlerts->TmpfsAlertMinUnusedSpaceThreshold;
         bool minUnusedSpaceRatioViolated = maxUsedTmpfsSize <
-            minUnusedSpaceRatio * userJobSpecPtr->TmpfsSize.Get();
+            minUnusedSpaceRatio * (*userJobSpecPtr->TmpfsSize);
 
         if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
             TError error(
@@ -3907,7 +3907,7 @@ void TOperationControllerBase::OnOperationAborted(const TError& error)
     Host->OnOperationAborted(error);
 }
 
-TNullable<TDuration> TOperationControllerBase::GetTimeLimit() const
+std::optional<TDuration> TOperationControllerBase::GetTimeLimit() const
 {
     auto timeLimit = Config->OperationTimeLimit;
     if (Spec_->TimeLimit) {
@@ -4048,7 +4048,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
-    finishedJob->Summary.Statistics.Reset();
+    finishedJob->Summary.Statistics.reset();
 
     if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr || finishedJob->Summary.ArchiveFailContext) {
         FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
@@ -4119,10 +4119,10 @@ void TOperationControllerBase::CreateLivePreviewTables()
         TCellTag cellTag,
         int replicationFactor,
         NCompression::ECodec compressionCodec,
-        const TNullable<TString>& account,
+        const std::optional<TString>& account,
         const TString& key,
         const TYsonString& acl,
-        TNullable<TTableSchema> schema)
+        std::optional<TTableSchema> schema)
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(static_cast<int>(EObjectType::Table));
@@ -4181,7 +4181,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             StderrTable_->CellTag,
             StderrTable_->Options->ReplicationFactor,
             StderrTable_->Options->CompressionCodec,
-            Null /* account */,
+            std::nullopt /* account */,
             "create_stderr",
             StderrTable_->EffectiveAcl,
             StderrTable_->TableUploadOptions.TableSchema);
@@ -4209,7 +4209,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
                         fluent.Item().Value(node);
                     })
                 .EndList(),
-            Null);
+            std::nullopt);
     }
 
     {
@@ -4293,7 +4293,7 @@ void TOperationControllerBase::FetchInputTables()
         if (ranges.empty()) {
             continue;
         }
-        bool hasColumnSelectors = table->Path.GetColumns().HasValue();
+        bool hasColumnSelectors = table->Path.GetColumns().operator bool();
 
         if (InputQuery && table->Schema.IsSorted()) {
             auto rangeInferrer = CreateRangeInferrer(
@@ -4935,7 +4935,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                     file.CellTag,
                     nullptr,
                     Config->MaxChunksPerLocateRequest,
-                    Null,
+                    std::nullopt,
                     Logger,
                     &file.ChunkSpecs);
 
@@ -5009,7 +5009,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
                 file.FileName,
                 file.Path,
                 file.Type,
-                file.Path.GetColumns().HasValue());
+                file.Path.GetColumns().operator bool());
             auto chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : file.Chunks.size();
             if (chunkCount > Config->MaxUserFileChunkCount) {
                 THROW_ERROR_EXCEPTION(
@@ -5223,7 +5223,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     switch (file.Type) {
                         case EObjectType::File:
                             file.Executable = attributes.Get<bool>("executable", false);
-                            file.Executable = file.Path.GetExecutable().Get(file.Executable);
+                            file.Executable = file.Path.GetExecutable().value_or(file.Executable);
                             break;
 
                         case EObjectType::Table:
@@ -5300,7 +5300,7 @@ void TOperationControllerBase::PrepareInputQuery()
 
 void TOperationControllerBase::ParseInputQuery(
     const TString& queryString,
-    const TNullable<TTableSchema>& schema)
+    const std::optional<TTableSchema>& schema)
 {
     for (const auto& table : InputTables_) {
         if (table->Path.GetColumns()) {
@@ -5332,7 +5332,7 @@ void TOperationControllerBase::ParseInputQuery(
 
         std::vector<std::pair<TString, TString>> keys;
         for (const auto& name : externalNames) {
-            keys.emplace_back(Config->UdfRegistryPath.Get(), name);
+            keys.emplace_back(*Config->UdfRegistryPath, name);
         }
 
         auto descriptors = LookupAllUdfDescriptors(keys, Host->GetClient());
@@ -5362,8 +5362,8 @@ void TOperationControllerBase::ParseInputQuery(
         }
 
         return columns.size() == tableSchema.GetColumnCount()
-            ? TNullable<std::vector<TString>>()
-            : MakeNullable(std::move(columns));
+            ? std::optional<std::vector<TString>>()
+            : std::make_optional(std::move(columns));
     };
 
     // Use query column filter for input tables.
@@ -5374,7 +5374,7 @@ void TOperationControllerBase::ParseInputQuery(
         }
     }
 
-    InputQuery.Emplace();
+    InputQuery.emplace();
     InputQuery->Query = std::move(query);
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
 }
@@ -6142,7 +6142,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
         Host->AddChunkTreesToUnstageList(chunkTreeIdsToRelease, true /* recursive */);
     }
 
-    RecentSnapshotIndex_.Reset();
+    RecentSnapshotIndex_    .reset();
     LastSuccessfulSnapshotTime_ = TInstant::Now();
 }
 
@@ -6393,7 +6393,7 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
     }
 
     fluent
-        .DoIf(Spec_->Title.HasValue(), [&] (TFluentMap fluent) {
+        .DoIf(Spec_->Title.operator bool(), [&] (TFluentMap fluent) {
             fluent
                 .Item("title").Value(*Spec_->Title);
         })
@@ -6842,7 +6842,7 @@ IJobSplitter* TOperationControllerBase::GetJobSplitter()
     return JobSplitter_.get();
 }
 
-const TNullable<TJobResources>& TOperationControllerBase::CachedMaxAvailableExecNodeResources() const
+const std::optional<TJobResources>& TOperationControllerBase::CachedMaxAvailableExecNodeResources() const
 {
     return CachedMaxAvailableExecNodeResources_;
 }
@@ -6899,7 +6899,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 {
     jobSpec->set_shell_command(config->Command);
     if (config->JobTimeLimit) {
-        jobSpec->set_job_time_limit(config->JobTimeLimit.Get().MilliSeconds());
+        jobSpec->set_job_time_limit(ToProto<i64>(*config->JobTimeLimit));
     }
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
@@ -6914,7 +6914,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);
 
     if (config->TmpfsPath && Config->EnableTmpfs) {
-        auto tmpfsSize = config->TmpfsSize.Get(config->MemoryLimit);
+        auto tmpfsSize = config->TmpfsSize.value_or(config->MemoryLimit);
         jobSpec->set_tmpfs_size(tmpfsSize);
         jobSpec->set_tmpfs_path(*config->TmpfsPath);
     }
@@ -7373,7 +7373,7 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
             IntermediatePath,
             OutputTables_[tableIndex]->TableUploadOptions.TableSchema,
-            Null));
+            std::nullopt));
 
         NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
         ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
@@ -7410,9 +7410,9 @@ TBlobTableWriterConfigPtr TOperationControllerBase::GetStderrTableWriterConfig()
     return nullptr;
 }
 
-TNullable<TRichYPath> TOperationControllerBase::GetStderrTablePath() const
+std::optional<TRichYPath> TOperationControllerBase::GetStderrTablePath() const
 {
-    return Null;
+    return std::nullopt;
 }
 
 TBlobTableWriterConfigPtr TOperationControllerBase::GetCoreTableWriterConfig() const
@@ -7420,9 +7420,9 @@ TBlobTableWriterConfigPtr TOperationControllerBase::GetCoreTableWriterConfig() c
     return nullptr;
 }
 
-TNullable<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
+std::optional<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
-    return Null;
+    return std::nullopt;
 }
 
 void TOperationControllerBase::OnChunksReleased(int /* chunkCount */)
@@ -7560,7 +7560,7 @@ void TOperationControllerBase::RegisterOutputRows(i64 count, int tableIndex)
     }
 }
 
-TNullable<int> TOperationControllerBase::GetRowCountLimitTableIndex()
+std::optional<int> TOperationControllerBase::GetRowCountLimitTableIndex()
 {
     return RowCountLimitTableIndex;
 }
@@ -7586,7 +7586,7 @@ TOutputTablePtr TOperationControllerBase::RegisterOutputTable(const TRichYPath& 
             THROW_ERROR_EXCEPTION("Only one output table with row_count_limit is supported");
         }
         RowCountLimitTableIndex = OutputTables_.size();
-        RowCountLimit = rowCountLimit.Get();
+        RowCountLimit = *rowCountLimit;
     }
 
     Sinks_.emplace_back(std::make_unique<TSink>(this, OutputTables_.size()));

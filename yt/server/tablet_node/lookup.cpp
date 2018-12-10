@@ -30,7 +30,7 @@
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/timing.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/variant.h>

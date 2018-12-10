@@ -30,17 +30,17 @@ TEST_F(TCoroutineTest, Nullary)
     EXPECT_FALSE(coro.IsCompleted());
 
     int i;
-    TNullable<int> actual;
+    std::optional<int> actual;
     for (i = 1; /**/; ++i) {
         actual = coro.Run();
         if (coro.IsCompleted()) {
             break;
         }
-        EXPECT_TRUE(actual.HasValue());
-        EXPECT_EQ(i, actual.Get());
+        EXPECT_TRUE(actual);
+        EXPECT_EQ(i, *actual);
     }
 
-    EXPECT_FALSE(actual.HasValue());
+    EXPECT_FALSE(actual);
     EXPECT_EQ(6, i);
 
     EXPECT_TRUE(coro.IsCompleted());
@@ -68,15 +68,15 @@ TEST_F(TCoroutineTest, Unary)
 
     // Alternative syntax.
     int i = 0, j = 0;
-    TNullable<int> actual;
+    std::optional<int> actual;
     while ((actual = coro.Run(j))) {
         ++i;
-        EXPECT_EQ(i * 2 - 1, actual.Get());
+        EXPECT_EQ(i * 2 - 1, *actual);
         EXPECT_EQ(i * 2 - 2, j);
-        j = actual.Get() + 1;
+        j = *actual+ 1;
     }
 
-    EXPECT_FALSE(actual.HasValue());
+    EXPECT_FALSE(actual);
     EXPECT_EQ(5, i);
     EXPECT_EQ(10, j);
 
@@ -114,7 +114,7 @@ TEST_F(TCoroutineTest, Binary)
     EXPECT_FALSE(coro.IsCompleted());
 
     int i = 0;
-    TNullable<int> actual;
+    std::optional<int> actual;
     for (
         i = 0;
         (actual = coro.Run(
@@ -122,10 +122,10 @@ TEST_F(TCoroutineTest, Binary)
             i < Coroutine2TestCases.size() ? Coroutine2TestCases[i].rhs : 0));
         ++i
     ) {
-        EXPECT_EQ(Coroutine2TestCases[i].sum, actual.Get());
+        EXPECT_EQ(Coroutine2TestCases[i].sum, *actual);
     }
 
-    EXPECT_FALSE(actual.HasValue());
+    EXPECT_FALSE(actual);
     EXPECT_EQ(i, Coroutine2TestCases.size());
 
     EXPECT_TRUE(coro.IsCompleted());

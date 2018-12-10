@@ -9,7 +9,7 @@
 
 #include <yt/core/compression/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -89,7 +89,7 @@ class TClientRequest
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, Heavy, false);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, Codec, NCompression::ECodec::None);
@@ -127,7 +127,7 @@ protected:
 
     NProto::TRequestHeader Header_;
     mutable TSharedRef SerializedBody_;
-    mutable TNullable<size_t> Hash_;
+    mutable std::optional<size_t> Hash_;
     EMultiplexingBand MultiplexingBand_ = EMultiplexingBand::Default;
     bool FirstTimeSerialization_ = true;
 
@@ -353,7 +353,7 @@ class TProxyBase
 public:
     DEFINE_RPC_PROXY_METHOD(NProto, Discover);
 
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, DefaultTimeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck, true);
 
 protected:

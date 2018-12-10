@@ -9,7 +9,7 @@
 #include <yt/core/bus/client.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 
 #include <yt/core/ytree/public.h>
@@ -36,7 +36,7 @@ DEFINE_REFCOUNTED_TYPE(IClientRequestControl)
 
 struct TSendOptions
 {
-    TNullable<TDuration> Timeout;
+    std::optional<TDuration> Timeout;
     bool RequestAck = true;
     bool GenerateAttachmentChecksums = true;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;

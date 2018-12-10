@@ -12,7 +12,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/rpc/public.h>
 

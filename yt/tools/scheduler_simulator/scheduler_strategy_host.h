@@ -65,7 +65,7 @@ public:
         const NScheduler::TOperationId& operationId,
         NScheduler::EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout) override;
+        std::optional<TDuration> timeout) override;
 
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;

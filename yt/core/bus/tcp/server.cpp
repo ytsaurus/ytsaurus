@@ -239,7 +239,7 @@ protected:
                 *endpointAttributes,
                 clientAddress,
                 address,
-                Null,
+                std::nullopt,
                 Handler_,
                 TTcpDispatcher::TImpl::Get()->GetXferPoller());
 
@@ -343,7 +343,7 @@ private:
     {
         ServerSocket_ = CreateTcpServerSocket();
 
-        auto serverAddress = TNetworkAddress::CreateIPv6Any(Config_->Port.Get());
+        auto serverAddress = TNetworkAddress::CreateIPv6Any(*Config_->Port);
         BindSocket(serverAddress, Format("Failed to bind a server socket to port %v", Config_->Port));
     }
 
@@ -383,9 +383,9 @@ private:
         {
             TNetworkAddress netAddress;
             if (Config_->UnixDomainName) {
-                netAddress = TNetworkAddress::CreateUnixDomainAddress(Config_->UnixDomainName.Get());
+                netAddress = TNetworkAddress::CreateUnixDomainAddress(*Config_->UnixDomainName);
             } else {
-                netAddress = GetLocalBusAddress(Config_->Port.Get());
+                netAddress = GetLocalBusAddress(*Config_->Port);
             }
             BindSocket(netAddress, "Failed to bind a local server socket");
         }

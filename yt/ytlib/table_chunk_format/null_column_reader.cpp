@@ -49,9 +49,9 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual TNullable<int> GetNextBlockIndex() const override
+    virtual std::optional<int> GetNextBlockIndex() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
     virtual std::pair<i64, i64> GetEqualRange(const TUnversionedValue& value, i64 lowerRowIndex, i64 upperRowIndex) override

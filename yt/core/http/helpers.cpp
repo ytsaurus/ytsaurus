@@ -238,7 +238,7 @@ void ProtectCsrfToken(const IResponseWriterPtr& rsp)
     headers->Set(XDnsPrefetchControlHeaderName, "off");
 }
 
-TNullable<TString> GetBalancerRequestId(const IRequestPtr& req)
+std::optional<TString> GetBalancerRequestId(const IRequestPtr& req)
 {
     static const TString XReqIdHeaderName("X-Req-Id");
     auto header = req->GetHeaders()->Find(XReqIdHeaderName);
@@ -249,7 +249,7 @@ TNullable<TString> GetBalancerRequestId(const IRequestPtr& req)
     return {};
 }
 
-TNullable<TString> GetBalancerRealIP(const IRequestPtr& req)
+std::optional<TString> GetBalancerRealIP(const IRequestPtr& req)
 {
     const auto& headers = req->GetHeaders();
 
@@ -263,7 +263,7 @@ TNullable<TString> GetBalancerRealIP(const IRequestPtr& req)
     return {};
 }
 
-TNullable<TString> GetUserAgent(const IRequestPtr& req)
+std::optional<TString> GetUserAgent(const IRequestPtr& req)
 {
     auto headers = req->GetHeaders();
     auto userAgent = headers->Find("User-Agent");

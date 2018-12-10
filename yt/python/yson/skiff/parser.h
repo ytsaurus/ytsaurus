@@ -34,7 +34,7 @@ public:
         const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffschemaList,
         const TString& rangeIndexColumnName,
         const TString& rowIndexColumnName,
-        const TNullable<TString>& encoding);
+        const std::optional<TString>& encoding);
 
     static void InitType();
 

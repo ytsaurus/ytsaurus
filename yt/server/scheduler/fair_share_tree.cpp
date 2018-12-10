@@ -227,7 +227,7 @@ bool TFairShareTree::AttachOperation(
     if (!pool) {
         auto poolConfig = New<TPoolConfig>();
         if (poolName.GetParentPool()) {
-            poolConfig->Mode = GetPool(poolName.GetParentPool().Get())->GetConfig()->EphemeralSubpoolsMode;
+            poolConfig->Mode = GetPool(*poolName.GetParentPool())->GetConfig()->EphemeralSubpoolsMode;
         }
         pool = New<TPool>(
             Host,
@@ -246,7 +246,7 @@ bool TFairShareTree::AttachOperation(
     }
     if (!pool->GetParent()) {
         if (poolName.GetParentPool()) {
-            SetPoolParent(pool, GetPool(poolName.GetParentPool().Get()));
+            SetPoolParent(pool, GetPool(*poolName.GetParentPool()));
         } else {
             SetPoolDefaultParent(pool);
         }
@@ -912,16 +912,16 @@ const TSchedulingTagFilter& TFairShareTree::GetNodesFilter() const
     return Config->NodesFilter;
 }
 
-TPoolName TFairShareTree::CreatePoolName(const TNullable<TString>& poolFromSpec, const TString& user)
+TPoolName TFairShareTree::CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user)
 {
     if (!poolFromSpec) {
-        return TPoolName(user, Null);
+        return TPoolName(user, std::nullopt);
     }
-    auto pool = FindPool(poolFromSpec.Get());
+    auto pool = FindPool(*poolFromSpec);
     if (pool && pool->GetConfig()->CreateEphemeralSubpools) {
-        return TPoolName(user, poolFromSpec.Get());
+        return TPoolName(user, *poolFromSpec);
     }
-    return TPoolName(poolFromSpec.Get(), Null);
+    return TPoolName(*poolFromSpec, std::nullopt);
 };
 
 bool TFairShareTree::HasOperation(const TOperationId& operationId)
@@ -1737,7 +1737,7 @@ TCompositeSchedulerElementPtr TFairShareTree::GetPoolOrParent(const TPoolName& p
     if (!poolName.GetParentPool()) {
         return GetDefaultParent();
     }
-    pool = FindPool(poolName.GetParentPool().Get());
+    pool = FindPool(*poolName.GetParentPool());
     if (!pool) {
         THROW_ERROR_EXCEPTION("Parent pool %Qv does not exist", poolName.GetParentPool());
     }

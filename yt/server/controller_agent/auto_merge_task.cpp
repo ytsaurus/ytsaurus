@@ -88,7 +88,7 @@ TAutoMergeTask::TAutoMergeTask(
         std::numeric_limits<i64>::max() /* primaryMaxDataWeightPerJob */,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
         std::numeric_limits<i64>::max() /* inputSliceRowCount */,
-        Null /* samplingRate */);
+        std::nullopt /* samplingRate */);
 
     TUnorderedChunkPoolOptions options;
     options.Mode = EUnorderedChunkPoolMode::AutoMerge;
@@ -149,9 +149,9 @@ EJobType TAutoMergeTask::GetJobType() const
     return EJobType::UnorderedMerge;
 }
 
-TNullable<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */)
+std::optional<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */)
 {
-    return MakeNullable(!CanScheduleJob_, EScheduleJobFailReason::TaskRefusal);
+    return CanScheduleJob_ ? std::nullopt : std::make_optional(EScheduleJobFailReason::TaskRefusal);
 }
 
 int TAutoMergeTask::GetPendingJobCount() const

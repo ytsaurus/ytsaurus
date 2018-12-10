@@ -23,14 +23,14 @@ class TCachedBlock
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TBlock, Data);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<NNodeTrackerClient::TNodeDescriptor>, Source);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NNodeTrackerClient::TNodeDescriptor>, Source);
 
 public:
     //! Constructs a new block from id and data.
     TCachedBlock(
         const TBlockId& blockId,
         const NChunkClient::TBlock& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source);
 
 };
 
@@ -66,7 +66,7 @@ public:
     void PutCachedBlock(
         const TBlockId& blockId,
         const NChunkClient::TBlock& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source);
 
     //! Starts an asynchronous block load.
     /*!

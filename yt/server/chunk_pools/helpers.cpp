@@ -115,7 +115,7 @@ void TSuspendableStripe::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBernoulliSampler::TBernoulliSampler(TNullable<double> samplingRate)
+TBernoulliSampler::TBernoulliSampler(std::optional<double> samplingRate)
 {
     if (samplingRate) {
         SamplingRate_ = samplingRate;

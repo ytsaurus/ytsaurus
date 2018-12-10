@@ -116,7 +116,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<TString>>& /*attributeKeys*/,
+        const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
         Y_UNREACHABLE();
@@ -180,7 +180,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<TString>>& /*attributeKeys*/,
+        const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
         Y_UNREACHABLE();
@@ -1059,7 +1059,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     TCellTag cellTag,
     TSharedRefArray requestMessage,
-    TNullable<TDuration> timeout)
+    std::optional<TDuration> timeout)
 {
     NRpc::NProto::TRequestHeader header;
     YCHECK(ParseRequestHeader(requestMessage, &header));

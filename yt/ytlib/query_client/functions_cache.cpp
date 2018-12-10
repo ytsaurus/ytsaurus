@@ -66,7 +66,7 @@ class TCypressFunctionDescriptor
 public:
     TString Name;
     std::vector<TDescriptorType> ArgumentTypes;
-    TNullable<TDescriptorType> RepeatedArgumentType;
+    std::optional<TDescriptorType> RepeatedArgumentType;
     TDescriptorType ResultType;
     ECallingConvention CallingConvention;
     bool UseFunctionContext;
@@ -251,7 +251,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
                 cellTag,
                 nodeDirectory,
                 10000,
-                Null,
+                std::nullopt,
                 Logger,
                 &result[resultIndex].Chunks);
 

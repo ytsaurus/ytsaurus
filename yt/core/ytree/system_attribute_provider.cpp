@@ -37,7 +37,7 @@ void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<TAttributeDescr
     }
 }
 
-TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvider::FindBuiltinAttributeDescriptor(
+std::optional<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvider::FindBuiltinAttributeDescriptor(
     TInternedAttributeKey key)
 {
     std::vector<TAttributeDescriptor> builtinAttributes;
@@ -50,7 +50,7 @@ TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvid
             // Suppress operator== overload for enums.
             return static_cast<int>(info.InternedKey) == static_cast<int>(key);
         });
-    return it == builtinAttributes.end() ? Null : MakeNullable(*it);
+    return it == builtinAttributes.end() ? std::nullopt : std::make_optional(*it);
 }
 
 TYsonString ISystemAttributeProvider::FindBuiltinAttribute(TInternedAttributeKey key)

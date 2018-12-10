@@ -35,7 +35,8 @@ struct TClientOptions
 
     const TString& GetUser() const
     {
-        return PinnedUser.Get(NSecurityClient::GuestUserName);
+        // NB: value_or returns value, not const-ref.
+        return PinnedUser ? *PinnedUser : NSecurityClient::GuestUserName;
     }
 
     //! This field is not required for authentication.
@@ -43,11 +44,11 @@ struct TClientOptions
     //! When not specified, user is derived from credentials. When
     //! specified, server additionally checks that PinnedUser is
     //! matching user derived from credentials.
-    TNullable<TString> PinnedUser;
+    std::optional<TString> PinnedUser;
 
-    TNullable<TString> Token;
-    TNullable<TString> SessionId;
-    TNullable<TString> SslSessionId;
+    std::optional<TString> Token;
+    std::optional<TString> SessionId;
+    std::optional<TString> SslSessionId;
 };
 
 struct TTransactionParticipantOptions

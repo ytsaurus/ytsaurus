@@ -84,7 +84,7 @@ public:
     TString Path;
 
     //! Minimum size the disk partition must have to make this location usable.
-    TNullable<i64> MinDiskSpace;
+    std::optional<i64> MinDiskSpace;
 
     TDiskLocationConfig()
     {

@@ -83,7 +83,7 @@ void TShareOperation::Run()
                             .Item("stage").Value("reading_table")
                             .Item("row_index").Value(rowIndex)
                         .EndMap(),
-                    Null);
+                    std::nullopt);
             };
 
             auto shards = Cluster_->ReadSkynetMetaFromTable(
@@ -95,7 +95,7 @@ void TShareOperation::Run()
             LOG_INFO("Resources created");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Saving error");
-            Cluster_->GetTables()->UpdateStatus(Request_, Null, TError(ex));
+            Cluster_->GetTables()->UpdateStatus(Request_, std::nullopt, TError(ex));
             throw;
         }
 
@@ -402,7 +402,7 @@ void TSkynetService::WriteShareReply(
         WaitFor(rsp->Close())
             .ThrowOnError();
     } else if (state.State == ERequestState::Active) {
-        YCHECK(state.Resources.HasValue());
+        YCHECK(state.Resources);
 
         // COMPAT(prime)
         if (request.KeyColumns.size() == 0) {
@@ -429,8 +429,8 @@ void TSkynetService::WriteShareReply(
                     .EndMap();
             });
         }
-    } else if (state.State == ERequestState::Failed) {
-        state.Error.Get(TError{}).ThrowOnError();
+    } else if (state.State == ERequestState::Failed && state.Error) {
+        state.Error->ThrowOnError();
     }
 }
 

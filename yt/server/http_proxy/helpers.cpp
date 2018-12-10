@@ -24,7 +24,7 @@ static auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<TString> GatherHeader(const THeadersPtr& headers, const TString& headerName)
+std::optional<TString> GatherHeader(const THeadersPtr& headers, const TString& headerName)
 {
     auto singleHeader = headers->Find(headerName);
     if (singleHeader) {
@@ -239,7 +239,7 @@ NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMa
 
 static const re2::RE2 PythonWrapperPattern{"Python wrapper (\\d+).(\\d+).(\\d+)"};
 
-TNullable<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent)
+std::optional<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent)
 {
     TPythonWrapperVersion version;
     if (re2::RE2::PartialMatch(
@@ -281,7 +281,7 @@ bool IsWrapperBuggy(const NHttp::IRequestPtr& req)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<TNetworkStatistics> GetNetworkStatistics()
+std::optional<TNetworkStatistics> GetNetworkStatistics()
 {
     try {
         TNetworkStatistics totals;

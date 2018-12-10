@@ -201,8 +201,8 @@ private:
         }
 
         //! Gets samples with timestamp larger than #lastTime.
-        //! If #lastTime is #Null then all samples are returned.
-        TSamplesRange GetSamples(TNullable<TInstant> lastTime = Null)
+        //! If #lastTime is null then all samples are returned.
+        TSamplesRange GetSamples(std::optional<TInstant> lastTime = std::nullopt)
         {
             if (!lastTime) {
                 return make_pair(Samples.begin(), Samples.end());
@@ -230,9 +230,9 @@ private:
             return TYPathServiceBase::DoInvoke(context);
         }
 
-        static TNullable<TInstant> ParseInstant(TNullable<i64> value)
+        static std::optional<TInstant> ParseInstant(std::optional<i64> value)
         {
-            return value ? MakeNullable(TInstant::MicroSeconds(*value)) : Null;
+            return value ? std::make_optional(TInstant::MicroSeconds(*value)) : std::nullopt;
         }
 
         virtual void GetSelf(

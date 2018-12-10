@@ -49,9 +49,9 @@ public:
         std::vector<TTransaction*> prerequisiteTransactions,
         const NObjectClient::TCellTagList& secondaryCellTags,
         const NObjectClient::TCellTagList& replicateToCellTags,
-        TNullable<TDuration> timeout,
-        TNullable<TInstant> deadline,
-        const TNullable<TString>& title,
+        std::optional<TDuration> timeout,
+        std::optional<TInstant> deadline,
+        const std::optional<TString>& title,
         const NYTree::IAttributeDictionary& attributes,
         const TTransactionId& hintId = NullTransactionId);
     void CommitTransaction(

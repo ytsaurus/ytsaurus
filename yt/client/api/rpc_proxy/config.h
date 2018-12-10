@@ -19,8 +19,8 @@ class TConnectionConfig
     : public NApi::TConnectionConfig
 {
 public:
-    TNullable<TString> ClusterUrl;
-    TNullable<TString> ProxyRole;
+    std::optional<TString> ClusterUrl;
+    std::optional<TString> ProxyRole;
     std::vector<TString> Addresses;
     //! Number of open connection to rpc proxies.
     int ChannelPoolSize;

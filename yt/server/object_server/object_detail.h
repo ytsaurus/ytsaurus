@@ -46,7 +46,7 @@ public:
     virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
     virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override;
 
 protected:

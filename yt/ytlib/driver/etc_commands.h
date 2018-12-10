@@ -92,7 +92,7 @@ public:
     TCheckPermissionByAclCommand();
 
 private:
-    TNullable<TString> User;
+    std::optional<TString> User;
     NYTree::EPermission Permission;
     NYTree::INodePtr Acl;
 
@@ -153,7 +153,7 @@ public:
 
 private:
     EProxyType Type;
-    TNullable<TString> Role;
+    std::optional<TString> Role;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

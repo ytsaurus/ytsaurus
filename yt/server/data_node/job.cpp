@@ -234,19 +234,19 @@ public:
         return StartTime_;
     }
 
-    virtual TNullable<TDuration> GetPrepareDuration() const override
+    virtual std::optional<TDuration> GetPrepareDuration() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
-    virtual TNullable<TDuration> GetDownloadDuration() const override
+    virtual std::optional<TDuration> GetDownloadDuration() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
-    virtual TNullable<TDuration> GetExecDuration() const override
+    virtual std::optional<TDuration> GetExecDuration() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
     virtual TInstant GetStatisticsLastSendTime() const override
@@ -269,7 +269,7 @@ public:
         THROW_ERROR_EXCEPTION("Getting stderr is not supported");
     }
 
-    virtual TNullable<TString> GetFailContext() override
+    virtual std::optional<TString> GetFailContext() override
     {
         THROW_ERROR_EXCEPTION("Getting fail context is not supported");
     }

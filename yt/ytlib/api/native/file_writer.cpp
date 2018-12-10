@@ -118,7 +118,7 @@ private:
     NApi::ITransactionPtr Transaction_;
     NApi::ITransactionPtr UploadTransaction_;
 
-    TNullable<TMD5Hasher> MD5Hasher_;
+    std::optional<TMD5Hasher> MD5Hasher_;
 
     IFileMultiChunkWriterPtr Writer_;
 

@@ -54,8 +54,8 @@ bool TSchedulingContextBase::CanStartMoreJobs() const
         return false;
     }
 
-    auto maxJobStarts = Config_->MaxStartedJobsPerHeartbeat;
-    return !maxJobStarts.HasValue() || StartedJobs_.size() < maxJobStarts.Get();
+    auto limit = Config_->MaxStartedJobsPerHeartbeat;
+    return !limit || StartedJobs_.size() < *limit;
 }
 
 bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) const

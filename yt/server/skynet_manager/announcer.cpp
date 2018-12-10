@@ -74,7 +74,7 @@ TFuture<TDuration> TTrackerConnection::Connect(ui16 dataPort)
         }));
 }
 
-TFuture<TNullable<TDuration>> TTrackerConnection::Announce(TResourceId resource, EAnnounceState state)
+TFuture<std::optional<TDuration>> TTrackerConnection::Announce(TResourceId resource, EAnnounceState state)
 {
     auto transactionId = NextTransactionId_++;
     auto request = BuildYsonNodeFluently()
@@ -89,12 +89,12 @@ TFuture<TNullable<TDuration>> TTrackerConnection::Announce(TResourceId resource,
         .EndList();
 
     return Send(transactionId, request)
-        .Apply(BIND([state] (const TErrorOr<INodePtr>& reply) -> TNullable<TDuration> {
+        .Apply(BIND([state] (const TErrorOr<INodePtr>& reply) -> std::optional<TDuration> {
             if (state == EAnnounceState::Seeding) {
                 return TDuration::Seconds(ConvertTo<int>(reply.ValueOrThrow()->AsList()->FindChild(2)));
             }
 
-            return Null;
+            return std::nullopt;
         }));
 }
 

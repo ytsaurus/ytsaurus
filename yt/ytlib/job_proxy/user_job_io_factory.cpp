@@ -128,7 +128,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             blockReadOptions,
             columnFilter,
             TKeyColumns(),
-            /* partitionTag */ Null,
+            /* partitionTag */ std::nullopt,
             std::move(trafficMeter),
             std::move(bandwidthTrottler),
             std::move(rpsTrottler));
@@ -146,7 +146,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             blockReadOptions,
             columnFilter,
             TKeyColumns(),
-            /* partitionTag */ Null,
+            /* partitionTag */ std::nullopt,
             std::move(trafficMeter),
             std::move(bandwidthTrottler),
             std::move(rpsTrottler));
@@ -307,7 +307,7 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 keyColumns,
-                /* partitionTag */ Null,
+                /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
                 OutRpsThrottler_);
@@ -335,7 +335,7 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 keyColumns,
-                /* partitionTag */ Null,
+                /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
                 OutRpsThrottler_);

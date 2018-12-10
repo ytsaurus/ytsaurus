@@ -108,7 +108,7 @@ void TStderrWriter::DoWrite(const void* buf_, size_t len)
     }
 
     if (!Tail_) {
-        Tail_.Emplace(PartLimit_);
+        Tail_.emplace(PartLimit_);
     }
     Tail_->Write(buf, len);
 }

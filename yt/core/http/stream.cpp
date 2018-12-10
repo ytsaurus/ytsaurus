@@ -550,9 +550,9 @@ void THttpOutput::Reset()
     ConnectionClose_ = false;
     Headers_ = New<THeaders>();
 
-    Status_.Reset();
-    Method_.Reset();
-    HostHeader_.Reset();
+    Status_.reset();
+    Method_.reset();
+    HostHeader_.reset();
     Path_ = {};
 
     HeadersFlushed_ = false;
@@ -580,7 +580,7 @@ void THttpOutput::WriteRequest(EMethod method, const TString& path)
     Path_ = path;
 }
 
-TNullable<EStatusCode> THttpOutput::GetStatus() const
+std::optional<EStatusCode> THttpOutput::GetStatus() const
 {
     return Status_;
 }
@@ -592,7 +592,7 @@ void THttpOutput::SetStatus(EStatusCode status)
     Status_ = status;
 }
 
-TSharedRef THttpOutput::GetHeadersPart(TNullable<size_t> contentLength)
+TSharedRef THttpOutput::GetHeadersPart(std::optional<size_t> contentLength)
 {
     TBufferOutput messageHeaders;
     if (MessageType_ == EMessageType::Request) {
@@ -669,7 +669,7 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
     std::vector<TSharedRef> writeRefs;
     if (!HeadersFlushed_) {
         HeadersFlushed_ = true;
-        writeRefs.emplace_back(GetHeadersPart(Null));
+        writeRefs.emplace_back(GetHeadersPart(std::nullopt));
         writeRefs.emplace_back(CrLf);
     }
 

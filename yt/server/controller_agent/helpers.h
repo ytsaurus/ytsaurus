@@ -83,7 +83,7 @@ class TAvgSummary
 public:
     DEFINE_BYVAL_RO_PROPERTY(T, Sum);
     DEFINE_BYVAL_RO_PROPERTY(i64, Count);
-    DEFINE_BYVAL_RO_PROPERTY(TNullable<T>, Avg);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<T>, Avg);
 
 public:
     TAvgSummary();
@@ -94,7 +94,7 @@ public:
     void Persist(const TPersistenceContext& context);
 
 private:
-    TNullable<T> CalcAvg();
+    std::optional<T> CalcAvg();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

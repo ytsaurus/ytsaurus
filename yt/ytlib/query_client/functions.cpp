@@ -8,7 +8,7 @@ namespace NQueryClient {
 size_t TFunctionTypeInferrer::GetNormalizedConstraints(
     std::vector<TTypeSet>* typeConstraints,
     std::vector<size_t>* formalArguments,
-    TNullable<std::pair<size_t, bool>>* repeatedType) const
+    std::optional<std::pair<size_t, bool>>* repeatedType) const
 {
     std::unordered_map<TTypeArgument, size_t> idToIndex;
 
@@ -61,15 +61,15 @@ size_t TFunctionTypeInferrer::GetNormalizedConstraints(
 
 void TAggregateTypeInferrer::GetNormalizedConstraints(
     TTypeSet* constraint,
-    TNullable<EValueType>* stateType,
-    TNullable<EValueType>* resultType,
+    std::optional<EValueType>* stateType,
+    std::optional<EValueType>* resultType,
     TStringBuf name) const
 {
     if (TypeArgumentConstraints_.size() > 1) {
         THROW_ERROR_EXCEPTION("Too many constraints for aggregate function");
     }
 
-    auto setType = [&] (const TType& targetType, bool allowGeneric) -> TNullable<EValueType> {
+    auto setType = [&] (const TType& targetType, bool allowGeneric) -> std::optional<EValueType> {
         if (auto* fixedType = targetType.TryAs<EValueType>()) {
             return *fixedType;
         }
@@ -77,7 +77,7 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
             if (auto* typeId = targetType.TryAs<TTypeArgument>()) {
                 auto found = TypeArgumentConstraints_.find(*typeId);
                 if (found != TypeArgumentConstraints_.end()) {
-                    return Null;
+                    return std::nullopt;
                 }
             }
         }

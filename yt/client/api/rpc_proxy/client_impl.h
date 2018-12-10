@@ -115,7 +115,7 @@ public:
         const NApi::TCheckPermissionOptions& options);
 
     virtual TFuture<NApi::TCheckPermissionByAclResult> CheckPermissionByAcl(
-        const TNullable<TString>& user,
+        const std::optional<TString>& user,
         NYTree::EPermission permission,
         NYTree::INodePtr acl,
         const NApi::TCheckPermissionByAclOptions& options) override

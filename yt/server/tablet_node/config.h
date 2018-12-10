@@ -96,11 +96,11 @@ public:
 
     int MaxStoresPerTablet;
 
-    TNullable<ui64> ForcedCompactionRevision;
+    std::optional<ui64> ForcedCompactionRevision;
 
-    TNullable<TDuration> DynamicStoreAutoFlushPeriod;
+    std::optional<TDuration> DynamicStoreAutoFlushPeriod;
     TDuration DynamicStoreFlushPeriodSplay;
-    TNullable<TDuration> AutoCompactionPeriod;
+    std::optional<TDuration> AutoCompactionPeriod;
 
     bool EnableLookupHashTable;
 
@@ -119,8 +119,8 @@ public:
 
     bool MergeRowsOnFlush;
 
-    TNullable<i64> MaxUnversionedBlockSize;
-    TNullable<int> CriticalOverlappingStoreCount;
+    std::optional<i64> MaxUnversionedBlockSize;
+    std::optional<int> CriticalOverlappingStoreCount;
 
     TTableMountConfig()
     {
@@ -229,14 +229,14 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("dynamic_store_auto_flush_period", DynamicStoreAutoFlushPeriod)
             .Default(TDuration::Minutes(15));
         RegisterParameter("dynamic_store_flush_period_splay", DynamicStoreFlushPeriodSplay)
             .Default(TDuration::Minutes(1));
         RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
             .Default(false);

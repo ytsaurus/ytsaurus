@@ -164,7 +164,7 @@ public:
         TGuard<TSpinLock> guard(SpinLock_);
 
         Limit_ = config->Limit;
-        HasLimit_ = Limit_.HasValue();
+        HasLimit_ = Limit_.operator bool();
         if (Limit_) {
             ThroughputPerPeriod_ = static_cast<i64>(config->Period.SecondsFloat() * (*Limit_));
             Available_ = ThroughputPerPeriod_;
@@ -201,7 +201,7 @@ private:
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
-    TNullable<i64> Limit_;
+    std::optional<i64> Limit_;
     i64 ThroughputPerPeriod_ = 0;
     TPeriodicExecutorPtr PeriodicExecutor_;
 

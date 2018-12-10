@@ -67,7 +67,7 @@ void ValidateSkynetSchema(const TTableSchema& schema)
             validationErrors.push_back(TError("Column %Qv has invalid group: expected %Qv, actual %Qv",
                 name,
                 group,
-                columnSchema->Group().Get("<none>")));
+                columnSchema->Group().value_or("<none>")));
         }
     };
 

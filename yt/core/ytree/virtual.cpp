@@ -67,8 +67,8 @@ void TVirtualMapBase::GetSelf(
     Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     i64 limit = request->has_limit()
         ? request->limit()
@@ -145,8 +145,8 @@ void TVirtualMapBase::ListSelf(
     const TCtxListPtr& context)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     i64 limit = request->has_limit()
         ? request->limit()
@@ -220,7 +220,7 @@ bool TVirtualMapBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
 TFuture<TYsonString> TVirtualMapBase::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)
 {
-    return Null;
+    return std::nullopt;
 }
 
 ISystemAttributeProvider* TVirtualMapBase::GetBuiltinAttributeProvider()
@@ -393,7 +393,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<TString>>& /*attributeKeys*/,
+        const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     { }
 
@@ -463,8 +463,8 @@ void TVirtualListBase::GetSelf(
     Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     i64 limit = request->has_limit()
         ? request->limit()
@@ -558,7 +558,7 @@ bool TVirtualListBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
 
 TFuture<TYsonString> TVirtualListBase::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)
 {
-    return Null;
+    return std::nullopt;
 }
 
 ISystemAttributeProvider* TVirtualListBase::GetBuiltinAttributeProvider()

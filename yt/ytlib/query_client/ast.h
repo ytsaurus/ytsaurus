@@ -27,8 +27,8 @@ DECLARE_REFCOUNTED_STRUCT(TTransformExpression)
 
 using TIdentifierList = std::vector<TReferenceExpressionPtr>;
 using TExpressionList = std::vector<TExpressionPtr>;
-using TNullableExpressionList = TNullable<TExpressionList>;
-using TNullableIdentifierList = TNullable<TIdentifierList>;
+using TNullableExpressionList = std::optional<TExpressionList>;
+using TNullableIdentifierList = std::optional<TIdentifierList>;
 using TOrderExpressionList = std::vector<std::pair<TExpressionList, bool>>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,13 +55,13 @@ struct TReference
 {
     TReference() = default;
 
-    TReference(const TString& columnName, const TNullable<TString>& tableName = Null)
+    TReference(const TString& columnName, const std::optional<TString>& tableName = std::nullopt)
         : ColumnName(columnName)
         , TableName(tableName)
     { }
 
     TString ColumnName;
-    TNullable<TString> TableName;
+    std::optional<TString> TableName;
 
     operator size_t() const;
 };
@@ -311,13 +311,13 @@ struct TTableDescriptor
 
     explicit TTableDescriptor(
         const NYPath::TYPath& path,
-        const TNullable<TString>& alias = Null)
+        const std::optional<TString>& alias = std::nullopt)
         : Path(path)
         , Alias(alias)
     { }
 
     NYPath::TYPath Path;
-    TNullable<TString> Alias;
+    std::optional<TString> Alias;
 };
 
 bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs);
@@ -374,12 +374,12 @@ struct TQuery
     TNullableExpressionList SelectExprs;
     TNullableExpressionList WherePredicate;
 
-    TNullable<std::pair<TExpressionList, ETotalsMode>> GroupExprs;
+    std::optional<std::pair<TExpressionList, ETotalsMode>> GroupExprs;
     TNullableExpressionList HavingPredicate;
 
     TOrderExpressionList OrderExpressions;
 
-    TNullable<i64> Limit;
+    std::optional<i64> Limit;
 };
 
 bool operator == (const TQuery& lhs, const TQuery& rhs);

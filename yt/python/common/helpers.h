@@ -2,7 +2,7 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
 #include <yt/core/ytree/public.h>
@@ -93,13 +93,13 @@ class TPythonStringCache
 {
 public:
     TPythonStringCache();
-    TPythonStringCache(bool enableCache, const TNullable<TString>& encoding);
+    TPythonStringCache(bool enableCache, const std::optional<TString>& encoding);
     PyObject* GetPythonString(TStringBuf string);
 
 private:
     bool CacheEnabled_;
     std::unique_ptr<THashMap<TStringBuf, PyObject*>> Cache_;
-    TNullable<TString> Encoding_;
+    std::optional<TString> Encoding_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

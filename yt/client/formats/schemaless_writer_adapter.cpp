@@ -212,9 +212,9 @@ void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
 
     ++RowIndex_;
 
-    TNullable<i64> tableIndex;
-    TNullable<i64> rangeIndex;
-    TNullable<i64> rowIndex;
+    std::optional<i64> tableIndex;
+    std::optional<i64> rangeIndex;
+    std::optional<i64> rowIndex;
 
     for (auto* it = row.Begin(); it != row.End(); ++it) {
         if (it->Id == TableIndexId_) {

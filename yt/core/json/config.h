@@ -29,7 +29,7 @@ public:
     bool EncodeUtf8;
     i64 MemoryLimit;
 
-    TNullable<int> StringLengthLimit;
+    std::optional<int> StringLengthLimit;
 
     bool BooleanAsString;
 

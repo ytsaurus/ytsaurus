@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -27,10 +27,10 @@ using NJobTrackerClient::EJobPhase;
 
 struct TUserSandboxOptions
 {
-    TNullable<TString> TmpfsPath;
-    TNullable<i64> TmpfsSizeLimit;
-    TNullable<i64> InodeLimit;
-    TNullable<i64> DiskSpaceLimit;
+    std::optional<TString> TmpfsPath;
+    std::optional<i64> TmpfsSizeLimit;
+    std::optional<i64> InodeLimit;
+    std::optional<i64> DiskSpaceLimit;
 };
 
 DEFINE_ENUM(EErrorCode,

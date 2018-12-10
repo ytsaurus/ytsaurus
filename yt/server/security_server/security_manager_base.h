@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NSecurityServer {
@@ -18,7 +18,7 @@ class TAuthenticatedUserGuardBase
     : private TNonCopyable
 {
 public:
-    TAuthenticatedUserGuardBase(ISecurityManagerPtr securityManager, const TNullable<TString>& userName);
+    TAuthenticatedUserGuardBase(ISecurityManagerPtr securityManager, const std::optional<TString>& userName);
     ~TAuthenticatedUserGuardBase();
 
 protected:
@@ -36,8 +36,8 @@ struct ISecurityManager
     //! Resets the authenticated user.
     virtual void ResetAuthenticatedUser() = 0;
 
-    //! Returns the current user or Null if there's no one.
-    virtual TNullable<TString> GetAuthenticatedUserName() = 0;
+    //! Returns the current user or null if there's no one.
+    virtual std::optional<TString> GetAuthenticatedUserName() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecurityManager)

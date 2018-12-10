@@ -113,7 +113,7 @@ void TYPathServiceBase::AfterInvoke(const IServiceContextPtr& /*context*/)
 
 void TYPathServiceBase::DoWriteAttributesFragment(
     NYson::IAsyncYsonConsumer* /*consumer*/,
-    const TNullable<std::vector<TString>>& /*attributeKeys*/,
+    const std::optional<std::vector<TString>>& /*attributeKeys*/,
     bool /*stable*/)
 { }
 
@@ -441,7 +441,7 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const TString& key)
         }
     }
 
-    return Null;
+    return std::nullopt;
 }
 
 TYsonString TSupportsAttributes::DoGetAttributeFragment(
@@ -453,12 +453,12 @@ TYsonString TSupportsAttributes::DoGetAttributeFragment(
         ThrowNoSuchAttribute(key);
     }
     auto node = ConvertToNode<TYsonString>(wholeYson);
-    return SyncYPathGet(node, path, Null);
+    return SyncYPathGet(node, path, std::nullopt);
 }
 
 TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys)
+    const std::optional<std::vector<TString>>& attributeKeys)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -538,8 +538,8 @@ void TSupportsAttributes::GetAttribute(
     context->SetRequestInfo();
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     DoGetAttribute(path, attributeKeys).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (!ysonOrError.IsOK()) {
@@ -825,7 +825,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             ValidateAttributeKey(key);
             auto internedKey = GetInternedAttributeKey(key);
 
-            TNullable<ISystemAttributeProvider::TAttributeDescriptor> descriptor;
+            std::optional<ISystemAttributeProvider::TAttributeDescriptor> descriptor;
             if (builtinAttributeProvider && internedKey != InvalidInternedAttribute) {
                 descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
             }
@@ -1298,7 +1298,7 @@ public:
 protected:
     const TString LoggingInfo_;
 
-    TNullable<NProfiling::TWallTimer> Timer_;
+    std::optional<NProfiling::TWallTimer> Timer_;
 
 
     virtual void DoReply() override
@@ -1330,7 +1330,7 @@ protected:
 
         LOG_DEBUG(builder.Flush());
 
-        Timer_.Emplace();
+        Timer_.emplace();
     }
 
     virtual void LogResponse() override
@@ -1421,7 +1421,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override
     {
         UnderlyingService_->WriteAttributesFragment(consumer, attributeKeys, stable);

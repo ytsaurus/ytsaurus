@@ -133,7 +133,7 @@ void TTentativeTreeEligibility::UpdateDurations(
     const TString& treeId,
     bool tentative)
 {
-    auto totalDuration = jobSummary.PrepareDuration.Get({}) + jobSummary.ExecDuration.Get({});
+    auto totalDuration = jobSummary.PrepareDuration.value_or(TDuration()) + jobSummary.ExecDuration.value_or(TDuration());
     auto& durationSummary = tentative ? Durations_[treeId] : NonTentativeTreeDuration_;
     durationSummary.AddSample(totalDuration);
 }
@@ -203,7 +203,7 @@ void TTentativeTreeEligibility::BanTree(const TString& treeId)
 
     auto tentativeDurationAvg = GetTentativeTreeAverageJobDuration(treeId);
     auto nonTentativeDurationAvg = NonTentativeTreeDuration_.GetAvg();
-    YCHECK(nonTentativeDurationAvg.HasValue());
+    YCHECK(nonTentativeDurationAvg);
 
     LOG_DEBUG("Tentative tree banned for the task as average tentative job duration is much longer than average job duration "
         "(TreeId: %v, TentativeJobDuration: %v, NonTentativeJobDuration: %v, MaxTentativeJobDurationRatio: %v)",

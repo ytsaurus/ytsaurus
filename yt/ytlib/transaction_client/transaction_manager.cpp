@@ -338,7 +338,7 @@ public:
 
     TDuration GetTimeout() const
     {
-        return Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout);
+        return Timeout_.value_or(Owner_->Config_->DefaultTransactionTimeout);
     }
 
 
@@ -450,10 +450,10 @@ private:
     TCellTag CellTag_;
     TCellId CellId_;
     bool AutoAbort_ = false;
-    TNullable<TDuration> PingPeriod_;
+    std::optional<TDuration> PingPeriod_;
     bool Ping_ = false;
     bool PingAncestors_ = false;
-    TNullable<TDuration> Timeout_;
+    std::optional<TDuration> Timeout_;
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
     bool Multicell_ = false;
@@ -978,7 +978,7 @@ private:
             LOG_DEBUG("Transaction ping scheduled (TransactionId: %v)",
                 Id_);
 
-            auto pingPeriod = std::min(PingPeriod_.Get(Owner_->Config_->DefaultPingPeriod), GetTimeout() / 2);
+            auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_->DefaultPingPeriod), GetTimeout() / 2);
             TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingPeriod);
         }));
     }

@@ -41,7 +41,7 @@ class TDynamicTabletCellOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<double> CpuPerTabletSlot;
+    std::optional<double> CpuPerTabletSlot;
 
     TDynamicTabletCellOptions()
     {
@@ -58,7 +58,7 @@ class TTabletCellConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    std::vector<TNullable<TString>> Addresses;
+    std::vector<std::optional<TString>> Addresses;
 
     TTabletCellConfig()
     {

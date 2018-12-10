@@ -18,7 +18,7 @@
 
 #include <yt/ytlib/cypress_client/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
@@ -32,8 +32,8 @@ class TTransaction
     , public TRefTracked<TTransaction>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TString>, Title);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Title);
     DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, SecondaryCellTags);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
@@ -41,7 +41,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObjectBase*>, StagedObjects);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTransaction*>, PrerequisiteTransactions);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, DependentTransactions);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, Deadline);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, Deadline);
 
     struct TExportEntry
     {

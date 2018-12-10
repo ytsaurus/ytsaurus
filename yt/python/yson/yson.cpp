@@ -52,7 +52,7 @@ public:
         IInputStream* inputStream,
         std::unique_ptr<IInputStream> inputStreamHolder,
         bool alwaysCreateAttributes,
-        const TNullable<TString>& encoding)
+        const std::optional<TString>& encoding)
     {
         YCHECK(!inputStreamHolder || inputStreamHolder.get() == inputStream);
 
@@ -155,7 +155,7 @@ public:
         IInputStream* inputStream,
         std::unique_ptr<IInputStream> inputStreamHolder,
         Py::Tuple& loadsParams,
-        const TNullable<TString>& encoding,
+        const std::optional<TString>& encoding,
         bool alwaysCreateAttributes)
     {
         YCHECK(!inputStreamHolder || inputStreamHolder.get() == inputStream);
@@ -333,7 +333,7 @@ public:
 
         auto protoObject = ExtractArgument(args, kwargs, "proto");
 
-        TNullable<bool> skipUnknownFields;
+        std::optional<bool> skipUnknownFields;
         if (HasArgument(args, kwargs, "skip_unknown_fields")) {
             auto arg = ExtractArgument(args, kwargs, "skip_unknown_fields");
             skipUnknownFields = Py::Boolean(arg);
@@ -354,7 +354,7 @@ public:
         auto stringObject = Py::Bytes(ExtractArgument(args, kwargs, "string"));
         auto protoClassObject = Py::Callable(ExtractArgument(args, kwargs, "proto_class"));
 
-        TNullable<bool> skipUnknownFields;
+        std::optional<bool> skipUnknownFields;
         if (HasArgument(args, kwargs, "skip_unknown_fields")) {
             auto arg = ExtractArgument(args, kwargs, "skip_unknown_fields");
             skipUnknownFields = Py::Boolean(arg);
@@ -427,7 +427,7 @@ private:
 
             Py::Object encodingParam;
             if (encoding) {
-                encodingParam = Py::String(encoding.Get());
+                encodingParam = Py::String(*encoding);
             } else {
                 encodingParam = Py::None();
             }
@@ -526,11 +526,11 @@ private:
             ignoreInnerAttributes = Py::Boolean(arg);
         }
 
-        TNullable<TString> encoding("utf-8");
+        std::optional<TString> encoding("utf-8");
         if (HasArgument(args, kwargs, "encoding")) {
             auto arg = ExtractArgument(args, kwargs, "encoding");
             if (arg.isNone()) {
-                encoding = Null;
+                encoding = std::nullopt;
             } else {
                 encoding = ConvertStringObjectToString(arg);
             }
@@ -598,7 +598,7 @@ private:
         YCHECK(result);
     }
 
-    Py::Object DumpsProtoImpl(Py::Object protoObject, TNullable<bool> skipUnknownFields)
+    Py::Object DumpsProtoImpl(Py::Object protoObject, std::optional<bool> skipUnknownFields)
     {
         auto serializeToString = Py::Callable(GetAttr(protoObject, "SerializeToString"));
         auto serializedProto = Py::Bytes(serializeToString.apply(Py::Tuple(), Py::Dict()));
@@ -629,7 +629,7 @@ private:
         return Py::ConvertToPythonString(result);
     }
 
-    Py::Object LoadsProtoImpl(Py::Object stringObject, Py::Object protoClassObject, TNullable<bool> skipUnknownFields)
+    Py::Object LoadsProtoImpl(Py::Object stringObject, Py::Object protoClassObject, std::optional<bool> skipUnknownFields)
     {
         auto descriptorObject = GetAttr(protoClassObject, "DESCRIPTOR");
         RegisterFileDescriptor(GetAttr(descriptorObject, "file"));

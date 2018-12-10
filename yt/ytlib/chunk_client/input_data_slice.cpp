@@ -19,7 +19,7 @@ TInputDataSlice::TInputDataSlice(
     TChunkSliceList chunkSlices,
     TInputSliceLimit lowerLimit,
     TInputSliceLimit upperLimit,
-    TNullable<i64> tag)
+    std::optional<i64> tag)
     : LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
     , ChunkSlices(std::move(chunkSlices))
@@ -138,7 +138,7 @@ TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSl
 
     YCHECK(!inputChunkSlices.empty());
     TInputDataSlice::TChunkSliceList chunkSlices;
-    TNullable<int> tableIndex;
+    std::optional<int> tableIndex;
     TInputSliceLimit lowerLimit;
     TInputSliceLimit upperLimit;
     for (const auto& inputChunkSlice : inputChunkSlices) {
@@ -167,7 +167,7 @@ TInputDataSlicePtr CreateInputDataSlice(
     TKey upperKey)
 {
     TInputDataSlice::TChunkSliceList chunkSlices;
-    TNullable<int> tableIndex;
+    std::optional<int> tableIndex;
     for (const auto& inputChunk : inputChunks) {
         if (!tableIndex) {
             tableIndex = inputChunk->GetInputChunk()->GetTableIndex();
@@ -244,14 +244,14 @@ void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRow
     }
 }
 
-TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts)
+std::optional<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts)
 {
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
         if (IsUnavailable(chunkSlice->GetInputChunk(), checkParityParts)) {
             return chunkSlice->GetInputChunk()->ChunkId();
         }
     }
-    return Null;
+    return std::nullopt;
 }
 
 bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2)
@@ -265,8 +265,8 @@ bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TIn
         return diff < 0;
     }
 
-    diff = (limit1.RowIndex.Get(0) + slice1->GetInputChunk()->GetTableRowIndex()) -
-           (limit2.RowIndex.Get(0) + slice2->GetInputChunk()->GetTableRowIndex());
+    diff = (limit1.RowIndex.value_or(0) + slice1->GetInputChunk()->GetTableRowIndex()) -
+           (limit2.RowIndex.value_or(0) + slice2->GetInputChunk()->GetTableRowIndex());
     if (diff != 0) {
         return diff < 0;
     }

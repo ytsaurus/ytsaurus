@@ -1902,7 +1902,7 @@ TCodegenExpression MakeCodegenBetweenExpr(
 
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
-    TNullable<size_t> defaultExprId,
+    std::optional<size_t> defaultExprId,
     int arrayIndex,
     int hashtableIndex,
     EValueType resultType,

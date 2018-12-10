@@ -43,7 +43,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/random.h>
 #include <yt/core/misc/serialize.h>
@@ -194,7 +194,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
-        auto blockCount = request->has_block_count() ? MakeNullable(request->block_count()) : Null;
+        auto blockCount = request->has_block_count() ? std::make_optional(request->block_count()) : std::nullopt;
 
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
             sessionId,
@@ -387,8 +387,8 @@ private:
             const auto& protoBlock = request->blocks(index);
             auto blockId = FromProto<TBlockId>(protoBlock.block_id());
             auto sourceDescriptor = protoBlock.has_source_descriptor()
-                ? MakeNullable(FromProto<TNodeDescriptor>(protoBlock.source_descriptor()))
-                : Null;
+                ? std::make_optional(FromProto<TNodeDescriptor>(protoBlock.source_descriptor()))
+                : std::nullopt;
             blockManager->PutCachedBlock(blockId, block, sourceDescriptor);
         }
 
@@ -653,11 +653,11 @@ private:
             ? request->medium_index()
             : AllMediaIndex;
         auto partitionTag = request->has_partition_tag()
-            ? MakeNullable(request->partition_tag())
-            : Null;
+            ? std::make_optional(request->partition_tag())
+            : std::nullopt;
         auto extensionTags = request->all_extension_tags()
-            ? Null
-            : MakeNullable(FromProto<std::vector<int>>(request->extension_tags()));
+            ? std::nullopt
+            : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
         context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",

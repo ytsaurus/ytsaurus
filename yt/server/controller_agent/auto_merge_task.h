@@ -76,7 +76,7 @@ public:
 
     virtual int GetPendingJobCount() const override;
 
-    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override;
+    virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override;
 
     virtual void OnJobStarted(TJobletPtr joblet) override;
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;

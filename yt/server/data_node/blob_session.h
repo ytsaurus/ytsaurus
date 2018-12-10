@@ -80,7 +80,7 @@ private:
 
     virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        TNullable<int> blockCount) override;
+        std::optional<int> blockCount) override;
 
     bool IsInWindow(int blockIndex);
     void ValidateBlockIsInWindow(int blockIndex);

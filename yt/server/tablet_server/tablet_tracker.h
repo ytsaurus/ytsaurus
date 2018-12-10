@@ -10,7 +10,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/small_set.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NTabletServer {

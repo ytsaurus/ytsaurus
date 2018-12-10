@@ -36,11 +36,11 @@ TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunk
 
 NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     ITableReaderPtr reader,
-    const TNullable<TString>& partIndexColumnName,
-    const TNullable<TString>& dataColumnName,
+    const std::optional<TString>& partIndexColumnName,
+    const std::optional<TString>& dataColumnName,
     i64 startPartIndex,
-    const TNullable<i64>& offset = Null,
-    const TNullable<i64>& partSize = Null);
+    const std::optional<i64>& offset = std::nullopt,
+    const std::optional<i64>& partSize = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

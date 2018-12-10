@@ -32,7 +32,7 @@ size_t EstimateSize(TGuid id)
 }
 
 template <typename T>
-size_t EstimateSize(const TNullable<T>& v)
+size_t EstimateSize(const std::optional<T>& v)
 {
     return v ? EstimateSize(*v) : 0;
 }
@@ -60,10 +60,10 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
             fluent.Item()
                 .BeginMap()
                 .Item("time").Value(event.Timestamp())
-                .DoIf(event.State().HasValue(), [&] (TFluentMap fluent) {
+                .DoIf(event.State().operator bool(), [&] (TFluentMap fluent) {
                     fluent.Item("state").Value(*event.State());
                 })
-                .DoIf(event.Phase().HasValue(), [&] (TFluentMap fluent) {
+                .DoIf(event.Phase().operator bool(), [&] (TFluentMap fluent) {
                     fluent.Item("phase").Value(*event.Phase());
                 })
                 .EndMap();

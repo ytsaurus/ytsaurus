@@ -12,7 +12,7 @@
 
 #include <yt/server/object_server/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/ytree/ypath_detail.h>
 #include <yt/core/ytree/system_attribute_provider.h>
@@ -79,7 +79,7 @@ private:
     {
         IInvokerPtr Invoker;
         i64 Limit = -1;
-        TNullable<std::vector<TString>> AttributeKeys;
+        std::optional<std::vector<TString>> AttributeKeys;
         bool Incomplete = false;
         std::vector<TFetchItem> Items;
     };
@@ -88,7 +88,7 @@ private:
 
     TFuture<TFetchItemsSessionPtr> FetchItems(
         i64 limit,
-        const TNullable<std::vector<TString>>& attributeKeys);
+        const std::optional<std::vector<TString>>& attributeKeys);
 
     TFuture<void> FetchItemsFromLocal(const TFetchItemsSessionPtr& session);
     TFuture<void> FetchItemsFromRemote(const TFetchItemsSessionPtr& session, NObjectClient::TCellTag cellTag);
@@ -96,7 +96,7 @@ private:
     TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromLocal();
     TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromRemote(NObjectClient::TCellTag cellTag);
 
-    TFuture<NYson::TYsonString> GetOwningNodeAttributes(const TNullable<std::vector<TString>>& attributeKeys);
+    TFuture<NYson::TYsonString> GetOwningNodeAttributes(const std::optional<std::vector<TString>>& attributeKeys);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Enumerate);
 

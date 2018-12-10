@@ -63,26 +63,26 @@ protected:
     int GetBlockIndexByKey(
         TKey key,
         const TSharedRange<TKey>& blockIndexKeys,
-        TNullable<int> keyColumnCount) const;
+        std::optional<int> keyColumnCount) const;
 
     void CheckBlockUpperKeyLimit(
         TKey blockLastKey,
         TKey upperLimit,
-        TNullable<int> keyColumnCount = Null);
+        std::optional<int> keyColumnCount = std::nullopt);
 
     void CheckBlockUpperLimits(
         i64 blockChunkRowCount,
         TKey blockLastKey,
         const NChunkClient::TReadLimit& upperLimit,
-        TNullable<int> keyColumnCount = Null);
+        std::optional<int> keyColumnCount = std::nullopt);
 
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& lowerLimit) const;
-    int ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit, TNullable<int> keyColumnCount = Null) const;
+    int ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit, std::optional<int> keyColumnCount = std::nullopt) const;
 
     // These methods return max block index, satisfying the upper limit.
     int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit) const;
-    int ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& upperLimit, TNullable<int> keyColumnCount = Null) const;
+    int ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& upperLimit, std::optional<int> keyColumnCount = std::nullopt) const;
 
     virtual void InitFirstBlock() = 0;
     virtual void InitNextBlock() = 0;
@@ -90,7 +90,7 @@ protected:
 private:
     NLogging::TLogger Logger;
 
-    TKey WidenKey(const TKey& key, TNullable<int> keyColumnCount, TChunkedMemoryPool* pool) const;
+    TKey WidenKey(const TKey& key, std::optional<int> keyColumnCount, TChunkedMemoryPool* pool) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

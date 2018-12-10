@@ -66,7 +66,7 @@ private:
 
     TSpinLock HttpDiscoveryLock_;
     // TODO(prime@): Create http endpoint for discovery that works without authentication.
-    TNullable<NApi::TClientOptions> HttpCredentials_;
+    std::optional<NApi::TClientOptions> HttpCredentials_;
 
     std::vector<TString> DiscoverProxiesByRpc(const NRpc::IChannelPtr& channel);
     std::vector<TString> DiscoverProxiesByHttp(const NApi::TClientOptions& options);

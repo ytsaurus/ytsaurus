@@ -55,14 +55,14 @@ void TNameTable::SetEnableColumnNameValidation()
     EnableColumnNameValidation_ = true;
 }
 
-TNullable<int> TNameTable::FindId(TStringBuf name) const
+std::optional<int> TNameTable::FindId(TStringBuf name) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
     auto it = NameToId_.find(name);
     if (it == NameToId_.end()) {
-        return Null;
+        return std::nullopt;
     } else {
-        return MakeNullable(it->second);
+        return std::make_optional(it->second);
     }
 }
 
@@ -202,7 +202,7 @@ TNameTableWriter::TNameTableWriter(TNameTablePtr nameTable)
     : NameTable_(std::move(nameTable))
 { }
 
-TNullable<int> TNameTableWriter::FindId(TStringBuf name) const
+std::optional<int> TNameTableWriter::FindId(TStringBuf name) const
 {
     auto it = NameToId_.find(name);
     if (it != NameToId_.end()) {

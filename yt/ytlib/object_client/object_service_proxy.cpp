@@ -35,7 +35,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     Attachments_.clear();
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
     SerializedBody_.Reset();
-    Hash_.Reset();
+    Hash_.reset();
     FirstTimeSerialization_ = true;
 
     const auto otherBegin = other.InnerRequestDescriptors_.begin();
@@ -150,7 +150,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequest(
     TYPathRequestPtr innerRequest,
     const TString& key,
-    TNullable<size_t> hash)
+    std::optional<size_t> hash)
 {
     TSharedRefArray innerRequestMessage;
     auto needsPatchingForRetry = false;
@@ -171,7 +171,7 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
     bool needsPatchingForRetry,
     const TString& key,
-    TNullable<size_t> hash)
+    std::optional<size_t> hash)
 {
     if (!key.empty()) {
         int index = static_cast<int>(InnerRequestDescriptors_.size());
@@ -184,7 +184,7 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
 }
 
 TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::SetTimeout(
-    TNullable<TDuration> timeout)
+    std::optional<TDuration> timeout)
 {
     TClientRequest::SetTimeout(timeout);
     return this;
@@ -380,7 +380,7 @@ TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(i
     return GetResponse<TYPathResponse>(index);
 }
 
-TNullable<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
+std::optional<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
 {
     return FindResponse<TYPathResponse>(key);
 }
@@ -409,10 +409,10 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
         Attachments_.begin() + endIndex));
 }
 
-TNullable<i64> TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const
+std::optional<i64> TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) const
 {
     if (Revisions_.empty()) {
-        return Null;
+        return std::nullopt;
     }
 
     YCHECK(index >= 0 && index <= Revisions_.size());

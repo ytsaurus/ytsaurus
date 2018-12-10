@@ -197,7 +197,7 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
 void TObjectProxyBase::DoWriteAttributesFragment(
     IAsyncYsonConsumer* consumer,
-    const TNullable<std::vector<TString>>& attributeKeys,
+    const std::optional<std::vector<TString>>& attributeKeys,
     bool stable)
 {
     const auto& customAttributes = Attributes();
@@ -490,7 +490,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
 
 TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)
 {
-    return Null;
+    return std::nullopt;
 }
 
 bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)

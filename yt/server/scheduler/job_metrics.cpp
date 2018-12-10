@@ -18,21 +18,21 @@ using namespace NPhoenix;
 TJobMetrics TJobMetrics::FromJobTrackerStatistics(const NJobTrackerClient::TStatistics& statistics, EJobState jobState)
 {
     TJobMetrics metrics;
-    metrics.DiskReads_ = FindNumericValue(statistics, "/user_job/block_io/io_read").Get(0);
-    metrics.DiskWrites_ = FindNumericValue(statistics, "/user_job/block_io/io_write").Get(0);
+    metrics.DiskReads_ = FindNumericValue(statistics, "/user_job/block_io/io_read").value_or(0);
+    metrics.DiskWrites_ = FindNumericValue(statistics, "/user_job/block_io/io_write").value_or(0);
     if (jobState == EJobState::Completed) {
-        metrics.TimeCompleted_ = FindNumericValue(statistics, "/time/total").Get(0);
+        metrics.TimeCompleted_ = FindNumericValue(statistics, "/time/total").value_or(0);
     } else if (jobState == EJobState::Aborted) {
-        metrics.TimeAborted_ = FindNumericValue(statistics, "/time/total").Get(0);
+        metrics.TimeAborted_ = FindNumericValue(statistics, "/time/total").value_or(0);
     }
-    metrics.TotalTime_ = FindNumericValue(statistics, "/time/total").Get(0);
-    metrics.ExecTime_ = FindNumericValue(statistics, "/time/exec").Get(0);
-    metrics.PrepareTime_ = FindNumericValue(statistics, "/time/prepare").Get(0);
-    metrics.ArtifactsDownloadTime_ = FindNumericValue(statistics, "/time/artifacts_download").Get(0);
+    metrics.TotalTime_ = FindNumericValue(statistics, "/time/total").value_or(0);
+    metrics.ExecTime_ = FindNumericValue(statistics, "/time/exec").value_or(0);
+    metrics.PrepareTime_ = FindNumericValue(statistics, "/time/prepare").value_or(0);
+    metrics.ArtifactsDownloadTime_ = FindNumericValue(statistics, "/time/artifacts_download").value_or(0);
 
-    metrics.AggregatedSmoothedCpuUsage_ = FindNumericValue(statistics, "/job_proxy/aggregated_smoothed_cpu_usage_x100").Get(0);
-    metrics.AggregatedMaxCpuUsage_ = FindNumericValue(statistics, "/job_proxy/aggregated_max_cpu_usage_x100").Get(0);
-    metrics.AggregatedPreemptableCpu_ = FindNumericValue(statistics, "/job_proxy/aggregated_preemptable_cpu_x100").Get(0);
+    metrics.AggregatedSmoothedCpuUsage_ = FindNumericValue(statistics, "/job_proxy/aggregated_smoothed_cpu_usage_x100").value_or(0);
+    metrics.AggregatedMaxCpuUsage_ = FindNumericValue(statistics, "/job_proxy/aggregated_max_cpu_usage_x100").value_or(0);
+    metrics.AggregatedPreemptableCpu_ = FindNumericValue(statistics, "/job_proxy/aggregated_preemptable_cpu_x100").value_or(0);
     return metrics;
 }
 

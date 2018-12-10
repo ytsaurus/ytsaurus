@@ -25,7 +25,7 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& /*options*/,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& /* estimatedSize */) override
+        const std::optional<i64>& /* estimatedSize */) override
     {
         // NB: Cache-based readers shouldn't report chunk reader statistics.
 
@@ -46,7 +46,7 @@ public:
         const TClientBlockReadOptions& /*options*/,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& /* estimatedSize */) override
+        const std::optional<i64>& /* estimatedSize */) override
     {
         // NB: Cache-based readers shouldn't report chunk reader statistics.
 
@@ -66,8 +66,8 @@ public:
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& /*options*/,
-        TNullable<int> /*partitionTag*/,
-        const TNullable<std::vector<int>>& /*extensionTags*/) override
+        std::optional<int> /*partitionTag*/,
+        const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
         // Cache-based readers shouldn't ask meta from chunk reader.
         Y_UNREACHABLE();

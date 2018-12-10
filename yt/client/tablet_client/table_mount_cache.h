@@ -33,7 +33,7 @@ struct TTabletInfo
     TTabletId TabletId;
     i64 MountRevision = 0;
     ETabletState State;
-    TNullable<EInMemoryMode> InMemoryMode;
+    std::optional<EInMemoryMode> InMemoryMode;
     NTableClient::TOwningKey PivotKey;
     TTabletCellId CellId;
     NObjectClient::TObjectId TableId;
@@ -99,8 +99,8 @@ struct TTableMountInfo
     NTableClient::TOwningKey UpperCapBound;
 
     // Master reply revision for master service cache invalidation.
-    TNullable<i64> PrimaryRevision;
-    TNullable<i64> SecondaryRevision;
+    std::optional<i64> PrimaryRevision;
+    std::optional<i64> SecondaryRevision;
 
     bool IsSorted() const;
     bool IsOrdered() const;

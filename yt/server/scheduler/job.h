@@ -15,7 +15,7 @@
 
 #include <yt/core/actions/callback.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/phoenix.h>
 
@@ -55,7 +55,7 @@ class TJob
     DEFINE_BYVAL_RO_PROPERTY(bool, Interruptible);
 
     //! The time when the job was finished.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, FinishTime);
 
     //! True if job was already unregistered.
     DEFINE_BYVAL_RW_PROPERTY(bool, Unregistered, false);

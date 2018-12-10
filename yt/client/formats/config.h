@@ -108,7 +108,7 @@ public:
     char KeyValueSeparator;
 
     // Only supported for tabular data
-    TNullable<TString> LinePrefix;
+    std::optional<TString> LinePrefix;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDsvFormatConfigBase)
@@ -271,12 +271,12 @@ class TSchemafulDsvFormatConfig
     : public TTableFormatConfigBase
 {
 public:
-    TNullable<std::vector<TString>> Columns;
+    std::optional<std::vector<TString>> Columns;
 
     EMissingSchemafulDsvValueMode MissingValueMode;
     TString MissingValueSentinel;
 
-    TNullable<bool> EnableColumnNamesHeader;
+    std::optional<bool> EnableColumnNamesHeader;
 
     const std::vector<TString>& GetColumnsOrThrow() const
     {
@@ -364,7 +364,7 @@ public:
     TString Name;
     EProtobufType ProtoType;
     ui64 FieldNumber;
-    TNullable<TString> EnumerationName;
+    std::optional<TString> EnumerationName;
 
     TProtobufColumnConfig()
     {
@@ -447,7 +447,7 @@ public:
     int MaxSelectedColumnCount;
     int FieldWeightLimit;
     int MaxAllColumnNamesCount;
-    TNullable<std::vector<TString>> ColumnNames;
+    std::optional<std::vector<TString>> ColumnNames;
 
     // Intentionally do not reveal following options to user.
     bool SkipSystemColumns = true;

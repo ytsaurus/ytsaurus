@@ -259,7 +259,7 @@ bool TLrc::CalculateCanRepair(const TPartIndexList& erasedIndices) const
     return true;
 }
 
-TNullable<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedIndices) const
+std::optional<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedIndices) const
 {
     if (erasedIndices.empty()) {
         return TPartIndexList();
@@ -268,7 +268,7 @@ TNullable<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedInd
     auto indices = UniqueSortedIndices(erasedIndices);
 
     if (indices.size() > ParityPartCount_) {
-        return Null;
+        return std::nullopt;
     }
 
     // One erasure from data or xor blocks.
@@ -290,7 +290,7 @@ TNullable<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedInd
             }
         }
         if (!intersectsAny) {
-            return Null;
+            return std::nullopt;
         }
     }
 

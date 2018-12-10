@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/core/misc/dense_map.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -157,7 +157,7 @@ public:
 
     bool ContainsIndex(int columnIndex) const;
     int GetPosition(int columnIndex) const;
-    TNullable<int> FindPosition(int columnIndex) const;
+    std::optional<int> FindPosition(int columnIndex) const;
     const TIndexes& GetIndexes() const;
     bool IsUniversal() const;
 

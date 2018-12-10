@@ -86,7 +86,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override
     {
         GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, stable);

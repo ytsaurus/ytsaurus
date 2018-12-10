@@ -54,7 +54,7 @@ private:
             bool firstValue = true;
 
             if (Config_->LinePrefix) {
-                output->Write(Config_->LinePrefix.Get());
+                output->Write(*Config_->LinePrefix);
                 firstValue = false;
             }
 

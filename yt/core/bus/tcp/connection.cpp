@@ -59,8 +59,8 @@ TTcpConnection::TTcpConnection(
     const TString& endpointDescription,
     const IAttributeDictionary& endpointAttributes,
     const TNetworkAddress& endpointAddress,
-    const TNullable<TString>& address,
-    const TNullable<TString>& unixDomainName,
+    const std::optional<TString>& address,
+    const std::optional<TString>& unixDomainName,
     IMessageHandlerPtr handler,
     IPollerPtr poller)
     : Config_(std::move(config))

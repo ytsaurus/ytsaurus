@@ -31,9 +31,9 @@ public:
         }
     }
 
-    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
+    virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
     {
-        return MakeNullable(!CanScheduleJob_, EScheduleJobFailReason::TaskRefusal);
+        return CanScheduleJob_ ? std::nullopt : std::make_optional(EScheduleJobFailReason::TaskRefusal);
     }
 
     virtual void OnTaskCompleted() override

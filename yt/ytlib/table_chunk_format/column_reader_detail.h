@@ -425,11 +425,11 @@ public:
         return CurrentBlockIndex_;
     }
 
-    virtual TNullable<int> GetNextBlockIndex() const override
+    virtual std::optional<int> GetNextBlockIndex() const override
     {
         return (LastBlockSegmentIndex_ + 1) == ColumnMeta_.segments_size()
-           ? Null
-           : MakeNullable(static_cast<int>(ColumnMeta_.segments(LastBlockSegmentIndex_ + 1).block_index()));
+           ? std::nullopt
+           : std::make_optional(static_cast<int>(ColumnMeta_.segments(LastBlockSegmentIndex_ + 1).block_index()));
     }
 
 protected:

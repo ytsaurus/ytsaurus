@@ -4,8 +4,6 @@
 
 #include <yt/core/yson/string.h>
 
-#include <yt/core/misc/nullable.h>
-
 namespace NYT {
 namespace NYTree {
 
@@ -55,13 +53,13 @@ struct IAttributeDictionary
     T GetAndRemove(const TString& key, const T& defaultValue);
 
     //! Finds the attribute and deserializes its value.
-    //! Returns |Null| if no such attribute is found.
+    //! Returns null if no such attribute is found.
     template <class T>
-    typename TNullableTraits<T>::TNullableType Find(const TString& key) const;
+    typename TOptionalTraits<T>::TOptional Find(const TString& key) const;
 
     //! Same as #Find but removes the value if it exists.
     template <class T>
-    typename TNullableTraits<T>::TNullableType FindAndRemove(const TString& key);
+    typename TOptionalTraits<T>::TOptional FindAndRemove(const TString& key);
 
     //! Returns True iff the given key is present.
     bool Contains(const TString& key) const;

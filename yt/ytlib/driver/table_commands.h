@@ -42,8 +42,8 @@ private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
 
-    TNullable<TString> PartIndexColumnName;
-    TNullable<TString> DataColumnName;
+    std::optional<TString> PartIndexColumnName;
+    std::optional<TString> DataColumnName;
 
     i64 StartPartIndex;
     i64 Offset;
@@ -173,8 +173,8 @@ public:
     TReshardTableCommand();
 
 private:
-    TNullable<std::vector<NTableClient::TOwningKey>> PivotKeys;
-    TNullable<int> TabletCount;
+    std::optional<std::vector<NTableClient::TOwningKey>> PivotKeys;
+    std::optional<int> TabletCount;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
@@ -245,7 +245,7 @@ public:
 private:
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
-    TNullable<std::vector<TString>> ColumnNames;
+    std::optional<std::vector<TString>> ColumnNames;
     bool Versioned;
     NTableClient::TRetentionConfigPtr RetentionConfig;
 

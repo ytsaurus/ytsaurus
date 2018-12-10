@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/invoker_detail.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/weak_ptr.h>
 
@@ -45,7 +45,7 @@ public:
         if (!maybeBucketIndex) {
             return false;
         }
-        auto bucketIndex = maybeBucketIndex.Get();
+        auto bucketIndex = *maybeBucketIndex;
 
         TruncateExcessTimes(ExcessTimes_[bucketIndex]);
 
@@ -72,15 +72,15 @@ private:
     TBuckets Buckets_;
     std::vector<NProfiling::TCpuDuration> ExcessTimes_;
 
-    TNullable<int> GetStarvingBucketIndex() const
+    std::optional<int> GetStarvingBucketIndex() const
     {
         auto minExcessTime = std::numeric_limits<NProfiling::TCpuDuration>::max();
-        TNullable<int> minBucketIndex;
+        std::optional<int> minBucketIndex;
         for (int index = 0; index < Buckets_.size(); ++index) {
             if (Buckets_[index].empty()) {
                 continue;
             }
-            if (!minBucketIndex.HasValue() || ExcessTimes_[index] < minExcessTime) {
+            if (!minBucketIndex || ExcessTimes_[index] < minExcessTime) {
                 minExcessTime = ExcessTimes_[index];
                 minBucketIndex = index;
             }

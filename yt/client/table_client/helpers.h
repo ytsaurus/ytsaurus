@@ -115,12 +115,12 @@ void FromUnversionedValue(
 template <class T>
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
-    const TNullable<T>& value,
+    const std::optional<T>& value,
     const TRowBufferPtr& rowBuffer,
     int id = 0);
 template <class T>
 void FromUnversionedValue(
-    TNullable<T>* value,
+    std::optional<T>* value,
     TUnversionedValue unversionedValue);
 
 template <class T>

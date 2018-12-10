@@ -19,8 +19,8 @@ namespace NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<TString> CommandNameV2ToV3(TString commandName);
-TNullable<TString> CommandNameV3ToV2(TString commandName);
+std::optional<TString> CommandNameV2ToV3(TString commandName);
+std::optional<TString> CommandNameV3ToV2(TString commandName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,22 +75,22 @@ private:
 
     TInstant StartTime_ = TInstant::Now();
 
-    TNullable<TSemaphoreGuard> SemaphoreGuard_;
+    std::optional<TSemaphoreGuard> SemaphoreGuard_;
 
     NDriver::TDriverRequest DriverRequest_;
-    TNullable<NDriver::TCommandDescriptor> Descriptor_;
+    std::optional<NDriver::TCommandDescriptor> Descriptor_;
 
-    TNullable<int> ApiVersion_;
-    TNullable<NAuth::TAuthenticationResult> Auth_;
-    TNullable<NFormats::TFormat> HeadersFormat_;
-    TNullable<NFormats::TFormat> InputFormat_;
-    TNullable<TContentEncoding> InputContentEncoding_;
+    std::optional<int> ApiVersion_;
+    std::optional<NAuth::TAuthenticationResult> Auth_;
+    std::optional<NFormats::TFormat> HeadersFormat_;
+    std::optional<NFormats::TFormat> InputFormat_;
+    std::optional<TContentEncoding> InputContentEncoding_;
 
-    TNullable<NFormats::TFormat> OutputFormat_;
-    TNullable<TString> ContentType_;
-    TNullable<TContentEncoding> OutputContentEncoding_;
+    std::optional<NFormats::TFormat> OutputFormat_;
+    std::optional<TString> ContentType_;
+    std::optional<TContentEncoding> OutputContentEncoding_;
 
-    TNullable<ui64> IfNoneMatch_;
+    std::optional<ui64> IfNoneMatch_;
 
     TSharedRefOutputStreamPtr MemoryOutput_;
 
