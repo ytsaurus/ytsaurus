@@ -132,14 +132,17 @@ void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* 
     AccountResourceUsage_[account] += node->GetDeltaResourceUsage();
 }
 
-TYsonString TTransaction::GetErrorDescription() const
+namespace {
+
+template <class TFluent>
+void DumpTransaction(TFluent fluent, const TTransaction* transaction, bool dumpParents)
 {
     auto customAttributes = CreateEphemeralAttributes();
     auto copyCustomAttribute = [&] (const TString& key) {
-        if (!Attributes_) {
+        if (!transaction->GetAttributes()) {
             return;
         }
-        const auto& attributeMap = Attributes_->Attributes();
+        const auto& attributeMap = transaction->GetAttributes()->Attributes();
         auto it = attributeMap.find(key);
         if (it == attributeMap.end()) {
             return;
@@ -149,25 +152,43 @@ TYsonString TTransaction::GetErrorDescription() const
     copyCustomAttribute("operation_id");
     copyCustomAttribute("operation_title");
 
-    return BuildYsonStringFluently()
+    fluent
         .BeginMap()
-            .Item("id").Value(Id_)
-            .Item("start_time").Value(StartTime_)
-            .Item("owner").Value(Acd_.GetOwner()->GetName())
-            .DoIf(Timeout_.operator bool(), [&] (TFluentMap fluent) {
+            .Item("id").Value(transaction->GetId())
+            .Item("start_time").Value(transaction->GetStartTime())
+            .Item("owner").Value(transaction->Acd().GetOwner()->GetName())
+            .DoIf(transaction->GetTimeout().operator bool(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("timeout").Value(*Timeout_);
+                    .Item("timeout").Value(*transaction->GetTimeout());
             })
-            .DoIf(Title_.operator bool(), [&] (TFluentMap fluent) {
+            .DoIf(transaction->GetTitle().operator bool(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("title").Value(*Title_);
+                    .Item("title").Value(*transaction->GetTitle());
+            }).DoIf(dumpParents, [&] (auto fluent) {
+                std::vector<TTransaction*> parents;
+                auto* parent = transaction->GetParent();
+                while (parent) {
+                    parents.push_back(parent);
+                    parent = parent->GetParent();
+                }
+                fluent.Item("parents").DoListFor(parents, [&] (auto fluent, auto* parent) {
+                    fluent
+                        .Item().Do([&] (auto fluent) {
+                            DumpTransaction(fluent, parent, false);
+                        });
+                });
             })
-            .DoIf(Parent_ != nullptr, [&] (TFluentMap fluent) {
-                fluent
-                    .Item("parent").Value(Parent_->GetErrorDescription());
-            })
-            .Items(*customAttributes)
         .EndMap();
+}
+
+} // namespace
+
+TYsonString TTransaction::GetErrorDescription() const
+{
+    return BuildYsonStringFluently()
+        .Do([&] (auto fluent) {
+            DumpTransaction(fluent, this, true);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

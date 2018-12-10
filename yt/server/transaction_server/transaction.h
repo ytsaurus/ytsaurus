@@ -81,6 +81,7 @@ public:
 
 private:
     void AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
