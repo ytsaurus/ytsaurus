@@ -67,8 +67,8 @@ logger.setLevel(logging.DEBUG)
 class Cli(object):
     def __init__(self, directory_path, yamake_subdirectory_name, binary_name):
         if yatest_common is not None:
-            yatest_binary_path = os.path.join(directory_path, yamake_subdirectory_name, binary_name)
-            self._cli_execute = [yatest_common.binary_path(yatest_binary_path)]
+            binary_path = os.path.join("yp", directory_path, yamake_subdirectory_name, binary_name)
+            self._cli_execute = [yatest_common.binary_path(binary_path)]
         else:
             binary_path = os.path.join(TESTS_LOCATION, "..", directory_path, binary_name)
             self._cli_execute = [
