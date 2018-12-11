@@ -358,18 +358,18 @@ class SkiffFormat(Format):
         attributes = get_value(attributes, {})
         if schemas is not None:
             attributes["table_skiff_schemas"] = schemas
-            self._schemas = [
-                skiff.SkiffSchema(
-                    [schema],
-                    get_value(schema_registry, {}),
-                    self._range_index_column_name,
-                    self._row_index_column_name
-                )
-                for schema in schemas
-            ]
-
         if schema_registry is not None:
             attributes["skiff_schema_registry"] = schema_registry
+
+        self._schemas = [
+            skiff.SkiffSchema(
+                [schema],
+                get_value(attributes.get("skiff_schema_registry"), {}),
+                self._range_index_column_name,
+                self._row_index_column_name
+            )
+            for schema in attributes["table_skiff_schemas"]
+        ]
 
         super(SkiffFormat, self).__init__("skiff", attributes=attributes, raw=raw)
 
