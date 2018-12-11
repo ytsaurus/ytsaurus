@@ -73,6 +73,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/logging/pattern.cpp
   ${CMAKE_CURRENT_LIST_DIR}/logging/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/logging/writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/logging/random_access_gzip.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/arithmetic_formula.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/assert.cpp

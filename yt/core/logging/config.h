@@ -17,6 +17,7 @@ public:
     TString FileName;
     ELogMessageFormat AcceptedMessageFormat;
     std::optional<size_t> RateLimit;
+    bool EnableCompression;
 
     TWriterConfig()
     {
@@ -27,6 +28,8 @@ public:
             .Default(ELogMessageFormat::PlainText);
         RegisterParameter("rate_limit", RateLimit)
             .Default();
+        RegisterParameter("enable_compression", EnableCompression)
+            .Default(false);
 
         RegisterPostprocessor([&] () {
             if (Type == EWriterType::File && FileName.empty()) {
