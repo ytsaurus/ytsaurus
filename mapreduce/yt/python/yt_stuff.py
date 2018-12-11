@@ -89,20 +89,7 @@ class YtConfig(object):
         self.proxy_port = proxy_port
         self.node_count = node_count
 
-        default_node_config = {
-            "tablet_node": {
-                "hydra_manager": {
-                    "leader_lease_grace_delay": 21000,
-                    "leader_lease_check_period": 100,
-                    "leader_lease_timeout": 20000
-                }
-            }
-        }
-
-        with tempfile.NamedTemporaryFile(delete=False) as node_config_with_fixed_hydra:
-            yson.dump(default_node_config, node_config_with_fixed_hydra)
-
-        self.node_config = get_value(node_config, node_config_with_fixed_hydra.name)
+        self.node_config = node_config
         self.scheduler_config = scheduler_config
         self.master_config = master_config
         self.proxy_config = proxy_config
