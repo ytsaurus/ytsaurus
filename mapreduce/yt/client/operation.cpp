@@ -786,6 +786,9 @@ void BuildUserJobFluently1(
         .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("memory_limit").Value(*memoryLimit);
         })
+        .DoIf(userJobSpec.MemoryReserveFactor_.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("memory_reserve_factor").Value(*userJobSpec.MemoryReserveFactor_);
+        })
         .DoIf(cpuLimit.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("cpu_limit").Value(*cpuLimit);
         })
