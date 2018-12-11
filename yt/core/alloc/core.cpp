@@ -2472,7 +2472,7 @@ struct TLargeArena
     size_t CurrentOverheadScanSegment = 0;
 };
 
-template<bool Dumpable>
+template <bool Dumpable>
 class TLargeBlobAllocator
 {
 public:
