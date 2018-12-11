@@ -5,6 +5,8 @@ import java.util.Map;
 
 import com.google.protobuf.ByteString;
 
+import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -28,6 +30,11 @@ public class CreateNode extends MutateNode<CreateNode> {
 
     public CreateNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
         this(path, type);
+        setAttributes(attributes);
+    }
+
+    public CreateNode(YPath path, CypressNodeType type, Map<String, YTreeNode> attributes) {
+        this(path.toString(), ObjectType.from(type));
         setAttributes(attributes);
     }
 
