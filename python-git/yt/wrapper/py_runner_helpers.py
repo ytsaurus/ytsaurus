@@ -117,17 +117,21 @@ class group_by_key_switch(object):
         self.extract_key_by_group_by = extract_key_by_group_by
         self.row = None
         self.context = context
+        self._previous_group = None
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        if self.row is None:
+        if self._previous_group is None:
             self._extract_next_row()
         else:
+            for row in self._previous_group:
+                pass
             while not self.rows.key_switch:
                 self._extract_next_row()
-        return (self.extract_key_by_group_by(self.row), self._grouper())
+        self._previous_group = self._grouper()
+        return (self.extract_key_by_group_by(self.row), self._previous_group)
 
     def next(self):
         return self.__next__()

@@ -846,6 +846,25 @@ print(op.id)
         check([{"x": 1}, {"x": 2}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
     @add_failed_operation_stderrs_to_error_message
+    def test_reduce_without_reading_all_rows(self):
+        def reducer1(key, recs):
+            yield {"x": 10}
+
+        def reducer2(key, recs):
+            next(recs)
+            yield {"x": 10}
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 1}, {"x": 1, "y": 2}, {"x": 2, "y": 3}])
+        yt.run_sort(table, table, sort_by=["x"])
+
+        yt.run_reduce(reducer1, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
+        check([{"x": 10}, {"x": 10}], yt.read_table(TEST_DIR + "/other"), ordered=False)
+
+        yt.run_reduce(reducer2, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
+        check([{"x": 10}, {"x": 10}], yt.read_table(TEST_DIR + "/other"), ordered=False)
+
+    @add_failed_operation_stderrs_to_error_message
     def test_table_and_row_index_from_job(self):
         @yt.aggregator
         def mapper(rows):
