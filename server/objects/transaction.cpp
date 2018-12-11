@@ -1245,9 +1245,9 @@ private:
 
         void FlushTransaction()
         {
+            FlushObjectsDeletion();
             ValidateCreatedObjects();
             FlushObjectsCreation();
-            FlushObjectsDeletion();
             std::vector<TError> errors;
             while (HasPendingLoads() || HasPendingStores()) {
                 FlushLoadsOnce(&errors);
@@ -1280,12 +1280,17 @@ private:
             auto it = InstantiatedObjects_.find(key);
             if (it != InstantiatedObjects_.end()) {
                 auto* existingObject = it->second.get();
-                THROW_ERROR_EXCEPTION(
-                    NClient::NApi::EErrorCode::InvalidObjectState,
-                    "%v %Qv is already in %Qlv state",
-                    GetCapitalizedHumanReadableTypeName(type),
-                    actualId,
-                    existingObject->GetState());
+                auto existingObjectState = existingObject->GetState();
+                if (existingObjectState != EObjectState::Removing &&
+                    existingObjectState != EObjectState::Removed)
+                {
+                    THROW_ERROR_EXCEPTION(
+                        NClient::NApi::EErrorCode::InvalidObjectState,
+                        "%v %Qv is already in %Qlv state",
+                        GetCapitalizedHumanReadableTypeName(type),
+                        actualId,
+                        existingObject->GetState());
+                }
             }
 
             const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
@@ -1306,7 +1311,8 @@ private:
 
             YCHECK(InstantiatedObjects_.emplace(key, std::move(objectHolder)).second);
             object->InitializeCreating();
-            CreatedObjects_.push_back(object);
+
+            YCHECK(CreatedObjects_.emplace(key, object).second);
 
             typeHandler->BeforeObjectCreated(Owner_->Owner_, object);
 
@@ -1340,6 +1346,13 @@ private:
             auto key = std::make_pair(type, id);
             auto it = InstantiatedObjects_.find(key);
             if (it == InstantiatedObjects_.end()) {
+                if (RemovedObjects_[type].has(id)) {
+                    THROW_ERROR_EXCEPTION(
+                        NClient::NApi::EErrorCode::NoSuchObject,
+                        "%v %Qv is already removed in this transaction",
+                        GetCapitalizedHumanReadableTypeName(type),
+                        id);
+                }
                 const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
                 auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
                 auto objectHolder = typeHandler->InstantiateObject(id, parentId, this);
@@ -1390,11 +1403,26 @@ private:
                 attribute->OnObjectRemoved();
             }
 
+            auto key = std::make_pair(object->GetType(), object->GetId());
             if (state == EObjectState::Created) {
                 object->SetState(EObjectState::CreatedRemoved);
             } else {
-                RemovedObjects_[object->GetType()].push_back(object);
+                RemovedObjects_[object->GetType()][object->GetId()] = object;
                 object->SetState(EObjectState::Removed);
+            }
+
+            {
+                auto it = InstantiatedObjects_.find(key);
+                if (it != InstantiatedObjects_.end()) {
+                    RemovedObjectsHolders_.emplace_back(std::move(it->second));
+                    InstantiatedObjects_.erase(it);
+                }
+            }
+            {
+                auto it = CreatedObjects_.find(key);
+                if (it != CreatedObjects_.end()) {
+                    CreatedObjects_.erase(it);
+                }
             }
 
             auto* typeHandler = object->GetTypeHandler();
@@ -1452,8 +1480,10 @@ private:
         const NLogging::TLogger& Logger;
 
         THashMap<std::pair<EObjectType, TObjectId>, std::unique_ptr<TObject>> InstantiatedObjects_;
-        std::vector<TObject*> CreatedObjects_;
-        TEnumIndexedVector<std::vector<TObject*>, EObjectType> RemovedObjects_;
+        TVector<std::unique_ptr<TObject>> RemovedObjectsHolders_;
+
+        THashMap<std::pair<EObjectType, TObjectId>, TObject*> CreatedObjects_;
+        TEnumIndexedVector<THashMap<TObjectId, TObject*>, EObjectType> RemovedObjects_;
 
         std::array<std::vector<TLoadCallback>, LoadPriorityCount> ScheduledLoads_;
         std::vector<TStoreCallback> ScheduledStores_;
@@ -1494,8 +1524,15 @@ private:
 
             std::vector<std::unique_ptr<TObjectExistenceChecker>> checkers;
             std::vector<std::pair<TObject*, TObject*>> objectParentPairs;
-            for (auto* object : CreatedObjects_) {
+            for (const auto& item : CreatedObjects_) {
+                const auto& key = item.first;
+                auto* object = item.second;
+
                 if (object->GetState() != EObjectState::Created) {
+                    continue;
+                }
+
+                if (RemovedObjects_[key.first].find(key.second) != RemovedObjects_[key.first].end()) {
                     continue;
                 }
 
@@ -1547,7 +1584,9 @@ private:
             LOG_DEBUG("Started preparing objects creation");
             TStoreContext context(Owner_);
 
-            for (const auto* object : CreatedObjects_) {
+            for (const auto& item : CreatedObjects_) {
+                const auto* object = item.second;
+
                 if (object->GetState() != EObjectState::Created) {
                     continue;
                 }
@@ -1598,7 +1637,9 @@ private:
                 const auto* table = typeHandler->GetTable();
 
                 const auto& objects = RemovedObjects_[type];
-                for (const auto* object : objects) {
+                for (const auto& item : objects) {
+                    const auto* object = item.second;
+
                     context.WriteRow(
                         table,
                         CaptureCompositeObjectKey(object, context.GetRowBuffer()),
