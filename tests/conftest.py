@@ -29,6 +29,7 @@ import logging
 import os
 import sys
 import time
+import shutil
 
 
 if yatest_common is None:
@@ -100,8 +101,12 @@ class YpTestEnvironment(object):
             path = arcadia_interop.prepare_yt_environment(destination)
             os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
-            self.test_sandbox_base_path = yatest_common.output_path()
-            self.test_sandbox_path = os.path.join(yatest_common.output_path(), "yp_" + generate_uuid())
+            self.ram_drive_path = yatest_common.get_param("ram_drive_path")
+            if self.ram_drive_path is None:
+                self.test_sandbox_base_path = yatest_common.output_path()
+            else:
+                self.test_sandbox_base_path = self.ram_drive_path
+            self.test_sandbox_path = os.path.join(self.test_sandbox_base_path, "yp_" + generate_uuid())
         else:
             self.test_sandbox_base_path = TESTS_SANDBOX
             self.test_sandbox_path = os.path.join(TESTS_SANDBOX, "yp_" + generate_uuid())
@@ -120,18 +125,22 @@ class YpTestEnvironment(object):
         self.sync_access_control()
 
     def _start(self):
-        self.yp_instance.start()
-        self.yp_client = self.yp_instance.create_client()
+        try:
+            self.yp_instance.start()
+            self.yp_client = self.yp_instance.create_client()
 
-        def touch_pod_set():
-            try:
-                pod_set_id = self.yp_client.create_object("pod_set")
-                self.yp_client.remove_object("pod_set", pod_set_id)
-            except YtResponseError:
-                return False
-            return True
+            def touch_pod_set():
+                try:
+                    pod_set_id = self.yp_client.create_object("pod_set")
+                    self.yp_client.remove_object("pod_set", pod_set_id)
+                except YtResponseError:
+                    return False
+                return True
 
-        wait(touch_pod_set)
+            wait(touch_pod_set)
+        except:
+            self._save_yatest_working_files()
+            raise
 
     def sync_access_control(self):
         # TODO(babenko): improve
@@ -139,6 +148,13 @@ class YpTestEnvironment(object):
 
     def cleanup(self):
         self.yp_instance.stop()
+        self._save_yatest_working_files()
+
+    def _save_yatest_working_files(self):
+        if self.ram_drive_path is not None:
+            shutil.copytree(
+                self.test_sandbox_path,
+                os.path.join(yatest_common.output_path(), os.path.basename(self.test_sandbox_path)))
 
 def test_method_setup(yp_env):
     print("\n", file=sys.stderr)
