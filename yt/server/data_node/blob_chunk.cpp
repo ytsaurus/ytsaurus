@@ -346,7 +346,7 @@ void TBlobChunkBase::DoReadBlockSet(
 
                 // NB: Prevent cache from holding the whole block sequence.
                 if (blocks.size() > 1) {
-                    data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data);
+                    data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data, /* dumpable */ false);
                 }
 
                 auto blockId = TBlockId(Id_, entry.BlockIndex);

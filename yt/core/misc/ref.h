@@ -210,9 +210,9 @@ public:
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
-    static TSharedRef MakeCopy(const TRef& ref, TRefCountedTypeCookie tagCookie)
+    static TSharedRef MakeCopy(const TRef& ref, TRefCountedTypeCookie tagCookie, bool dumpable)
     {
-        auto blob = TBlob(tagCookie, ref.Size(), false);
+        auto blob = TBlob(tagCookie, ref.Size(), false, 1, dumpable);
         ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
         return FromBlob(std::move(blob));
     }
@@ -220,9 +220,9 @@ public:
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedRef MakeCopy(const TRef& ref)
+    static TSharedRef MakeCopy(const TRef& ref, bool dumpable = true)
     {
-        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>());
+        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>(), dumpable);
     }
 
     //! Creates a TSharedRef for a part of existing range.
@@ -366,9 +366,9 @@ public:
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
-    static TSharedMutableRef MakeCopy(const TRef& ref, TRefCountedTypeCookie tagCookie)
+    static TSharedMutableRef MakeCopy(const TRef& ref, TRefCountedTypeCookie tagCookie, bool dumpable)
     {
-        auto blob = TBlob(tagCookie, ref.Size(), false);
+        auto blob = TBlob(tagCookie, ref.Size(), false, dumpable);
         ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
         return FromBlob(std::move(blob));
     }
@@ -376,9 +376,9 @@ public:
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedMutableRef MakeCopy(const TRef& ref)
+    static TSharedMutableRef MakeCopy(const TRef& ref, bool dumpable = true)
     {
-        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>());
+        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>(), dumpable);
     }
 
     //! Creates a reference for a part of existing range.

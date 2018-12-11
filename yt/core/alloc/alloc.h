@@ -10,11 +10,17 @@ namespace NYT::NYTAlloc {
 
 //! Allocates a chunk of memory of (at least) #size bytes.
 //! The returned pointer is guaranteed to be 16-byte aligned.
-void* Allocate(size_t size);
+//!
+//! #dumpable is a hint to allocator indicating that object may be
+//! ommited from the core dump.
+void* Allocate(size_t size, bool dumpable = true);
 
 //! Allocates a chunk of memory of (at least) #size bytes.
 //! The returned pointer is guaranteed to be 4K-byte aligned.
-void* AllocatePageAligned(size_t size);
+//!
+//! #dumpable is a hint to allocator indicating that object may be
+//! ommited from the core dump.
+void* AllocatePageAligned(size_t size, bool dumpable = true);
 
 //! Frees a chunk of memory previously allocated via YTAlloc* functions.
 //! Does nothing if #ptr is null.
@@ -64,6 +70,7 @@ DEFINE_ENUM(EBasicCounter,
 using ESystemCounter = EBasicCounter;
 using ESmallCounter = EBasicCounter;
 using ELargeCounter = EBasicCounter;
+using EUndumpableCounter = EBasicCounter;
 
 DEFINE_ENUM(ESmallArenaCounter,
     (PagesMapped)
