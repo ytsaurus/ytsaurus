@@ -97,7 +97,6 @@ class TestClickhouse(YTEnvSetup):
         document_configs = dict()
 
         document_configs["configuration/server"] = yson.loads(self._read_local_config_file("server.yson"))
-        document_configs["configuration/users"] = yson.loads(self._read_local_config_file("users.yson"))
 
         for config_name, content in file_configs.iteritems():
             cypress_path = "//sys/clickhouse/{0}".format(config_name)
