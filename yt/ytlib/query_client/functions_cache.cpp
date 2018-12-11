@@ -193,7 +193,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
             getRspOrError,
-            "Failed to find implementation of function %Qv at path %Qv in Cypress",
+            "Failed to find implementation of function %v at path %v in Cypress",
             function.second,
             function.first);
 
