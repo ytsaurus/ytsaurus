@@ -2715,6 +2715,9 @@ private:
                     break;
                 }
                 currentExtent = arena->FirstExtent.load();
+                if (!currentExtent) {
+                    break;
+                }
                 restartedFromFirstExtent = true;
             }
 
