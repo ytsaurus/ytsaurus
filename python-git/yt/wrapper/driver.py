@@ -13,6 +13,8 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.yson.convert import json_to_yson
 
+from yt.packages.six import string_types
+
 from copy import deepcopy
 
 _DEFAULT_COMMAND_PARAMS = {
@@ -138,7 +140,7 @@ def make_formatted_request(command_name, params, format, **kwargs):
                 params["output_format"] = "json"
                 response_format = "json"
         else:
-            if isinstance(format, str):
+            if isinstance(format, string_types):
                 format = create_format(format)
             params["output_format"] = format.to_yson_type()
 

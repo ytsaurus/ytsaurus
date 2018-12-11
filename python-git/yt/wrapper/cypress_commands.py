@@ -13,7 +13,7 @@ from .http_helpers import get_retriable_errors
 
 import yt.logger as logger
 
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, string_types
 from yt.packages.six.moves import builtins, map as imap, filter as ifilter
 
 import string
@@ -75,7 +75,7 @@ def set(path, value, format=None, recursive=False, force=None, client=None):
         value = yson.dumps(value)
         format = "yson"
 
-    if isinstance(format, str):
+    if isinstance(format, string_types):
         format = create_format(format)
 
     params = {
