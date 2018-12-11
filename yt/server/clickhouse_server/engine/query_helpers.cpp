@@ -1,7 +1,7 @@
 #include "query_helpers.h"
 
-#include <Parsers/ASTFunction.h>
-#include <Parsers/ASTLiteral.h>
+//#include <Parsers/ASTFunction.h>
+//#include <Parsers/ASTLiteral.h>
 
 namespace NYT {
 namespace NClickHouseServer {

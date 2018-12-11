@@ -1,8 +1,10 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include <yt/server/clickhouse_server/native/public.h>
 
-#include <Interpreters/ISecurityManager.h>
+//#include <Interpreters/ISecurityManager.h>
 
 namespace NYT::NClickHouseServer::NEngine {
 

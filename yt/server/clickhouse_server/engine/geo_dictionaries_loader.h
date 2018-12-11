@@ -1,8 +1,10 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include <yt/server/clickhouse_server/native/public.h>
 
-#include <Dictionaries/Embedded/IGeoDictionariesLoader.h>
+//#include <Dictionaries/Embedded/IGeoDictionariesLoader.h>
 
 #include <memory>
 

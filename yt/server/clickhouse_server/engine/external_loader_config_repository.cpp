@@ -5,9 +5,9 @@
 #include "logging_helpers.h"
 #include "type_helpers.h"
 
-#include <Poco/Logger.h>
+//#include <Poco/Logger.h>
 
-#include <common/logger_useful.h>
+//#include <common/logger_useful.h>
 
 namespace NYT {
 namespace NClickHouseServer {
@@ -55,7 +55,7 @@ std::set<std::string> TExternalLoaderConfigRepository::list(
         return {configs.begin(), configs.end()};
     } catch (...) {
         // Workaround to prevent crash of background reloader thread in DB::ExternalReloader
-        LOG_WARNING(
+        CH_LOG_WARNING(
            Logger,
            "Error occurred while listing repository with address " << ConfigRepository->GetAddress() <<
            ": " << CurrentExceptionText());

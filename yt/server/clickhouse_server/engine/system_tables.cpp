@@ -2,31 +2,31 @@
 
 #include "storage_system_cluster.h"
 
-#include <Databases/IDatabase.h>
-#include <Storages/IStorage.h>
+//#include <Databases/IDatabase.h>
+//#include <Storages/IStorage.h>
 
-#include <Storages/System/attachSystemTables.h>
+//#include <Storages/System/attachSystemTables.h>
 
-#include <Storages/System/StorageSystemAsynchronousMetrics.h>
-#include <Storages/System/StorageSystemBuildOptions.h>
-#include <Storages/System/StorageSystemClusters.h>
-#include <Storages/System/StorageSystemColumns.h>
-#include <Storages/System/StorageSystemDatabases.h>
-#include <Storages/System/StorageSystemDictionaries.h>
-#include <Storages/System/StorageSystemEvents.h>
-#include <Storages/System/StorageSystemFunctions.h>
-#include <Storages/System/StorageSystemGraphite.h>
-#include <Storages/System/StorageSystemMerges.h>
-#include <Storages/System/StorageSystemMetrics.h>
-#include <Storages/System/StorageSystemNumbers.h>
-#include <Storages/System/StorageSystemOne.h>
-#include <Storages/System/StorageSystemParts.h>
-#include <Storages/System/StorageSystemProcesses.h>
-#include <Storages/System/StorageSystemReplicas.h>
-#include <Storages/System/StorageSystemReplicationQueue.h>
-#include <Storages/System/StorageSystemSettings.h>
-#include <Storages/System/StorageSystemTables.h>
-#include <Storages/System/StorageSystemZooKeeper.h>
+//#include <Storages/System/StorageSystemAsynchronousMetrics.h>
+//#include <Storages/System/StorageSystemBuildOptions.h>
+//#include <Storages/System/StorageSystemClusters.h>
+//#include <Storages/System/StorageSystemColumns.h>
+//#include <Storages/System/StorageSystemDatabases.h>
+//#include <Storages/System/StorageSystemDictionaries.h>
+//#include <Storages/System/StorageSystemEvents.h>
+//#include <Storages/System/StorageSystemFunctions.h>
+//#include <Storages/System/StorageSystemGraphite.h>
+//#include <Storages/System/StorageSystemMerges.h>
+//#include <Storages/System/StorageSystemMetrics.h>
+//#include <Storages/System/StorageSystemNumbers.h>
+//#include <Storages/System/StorageSystemOne.h>
+//#include <Storages/System/StorageSystemParts.h>
+//#include <Storages/System/StorageSystemProcesses.h>
+//#include <Storages/System/StorageSystemReplicas.h>
+//#include <Storages/System/StorageSystemReplicationQueue.h>
+//#include <Storages/System/StorageSystemSettings.h>
+//#include <Storages/System/StorageSystemTables.h>
+//#include <Storages/System/StorageSystemZooKeeper.h>
 
 namespace NYT {
 namespace NClickHouseServer {

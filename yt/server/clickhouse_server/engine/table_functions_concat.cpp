@@ -8,23 +8,23 @@
 #include <yt/server/clickhouse_server/native/table_partition.h>
 #include <yt/server/clickhouse_server/native/storage.h>
 
-#include <Common/Exception.h>
-#include <Common/OptimizedRegularExpression.h>
-#include <Common/typeid_cast.h>
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <Interpreters/Context.h>
-#include <Interpreters/evaluateConstantExpression.h>
-#include <Parsers/ASTFunction.h>
-#include <Parsers/ASTLiteral.h>
-#include <Storages/StorageNull.h>
-#include <TableFunctions/ITableFunction.h>
-#include <TableFunctions/TableFunctionFactory.h>
+//#include <Common/Exception.h>
+//#include <Common/OptimizedRegularExpression.h>
+//#include <Common/typeid_cast.h>
+//#include <DataTypes/DataTypeString.h>
+//#include <DataTypes/DataTypesNumber.h>
+//#include <Interpreters/Context.h>
+//#include <Interpreters/evaluateConstantExpression.h>
+//#include <Parsers/ASTFunction.h>
+//#include <Parsers/ASTLiteral.h>
+//#include <Storages/StorageNull.h>
+//#include <TableFunctions/ITableFunction.h>
+//#include <TableFunctions/TableFunctionFactory.h>
 
-#include <Poco/Glob.h>
-#include <Poco/Logger.h>
+//#include <Poco/Glob.h>
+//#include <Poco/Logger.h>
 
-#include <common/logger_useful.h>
+//#include <common/logger_useful.h>
 
 
 namespace DB {
@@ -220,7 +220,7 @@ StoragePtr TConcatenateTablesList::Execute(
     const std::vector<TString>& tableNames,
     const Context& context) const
 {
-    LOG_DEBUG(Logger, "Execute table function " << getName() << "(" << JoinStrings(", ", tableNames) << ")");
+    CH_LOG_DEBUG(Logger, "Execute table function " << getName() << "(" << JoinStrings(", ", tableNames) << ")");
 
     auto token = CreateAuthToken(*Storage, context);
     auto tables = GetTables(tableNames, *token);

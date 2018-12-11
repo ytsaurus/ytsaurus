@@ -1,5 +1,7 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include <string>
 
 namespace NYT::NClickHouseServer::NEngine {

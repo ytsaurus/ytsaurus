@@ -4,12 +4,12 @@
 #include "range_filter.h"
 #include "type_helpers.h"
 
-#include <Common/Exception.h>
-#include <DataStreams/materializeBlock.h>
-#include <DataStreams/MaterializingBlockInputStream.h>
-#include <DataStreams/RemoteBlockInputStream.h>
-#include <Interpreters/InterpreterSelectQuery.h>
-#include <Parsers/queryToString.h>
+//#include <Common/Exception.h>
+//#include <DataStreams/materializeBlock.h>
+//#include <DataStreams/MaterializingBlockInputStream.h>
+//#include <DataStreams/RemoteBlockInputStream.h>
+//#include <Interpreters/InterpreterSelectQuery.h>
+//#include <Parsers/queryToString.h>
 
 namespace NYT {
 namespace NClickHouseServer {
@@ -27,24 +27,24 @@ BlockInputStreams TStorageDistributed::read(
     size_t maxBlockSize,
     unsigned numStreams)
 {
-    LOG_DEBUG(
+    CH_LOG_DEBUG(
         Logger,
         "Requested columns " << JoinStrings(",", ToString(columnNames)) << " from table " << getTableName());
 
 
     auto clusterNodes = Cluster->GetAvailableNodes();
 
-    LOG_DEBUG(
+    CH_LOG_DEBUG(
         Logger,
         "Available cluster nodes: " << std::to_string(clusterNodes.size()));
 
     // Allocate table parts to nodes of execution cluster
 
-    LOG_DEBUG(Logger, "Allocating table parts to cluster nodes...");
+    CH_LOG_DEBUG(Logger, "Allocating table parts to cluster nodes...");
 
     auto allocation = AllocateTablePartsToClusterNodes(clusterNodes, queryInfo, context);
 
-    LOG_DEBUG(Logger, "Prepering to subqueries execution...");
+    CH_LOG_DEBUG(Logger, "Prepering to subqueries execution...");
 
     // Prepare settings and context for subqueries
 
@@ -67,7 +67,7 @@ BlockInputStreams TStorageDistributed::read(
 
     // Create block streams
 
-    LOG_DEBUG(Logger, "Creating subqueries input streams...");
+    CH_LOG_DEBUG(Logger, "Creating subqueries input streams...");
 
     BlockInputStreams streams;
 
@@ -95,7 +95,7 @@ BlockInputStreams TStorageDistributed::read(
         streams.push_back(std::move(tablePartStream));
     }
 
-    LOG_DEBUG(Logger, "All block streams created");
+    CH_LOG_DEBUG(Logger, "All block streams created");
 
     return streams;
 }

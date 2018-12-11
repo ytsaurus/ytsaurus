@@ -1,9 +1,11 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include <yt/server/clickhouse_server/native/public.h>
 
-#include <Core/Field.h>
-#include <Core/NamesAndTypes.h>
+//#include <Core/Field.h>
+//#include <Core/NamesAndTypes.h>
 
 #include <string>
 #include <vector>

@@ -4,17 +4,17 @@
 
 #include <yt/server/clickhouse_server/native/clique_authorization_manager.h>
 
-#include <Poco/Net/IPAddress.h>
-#include <Poco/Util/AbstractConfiguration.h>
+//#include <Poco/Net/IPAddress.h>
+//#include <Poco/Util/AbstractConfiguration.h>
 
-#include <Common/Exception.h>
-#include <Interpreters/Users.h>
-#include <Interpreters/ISecurityManager.h>
+//#include <Common/Exception.h>
+//#include <Interpreters/Users.h>
+//#include <Interpreters/ISecurityManager.h>
 
 #include <util/generic/maybe.h>
 #include <util/system/rwlock.h>
 
-#include <common/logger_useful.h>
+//#include <common/logger_useful.h>
 
 #include <map>
 
@@ -94,7 +94,7 @@ UserPtr TUserRegistry::GetOrRegisterNewUser(const String& userName)
             return found->second;
         }
 
-        LOG_INFO(GetLogger(), "Register new user " << Quoted(userName) << " from user template");
+        CH_LOG_INFO(GetLogger(), "Register new user " << Quoted(userName) << " from user template");
 
         auto inserted = Users.emplace(userName, CreateNewUserFromTemplate(userName));
         return inserted.first->second;
@@ -116,7 +116,7 @@ void TUserRegistry::Reload(Poco::Util::AbstractConfiguration& config)
     config.keys("users", userNames);
 
     for (const auto& userName : userNames) {
-        LOG_DEBUG(GetLogger(), "Load user " << Quoted(userName));
+        CH_LOG_DEBUG(GetLogger(), "Load user " << Quoted(userName));
         auto user = std::make_shared<const DB::User>(userName, "users." + userName, config);
         Users.emplace(userName, std::move(user));
     }
@@ -187,7 +187,7 @@ UserPtr TSecurityManager::authorizeAndGetUser(
 {
     auto user = Users.GetOrRegisterNewUser(userName);
     Authorize(user, password, address);
-    LOG_DEBUG(GetLogger(), "User authorized: " << Quoted(userName) << " (address: " << address.toString() << ")");
+    CH_LOG_DEBUG(GetLogger(), "User authorized: " << Quoted(userName) << " (address: " << address.toString() << ")");
     return user;
 }
 

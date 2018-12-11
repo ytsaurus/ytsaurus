@@ -1,14 +1,14 @@
 #include "http_handler.h"
 
-#include <server/HTTPHandler.h>
-#include <server/NotFoundHandler.h>
-#include <server/PingRequestHandler.h>
-#include <server/RootRequestHandler.h>
+//#include <server/HTTPHandler.h>
+//#include <server/NotFoundHandler.h>
+//#include <server/PingRequestHandler.h>
+//#include <server/RootRequestHandler.h>
 
-#include <common/logger_useful.h>
+//#include <common/logger_useful.h>
 
-#include <Poco/Net/HTTPServerRequest.h>
-#include <Poco/URI.h>
+//#include <Poco/Net/HTTPServerRequest.h>
+//#include <Poco/URI.h>
 
 namespace NYT {
 namespace NClickHouseServer {
@@ -63,7 +63,7 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
 {
     const Poco::URI uri(request.getURI());
 
-    LOG_INFO(Log, "HTTP Request. "
+    CH_LOG_INFO(Log, "HTTP Request. "
         << "Method: " << request.getMethod()
         << ", URI: " << uri.toString()
         << ", Address: " << request.clientAddress().toString()

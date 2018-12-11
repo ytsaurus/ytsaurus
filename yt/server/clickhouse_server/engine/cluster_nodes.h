@@ -1,8 +1,6 @@
 #pragma once
 
-#include <Client/ConnectionPoolWithFailover.h>
-#include <Interpreters/Cluster.h>
-#include <Interpreters/Context.h>
+#include "clickhouse.h"
 
 namespace NYT::NClickHouseServer::NEngine {
 

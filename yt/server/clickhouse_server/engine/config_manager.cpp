@@ -4,13 +4,13 @@
 #include "logging_helpers.h"
 #include "type_helpers.h"
 
-#include <Poco/Logger.h>
-#include <Poco/Util/XMLConfiguration.h>
+//#include <Poco/Logger.h>
+//#include <Poco/Util/XMLConfiguration.h>
 
 #include <yt/server/clickhouse_server/native/storage.h>
 #include <yt/server/clickhouse_server/native/path.h>
 
-#include <common/logger_useful.h>
+//#include <common/logger_useful.h>
 
 namespace NYT {
 namespace NClickHouseServer {

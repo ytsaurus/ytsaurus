@@ -1,8 +1,10 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include <yt/server/clickhouse_server/native/public.h>
 
-#include <Interpreters/IExternalLoaderConfigRepository.h>
+//#include <Interpreters/IExternalLoaderConfigRepository.h>
 
 namespace NYT::NClickHouseServer::NEngine {
 

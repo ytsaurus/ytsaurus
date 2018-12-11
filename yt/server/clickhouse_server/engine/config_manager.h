@@ -1,13 +1,15 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include "config_repository.h"
 
 #include <yt/server/clickhouse_server/native/public.h>
 
-#include <Common/config.h>
-#include <Interpreters/Context.h>
+//#include <Common/config.h>
+//#include <Interpreters/Context.h>
 
-#include <Poco/Util/LayeredConfiguration.h>
+//#include <Poco/Util/LayeredConfiguration.h>
 
 #include <memory>
 
