@@ -10,6 +10,7 @@ class ProfileMetric(object):
     def __init__(self, path):
         self.path = path
         self.tags = {}
+        self.len_on_enter = None
 
     def _read_from_cypress(self):
         try:
