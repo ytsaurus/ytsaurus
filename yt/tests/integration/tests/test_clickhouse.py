@@ -140,6 +140,17 @@ class TestClickhouse(YTEnvSetup):
 
         return json.loads(stdout)
 
+    def test_readonly(self):
+        clique = self._start_clique(1)
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+
+        try:
+            self._make_query(clique, 'insert into "//tmp/t" values(1)')
+        except YtError as err:
+            # 164 is an error code for READONLY.
+            assert "164" in str(err)
+
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):
         if instance_count == 5:
