@@ -15,7 +15,7 @@ from .skiff import convert_to_skiff_schema
 import yt.logger as logger
 import yt.yson as yson
 
-from yt.packages.six import text_type, binary_type, PY3
+from yt.packages.six import text_type, binary_type, PY3, string_types
 from yt.packages.six.moves import map as imap, zip as izip
 
 import time
@@ -83,7 +83,7 @@ def _prepare_command_format(format, raw, client):
         format = get_config(client)["tabular_data_format"]
     if not raw and format is None:
         format = YsonFormat()
-    if isinstance(format, str):
+    if isinstance(format, string_types):
         format = create_format(format)
 
     require(format is not None,
@@ -184,7 +184,7 @@ def _is_python_function(binary):
 def _prepare_format(format, default_format=None):
     if format is None:
         return default_format
-    if isinstance(format, str):
+    if isinstance(format, string_types):
         return create_format(format)
     return format
 
