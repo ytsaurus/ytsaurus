@@ -1728,6 +1728,8 @@ private:
             std::vector<std::vector<TBatch>> batchesByCells;
             THashMap<TCellId, size_t> cellIdToBatchIndex;
 
+            std::optional<bool> inMemory;
+
             {
                 auto itemsBegin = sortedKeys.begin();
                 auto itemsEnd = sortedKeys.end();
@@ -1789,6 +1791,11 @@ private:
                     batch.MountRevision = startShard->MountRevision;
                     batch.OffsetInResult = currentResultIndex;
 
+                    if (startShard->InMemoryMode) {
+                        YCHECK(!inMemory || *inMemory == startShard->IsInMemory());
+                        inMemory == startShard->IsInMemory();
+                    }
+
                     std::vector<TKey> rows;
                     rows.reserve(endItemsIt - itemsIt);
 
@@ -1829,7 +1836,7 @@ private:
                     networks);
 
                 TQueryServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(options.Timeout);
+                proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultLookupRowsTimeout));
                 proxy.SetDefaultRequestAck(false);
 
                 auto req = proxy.Multiread();
@@ -1838,7 +1845,9 @@ private:
                 req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
                 req->set_timestamp(options.Timestamp);
 
-
+                if (inMemory && *inMemory) {
+                    req->Header().set_uncancelable(true);
+                }
                 if (retentionConfig) {
                     req->set_retention_config(*retentionConfig);
                 }
