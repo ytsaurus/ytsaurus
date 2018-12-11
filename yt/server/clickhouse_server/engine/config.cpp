@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <Poco/Util/XMLConfiguration.h>
+//#include <Poco/Util/XMLConfiguration.h>
 
 namespace NYT {
 namespace NClickHouseServer {

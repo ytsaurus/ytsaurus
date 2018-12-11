@@ -1,5 +1,7 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include "cluster_tracker.h"
 
 namespace DB {

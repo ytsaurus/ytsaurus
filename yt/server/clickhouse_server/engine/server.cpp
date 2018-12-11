@@ -15,36 +15,40 @@
 
 #include <yt/server/clickhouse_server/native/storage.h>
 
-#include <AggregateFunctions/registerAggregateFunctions.h>
-#include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
-#include <Common/config.h>
-#include <Common/getMultipleKeysFromConfig.h>
-#include <Common/getNumberOfPhysicalCPUCores.h>
-#include <Databases/DatabaseMemory.h>
-#include <Functions/registerFunctions.h>
-#include <IO/HTTPCommon.h>
-#include <Interpreters/AsynchronousMetrics.h>
-#include <Interpreters/Context.h>
-#include <Interpreters/ProcessList.h>
-#include <server/IServer.h>
-#include <Storages/System/attachSystemTables.h>
-#include <TableFunctions/registerTableFunctions.h>
+#include <yt/server/clickhouse_server/helpers/poco_config.h>
 
-#include <common/DateLUT.h>
-#include <common/logger_useful.h>
+//#include <AggregateFunctions/registerAggregateFunctions.h>
+//#include <Common/Exception.h>
+//#include <Common/StringUtils/StringUtils.h>
+//#include <Common/config.h>
+//#include <Common/getMultipleKeysFromConfig.h>
+//#include <Common/getNumberOfPhysicalCPUCores.h>
+//#include <Databases/DatabaseMemory.h>
+//#include <Functions/registerFunctions.h>
+//#include <IO/HTTPCommon.h>
+//#include <Interpreters/AsynchronousMetrics.h>
+//#include <Interpreters/Context.h>
+//#include <Interpreters/ProcessList.h>
+//#include <server/IServer.h>
+//#include <Storages/System/attachSystemTables.h>
+//#include <TableFunctions/registerTableFunctions.h>
 
-#include <Poco/DirectoryIterator.h>
-#include <Poco/Ext/LevelFilterChannel.h>
-#include <Poco/File.h>
-#include <Poco/Logger.h>
-#include <Poco/Net/HTTPServer.h>
-#include <Poco/Net/NetException.h>
-#include <Poco/Net/TCPServer.h>
-#include <Poco/String.h>
-#include <Poco/ThreadPool.h>
-#include <Poco/Util/LayeredConfiguration.h>
-#include <Poco/Util/XMLConfiguration.h>
+//#include <common/DateLUT.h>
+////#include <common/logger_useful.h>
+
+//#include <Poco/DirectoryIterator.h>
+//#include <Poco/Ext/LevelFilterChannel.h>
+//#include <Poco/File.h>
+//#include <Poco/Logger.h>
+//#include <Poco/Net/HTTPServer.h>
+//#include <Poco/Net/NetException.h>
+//#include <Poco/Net/TCPServer.h>
+//#include <Poco/String.h>
+//#include <Poco/ThreadPool.h>
+//#include <Poco/Util/LayeredConfiguration.h>
+//#include <Poco/Util/XMLConfiguration.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <util/system/hostname.h>
 
@@ -67,8 +71,7 @@ namespace NClickHouseServer {
 namespace NEngine {
 
 using namespace DB;
-
-namespace {
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,8 +86,6 @@ std::string GetCanonicalPath(std::string path)
     }
     return path;
 }
-
-}   // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,15 +188,15 @@ public:
         // Ask to cancel background jobs all table engines, and also query_log.
         // It is important to do early, not in destructor of Context, because
         // table engines could use Context on destroy.
-        LOG_INFO(log, "Shutting down storages.");
+        CH_LOG_INFO(log, "Shutting down storages.");
         Context->shutdown();
-        LOG_DEBUG(log, "Shutted down storages.");
+        CH_LOG_DEBUG(log, "Shutted down storages.");
 
         // Explicitly destroy Context. It is more convenient than in destructor of Server,
         // because logger is still available.
         // At this moment, no one could own shared part of Context.
         Context.reset();
-        LOG_DEBUG(log, "Destroyed global context.");
+        CH_LOG_DEBUG(log, "Destroyed global context.");
 
         ExecutionClusterNodeTracker.reset();
     }
@@ -268,7 +269,7 @@ private:
 
     void SetupExecutionClusterNodeTracker()
     {
-        LOG_INFO(&logger(), "Starting cluster node tracker...");
+        CH_LOG_INFO(&logger(), "Starting cluster node tracker...");
 
         ExecutionClusterNodeTracker = CreateClusterNodeTracker(
             CoordinationService,
@@ -310,9 +311,9 @@ private:
         RegisterTableDictionarySource(Storage, ServerAuthToken);
 
         // Initialize DateLUT early, to not interfere with running time of first query.
-        LOG_DEBUG(log, "Initializing DateLUT.");
+        CH_LOG_DEBUG(log, "Initializing DateLUT.");
         DateLUT::instance();
-        LOG_TRACE(log, "Initialized DateLUT with time zone `" << DateLUT::instance().getTimeZone() << "'.");
+        CH_LOG_TRACE(log, "Initialized DateLUT with time zone `" << DateLUT::instance().getTimeZone() << "'.");
 
         // Limit on total number of concurrently executed queries.
         Context->getProcessList().setMaxSize(Config->getInt("max_concurrent_queries", 0));
@@ -342,7 +343,7 @@ private:
             // Clearing old temporary files.
             for (Poco::DirectoryIterator it(tmpPath), end; it != end; ++it) {
                 if (it->isFile() && startsWith(it.name(), "tmp")) {
-                    LOG_DEBUG(log, "Removing old temporary file " << it->path());
+                    CH_LOG_DEBUG(log, "Removing old temporary file " << it->path());
                     it->remove();
                 }
             }
@@ -372,7 +373,7 @@ private:
         // Default database that wraps connection to YT cluster.
         {
             auto defaultDatabase = CreateDatabase(Storage, ExecutionClusterNodeTracker);
-            LOG_INFO(log, "Main database is available under names 'default' and " << CliqueId_);
+            CH_LOG_INFO(log, "Main database is available under names 'default' and " << CliqueId_);
             Context->addDatabase("default", defaultDatabase);
             Context->addDatabase(CliqueId_, defaultDatabase);
         }
@@ -415,7 +416,7 @@ private:
 #endif
                     )
                 {
-                    LOG_ERROR(log,
+                    CH_LOG_ERROR(log,
                         "Cannot resolve listen_host (" << host << "), error: " << e.message() << ". "
                         "If it is an IPv6 address and your host has disabled IPv6, then consider to "
                         "specify IPv4 address to listen in <listen_host> element of configuration "
@@ -449,7 +450,7 @@ private:
                         socket,
                         httpParams));
 
-                    LOG_INFO(log, "Listening http://" + socketAddress.toString());
+                    CH_LOG_INFO(log, "Listening http://" + socketAddress.toString());
                 }
 
                 // TCP
@@ -466,14 +467,14 @@ private:
                         socket,
                         new Poco::Net::TCPServerParams()));
 
-                    LOG_INFO(log, "Listening tcp: " + socketAddress.toString());
+                    CH_LOG_INFO(log, "Listening tcp: " + socketAddress.toString());
                 }
             } catch (const Poco::Net::NetException& e) {
                 if (!(tryListen && e.code() == POCO_EPROTONOSUPPORT)) {
                     throw;
                 }
 
-                LOG_ERROR(log, "Listen [" << listenHost << "]: " << e.what() << ": " << e.message()
+                CH_LOG_ERROR(log, "Listen [" << listenHost << "]: " << e.what() << ": " << e.message()
                     << "  If it is an IPv6 or IPv4 address and your host has disabled IPv6 or IPv4, then consider to "
                     "specify not disabled IPv4 or IPv6 address to listen in <listen_host> element of configuration "
                     "file. Example for disabled IPv6: <listen_host>0.0.0.0</listen_host> ."
@@ -485,7 +486,7 @@ private:
             server->start();
         }
 
-        LOG_INFO(log, "Ready for connections.");
+        CH_LOG_INFO(log, "Ready for connections.");
     }
 
     void EnterExecutionCluster()

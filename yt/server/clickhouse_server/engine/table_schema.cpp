@@ -4,7 +4,7 @@
 
 #include <yt/server/clickhouse_server/native/table_schema.h>
 
-#include <DataTypes/DataTypeFactory.h>
+//#include <DataTypes/DataTypeFactory.h>
 
 namespace NYT {
 namespace NClickHouseServer {

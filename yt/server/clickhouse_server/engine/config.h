@@ -1,7 +1,9 @@
 #pragma once
 
-#include <Poco/Util/LayeredConfiguration.h>
-#include <Poco/AutoPtr.h>
+#include "clickhouse.h"
+
+//#include <Poco/Util/LayeredConfiguration.h>
+//#include <Poco/AutoPtr.h>
 
 #include <string>
 

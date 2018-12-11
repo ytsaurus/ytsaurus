@@ -12,11 +12,11 @@
 #include <yt/server/clickhouse_server/native/table_reader.h>
 #include <yt/server/clickhouse_server/native/table_schema.h>
 
-#include <Interpreters/Context.h>
+//#include <Interpreters/Context.h>
 
-#include <Poco/Logger.h>
+//#include <Poco/Logger.h>
 
-#include <common/logger_useful.h>
+//#include <common/logger_useful.h>
 
 namespace DB {
 
@@ -96,7 +96,7 @@ BlockInputStreams TStorageReadJob::read(
     size_t maxBlockSize,
     unsigned numStreams)
 {
-    LOG_DEBUG(Logger, "Columns requested in read job: " << JoinStrings(",", ToString(columnNames)));
+    CH_LOG_DEBUG(Logger, "Columns requested in read job: " << JoinStrings(",", ToString(columnNames)));
 
     DB::Names physicalColumns;
     DB::Names virtualColumns;

@@ -1,15 +1,17 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include "cluster_tracker.h"
 #include "storage_with_virtual_columns.h"
 #include "table_schema.h"
 
 #include <yt/server/clickhouse_server/native/table_partition.h>
 
-#include <Interpreters/Cluster.h>
-#include <Interpreters/Context.h>
+//#include <Interpreters/Cluster.h>
+//#include <Interpreters/Context.h>
 
-#include <Poco/Logger.h>
+//#include <Poco/Logger.h>
 
 namespace NYT::NClickHouseServer::NEngine {
 

@@ -6,19 +6,19 @@
 
 #include <yt/server/clickhouse_server/native/storage.h>
 
-#include <Columns/ColumnString.h>
-#include <Columns/ColumnsNumber.h>
-#include <Common/Exception.h>
-#include <Common/typeid_cast.h>
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <Interpreters/Context.h>
-#include <Interpreters/evaluateConstantExpression.h>
-#include <Parsers/ASTFunction.h>
-#include <Parsers/ASTLiteral.h>
-#include <Storages/StorageMemory.h>
-#include <TableFunctions/ITableFunction.h>
-#include <TableFunctions/TableFunctionFactory.h>
+//#include <Columns/ColumnString.h>
+//#include <Columns/ColumnsNumber.h>
+//#include <Common/Exception.h>
+//#include <Common/typeid_cast.h>
+//#include <DataTypes/DataTypeString.h>
+//#include <DataTypes/DataTypesNumber.h>
+//#include <Interpreters/Context.h>
+//#include <Interpreters/evaluateConstantExpression.h>
+//#include <Parsers/ASTFunction.h>
+//#include <Parsers/ASTLiteral.h>
+//#include <Storages/StorageMemory.h>
+//#include <TableFunctions/ITableFunction.h>
+//#include <TableFunctions/TableFunctionFactory.h>
 
 #include <string>
 

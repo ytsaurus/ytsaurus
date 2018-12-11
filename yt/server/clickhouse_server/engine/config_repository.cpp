@@ -7,10 +7,10 @@
 
 #include <yt/server/clickhouse_server/native/storage.h>
 
-#include <Poco/Logger.h>
-#include <Poco/Util/XMLConfiguration.h>
+//#include <Poco/Logger.h>
+//#include <Poco/Util/XMLConfiguration.h>
 
-#include <common/logger_useful.h>
+//#include <common/logger_useful.h>
 
 #include <util/string/cast.h>
 
@@ -111,7 +111,7 @@ TConfigRepository::TConfigRepository(NNative::IStoragePtr storage,
     , ConfigsPath(std::move(configsPath))
     , Logger(&Poco::Logger::get("ConfigRepository"))
 {
-    LOG_DEBUG(Logger, "Open configuration repository: " << Quoted(ConfigsPath));
+    CH_LOG_DEBUG(Logger, "Open configuration repository: " << Quoted(ConfigsPath));
 }
 
 std::string TConfigRepository::GetAddress() const
@@ -145,39 +145,39 @@ NNative::TObjectAttributes TConfigRepository::GetAttributes(const std::string& n
 
 bool TConfigRepository::LooksLikeConfig(const NNative::TObjectAttributes& attributes) const
 {
-    return attributes.Type == NNative::EObjectType::Document ||
-           attributes.Type == NNative::EObjectType::File;
+    return static_cast<int>(attributes.Type) == static_cast<int>(NNative::EObjectType::Document) ||
+           static_cast<int>(attributes.Type) == static_cast<int>(NNative::EObjectType::File);
 }
 
 IConfigPtr TConfigRepository::LoadFromFile(const std::string& path) const
 {
-    LOG_INFO(Logger, "Loading configuration from file " << Quoted(path));
+    CH_LOG_INFO(Logger, "Loading configuration from file " << Quoted(path));
 
     std::string content;
     try {
         content = ToStdString(Storage->ReadFile(*Token, ToString(path)));
     } catch (...) {
-        LOG_WARNING(Logger, "Cannot read configuration file " << Quoted(path) << " from storage: " << CurrentExceptionText());
+        CH_LOG_WARNING(Logger, "Cannot read configuration file " << Quoted(path) << " from storage: " << CurrentExceptionText());
         return nullptr;
     }
 
     try {
         return LoadXmlConfigFromContent(content);
     } catch (...) {
-        LOG_WARNING(Logger, "Cannot parse content of configuration file " << Quoted(path) << ": " << CurrentExceptionText());
+        CH_LOG_WARNING(Logger, "Cannot parse content of configuration file " << Quoted(path) << ": " << CurrentExceptionText());
         return nullptr;
     }
 }
 
 IConfigPtr TConfigRepository::LoadFromDocument(const std::string& path) const
 {
-    LOG_INFO(Logger, "Loading configuration from document " << Quoted(path));
+    CH_LOG_INFO(Logger, "Loading configuration from document " << Quoted(path));
 
     NNative::IDocumentPtr document;
     try {
         document = Storage->ReadDocument(*Token, ToString(path));
     } catch (...) {
-        LOG_WARNING(Logger, "Cannot read configuration document " << Quoted(path) << " from storage: " << CurrentExceptionText());
+        CH_LOG_WARNING(Logger, "Cannot read configuration document " << Quoted(path) << " from storage: " << CurrentExceptionText());
         return nullptr;
     }
     return CreateDocumentConfig(std::move(document));
@@ -187,13 +187,13 @@ IConfigPtr TConfigRepository::Load(const std::string& name) const
 {
     const auto path = GetConfigPath(name);
 
-    LOG_DEBUG(Logger, "Loading configuration " << Quoted(name) << " from " << Quoted(path));
+    CH_LOG_DEBUG(Logger, "Loading configuration " << Quoted(name) << " from " << Quoted(path));
 
     NNative::TObjectAttributes attributes;
     try {
         attributes = Storage->GetObjectAttributes(*Token, ToString(path));
     } catch (...) {
-        LOG_WARNING(Logger, "Cannot get attributes of object " << Quoted(path) << " in storage: " << CurrentExceptionText());
+        CH_LOG_WARNING(Logger, "Cannot get attributes of object " << Quoted(path) << " in storage: " << CurrentExceptionText());
         return nullptr;
     }
 
@@ -203,7 +203,7 @@ IConfigPtr TConfigRepository::Load(const std::string& name) const
         case NNative::EObjectType::Document:
             return LoadFromDocument(path);
         default:
-            LOG_WARNING(Logger,
+            CH_LOG_WARNING(Logger,
                 "Unexpected configuration object type: " << ToStdString(::ToString(static_cast<int>(attributes.Type))));
             return nullptr;
     }

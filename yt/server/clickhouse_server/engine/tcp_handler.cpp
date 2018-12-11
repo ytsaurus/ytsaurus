@@ -1,8 +1,8 @@
 #include "tcp_handler.h"
 
-#include <server/TCPHandler.h>
+//#include <server/TCPHandler.h>
 
-#include <common/logger_useful.h>
+//#include <common/logger_useful.h>
 
 namespace NYT {
 namespace NClickHouseServer {
@@ -34,7 +34,7 @@ public:
 Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
     const Poco::Net::StreamSocket& socket)
 {
-    LOG_TRACE(Log, "TCP Request. "
+    CH_LOG_TRACE(Log, "TCP Request. "
         << "Address: " << socket.peerAddress().toString());
 
     return new TCPHandler(Server, socket);

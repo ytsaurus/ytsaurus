@@ -1,5 +1,7 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include <memory>
 #include <mutex>
 

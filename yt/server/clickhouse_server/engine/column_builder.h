@@ -1,8 +1,10 @@
 #pragma once
 
+#include "clickhouse.h"
+
 #include <yt/server/clickhouse_server/native/column_builder.h>
 
-#include <Columns/IColumn.h>
+//#include <Columns/IColumn.h>
 
 namespace NYT::NClickHouseServer::NEngine {
 

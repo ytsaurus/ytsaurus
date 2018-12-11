@@ -11,15 +11,15 @@
 #include <yt/server/clickhouse_server/native/table_partition.h>
 #include <yt/server/clickhouse_server/native/storage.h>
 
-#include <Common/Exception.h>
-#include <Common/typeid_cast.h>
-#include <Parsers/ASTFunction.h>
-#include <Parsers/ASTLiteral.h>
-#include <Parsers/ASTSelectQuery.h>
-#include <Parsers/ASTTablesInSelectQuery.h>
-#include <Parsers/queryToString.h>
+//#include <Common/Exception.h>
+//#include <Common/typeid_cast.h>
+//#include <Parsers/ASTFunction.h>
+//#include <Parsers/ASTLiteral.h>
+//#include <Parsers/ASTSelectQuery.h>
+//#include <Parsers/ASTTablesInSelectQuery.h>
+//#include <Parsers/queryToString.h>
 
-#include <common/logger_useful.h>
+//#include <common/logger_useful.h>
 
 namespace DB {
 
