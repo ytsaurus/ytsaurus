@@ -302,6 +302,11 @@ private:
 
     bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
 
+    //! Same as corresponding #TChunk methods but replication factors are capped by medium-specific bounds.
+    TChunkReplication GetChunkAggregatedReplication(const TChunk* chunk);
+    int GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex);
+    TPerMediumIntArray GetChunkAggregatedReplicationFactors(const TChunk* chunk);
+
     void OnRequisitionUpdate();
     void ComputeChunkRequisitionUpdate(TChunk* chunk, NProto::TReqUpdateChunkRequisition* request);
 

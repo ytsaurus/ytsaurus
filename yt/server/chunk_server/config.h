@@ -159,7 +159,14 @@ public:
     //! Maximum number of cached replicas to be returned on fetch request.
     int MaxCachedReplicasPerFetch;
 
-    //! Provides an additional bound for the number of replicas per rack for every chunk.
+    //! A default value for an additional bound for the global replication
+    //! factor cap. The value is used when a new medium is created to initialize
+    //! corresponding medium-specific setting.
+    int MaxReplicationFactor;
+
+    //! A default value for an additional bound for the number of replicas per
+    //! rack for every chunk. The value is used when a new medium is created to
+    //! initialize corresponding medium-specific setting.
     //! Currently used to simulate DC awareness.
     int MaxReplicasPerRack;
 
@@ -266,6 +273,10 @@ public:
             .GreaterThan(0)
             .Default(20);
 
+        RegisterParameter("max_replication_factor", MaxReplicationFactor)
+            .GreaterThanOrEqual(NChunkClient::DefaultReplicationFactor)
+            .Default(NChunkClient::MaxReplicationFactor);
+
         RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
             .GreaterThan(0)
             .Default(std::numeric_limits<int>::max());
@@ -319,6 +330,11 @@ class TMediumConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! An additional bound for the global replication factor cap.
+    //! Useful when the number of racks is too low to interoperate meaningfully
+    //! with the default cap.
+    int MaxReplicationFactor;
+
     //! Provides an additional bound for the number of replicas per rack for every chunk.
     //! Currently used to simulate DC awareness.
     int MaxReplicasPerRack;
@@ -334,6 +350,9 @@ public:
 
     TMediumConfig()
     {
+        RegisterParameter("max_replication_factor", MaxReplicationFactor)
+            .GreaterThanOrEqual(NChunkClient::DefaultReplicationFactor)
+            .Default(NChunkClient::MaxReplicationFactor);
         RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
             .GreaterThanOrEqual(0)
             .Default(std::numeric_limits<int>::max());

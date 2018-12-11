@@ -1314,7 +1314,8 @@ private:
 
     bool NeedToRecomputeStatistics_ = false;
     bool NeedResetDataWeight_ = false;
-    bool NeedInitializeMediumConfig_ = false;
+    bool NeedInitializeMediumMaxReplicasPerRack_ = false;
+    bool NeedInitializeMediumMaxReplicationFactor_ = false;
     bool NeedRecomputeRequisitionRefCounts_ = false;
     bool NeedToFixExportRequisitionIndexes_ = false;
     bool NeedToInitializeAggregatedRequisitionIndexes_ = false;
@@ -2274,7 +2275,10 @@ private:
         }
 
         //COMPAT(savrus)
-        NeedInitializeMediumConfig_ = context.GetVersion() < 629;
+        NeedInitializeMediumMaxReplicasPerRack_ = context.GetVersion() < 629;
+
+        // COMPAT(shakurov)
+        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < 816;
 
         // COMPAT(shakurov)
         NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 710;
@@ -2292,7 +2296,8 @@ private:
 
         NeedToRecomputeStatistics_ = false;
         NeedResetDataWeight_ = false;
-        NeedInitializeMediumConfig_ = false;
+        NeedInitializeMediumMaxReplicasPerRack_ = false;
+        NeedInitializeMediumMaxReplicationFactor_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2358,12 +2363,20 @@ private:
             NeedToRecomputeStatistics_ = false;
         }
 
-        if (NeedInitializeMediumConfig_) {
+        if (NeedInitializeMediumMaxReplicasPerRack_) {
             for (const auto& pair : MediumMap_) {
                 auto* medium = pair.second;
-                InitializeMediumConfig(medium);
+                InitializeMediumMaxReplicasPerRack(medium);
             }
-            NeedInitializeMediumConfig_ = false;
+            NeedInitializeMediumMaxReplicasPerRack_ = false;
+        }
+
+        if (NeedInitializeMediumMaxReplicationFactor_) {
+            for (const auto& pair : MediumMap_) {
+                auto* medium = pair.second;
+                InitializeMediumMaxReplicationFactor(medium);
+            }
+            NeedInitializeMediumMaxReplicationFactor_ = false;
         }
 
         YT_LOG_INFO("Finished initializing chunks");
@@ -3062,10 +3075,23 @@ private:
 
     void InitializeMediumConfig(TMedium* medium)
     {
+        InitializeMediumMaxReplicasPerRack(medium);
+        InitializeMediumMaxReplicationFactor(medium);
+    }
+
+    // COMPAT(savrus)
+    void InitializeMediumMaxReplicasPerRack(TMedium* medium)
+    {
         medium->Config()->MaxReplicasPerRack = Config_->MaxReplicasPerRack;
         medium->Config()->MaxRegularReplicasPerRack = Config_->MaxRegularReplicasPerRack;
         medium->Config()->MaxJournalReplicasPerRack = Config_->MaxJournalReplicasPerRack;
         medium->Config()->MaxErasureReplicasPerRack = Config_->MaxErasureReplicasPerRack;
+    }
+
+    // COMPAT(shakurov)
+    void InitializeMediumMaxReplicationFactor(TMedium* medium)
+    {
+        medium->Config()->MaxReplicationFactor = Config_->MaxReplicationFactor;
     }
 
     static void ValidateMediumName(const TString& name)

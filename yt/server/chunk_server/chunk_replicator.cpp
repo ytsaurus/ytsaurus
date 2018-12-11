@@ -272,7 +272,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         }
     }
 
-    const auto replicationFactors = chunk->GetAggregatedReplicationFactors(GetChunkRequisitionRegistry());
+    const auto replicationFactors = GetChunkAggregatedReplicationFactors(chunk);
 
     bool precarious = true;
     bool allMediaTransient = true;
@@ -454,7 +454,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         }
     }
 
-    const auto chunkReplication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
+    const auto chunkReplication = GetChunkAggregatedReplication(chunk);
 
     bool allMediaTransient = true;
     bool allMediaDataPartsOnly = true;
@@ -708,7 +708,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 {
     TChunkStatistics results;
 
-    const auto replication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
+    const auto replication = GetChunkAggregatedReplication(chunk);
 
     TPerMediumIntArray replicaCount{};
     int totalReplicaCount = 0;
@@ -1128,7 +1128,7 @@ bool TChunkReplicator::CreateReplicationJob(
     }
 
     int targetMediumIndex = targetMedium->GetIndex();
-    const auto replicationFactor = chunk->GetAggregatedReplicationFactor(targetMediumIndex, GetChunkRequisitionRegistry());
+    const auto replicationFactor = GetChunkAggregatedReplicationFactor(chunk, targetMediumIndex);
 
     auto statistics = ComputeChunkStatistics(chunk);
     const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
@@ -1667,7 +1667,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         return;
     }
 
-    const auto replication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
+    const auto replication = GetChunkAggregatedReplication(chunk);
 
     ResetChunkStatus(chunk);
     RemoveChunkFromQueuesOnRefresh(chunk);
@@ -1906,6 +1906,44 @@ bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndexes replica)
 {
     auto* node = replica.GetPtr();
     return node->GetDecommissioned();
+}
+
+TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(const TChunk* chunk)
+{
+    auto result = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
+    for (const auto& [mediumId, medium] : Bootstrap_->GetChunkManager()->Media()) {
+        auto& policy = result[medium->GetIndex()];
+        if (policy) {
+            auto cap = medium->Config()->MaxReplicationFactor;
+            policy.SetReplicationFactor(std::min(cap, policy.GetReplicationFactor()));
+        }
+    }
+    return result;
+}
+
+int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex)
+{
+    auto result = chunk->GetAggregatedReplicationFactor(mediumIndex, GetChunkRequisitionRegistry());
+    auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
+    if (medium) {
+        auto cap = medium->Config()->MaxReplicationFactor;
+        result = std::min(cap, result);
+    }
+    return result;
+}
+
+TPerMediumIntArray TChunkReplicator::GetChunkAggregatedReplicationFactors(const TChunk* chunk)
+{
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto result = chunk->GetAggregatedReplicationFactors(GetChunkRequisitionRegistry());
+    for (auto mediumIndex = 0; mediumIndex < result.size(); ++mediumIndex) {
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (medium) {
+            auto cap = medium->Config()->MaxReplicationFactor;
+            result[mediumIndex] = std::min(cap, result[mediumIndex]);
+        }
+    }
+    return result;
 }
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
