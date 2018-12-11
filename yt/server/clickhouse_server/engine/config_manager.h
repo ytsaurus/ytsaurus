@@ -1,6 +1,5 @@
 #pragma once
 
-#include "config_reloader.h"
 #include "config_repository.h"
 
 #include <yt/server/clickhouse_server/native/public.h>
@@ -28,8 +27,6 @@ public:
     virtual TLayeredConfigPtr LoadServerConfig() const = 0;
     virtual TLayeredConfigPtr LoadUsersConfig() const = 0;
     virtual TLayeredConfigPtr LoadClustersConfig() const = 0;
-
-    virtual void SubscribeToUpdates(DB::Context* context) = 0;
 };
 
 using IConfigManagerPtr = std::unique_ptr<IConfigManager>;

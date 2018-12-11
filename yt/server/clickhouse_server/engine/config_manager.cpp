@@ -47,8 +47,6 @@ private:
 
     Poco::Logger* Logger;
 
-    std::vector<IConfigReloaderPtr> Reloaders;
-
 public:
     TConfigManager(IConfigPtr staticConfig,
                    IConfigRepositoryPtr repository);
@@ -57,11 +55,7 @@ public:
     TLayeredConfigPtr LoadUsersConfig() const override;
     TLayeredConfigPtr LoadClustersConfig() const override;
 
-    void SubscribeToUpdates(DB::Context* context) override;
-
 private:
-    void SetupAutoReloader(const std::string& name, TUpdateConfigHook updateConfig);
-
     TLayeredConfigPtr CombineWithStatic(IConfigPtr dynamicConfig) const;
     TLayeredConfigPtr LoadConfig(const std::string& name) const;
 };
@@ -88,37 +82,6 @@ TLayeredConfigPtr TConfigManager::LoadUsersConfig() const
 TLayeredConfigPtr TConfigManager::LoadClustersConfig() const
 {
     return LoadConfig("clusters");
-}
-
-void TConfigManager::SubscribeToUpdates(DB::Context* context)
-{
-    // Server config
-    auto updateConfig = [context, this](const IConfigPtr config) {
-        context->setConfig(CombineWithStatic(config));
-        LOG_INFO(Logger, "Server config reloaded");
-    };
-    SetupAutoReloader("config", std::move(updateConfig));
-
-    // Users config
-    auto updateUsersConfig = [context, this](const IConfigPtr config) {
-        context->setUsersConfig(CombineWithStatic(config));
-        LOG_INFO(Logger, "Users config reloaded");
-    };
-    SetupAutoReloader("users", std::move(updateUsersConfig));
-
-    // Clusters config
-    auto updateClustersConfig = [context, this](const IConfigPtr config) {
-        context->setClustersConfig(CombineWithStatic(config));
-        LOG_INFO(Logger, "Clusters config reloaded");
-    };
-    SetupAutoReloader("clusters", std::move(updateClustersConfig));
-}
-
-void TConfigManager::SetupAutoReloader(const std::string& name, TUpdateConfigHook updateConfig)
-{
-    auto reloader = CreateConfigReloader(ConfigRepository, name, updateConfig);
-    reloader->Start();
-    Reloaders.push_back(std::move(reloader));
 }
 
 TLayeredConfigPtr TConfigManager::CombineWithStatic(IConfigPtr dynamicConfig) const

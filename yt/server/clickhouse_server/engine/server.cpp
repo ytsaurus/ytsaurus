@@ -299,8 +299,7 @@ private:
         Context->setConfig(Config);
         Context->setUsersConfig(UsersConfig);
         Context->setClustersConfig(ClustersConfig);
-        ConfigManager->SubscribeToUpdates(Context.get());
-
+        
         registerFunctions();
         registerAggregateFunctions();
         registerTableFunctions();
