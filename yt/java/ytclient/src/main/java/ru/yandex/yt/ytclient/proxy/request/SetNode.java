@@ -17,10 +17,12 @@ import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 public class SetNode extends MutateNode<SetNode> {
     private final String path;
     private final byte[] value;
+    private boolean force;
 
     public SetNode(String path, byte[]value) {
         this.path = path;
         this.value = value;
+        this.force = false;
     }
 
     public SetNode(YPath path, YTreeNode value) {
@@ -37,8 +39,13 @@ public class SetNode extends MutateNode<SetNode> {
         }
     }
 
+    public void setForce(boolean force) {
+        this.force = force;
+    }
+
     public TReqSetNode.Builder writeTo(TReqSetNode.Builder builder) {
         builder.setPath(path)
+                .setForce(force)
                 .setValue(ByteString.copyFrom(value));
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
