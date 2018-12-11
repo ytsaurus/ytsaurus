@@ -110,7 +110,6 @@ private:
     IConfigManagerPtr ConfigManager;
 
     Poco::AutoPtr<Poco::Util::LayeredConfiguration> Config;
-    Poco::AutoPtr<Poco::Util::LayeredConfiguration> ClustersConfig;
 
     Poco::AutoPtr<Poco::Channel> LogChannel;
 
@@ -250,7 +249,6 @@ private:
         ConfigManager = CreateConfigManager(StaticBootstrapConfig, Storage, ServerAuthToken);
 
         Config = ConfigManager->LoadServerConfig();
-        ClustersConfig = ConfigManager->LoadClustersConfig();
     }
 
     void SetupLoggers()
@@ -328,8 +326,6 @@ private:
                 .Item("users").BeginMap().EndMap()
             .EndMap()));
 
-        Context->setClustersConfig(ClustersConfig);
-        
         registerFunctions();
         registerAggregateFunctions();
         registerTableFunctions();
