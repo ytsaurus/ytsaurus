@@ -138,7 +138,7 @@ public:
         RegisterParameter("discover_timeout", DiscoverTimeout)
             .Default(TDuration::Seconds(5));
         RegisterParameter("hard_backoff_time", HardBackoffTime)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(10));
         RegisterParameter("soft_backoff_time", SoftBackoffTime)
             .Default(TDuration::Seconds(5));
     }
