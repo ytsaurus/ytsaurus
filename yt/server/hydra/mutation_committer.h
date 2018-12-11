@@ -177,6 +177,9 @@ public:
     //! Forwards a given mutation to the leader via RPC.
     TFuture<TMutationResponse> Forward(TMutationRequest&& request);
 
+    //! Cleans things up, aborts all pending mutations with a human-readable error.
+    void Stop();
+
 private:
     TFuture<void> DoAcceptMutations(
         TVersion expectedVersion,
