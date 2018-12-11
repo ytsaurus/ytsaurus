@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
@@ -11,6 +12,10 @@ public class RemoveNode extends MutateNode<RemoveNode> {
 
     public RemoveNode(String path) {
         this.path = path;
+    }
+
+    public RemoveNode(YPath path) {
+        this.path = path.toString();
     }
 
     public RemoveNode setRecursive(boolean f) {
