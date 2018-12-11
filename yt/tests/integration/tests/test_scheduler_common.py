@@ -1735,6 +1735,36 @@ class TestSchedulerRevive(YTEnvSetup):
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
 
+    def test_brief_spec(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": 0}])
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1})
+
+        wait_breakpoint()
+
+        snapshot_index_path = op.get_path() + "/controller_orchid/progress/snapshot_index"
+        wait(lambda: get(snapshot_index_path) > 1)
+
+        brief_spec = get(op.get_path() + "/@brief_spec")
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        release_breakpoint()
+
+        wait(lambda: op.get_state() == "completed")
+
+        assert brief_spec == get(op.get_path() + "/@brief_spec")
+
 ################################################################################
 
 class TestJobRevivalBase(YTEnvSetup):
