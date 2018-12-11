@@ -14,7 +14,8 @@ class TestChunkServer(YTEnvSetup):
     NUM_NODES = 21
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
-            "safe_online_node_count": 3
+            "safe_online_node_count": 3,
+            "max_replication_factor": 5
         },
         "node_tracker": {
             "full_node_states_gossip_period": 1000
@@ -218,6 +219,24 @@ class TestChunkServer(YTEnvSetup):
             return True
 
         wait(check_replica_count, sleep_backoff=1.0)
+
+    def test_max_replication_factor(self):
+        assert get("//sys/media/default/@config/max_replication_factor") == self.DELTA_MASTER_CONFIG["chunk_manager"]["max_replication_factor"]
+
+        create("table", "//tmp/t", attributes={"replication_factor": 10})
+        assert get("//tmp/t/@replication_factor") == 10
+
+        write_table("//tmp/t", {"a" : "b"})
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) >= 5)
+
+        # Make sure RF doesn't go higher.
+        sleep(0.3)
+        assert len(get("#{0}/@stored_replicas".format(chunk_id))) == 5
+
 
 ##################################################################
 

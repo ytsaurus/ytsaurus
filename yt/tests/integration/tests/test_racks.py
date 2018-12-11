@@ -309,6 +309,28 @@ class TestRacks(YTEnvSetup):
             create_rack("r" + str(i))
         with pytest.raises(YtError): create_rack("too_many")
 
+    def test_max_replication_factor(self):
+        set("//sys/media/default/@config/max_regular_replicas_per_rack", 1)
+        self._init_n_racks(6)
+
+        create("file", "//tmp/file", attributes={"replication_factor": 10})
+        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 10})
+
+        chunk_ids = get("//tmp/file/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        replication_status = get("#{0}/@replication_status/default".format(chunk_id))
+        assert replication_status["underreplicated"] or replication_status["unsafely_placed"]
+
+        set("//sys/media/default/@config/max_replication_factor", 6)
+
+        def chunk_is_ok():
+            replication_status = get("#{0}/@replication_status/default".format(chunk_id))
+            return not replication_status["underreplicated"] and not replication_status["unsafely_placed"]
+
+        wait(lambda: chunk_is_ok)
+
 ##################################################################
 
 class TestRacksMulticell(TestRacks):
