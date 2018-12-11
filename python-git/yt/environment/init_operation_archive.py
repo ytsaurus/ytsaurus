@@ -950,6 +950,29 @@ TRANSFORMS[27] = [
             get_pivot_keys=get_default_pivots))
 ]
 
+TRANSFORMS[28] = [
+    Convert(
+        "job_profiles",
+        table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+                ("part_index", "int64"),
+            ], [
+                ("profile_type", "string"),
+                ("profile_blob", "string")
+            ],
+            get_pivot_keys=get_default_pivots,
+            attributes={"atomicity": "none"}),
+        use_default_mapper=True)
+]
+
+ACTIONS[28] = [
+    add_sys_bundle("job_profiles"),
+]
+
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
