@@ -361,10 +361,13 @@ public:
             const auto& operationId = operationStatePair.first;
             const auto& operationState = operationStatePair.second;
 
+            if (operationState->TreeIdToPoolNameMap().empty()) {
+                // This operation is orphaned and will be aborted.
+                continue;
+            }
+
             bool hasSchedulableTree = false;
             TError operationError("Operation is unschedulable in all trees");
-
-            YCHECK(operationState->TreeIdToPoolNameMap().size() > 0);
 
             for (const auto& treePoolPair : operationState->TreeIdToPoolNameMap()) {
                 const auto& treeName = treePoolPair.first;
