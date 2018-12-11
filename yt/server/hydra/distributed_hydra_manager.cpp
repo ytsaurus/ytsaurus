@@ -1506,9 +1506,14 @@ private:
         }
 
         auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
-        AutomatonEpochContext_->ActiveUpstreamSyncPromise.TrySet(error);
-        AutomatonEpochContext_->PendingUpstreamSyncPromise.TrySet(error);
-        AutomatonEpochContext_->LeaderSyncPromise.TrySet(error);
+        auto trySetPromise = [&] (auto& promise) {
+            if (promise) {
+                promise.TrySet(error);
+            }
+        };
+        trySetPromise(AutomatonEpochContext_->ActiveUpstreamSyncPromise);
+        trySetPromise(AutomatonEpochContext_->PendingUpstreamSyncPromise);
+        trySetPromise(AutomatonEpochContext_->LeaderSyncPromise);
         
         AutomatonEpochContext_.Reset();
     }
