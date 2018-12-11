@@ -218,6 +218,12 @@ const TYPath& GetOperationsArchiveJobStderrsPath()
     return path;
 }
 
+const TYPath& GetOperationsArchiveJobProfilesPath()
+{
+    static TYPath path = "//sys/operations_archive/job_profiles";
+    return path;
+}
+
 const TYPath& GetOperationsArchiveJobFailContextsPath()
 {
     static TYPath path = "//sys/operations_archive/fail_contexts";

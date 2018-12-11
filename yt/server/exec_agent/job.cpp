@@ -406,6 +406,12 @@ public:
         FailContext_ = value;
     }
 
+    virtual void SetProfile(const TJobProfile& value) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        Profile_ = value;
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -476,6 +482,13 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         return FailContext_;
+    }
+
+    std::optional<TJobProfile> GetProfile()
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        return Profile_;
     }
 
     virtual TYsonString StraceJob() override
@@ -562,6 +575,17 @@ public:
         }
     }
 
+    virtual void ReportProfile() override
+    {
+        auto profile = GetProfile();
+
+        if (profile) {
+            ReportStatistics(
+                TJobStatistics()
+                    .Profile(*profile));
+        }
+    }
+
     virtual void Interrupt() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -633,6 +657,7 @@ private:
 
     std::optional<TString> Stderr_;
     std::optional<TString> FailContext_;
+    std::optional<TJobProfile> Profile_;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();

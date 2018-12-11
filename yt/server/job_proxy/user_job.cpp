@@ -126,6 +126,7 @@ using NChunkClient::TDataSliceDescriptor;
 #ifdef _unix_
 
 static const int JobStatisticsFD = 5;
+static const int JobProfileFD = 8;
 static const size_t BufferSize = 1_MB;
 
 static const size_t MaxCustomStatisticsPathLength = 512;
@@ -431,6 +432,7 @@ private:
 
     // Writes stderr data to Cypress file.
     std::unique_ptr<TStderrWriter> ErrorOutput_;
+    std::unique_ptr<TProfileWriter> ProfileOutput_;
 
     // StderrCombined_ is set only if stderr table is specified.
     // It redirects data to both ErrorOutput_ and stderr table writer.
@@ -447,6 +449,7 @@ private:
     std::vector<IConnectionWriterPtr> TablePipeWriters_;
     IConnectionReaderPtr StatisticsPipeReader_;
     IConnectionReaderPtr StderrPipeReader_;
+    IConnectionReaderPtr ProfilePipeReader_;
 
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
@@ -474,6 +477,7 @@ private:
     TCoreProcessorServicePtr CoreProcessorService_;
 
     std::optional<TString> FailContext_;
+    std::optional<TString> Profile_;
 
     void Prepare()
     {
@@ -594,6 +598,14 @@ private:
         return result;
     }
 
+    IOutputStream* CreateProfileOutput()
+    {
+        ProfileOutput_.reset(new TProfileWriter(
+            UserJobSpec_.max_profile_size()));
+
+        return ProfileOutput_.get();
+    }
+
     void SaveErrorChunkId(TSchedulerJobResultExt* schedulerResultExt)
     {
         if (!ErrorOutput_) {
@@ -693,6 +705,26 @@ private:
             .AsyncVia(ReadStderrInvoker_)
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr");
+        return result.Value();
+    }
+
+    virtual std::optional<TJobProfile> GetProfile() override
+    {
+        ValidatePrepared();
+        if (!ProfileOutput_) {
+            return {};
+        }
+
+        auto result = WaitFor(BIND([=] () {
+            auto profilePair = ProfileOutput_->GetProfile();
+            TJobProfile profile;
+            profile.Type = profilePair.first;
+            profile.Blob = profilePair.second;
+            return profile;
+        })
+            .AsyncVia(ReadStderrInvoker_)
+            .Run());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job profile");
         return result.Value();
     }
 
@@ -924,6 +956,12 @@ private:
                 CreateStatisticsOutput(),
                 &OutputActions_,
                 TError("Error writing custom job statistics"));
+
+            ProfilePipeReader_ = PrepareOutputPipe(
+                {JobProfileFD},
+                CreateProfileOutput(),
+                &StderrActions_,
+                TError("Error writing job profile"));
         }
 
         PrepareInputTablePipe();
@@ -1098,6 +1136,10 @@ private:
             // But if job is started we want to save as much stderr as possible
             // so we don't close stderr in that case.
             StderrPipeReader_->Abort();
+
+            if (ProfilePipeReader_) {
+                ProfilePipeReader_->Abort();
+            }
         }
     }
 

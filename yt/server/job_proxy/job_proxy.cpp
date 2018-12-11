@@ -592,6 +592,12 @@ void TJobProxy::ReportResult(
             if (failContext) {
                 req->set_fail_context(*failContext);
             }
+
+            auto profile = Job_->GetProfile();
+            if (profile) {
+                req->set_profile_type(profile->Type);
+                req->set_profile_blob(profile->Blob);
+            }
         } catch (const std::exception& ex) {
             // NB(psushin): this could happen if job was not fully prepared.
             LOG_WARNING(ex, "Failed to get job stderr and fail context on teardown");

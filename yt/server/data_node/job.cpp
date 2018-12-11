@@ -218,6 +218,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual void SetProfile(const TJobProfile& value) override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         return TYsonString();
@@ -314,6 +319,11 @@ public:
     }
 
     virtual void ReportFailContext() override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual void ReportProfile() override
     {
         Y_UNREACHABLE();
     }

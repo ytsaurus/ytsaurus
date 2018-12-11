@@ -163,6 +163,7 @@ struct TJobSummary
     bool ArchiveJobSpec = false;
     bool ArchiveStderr = false;
     bool ArchiveFailContext = false;
+    bool ArchiveProfile = false;
 };
 
 struct TCompletedJobSummary

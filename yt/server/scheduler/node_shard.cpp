@@ -485,6 +485,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     response->set_enable_job_reporter(Config_->EnableJobReporter);
     response->set_enable_job_spec_reporter(Config_->EnableJobSpecReporter);
     response->set_enable_job_stderr_reporter(Config_->EnableJobStderrReporter);
+    response->set_enable_job_profile_reporter(Config_->EnableJobProfileReporter);
     response->set_enable_job_fail_context_reporter(Config_->EnableJobFailContextReporter);
     response->set_operation_archive_version(Host_->GetOperationArchiveVersion());
 
@@ -1036,7 +1037,7 @@ void TNodeShard::FailJob(const TJobId& jobId)
     job->SetFailRequested(true);
 }
 
-void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext)
+void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
@@ -1045,18 +1046,20 @@ void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archi
     // could have been unregistered.
     auto nodeId = NodeIdFromJobId(jobId);
     if (auto execNode = FindNodeByJob(jobId)) {
-        LOG_DEBUG("Job released and will be reremoved (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v)",
+        LOG_DEBUG("Job released and will be reremoved (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v, ArchiveProfile: %v)",
             jobId,
             nodeId,
             execNode->GetDefaultAddress(),
             archiveJobSpec,
             archiveStderr,
-            archiveFailContext);
+            archiveFailContext,
+            archiveProfile);
         execNode->JobsToRemove().push_back({
             jobId,
             archiveJobSpec,
             archiveStderr,
-            archiveFailContext
+            archiveFailContext,
+            archiveProfile,
         });
     } else {
         LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
@@ -1439,13 +1442,14 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         for (const auto& jobToRemove : node->JobsToRemove()) {
             LOG_DEBUG("Requesting node to remove job "
-                "(JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v)",
+                "(JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v, ArchiveProfile: %v)",
                 jobToRemove.JobId,
                 nodeId,
                 nodeAddress,
                 jobToRemove.ArchiveJobSpec,
                 jobToRemove.ArchiveStderr,
-                jobToRemove.ArchiveFailContext);
+                jobToRemove.ArchiveFailContext,
+                jobToRemove.ArchiveProfile);
             RemoveRecentlyFinishedJob(jobToRemove.JobId);
             ToProto(response->add_jobs_to_remove(), jobToRemove);
         }

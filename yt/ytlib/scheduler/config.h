@@ -521,6 +521,9 @@ public:
 
     i64 MaxStderrSize;
 
+    bool EnableProfiling;
+    i64 MaxProfileSize;
+
     i64 CustomStatisticsCountLimit;
 
     std::optional<i64> TmpfsSize;

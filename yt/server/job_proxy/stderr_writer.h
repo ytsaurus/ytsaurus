@@ -66,4 +66,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TProfileWriter
+    : public IOutputStream
+{
+public:
+    explicit TProfileWriter(size_t sizeLimit);
+
+    bool IsTruncated() const;
+    std::pair<TString, TString> GetProfile() const;
+
+private:
+    virtual void DoWrite(const void* buf, size_t len) override;
+
+    const size_t Limit_;
+    TString Buffer_;
+
+    bool Truncated_ = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJobProxy

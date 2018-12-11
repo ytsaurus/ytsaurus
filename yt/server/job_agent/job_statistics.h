@@ -53,6 +53,14 @@ using TJobEvents = std::vector<TJobEvent>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobProfile
+{
+    TString Type;
+    TString Blob;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobStatistics
 {
     size_t EstimateSize() const;
@@ -60,6 +68,7 @@ struct TJobStatistics
     TJobStatistics ExtractSpec();
     TJobStatistics ExtractStderr();
     TJobStatistics ExtractFailContext();
+    TJobStatistics ExtractProfile();
 
     bool IsEmpty() const;
 
@@ -76,6 +85,7 @@ struct TJobStatistics
     void SetEvents(const TJobEvents& events);
     void SetStderr(const TString& stderr);
     void SetFailContext(const TString& failContext);
+    void SetProfile(const TJobProfile& profile);
 
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TJobId, JobId)
@@ -90,6 +100,7 @@ struct TJobStatistics
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Events)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Stderr)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, FailContext)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TJobProfile>, Profile)
 };
 
 #undef DEFINE_FORWARD_RW_PROPERTY

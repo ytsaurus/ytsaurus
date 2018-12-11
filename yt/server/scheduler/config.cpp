@@ -350,6 +350,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(false);
     RegisterParameter("enable_job_stderr_reporter", EnableJobStderrReporter)
         .Default(false);
+    RegisterParameter("enable_job_profile_reporter", EnableJobProfileReporter)
+        .Default(true);
     RegisterParameter("enable_job_fail_context_reporter", EnableJobFailContextReporter)
         .Default(false);
 

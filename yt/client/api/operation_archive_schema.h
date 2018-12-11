@@ -139,6 +139,27 @@ struct TJobStderrTableDescriptor
     const TIndex Index;
 };
 
+struct TJobProfileTableDescriptor
+{
+    TJobProfileTableDescriptor();
+
+    struct TIndex
+    {
+        explicit TIndex(const NTableClient::TNameTablePtr& n);
+
+        const int OperationIdHi;
+        const int OperationIdLo;
+        const int JobIdHi;
+        const int JobIdLo;
+        const int PartIndex;
+        const int ProfileType;
+        const int ProfileBlob;
+    };
+
+    const NTableClient::TNameTablePtr NameTable;
+    const TIndex Index;
+};
+
 struct TJobFailContextTableDescriptor
 {
     TJobFailContextTableDescriptor();

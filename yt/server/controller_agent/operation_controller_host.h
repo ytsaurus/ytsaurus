@@ -30,6 +30,7 @@ struct TAgentToSchedulerJobEvent
     std::optional<bool> ArchiveJobSpec;
     std::optional<bool> ArchiveStderr;
     std::optional<bool> ArchiveFailContext;
+    std::optional<bool> ArchiveProfile;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

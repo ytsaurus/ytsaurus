@@ -168,4 +168,35 @@ void TStderrWriter::Upload(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TProfileWriter::TProfileWriter(size_t sizeLimit)
+    : Limit_(sizeLimit)
+{ }
+
+bool TProfileWriter::IsTruncated() const
+{
+    return Truncated_;
+}
+
+std::pair<TString, TString> TProfileWriter::GetProfile() const
+{
+    constexpr int MaxTypeLength = 256;
+    auto pos = Buffer_.find('\n');
+    if (pos == TString::npos || pos > MaxTypeLength) {
+        THROW_ERROR_EXCEPTION("Incorrect profile format");
+    }
+
+    return {Buffer_.substr(0, pos), Buffer_.substr(pos + 1)};
+}
+
+void TProfileWriter::DoWrite(const void* buf, size_t len)
+{
+    auto size = std::min(len, Limit_ - Buffer_.size());
+    if (size != len) {
+        Truncated_ = true;
+    }
+    Buffer_ += TString(reinterpret_cast<const char*>(buf), size);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJobProxy

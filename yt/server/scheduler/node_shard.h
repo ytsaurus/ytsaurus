@@ -134,7 +134,7 @@ public:
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
     void FailJob(const TJobId& jobId);
-    void ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext);
+    void ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile);
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 

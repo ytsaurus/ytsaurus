@@ -164,7 +164,7 @@ private:
     /*!
      *  It is illegal to call #Remove before the job is stopped.
      */
-    void RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext);
+    void RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile);
 
     TJobFactory GetFactory(EJobType type) const;
 
@@ -663,7 +663,7 @@ void TJobController::TImpl::InterruptJob(const IJobPtr& job)
     }
 }
 
-void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext)
+void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile)
 {
     YCHECK(job->GetPhase() >= EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
@@ -681,6 +681,11 @@ void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, b
     if (archiveFailContext) {
         LOG_INFO("Fail context archived (JobId: %v)", job->GetId());
         job->ReportFailContext();
+    }
+
+    if (archiveProfile) {
+        LOG_INFO("Profile archived (JobId: %v)", job->GetId());
+        job->ReportProfile();
     }
 
     YCHECK(Jobs_.erase(job->GetId()) == 1);
@@ -904,7 +909,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
         auto job = FindJob(jobId);
         if (job) {
-            RemoveJob(job, jobToRemove.ArchiveJobSpec, jobToRemove.ArchiveStderr, jobToRemove.ArchiveFailContext);
+            RemoveJob(job, jobToRemove.ArchiveJobSpec, jobToRemove.ArchiveStderr, jobToRemove.ArchiveFailContext, jobToRemove.ArchiveProfile);
         } else {
             LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
                 jobId);

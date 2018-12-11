@@ -4044,12 +4044,14 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         summary->ArchiveJobSpec = true;
     }
 
+    summary->ArchiveProfile = true;
+
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.reset();
 
-    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr || finishedJob->Summary.ArchiveFailContext) {
+    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr || finishedJob->Summary.ArchiveFailContext || finishedJob->Summary.ArchiveProfile) {
         FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
     }
 
@@ -6672,6 +6674,7 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
         bool archiveJobSpec = false;
         bool archiveStderr = false;
         bool archiveFailContext = false;
+        bool archiveProfile = false;
 
         auto it = FinishedJobs_.find(jobId);
         if (it != FinishedJobs_.end()) {
@@ -6679,9 +6682,10 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
             archiveJobSpec = jobSummary.ArchiveJobSpec;
             archiveStderr = jobSummary.ArchiveStderr;
             archiveFailContext = jobSummary.ArchiveFailContext;
+            archiveProfile = jobSummary.ArchiveProfile;
             FinishedJobs_.erase(it);
         }
-        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext});
+        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext, archiveProfile});
     }
     Host->ReleaseJobs(jobsToRelease);
 }
@@ -6905,6 +6909,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_check_input_fully_consumed(config->CheckInputFullyConsumed);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
+    jobSpec->set_max_profile_size(config->MaxProfileSize);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(config->CopyFiles);
     jobSpec->set_file_account(fileAccount);
@@ -6966,6 +6971,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     fillEnvironment(config->Environment);
 
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
+
+    if (config->EnableProfiling) {
+        jobSpec->add_environment(Format("YT_PROFILE_JOB=1"));
+    }
 
     BuildFileSpecs(jobSpec, files);
 }
