@@ -332,6 +332,12 @@ struct TUserJobSpec
     FLUENT_FIELD_OPTION(i64, ExtraTmpfsSize);
 
     //
+    // https://wiki.yandex-team.ru/yt/userdoc/operations/#memoryreservefactor
+    //
+    // Defines a fraction of MemoryLimit that job gets at start
+    FLUENT_FIELD_OPTION(double, MemoryReserveFactor);
+
+    //
     // JobBinary allows to specify path to executable that is to be used inside jobs.
     // Provided executable must use C++ YT API library (this library)
     // and implement job class that is going to be used.
