@@ -6387,8 +6387,8 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
     }
 
     std::vector<TYPath> outputPaths;
-    for (const auto& table: OutputTables_) {
-        outputPaths.push_back(table->GetPath());
+    for (const auto& path : GetOutputTablePaths()) {
+        outputPaths.push_back(path.GetPath());
     }
 
     fluent
