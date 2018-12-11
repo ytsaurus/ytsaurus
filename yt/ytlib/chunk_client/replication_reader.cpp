@@ -1170,7 +1170,10 @@ private:
 
             // Exclude throttling peers from current pass.
             if (rsp->net_throttling() || rsp->disk_throttling()) {
-                LOG_DEBUG("Peer is throttling (Address: %v)", peer.Address);
+                LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
+                    peer.Address,
+                    rsp->net_throttling(),
+                    rsp->disk_throttling());
                 continue;
             }
 
