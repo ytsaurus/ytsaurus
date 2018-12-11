@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
@@ -15,6 +16,11 @@ public class LockNode extends MutateNode<LockNode> {
 
     public LockNode(String path, LockMode mode) {
         this.path = path;
+        this.mode = mode.value();
+    }
+
+    public LockNode(YPath path, LockMode mode) {
+        this.path = path.toString();
         this.mode = mode.value();
     }
 

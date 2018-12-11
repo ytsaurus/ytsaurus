@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TAttributeKeys;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -10,6 +11,10 @@ import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 public class ListNode extends GetLikeReq<ListNode> {
     public ListNode(String path) {
         super(path);
+    }
+
+    public ListNode(YPath path) {
+        this(path.toString());
     }
 
     public TReqListNode.Builder writeTo(TReqListNode.Builder builder) {
