@@ -7,14 +7,14 @@ namespace NYT::NYTAlloc {
 ////////////////////////////////////////////////////////////////////////////////
 // YTAlloc public API
 
-void* Allocate(size_t size)
+void* Allocate(size_t size, bool dumpable)
 {
-    return AllocateInline(size);
+    return AllocateInline(size, dumpable);
 }
 
-void* AllocatePageAligned(size_t size)
+void* AllocatePageAligned(size_t size, bool dumpable)
 {
-    return AllocatePageAlignedInline(size);
+    return AllocatePageAlignedInline(size, dumpable);
 }
 
 void Free(void* ptr)
@@ -77,12 +77,12 @@ using namespace NYT::NYTAlloc;
 
 extern "C" YTALLOC_WEAK void* malloc(size_t size)
 {
-    return AllocateInline(size);
+    return AllocateInline(size, true);
 }
 
 extern "C" YTALLOC_WEAK void* valloc(size_t size)
 {
-    return AllocatePageAlignedInline(size);
+    return AllocatePageAlignedInline(size, true);
 }
 
 extern "C" YTALLOC_WEAK void* aligned_alloc(size_t alignment, size_t size)
@@ -93,9 +93,9 @@ extern "C" YTALLOC_WEAK void* aligned_alloc(size_t alignment, size_t size)
     YCHECK(alignment <= PageSize);
     if (alignment <= 16) {
         // Proper alignment here is automatic.
-        return Allocate(size);
+        return Allocate(size, true);
     } else {
-        return AllocatePageAligned(size);
+        return AllocatePageAligned(size, true);
     }
 }
 

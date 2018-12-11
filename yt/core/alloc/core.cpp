@@ -59,6 +59,10 @@
 #define MADV_FREE 8
 #endif
 
+#ifndef MADV_DONTDUMP
+#define MADV_DONTDUMP 16
+#endif
+
 #ifndef NDEBUG
 #define PARANOID
 #endif
@@ -127,10 +131,22 @@ constexpr uintptr_t TaggedSmallZonesEnd = TaggedSmallZonesStart + 32 * SmallZone
 constexpr uintptr_t MinTaggedSmallPtr = TaggedSmallZonesStart + SmallZoneSize * 1;
 constexpr uintptr_t MaxTaggedSmallPtr = TaggedSmallZonesStart + SmallZoneSize * SmallRankCount;
 
-constexpr uintptr_t LargeZoneStart = TaggedSmallZonesEnd;
-constexpr uintptr_t LargeZoneEnd = LargeZoneStart + LargeZoneSize;
+constexpr uintptr_t DumpableLargeZoneStart = TaggedSmallZonesEnd;
+constexpr uintptr_t DumpableLargeZoneEnd = DumpableLargeZoneStart + LargeZoneSize;
 
-constexpr uintptr_t HugeZoneStart = LargeZoneEnd;
+constexpr uintptr_t UndumpableLargeZoneStart = DumpableLargeZoneEnd;
+constexpr uintptr_t UndumpableLargeZoneEnd = UndumpableLargeZoneStart + LargeZoneSize;
+
+constexpr uintptr_t LargeZoneStart(bool dumpable)
+{
+    return dumpable ? DumpableLargeZoneStart : UndumpableLargeZoneStart;
+}
+constexpr uintptr_t LargeZoneEnd(bool dumpable)
+{
+    return dumpable ? DumpableLargeZoneEnd : UndumpableLargeZoneEnd;
+}
+
+constexpr uintptr_t HugeZoneStart = UndumpableLargeZoneEnd;
 constexpr uintptr_t HugeZoneEnd = HugeZoneStart + HugeZoneSize;
 
 constexpr uintptr_t SystemZoneStart = HugeZoneEnd;
@@ -823,6 +839,13 @@ public:
         YCHECK(result == 0);
     }
 
+    void DontDump(void* ptr, size_t size)
+    {
+        auto result = ::madvise(ptr, size, MADV_DONTDUMP);
+        // Must not fail.
+        YCHECK(result == 0);
+    }
+
     void Populate(void* ptr, size_t size)
     {
         if (PopulateUnavailable_.load(std::memory_order_relaxed)) {
@@ -1269,6 +1292,9 @@ using TGlobalLargeCounters = TEnumIndexedVector<std::atomic<ssize_t>, ELargeAren
 using TLocalHugeCounters = TEnumIndexedVector<ssize_t, EHugeCounter>;
 using TGlobalHugeCounters = TEnumIndexedVector<std::atomic<ssize_t>, EHugeCounter>;
 
+using TLocalUndumpableCounters = TEnumIndexedVector<ssize_t, EUndumpableCounter>;
+using TGlobalUndumpableCounters = TEnumIndexedVector<std::atomic<ssize_t>, EUndumpableCounter>;
+
 Y_FORCE_INLINE ssize_t LoadCounter(ssize_t counter)
 {
     return counter;
@@ -1299,6 +1325,7 @@ struct TThreadState
     // Per-thread counters.
     TTotalCounters<ssize_t> TotalCounters;
     std::array<TLocalLargeCounters, LargeRankCount> LargeArenaCounters;
+    TLocalUndumpableCounters UndumpableCounters;
 
     // Each thread maintains caches of small chunks.
     // One cache is for tagged chunks; the other is for untagged ones.
@@ -1486,6 +1513,7 @@ struct TGlobalState
 {
     TTotalCounters<std::atomic<ssize_t>> TotalCounters;
     std::array<TGlobalLargeCounters, LargeRankCount> LargeArenaCounters;
+    TGlobalUndumpableCounters UndumpableCounters;
 };
 
 TBox<TGlobalState> GlobalState;
@@ -1523,9 +1551,20 @@ public:
         state->LargeArenaCounters[rank][counter] += delta;
     }
 
+    template <class TState>
+    static Y_FORCE_INLINE void IncrementUndumpableCounter(TState* state, EUndumpableCounter counter, ssize_t delta)
+    {
+        state->UndumpableCounters[counter] += delta;
+    }
+
     void IncrementHugeCounter(EHugeCounter counter, ssize_t delta)
     {
         HugeCounters_[counter] += delta;
+    }
+
+    void IncrementHugeUndumpableCounter(EUndumpableCounter counter, ssize_t delta)
+    {
+        HugeUndumpableCounters_[counter] += delta;
     }
 
     void IncrementSystemCounter(ESystemCounter counter, ssize_t delta)
@@ -1702,6 +1741,24 @@ public:
         return result;
     }
 
+    TLocalUndumpableCounters GetUndumpableCounters()
+    {
+        TLocalUndumpableCounters result;
+        for (auto counter : TEnumTraits<EUndumpableCounter>::GetDomainValues()) {
+            result[counter] = HugeUndumpableCounters_[counter].load();
+            result[counter] += GlobalState->UndumpableCounters[counter].load();
+        }
+
+        ThreadManager->EnumerateThreadStates(
+            [&] (const auto* state) {
+                result[EUndumpableCounter::BytesAllocated] += LoadCounter(state->UndumpableCounters[EUndumpableCounter::BytesAllocated]);
+                result[EUndumpableCounter::BytesFreed] += LoadCounter(state->UndumpableCounters[EUndumpableCounter::BytesFreed]);
+            });
+
+        result[EUndumpableCounter::BytesUsed] = GetUsed(result[EUndumpableCounter::BytesAllocated], result[EUndumpableCounter::BytesFreed]);
+        return result;
+    }
+
     // Called before TThreadState is destroyed.
     // Adds the counter values from TThreadState to the global counters.
     void AccumulateLocalCounters(TThreadState* state)
@@ -1740,6 +1797,7 @@ public:
         PushSmallStatistics(context);
         PushLargeStatistics(context);
         PushHugeStatistics(context);
+        PushUndumpableStatistics(context);
     }
 
 private:
@@ -1794,6 +1852,13 @@ private:
     {
         auto counters = GetHugeCounters();
         auto profiler = context.Profiler.AppendPath("/total");
+        PushCounterStatistics(profiler, counters);
+    }
+
+    void PushUndumpableStatistics(const TBackgroundContext& context)
+    {
+        auto counters = GetUndumpableCounters();
+        auto profiler = context.Profiler.AppendPath("/undumpable");
         PushCounterStatistics(profiler, counters);
     }
 
@@ -1861,6 +1926,7 @@ private:
     TGlobalSystemCounters SystemCounters_;
     std::array<TGlobalSmallCounters, SmallRankCount> SmallArenaCounters_;
     TGlobalHugeCounters HugeCounters_;
+    TGlobalUndumpableCounters HugeUndumpableCounters_;
 };
 
 TBox<TStatisticsManager> StatisticsManager;
@@ -2406,11 +2472,12 @@ struct TLargeArena
     size_t CurrentOverheadScanSegment = 0;
 };
 
+template<bool Dumpable>
 class TLargeBlobAllocator
 {
 public:
     TLargeBlobAllocator()
-        : ZoneAllocator_(LargeZoneStart, LargeZoneEnd)
+        : ZoneAllocator_(LargeZoneStart(Dumpable), LargeZoneEnd(Dumpable))
     {
         for (size_t rank = 0; rank < Arenas_.size(); ++rank) {
             auto& arena = Arenas_[rank];
@@ -2764,6 +2831,10 @@ private:
         size_t allocationSize = extentHeaderSize + LargeExtentSize;
 
         auto* ptr = ZoneAllocator_.Allocate(allocationSize, MAP_NORESERVE);
+        if (!Dumpable) {
+            MappedMemoryManager->DontDump(ptr, allocationSize);
+        }
+
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesMapped, allocationSize);
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::PagesMapped, allocationSize / PageSize);
 
@@ -2854,9 +2925,12 @@ private:
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BlobsAllocated, 1);
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesAllocated, size);
         StatisticsManager->IncrementTotalCounter(state, tag, EBasicCounter::BytesAllocated, size);
+        if (!Dumpable) {
+            StatisticsManager->IncrementUndumpableCounter(state, EUndumpableCounter::BytesAllocated, size);
+        }
 
         auto* result = HeaderToPtr(blob);
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd);
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart(Dumpable) && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd(Dumpable));
         PoisonUninitializedRange(result, size);
         return result;
     }
@@ -2864,7 +2938,7 @@ private:
     template <class TState>
     void DoFree(TState* state, void* ptr)
     {
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(Dumpable) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(Dumpable));
 
         auto* blob = PtrToHeader<TLargeBlobHeader>(ptr);
         auto size = blob->BytesAllocated;
@@ -2880,6 +2954,9 @@ private:
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BlobsFreed, 1);
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesFreed, size);
         StatisticsManager->IncrementTotalCounter(state, tag, EBasicCounter::BytesFreed, size);
+        if (!Dumpable) {
+            StatisticsManager->IncrementUndumpableCounter(state, EUndumpableCounter::BytesFreed, size);
+        }
 
         if (TryLockBlob(blob)) {
             MoveBlobToSpare(state, &arena, blob, true);
@@ -2896,7 +2973,8 @@ private:
     TSystemPool<TDisposedSegment, DisposedSegmentsBatchSize> DisposedSegmentPool_;
 };
 
-TBox<TLargeBlobAllocator> LargeBlobAllocator;
+TBox<TLargeBlobAllocator<true>> DumpableLargeBlobAllocator;
+TBox<TLargeBlobAllocator<false>> UndumpableLargeBlobAllocator;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Huge blob allocator
@@ -2906,13 +2984,16 @@ TBox<TLargeBlobAllocator> LargeBlobAllocator;
 // Every huge blob (both tagged or not) is prepended with this header.
 struct THugeBlobHeader
 {
-    THugeBlobHeader(TMemoryTag tag, size_t size)
+    THugeBlobHeader(TMemoryTag tag, size_t size, bool dumpable)
         : Tag(tag)
         , Size(size)
+        , Dumpable(dumpable)
     { }
 
     TMemoryTag Tag;
     size_t Size;
+    bool Dumpable;
+    char Padding[15];
 };
 
 CHECK_HEADER_SIZE(THugeBlobHeader)
@@ -2924,16 +3005,22 @@ public:
         : ZoneAllocator_(HugeZoneStart, HugeZoneEnd)
     { }
 
-    void* Allocate(size_t size)
+    void* Allocate(size_t size, bool dumpable)
     {
         auto tag = TThreadManager::GetCurrentMemoryTag();
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
         auto* blob = static_cast<THugeBlobHeader*>(ZoneAllocator_.Allocate(rawSize, MAP_POPULATE));
-        new (blob) THugeBlobHeader(tag, size);
+        if (!dumpable) {
+            MappedMemoryManager->DontDump(blob, rawSize);
+        }
+        new (blob) THugeBlobHeader(tag, size, dumpable);
 
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesAllocated, size);
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BlobsAllocated, 1);
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BytesAllocated, size);
+        if (!dumpable) {
+            StatisticsManager->IncrementHugeUndumpableCounter(EUndumpableCounter::BytesAllocated, size);
+        }
 
         auto* result = HeaderToPtr(blob);
         PoisonUninitializedRange(result, size);
@@ -2945,6 +3032,7 @@ public:
         auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
         auto tag = blob->Tag;
         auto size = blob->Size;
+        auto dumpable = blob->Dumpable;
         PoisonFreedRange(ptr, size);
 
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
@@ -2953,6 +3041,9 @@ public:
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesFreed, size);
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BlobsFreed, 1);
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BytesFreed, size);
+        if (!dumpable) {
+            StatisticsManager->IncrementHugeUndumpableCounter(EUndumpableCounter::BytesFreed, size);
+        }
     }
 
     static size_t GetAllocationSize(void* ptr)
@@ -2974,17 +3065,23 @@ TBox<THugeBlobAllocator> HugeBlobAllocator;
 class TBlobAllocator
 {
 public:
-    static void* Allocate(size_t size)
+    static void* Allocate(size_t size, bool dumpable)
     {
         InitializeGlobals();
         // NB: Account for the header. Also note that we may safely ignore the alignment since
         // HugeSizeThreshold is already page-aligned.
         if (size < HugeSizeThreshold - sizeof(TLargeBlobHeader)) {
-            auto* result = LargeBlobAllocator->Allocate(size);
-            PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd);
+            void* result;
+            if (dumpable) {
+                result = DumpableLargeBlobAllocator->Allocate(size);
+            } else {
+                result = UndumpableLargeBlobAllocator->Allocate(size);
+            }
+
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart(dumpable) && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd(dumpable));
             return result;
         } else {
-            auto* result = HugeBlobAllocator->Allocate(size);
+            auto* result = HugeBlobAllocator->Allocate(size, dumpable);
             PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= HugeZoneStart && reinterpret_cast<uintptr_t>(result) < HugeZoneEnd);
             return result;
         }
@@ -2993,10 +3090,14 @@ public:
     static void Free(void* ptr)
     {
         InitializeGlobals();
-        if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd) {
-            PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
+        if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(true)) {
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(true) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(true));
             UnalignPtr<TLargeBlobHeader>(ptr);
-            LargeBlobAllocator->Free(ptr);
+            DumpableLargeBlobAllocator->Free(ptr);
+        } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(false)) {
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(false) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(false));
+            UnalignPtr<TLargeBlobHeader>(ptr);
+            UndumpableLargeBlobAllocator->Free(ptr);
         } else if (reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd) {
             PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= HugeZoneStart && reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd);
             UnalignPtr<THugeBlobHeader>(ptr);
@@ -3100,7 +3201,8 @@ private:
             }
 
             StatisticsManager->RunBackgroundTasks(context);
-            LargeBlobAllocator->RunBackgroundTasks(context);
+            DumpableLargeBlobAllocator->RunBackgroundTasks(context);
+            UndumpableLargeBlobAllocator->RunBackgroundTasks(context);
             MappedMemoryManager->RunBackgroundTasks(context);
             TimingManager->RunBackgroundTasks(context);
         }
@@ -3197,7 +3299,8 @@ void InitializeGlobals()
         MappedMemoryManager.Construct();
         ThreadManager.Construct();
         GlobalState.Construct();
-        LargeBlobAllocator.Construct();
+        DumpableLargeBlobAllocator.Construct();
+        UndumpableLargeBlobAllocator.Construct();
         HugeBlobAllocator.Construct();
         ConfigurationManager.Construct();
         SystemAllocator.Construct();
@@ -3220,7 +3323,7 @@ void InitializeGlobals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE void* AllocateInline(size_t size)
+Y_FORCE_INLINE void* AllocateInline(size_t size, bool dumpable)
 {
 #define XX() \
     size_t rank; \
@@ -3230,7 +3333,7 @@ Y_FORCE_INLINE void* AllocateInline(size_t size)
         if (Y_LIKELY(size < LargeSizeThreshold)) { \
             rank = SmallSizeToRank2[(size - 1) >> 8]; \
         } else { \
-            return TBlobAllocator::Allocate(size); \
+            return TBlobAllocator::Allocate(size, dumpable); \
         } \
     }
 
@@ -3253,9 +3356,9 @@ Y_FORCE_INLINE void* AllocateInline(size_t size)
 #undef XX
 }
 
-Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
+Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size, bool dumpable)
 {
-    auto* ptr = TBlobAllocator::Allocate(size + PageSize);
+    auto* ptr = TBlobAllocator::Allocate(size + PageSize, dumpable);
     return AlignUp(ptr, PageSize);
 }
 
@@ -3292,9 +3395,12 @@ Y_FORCE_INLINE size_t GetAllocationSizeInline(void* ptr)
     } else if (reinterpret_cast<uintptr_t>(ptr) < TaggedSmallZonesEnd) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxTaggedSmallPtr);
         return TSmallAllocator::GetAllocationSize(ptr);
-    } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd) {
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
-        return TLargeBlobAllocator::GetAllocationSize(ptr);
+    } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(true)) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(true) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(true));
+        return TLargeBlobAllocator<true>::GetAllocationSize(ptr);
+    } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(false)) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(false) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(false));
+        return TLargeBlobAllocator<false>::GetAllocationSize(ptr);
     } else if (reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= HugeZoneStart && reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd);
         return THugeBlobAllocator::GetAllocationSize(ptr);
