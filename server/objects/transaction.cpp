@@ -1346,7 +1346,7 @@ private:
             auto key = std::make_pair(type, id);
             auto it = InstantiatedObjects_.find(key);
             if (it == InstantiatedObjects_.end()) {
-                if (RemovedObjects_[type].has(id)) {
+                if (RemovedObjects_[type].contains(id)) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::NoSuchObject,
                         "%v %Qv is already removed in this transaction",
