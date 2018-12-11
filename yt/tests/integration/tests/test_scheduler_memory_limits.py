@@ -154,6 +154,8 @@ class TestMemoryReserveFactor(YTEnvSetup):
         mapper = \
 """
 #!/usr/bin/python
+import time
+
 from random import randint
 def rndstr(n):
     s = ''
@@ -165,12 +167,14 @@ a = list()
 while len(a) * 100000 < 7e7:
     a.append(rndstr(100000))
 
+time.sleep(5.0)
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
         set("//tmp/mapper.py/@executable", True)
         create("table", "//tmp/t_out")
 
+        time.sleep(1)
         op = map(in_="//tmp/t_in",
             out="//tmp/t_out",
             command="python mapper.py",
