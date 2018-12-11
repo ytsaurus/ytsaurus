@@ -529,6 +529,9 @@ enum EBoxState {
 
     // Box находится в невалидном состоянии и значит будет полнотью пересобран
     EBoxState_INVALID = 9 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+
+    // Ждет пока заипортится static_resource
+    EBoxState_WAITING_FOR_STATIC_RESOURCE = 10 [(NYT.NYson.NPRoto.enum_value_name) = "waiting_for_static_resource"];
 }
 
 //Состояние workload
