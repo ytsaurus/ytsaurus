@@ -268,10 +268,12 @@ public:
 
             TDelayedExecutorCookie timeLimitCookie;
             if (UserJobSpec_.has_job_time_limit()) {
-                const TDuration timeLimit = TDuration::MilliSeconds(UserJobSpec_.job_time_limit());
-                LOG_INFO("Setting job time limit to %v", timeLimit);
+                auto timeLimit = FromProto<TDuration>(UserJobSpec_.job_time_limit());
+                LOG_INFO("Setting job time limit (Limit: %v)",
+                    timeLimit);
                 timeLimitCookie = TDelayedExecutor::Submit(
-                    BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this)).Via(AuxQueue_->GetInvoker()),
+                    BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this))
+                        .Via(AuxQueue_->GetInvoker()),
                     timeLimit);
             }
 

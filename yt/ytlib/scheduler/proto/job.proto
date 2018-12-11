@@ -95,8 +95,8 @@ message TUserJobSpec
 
     optional string file_account = 25;
 
-    // Time after which job will be failed, in milliseconds.
-    optional int64 job_time_limit = 26;
+    // Time after which job will be failed.
+    optional uint64 job_time_limit = 26;
 
     optional int32 iops_threshold = 27 [default = 1000];
     optional int32 iops_throttler_limit = 28;
