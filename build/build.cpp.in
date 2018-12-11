@@ -35,7 +35,7 @@ const char* GetVersion()
 const char* GetBuildHost()
 {
     static auto buildHost = GetYaHostName();
-    return ~buildHost;
+    return buildHost.data();
 }
 
 const char* GetBuildMachine()
@@ -46,7 +46,7 @@ const char* GetBuildMachine()
 const char* GetBuildTime()
 {
     static auto buildDate = GetYaBuildDate();
-    return ~buildDate;
+    return buildDate.data();
 }
 
 // Reuse GetBuildHost, GetBuildMachine, GetBuildTime from yt/build
