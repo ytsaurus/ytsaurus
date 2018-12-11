@@ -110,7 +110,6 @@ private:
     IConfigManagerPtr ConfigManager;
 
     Poco::AutoPtr<Poco::Util::LayeredConfiguration> Config;
-    Poco::AutoPtr<Poco::Util::LayeredConfiguration> UsersConfig;
     Poco::AutoPtr<Poco::Util::LayeredConfiguration> ClustersConfig;
 
     Poco::AutoPtr<Poco::Channel> LogChannel;
@@ -251,7 +250,6 @@ private:
         ConfigManager = CreateConfigManager(StaticBootstrapConfig, Storage, ServerAuthToken);
 
         Config = ConfigManager->LoadServerConfig();
-        UsersConfig = ConfigManager->LoadUsersConfig();
         ClustersConfig = ConfigManager->LoadClustersConfig();
     }
 
@@ -298,7 +296,38 @@ private:
         Context->setApplicationType(Context::ApplicationType::SERVER);
 
         Context->setConfig(Config);
-        Context->setUsersConfig(UsersConfig);
+
+        // TODO(max42): move into global config and make customizable.
+        Context->setUsersConfig(ConvertToPocoConfig(BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("profiles").BeginMap()
+                    .Item("default").BeginMap()
+                        .Item("readonly").Value(2)
+                    .EndMap()
+                .EndMap()
+                .Item("quotas").BeginMap()
+                    .Item("default").BeginMap()
+                        .Item("interval").BeginMap()
+                            .Item("duration").Value(3600)
+                            .Item("errors").Value(0)
+                            .Item("execution_time").Value(0)
+                            .Item("queries").Value(0)
+                            .Item("read_rows").Value(0)
+                            .Item("result_rows").Value(0)
+                        .EndMap()
+                    .EndMap()
+                .EndMap()
+                .Item("user_template").BeginMap()
+                    .Item("networks").BeginMap()
+                        .Item("ip").Value("::/0")
+                    .EndMap()
+                    .Item("password").Value("")
+                    .Item("profile").Value("default")
+                    .Item("quota").Value("default")
+                .EndMap()
+                .Item("users").BeginMap().EndMap()
+            .EndMap()));
+
         Context->setClustersConfig(ClustersConfig);
         
         registerFunctions();
