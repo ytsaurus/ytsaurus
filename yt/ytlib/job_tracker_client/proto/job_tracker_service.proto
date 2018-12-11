@@ -40,6 +40,7 @@ message TJobToRemove
     // COMPAT(ignat): make field required after migration.
     optional bool archive_stderr = 3;
     optional bool archive_fail_context = 4;
+    optional bool archive_profile = 5;
 }
 
 message TRspHeartbeat
@@ -58,6 +59,7 @@ message TRspHeartbeat
     optional int32 operation_archive_version = 11;
     optional bool enable_job_stderr_reporter = 12;
     optional bool enable_job_fail_context_reporter = 13;
+    optional bool enable_job_profile_reporter = 14;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

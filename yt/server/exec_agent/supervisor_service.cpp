@@ -110,6 +110,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
         job->SetFailContext(request->fail_context());
     }
 
+    if (request->has_profile_type() && request->has_profile_blob()) {
+        job->SetProfile({request->profile_type(), request->profile_blob()});
+    }
+
     context->Reply();
 }
 

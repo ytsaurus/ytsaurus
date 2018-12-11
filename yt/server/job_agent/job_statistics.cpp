@@ -241,9 +241,18 @@ TJobStatistics TJobStatistics::ExtractFailContext()
     return copy;
 }
 
+TJobStatistics TJobStatistics::ExtractProfile()
+{
+    TJobStatistics copy;
+    copy.JobId_ = JobId_;
+    copy.OperationId_ = OperationId_;
+    copy.Profile_ = Profile_;
+    return copy;
+}
+
 bool TJobStatistics::IsEmpty() const
 {
-    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_ || FailContext_);
+    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_ || FailContext_ || Profile_);
 }
 
 void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)
@@ -314,6 +323,11 @@ void TJobStatistics::SetStderr(const TString& stderr)
 void TJobStatistics::SetFailContext(const TString& failContext)
 {
     FailContext_ = failContext;
+}
+
+void TJobStatistics::SetProfile(const TJobProfile& profile)
+{
+    Profile_ = profile;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

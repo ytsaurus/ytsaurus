@@ -33,6 +33,7 @@ using namespace NYson;
 using namespace NScheduler;
 using namespace NQueryClient;
 using namespace NExecAgent;
+using namespace NJobAgent;
 
 using NJobTrackerClient::TStatistics;
 using NChunkClient::TDataSliceDescriptor;
@@ -77,6 +78,13 @@ std::optional<TString> TJob::GetFailContext()
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,
         "Getting stderr is not supported for built-in jobs");
+}
+
+std::optional<TJobProfile> TJob::GetProfile()
+{
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::UnsupportedJobType,
+        "Getting profile is not supported for built-in jobs");
 }
 
 TYsonString TJob::StraceJob()

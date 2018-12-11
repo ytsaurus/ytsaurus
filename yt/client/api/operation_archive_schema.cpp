@@ -115,6 +115,23 @@ TJobStderrTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobProfileTableDescriptor::TJobProfileTableDescriptor()
+    : NameTable(New<TNameTable>())
+    , Index(NameTable)
+{ }
+
+TJobProfileTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
+    : OperationIdHi(n->RegisterName("operation_id_hi"))
+    , OperationIdLo(n->RegisterName("operation_id_lo"))
+    , JobIdHi(n->RegisterName("job_id_hi"))
+    , JobIdLo(n->RegisterName("job_id_lo"))
+    , PartIndex(n->RegisterName("part_index"))
+    , ProfileType(n->RegisterName("profile_type"))
+    , ProfileBlob(n->RegisterName("profile_blob"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobFailContextTableDescriptor::TJobFailContextTableDescriptor()
     : NameTable(New<TNameTable>())
     , Index(NameTable)

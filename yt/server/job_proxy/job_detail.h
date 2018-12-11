@@ -34,6 +34,7 @@ public:
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual TString GetStderr() override;
     virtual std::optional<TString> GetFailContext() override;
+    virtual std::optional<NJobAgent::TJobProfile> GetProfile() override;
     virtual NYson::TYsonString StraceJob() override;
     virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;

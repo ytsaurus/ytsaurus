@@ -412,6 +412,12 @@ TUserJobSpec::TUserJobSpec()
         .Default(5_MB)
         .GreaterThan(0)
         .LessThanOrEqual(1_GB);
+    RegisterParameter("enable_profiling", EnableProfiling)
+        .Default(false);
+    RegisterParameter("max_profile_size", MaxProfileSize)
+        .Default(2_MB)
+        .GreaterThan(0)
+        .LessThanOrEqual(2_MB);
     RegisterParameter("custom_statistics_count_limit", CustomStatisticsCountLimit)
         .Default(128)
         .GreaterThan(0)

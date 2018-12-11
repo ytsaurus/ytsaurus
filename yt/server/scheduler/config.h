@@ -392,6 +392,9 @@ public:
     // Enables job reporter to send job stderrs.
     bool EnableJobStderrReporter;
 
+    // Enables job reporter to send job profiles.
+    bool EnableJobProfileReporter;
+
     // Enables job reporter to send job fail contexts.
     bool EnableJobFailContextReporter;
 

@@ -36,6 +36,7 @@ public:
     void SetEnabled(bool enable);
     void SetSpecEnabled(bool enable);
     void SetStderrEnabled(bool enable);
+    void SetProfileEnabled(bool enable);
     void SetFailContextEnabled(bool enable);
     void SetOperationArchiveVersion(int version);
     int ExtractWriteFailuresCount();

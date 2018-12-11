@@ -1056,6 +1056,9 @@ private:
                 if (event.ArchiveFailContext) {
                     protoEvent->set_archive_fail_context(*event.ArchiveFailContext);
                 }
+                if (event.ArchiveProfile) {
+                    protoEvent->set_archive_profile(*event.ArchiveProfile);
+                }
             });
 
         ScheduleJobResposesOutbox_->BuildOutcoming(

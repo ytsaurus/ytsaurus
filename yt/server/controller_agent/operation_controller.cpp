@@ -114,6 +114,10 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, ArchiveJobSpec);
     Persist(context, ArchiveStderr);
     Persist(context, ArchiveFailContext);
+
+    if (context.GetVersion() >= 300028) {
+        Persist(context, ArchiveProfile);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

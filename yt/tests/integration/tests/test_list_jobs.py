@@ -32,6 +32,14 @@ def get_stderr_from_table(operation_id, job_id):
     assert len(rows) == 1
     return remove_asan_warning(rows[0]["stderr"])
 
+def get_profile_from_table(operation_id, job_id):
+    operation_hash = uuid_hash_pair(operation_id)
+    job_hash = uuid_hash_pair(job_id)
+    rows = list(select_rows("profile_type, profile_blob from [//sys/operations_archive/job_profiles] where operation_id_lo={0}u and operation_id_hi={1}u and job_id_lo={2}u and job_id_hi={3}u"\
+        .format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)))
+    assert len(rows) == 1
+    return rows[0]["profile_type"], rows[0]["profile_blob"]
+
 class TestListJobs(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
@@ -92,11 +100,12 @@ class TestListJobs(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             # Jobs write to stderr so they will be saved.
-            mapper_command=with_breakpoint("""echo foo >&2 ; cat; test $YT_JOB_INDEX -eq "1" && exit 1 ; BREAKPOINT"""),
-            reducer_command="echo foo >&2 ; cat",
+            mapper_command=with_breakpoint("""echo foo >&2 ; cat; test $YT_JOB_INDEX -eq "1" && exit 1 ; BREAKPOINT; python -c 'import os; os.write(8, "test\\nfoobar")'"""),
+            reducer_command="""echo foo >&2 ; cat; python -c 'import os; os.write(8, "test\\nfoobar")'""",
             sort_by="foo",
             reduce_by="foo",
             spec={
+                "enable_profiling": True,
                 "mapper": {
                     "input_format": "json",
                     "output_format": "json"
@@ -204,7 +213,7 @@ class TestListJobs(YTEnvSetup):
                     correct = 1
                 if key == "partition_map":
                     correct = 5
-                assert res["type_counts"][key] == correct
+                assert res["type_counts"][key] == correct, str(res["type_counts"])
             for key in res["state_counts"]:
                 correct = 0
                 if key == "completed":
@@ -271,6 +280,10 @@ class TestListJobs(YTEnvSetup):
         res = get_stderr_from_table(op.id, job_id)
         assert res == "foo\n"
 
+        profile_type, profile_blob = get_profile_from_table(op.id, job_id)
+        assert profile_type == "test"
+        assert profile_blob == "foobar"
+        
         res = list_jobs(op.id, with_stderr=False, **archive_options)["jobs"]
         assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
