@@ -661,6 +661,8 @@ void TFollowerCommitter::ResumeLogging()
 
 TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& request)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto channel = CellManager_->GetPeerChannel(EpochContext_->LeaderId);
     YCHECK(channel);
 
@@ -680,6 +682,16 @@ TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& reques
         const auto& rsp = rspOrError.Value();
         return TMutationResponse{TSharedRefArray(rsp->Attachments())};
     }));
+}
+
+void TFollowerCommitter::Stop()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+    for (auto& pendingMutation : PendingMutations_) {
+        pendingMutation.Promise.Set(error);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
