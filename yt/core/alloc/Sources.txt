@@ -1,3 +1,0 @@
-SET(YT_SRCS
-  bridge.cpp
-)
