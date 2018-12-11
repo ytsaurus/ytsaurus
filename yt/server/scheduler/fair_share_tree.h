@@ -29,11 +29,11 @@ class TFairShareStrategyOperationState
 public:
     using TTreeIdToPoolNameMap = THashMap<TString, TPoolName>;
 
-DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
-DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
-DEFINE_BYVAL_RW_PROPERTY(bool, Active);
-DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolNameMap, TreeIdToPoolNameMap);
-DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, ErasedTrees);
+    DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
+    DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Active);
+    DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolNameMap, TreeIdToPoolNameMap);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, ErasedTrees);
 
 public:
     TFairShareStrategyOperationState(IOperationStrategyHost* host)
