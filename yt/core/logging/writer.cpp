@@ -2,6 +2,7 @@
 #include "private.h"
 #include "log.h"
 #include "log_manager.h"
+#include "random_access_gzip.h"
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
@@ -213,9 +214,14 @@ IOutputStream* TStdoutLogWriter::GetOutputStream() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileLogWriter::TFileLogWriter(std::unique_ptr<ILogFormatter> formatter, TString writerName, TString fileName)
+TFileLogWriter::TFileLogWriter(
+    std::unique_ptr<ILogFormatter> formatter,
+    TString writerName,
+    TString fileName,
+    bool enableCompression)
     : TStreamLogWriterBase(std::move(formatter), std::move(writerName))
     , FileName_(std::move(fileName))
+    , EnableCompression_(enableCompression)
 {
     Open();
 }
@@ -225,6 +231,10 @@ TFileLogWriter::~TFileLogWriter() = default;
 IOutputStream* TFileLogWriter::GetOutputStream() const noexcept
 {
     if (Y_LIKELY(!Disabled_.load(std::memory_order_acquire))) {
+        if (Compressed_) {
+            return Compressed_.get();
+        }
+
         return FileOutput_.get();
     } else {
         return nullptr;
@@ -274,13 +284,17 @@ void TFileLogWriter::Open()
 {
     try {
         NFS::MakeDirRecursive(NFS::GetDirectoryName(FileName_));
-        File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
-        FileOutput_.reset(new TFixedBufferFileOutput(*File_, BufferSize));
-        FileOutput_->SetFinishPropagateMode(true);
+        if (!EnableCompression_) {
+            File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+            FileOutput_.reset(new TFixedBufferFileOutput(*File_, BufferSize));
+            FileOutput_->SetFinishPropagateMode(true);
 
-        // Emit a delimiter for ease of navigation.
-        if (File_->GetLength() > 0) {
-            *FileOutput_ << Endl;
+            // Emit a delimiter for ease of navigation.
+            if (File_->GetLength() > 0) {
+                *GetOutputStream() << Endl;
+            }
+        } else {
+            Compressed_.reset(new TRandomAccessGZipFile(FileName_));
         }
 
         LogFormatter->WriteLogStartEvent(GetOutputStream());
@@ -297,13 +311,18 @@ void TFileLogWriter::Open()
 void TFileLogWriter::Close()
 {
     try {
-        if (FileOutput_) {
-            FileOutput_->Flush();
-            FileOutput_->Finish();
+        if (!EnableCompression_) {
+            if (FileOutput_) {
+                FileOutput_->Flush();
+                FileOutput_->Finish();
+            }
+            if (File_) {
+                File_->Close();
+            }
+        } else {
+            Compressed_->Finish();
         }
-        if (File_) {
-            File_->Close();
-        }
+
     } catch (const std::exception& ex) {
         Disabled_ = true;
         LOG_ERROR(ex, "Failed to close log file %v", FileName_);
@@ -312,6 +331,7 @@ void TFileLogWriter::Close()
     }
 
     try {
+        Compressed_.reset();
         FileOutput_.reset();
         File_.reset();
     } catch (...) {

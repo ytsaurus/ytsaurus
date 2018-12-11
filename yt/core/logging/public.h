@@ -40,6 +40,7 @@ struct TLoggingPosition;
 struct TLogEvent;
 class TLogger;
 class TLogManager;
+class TRandomAccessGZipFile;
 
 ////////////////////////////////////////////////////////////////////////////////
 

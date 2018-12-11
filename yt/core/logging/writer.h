@@ -135,7 +135,11 @@ class TFileLogWriter final
     : public TStreamLogWriterBase
 {
 public:
-    TFileLogWriter(std::unique_ptr<ILogFormatter> formatter, TString writerName, TString fileName);
+    TFileLogWriter(
+        std::unique_ptr<ILogFormatter> formatter,
+        TString writerName,
+        TString fileName,
+        bool enableCompression = false);
     ~TFileLogWriter();
 
     virtual void Reload() override;
@@ -150,10 +154,13 @@ private:
     void Close();
 
     TString FileName_;
+    bool EnableCompression_;
     std::atomic<bool> Disabled_ = {false};
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TFixedBufferFileOutput> FileOutput_;
+
+    std::unique_ptr<TRandomAccessGZipFile> Compressed_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
