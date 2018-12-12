@@ -28,10 +28,28 @@ public class YtCluster {
     }
 
     public YtCluster(String name) {
-        this(name, name + ".yt.yandex.net", 80, new ArrayList<>());
+        this(name, getFqdn(name), getPort(name), new ArrayList<>());
     }
 
     public String getName() {
         return name;
+    }
+
+    private static String getFqdn(String name) {
+        int index = name.indexOf(":");
+        if (index < 0) {
+            return name + ".yt.yandex.net";
+        } else {
+            return name.substring(0, index);
+        }
+    }
+
+    private static int getPort(String name) {
+        int index = name.indexOf(":");
+        if (index < 0) {
+            return 80;
+        } else {
+            return Integer.valueOf(name.substring(index+1));
+        }
     }
 }
