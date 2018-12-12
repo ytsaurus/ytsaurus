@@ -7,8 +7,7 @@ from .cypress_commands import get, exists
 def get_clickhouse_clique_spec_builder(instance_count,
                                        cypress_ytserver_clickhouse_path=None,
                                        host_ytserver_clickhouse_path=None,
-                                       cypress_yson_config_path="//sys/clickhouse/config_files/config.yson",
-                                       cypress_xml_config_path="//sys/clickhouse/config_files/config.xml",
+                                       cypress_config_path="//sys/clickhouse/config.yson",
                                        max_failed_job_count=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
@@ -30,7 +29,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     .. seealso::  :ref:`operation_parameters`.
     """
-    file_paths = [cypress_xml_config_path, cypress_yson_config_path]
+    file_paths = [cypress_config_path]
     if cypress_ytserver_clickhouse_path is None and host_ytserver_clickhouse_path is None:
         cypress_ytserver_clickhouse_path = "//sys/clickhouse/bin/ytserver-clickhouse"
     require(cypress_ytserver_clickhouse_path is None or host_ytserver_clickhouse_path is None,
@@ -55,9 +54,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
             .begin_task("clickhouse_servers") \
                 .job_count(instance_count) \
                 .file_paths(file_paths) \
-                .command('cat config.xml | sed -s "s/TCP_PORT/$YT_PORT_2/g" | sed -s "s/HTTP_PORT/$YT_PORT_3/g" | '
-                         'sed -s "s/FQDN/$(hostname -f)/g" > config_patched.xml; '
-                         '{} --config config.yson --xml-config config_patched.xml --instance-id $YT_JOB_ID '
+                .command('{} --config config.yson --instance-id $YT_JOB_ID '
                          '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port $YT_PORT_1 '
                          '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3'
                          .format(executable_path)) \
