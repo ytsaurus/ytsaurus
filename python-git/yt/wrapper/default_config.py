@@ -441,9 +441,9 @@ default_config = {
     "write_retries": retries_config(count=6, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 2000,
+            "start_timeout": 30000,
             "base": 2,
-            "max_timeout": 60000,
+            "max_timeout": 120000,
             "decay_factor_bound": 0.3
         }}) \
         .update_template_dict({
