@@ -25,21 +25,8 @@ def prepare_yt_binaries(destination):
     watcher_path = yatest.common.binary_path("yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
     os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
-def prepare_nodejs(destination):
-    path = yatest.common.binary_path("yt/{0}/yt/nodejs/targets/bin/ytnode".format(YT_ABI))
-    os.symlink(path, os.path.join(destination, "nodejs"))
-
-def prepare_nodejs_modules(destination):
-    path = yatest.common.binary_path("yt/{0}/yt/node_modules/resource.tar.gz".format(YT_ABI))
-    subprocess.check_output(["tar", "-xf", path], cwd=destination, stderr=subprocess.STDOUT)
-
-def prepare_nodejs_yt_package(destination):
-    path = yatest.common.binary_path("yt/{0}/yt/nodejs/targets/package".format(YT_ABI))
-    os.symlink(path, os.path.join(destination, "yt"))
-
 def prepare_yt_environment(destination):
     bin_dir = os.path.join(destination, "bin")
-    node_modules_dir = os.path.join(destination, "node_modules")
     lock_path = os.path.join(destination, "lock")
     prepared_path = os.path.join(destination, "prepared")
 
@@ -49,18 +36,14 @@ def prepare_yt_environment(destination):
     except IOError:
         while not os.path.exists(prepared_path):
             time.sleep(0.1)
-        return bin_dir, node_modules_dir
+        return bin_dir
 
     if not os.path.exists(bin_dir):
-        for dir_ in (bin_dir, node_modules_dir):
-            os.makedirs(dir_)
+        os.makedirs(bin_dir)
 
         prepare_yt_binaries(bin_dir)
-        prepare_nodejs(bin_dir)
-        prepare_nodejs_modules(destination)
-        prepare_nodejs_yt_package(node_modules_dir)
 
     with open(prepared_path, "w"):
         pass
 
-    return bin_dir, node_modules_dir
+    return bin_dir

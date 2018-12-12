@@ -43,9 +43,8 @@ if yatest_common is not None:
     def prepare_path(request):
         destination = os.path.join(yatest_common.work_path(), "build")
         os.makedirs(destination)
-        path, node_path = arcadia_interop.prepare_yt_environment(destination)
+        path = arcadia_interop.prepare_yt_environment(destination)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
-        os.environ["NODE_PATH"] = node_path
 
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
@@ -156,7 +155,7 @@ class YtTestEnvironment(object):
                               allow_chunk_storage_in_tmpfs=True,
                               **env_options)
 
-        self.env.start(start_secondary_master_cells=True, use_new_proxy=False, use_proxy_from_package=False)
+        self.env.start(start_secondary_master_cells=True, use_proxy_from_package=False, use_new_proxy=True)
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
@@ -207,7 +206,7 @@ class YtTestEnvironment(object):
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 
-        # To avoid using user-defined proxy in tests. 
+        # To avoid using user-defined proxy in tests.
         if "YT_PROXY" in os.environ:
             del os.environ["YT_PROXY"]
 

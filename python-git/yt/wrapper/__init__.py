@@ -6,11 +6,7 @@ Package supports `YT API <https://wiki.yandex-team.ru/yt/pythonwrapper>`_.
 Be ready to catch :class:`YtError <yt.common.YtError>` after all commands!
 """
 
-# TODO(asaitgalin): Remove try/except when DEVTOOLS-3781 is done.
-try:
-    from . import version_check
-except ImportError:
-    import version_check
+from . import version_check
 
 from .client_api import *
 from .client import YtClient, create_client_with_command_params
@@ -45,10 +41,5 @@ from .http_helpers import (_cleanup_http_session,
                            get_retriable_errors as _get_retriable_errors)
 
 # For PyCharm checks
-# TODO(asaitgalin): Remove try/except when DEVTOOLS-3781 is done.
-try:
-    from . import config
-except ImportError:
-    import config
-
+from . import config
 from .config import update_config

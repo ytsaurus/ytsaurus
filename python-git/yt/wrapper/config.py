@@ -1,14 +1,8 @@
 from __future__ import print_function
 
-# TODO(asaitgalin): Remove try/except when DEVTOOLS-3781 is done.
-try:
-    from . import common
-    from . import default_config
-    from . import client_state
-except ImportError:
-    import common
-    import default_config
-    import client_state
+from . import common
+from . import default_config
+from . import client_state
 
 import yt.yson as yson
 import yt.json_wrapper as json
