@@ -94,7 +94,7 @@ private:
 
     virtual TFuture<void> DoGet(const TTablePermissionKey& key) override
     {
-        LOG_DEBUG("Table permission check started (Key: %v)",
+        YT_LOG_DEBUG("Table permission check started (Key: %v)",
             key);
 
         auto client = Bootstrap_->GetMasterClient();
@@ -106,13 +106,13 @@ private:
                     auto wrappedError = TError("Error checking permission for table %v",
                         key.TableId)
                         << resultOrError;
-                    LOG_WARNING(wrappedError);
+                    YT_LOG_WARNING(wrappedError);
                     THROW_ERROR wrappedError;
                 }
 
                 const auto& result = resultOrError.Value();
 
-                LOG_DEBUG("Table permission check complete (Key: %v, Action: %v)",
+                YT_LOG_DEBUG("Table permission check complete (Key: %v, Action: %v)",
                     key,
                     result.Action);
 
@@ -183,7 +183,7 @@ private:
 
     virtual TFuture<void> DoGet(const TResourceLimitsKey& key) override
     {
-        LOG_DEBUG("Resource limits violation check started (Key: %v)",
+        YT_LOG_DEBUG("Resource limits violation check started (Key: %v)",
             key);
 
         auto client = Bootstrap_->GetMasterClient();
@@ -195,13 +195,13 @@ private:
                     auto wrappedError = TError("Error getting resource limits for account %Qv",
                         key.Account)
                         << resultOrError;
-                    LOG_WARNING(wrappedError);
+                    YT_LOG_WARNING(wrappedError);
                     THROW_ERROR wrappedError;
                 }
 
                 const auto& node = ConvertToNode(resultOrError.Value());
 
-                LOG_DEBUG("Got resource limits violations for account %Qv: %Qv",
+                YT_LOG_DEBUG("Got resource limits violations for account %Qv: %Qv",
                     key.Account,
                     ConvertToYsonString(node, EYsonFormat::Text));
 
@@ -289,9 +289,9 @@ public:
         if (optionalResult) {
             result = *optionalResult;
         } else {
-            LOG_DEBUG("Started waiting for persmission cache result");
+            YT_LOG_DEBUG("Started waiting for persmission cache result");
             result = WaitFor(asyncResult);
-            LOG_DEBUG("Finished waiting for persmission cache result");
+            YT_LOG_DEBUG("Finished waiting for persmission cache result");
         }
         result.ThrowOnError();
     }

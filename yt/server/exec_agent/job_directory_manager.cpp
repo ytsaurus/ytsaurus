@@ -50,7 +50,7 @@ public:
 
         for (const auto& volume : volumes) {
             if (volume.Path.StartsWith(Path_ + "/")) {
-                LOG_DEBUG("Unlink old volume, left from previous run (Path: %v)", volume.Path);
+                YT_LOG_DEBUG("Unlink old volume, left from previous run (Path: %v)", volume.Path);
                 WaitFor(Executor_->UnlinkVolume(volume.Path, "self"))
                     .ThrowOnError();
             }
@@ -86,13 +86,13 @@ public:
 
         std::vector<TFuture<void>> asyncUnlinkResults;
         for (const auto& path : toRelease) {
-            LOG_DEBUG("Releasing porto volume (Path: %v)", path);
+            YT_LOG_DEBUG("Releasing porto volume (Path: %v)", path);
             try {
                 // NB(psushin): it is important to clean volume contents before removal.
                 // Otherwise porto can hang up in sync call for a long time during unlink of quota backend.
                 RunTool<TRemoveDirContentAsRootTool>(path);
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Failed to remove directory contents for porto volume (Path: %v)", path);
+                YT_LOG_WARNING(ex, "Failed to remove directory contents for porto volume (Path: %v)", path);
             }
 
             asyncUnlinkResults.emplace_back(Executor_->UnlinkVolume(path, "self"));
@@ -209,7 +209,7 @@ public:
         config->Size = properties.DiskSpaceLimit.value_or(std::numeric_limits<i64>::max());
         config->UserId = properties.UserId;
 
-        LOG_DEBUG("Mounting tmpfs (Config: %v)",
+        YT_LOG_DEBUG("Mounting tmpfs (Config: %v)",
             ConvertToYsonString(config, EYsonFormat::Text));
 
         return BIND([=, this_ = MakeStrong(this)] () {
@@ -236,13 +236,13 @@ public:
             });
 
             for (const auto& path : toRelease) {
-                LOG_DEBUG("Removing mount point (Path: %v)", path);
+                YT_LOG_DEBUG("Removing mount point (Path: %v)", path);
                 try {
                     // Due to bug in the kernel, this can sometimes fail with "Directory is not empty" error.
                     // More info: https://bugzilla.redhat.com/show_bug.cgi?id=1066751
                     RunTool<TRemoveDirContentAsRootTool>(path);
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Failed to remove mount point (Path: %v)", path);
+                    YT_LOG_WARNING(ex, "Failed to remove mount point (Path: %v)", path);
                 }
 
                 auto config = New<TUmountConfig>();

@@ -57,11 +57,11 @@ TFuture<void> TChunkTeleporter::Run()
 
 void TChunkTeleporter::DoRun()
 {
-    LOG_INFO("Chunk teleport started (ChunkCount: %v)",
+    YT_LOG_INFO("Chunk teleport started (ChunkCount: %v)",
         Chunks_.size());
     Export();
     Import();
-    LOG_INFO("Chunk teleport completed");
+    YT_LOG_INFO("Chunk teleport completed");
 }
 
 int TChunkTeleporter::GetExportedObjectCount(TCellTag cellTag)
@@ -110,7 +110,7 @@ void TChunkTeleporter::Export()
                 protoData->set_destination_cell_tag(entry->DestinationCellTag);
             }
 
-            LOG_INFO("Exporting chunks (CellTag: %v, ChunkCount: %v)",
+            YT_LOG_INFO("Exporting chunks (CellTag: %v, ChunkCount: %v)",
                 cellTag,
                 req->chunks_size());
 
@@ -181,7 +181,7 @@ void TChunkTeleporter::Import()
                 req->add_chunks()->Swap(&chunks[index]->Data);
             }
 
-            LOG_INFO("Importing chunks (CellTag: %v, ChunkCount: %v)",
+            YT_LOG_INFO("Importing chunks (CellTag: %v, ChunkCount: %v)",
                 cellTag,
                 req->chunks_size());
 

@@ -187,7 +187,7 @@ void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 
 void TTask::FinishInput()
 {
-    LOG_DEBUG("Task input finished" );
+    YT_LOG_DEBUG("Task input finished" );
 
     // GetChunkPoolInput() may return nullptr on tasks that do not require input, such as for vanilla operation.
     if (const auto& chunkPoolInput = GetChunkPoolInput()) {
@@ -220,7 +220,7 @@ void TTask::CheckCompleted()
 void TTask::ForceComplete()
 {
     if (!CompletedFired_) {
-        LOG_DEBUG("Task is forcefully completed");
+        YT_LOG_DEBUG("Task is forcefully completed");
         CompletedFired_ = true;
         OnTaskCompleted();
     }
@@ -272,7 +272,7 @@ void TTask::ScheduleJob(
     joblet->OutputCookie = chunkPoolOutput->Extract(localityNodeId);
 
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
-        LOG_DEBUG("Job input is empty");
+        YT_LOG_DEBUG("Job input is empty");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::EmptyInput);
         return;
     }
@@ -288,7 +288,7 @@ void TTask::ScheduleJob(
     const auto& jobSpecSliceThrottler = TaskHost_->GetJobSpecSliceThrottler();
     if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
-            LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
+            YT_LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
                 sliceCount);
             chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingJobSpecThrottling);
             scheduleJobResult->RecordFail(EScheduleJobFailReason::JobSpecThrottling);
@@ -313,7 +313,7 @@ void TTask::ScheduleJob(
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
-        LOG_DEBUG("Job actual resource demand is not met (Limits: %v, Demand: %v)",
+        YT_LOG_DEBUG("Job actual resource demand is not met (Limits: %v, Demand: %v)",
                   FormatResources(jobLimits),
                   FormatResources(neededResources));
         CheckResourceDemandSanity(nodeResourceLimits, neededResources);
@@ -358,7 +358,7 @@ void TTask::ScheduleJob(
             TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
     }
 
-    LOG_DEBUG(
+    YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Splittable: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
@@ -515,7 +515,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         auto outputStatistics = GetTotalOutputDataStatistics(statistics);
         // It's impossible to check row count preservation on interrupted job.
         if (TaskHost_->IsRowCountPreserved() && jobSummary.InterruptReason == EInterruptReason::None) {
-            LOG_ERROR_IF(inputStatistics.row_count() != outputStatistics.row_count(),
+            YT_LOG_ERROR_IF(inputStatistics.row_count() != outputStatistics.row_count(),
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
                 inputStatistics.row_count(),
                 outputStatistics.row_count(),
@@ -631,7 +631,7 @@ void TTask::OnStripeRegistrationFailed(
 
 void TTask::OnTaskCompleted()
 {
-    LOG_DEBUG("Task completed");
+    YT_LOG_DEBUG("Task completed");
 }
 
 std::optional<EScheduleJobFailReason> TTask::GetScheduleFailReason(ISchedulingContext* context)
@@ -950,7 +950,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
     }
     auto result = ApplyMemoryReserve(*CachedMinNeededResources_);
     if (result.GetUserSlots() > 0 && result.GetMemory() == 0) {
-        LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
+        YT_LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
     }
     auto resultWithQuota = TJobResourcesWithQuota(result);
     if (auto userJobSpec = GetUserJobSpec()) {
@@ -978,7 +978,7 @@ void TTask::RegisterStripe(
         const auto& chunkMapping = edgeDescriptor.ChunkMapping;
         YCHECK(chunkMapping);
 
-        LOG_DEBUG("Registering stripe in a direction that requires recovery info (JobId: %v, Restarted: %v, JobType: %v)",
+        YT_LOG_DEBUG("Registering stripe in a direction that requires recovery info (JobId: %v, Restarted: %v, JobType: %v)",
             joblet->JobId,
             joblet->Restarted,
             joblet->JobType);
@@ -999,7 +999,7 @@ void TTask::RegisterStripe(
             YCHECK(inputCookie != IChunkPoolInput::NullCookie);
             try {
                 chunkMapping->OnStripeRegenerated(inputCookie, stripe);
-                LOG_DEBUG("Successfully registered recovered stripe in chunk mapping (JobId: %v, JobType: %v, InputCookie: %v)",
+                YT_LOG_DEBUG("Successfully registered recovered stripe in chunk mapping (JobId: %v, JobType: %v, InputCookie: %v)",
                     joblet->JobId,
                     joblet->JobType,
                     inputCookie);
@@ -1007,7 +1007,7 @@ void TTask::RegisterStripe(
                 auto error = TError("Failure while registering result stripe of a restarted job in a chunk mapping")
                     << ex
                     << TErrorAttribute("input_cookie", inputCookie);
-                LOG_ERROR(error);
+                YT_LOG_ERROR(error);
                 OnStripeRegistrationFailed(error, lostIt->second, stripe, edgeDescriptor);
             }
 

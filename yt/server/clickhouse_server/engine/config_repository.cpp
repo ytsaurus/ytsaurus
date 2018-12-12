@@ -87,7 +87,7 @@ TConfigRepository::TConfigRepository(NNative::IStoragePtr storage,
     , ConfigsPath(std::move(configsPath))
     , Logger(&Poco::Logger::get("ConfigRepository"))
 {
-    CH_LOG_DEBUG(Logger, "Open configuration repository: " << Quoted(ConfigsPath));
+    LOG_DEBUG(Logger, "Open configuration repository: " << Quoted(ConfigsPath));
 }
 
 std::string TConfigRepository::GetAddress() const

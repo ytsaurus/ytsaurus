@@ -261,7 +261,7 @@ bool TContext::TryParseUser()
 
     auto authResult = Api_->GetHttpAuthenticator()->Authenticate(Request_);
     if (!authResult.IsOK()) {
-        LOG_DEBUG(authResult, "Authentication error");
+        YT_LOG_DEBUG(authResult, "Authentication error");
 
         if (authResult.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
             Response_->SetStatus(EStatusCode::Unauthorized);
@@ -660,7 +660,7 @@ void TContext::SetContentDispositionAndMimeType()
 void TContext::LogRequest()
 {
     DriverRequest_.Id = Request_->GetRequestId();
-    LOG_INFO("Gathered request parameters (RequestId: %v, Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
+    YT_LOG_INFO("Gathered request parameters (RequestId: %v, Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
         Request_->GetRequestId(),
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
@@ -863,7 +863,7 @@ void TContext::DispatchNotFound(const TString& message)
 
 void TContext::ReplyError(const TError& error)
 {
-    LOG_DEBUG(error, "Request finished with error");
+    YT_LOG_DEBUG(error, "Request finished with error");
     FillYTErrorHeaders(Response_, error);
     DispatchJson([&] (auto consumer) {
         BuildYsonFluently(consumer)

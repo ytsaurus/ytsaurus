@@ -36,7 +36,7 @@ bool TDiskLocation::IsEnabled() const
 
 void TDiskLocation::ValidateLockFile() const
 {
-    LOG_INFO("Checking lock file");
+    YT_LOG_INFO("Checking lock file");
 
     auto lockFilePath = NFS::CombinePaths(Config_->Path, DisabledLockFileName);
     if (!NFS::Exists(lockFilePath)) {
@@ -63,7 +63,7 @@ void TDiskLocation::ValidateLockFile() const
 
 void TDiskLocation::ValidateMinimumSpace() const
 {
-    LOG_INFO("Checking minimum space");
+    YT_LOG_INFO("Checking minimum space");
 
     if (Config_->MinDiskSpace) {
         i64 minSpace = *Config_->MinDiskSpace;

@@ -511,7 +511,7 @@ void TServerBase::RegisterService(IServicePtr service)
         DoRegisterService(service);
     }
 
-    LOG_INFO("RPC service registered (ServiceName: %v, RealmId: %v)",
+    YT_LOG_INFO("RPC service registered (ServiceName: %v, RealmId: %v)",
         serviceId.ServiceName,
         serviceId.RealmId);
 }
@@ -532,7 +532,7 @@ bool TServerBase::UnregisterService(IServicePtr service)
         DoUnregisterService(service);
     }
 
-    LOG_INFO("RPC service unregistered (ServiceName: %v, RealmId: %v)",
+    YT_LOG_INFO("RPC service unregistered (ServiceName: %v, RealmId: %v)",
         serviceId.ServiceName,
         serviceId.RealmId);
     return true;
@@ -569,7 +569,7 @@ void TServerBase::Start()
 
     DoStart();
 
-    LOG_INFO("RPC server started");
+    YT_LOG_INFO("RPC server started");
 }
 
 TFuture<void> TServerBase::Stop(bool graceful)
@@ -578,7 +578,7 @@ TFuture<void> TServerBase::Stop(bool graceful)
         return VoidFuture;
     }
 
-    LOG_INFO("Stopping RPC server (Graceful: %v)",
+    YT_LOG_INFO("Stopping RPC server (Graceful: %v)",
         graceful);
 
     return DoStop(graceful);
@@ -614,7 +614,7 @@ TFuture<void> TServerBase::DoStop(bool graceful)
     }
 
     return Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] () {
-        LOG_INFO("RPC server stopped");
+        YT_LOG_INFO("RPC server stopped");
     }));
 }
 

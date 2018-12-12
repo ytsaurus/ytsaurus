@@ -63,7 +63,7 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
 {
     const Poco::URI uri(request.getURI());
 
-    CH_LOG_INFO(Log, "HTTP Request. "
+    LOG_INFO(Log, "HTTP Request. "
         << "Method: " << request.getMethod()
         << ", URI: " << uri.toString()
         << ", Address: " << request.clientAddress().toString()

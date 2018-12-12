@@ -281,7 +281,7 @@ private:
             return uncompressedBlock;
         }
 
-        LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
+        YT_LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
         Y_UNREACHABLE();
     }
 

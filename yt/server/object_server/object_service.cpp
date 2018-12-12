@@ -495,7 +495,7 @@ private:
             }
 
             if (NProfiling::GetCpuInstant() > batchDeadlineTime) {
-                LOG_DEBUG("Yielding automaton thread");
+                YT_LOG_DEBUG("Yielding automaton thread");
                 Reschedule();
                 break;
             }
@@ -581,7 +581,7 @@ private:
             auto rootService = ObjectManager_->GetRootService();
             ExecuteVerb(rootService, context);
         } catch (const TLeaderFallbackException&) {
-            LOG_DEBUG("Performing leader fallback (RequestId: %v)",
+            YT_LOG_DEBUG("Performing leader fallback (RequestId: %v)",
                 RequestId_);
             context->ReplyFrom(ObjectManager_->ForwardToLeader(
                 Owner_->Bootstrap_->GetCellTag(),
@@ -712,7 +712,7 @@ private:
 
     void OnBackoffAlarm()
     {
-        LOG_DEBUG("Backoff alarm triggered (RequestId: %v)", RequestId_);
+        YT_LOG_DEBUG("Backoff alarm triggered (RequestId: %v)", RequestId_);
         BackoffAlarmTriggered_ = true;
         CheckBackoffAlarmTriggered();
     }
@@ -735,7 +735,7 @@ private:
                 if (SubresponseCount_ > 0 &&
                     SubresponseCount_ == CurrentSubrequestIndex_)
                 {
-                    LOG_DEBUG("Backing off (RequestId: %v, SubresponseCount: %v, SubrequestCount: %v)",
+                    YT_LOG_DEBUG("Backing off (RequestId: %v, SubresponseCount: %v, SubrequestCount: %v)",
                         RequestId_,
                         static_cast<int>(SubresponseCount_),
                         SubrequestCount_);

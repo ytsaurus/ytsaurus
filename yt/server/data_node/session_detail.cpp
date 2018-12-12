@@ -84,13 +84,13 @@ TFuture<void> TSessionBase::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_DEBUG("Starting session");
+    YT_LOG_DEBUG("Starting session");
 
     return DoStart().Apply(BIND([=, this_ = MakeStrong(this)] {
         YCHECK(!Active_);
         Active_ = true;
 
-        LOG_DEBUG("Session started");
+        YT_LOG_DEBUG("Session started");
     }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
@@ -112,7 +112,7 @@ void TSessionBase::Cancel(const TError& error)
         return;
     }
 
-    LOG_DEBUG(error, "Canceling session");
+    YT_LOG_DEBUG(error, "Canceling session");
 
     TLeaseManager::CloseLease(Lease_);
     Active_ = false;
@@ -128,7 +128,7 @@ TFuture<IChunkPtr> TSessionBase::Finish(const TRefCountedChunkMetaPtr& chunkMeta
     try {
         ValidateActive();
 
-        LOG_INFO("Finishing session");
+        YT_LOG_INFO("Finishing session");
 
         TLeaseManager::CloseLease(Lease_);
         Active_ = false;

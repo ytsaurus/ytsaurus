@@ -27,7 +27,7 @@ TNamedPipe::TNamedPipe(const TString& path)
 TNamedPipe::~TNamedPipe()
 {
     if (unlink(Path_.c_str()) == -1) {
-        LOG_INFO(TError::FromSystem(), "Failed to unlink pipe %v", Path_);
+        YT_LOG_INFO(TError::FromSystem(), "Failed to unlink pipe %v", Path_);
     }
 }
 
@@ -35,7 +35,7 @@ TNamedPipePtr TNamedPipe::Create(const TString& path)
 {
     auto pipe = New<TNamedPipe>(path);
     pipe->Open();
-    LOG_DEBUG("Named pipe created (Path: %v)", path);
+    YT_LOG_DEBUG("Named pipe created (Path: %v)", path);
     return pipe;
 }
 

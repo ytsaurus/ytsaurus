@@ -100,7 +100,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        LOG_INFO("Starting min needed job resources update");
+        YT_LOG_INFO("Starting min needed job resources update");
 
         for (const auto& pair : OperationIdToOperationState_) {
             const auto& state = pair.second;
@@ -109,7 +109,7 @@ public:
             }
         }
 
-        LOG_INFO("Min needed job resources successfully updated");
+        YT_LOG_INFO("Min needed job resources successfully updated");
     }
 
     void OnFairShareLogging()
@@ -127,7 +127,7 @@ public:
 
         // Can happen if all trees are removed.
         if (!snapshot) {
-            LOG_INFO("Node does not belong to any fair-share tree, scheduling skipped (Address: %v)",
+            YT_LOG_INFO("Node does not belong to any fair-share tree, scheduling skipped (Address: %v)",
                 schedulingContext->GetNodeDescriptor().Address);
             return VoidFuture;
         }
@@ -180,7 +180,7 @@ public:
 
         const auto& state = GetOperationState(operationId);
         if (!state->TreeIdToPoolNameMap().contains(treeId)) {
-            LOG_INFO("Operation to be removed from a tentative tree was not found in that tree (OperationId: %v, TreeId: %v)",
+            YT_LOG_INFO("Operation to be removed from a tentative tree was not found in that tree (OperationId: %v, TreeId: %v)",
                 operationId,
                 treeId);
             return;
@@ -190,7 +190,7 @@ public:
 
         state->EraseTree(treeId);
 
-        LOG_INFO("Operation removed from a tentative tree (OperationId: %v, TreeId: %v)", operationId, treeId);
+        YT_LOG_INFO("Operation removed from a tentative tree (OperationId: %v, TreeId: %v)", operationId, treeId);
     }
 
     void DoUnregisterOperationFromTree(const TFairShareStrategyOperationStatePtr& operationState, const TString& treeId)
@@ -214,13 +214,13 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        LOG_INFO("Updating pool trees");
+        YT_LOG_INFO("Updating pool trees");
 
         if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
             auto error = TError("Pool trees node has invalid type")
                 << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
                 << TErrorAttribute("actual_type", poolTreesNode->GetType());
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             return;
         }
@@ -306,7 +306,7 @@ public:
                             .Item(treeId).Do(BIND(&TFairShareTree::BuildStaticPoolsInformation, tree));
                     });
             }
-            LOG_INFO("Pool trees updated");
+            YT_LOG_INFO("Pool trees updated");
         }
     }
 
@@ -627,7 +627,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        LOG_INFO("Starting fair share update");
+        YT_LOG_INFO("Starting fair share update");
 
         std::vector<TError> errors;
 
@@ -669,7 +669,7 @@ public:
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
         }
 
-        LOG_INFO("Fair share successfully updated");
+        YT_LOG_INFO("Fair share successfully updated");
     }
 
     virtual void OnFairShareEssentialLoggingAt(TInstant now) override
@@ -702,7 +702,7 @@ public:
         YCHECK(successfullyUpdatedJobs->empty());
         YCHECK(jobsToAbort->empty());
 
-        LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
+        YT_LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
             jobUpdates.size());
 
         THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
@@ -1059,7 +1059,7 @@ private:
                 auto error = TError("Error parsing configuration of tree %Qv", treeId)
                     << ex;
                 errors->push_back(error);
-                LOG_WARNING(error);
+                YT_LOG_WARNING(error);
                 continue;
             }
 

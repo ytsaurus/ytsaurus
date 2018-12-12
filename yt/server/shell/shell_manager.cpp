@@ -179,7 +179,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Shell manager is terminating");
+        YT_LOG_INFO("Shell manager is terminating");
         Terminated_ = true;
         for (auto& shell : IdToShell_) {
             shell.second->Terminate(error);
@@ -191,7 +191,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Shell manager is shutting down");
+        YT_LOG_INFO("Shell manager is shutting down");
         std::vector<TFuture<void>> futures;
         for (auto& shell : IdToShell_) {
             futures.push_back(shell.second->Shutdown(error));
@@ -218,7 +218,7 @@ private:
     {
         YCHECK(IdToShell_.insert(std::make_pair(shell->GetId(), shell)).second);
 
-        LOG_DEBUG("Shell registered (ShellId: %v)",
+        YT_LOG_DEBUG("Shell registered (ShellId: %v)",
             shell->GetId());
     }
 

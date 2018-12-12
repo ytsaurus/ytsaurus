@@ -1327,7 +1327,7 @@ protected:
             delimitedBuilder->AppendString(RequestInfo_);
         }
 
-        LOG_DEBUG(builder.Flush());
+        YT_LOG_DEBUG(builder.Flush());
 
         Timer_.emplace();
     }
@@ -1355,7 +1355,7 @@ protected:
 
         delimitedBuilder->AppendFormat("Error: %v", Error_);
 
-        LOG_DEBUG(builder.Flush());
+        YT_LOG_DEBUG(builder.Flush());
     }
 };
 

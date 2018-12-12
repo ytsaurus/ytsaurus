@@ -154,7 +154,7 @@ void TDirectory::DoCreateIfNotExists()
 
 TDirectoryListing TDirectory::DoListNodes()
 {
-    LOG_INFO("Listing nodes in coordination directory (Path: %v)", Path);
+    YT_LOG_INFO("Listing nodes in coordination directory (Path: %v)", Path);
 
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Follower;
@@ -183,7 +183,7 @@ TDirectoryListing TDirectory::DoListNodes()
         const auto childName = GetAttribute<TString>(childNode, "key");
         auto* attributes = childNode->MutableAttributes();
         attributes->Remove("revision");
-        LOG_DEBUG("Node listed (Path: %v, Name: %v, Attributes: %v)", Path, childName, NYTree::ConvertToYsonString(attributes, NYson::EYsonFormat::Text));
+        YT_LOG_DEBUG("Node listed (Path: %v, Name: %v, Attributes: %v)", Path, childName, NYTree::ConvertToYsonString(attributes, NYson::EYsonFormat::Text));
         listing.Children.push_back(TChildNode{
             .Name = childName,
             .Attributes = ConvertTo<THashMap<TString, TString>>(*attributes)
@@ -197,7 +197,7 @@ TDirectoryListing TDirectory::DoListNodes()
 
 /* TNode TDirectory::DoGetNode(const TString& name)
 {
-    LOG_INFO("Reading child node %Qlv in coordination directory %Qlv", name, Path);
+    YT_LOG_INFO("Reading child node %Qlv in coordination directory %Qlv", name, Path);
 
     TGetNodeOptions options;
     options.SuppressAccessTracking = true;
@@ -213,7 +213,7 @@ TDirectoryListing TDirectory::DoListNodes()
     const auto revision = GetAttribute<i64>(node, "revision");
     const auto content = node->AsString()->GetValue();
 
-    LOG_DEBUG("Get node %Qv, content = %Qv, revision = %v", path, content, revision);
+    YT_LOG_DEBUG("Get node %Qv, content = %Qv, revision = %v", path, content, revision);
 
     return TNode{
         .Path = path,
@@ -223,7 +223,7 @@ TDirectoryListing TDirectory::DoListNodes()
 
 bool TDirectory::DoNodeExists(const TString& name)
 {
-    LOG_INFO("Checking is node exists in coordination directory %Qv", Path);
+    YT_LOG_INFO("Checking is node exists in coordination directory %Qv", Path);
 
     TNodeExistsOptions options;
     options.ReadFrom = EMasterChannelKind::Follower;

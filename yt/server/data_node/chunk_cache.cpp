@@ -275,7 +275,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Initializing chunk cache");
+        YT_LOG_INFO("Initializing chunk cache");
 
         std::vector<TFuture<std::vector<TChunkDescriptor>>> asyncDescriptors;
         asyncDescriptors.reserve(Config_->CacheLocations.size());
@@ -312,7 +312,7 @@ public:
 
         ValidateLocationMedia();
 
-        LOG_INFO("Chunk cache initialized, %v chunks total",
+        YT_LOG_INFO("Chunk cache initialized, %v chunks total",
             GetSize());
     }
 
@@ -383,7 +383,7 @@ public:
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
         if (cookie.IsActive()) {
-            LOG_INFO("Loading artifact into cache");
+            YT_LOG_INFO("Loading artifact into cache");
 
             auto canPrepareSingleChunk = CanPrepareSingleChunk(key);
             auto chunkId = GetOrCreateArtifactId(key, canPrepareSingleChunk);
@@ -392,7 +392,7 @@ public:
             if (!location) {
                 auto error = TError("Cannot find a suitable location for artifact chunk");
                 cookie.Cancel(error);
-                LOG_ERROR(error);
+                YT_LOG_ERROR(error);
                 return cookieValue.As<IChunkPtr>();
             }
 
@@ -427,7 +427,7 @@ public:
                 trafficMeter));
 
         } else {
-            LOG_INFO("Artifact is already cached");
+            YT_LOG_INFO("Artifact is already cached");
         }
         return cookieValue.As<IChunkPtr>();
     }
@@ -499,7 +499,7 @@ private:
         const auto& key = *optionalKey;
         auto cookie = BeginInsert(key);
         if (!cookie.IsActive()) {
-            LOG_WARNING("Removing duplicate cached chunk (ChunkId: %v)",
+            YT_LOG_WARNING("Removing duplicate cached chunk (ChunkId: %v)",
                 chunkId);
             location->RemoveChunkFilesPermanently(chunkId);
             return;
@@ -507,7 +507,7 @@ private:
 
         auto chunk = CreateChunk(location, key, descriptor);
         cookie.EndInsert(chunk);
-        LOG_DEBUG("Cached chunk registered (ChunkId: %v, DiskSpace: %v)",
+        YT_LOG_DEBUG("Cached chunk registered (ChunkId: %v, DiskSpace: %v)",
             chunkId,
             descriptor.DiskSpace);
     }
@@ -649,12 +649,12 @@ private:
 
             auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
 
-            LOG_DEBUG("Opening chunk writer");
+            YT_LOG_DEBUG("Opening chunk writer");
 
             WaitFor(checkedChunkWriter->Open())
                 .ThrowOnError();
 
-            LOG_DEBUG("Getting chunk meta");
+            YT_LOG_DEBUG("Getting chunk meta");
 
             auto chunkMeta = WaitFor(chunkReader->GetMeta(
                 blockReadOptions))
@@ -685,13 +685,13 @@ private:
                 blockReadOptions);
 
             for (int index = 0; index < blockCount; ++index) {
-                LOG_DEBUG("Downloading block (BlockIndex: %v)",
+                YT_LOG_DEBUG("Downloading block (BlockIndex: %v)",
                     index);
 
                 auto block = WaitFor(blockFetcher->FetchBlock(index))
                     .ValueOrThrow();
 
-                LOG_DEBUG("Writing block (BlockIndex: %v)",
+                YT_LOG_DEBUG("Writing block (BlockIndex: %v)",
                     index);
 
                 if (!checkedChunkWriter->WriteBlock(block)) {
@@ -703,12 +703,12 @@ private:
                     .ThrowOnError();
             }
 
-            LOG_DEBUG("Closing chunk");
+            YT_LOG_DEBUG("Closing chunk");
 
             WaitFor(checkedChunkWriter->Close(chunkMeta))
                 .ThrowOnError();
 
-            LOG_INFO("Chunk is downloaded into cache");
+            YT_LOG_INFO("Chunk is downloaded into cache");
 
             TChunkDescriptor descriptor(chunkId);
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
@@ -722,7 +722,7 @@ private:
                 chunkId)
                 << ex;
             cookie.Cancel(error);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
         }
     }
 
@@ -779,7 +779,7 @@ private:
                 << TErrorAttribute("key", key)
                 << ex;
             cookie.Cancel(error);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
         }
     }
 
@@ -894,7 +894,7 @@ private:
         const TChunkId& chunkId,
         std::function<void(IOutputStream*)> producer)
     {
-        LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
+        YT_LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
             chunkId,
             location->GetId());
 
@@ -968,7 +968,7 @@ private:
 
         auto readMeta = [&] () -> std::optional<TArtifactKey> {
             if (metaBlob.Size() < sizeof(TArtifactMetaHeader)) {
-                LOG_WARNING("Artifact meta file %v is too short: at least %v bytes expected",
+                YT_LOG_WARNING("Artifact meta file %v is too short: at least %v bytes expected",
                     metaFileName,
                     sizeof(TArtifactMetaHeader));
                 return std::nullopt;
@@ -976,7 +976,7 @@ private:
 
             const auto* header = reinterpret_cast<const TArtifactMetaHeader*>(metaBlob.Begin());
             if (header->Signature != header->ExpectedSignature) {
-                LOG_WARNING("Bad signature in artifact meta file %v: expected %X, actual %X",
+                YT_LOG_WARNING("Bad signature in artifact meta file %v: expected %X, actual %X",
                     metaFileName,
                     header->ExpectedSignature,
                     header->Signature);
@@ -984,7 +984,7 @@ private:
             }
 
             if (header->Version != header->ExpectedVersion) {
-                LOG_WARNING("Incompatible version in artifact meta file %v: expected %v, actual %v",
+                YT_LOG_WARNING("Incompatible version in artifact meta file %v: expected %v, actual %v",
                     metaFileName,
                     header->ExpectedVersion,
                     header->Version);
@@ -994,7 +994,7 @@ private:
             metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
             TArtifactKey key;
             if (!TryDeserializeProto(&key, metaBlob)) {
-                LOG_WARNING("Failed to parse artifact meta file %v",
+                YT_LOG_WARNING("Failed to parse artifact meta file %v",
                     metaFileName);
                 return std::nullopt;
             }

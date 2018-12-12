@@ -47,7 +47,7 @@ TCellManager::TCellManager(
         PeerChannels_[id] = CreatePeerChannel(id);
     }
 
-    LOG_INFO("Cell initialized (SelfId: %v, Peers: %v)",
+    YT_LOG_INFO("Cell initialized (SelfId: %v, Peers: %v)",
         SelfId_,
         Config_->Peers);
 }
@@ -164,7 +164,7 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
         const auto& newPeer = newPeers[id];
         const auto& oldPeer = oldPeers[id];
         if (newPeer.Address != oldPeer.Address || newPeer.Voting != oldPeer.Voting) {
-            LOG_INFO("Peer reconfigured (PeerId: %v, Address: %v -> %v, Voting: %v -> %v)",
+            YT_LOG_INFO("Peer reconfigured (PeerId: %v, Address: %v -> %v, Voting: %v -> %v)",
                 id,
                 oldPeer.Address,
                 newPeer.Address,

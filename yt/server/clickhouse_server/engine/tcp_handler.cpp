@@ -34,7 +34,7 @@ public:
 Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
     const Poco::Net::StreamSocket& socket)
 {
-    CH_LOG_TRACE(Log, "TCP Request. "
+    LOG_TRACE(Log, "TCP Request. "
         << "Address: " << socket.peerAddress().toString());
 
     return new TCPHandler(Server, socket);

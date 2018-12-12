@@ -54,7 +54,7 @@ void TChunkStore::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Initializing chunk store");
+    YT_LOG_INFO("Initializing chunk store");
 
     std::vector<TFuture<std::vector<TChunkDescriptor>>> asyncDescriptors;
 
@@ -89,7 +89,7 @@ void TChunkStore::Initialize()
         location->Start();
     }
 
-    LOG_INFO("Chunk store initialized, %v chunks total",
+    YT_LOG_INFO("Chunk store initialized, %v chunks total",
         GetChunkCount());
 }
 
@@ -105,7 +105,7 @@ void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
 
     auto oldChunk = FindExistingChunk(chunk).Chunk;
 
-    LOG_FATAL_IF(
+    YT_LOG_FATAL_IF(
         oldChunk,
         "Duplicate chunk: %v vs %v",
         chunk->GetLocation()->GetChunkPath(chunk->GetId()),
@@ -238,7 +238,7 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
         auto currentPath = chunk->GetLocation()->GetChunkPath(chunk->GetId());
 
         // Check that replicas point to the different inodes.
-        LOG_FATAL_IF(
+        YT_LOG_FATAL_IF(
             NFS::AreInodesIdentical(oldPath, currentPath),
             "Duplicate chunks point to the same inode: %v vs %v",
             currentPath,
@@ -251,7 +251,7 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
                 // since different replicas may have different chunk meta formats.
 
                 // Remove duplicate replica.
-                LOG_WARNING("Removing duplicate blob chunk: %v vs %v",
+                YT_LOG_WARNING("Removing duplicate blob chunk: %v vs %v",
                     currentPath,
                     oldPath);
                 chunk->SyncRemove(true);
@@ -272,7 +272,7 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
                 }
 
                 // Remove shorter replica.
-                LOG_WARNING("Removing shorter journal chunk: %v (%v rows) vs %v (%v rows)",
+                YT_LOG_WARNING("Removing shorter journal chunk: %v (%v rows) vs %v (%v rows)",
                     shorterChunk->GetFileName(),
                     shorterRowCount,
                     longerChunk->GetFileName(),
@@ -313,14 +313,14 @@ void TChunkStore::DoRegisterChunk(const IChunkPtr& chunk)
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, DiskSpace: %v)",
+            YT_LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, DiskSpace: %v)",
                 chunk->GetId(),
                 location->GetId(),
                 diskSpace);
             break;
 
         case EObjectType::JournalChunk:
-            LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, Version: %v, Sealed: %v, Active: %v)",
+            YT_LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, Version: %v, Sealed: %v, Active: %v)",
                 chunk->GetId(),
                 location->GetId(),
                 chunk->GetVersion(),
@@ -357,7 +357,7 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
     switch (chunk->GetType()) {
         case EObjectType::JournalChunk: {
             auto journalChunk = chunk->AsJournalChunk();
-            LOG_DEBUG("Journal chunk updated (ChunkId: %v, Version: %v, Sealed: %v, Active: %v)",
+            YT_LOG_DEBUG("Journal chunk updated (ChunkId: %v, Version: %v, Sealed: %v, Active: %v)",
                 journalChunk->GetId(),
                 journalChunk->GetVersion(),
                 journalChunk->IsSealed(),
@@ -394,7 +394,7 @@ void TChunkStore::UnregisterChunk(IChunkPtr chunk)
     location->UpdateChunkCount(-1);
     location->UpdateUsedSpace(-entry.DiskSpace);
 
-    LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v)",
+    YT_LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v)",
         chunk->GetId(), location->GetId());
 
     ChunkRemoved_.Fire(chunk);
@@ -512,13 +512,13 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
             }
         } while (std::find(candidates.begin(), candidates.end(), currentIndex) == candidates.end());
         result = Locations_[currentIndex];
-        LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v)",
             options.PlacementId,
             sessionId,
             result->GetId());
     } else {
         result = Locations_[candidates[RandomNumber(candidates.size())]];
-        LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
             sessionId,
             result->GetId());
     }
@@ -587,7 +587,7 @@ TChunkStore::TPlacementInfo* TChunkStore::GetOrCreatePlacementInfo(const TPlacem
         auto pair = PlacementIdToInfo_.emplace(placementId, placementInfo);
         YCHECK(pair.second);
         it = pair.first;
-        LOG_DEBUG("Placement info registered (PlacementId: %v)",
+        YT_LOG_DEBUG("Placement info registered (PlacementId: %v)",
             placementId);
     } else {
         DeadlineToPlacementId_.erase(it->second.DeadlineIterator);
@@ -606,7 +606,7 @@ void TChunkStore::ExpirePlacementInfos()
             break;
         }
         const auto& placementId = it->second;
-        LOG_DEBUG("Placement info unregistered (PlacementId: %v)",
+        YT_LOG_DEBUG("Placement info unregistered (PlacementId: %v)",
             placementId);
         YCHECK(PlacementIdToInfo_.erase(placementId) == 1);
         DeadlineToPlacementId_.erase(it);

@@ -337,13 +337,13 @@ private:
 
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
-                    LOG_DEBUG("Attempt to cancel an unknown request, ignored (RequestId: %v)",
+                    YT_LOG_DEBUG("Attempt to cancel an unknown request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }
 
                 if (requestControl != it->second) {
-                    LOG_DEBUG("Attempt to cancel a resent request, ignored (RequestId: %v)",
+                    YT_LOG_DEBUG("Attempt to cancel a resent request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -402,7 +402,7 @@ private:
                 if (it != ActiveRequestMap_.end() && requestControl == it->second) {
                     ActiveRequestMap_.erase(it);
                 } else {
-                    LOG_DEBUG("Timeout occurred for an unknown or resent request (RequestId: %v)",
+                    YT_LOG_DEBUG("Timeout occurred for an unknown or resent request (RequestId: %v)",
                         requestId);
                 }
 
@@ -425,7 +425,7 @@ private:
 
             NProto::TResponseHeader header;
             if (!ParseResponseHeader(message, &header)) {
-                LOG_ERROR("Error parsing response header");
+                YT_LOG_ERROR("Error parsing response header");
                 return;
             }
 
@@ -437,7 +437,7 @@ private:
                 auto guard = Guard(SpinLock_);
 
                 if (Terminated_) {
-                    LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
+                    YT_LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -445,7 +445,7 @@ private:
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
                     // This may happen when the other party responds to an already timed-out request.
-                    LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %v)",
+                    YT_LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -469,7 +469,7 @@ private:
                         std::move(message));
                 } else {
                     if (error.GetCode() == EErrorCode::PoisonPill) {
-                        LOG_FATAL(error, "Poison pill received");
+                        YT_LOG_FATAL(error, "Poison pill received");
                     }
                     NotifyError(
                         requestControl,
@@ -635,7 +635,7 @@ private:
 
             requestControl->ProfileRequest(requestMessage);
 
-            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
+            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
                 "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, AttachmentSize: %v)",
                 requestId,
                 requestControl->GetService(),
@@ -664,7 +664,7 @@ private:
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
                     // This one may easily get the actual response before the acknowledgment.
-                    LOG_DEBUG(error, "Acknowledgment received for an unknown request, ignored (RequestId: %v)",
+                    YT_LOG_DEBUG(error, "Acknowledgment received for an unknown request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -711,7 +711,7 @@ private:
                     << TErrorAttribute("timeout", *requestControl->GetTimeout());
             }
 
-            LOG_DEBUG(detailedError, "%v (RequestId: %v)",
+            YT_LOG_DEBUG(detailedError, "%v (RequestId: %v)",
                 reason,
                 requestControl->GetRequestId());
 
@@ -722,7 +722,7 @@ private:
             const TRequestId& requestId,
             const IClientResponseHandlerPtr& responseHandler)
         {
-            LOG_DEBUG("Request acknowledged (RequestId: %v)", requestId);
+            YT_LOG_DEBUG("Request acknowledged (RequestId: %v)", requestId);
 
             responseHandler->HandleAcknowledgement();
         }
@@ -733,7 +733,7 @@ private:
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message)
         {
-            LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
+            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),

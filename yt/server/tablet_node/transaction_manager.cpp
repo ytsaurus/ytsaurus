@@ -253,7 +253,7 @@ public:
             CreateLease(transaction);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %llx, StartTime: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %llx, StartTime: %v, "
             "Timeout: %v, Transient: %v)",
             transactionId,
             startTimestamp,
@@ -273,7 +273,7 @@ public:
             }
             auto transactionHolder = TransientTransactionMap_.Release(transactionId);
             PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction became persistent (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction became persistent (TransactionId: %v)",
                 transactionId);
             return transaction;
         }
@@ -297,7 +297,7 @@ public:
         auto transactionId = transaction->GetId();
         TransientTransactionMap_.Remove(transactionId);
 
-        LOG_DEBUG("Transaction dropped (TransactionId: %v)",
+        YT_LOG_DEBUG("Transaction dropped (TransactionId: %v)",
             transactionId);
     }
 
@@ -365,7 +365,7 @@ public:
             TransactionPrepared_.Fire(transaction, persistent);
             RunPrepareTransactionActions(transaction, persistent);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
                 "PrepareTimestamp: %llx)",
                 transactionId,
                 persistent,
@@ -388,7 +388,7 @@ public:
         if (transaction->IsActive()) {
             transaction->SetState(ETransactionState::TransientAbortPrepared);
 
-            LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
                 transactionId);
         }
     }
@@ -401,7 +401,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -422,7 +422,7 @@ public:
         TransactionCommitted_.Fire(transaction);
         RunCommitTransactionActions(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
             transactionId,
             commitTimestamp);
 
@@ -434,7 +434,7 @@ public:
             AdjustHeapBack(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
             UpdateMinCommitTimestamp(heap);
         } else {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction removed without serialization (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction removed without serialization (TransactionId: %v)",
                 transactionId);
             PersistentTransactionMap_.Remove(transactionId);
         }
@@ -460,7 +460,7 @@ public:
         TransactionAborted_.Fire(transaction);
         RunAbortTransactionActions(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
             force);
 
@@ -593,7 +593,7 @@ private:
         const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
+                YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
                     id);
             }
         }));
@@ -610,13 +610,13 @@ private:
             return;
         }
 
-        LOG_DEBUG("Transaction timed out (TransactionId: %v)",
+        YT_LOG_DEBUG("Transaction timed out (TransactionId: %v)",
             id);
 
         const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Error aborting timed out transaction (TransactionId: %v)",
+                YT_LOG_DEBUG(error, "Error aborting timed out transaction (TransactionId: %v)",
                     id);
             }
         }));
@@ -843,7 +843,7 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
                 data.Type);
         }
@@ -855,7 +855,7 @@ private:
     {
         auto barrierTimestamp = request->timestamp();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %llx)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %llx)",
             barrierTimestamp);
 
         for (auto& pair : SerializingTransactionHeaps_) {
@@ -871,7 +871,7 @@ private:
                 UpdateLastSerializedCommitTimestamp(transaction);
 
                 const auto& transactionId = transaction->GetId();
-                LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
                     transaction->GetId(),
                     commitTimestamp);
 
@@ -929,7 +929,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %llx, MinPrepareTimestamp: %llx)",
+        YT_LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %llx, MinPrepareTimestamp: %llx)",
             TransientBarrierTimestamp_,
             GetMinPrepareTimestamp());
 
@@ -947,7 +947,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Committing transaction barrier (Timestamp: %llx -> %llx)",
+        YT_LOG_DEBUG("Committing transaction barrier (Timestamp: %llx -> %llx)",
             TransientBarrierTimestamp_,
             minPrepareTimestamp);
 

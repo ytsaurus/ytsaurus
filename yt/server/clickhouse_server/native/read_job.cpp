@@ -93,7 +93,7 @@ TTableReaderList CreateJobTableReaders(
     auto readJobSpec = LoadReadJobSpec(jobSpec);
 
     auto dataSourceType = readJobSpec.GetCommonDataSourceType();
-    LOG_DEBUG("Creating table readers (MaxStreamCount: %v, DataSourceType: %v, Columns: %v)",
+    YT_LOG_DEBUG("Creating table readers (MaxStreamCount: %v, DataSourceType: %v, Columns: %v)",
         maxStreamCount,
         dataSourceType,
         columns);
@@ -131,7 +131,7 @@ TTableReaderList CreateJobTableReaders(
 
     TTableList sourceTables = readJobSpec.GetTables();
 
-    LOG_DEBUG("Number of job source tables: %v", sourceTables.size());
+    YT_LOG_DEBUG("Number of job source tables: %v", sourceTables.size());
 
     TTableList readerTables;
     readerTables.reserve(sourceTables.size());
@@ -139,13 +139,13 @@ TTableReaderList CreateJobTableReaders(
         readerTables.push_back(FilterColumns(table, dataColumns));
     }
 
-    LOG_DEBUG("Narrowing schema to %v physical columns", readerSchema.GetColumnCount());
+    YT_LOG_DEBUG("Narrowing schema to %v physical columns", readerSchema.GetColumnCount());
 
     // TODO
     auto nativeReaderConfig = New<TTableReaderConfig>();
     auto nativeReaderOptions = CreateNativeReaderOptions(options, systemColumns);
 
-    LOG_INFO("Creating table readers");
+    YT_LOG_INFO("Creating table readers");
 
     std::vector<NTableClient::ISchemafulReaderPtr> chunkReaders;
     for (const auto& dataSliceDescriptors: dataSlices) {

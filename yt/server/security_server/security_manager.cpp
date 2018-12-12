@@ -591,7 +591,7 @@ public:
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
         auto* user = DoCreateUser(id, name);
         if (user) {
-            LOG_DEBUG("User created (User: %v)", name);
+            YT_LOG_DEBUG("User created (User: %v)", name);
             LogStructuredEventFluently(Logger, ELogLevel::Info)
                 .Item("event").Value(EAccessControlEvent::UserCreated)
                 .Item("name").Value(user->GetName());
@@ -678,7 +678,7 @@ public:
         auto id = objectManager->GenerateId(EObjectType::Group, hintId);
         auto* group = DoCreateGroup(id, name);
         if (group) {
-            LOG_DEBUG("Group created (Group: %v)", name);
+            YT_LOG_DEBUG("Group created (Group: %v)", name);
             LogStructuredEventFluently(Logger, ELogLevel::Info)
                 .Item("event").Value(EAccessControlEvent::GroupCreated)
                 .Item("name").Value(name);
@@ -776,7 +776,7 @@ public:
 
         DoAddMember(group, member);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Group member added (Group: %v, Member: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member added (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
 
@@ -802,7 +802,7 @@ public:
 
         DoRemoveMember(group, member);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Group member removed (Group: %v, Member: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member removed (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
 
@@ -1039,7 +1039,7 @@ public:
                                 result.Subject = subject;
                                 // At least one denying ACE is found, deny the request.
                                 if (result.Action == ESecurityAction::Deny) {
-                                    LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
+                                    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
                                         "(CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                                         object->GetId(),
                                         permission,
@@ -1065,7 +1065,7 @@ public:
 
         // No allowing ACE, deny the request.
         if (result.Action == ESecurityAction::Undefined) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
                 "(CheckObjectId: %v, Permission: %v, User: %v)",
                 object->GetId(),
                 permission,
@@ -1074,7 +1074,7 @@ public:
             return result;
         } else {
             Y_ASSERT(result.Action == ESecurityAction::Allow);
-            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
+            YT_LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
                 "(CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                 object->GetId(),
                 permission,
@@ -1107,7 +1107,7 @@ public:
                         result.Subject = subject;
                         // At least one denying ACE is found, deny the request.
                         if (result.Action == ESecurityAction::Deny) {
-                            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
+                            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
                                 "(Permission: %v, User: %v, AclSubject: %v)",
                                 permission,
                                 user->GetName(),
@@ -1121,7 +1121,7 @@ public:
 
         // No allowing ACE, deny the request.
         if (result.Action == ESecurityAction::Undefined) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
                 "(Permission: %v, User: %v)",
                 permission,
                 user->GetName());
@@ -1130,7 +1130,7 @@ public:
             return result;
         } else {
             Y_ASSERT(result.Action == ESecurityAction::Allow);
-            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
+            YT_LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
                 "(Permission: %v, User: %v, AclSubject: %v)",
                 permission,
                 user->GetName(),
@@ -1298,9 +1298,9 @@ public:
         if (user->GetBanned() != banned) {
             user->SetBanned(banned);
             if (banned) {
-                LOG_INFO_UNLESS(IsRecovery(), "User is banned (User: %v)", user->GetName());
+                YT_LOG_INFO_UNLESS(IsRecovery(), "User is banned (User: %v)", user->GetName());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "User is no longer banned (User: %v)", user->GetName());
+                YT_LOG_INFO_UNLESS(IsRecovery(), "User is no longer banned (User: %v)", user->GetName());
             }
         }
     }
@@ -1927,26 +1927,26 @@ private:
             const auto& expectedCommittedUsage = stat.NodeCommittedUsage;
             if (ValidateAccountResourceUsage_) {
                 if (account->LocalStatistics().ResourceUsage != expectedUsage) {
-                    LOG_ERROR("XXX %v account usage mismatch",
+                    YT_LOG_ERROR("XXX %v account usage mismatch",
                               account->GetName());
                     log = true;
                 }
                 if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
-                    LOG_ERROR("XXX %v account committed usage mismatch",
+                    YT_LOG_ERROR("XXX %v account committed usage mismatch",
                               account->GetName());
                     log = true;
                 }
                 if (log) {
-                    LOG_ERROR("XXX %v account usage %v",
+                    YT_LOG_ERROR("XXX %v account usage %v",
                               account->GetName(),
                               account->LocalStatistics().ResourceUsage);
-                    LOG_ERROR("XXX %v account committed usage %v",
+                    YT_LOG_ERROR("XXX %v account committed usage %v",
                               account->GetName(),
                               account->LocalStatistics().CommittedResourceUsage);
-                    LOG_ERROR("XXX %v node usage %v",
+                    YT_LOG_ERROR("XXX %v node usage %v",
                               account->GetName(),
                               stat.NodeUsage);
-                    LOG_ERROR("XXX %v node committed usage %v",
+                    YT_LOG_ERROR("XXX %v node committed usage %v",
                               account->GetName(),
                               stat.NodeCommittedUsage);
                 }
@@ -2286,7 +2286,7 @@ private:
             return;
         }
 
-        LOG_INFO("Sending account statistics gossip message");
+        YT_LOG_INFO("Sending account statistics gossip message");
 
         NProto::TReqSetAccountStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -2318,12 +2318,12 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -2367,7 +2367,7 @@ private:
             return;
         }
 
-        LOG_INFO("Sending user statistics gossip message");
+        YT_LOG_INFO("Sending user statistics gossip message");
 
         NProto::TReqSetUserStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -2424,12 +2424,12 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {

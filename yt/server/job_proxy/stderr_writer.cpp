@@ -162,7 +162,7 @@ void TStderrWriter::Upload(
         fileChunkOutput.Finish();
         ChunkId_ = fileChunkOutput.GetChunkId();
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Writing stderr data to chunk failed");
+        YT_LOG_WARNING(ex, "Writing stderr data to chunk failed");
     }
 }
 

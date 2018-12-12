@@ -468,7 +468,7 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (brokenPrepare) {
         const auto& Logger = TabletServerLogger;
-        LOG_ERROR("Broken prepared tablet found (TabletId: %v, TableId: %v)",
+        YT_LOG_ERROR("Broken prepared tablet found (TabletId: %v, TableId: %v)",
             Id_,
             Table_->GetId());
     }

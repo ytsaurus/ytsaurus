@@ -100,7 +100,7 @@ TFuture<void> TJournalSession::DoPutBlocks(
     }
 
     if (startBlockIndex < recordCount) {
-        LOG_DEBUG("Skipped duplicate blocks %v:%v-%v",
+        YT_LOG_DEBUG("Skipped duplicate blocks %v:%v-%v",
             GetId(),
             startBlockIndex,
             recordCount - 1);

@@ -124,7 +124,7 @@ public:
 
     ~TCachedChangelog()
     {
-        LOG_DEBUG("Cached changelog destroyed (LocationId: %v, ChunkId: %v)",
+        YT_LOG_DEBUG("Cached changelog destroyed (LocationId: %v, ChunkId: %v)",
             Location_->GetId(),
             ChunkId_);
     }
@@ -305,7 +305,7 @@ void TJournalDispatcher::TImpl::OnAdded(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnAdded(changelog);
 
     auto key = changelog->GetKey();
-    LOG_TRACE("Journal chunk added to cache (LocationId: %v, ChunkId: %v)",
+    YT_LOG_TRACE("Journal chunk added to cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }
@@ -317,7 +317,7 @@ void TJournalDispatcher::TImpl::OnRemoved(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnRemoved(changelog);
 
     auto key = changelog->GetKey();
-    LOG_TRACE("Journal chunk removed from cache (LocationId: %v, ChunkId: %v)",
+    YT_LOG_TRACE("Journal chunk removed from cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }

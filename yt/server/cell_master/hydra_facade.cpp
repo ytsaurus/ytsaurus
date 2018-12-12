@@ -206,7 +206,7 @@ public:
             if (HasMutationContext()) {
                 // Just a precaution, not really expected to happen.
                 auto error = TError("Request can only be served at leaders");
-                LOG_ERROR_UNLESS(HydraManager_->IsRecovery(), error, "Unexpected error");
+                YT_LOG_ERROR_UNLESS(HydraManager_->IsRecovery(), error, "Unexpected error");
                 THROW_ERROR error;
             } else {
                 throw TLeaderFallbackException();
@@ -264,7 +264,7 @@ private:
                 snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
                 snapshotSize = NFS::GetFileStatistics(NFS::CombinePaths(snapshotsPath, fileName)).Size;
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %v in snapshot store",
+                YT_LOG_WARNING("Unrecognized item %v in snapshot store",
                     fileName);
                 continue;
             }
@@ -289,13 +289,13 @@ private:
             }
 
             if (snapshotId <= thresholdId) {
-                LOG_INFO("Removing snapshot %v",
+                YT_LOG_INFO("Removing snapshot %v",
                     snapshotId);
 
                 try {
                     NFS::Remove(NFS::CombinePaths(snapshotsPath, fileName));
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Error removing %v from snapshot store",
+                    YT_LOG_WARNING(ex, "Error removing %v from snapshot store",
                         fileName);
                 }
             }
@@ -311,18 +311,18 @@ private:
             try {
                 changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %v in changelog store",
+                YT_LOG_WARNING("Unrecognized item %v in changelog store",
                     fileName);
                 continue;
             }
 
             if (changelogId <= thresholdId) {
-                LOG_INFO("Removing changelog %v",
+                YT_LOG_INFO("Removing changelog %v",
                     changelogId);
                 try {
                     RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Error removing %v from changelog store",
+                    YT_LOG_WARNING(ex, "Error removing %v from changelog store",
                         fileName);
                 }
             }

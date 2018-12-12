@@ -155,7 +155,7 @@ void TJournalChunk::DoReadBlockRange(
         auto changelog = WaitFor(dispatcher->OpenChangelog(StoreLocation_, Id_))
             .ValueOrThrow();
 
-        LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        YT_LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -184,7 +184,7 @@ void TJournalChunk::DoReadBlockRange(
         i64 bytesRead = GetByteSize(blocks);
         chunkReaderStatistics->DataBytesReadFromDisk += bytesRead;
 
-        LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, "
+        YT_LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, "
             "BytesReadActually: %v, Time: %v)",
             Id_,
             firstBlockIndex,
@@ -219,10 +219,10 @@ void TJournalChunk::SyncRemove(bool force)
 {
     if (Changelog_) {
         try {
-            LOG_DEBUG("Started closing journal chunk (ChunkId: %v)", Id_);
+            YT_LOG_DEBUG("Started closing journal chunk (ChunkId: %v)", Id_);
             WaitFor(Changelog_->Close())
                 .ThrowOnError();
-            LOG_DEBUG("Finished closing journal chunk (ChunkId: %v)", Id_);
+            YT_LOG_DEBUG("Finished closing journal chunk (ChunkId: %v)", Id_);
             Changelog_.Reset();
         } catch (const std::exception& ex) {
             auto error = TError(ex);

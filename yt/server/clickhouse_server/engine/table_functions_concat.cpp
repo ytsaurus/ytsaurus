@@ -220,7 +220,7 @@ StoragePtr TConcatenateTablesList::Execute(
     const std::vector<TString>& tableNames,
     const Context& context) const
 {
-    CH_LOG_DEBUG(Logger, "Execute table function " << getName() << "(" << JoinStrings(", ", tableNames) << ")");
+    LOG_DEBUG(Logger, "Execute table function " << getName() << "(" << JoinStrings(", ", tableNames) << ")");
 
     auto token = CreateAuthToken(*Storage, context);
     auto tables = GetTables(tableNames, *token);

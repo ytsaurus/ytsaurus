@@ -79,7 +79,7 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    LOG_INFO("Starting Clickhouse proxy");
+    YT_LOG_INFO("Starting Clickhouse proxy");
 
     AuthenticationManager_ = New<TAuthenticationManager>(
         Config_->AuthenticationManager,
@@ -119,12 +119,12 @@ void TBootstrap::DoRun()
         "/orchid/",
         NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
-    LOG_INFO("Listening for monitoring HTTP requests on port %v", Config_->MonitoringPort);
+    YT_LOG_INFO("Listening for monitoring HTTP requests on port %v", Config_->MonitoringPort);
     MonitoringHttpServer_->Start();
 
     ClickHouseProxy_ = New<TClickHouseProxyHandler>(Config_->ClickHouseProxy, this /* bootstrap */);
 
-    LOG_INFO("Listening for clickhouse HTTP requests on port %v", Config_->ClickHouseProxyHttpServer->Port);
+    YT_LOG_INFO("Listening for clickhouse HTTP requests on port %v", Config_->ClickHouseProxyHttpServer->Port);
     ClickHouseProxyServer_ = NHttp::CreateServer(Config_->ClickHouseProxyHttpServer);
     ClickHouseProxyServer_->AddHandler("/", ClickHouseProxy_);
 

@@ -60,7 +60,7 @@ TBlobTableWriter::TBlobTableWriter(
     IThroughputThrottlerPtr throttler)
     : PartSize_(blobTableWriterConfig->MaxPartSize)
 {
-    LOG_INFO("Creating blob writer (TransactionId: %v, ChunkListId %v)",
+    YT_LOG_INFO("Creating blob writer (TransactionId: %v, ChunkListId %v)",
         transactionId,
         chunkListId);
 

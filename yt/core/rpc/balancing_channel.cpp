@@ -143,7 +143,7 @@ private:
 
         void Run()
         {
-            LOG_DEBUG("Starting peer discovery");
+            YT_LOG_DEBUG("Starting peer discovery");
 
             DoRun();
         }
@@ -180,7 +180,7 @@ private:
 
         void QueryPeer(const TString& address)
         {
-            LOG_DEBUG("Querying peer (Address: %v)", address);
+            YT_LOG_DEBUG("Querying peer (Address: %v)", address);
 
             auto channel = Owner_->ChannelFactory_->CreateChannel(address);
 
@@ -215,7 +215,7 @@ private:
                 auto suggestedAddresses = FromProto<std::vector<TString>>(rsp->suggested_addresses());
 
                 if (!suggestedAddresses.empty()) {
-                    LOG_DEBUG("Peers suggested (SuggestorAddress: %v, SuggestedAddresses: %v)",
+                    YT_LOG_DEBUG("Peers suggested (SuggestorAddress: %v, SuggestedAddresses: %v)",
                         address,
                         suggestedAddresses);
                     Owner_->AddPeers(suggestedAddresses);
@@ -224,7 +224,7 @@ private:
                 if (up) {
                     AddViablePeer(address, channel);
                 } else {
-                    LOG_DEBUG("Peer is down (Address: %v)", address);
+                    YT_LOG_DEBUG("Peer is down (Address: %v)", address);
                     auto error = TError("Peer %v is down", address)
                          << *Owner_->EndpointAttributes_;
                     BanPeer(address, error, Owner_->Config_->SoftBackoffTime);
@@ -234,7 +234,7 @@ private:
                 auto error = TError("Discovery request failed for peer %v", address)
                     << *Owner_->EndpointAttributes_
                     << rspOrError;
-                LOG_DEBUG(error);
+                YT_LOG_DEBUG(error);
                 BanPeer(address, error, Owner_->Config_->HardBackoffTime);
                 InvalidatePeer(address);
             }
@@ -328,7 +328,7 @@ private:
             it = HashToViableChannel_.begin();
         }
 
-        LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %x, RandomIndex: %v/%v, Address: %v)",
+        YT_LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %x, RandomIndex: %v/%v, Address: %v)",
             request->GetRequestId(),
             hash,
             randomIndex,
@@ -349,7 +349,7 @@ private:
         auto index = RandomNumber<size_t>(ViablePeers_.size());
         const auto& peer = ViablePeers_[index];
 
-        LOG_DEBUG("Random peer selected (RequestId: %v, Address: %v)",
+        YT_LOG_DEBUG("Random peer selected (RequestId: %v, Address: %v)",
             request->GetRequestId(),
             peer.Address);
 
@@ -417,7 +417,7 @@ private:
                 continue;
             }
 
-            LOG_DEBUG("Peer added (Address: %v)", address);
+            YT_LOG_DEBUG("Peer added (Address: %v)", address);
         }
     }
 
@@ -464,7 +464,7 @@ private:
             BannedAddresses_.insert(address);
         }
 
-        LOG_DEBUG("Peer banned (Address: %v, BackoffTime: %v)",
+        YT_LOG_DEBUG("Peer banned (Address: %v, BackoffTime: %v)",
             address,
             backoffTime);
 
@@ -488,7 +488,7 @@ private:
             ActiveAddresses_.insert(address);
         }
 
-        LOG_DEBUG("Peer unbanned (Address: %v)", address);
+        YT_LOG_DEBUG("Peer unbanned (Address: %v)", address);
     }
 
     template <class F>
@@ -513,7 +513,7 @@ private:
             updated = RegisterViablePeer(address, wrappedChannel);
         }
 
-        LOG_DEBUG("Peer is viable (Address: %v, Updated: %v)",
+        YT_LOG_DEBUG("Peer is viable (Address: %v, Updated: %v)",
             address,
             updated);
 
@@ -541,7 +541,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Peer is no longer viable (Address: %v, Evicted: %v)",
+        YT_LOG_DEBUG("Peer is no longer viable (Address: %v, Evicted: %v)",
             address,
             evicted);
     }

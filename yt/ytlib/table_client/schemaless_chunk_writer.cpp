@@ -825,7 +825,7 @@ private:
     {
         TUnversionedChunkWriterBase::PrepareChunkMeta();
 
-        LOG_DEBUG("Partition totals: %v", PartitionsExt_.DebugString());
+        YT_LOG_DEBUG("Partition totals: %v", PartitionsExt_.DebugString());
 
         auto& meta = EncodingChunkWriter_->Meta();
 
@@ -1184,7 +1184,7 @@ public:
             return readyForMore && !switched;
         } catch (const std::exception& ex) {
             Error_ = TError(ex);
-            LOG_WARNING(Error_, "Partition multi chunk writer failed");
+            YT_LOG_WARNING(Error_, "Partition multi chunk writer failed");
             return false;
         }
     }
@@ -1310,7 +1310,7 @@ private:
         blockWriter.reset(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
 
-        LOG_DEBUG("Flushing partition block (PartitonIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",
+        YT_LOG_DEBUG("Flushing partition block (PartitonIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",
             partitionIndex,
             block.Meta.uncompressed_size(),
             block.Meta.row_count(),
@@ -1563,7 +1563,7 @@ private:
         const auto& path = RichPath_.GetPath();
         auto objectIdPath = FromObjectId(ObjectId_);
 
-        LOG_INFO("Closing table");
+        YT_LOG_INFO("Closing table");
         {
             auto error = WaitFor(UnderlyingWriter_->Close());
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
@@ -1598,7 +1598,7 @@ private:
 
         UploadTransaction_->Detach();
 
-        LOG_INFO("Table closed");
+        YT_LOG_INFO("Table closed");
     }
 };
 
@@ -1654,7 +1654,7 @@ ISchemalessWriterPtr DoCreateSchemalessTableWriter(
     TTableUploadOptions tableUploadOptions;
 
     {
-        LOG_INFO("Requesting extended table attributes");
+        YT_LOG_INFO("Requesting extended table attributes");
 
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
@@ -1715,7 +1715,7 @@ ISchemalessWriterPtr DoCreateSchemalessTableWriter(
             ReconfigureYsonSerializable(writerConfig, chunkWriterConfig);
         }
 
-        LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
+        YT_LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
             writerOptions->Account,
             writerOptions->CompressionCodec,
             writerOptions->ErasureCodec);
@@ -1723,7 +1723,7 @@ ISchemalessWriterPtr DoCreateSchemalessTableWriter(
 
     ITransactionPtr uploadTransaction;
     {
-        LOG_INFO("Starting table upload");
+        YT_LOG_INFO("Starting table upload");
 
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
@@ -1757,7 +1757,7 @@ ISchemalessWriterPtr DoCreateSchemalessTableWriter(
 
             uploadTransaction = client->AttachTransaction(uploadTransactionId, options);
 
-            LOG_INFO("Table upload started (UploadTransactionId: %v)",
+            YT_LOG_INFO("Table upload started (UploadTransactionId: %v)",
                 uploadTransactionId);
         }
     }
@@ -1766,7 +1766,7 @@ ISchemalessWriterPtr DoCreateSchemalessTableWriter(
     TChunkListId chunkListId;
 
     {
-        LOG_INFO("Requesting table upload parameters");
+        YT_LOG_INFO("Requesting table upload parameters");
 
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
         TObjectServiceProxy proxy(channel);
@@ -1793,7 +1793,7 @@ ISchemalessWriterPtr DoCreateSchemalessTableWriter(
                 lastKey.Begin() + tableUploadOptions.TableSchema.GetKeyColumnCount());
         }
 
-        LOG_INFO("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
+        YT_LOG_INFO("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
              chunkListId,
              static_cast<bool>(writerLastKey));
     }
@@ -1816,7 +1816,7 @@ ISchemalessWriterPtr DoCreateSchemalessTableWriter(
         throttler,
         blockCache);
 
-    LOG_INFO("Table opened");
+    YT_LOG_INFO("Table opened");
 
     return New<TSchemalessTableWriter>(
         Logger,

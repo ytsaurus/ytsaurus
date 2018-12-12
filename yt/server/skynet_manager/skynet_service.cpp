@@ -65,7 +65,7 @@ void TShareOperation::Run()
     try {
         std::vector<TResourceId> resources;
         try {
-            LOG_INFO("Share operation started");
+            YT_LOG_INFO("Share operation started");
             auto lastUpdate = TInstant::Now();
             i64 lastRowIndex = 0;
             auto updateProgress = [&] (i64 rowIndex) {
@@ -89,11 +89,11 @@ void TShareOperation::Run()
                 Request_.TablePath,
                 Request_.KeyColumns,
                 updateProgress);
-            LOG_INFO("Finished reading hashes");
+            YT_LOG_INFO("Finished reading hashes");
             resources = Cluster_->GetTables()->FinishRequest(Request_, shards);
-            LOG_INFO("Resources created");
+            YT_LOG_INFO("Resources created");
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Saving error");
+            YT_LOG_ERROR(ex, "Saving error");
             Cluster_->GetTables()->UpdateStatus(Request_, std::nullopt, TError(ex));
             throw;
         }
@@ -106,9 +106,9 @@ void TShareOperation::Run()
 
         WaitFor(Combine(announces))
             .ThrowOnError();
-        LOG_INFO("Finished announcing (Duration: %v)", (TInstant::Now() - announceStart));
+        YT_LOG_INFO("Finished announcing (Duration: %v)", (TInstant::Now() - announceStart));
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Share operation crashed");
+        YT_LOG_ERROR(ex, "Share operation crashed");
     }
 }
 
@@ -281,11 +281,11 @@ void TSkynetService::SyncResourcesLoop(TClusterConnectionPtr cluster)
     while (true) {
         try {
             auto resources = cluster->GetTables()->ListResources();
-            LOG_INFO("Found %d resources (Cluster: %s)", resources.size(), cluster->GetName());
+            YT_LOG_INFO("Found %d resources (Cluster: %s)", resources.size(), cluster->GetName());
             Announcer_->SyncResourceList(cluster->GetName(), std::move(resources));
-            LOG_INFO("Finished syncing resources (Cluster: %s)", cluster->GetName());
+            YT_LOG_INFO("Finished syncing resources (Cluster: %s)", cluster->GetName());
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error loading resource list (Cluster: %s)", cluster->GetName());
+            YT_LOG_ERROR(ex, "Error loading resource list (Cluster: %s)", cluster->GetName());
         }
 
         TDelayedExecutor::WaitForDuration(Config_->SyncIterationInterval);
@@ -300,24 +300,24 @@ void TSkynetService::ReapRemovedTablesLoop(TClusterConnectionPtr cluster)
     while (true) {
         try {
             auto requests = tables->ListActiveRequests();
-            LOG_INFO("Found %d active requests (Cluster: %s)", requests.size(), cluster->GetName());
+            YT_LOG_INFO("Found %d active requests (Cluster: %s)", requests.size(), cluster->GetName());
             for (auto&& request : requests) {
                 WaitFor(throttler->Throttle(1))
                     .ThrowOnError();
 
                 auto errorOrRevision = cluster->CheckTableAttributes(request.TablePath);
                 if (!errorOrRevision.IsOK()) {
-                    LOG_INFO("Table has been removed (RequestKey: %v)", request);
+                    YT_LOG_INFO("Table has been removed (RequestKey: %v)", request);
                     tables->EraseRequest(request);
                 } else if (errorOrRevision.Value() != request.TableRevision) {
-                    LOG_INFO("Table has been changed (RequestKey: %v, OldRevision: %llx, NewRevision: %llx)",
+                    YT_LOG_INFO("Table has been changed (RequestKey: %v, OldRevision: %llx, NewRevision: %llx)",
                         request.TableRevision,
                         errorOrRevision.Value());
                     tables->EraseRequest(request);
                 }
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Removed tables reaper crashed (Cluster: %s)", cluster->GetName());
+            YT_LOG_ERROR(ex, "Removed tables reaper crashed (Cluster: %s)", cluster->GetName());
         }
 
         TDelayedExecutor::WaitForDuration(Config_->RemovedTablesScanInterval);
@@ -354,7 +354,7 @@ void TSkynetService::HandleShare(const IRequestPtr& req, const IResponseWriterPt
     try {
         params.Load(ConvertToNode(TYsonString(req->GetHeaders()->GetOrThrow("X-Yt-Parameters"))));
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Failed to parse request parameters");
+        YT_LOG_ERROR(ex, "Failed to parse request parameters");
 
         rsp->SetStatus(EStatusCode::BadRequest);
         FillYTErrorHeaders(rsp, TError(ex));
@@ -363,7 +363,7 @@ void TSkynetService::HandleShare(const IRequestPtr& req, const IResponseWriterPt
         return;
     }
 
-    LOG_INFO("Start creating share (Cluster: %v, Path: %v)", params.Cluster, params.Path);
+    YT_LOG_INFO("Start creating share (Cluster: %v, Path: %v)", params.Cluster, params.Path);
     auto cluster = GetCluster(params.Cluster);
     auto tableRevision = cluster->CheckTableAttributes(params.Path).ValueOrThrow();
 
@@ -448,7 +448,7 @@ void TSkynetService::HandleHealthCheck(const IRequestPtr& req, const IResponseWr
 void TSkynetService::HandleDebugLinks(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
     TResourceId resourceId{req->GetUrl().Path.substr(DebugLinksEndpoint.size())};
-    LOG_DEBUG("Debug links (ResourceId: %s)", resourceId);
+    YT_LOG_DEBUG("Debug links (ResourceId: %s)", resourceId);
 
     TString clusterName;
     try {
@@ -489,7 +489,7 @@ TClusterConnectionPtr TSkynetService::GetCluster(const TString& clusterName) con
 
 void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
 {
-    LOG_INFO("Accepted peer connection (Address: %v)", peer->PeerAddress());
+    YT_LOG_INFO("Accepted peer connection (Address: %v)", peer->PeerAddress());
     try {
         auto handshake = peer->ReceiveHandshake();
         auto resourceId = handshake.ResourceId;
@@ -497,7 +497,7 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
             .AddTag("PeerName: %s", handshake.PeerName)
             .AddTag("ResourceId: %s", resourceId);
 
-        LOG_INFO("Started handshake");
+        YT_LOG_INFO("Started handshake");
 
         THandshake reply;
         reply.PeerId = SelfPeerId_;
@@ -506,7 +506,7 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
         peer->SendHandshake(reply);
         peer->SendPing();
 
-        LOG_INFO("Handshake completed");
+        YT_LOG_INFO("Handshake completed");
         auto clusterName = Announcer_->FindResourceCluster(resourceId);
         auto clusterConnection = GetCluster(clusterName);
 
@@ -514,7 +514,7 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
 
         auto cachedResource = WaitFor(Get({clusterName, resourceId}))
             .ValueOrThrow();
-        LOG_DEBUG("Found resource (Cluster: %s, TableRange: %v)",
+        YT_LOG_DEBUG("Found resource (Cluster: %s, TableRange: %v)",
             clusterName,
             cachedResource->TableRange);
 
@@ -525,7 +525,7 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
         while (true) {
             auto message = peer->ReceiveMessage();
             if (message == EPeerMessage::WantResource) {
-                LOG_INFO("Sending resource");
+                YT_LOG_INFO("Sending resource");
 
                 auto description = ConvertResource(cachedResource->Resource, false, true);
                 peer->SendResource(description.TorrentMeta);
@@ -533,18 +533,18 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
             } else if (message == EPeerMessage::HasResource) {
                 peerHasResource = true;
             } else if (message == EPeerMessage::Ping) {
-                LOG_INFO("Sending ping");
+                YT_LOG_INFO("Sending ping");
                 peer->SendPing();
             }
 
             if (peerHasResource && !linksSent) {
                 if (!resourceLock.TryAcquire()) {
-                    LOG_INFO("Skipping sending links; Resource is locked by another peer");
+                    YT_LOG_INFO("Skipping sending links; Resource is locked by another peer");
                     continue;
                 }
 
                 auto locations = clusterConnection->FetchSkynetPartsLocations(cachedResource->TableRange);
-                LOG_INFO("Sending links");
+                YT_LOG_INFO("Sending links");
 
                 auto links = MakeLinks(cachedResource->Resource, locations);
                 peer->SendLinks(links);
@@ -552,7 +552,7 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
             }
         }
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Peer connection terminated");
+        YT_LOG_ERROR(ex, "Peer connection terminated");
         throw;
     }
 }

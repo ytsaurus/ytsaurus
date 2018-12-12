@@ -96,7 +96,7 @@ BlockInputStreams TStorageReadJob::read(
     size_t maxBlockSize,
     unsigned numStreams)
 {
-    CH_LOG_DEBUG(Logger, "Columns requested in read job: " << JoinStrings(",", ToString(columnNames)));
+    LOG_DEBUG(Logger, "Columns requested in read job: " << JoinStrings(",", ToString(columnNames)));
 
     DB::Names physicalColumns;
     DB::Names virtualColumns;

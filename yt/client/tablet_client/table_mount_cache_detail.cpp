@@ -153,7 +153,7 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                 }
                 auto tabletInfo = FindTablet(*tabletId);
                 if (tabletInfo) {
-                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, CellId: %v, MountRevision: %llx, Owners: %v)",
+                    YT_LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, CellId: %v, MountRevision: %llx, Owners: %v)",
                         tabletInfo->TabletId,
                         tabletInfo->CellId,
                         tabletInfo->MountRevision,
@@ -176,7 +176,7 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
 void TTableMountCacheBase::Clear()
 {
     TAsyncExpiringCache::Clear();
-    LOG_DEBUG("Table mount info cache cleared");
+    YT_LOG_DEBUG("Table mount info cache cleared");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

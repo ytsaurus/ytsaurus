@@ -498,7 +498,7 @@ private:
                 BIND(&TThreadedIOEngine::ResetSickFlag, MakeStrong(this)),
                 *Config_->SicknessExpirationTimeout);
 
-            LOG_WARNING(error, "Location is sick");
+            YT_LOG_WARNING(error, "Location is sick");
         }
     }
 
@@ -516,7 +516,7 @@ private:
 
         Sick_ = false;
 
-        LOG_WARNING("Reset sick flag");
+        YT_LOG_WARNING("Reset sick flag");
     }
 
     void UpdateSicknessProfiling()

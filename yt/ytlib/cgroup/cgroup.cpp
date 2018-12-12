@@ -52,7 +52,7 @@ TString GetParentFor(const TString& type)
 std::vector<TString> ReadAllValues(const TString& fileName)
 {
     auto raw = TUnbufferedFileInput(fileName).ReadAll();
-    LOG_DEBUG(
+    YT_LOG_DEBUG(
         "File %v contains %Qv",
         fileName,
         raw);
@@ -76,7 +76,7 @@ TDuration FromJiffies(ui64 jiffies)
 
 void RunKiller(const TString& processGroupPath)
 {
-    LOG_INFO("Killing processes in cgroup %v", processGroupPath);
+    YT_LOG_INFO("Killing processes in cgroup %v", processGroupPath);
 
 #ifdef _linux_
     TNonOwningCGroup group(processGroupPath);
@@ -85,7 +85,7 @@ void RunKiller(const TString& processGroupPath)
     }
 
     if (!group.Exists()) {
-        LOG_WARNING("Cgroup %v does not exists: stop killer", processGroupPath);
+        YT_LOG_WARNING("Cgroup %v does not exists: stop killer", processGroupPath);
         return;
     }
 
@@ -127,7 +127,7 @@ TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
 
 void TNonOwningCGroup::AddTask(int pid) const
 {
-    LOG_INFO(
+    YT_LOG_INFO(
         "Adding %v to cgroup %v",
         pid,
         FullPath_);
@@ -227,14 +227,14 @@ std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
             }
             return result;
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Failed to list subcgroups (Path: %v)", FullPath_);
+            YT_LOG_WARNING(ex, "Failed to list subcgroups (Path: %v)", FullPath_);
         }
     }
 }
 
 void TNonOwningCGroup::EnsureExistance() const
 {
-    LOG_INFO("Creating cgroup %v", FullPath_);
+    YT_LOG_INFO("Creating cgroup %v", FullPath_);
 
     YCHECK(!IsNull());
 
@@ -292,7 +292,7 @@ void TNonOwningCGroup::RemoveRecursive() const
 
 void TNonOwningCGroup::DoLock() const
 {
-    LOG_INFO("Locking cgroup %v", FullPath_);
+    YT_LOG_INFO("Locking cgroup %v", FullPath_);
 
 #ifdef _linux_
     if (!IsNull()) {
@@ -307,7 +307,7 @@ void TNonOwningCGroup::DoLock() const
 
 bool TNonOwningCGroup::TryUnlock() const
 {
-    LOG_INFO("Unlocking cgroup %v", FullPath_);
+    YT_LOG_INFO("Unlocking cgroup %v", FullPath_);
 
     if (!Exists()) {
         return true;
@@ -339,7 +339,7 @@ void TNonOwningCGroup::DoUnlock() const
 
 void TNonOwningCGroup::DoKill() const
 {
-    LOG_DEBUG("Started killing processes in cgroup %v", FullPath_);
+    YT_LOG_DEBUG("Started killing processes in cgroup %v", FullPath_);
 
 #ifdef _linux_
     while (true) {
@@ -347,7 +347,7 @@ void TNonOwningCGroup::DoKill() const
         if (pids.empty())
             break;
 
-        LOG_DEBUG("Killing processes (Pids: %v)", pids);
+        YT_LOG_DEBUG("Killing processes (Pids: %v)", pids);
 
         for (int pid : pids) {
             auto result = kill(pid, SIGKILL);
@@ -360,7 +360,7 @@ void TNonOwningCGroup::DoKill() const
     }
 #endif
 
-    LOG_DEBUG("Finished killing processes in cgroup %v", FullPath_);
+    YT_LOG_DEBUG("Finished killing processes in cgroup %v", FullPath_);
 }
 
 void TNonOwningCGroup::DoRemove() const
@@ -421,14 +421,14 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-    LOG_INFO("Destroying cgroup %v", FullPath_);
+    YT_LOG_INFO("Destroying cgroup %v", FullPath_);
     YCHECK(Created_);
 
 #ifdef _linux_
     try {
         NFS::Remove(FullPath_);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to destroy cgroup %v", FullPath_);
+        YT_LOG_FATAL(ex, "Failed to destroy cgroup %v", FullPath_);
     }
 #endif
     Created_ = false;
@@ -489,7 +489,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatisticsRecursive() const
             }
         }
     } catch (const std::exception& ex) {
-        LOG_FATAL(
+        YT_LOG_FATAL(
             ex,
             "Failed to retreive CPU statistics from cgroup %v",
             GetFullPath());
@@ -606,7 +606,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
             if (item.Type == "Read" || item.Type == "Write") {
                 result.push_back(item);
 
-                LOG_DEBUG("IO operations serviced (OperationCount: %v, OperationType: %v, DeviceId: %v)",
+                YT_LOG_DEBUG("IO operations serviced (OperationCount: %v, OperationType: %v, DeviceId: %v)",
                     item.Value,
                     item.Type,
                     item.DeviceId);
@@ -614,7 +614,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
             ++lineNumber;
         }
     } catch (const std::exception& ex) {
-        LOG_FATAL(
+        YT_LOG_FATAL(
             ex,
             "Failed to retreive block IO statistics from cgroup %v",
             GetFullPath());
@@ -675,7 +675,7 @@ TMemory::TStatistics TMemory::GetStatistics() const
             ++lineNumber;
         }
     } catch (const std::exception& ex) {
-        LOG_FATAL(
+        YT_LOG_FATAL(
             ex,
             "Failed to retreive memory statistics from cgroup %v",
             GetFullPath());

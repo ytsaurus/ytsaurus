@@ -265,13 +265,13 @@ TFuture<TNetworkAddress> TDnsResolver::TImpl::ResolveName(
     auto requestId = TGuid::Create();
     auto timeoutCookie = TDelayedExecutor::Submit(
         BIND([promise, requestId] () mutable {
-            LOG_WARNING("Resolve timed out (RequestId: %v)",
+            YT_LOG_WARNING("Resolve timed out (RequestId: %v)",
                 requestId);
             promise.TrySet(TError(EErrorCode::ResolveTimedOut, "Resolve timed out"));
         }),
         MaxResolveTimeout_);
 
-    LOG_DEBUG("Resolving host name (RequestId: %v, Host: %v, EnableIPv4: %v, EnableIPv6: %v)",
+    YT_LOG_DEBUG("Resolving host name (RequestId: %v, Host: %v, EnableIPv4: %v, EnableIPv6: %v)",
         requestId,
         hostName,
         enableIPv4,
@@ -414,12 +414,12 @@ int TDnsResolver::TImpl::OnSocketCreated(
     event.data.fd = socket;
     result = epoll_ctl(this_->EpollFD_, EPOLL_CTL_ADD, socket, &event);
     if (result != 0) {
-        LOG_WARNING(TError::FromSystem(), "epoll_ctl() failed");
+        YT_LOG_WARNING(TError::FromSystem(), "epoll_ctl() failed");
         result = -1;
     }
 #else
     if (socket >= FD_SETSIZE) {
-        LOG_WARNING("File descriptor is out of valid range (FD: %v, Limit: %v)",
+        YT_LOG_WARNING("File descriptor is out of valid range (FD: %v, Limit: %v)",
             socket,
             FD_SETSIZE);
         result = -1;
@@ -467,7 +467,7 @@ void TDnsResolver::TImpl::OnNameResolution(
 
     auto elapsed = request->Timer.GetElapsedTime();
     if (elapsed > request->Owner->WarningTimeout_ || timeouts > 0) {
-        LOG_WARNING("Resolve took too long (RequestId: %v, HostName: %v, Duration: %v, Timeouts: %v)",
+        YT_LOG_WARNING("Resolve took too long (RequestId: %v, HostName: %v, Duration: %v, Timeouts: %v)",
             request->RequestId,
             request->HostName,
             elapsed,
@@ -475,7 +475,7 @@ void TDnsResolver::TImpl::OnNameResolution(
     }
 
     if (status != ARES_SUCCESS) {
-        LOG_WARNING("Resolve failed (RequestId: %v, HostName: %v)",
+        YT_LOG_WARNING("Resolve failed (RequestId: %v, HostName: %v)",
             request->RequestId,
             request->HostName);
         request->Promise.TrySet(TError("DNS resolve failed for %Qv",
@@ -488,7 +488,7 @@ void TDnsResolver::TImpl::OnNameResolution(
     YCHECK(hostent->h_addr_list && hostent->h_addr_list[0]);
 
     TNetworkAddress result(hostent->h_addrtype, hostent->h_addr, hostent->h_length);
-    LOG_DEBUG("Host name resolved (RequestId: %v, HostName: %v, Result: %v, Hostent: %v)",
+    YT_LOG_DEBUG("Host name resolved (RequestId: %v, HostName: %v, Result: %v, Hostent: %v)",
         request->RequestId,
         request->HostName,
         result,

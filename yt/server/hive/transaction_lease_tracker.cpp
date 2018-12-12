@@ -117,7 +117,7 @@ void TTransactionLeaseTracker::PingTransaction(
             UnregisterDeadline(descriptor);
             RegisterDeadline(descriptor);
 
-            LOG_DEBUG("Transaction lease renewed (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction lease renewed (TransactionId: %v)",
                 currentId);
         }
 
@@ -179,7 +179,7 @@ void TTransactionLeaseTracker::ProcessStartRequest(const TStartRequest& /*reques
 {
     Active_ = true;
 
-    LOG_INFO("Lease Tracker is active");
+    YT_LOG_INFO("Lease Tracker is active");
 }
 
 void TTransactionLeaseTracker::ProcessStopRequest(const TStopRequest& /*request*/)
@@ -188,7 +188,7 @@ void TTransactionLeaseTracker::ProcessStopRequest(const TStopRequest& /*request*
     IdMap_.clear();
     DeadlineMap_.clear();
 
-    LOG_INFO("Lease Tracker is no longer active");
+    YT_LOG_INFO("Lease Tracker is no longer active");
 }
 
 void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& request)
@@ -203,7 +203,7 @@ void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& re
     descriptor.UserDeadline = request.Deadline;
     RegisterDeadline(&descriptor);
 
-    LOG_DEBUG("Transaction lease registered (TransactionId: %v, Timeout: %v, Deadline: %v)",
+    YT_LOG_DEBUG("Transaction lease registered (TransactionId: %v, Timeout: %v, Deadline: %v)",
         request.TransactionId,
         request.Timeout,
         request.Deadline);
@@ -219,7 +219,7 @@ void TTransactionLeaseTracker::ProcessUnregisterRequest(const TUnregisterRequest
     }
     IdMap_.erase(it);
 
-    LOG_DEBUG("Transaction lease unregistered (TransactionId: %v)",
+    YT_LOG_DEBUG("Transaction lease unregistered (TransactionId: %v)",
         request.TransactionId);
 }
 
@@ -232,7 +232,7 @@ void TTransactionLeaseTracker::ProcessSetTimeoutRequest(const TSetTimeoutRequest
     if (auto descriptor = FindDescriptor(request.TransactionId)) {
         descriptor->Timeout = request.Timeout;
 
-        LOG_DEBUG("Transaction timeout set (TransactionId: %v, Timeout: %v)",
+        YT_LOG_DEBUG("Transaction timeout set (TransactionId: %v, Timeout: %v)",
             request.TransactionId,
             request.Timeout);
     }
@@ -250,7 +250,7 @@ void TTransactionLeaseTracker::ProcessDeadlines()
             break;
         }
 
-        LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
+        YT_LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
             descriptor->TransactionId);
 
         descriptor->TimedOut = true;

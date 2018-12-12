@@ -302,7 +302,7 @@ private:
             const auto& entry = pair.second;
             ValidateCellTag(cellTag);
             RegisteredMasterCellTags_[entry.Index] = cellTag;
-            LOG_INFO("Master cell registered (CellTag: %v, CellIndex: %v)",
+            YT_LOG_INFO("Master cell registered (CellTag: %v, CellIndex: %v)",
                 cellTag,
                 entry.Index);
         }
@@ -450,14 +450,14 @@ private:
 
         if (response->has_error()) {
             auto error = FromProto<TError>(response->error());
-            LOG_ERROR_UNLESS(IsRecovery(), error, "Error registering at primary master");
+            YT_LOG_ERROR_UNLESS(IsRecovery(), error, "Error registering at primary master");
             RegisterState_ = EPrimaryRegisterState::None;
             return;
         }
 
         RegisterState_ = EPrimaryRegisterState::Registered;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Successfully registered at primary master");
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Successfully registered at primary master");
     }
 
     void HydraRegisterSecondaryMasterAtSecondary(NProto::TReqRegisterSecondaryMasterAtSecondary* request)
@@ -474,7 +474,7 @@ private:
 
             RegisterMasterEntry(cellTag);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error registering secondary master %v", cellTag);
+            YT_LOG_FATAL(ex, "Error registering secondary master %v", cellTag);
         }
     }
 
@@ -486,7 +486,7 @@ private:
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Registering at primary master");
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Registering at primary master");
 
         RegisterState_ = EPrimaryRegisterState::Registering;
 
@@ -505,7 +505,7 @@ private:
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
-        LOG_INFO_UNLESS(IsRecovery(), "Received cell statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Received cell statistics gossip message (CellTag: %v)",
             cellTag);
 
         auto* entry = GetMasterEntry(cellTag);
@@ -545,7 +545,7 @@ private:
         auto& entry = pair.first->second;
         entry.Index = index;
         RegisteredMasterCellTags_.push_back(cellTag);
-        LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
             cellTag,
             index);
     }
@@ -610,7 +610,7 @@ private:
             return;
         }
 
-        LOG_INFO("Sending cell statistics gossip message");
+        YT_LOG_INFO("Sending cell statistics gossip message");
 
         NProto::TReqSetCellStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());

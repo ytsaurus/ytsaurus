@@ -105,7 +105,7 @@ public:
             .AsyncVia(Slot_->GetHydraManager()->GetAutomatonCancelableContext()->CreateInvoker(WorkerInvoker_))
             .Run();
 
-        LOG_INFO("Replicator fiber started");
+        YT_LOG_INFO("Replicator fiber started");
     }
 
     void Disable()
@@ -114,7 +114,7 @@ public:
             FiberFuture_.Cancel();
             FiberFuture_.Reset();
 
-            LOG_INFO("Replicator fiber stopped");
+            YT_LOG_INFO("Replicator fiber stopped");
         }
     }
 
@@ -171,7 +171,7 @@ private:
             }
 
             if (Throttler_->IsOverdraft()) {
-                LOG_DEBUG("Bandwidth limit reached; skipping iteration (TotalCount: %v)",
+                YT_LOG_DEBUG("Bandwidth limit reached; skipping iteration (TotalCount: %v)",
                     Throttler_->GetQueueTotalCount());
                 return;
             }
@@ -221,7 +221,7 @@ private:
             NNative::ITransactionPtr localTransaction;
             ITransactionPtr foreignTransaction;
             PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionStartTime) {
-                LOG_DEBUG("Starting replication transactions");
+                YT_LOG_DEBUG("Starting replication transactions");
 
                 auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::ReplicatorUserName));
                 localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
@@ -238,7 +238,7 @@ private:
                     .ValueOrThrow();
 
                 YCHECK(localTransaction->GetId() == foreignTransaction->GetId());
-                LOG_DEBUG("Replication transactions started (TransactionId: %v)",
+                YT_LOG_DEBUG("Replication transactions started (TransactionId: %v)",
                     localTransaction->GetId());
             }
 
@@ -300,7 +300,7 @@ private:
             }
 
             PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionCommitTime) {
-                LOG_DEBUG("Started committing replication transaction");
+                YT_LOG_DEBUG("Started committing replication transaction");
 
                 TTransactionCommitOptions commitOptions;
                 commitOptions.CoordinatorCellId = Slot_->GetCellId();
@@ -310,11 +310,11 @@ private:
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
 
-                LOG_DEBUG("Finished committing replication transaction");
+                YT_LOG_DEBUG("Finished committing replication transaction");
             }
 
             if (lastReplicationTimestamp > newReplicationTimestamp) {
-                LOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored (LastReplicationTimestamp: %llx -> %llx)",
+                YT_LOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored (LastReplicationTimestamp: %llx -> %llx)",
                     lastReplicationTimestamp,
                     newReplicationTimestamp);
             } else {
@@ -361,7 +361,7 @@ private:
             }
 
             if (readerRows.empty()) {
-                LOG_DEBUG(
+                YT_LOG_DEBUG(
                     "Waiting for log row from tablet reader (RowIndex: %v)",
                     rowIndex);
                 WaitFor(reader->GetReadyEvent())
@@ -379,7 +379,7 @@ private:
         TTimestamp timestamp = GetTimestamp(readerRows[0]);
         YCHECK(actualRowIndex == rowIndex);
 
-        LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %llx)",
+        YT_LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %llx)",
             rowIndex,
             timestamp);
 
@@ -404,7 +404,7 @@ private:
 
         auto startReplicationTimestamp = replicaSnapshot->StartReplicationTimestamp;
 
-        LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %llx, RowIndexLo: %v, RowIndexHi: %v)",
+        YT_LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %llx, RowIndexLo: %v, RowIndexHi: %v)",
             startReplicationTimestamp,
             rowIndexLo,
             rowIndexHi);
@@ -429,7 +429,7 @@ private:
             ++startRowIndex;
         }
 
-        LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %llx)",
+        YT_LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %llx)",
             startRowIndex,
             startTimestamp);
 
@@ -449,7 +449,7 @@ private:
         bool isVersioned)
     {
         auto sessionId = TReadSessionId::Create();
-        LOG_DEBUG("Started building replication batch (StartRowIndex: %v, ReadSessionId: %v)",
+        YT_LOG_DEBUG("Started building replication batch (StartRowIndex: %v, ReadSessionId: %v)",
             startRowIndex,
             sessionId);
 
@@ -483,7 +483,7 @@ private:
             if (!Throttler_->IsOverdraft()) {
                 return false;
             }
-            LOG_DEBUG("Bandwidth limit reached; interrupting batch (QueueTotalCount: %v)",
+            YT_LOG_DEBUG("Bandwidth limit reached; interrupting batch (QueueTotalCount: %v)",
                 Throttler_->GetQueueTotalCount());
             return true;
         };
@@ -496,14 +496,14 @@ private:
             }
 
             if (readerRows.empty()) {
-                LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
+                YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
                     currentRowIndex);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
             }
 
-            LOG_DEBUG("Got replicated rows from tablet reader (StartRowIndex: %v, RowCount: %v)",
+            YT_LOG_DEBUG("Got replicated rows from tablet reader (StartRowIndex: %v, RowCount: %v)",
                 currentRowIndex,
                 readerRows.size());
 
@@ -526,7 +526,7 @@ private:
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
                     YCHECK(row.GetHeader() == readerRows[0].GetHeader());
-                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %llx, LogRecordTimestamp: %llx)",
+                    YT_LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %llx, LogRecordTimestamp: %llx)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
                     return false;
@@ -571,7 +571,7 @@ private:
         Profiler.Update(counters->ReplicationBatchRowCount, rowCount);
         Profiler.Update(counters->ReplicationBatchDataWeight, dataWeight);
 
-        LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
+        YT_LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
             "NewReplicationRowIndex: %v, NewReplicationTimestamp: %llx)",
             startRowIndex,
             rowCount,
@@ -585,13 +585,13 @@ private:
 
     void DoSoftBackoff(const TError& error)
     {
-        LOG_INFO(error, "Doing soft backoff");
+        YT_LOG_INFO(error, "Doing soft backoff");
         TDelayedExecutor::WaitForDuration(Config_->ReplicatorSoftBackoffTime);
     }
 
     void DoHardBackoff(const TError& error)
     {
-        LOG_INFO(error, "Doing hard backoff");
+        YT_LOG_INFO(error, "Doing hard backoff");
         TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
     }
 
@@ -728,7 +728,7 @@ private:
                 YCHECK(replicationValueIndex == replicationValueCount);
                 mutableReplicationRow.BeginWriteTimestamps()[0] = timestamp;
                 replicationRow = mutableReplicationRow;
-                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", replicationRow);
+                YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", replicationRow);
                 break;
             }
 
@@ -743,7 +743,7 @@ private:
                 }
                 mutableReplicationRow.BeginDeleteTimestamps()[0] = timestamp;
                 replicationRow = mutableReplicationRow;
-                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Row: %v)", replicationRow);
+                YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Row: %v)", replicationRow);
                 break;
             }
 
@@ -808,7 +808,7 @@ private:
                 }
                 YCHECK(replicationValueIndex == replicationValueCount);
                 replicationRow = mutableReplicationRow;
-                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", replicationRow);
+                YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", replicationRow);
                 break;
             }
 
@@ -821,7 +821,7 @@ private:
                 }
                 replicationRow = mutableReplicationRow;
                 *modificationType = ERowModificationType::Delete;
-                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Row: %v)", replicationRow);
+                YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Row: %v)", replicationRow);
                 break;
             }
 

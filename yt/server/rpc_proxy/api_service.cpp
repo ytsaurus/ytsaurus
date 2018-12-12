@@ -467,7 +467,7 @@ private:
             auto client = connection->CreateNativeClient(TClientOptions(user));
             YCHECK(AuthenticatedClients_.insert(std::make_pair(user, client)).second);
 
-            LOG_DEBUG("Created native client (User: %v)", user);
+            YT_LOG_DEBUG("Created native client (User: %v)", user);
 
             return client;
         }
@@ -506,7 +506,7 @@ private:
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
         if (Bootstrap_->GetConfig()->ApiService->VerboseLogging) {
-            LOG_DEBUG("RequestId: %v, RequestBody: %v",
+            YT_LOG_DEBUG("RequestId: %v, RequestBody: %v",
                 context->GetRequestId(),
                 request->ShortDebugString());
         }

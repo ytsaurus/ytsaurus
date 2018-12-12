@@ -176,7 +176,7 @@ void TBlobChunkBase::DoReadMeta(
     TCachedChunkMetaCookie cookie,
     const TBlockReadOptions& options)
 {
-    LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
+    YT_LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
         Id_,
         Location_->GetId(),
         options.WorkloadDescriptor,
@@ -199,7 +199,7 @@ void TBlobChunkBase::DoReadMeta(
     auto& performanceCounters = Location_->GetPerformanceCounters();
     locationProfiler.Update(performanceCounters.BlobChunkMetaReadTime, NProfiling::DurationToValue(readTime));
 
-    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v, ReadTime: %v)",
+    YT_LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v, ReadTime: %v)",
         Id_,
         Location_->GetId(),
         options.ReadSessionId,
@@ -248,7 +248,7 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(const TReadBlockSetSessionPtr& s
     const auto& outThrottler = Location_->GetOutThrottler(session->Options.WorkloadDescriptor);
     auto throttleFuture = VoidFuture;
     if (!outThrottler->TryAcquire(pendingDataSize)) {
-        LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)", 
+        YT_LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)", 
             pendingDataSize, 
             session->Options.WorkloadDescriptor);
         throttleFuture = outThrottler->Throttle(pendingDataSize);
@@ -299,7 +299,7 @@ void TBlobChunkBase::DoReadBlockSet(
 
         int blocksToRead = endIndex - beginIndex;
 
-        LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
+        YT_LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
             Id_,
             firstBlockIndex + beginIndex,
             firstBlockIndex + endIndex - 1,
@@ -356,7 +356,7 @@ void TBlobChunkBase::DoReadBlockSet(
         }
         auto populateCacheTime = populateCacheTimer.GetElapsedTime();
 
-        LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, "
+        YT_LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, "
             "ReadTime: %v, PopulateCacheTime: %v, ReadSessionId: %v)",
             Id_,
             firstBlockIndex + beginIndex,

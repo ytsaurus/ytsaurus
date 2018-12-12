@@ -247,14 +247,14 @@ public:
             if (descriptor.ConfigVersion >= 0) {
                 InitChannel(&it->second);
             }
-            LOG_DEBUG("Cell registered (CellId: %v, ConfigVersion: %v)",
+            YT_LOG_DEBUG("Cell registered (CellId: %v, ConfigVersion: %v)",
                 descriptor.CellId,
                 descriptor.ConfigVersion);
             return true;
         } else if (it->second.Descriptor.ConfigVersion < descriptor.ConfigVersion) {
             it->second.Descriptor = descriptor;
             InitChannel(&it->second);
-            LOG_DEBUG("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
+            YT_LOG_DEBUG("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
                 descriptor.CellId,
                 descriptor.ConfigVersion);
             return true;
@@ -276,7 +276,7 @@ public:
         if (RegisteredCellMap_.erase(cellId) == 0) {
             return false;
         }
-        LOG_INFO("Cell unregistered (CellId: %v)",
+        YT_LOG_INFO("Cell unregistered (CellId: %v)",
             cellId);
         return true;
     }

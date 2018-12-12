@@ -42,7 +42,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-    LOG_DEBUG("Updating peer (BlockId: %v, Address: %v, ExpirationTime: %v)",
+    YT_LOG_DEBUG("Updating peer (BlockId: %v, Address: %v, ExpirationTime: %v)",
         blockId,
         peer.Descriptor.GetDefaultAddress(),
         peer.ExpirationTime);
@@ -92,7 +92,7 @@ void TPeerBlockTable::SweepAllExpiredPeers()
 
     LastSwept_ = TInstant::Now();
 
-    LOG_DEBUG("All expired peers were swept");
+    YT_LOG_DEBUG("All expired peers were swept");
 }
 
 void TPeerBlockTable::SweepExpiredPeers(std::vector<TPeerInfo>& peers)

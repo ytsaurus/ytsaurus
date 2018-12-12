@@ -21,9 +21,9 @@ TFuture<TMutationResponse> TMutation::CommitAndLog(const NLogging::TLogger& logg
     return Commit().Apply(
         BIND([Logger = logger, type = std::move(type)] (const TErrorOr<TMutationResponse>& result) {
             if (result.IsOK()) {
-                LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
+                YT_LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
             } else {
-                LOG_DEBUG(result, "Mutation commit failed (MutationType: %v)", type);
+                YT_LOG_DEBUG(result, "Mutation commit failed (MutationType: %v)", type);
             }
             return result;
         }));

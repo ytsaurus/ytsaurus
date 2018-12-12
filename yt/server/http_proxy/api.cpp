@@ -221,7 +221,7 @@ void TApi::HandleRequest(
         context->Run();
     } catch (const std::exception& ex) {
         context->SetError(TError(ex));
-        LOG_ERROR(ex, "Command failed");
+        YT_LOG_ERROR(ex, "Command failed");
     }
 
     context->Finalize();

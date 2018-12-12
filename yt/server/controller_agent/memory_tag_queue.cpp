@@ -40,7 +40,7 @@ TMemoryTag TMemoryTagQueue::AssignTagToOperation(const TOperationId& operationId
     AvailableTags_.pop();
     UsedTags_.insert(tag);
     TagToLastOperationId_[tag] = operationId;
-    LOG_INFO("Assigning memory tag to operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
+    YT_LOG_INFO("Assigning memory tag to operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
         operationId,
         tag,
         UsedTags_.size(),
@@ -60,7 +60,7 @@ void TMemoryTagQueue::ReclaimTag(TMemoryTag tag)
     auto operationId = TagToLastOperationId_[tag];
 
     AvailableTags_.push(tag);
-    LOG_INFO("Reclaiming memory tag of operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
+    YT_LOG_INFO("Reclaiming memory tag of operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
         operationId,
         tag,
         UsedTags_.size(),
@@ -81,7 +81,7 @@ void TMemoryTagQueue::UpdateConfig(TControllerAgentConfigPtr config)
 
 void TMemoryTagQueue::AllocateNewTags()
 {
-    LOG_INFO("Allocating new memory tags (AllocatedTagCount: %v, NewAllocatedTagCount: %v)", AllocatedTagCount_, 2 * AllocatedTagCount_);
+    YT_LOG_INFO("Allocating new memory tags (AllocatedTagCount: %v, NewAllocatedTagCount: %v)", AllocatedTagCount_, 2 * AllocatedTagCount_);
     TagToLastOperationId_.resize(2 * AllocatedTagCount_);
     for (TMemoryTag tag = AllocatedTagCount_; tag < 2 * AllocatedTagCount_; ++tag) {
         AvailableTags_.push(tag);
@@ -114,9 +114,9 @@ void TMemoryTagQueue::UpdateStatistics()
         usages.resize(AllocatedTagCount_ - 1);
     }
 
-    LOG_INFO("Started building tagged memory statistics (EntryCount: %v)", tags.size());
+    YT_LOG_INFO("Started building tagged memory statistics (EntryCount: %v)", tags.size());
     GetMemoryUsageForTags(tags.data(), tags.size(), usages.data());
-    LOG_INFO("Finished building tagged memory statistics (EntryCount: %v)", tags.size());
+    YT_LOG_INFO("Finished building tagged memory statistics (EntryCount: %v)", tags.size());
 
     {
         TGuard<TSpinLock> guard(Lock_);

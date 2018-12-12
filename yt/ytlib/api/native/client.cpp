@@ -918,12 +918,12 @@ private:
                 }
                 const auto& Logger = client->Logger;
                 try {
-                    LOG_DEBUG("Command started (Command: %v)", commandName);
+                    YT_LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
-                    LOG_DEBUG("Command completed (Command: %v)", commandName);
+                    YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
                     return result.Unwrap();
                 } catch (const std::exception& ex) {
-                    LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
+                    YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
                     throw;
                 }
             })
@@ -952,7 +952,7 @@ private:
             std::tie(retry, tabletInfo) = tableMountCache->InvalidateOnError(error);
 
             if (retry && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
-                LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
+                YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
                     retryCount,
                     config->TableMountCache->OnErrorRetryCount);
                 auto now = Now();
@@ -1421,7 +1421,7 @@ private:
             tabletCount += pair.second.size();
         }
 
-        LOG_DEBUG("Looking for in-sync replicas (Path: %v, CellCount: %v, TabletCount: %v)",
+        YT_LOG_DEBUG("Looking for in-sync replicas (Path: %v, CellCount: %v, TabletCount: %v)",
             tableInfo->Path,
             cellCount,
             tabletCount);
@@ -1462,7 +1462,7 @@ private:
                 for (const auto& replicaInfo : tableInfo->Replicas) {
                     auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
                     if (it != replicaIdToCount.end() && it->second == tabletCount) {
-                        LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
+                        YT_LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
                             tableInfo->Path,
                             replicaInfo->ReplicaId,
                             replicaInfo->ClusterName);
@@ -1550,7 +1550,7 @@ private:
 
         // TODO(babenko): break ties in a smarter way
         const auto& inSyncClusterName = inSyncClusterNames[0];
-        LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v)",
+        YT_LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v)",
             paths,
             inSyncClusterName);
 
@@ -2197,7 +2197,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %llx)",
+        YT_LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %llx)",
             tableInfo->TableId,
             replicaIds,
             options.Timestamp);
@@ -2225,7 +2225,7 @@ private:
             Logger);
 
         for (const auto &path : paths) {
-            LOG_INFO("Collecting table input chunks (Path: %v)", path);
+            YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
             const auto& transactionId = path.GetTransactionId();
 
@@ -2239,7 +2239,7 @@ private:
                     : options.TransactionId,
                 Logger);
 
-            LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
+            YT_LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
 
 
             for (const auto& inputChunk : inputChunks) {
@@ -3433,7 +3433,7 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
             }
 
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "Attribute /@touched set (Destination: %v)",
                 destination);
         }
@@ -3456,7 +3456,7 @@ private:
 
         auto rspOrError = WaitFor(proxy->Execute(req));
         if (!rspOrError.IsOK()) {
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 rspOrError,
                 "File is missing "
                 "(Destination: %v, MD5: %v)",
@@ -3471,7 +3471,7 @@ private:
 
         auto originalMD5 = attributes->Get<TString>("md5", "");
         if (md5 != originalMD5) {
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "File has incorrect md5 hash "
                 "(Destination: %v, expectedMD5: %v, originalMD5: %v)",
                 destination,
@@ -3509,7 +3509,7 @@ private:
             transaction = WaitFor(asyncTransaction)
                 .ValueOrThrow();
 
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "Transaction started (TransactionId: %v)",
                 transaction->GetId());
         }
@@ -3524,7 +3524,7 @@ private:
             auto lockResult = DoLockNode(path, ELockMode::Exclusive, lockNodeOptions);
             objectIdPath = FromObjectId(lockResult.NodeId);
 
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "Lock for node acquired (LockId: %v)",
                 lockResult.LockId);
         }
@@ -3582,7 +3582,7 @@ private:
                     md5);
             }
 
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "MD5 hash checked (MD5: %v)",
                 expectedMD5);
         }
@@ -3602,7 +3602,7 @@ private:
             WaitFor(fileCacheClient->CopyNode(objectIdPath, destination, copyOptions))
                 .ValueOrThrow();
 
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "File has been copied to cache (Destination: %v)",
                 destination);
         }
@@ -3632,7 +3632,7 @@ private:
                 auto error = ex.Error();
                 ++retryAttempts;
                 if (retryAttempts < options.RetryCount && error.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
-                    LOG_DEBUG(error, "Put file to cache failed, make next retry");
+                    YT_LOG_DEBUG(error, "Put file to cache failed, make next retry");
                 } else {
                     throw;
                 }
@@ -4204,7 +4204,7 @@ private:
             return result;
         }
 
-        LOG_DEBUG("Operation is not found in Cypress (OperationId: %v)",
+        YT_LOG_DEBUG("Operation is not found in Cypress (OperationId: %v)",
             operationId);
 
         if (DoesOperationsArchiveExist()) {
@@ -6344,7 +6344,7 @@ private:
                 Y_UNREACHABLE();
         }
 
-        LOG_DEBUG("Starting list jobs (IncludeCypress: %v, IncludeControllerAgent: %v, IncludeArchive: %v)",
+        YT_LOG_DEBUG("Starting list jobs (IncludeCypress: %v, IncludeControllerAgent: %v, IncludeArchive: %v)",
             includeCypress,
             includeControllerAgent,
             includeArchive);
@@ -6661,7 +6661,7 @@ private:
         TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
         auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
 
-        LOG_DEBUG("Polling job shell (JobId: %v)", jobId);
+        YT_LOG_DEBUG("Polling job shell (JobId: %v)", jobId);
 
         NJobProberClient::TJobProberServiceProxy proxy(nodeChannel);
         auto req = proxy.PollJobShell();

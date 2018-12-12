@@ -272,7 +272,7 @@ protected:
                 Y_UNREACHABLE();
         }
 
-        LOG_INFO(
+        YT_LOG_INFO(
             "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
             "InputSliceDataWeight: %v, IsExplicitJobCount: %v)",
             JobSizeConstraints_->GetJobCount(),
@@ -299,7 +299,7 @@ protected:
     void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
+            YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
@@ -319,7 +319,7 @@ protected:
                 yielder.TryYield();
             }
 
-            LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
+            YT_LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
                 unversionedSlices,
                 versionedSlices);
         }

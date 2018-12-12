@@ -19,7 +19,7 @@ namespace {
 template <class T>
 void ValidateSignature(const T& header)
 {
-    LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
+    YT_LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
         "Invalid signature: expected %" PRIx64 ", got %" PRIx64,
         T::ExpectedSignature,
         header.Signature);
@@ -212,7 +212,7 @@ void TAsyncFileChangelogIndex::Read(const std::optional<i32>& truncatedRecordCou
 
 void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
 {
-    LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
+    YT_LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
     YCHECK(correctPrefixSize <= Index_.size());
     Index_.resize(correctPrefixSize);
 
@@ -341,7 +341,7 @@ void TAsyncFileChangelogIndex::ProcessRecord(int recordId, i64 currentFilePositi
         CurrentBlockSize_ = 0;
         Index_.emplace_back(recordId, currentFilePosition);
 
-        LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
+        YT_LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
             recordId,
             currentFilePosition);
 

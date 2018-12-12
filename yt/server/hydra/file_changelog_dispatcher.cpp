@@ -47,7 +47,7 @@ public:
 
     ~TFileChangelogQueue()
     {
-        LOG_DEBUG("Changelog queue destroyed (Path: %v)",
+        YT_LOG_DEBUG("Changelog queue destroyed (Path: %v)",
             Changelog_->GetFileName());
     }
 
@@ -423,7 +423,7 @@ private:
     {
         YCHECK(Queues_.insert(queue).second);
         ProfileQueues();
-        LOG_DEBUG("Changelog queue registered (Path: %v)",
+        YT_LOG_DEBUG("Changelog queue registered (Path: %v)",
             queue->GetChangelog()->GetFileName());
 
         // See Wakeup.
@@ -436,7 +436,7 @@ private:
         YCHECK(Queues_.erase(queue) == 1);
         ShrinkHashTable(&Queues_);
         ProfileQueues();
-        LOG_DEBUG("Changelog queue unregistered (Path: %v)",
+        YT_LOG_DEBUG("Changelog queue unregistered (Path: %v)",
             queue->GetChangelog()->GetFileName());
     }
 
@@ -517,7 +517,7 @@ public:
 
     ~TFileChangelog()
     {
-        LOG_DEBUG("Destroying changelog queue (Path: %v)",
+        YT_LOG_DEBUG("Destroying changelog queue (Path: %v)",
             Queue_->GetChangelog()->GetFileName());
         Close();
         DispatcherImpl_->UnregisterQueue(Queue_);

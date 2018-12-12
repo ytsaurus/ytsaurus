@@ -157,7 +157,7 @@ public:
             SendPeriodicPing(mailbox);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
         return mailbox;
@@ -186,7 +186,7 @@ public:
     {
         auto cellId = mailbox->GetCellId();
         MailboxMap_.Remove(cellId);
-        LOG_INFO_UNLESS(IsRecovery(), "Mailbox removed (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox removed (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             cellId);
     }
@@ -231,7 +231,7 @@ public:
                 cellId));
         }
 
-        LOG_DEBUG("Synchronizing with another instance (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_DEBUG("Synchronizing with another instance (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             cellId);
 
@@ -314,7 +314,7 @@ private:
         }
 
         auto requestReconfigure = [&] (const TCellDescriptor& cellDescriptor, int oldVersion) {
-            LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v -> %v)",
+            YT_LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v -> %v)",
                 cellDescriptor.CellId,
                 oldVersion,
                 cellDescriptor.ConfigVersion);
@@ -323,7 +323,7 @@ private:
         };
 
         auto requestUnregister = [&] (const TCellId& cellId) {
-            LOG_DEBUG("Requesting cell unregistration (CellId: %v)",
+            YT_LOG_DEBUG("Requesting cell unregistration (CellId: %v)",
                 cellId);
             auto* unregisterInfo = response->add_cells_to_unregister();
             ToProto(unregisterInfo->mutable_cell_id(), cellId);
@@ -375,7 +375,7 @@ private:
 
         auto* nextTransientIncomingMessageId = GetNextTransientIncomingMessageIdPtr(srcCellId);
         if (*nextTransientIncomingMessageId == firstMessageId && messageCount > 0) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Committing reliable incoming messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing reliable incoming messages (SrcCellId: %v, DstCellId: %v, "
                 "MessageIds: %v-%v)",
                 srcCellId,
                 SelfCellId_,
@@ -411,7 +411,7 @@ private:
 
         ValidatePeer(EPeerKind::Leader);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Committing unreliable incoming messages (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing unreliable incoming messages (SrcCellId: %v, DstCellId: %v, "
             "MessageCount: %v)",
             srcCellId,
             SelfCellId_,
@@ -437,7 +437,7 @@ private:
         auto nextPersistentIncomingMessageId = request->next_persistent_incoming_message_id();
         auto acknowledgeCount = nextPersistentIncomingMessageId - mailbox->GetFirstOutcomingMessageId();
         if (acknowledgeCount <= 0) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -448,7 +448,7 @@ private:
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
         if (acknowledgeCount > outcomingMessages.size()) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -461,7 +461,7 @@ private:
         outcomingMessages.erase(outcomingMessages.begin(), outcomingMessages.begin() + acknowledgeCount);
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + acknowledgeCount);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, "
             "FirstOutcomingMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
@@ -475,7 +475,7 @@ private:
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
             if (firstMessageId != 0) {
-                LOG_ERROR_UNLESS(IsRecovery(), "Mailbox %v does not exist; expecting message 0 but got %v",
+                YT_LOG_ERROR_UNLESS(IsRecovery(), "Mailbox %v does not exist; expecting message 0 but got %v",
                     srcCellId,
                     firstMessageId);
                 return;
@@ -566,7 +566,7 @@ private:
         }
 
         logMessageBuilder.AppendString(AsStringBuf("})"));
-        LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
     }
 
     void UnreliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
@@ -606,7 +606,7 @@ private:
         }
 
         logMessageBuilder.AppendString(AsStringBuf("])"));
-        LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
     }
 
 
@@ -621,7 +621,7 @@ private:
         mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
         YCHECK(mailbox->GetInFlightOutcomingMessageCount() == 0);
 
-        LOG_INFO("Mailbox connected (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_INFO("Mailbox connected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
 
@@ -641,7 +641,7 @@ private:
         mailbox->SetInFlightOutcomingMessageCount(0);
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
 
-        LOG_INFO("Mailbox disconnected (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_INFO("Mailbox disconnected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
     }
@@ -738,7 +738,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Sending periodic ping (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_DEBUG("Sending periodic ping (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
 
@@ -762,7 +762,7 @@ private:
         SchedulePeriodicPing(mailbox);
 
         if (!rspOrError.IsOK()) {
-            LOG_DEBUG(rspOrError, "Periodic ping failed (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_DEBUG(rspOrError, "Periodic ping failed (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
             return;
@@ -773,7 +773,7 @@ private:
             ? std::make_optional(rsp->last_outcoming_message_id())
             : std::nullopt;
 
-        LOG_DEBUG("Periodic ping succeeded (SrcCellId: %v, DstCellId: %v, LastOutcomingMessageId: %v)",
+        YT_LOG_DEBUG("Periodic ping succeeded (SrcCellId: %v, DstCellId: %v, LastOutcomingMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
             lastOutcomingMessageId);
@@ -802,7 +802,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
         if (!rsp->has_last_outcoming_message_id()) {
-            LOG_DEBUG("Remote instance has no mailbox; no synchronization needed (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_DEBUG("Remote instance has no mailbox; no synchronization needed (SrcCellId: %v, DstCellId: %v)",
                 cellId,
                 SelfCellId_);
             return VoidFuture;
@@ -810,7 +810,7 @@ private:
 
         auto messageId = rsp->last_outcoming_message_id();
         if (messageId < mailbox->GetNextIncomingMessageId()) {
-            LOG_DEBUG("Already synchronized with remote instance (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_DEBUG("Already synchronized with remote instance (SrcCellId: %v, DstCellId: %v, "
                 "SyncMessageId: %v, NextPersistentIncomingMessageId: %v)",
                 cellId,
                 SelfCellId_,
@@ -819,7 +819,7 @@ private:
             return VoidFuture;
         }
 
-        LOG_DEBUG("Waiting for synchronization with remote instance (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG("Waiting for synchronization with remote instance (SrcCellId: %v, DstCellId: %v, "
             "SyncMessageId: %v, NextPersistentIncomingMessageId: %v)",
             cellId,
             SelfCellId_,
@@ -855,7 +855,7 @@ private:
 
             auto& promise = it->second;
 
-            LOG_DEBUG("Synchronization complete (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
+            YT_LOG_DEBUG("Synchronization complete (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
                 messageId);
@@ -953,11 +953,11 @@ private:
         mailbox->SetPostInProgress(true);
 
         if (messagesToPost == 0) {
-            LOG_DEBUG("Checking mailbox synchronization (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_DEBUG("Checking mailbox synchronization (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
         } else {
-            LOG_DEBUG("Posting reliable outcoming messages (SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v)",
+            YT_LOG_DEBUG("Posting reliable outcoming messages (SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
                 firstMessageId,
@@ -986,7 +986,7 @@ private:
         mailbox->SetPostInProgress(false);
 
         if (!rspOrError.IsOK()) {
-            LOG_DEBUG(rspOrError, "Failed to post reliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_DEBUG(rspOrError, "Failed to post reliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
             SetMailboxDisconnected(mailbox);
@@ -998,7 +998,7 @@ private:
             ? std::make_optional(rsp->next_persistent_incoming_message_id())
             : std::nullopt;
         auto nextTransientIncomingMessageId = rsp->next_transient_incoming_message_id();
-        LOG_DEBUG("Outcoming reliable messages posted (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG("Outcoming reliable messages posted (SrcCellId: %v, DstCellId: %v, "
             "NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
@@ -1026,14 +1026,14 @@ private:
         }
 
         if (!rspOrError.IsOK()) {
-            LOG_DEBUG(rspOrError, "Failed to send unreliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_DEBUG(rspOrError, "Failed to send unreliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
             SetMailboxDisconnected(mailbox);
             return;
         }
 
-        LOG_DEBUG("Outcoming unreliable messages sent successfully (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_DEBUG("Outcoming unreliable messages sent successfully (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
     }
@@ -1079,7 +1079,7 @@ private:
     bool CheckRequestedMessageIdAgainstMailbox(TMailbox* mailbox, TMessageId requestedMessageId)
     {
         if (requestedMessageId < mailbox->GetFirstOutcomingMessageId()) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -1090,7 +1090,7 @@ private:
         }
 
         if (requestedMessageId > mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size()) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -1124,7 +1124,7 @@ private:
 
         mailbox->SetAcknowledgeInProgress(true);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Committing reliable messages acknowledgement (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing reliable messages acknowledgement (SrcCellId: %v, DstCellId: %v, "
             "MessageIds: %v-%v)",
             SelfCellId_,
             mailbox->GetCellId(),
@@ -1159,7 +1159,7 @@ private:
     void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
     {
         if (messageId != mailbox->GetNextIncomingMessageId()) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
                 "ExpectedMessageId: %v, ActualMessageId: %v, MutationType: %v)",
                 mailbox->GetCellId(),
                 SelfCellId_,
@@ -1169,7 +1169,7 @@ private:
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Applying reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Applying reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
             mailbox->GetCellId(),
             SelfCellId_,
             messageId,
@@ -1191,7 +1191,7 @@ private:
 
     void ApplyUnreliableIncomingMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Applying unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Applying unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
             mailbox->GetCellId(),
             SelfCellId_,
             message.type());

@@ -99,7 +99,7 @@ private:
                     THROW_ERROR_EXCEPTION("Error configuring server to listen at %Qv",
                         addressConfig->Address);
                 }
-                LOG_DEBUG("Server address configured (Address: %v)", addressConfig->Address);
+                YT_LOG_DEBUG("Server address configured (Address: %v)", addressConfig->Address);
             }
         } catch (const std::exception& ex) {
             Cleanup();
@@ -320,7 +320,7 @@ private:
         {
             if (!success) {
                 // This normally happens on server shutdown.
-                LOG_DEBUG("Server accept failed");
+                YT_LOG_DEBUG("Server accept failed");
                 Unref();
                 return;
             }
@@ -328,7 +328,7 @@ private:
             New<TCallHandler>(Owner_);
 
             if (!TryParsePeerAddress()) {
-                LOG_DEBUG("Malformed peer address (PeerAddress: %v, RequestId: %v)",
+                YT_LOG_DEBUG("Malformed peer address (PeerAddress: %v, RequestId: %v)",
                     PeerAddressString_,
                     RequestId_);
                 Unref();
@@ -343,7 +343,7 @@ private:
             ParseTimeout();
 
             if (!TryParseRoutingParameters()) {
-                LOG_DEBUG("Malformed request routing parameters (RawMethod: %v, RequestId: %v)",
+                YT_LOG_DEBUG("Malformed request routing parameters (RawMethod: %v, RequestId: %v)",
                     ToStringBuf(CallDetails_->method),
                     RequestId_);
                 Unref();
@@ -360,7 +360,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v, ProtocolVersion: %v)",
+            YT_LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v, ProtocolVersion: %v)",
                 RequestId_,
                 ToStringBuf(CallDetails_->host),
                 ServiceName_,
@@ -415,7 +415,7 @@ private:
 
             if (!TRequestId::FromString(idString, &RequestId_)) {
                 RequestId_ = TRequestId::Create();
-                LOG_WARNING("Malformed request id, using a random one (MalformedRequestId: %v, RequestId: %v)",
+                YT_LOG_WARNING("Malformed request id, using a random one (MalformedRequestId: %v, RequestId: %v)",
                     idString,
                     RequestId_);
             }
@@ -583,7 +583,7 @@ private:
             try {
                 RequestMessageBodySize_ = FromString<ui32>(messageBodySizeString);
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Failed to parse message body size from request metadata (RequestId: %v)",
+                YT_LOG_WARNING(ex, "Failed to parse message body size from request metadata (RequestId: %v)",
                     RequestId_);
                 return false;
             }
@@ -601,7 +601,7 @@ private:
             try {
                 ProtocolVersion_ = TProtocolVersion::FromString(protocolVersionString);
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Failed to parse protocol version from string (RequestId: %v)",
+                YT_LOG_WARNING(ex, "Failed to parse protocol version from string (RequestId: %v)",
                     RequestId_);
                 return false;
             }
@@ -612,14 +612,14 @@ private:
         void OnRequestReceived(bool success)
         {
             if (!success) {
-                LOG_DEBUG("Failed to receive request body (RequestId: %v)",
+                YT_LOG_DEBUG("Failed to receive request body (RequestId: %v)",
                     RequestId_);
                 Unref();
                 return;
             }
 
             if (!RequestBodyBuffer_) {
-                LOG_DEBUG("Empty request body received (RequestId: %v)",
+                YT_LOG_DEBUG("Empty request body received (RequestId: %v)",
                     RequestId_);
                 Unref();
                 return;
@@ -631,7 +631,7 @@ private:
                     RequestBodyBuffer_.Unwrap(),
                     RequestMessageBodySize_);
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to receive request body (RequestId: %v)",
+                YT_LOG_DEBUG(ex, "Failed to receive request body (RequestId: %v)",
                     RequestId_);
                 Unref();
                 return;
@@ -664,7 +664,7 @@ private:
                 Stage_ = EServerCallStage::SendingInitialMetadata;
             }
 
-            LOG_DEBUG("Request received (RequestId: %v)",
+            YT_LOG_DEBUG("Request received (RequestId: %v)",
                 RequestId_);
 
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(RequestId_));
@@ -707,7 +707,7 @@ private:
                     NRpc::EErrorCode::NoSuchService,
                     "Service is not registered")
                     << TErrorAttribute("service", ServiceName_);
-                LOG_WARNING(error);
+                YT_LOG_WARNING(error);
                 auto response = CreateErrorResponseMessage(RequestId_, error);
                 Send(std::move(response), NBus::TSendOptions(EDeliveryTrackingLevel::None));
             }
@@ -716,7 +716,7 @@ private:
         void OnInitialMetadataSent(bool success)
         {
             if (!success) {
-                LOG_DEBUG("Failed to send initial metadata (RequestId: %v)",
+                YT_LOG_DEBUG("Failed to send initial metadata (RequestId: %v)",
                     RequestId_);
                 Unref();
                 return;
@@ -741,7 +741,7 @@ private:
             Stage_ = EServerCallStage::SendingResponse;
             guard.Release();
 
-            LOG_DEBUG("Sending response (RequestId: %v)",
+            YT_LOG_DEBUG("Sending response (RequestId: %v)",
                 RequestId_);
 
             NRpc::NProto::TResponseHeader responseHeader;
@@ -793,10 +793,10 @@ private:
         void OnResponseSent(bool success)
         {
             if (success) {
-                LOG_DEBUG("Response sent (RequestId: %v)",
+                YT_LOG_DEBUG("Response sent (RequestId: %v)",
                     RequestId_);
             } else {
-                LOG_DEBUG("Failed to send response (RequestId: %v)",
+                YT_LOG_DEBUG("Failed to send response (RequestId: %v)",
                     RequestId_);
             }
 
@@ -808,17 +808,17 @@ private:
         {
             if (success) {
                 if (Canceled_) {
-                    LOG_DEBUG("Request cancelation received (RequestId: %v)",
+                    YT_LOG_DEBUG("Request cancelation received (RequestId: %v)",
                         RequestId_);
                     if (Service_) {
                         Service_->HandleRequestCancelation(RequestId_);
                     }
                 } else {
-                    LOG_DEBUG("Request closed (RequestId: %v)",
+                    YT_LOG_DEBUG("Request closed (RequestId: %v)",
                         RequestId_);
                 }
             } else {
-                LOG_DEBUG("Failed to close request (RequestId: %v)",
+                YT_LOG_DEBUG("Failed to close request (RequestId: %v)",
                     RequestId_);
             }
 

@@ -437,7 +437,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
         options.TransactionId,
         readSessionId);
 
-    LOG_INFO("Opening table reader");
+    YT_LOG_INFO("Opening table reader");
 
     TUserObject userObject;
     userObject.Path = path;
@@ -465,7 +465,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
                 userObject.Type);
         }
     } else {
-        LOG_INFO("Table is virtual, performing further operations with its original path rather with its object id");
+        YT_LOG_INFO("Table is virtual, performing further operations with its original path rather with its object id");
         objectIdPath = path;
     }
 
@@ -475,7 +475,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     auto timestamp = richPath.GetTimestamp();
 
     {
-        LOG_INFO("Requesting table schema");
+        YT_LOG_INFO("Requesting table schema");
 
         auto channel = client->GetMasterChannelOrThrow(
             EMasterChannelKind::Follower,
@@ -514,7 +514,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     std::vector<TChunkSpec> chunkSpecs;
 
     {
-        LOG_INFO("Fetching table chunks");
+        YT_LOG_INFO("Fetching table chunks");
 
         FetchChunkSpecs(
             client,

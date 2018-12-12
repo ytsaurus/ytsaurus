@@ -271,7 +271,7 @@ i64 TDynamicStoreBase::Lock()
     Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
     auto result = ++StoreLockCount_;
-    LOG_TRACE("Store locked (Count: %v)",
+    YT_LOG_TRACE("Store locked (Count: %v)",
         result);
     return result;
 }
@@ -282,7 +282,7 @@ i64 TDynamicStoreBase::Unlock()
     Y_ASSERT(StoreLockCount_ > 0);
 
     auto result = --StoreLockCount_;
-    LOG_TRACE("Store unlocked (Count: %v)",
+    YT_LOG_TRACE("Store unlocked (Count: %v)",
         result);
     return result;
 }
@@ -631,7 +631,7 @@ EStorePreloadState TChunkStoreBase::GetPreloadState() const
 
 void TChunkStoreBase::SetPreloadState(EStorePreloadState state)
 {
-    LOG_INFO("Set preload state (Current: %v, New: %v)", PreloadState_, state);
+    YT_LOG_INFO("Set preload state (Current: %v, New: %v)", PreloadState_, state);
     PreloadState_ = state;
 }
 
@@ -813,7 +813,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
     TWriterGuard guard(SpinLock_);
 
     if (InMemoryMode_ != mode) {
-        LOG_INFO("Changed in-memory mode (CurrentMode: %v, NewMode: %v)",
+        YT_LOG_INFO("Changed in-memory mode (CurrentMode: %v, NewMode: %v)",
             InMemoryMode_,
             mode);
 
@@ -824,7 +824,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
         ChunkReader_.Reset();
 
         if (PreloadFuture_) {
-            LOG_INFO("Cancelling current preload");
+            YT_LOG_INFO("Cancelling current preload");
             PreloadFuture_.Cancel();
             PreloadFuture_.Reset();
         }

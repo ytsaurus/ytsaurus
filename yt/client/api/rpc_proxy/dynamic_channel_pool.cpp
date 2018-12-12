@@ -152,7 +152,7 @@ void TDynamicChannelPool::Terminate()
     for (auto channel : aliveChannels) {
         auto terminateError = WaitFor(channel->Terminate(error));
         if (!terminateError.IsOK()) {
-            LOG_ERROR(terminateError, "Error while terminating channel pool");
+            YT_LOG_ERROR(terminateError, "Error while terminating channel pool");
         }
     }
 
@@ -160,7 +160,7 @@ void TDynamicChannelPool::Terminate()
     for (auto channel : OpenChannels_) {
         auto terminateError = WaitFor(channel.second->Terminate(error));
         if (!terminateError.IsOK()) {
-            LOG_ERROR(terminateError, "Error while terminating channel pool");
+            YT_LOG_ERROR(terminateError, "Error while terminating channel pool");
         }
     }
     OpenChannels_.clear();

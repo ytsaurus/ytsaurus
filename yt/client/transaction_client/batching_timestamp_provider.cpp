@@ -145,14 +145,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_DEBUG("Updating latest timestamp");
+        YT_LOG_DEBUG("Updating latest timestamp");
 
         auto timestampOrError = WaitFor(GenerateTimestamps(1));
         if (timestampOrError.IsOK()) {
-            LOG_DEBUG("Latest timestamp updated (Timestamp: %llx)",
+            YT_LOG_DEBUG("Latest timestamp updated (Timestamp: %llx)",
                 timestampOrError.Value());
         } else {
-            LOG_WARNING(timestampOrError, "Error updating latest timestamp");
+            YT_LOG_WARNING(timestampOrError, "Error updating latest timestamp");
             return;
         }
     }

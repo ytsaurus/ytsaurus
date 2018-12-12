@@ -149,7 +149,7 @@ void TSchedulerStrategyHost::LogFinishedJobFluently(ELogEventType eventType, TJo
 void TSchedulerStrategyHost::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
 {
     if (!alert.IsOK()) {
-        LOG_WARNING(alert, "Setting scheduler alert (AlertType: %lv)", alertType);
+        YT_LOG_WARNING(alert, "Setting scheduler alert (AlertType: %lv)", alertType);
     }
 }
 

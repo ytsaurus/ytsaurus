@@ -158,7 +158,7 @@ private:
 
         if (CurrentTimestamp_ + count >= CommittedTimestamp_) {
             // Backoff and retry.
-            LOG_WARNING_UNLESS(BackingOff_, "Not enough spare timestamps; backing off");
+            YT_LOG_WARNING_UNLESS(BackingOff_, "Not enough spare timestamps; backing off");
             BackingOff_ = true;
             TDelayedExecutor::Submit(
                 BIND(&TImpl::DoGenerateTimestamps, MakeStrong(this), context)
@@ -168,7 +168,7 @@ private:
         }
 
         if (BackingOff_) {
-            LOG_INFO("Spare timestamps are available again");
+            YT_LOG_INFO("Spare timestamps are available again");
             BackingOff_ = false;
         }
         
@@ -199,14 +199,14 @@ private:
             return;
 
         if (nowSeconds < prevSeconds) {
-            LOG_WARNING("Clock went back, keeping current timestamp (PrevSeconds: %v, NowSeconds: %v)",
+            YT_LOG_WARNING("Clock went back, keeping current timestamp (PrevSeconds: %v, NowSeconds: %v)",
                 prevSeconds,
                 nowSeconds);
             return;
         }
 
         CurrentTimestamp_ = (nowSeconds << TimestampCounterWidth);
-        LOG_DEBUG("Timestamp advanced (Timestamp: %llx)",
+        YT_LOG_DEBUG("Timestamp advanced (Timestamp: %llx)",
             CurrentTimestamp_);
 
         auto commitTimestamp =
@@ -231,13 +231,13 @@ private:
         VERIFY_THREAD_AFFINITY(TimestampThread);
 
         if (!result.IsOK()) {
-            LOG_ERROR(result, "Error committing timestamp");
+            YT_LOG_ERROR(result, "Error committing timestamp");
             return;
         }
 
         CommittedTimestamp_ = timestamp;
 
-        LOG_DEBUG("Timestamp committed (Timestamp: %llx)",
+        YT_LOG_DEBUG("Timestamp committed (Timestamp: %llx)",
             CommittedTimestamp_);
     }
 
@@ -270,7 +270,7 @@ private:
 
         TCompositeAutomatonPart::OnLeaderActive();
 
-        LOG_INFO("Persistent timestamp is %v",
+        YT_LOG_INFO("Persistent timestamp is %v",
             PersistentTimestamp_);
 
         auto persistentTimestamp = PersistentTimestamp_;
@@ -285,7 +285,7 @@ private:
             CurrentTimestamp_ = persistentTimestamp;
             CommittedTimestamp_ = persistentTimestamp;
 
-            LOG_INFO("Timestamp generator is now active (Timestamp: %llx)",
+            YT_LOG_INFO("Timestamp generator is now active (Timestamp: %llx)",
                 persistentTimestamp);
         }).Via(invoker);
 
@@ -295,7 +295,7 @@ private:
             callback.Run();
         } else {
             auto delay = TDuration::Seconds(deadlineSeconds - nowSeconds + 1); // +1 to be sure
-            LOG_INFO("Timestamp generation postponed for %v ms to ensure monotonicity",
+            YT_LOG_INFO("Timestamp generation postponed for %v ms to ensure monotonicity",
                 delay);
             TDelayedExecutor::Submit(callback, delay);
         }
@@ -317,7 +317,7 @@ private:
             CurrentTimestamp_ = NullTimestamp;
             CommittedTimestamp_ = NullTimestamp;
 
-            LOG_INFO("Timestamp generator is no longer active");
+            YT_LOG_INFO("Timestamp generator is no longer active");
         }));
     }
 
@@ -328,7 +328,7 @@ private:
 
         PersistentTimestamp_ = request->timestamp();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Persistent timestamp updated (Timestamp: %llx)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Persistent timestamp updated (Timestamp: %llx)",
             PersistentTimestamp_);
     }
 

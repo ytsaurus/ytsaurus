@@ -210,7 +210,7 @@ public:
 
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {
-            LOG_DEBUG("Codegen cache miss: generating column evaluator (Schema: %v)",
+            YT_LOG_DEBUG("Codegen cache miss: generating column evaluator (Schema: %v)",
                 schema);
 
             auto evaluator = TColumnEvaluator::Create(

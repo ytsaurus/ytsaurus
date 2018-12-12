@@ -58,7 +58,7 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
     const TControllerAgentPtr& agent,
     const TIntrusivePtr<TRequest>& request)
 {
-    LOG_DEBUG("Sending request to agent (AgentId: %v, OperationId: %v, Method: %v)",
+    YT_LOG_DEBUG("Sending request to agent (AgentId: %v, OperationId: %v, Method: %v)",
         agent->GetId(),
         operationId,
         request->GetMethod());
@@ -66,7 +66,7 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
     ToProto(request->mutable_incarnation_id(), agent->GetIncarnationId());
 
     return request->Invoke().Apply(BIND([=] (const TErrorOr<TIntrusivePtr<TResponse>>& rspOrError) {
-        LOG_DEBUG(rspOrError, "Agent response received (AgentId: %v, OperationId: %v)",
+        YT_LOG_DEBUG(rspOrError, "Agent response received (AgentId: %v, OperationId: %v)",
             agent->GetId(),
             operationId);
         if (rspOrError.GetCode() == NControllerAgent::EErrorCode::AgentCallFailed) {
@@ -116,7 +116,7 @@ public:
         ScheduleJobRequestsOutbox_ = agent->GetScheduleJobRequestsOutbox();
 
         if (!PostponedJobEvents_.empty()) {
-            LOG_DEBUG("Postponed job events enqueued (OperationId: %v, EventCount: %v)",
+            YT_LOG_DEBUG("Postponed job events enqueued (OperationId: %v, EventCount: %v)",
                 OperationId_,
                 PostponedJobEvents_.size());
             JobEventsOutbox_->Enqueue(std::move(PostponedJobEvents_));
@@ -167,7 +167,7 @@ public:
                 try {
                     FromProto(&transactions, rsp->transaction_ids(), std::bind(&TBootstrap::GetRemoteMasterClient, Bootstrap_, _1), Config_->OperationTransactionPingPeriod);
                 } catch (const std::exception& ex) {
-                    LOG_INFO(ex, "Failed to attach operation transactions (OperationId: %v)",
+                    YT_LOG_INFO(ex, "Failed to attach operation transactions (OperationId: %v)",
                         OperationId_);
                 }
                 return TOperationControllerInitializeResult{
@@ -272,7 +272,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!IncarnationId_) {
-            LOG_WARNING("Operation has no agent assigned; control abort request ignored (OperationId: %v)",
+            YT_LOG_WARNING("Operation has no agent assigned; control abort request ignored (OperationId: %v)",
                 OperationId_);
             return VoidFuture;
         }
@@ -329,7 +329,7 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
         JobEventsOutbox_->Enqueue(std::move(event));
-        LOG_DEBUG("Job start notification enqueued (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG("Job start notification enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             job->GetId());
     }
@@ -345,7 +345,7 @@ public:
         event.Abandoned = abandoned;
         event.InterruptReason = job->GetInterruptReason();
         auto result = EnqueueJobEvent(std::move(event));
-        LOG_DEBUG("Job completion notification %v (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG("Job completion notification %v (OperationId: %v, JobId: %v)",
             result ? "enqueued" : "buffered",
             OperationId_,
             job->GetId());
@@ -359,7 +359,7 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
         auto result = EnqueueJobEvent(std::move(event));
-        LOG_DEBUG("Job failure notification %v (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG("Job failure notification %v (OperationId: %v, JobId: %v)",
             result ? "enqueued" : "buffered",
             OperationId_,
             job->GetId());
@@ -376,7 +376,7 @@ public:
         event.AbortReason = job->GetAbortReason();
         event.AbortedByScheduler = byScheduler;
         auto result = EnqueueJobEvent(std::move(event));
-        LOG_DEBUG("Job abort notification %v (OperationId: %v, JobId: %v, ByScheduler: %v)",
+        YT_LOG_DEBUG("Job abort notification %v (OperationId: %v, JobId: %v, ByScheduler: %v)",
             result ? "enqueued" : "buffered",
             OperationId_,
             job->GetId(),
@@ -404,7 +404,7 @@ public:
             {}
         };
         auto result = EnqueueJobEvent(std::move(event));
-        LOG_DEBUG("Nonscheduled job abort notification %v (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG("Nonscheduled job abort notification %v (OperationId: %v, JobId: %v)",
             result ? "enqueued" : "buffered",
             OperationId_,
             jobId);
@@ -419,7 +419,7 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status);
         auto result = EnqueueJobEvent(std::move(event), false);
-        LOG_DEBUG_IF(shouldLogJob,
+        YT_LOG_DEBUG_IF(shouldLogJob,
             "Job run notification %v (OperationId: %v, JobId: %v)",
             result ? "enqueued" : "dropped",
             OperationId_,
@@ -453,7 +453,7 @@ public:
             if (!IncarnationId_) {
                 guard.Release();
 
-                LOG_DEBUG("Job schedule request cannot be served since no agent is assigned (OperationId: %v, JobId: %v)",
+                YT_LOG_DEBUG("Job schedule request cannot be served since no agent is assigned (OperationId: %v, JobId: %v)",
                     OperationId_,
                     jobId);
 
@@ -467,7 +467,7 @@ public:
             ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
         }
 
-        LOG_TRACE("Job schedule request enqueued (OperationId: %v, JobId: %v)",
+        YT_LOG_TRACE("Job schedule request enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             jobId);
 
@@ -492,7 +492,7 @@ public:
             ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources,
             OperationId_
         });
-        LOG_DEBUG("Min needed job resources update request enqueued (OperationId: %v)",
+        YT_LOG_DEBUG("Min needed job resources update request enqueued (OperationId: %v)",
             OperationId_);
     }
 
@@ -682,7 +682,7 @@ public:
                 for (const auto& agent : registeredAgents) {
                     auto memoryStatistics = agent->GetMemoryStatistics();
                     if (!memoryStatistics) {
-                        LOG_WARNING("Controller agent skipped since it did not report memory information "
+                        YT_LOG_WARNING("Controller agent skipped since it did not report memory information "
                             "and memory usage balanced pick strategy used (AgentId: %v)",
                             agent->GetId());
                         continue;
@@ -715,7 +715,7 @@ public:
         YCHECK(agent->Operations().insert(operation).second);
         operation->SetAgent(agent.Get());
 
-        LOG_INFO("Operation assigned to agent (AgentId: %v, OperationId: %v)",
+        YT_LOG_INFO("Operation assigned to agent (AgentId: %v, OperationId: %v)",
             agent->GetId(),
             operation->GetId());
     }
@@ -726,7 +726,7 @@ public:
 
         auto agent = operation->GetAgentOrCancelFiber();
 
-        LOG_DEBUG("Registering operation at agent (AgentId: %v, OperationId: %v)",
+        YT_LOG_DEBUG("Registering operation at agent (AgentId: %v, OperationId: %v)",
             agent->GetId(),
             operation->GetId());
 
@@ -763,7 +763,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_WARNING(error, "Agent failed; unregistering (AgentId: %v, IncarnationId: %v)",
+        YT_LOG_WARNING(error, "Agent failed; unregistering (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
 
@@ -783,7 +783,7 @@ public:
 
         YCHECK(agent->Operations().erase(operation) == 1);
 
-        LOG_DEBUG("Operation unregistered from agent (AgentId: %v, OperationId: %v)",
+        YT_LOG_DEBUG("Operation unregistered from agent (AgentId: %v, OperationId: %v)",
             agent->GetId(),
             operation->GetId());
     }
@@ -828,7 +828,7 @@ public:
         if (existingAgent) {
             auto state = existingAgent->GetState();
             if (state == EControllerAgentState::Registered || state == EControllerAgentState::WaitingForInitialHeartbeat) {
-                LOG_INFO("Kicking out agent due to id conflict (AgentId: %v, ExistingIncarnationId: %v)",
+                YT_LOG_INFO("Kicking out agent due to id conflict (AgentId: %v, ExistingIncarnationId: %v)",
                     agentId,
                     existingAgent->GetIncarnationId());
                 UnregisterAgent(existingAgent);
@@ -852,7 +852,7 @@ public:
         agent->SetState(EControllerAgentState::Registering);
         RegisterAgent(agent);
 
-        LOG_INFO("Starting agent incarnation transaction (AgentId: %v)",
+        YT_LOG_INFO("Starting agent incarnation transaction (AgentId: %v)",
             agentId);
 
         NApi::TTransactionStartOptions options;
@@ -886,7 +886,7 @@ public:
                     BIND(&TImpl::OnAgentIncarnationTransactionAborted, MakeWeak(this), MakeWeak(agent))
                         .Via(GetCancelableControlInvoker()));
 
-                LOG_INFO("Agent incarnation transaction started (AgentId: %v, IncarnationId: %v)",
+                YT_LOG_INFO("Agent incarnation transaction started (AgentId: %v, IncarnationId: %v)",
                     agentId,
                     agent->GetIncarnationId());
 
@@ -931,7 +931,7 @@ public:
             return;
         }
         if (agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat) {
-            LOG_INFO("Agent registration confirmed by heartbeat");
+            YT_LOG_INFO("Agent registration confirmed by heartbeat");
             agent->SetState(EControllerAgentState::Registered);
         }
 
@@ -944,7 +944,7 @@ public:
             auto operationId = FromProto<TOperationId>(protoOperation.operation_id());
             auto operation = scheduler->FindOperation(operationId);
             if (!operation) {
-                LOG_DEBUG("Unknown operation is running at agent; unregister requested (AgentId: %v, OperationId: %v)",
+                YT_LOG_DEBUG("Unknown operation is running at agent; unregister requested (AgentId: %v, OperationId: %v)",
                     agent->GetId(),
                     operationId);
                 ToProto(response->add_operation_ids_to_unregister(), operationId);
@@ -1188,7 +1188,7 @@ private:
 
         TerminateAgent(agent);
 
-        LOG_INFO("Aborting agent incarnation transaction (AgentId: %v, IncarnationId: %v)",
+        YT_LOG_INFO("Aborting agent incarnation transaction (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
 
@@ -1206,7 +1206,7 @@ private:
                     return;
                 }
 
-                LOG_INFO("Agent unregistered (AgentId: %v, IncarnationId: %v)",
+                YT_LOG_INFO("Agent unregistered (AgentId: %v, IncarnationId: %v)",
                     agent->GetId(),
                     agent->GetIncarnationId());
 
@@ -1233,7 +1233,7 @@ private:
             return;
         }
 
-        LOG_WARNING("Agent heartbeat timeout; unregistering (AgentId: %v, IncarnationId: %v)",
+        YT_LOG_WARNING("Agent heartbeat timeout; unregistering (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
 
@@ -1249,7 +1249,7 @@ private:
             return;
         }
 
-        LOG_WARNING("Agent incarnation transaction aborted; unregistering (AgentId: %v, IncarnationId: %v)",
+        YT_LOG_WARNING("Agent incarnation transaction aborted; unregistering (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
 

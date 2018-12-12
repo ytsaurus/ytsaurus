@@ -27,24 +27,24 @@ BlockInputStreams TStorageDistributed::read(
     size_t maxBlockSize,
     unsigned numStreams)
 {
-    CH_LOG_DEBUG(
+    LOG_DEBUG(
         Logger,
         "Requested columns " << JoinStrings(",", ToString(columnNames)) << " from table " << getTableName());
 
 
     auto clusterNodes = Cluster->GetAvailableNodes();
 
-    CH_LOG_DEBUG(
+    LOG_DEBUG(
         Logger,
         "Available cluster nodes: " << std::to_string(clusterNodes.size()));
 
     // Allocate table parts to nodes of execution cluster
 
-    CH_LOG_DEBUG(Logger, "Allocating table parts to cluster nodes...");
+    LOG_DEBUG(Logger, "Allocating table parts to cluster nodes...");
 
     auto allocation = AllocateTablePartsToClusterNodes(clusterNodes, queryInfo, context);
 
-    CH_LOG_DEBUG(Logger, "Prepering to subqueries execution...");
+    LOG_DEBUG(Logger, "Prepering to subqueries execution...");
 
     // Prepare settings and context for subqueries
 
@@ -67,7 +67,7 @@ BlockInputStreams TStorageDistributed::read(
 
     // Create block streams
 
-    CH_LOG_DEBUG(Logger, "Creating subqueries input streams...");
+    LOG_DEBUG(Logger, "Creating subqueries input streams...");
 
     BlockInputStreams streams;
 
@@ -95,7 +95,7 @@ BlockInputStreams TStorageDistributed::read(
         streams.push_back(std::move(tablePartStream));
     }
 
-    CH_LOG_DEBUG(Logger, "All block streams created");
+    LOG_DEBUG(Logger, "All block streams created");
 
     return streams;
 }

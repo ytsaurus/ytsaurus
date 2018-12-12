@@ -104,7 +104,7 @@ void TBootstrap::DoRun()
 {
     LocalAddresses_ = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
-    LOG_INFO("Starting proxy (LocalAddresses: %v, PrimaryMasterAddresses: %v)",
+    YT_LOG_INFO("Starting proxy (LocalAddresses: %v, PrimaryMasterAddresses: %v)",
         GetValues(LocalAddresses_),
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
@@ -178,10 +178,10 @@ void TBootstrap::DoRun()
         "/orchid/",
         NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
-    LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
 
-    LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 
@@ -192,7 +192,7 @@ void TBootstrap::DoRun()
         int port;
         NNet::ParseServiceAddress(addresses[0]->Address, nullptr, &port);
 
-        LOG_INFO("Listening for GRPC requests on port %v", port);
+        YT_LOG_INFO("Listening for GRPC requests on port %v", port);
         GrpcServer_->Start();
     }
 }

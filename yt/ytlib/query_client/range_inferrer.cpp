@@ -744,7 +744,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
         buffer,
         rangeExtractors);
 
-    LOG_DEBUG_IF(
+    YT_LOG_DEBUG_IF(
         options.VerboseLogging,
         "Predicate %Qv defines key constraints %Qv",
         InferName(predicate),
@@ -764,7 +764,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
         true,
         rangeCountLimit);
 
-    LOG_DEBUG_IF(
+    YT_LOG_DEBUG_IF(
         options.VerboseLogging,
         "Got %v ranges from key trie",
         ranges.size());
@@ -823,7 +823,7 @@ TRangeInferrer CreateLightRangeInferrer(
         keyTrieBuffer,
         rangeExtractors);
 
-    LOG_DEBUG_IF(
+    YT_LOG_DEBUG_IF(
         options.VerboseLogging,
         "Predicate %Qv defines key constraints %Qv",
         InferName(predicate),

@@ -11,7 +11,7 @@ static const auto& Logger = TransactionClientLogger;
 
 TFuture<TTimestamp> TTimestampProviderBase::GenerateTimestamps(int count)
 {
-    LOG_DEBUG("Generating fresh timestamps (Count: %v)", count);
+    YT_LOG_DEBUG("Generating fresh timestamps (Count: %v)", count);
 
     return DoGenerateTimestamps(count).Apply(BIND(
         &TTimestampProviderBase::OnGenerateTimestamps,
@@ -30,14 +30,14 @@ TFuture<TTimestamp> TTimestampProviderBase::OnGenerateTimestamps(
 {
     if (!timestampOrError.IsOK()) {
         auto error = TError("Error generating fresh timestamps") << timestampOrError;
-        LOG_ERROR(error);
+        YT_LOG_ERROR(error);
         return MakeFuture<TTimestamp>(error);
     }
 
     auto firstTimestamp = timestampOrError.Value();
     auto lastTimestamp = firstTimestamp + count - 1;
 
-    LOG_DEBUG("Fresh timestamps generated (Timestamps: %llx-%llx)",
+    YT_LOG_DEBUG("Fresh timestamps generated (Timestamps: %llx-%llx)",
         firstTimestamp,
         lastTimestamp);
 

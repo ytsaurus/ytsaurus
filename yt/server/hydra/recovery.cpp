@@ -79,7 +79,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         YCHECK(snapshotId <= targetVersion.SegmentId);
     }
 
-    LOG_INFO("Recovering from version %v to version %v",
+    YT_LOG_INFO("Recovering from version %v to version %v",
         currentVersion,
         targetVersion);
 
@@ -98,7 +98,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     int initialChangelogId;
     if (snapshotVersion > currentVersion) {
         // Load the snapshot.
-        LOG_INFO("Using snapshot %v for recovery", snapshotId);
+        YT_LOG_INFO("Using snapshot %v for recovery", snapshotId);
 
         if (ResponseKeeper_) {
             ResponseKeeper_->Stop();
@@ -108,7 +108,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.
-        LOG_INFO("Not using snapshots for recovery");
+        YT_LOG_INFO("Not using snapshots for recovery");
         initialChangelogId = currentVersion.SegmentId;
     }
 
@@ -116,7 +116,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     if (targetVersion == TVersion() && !IsLeader() && !Options_.WriteChangelogsAtFollowers)
         return;
 
-    LOG_INFO("Replaying changelogs %v-%v to reach version %v",
+    YT_LOG_INFO("Replaying changelogs %v-%v to reach version %v",
         initialChangelogId,
         targetVersion.SegmentId,
         targetVersion);
@@ -133,7 +133,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
             auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
 
-            LOG_INFO("Changelog %v is missing and will be created at version %v",
+            YT_LOG_INFO("Changelog %v is missing and will be created at version %v",
                 changelogId,
                 currentVersion);
 
@@ -193,7 +193,7 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
         ? SyncVersion_.RecordId
         : remoteRecordCount;
 
-    LOG_INFO("Syncing changelog %v: local %v, remote %v, sync %v",
+    YT_LOG_INFO("Syncing changelog %v: local %v, remote %v, sync %v",
         changelogId,
         localRecordCount,
         remoteRecordCount,
@@ -220,7 +220,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
-    LOG_INFO("Replaying changelog %v from version %v to version %v",
+    YT_LOG_INFO("Replaying changelog %v from version %v to version %v",
         changelogId,
         currentVersion,
         TVersion(changelogId, targetRecordId));
@@ -242,7 +242,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
             changelog->GetRecordCount());
     }
 
-    LOG_INFO("Waiting for quorum record count to become sufficiently high");
+    YT_LOG_INFO("Waiting for quorum record count to become sufficiently high");
 
     while (true) {
         auto asyncResult = ComputeChangelogQuorumInfo(
@@ -254,11 +254,11 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
             .ValueOrThrow();
 
         if (result.RecordCountLo >= targetRecordId) {
-            LOG_INFO("Quorum record count check succeeded");
+            YT_LOG_INFO("Quorum record count check succeeded");
             break;
         }
 
-        LOG_INFO("Quorum record count check failed; will retry");
+        YT_LOG_INFO("Quorum record count check failed; will retry");
 
         WaitFor(TDelayedExecutor::MakeDelayed(Config_->ChangelogQuorumCheckRetryPeriod))
             .ThrowOnError();
@@ -271,7 +271,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
         if (recordsNeeded == 0)
             break;
     
-        LOG_INFO("Trying to read records %v-%v from changelog %v",
+        YT_LOG_INFO("Trying to read records %v-%v from changelog %v",
             startRecordId,
             targetRecordId - 1,
             changelogId);
@@ -284,12 +284,12 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
             .ValueOrThrow();
         int recordsRead = static_cast<int>(recordsData.size());
 
-        LOG_INFO("Finished reading records %v-%v from changelog %v",
+        YT_LOG_INFO("Finished reading records %v-%v from changelog %v",
             startRecordId,
             startRecordId + recordsRead - 1,
             changelogId);
 
-        LOG_INFO("Applying records %v-%v from changelog %v",
+        YT_LOG_INFO("Applying records %v-%v from changelog %v",
             startRecordId,
             startRecordId + recordsRead - 1,
             changelogId);
@@ -341,9 +341,9 @@ void TLeaderRecovery::DoRun()
     auto elapsedTime = timer.GetElapsedTime();
 
     if (Config_->DisableLeaderLeaseGraceDelay) {
-        LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
+        YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
     } else if (elapsedTime < Config_->LeaderLeaseGraceDelay) {
-        LOG_INFO("Waiting for previous leader lease to expire");
+        YT_LOG_INFO("Waiting for previous leader lease to expire");
         WaitFor(TDelayedExecutor::MakeDelayed(Config_->LeaderLeaseGraceDelay - elapsedTime))
             .ThrowOnError();
     }
@@ -398,7 +398,7 @@ void TFollowerRecovery::DoRun()
 
     RecoverToVersion(SyncVersion_);
 
-    LOG_INFO("Checkpoint reached; started catching up with leader");
+    YT_LOG_INFO("Checkpoint reached; started catching up with leader");
 
     while (true) {
         TVersion committedVersion;
@@ -414,13 +414,13 @@ void TFollowerRecovery::DoRun()
             TGuard<TSpinLock> guard(SpinLock_);
             postponedActions.swap(PostponedActions_);
             if (postponedActions.empty() && !DecoratedAutomaton_->HasReadyMutations()) {
-                LOG_INFO("No more postponed actions accepted");
+                YT_LOG_INFO("No more postponed actions accepted");
                 NoMorePostponedActions_ = true;
                 break;
             }
         }
 
-        LOG_INFO("Logging postponed actions (ActionCount: %v)",
+        YT_LOG_INFO("Logging postponed actions (ActionCount: %v)",
             postponedActions.size());
 
         for (const auto& action : postponedActions) {
@@ -440,7 +440,7 @@ void TFollowerRecovery::DoRun()
         }
     }
 
-    LOG_INFO("Finished catching up with leader");
+    YT_LOG_INFO("Finished catching up with leader");
 }
 
 bool TFollowerRecovery::PostponeChangelogRotation(TVersion version)
@@ -454,7 +454,7 @@ bool TFollowerRecovery::PostponeChangelogRotation(TVersion version)
     }
 
     if (PostponedVersion_ > version) {
-        LOG_DEBUG("Late changelog rotation received during recovery, ignored: expected %v, received %v",
+        YT_LOG_DEBUG("Late changelog rotation received during recovery, ignored: expected %v, received %v",
             PostponedVersion_,
             version);
         return true;
@@ -468,7 +468,7 @@ bool TFollowerRecovery::PostponeChangelogRotation(TVersion version)
 
     PostponedActions_.push_back(TPostponedChangelogRotation());
 
-    LOG_INFO("Postponing changelog rotation at version %v",
+    YT_LOG_INFO("Postponing changelog rotation at version %v",
         PostponedVersion_);
 
     PostponedVersion_ = PostponedVersion_.Rotate();
@@ -489,7 +489,7 @@ bool TFollowerRecovery::PostponeMutations(
     }
 
     if (PostponedVersion_ > version) {
-        LOG_DEBUG("Late mutations received during recovery, ignored: expected %v, received %v",
+        YT_LOG_DEBUG("Late mutations received during recovery, ignored: expected %v, received %v",
             PostponedVersion_,
             version);
         return true;
@@ -501,7 +501,7 @@ bool TFollowerRecovery::PostponeMutations(
             version);
     }
 
-    LOG_DEBUG("Mutations postponed (StartVersion: %v, MutationCount: %v)",
+    YT_LOG_DEBUG("Mutations postponed (StartVersion: %v, MutationCount: %v)",
         PostponedVersion_,
         recordsData.size());
 

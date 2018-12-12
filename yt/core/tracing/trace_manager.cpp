@@ -222,7 +222,7 @@ private:
             *req->add_events() = event;
         }
 
-        LOG_DEBUG("Events sent proxy (Count: %v)",
+        YT_LOG_DEBUG("Events sent proxy (Count: %v)",
             CurrentBatch_.size());
 
         req->Invoke();
@@ -241,14 +241,14 @@ private:
         }
 
         if (event.has_annotation_key()) {
-            LOG_DEBUG("Event %v=%v %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
+            YT_LOG_DEBUG("Event %v=%v %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
                 event.annotation_key(),
                 event.annotation_value(),
                 event.trace_id(),
                 event.span_id(),
                 event.parent_span_id());
         } else {
-            LOG_DEBUG("Event %v:%v %v %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
+            YT_LOG_DEBUG("Event %v:%v %v %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
                 event.service_name(),
                 event.span_name(),
                 event.annotation_name(),
@@ -269,7 +269,7 @@ private:
         auto* addressResolver = TAddressResolver::Get();
         auto addressOrError = addressResolver->Resolve(GetLocalHostName()).Get();
         if (!addressOrError.IsOK()) {
-            LOG_FATAL(addressOrError, "Error determining local endpoint address");
+            YT_LOG_FATAL(addressOrError, "Error determining local endpoint address");
         }
 
         NProto::TEndpoint endpoint;
@@ -291,7 +291,7 @@ private:
             }
 
             default:
-                LOG_FATAL("Neither v4 nor v6 address is known for local endpoint");
+                YT_LOG_FATAL("Neither v4 nor v6 address is known for local endpoint");
         }
 
         return endpoint;

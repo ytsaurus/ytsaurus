@@ -63,7 +63,7 @@ void TPortoProcess::DoSpawn()
             ProcessId_ = ContainerInstance_->GetPid();
         } catch (const std::exception& ex) {
             // This could happen if porto container has already died.
-            LOG_WARNING(ex, "Failed to get pid of root process (Container: %v)",
+            YT_LOG_WARNING(ex, "Failed to get pid of root process (Container: %v)",
                 ContainerInstance_->GetName());
         }
     } catch (const std::exception& ex) {
@@ -73,14 +73,14 @@ void TPortoProcess::DoSpawn()
             << TErrorAttribute("container", ContainerInstance_->GetName())
             << ex;
     }
-    LOG_DEBUG("Process inside porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
+    YT_LOG_DEBUG("Process inside porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
         Args_[0],
         ProcessId_,
         ContainerInstance_->GetName());
 
     YCHECK(execFuture);
     execFuture.Apply(BIND([=, this_ = MakeStrong(this)](int exitCode) {
-        LOG_DEBUG("Process inside porto exited (ExitCode: %v, ExternalPid: %v, Container: %v)",
+        YT_LOG_DEBUG("Process inside porto exited (ExitCode: %v, ExternalPid: %v, Container: %v)",
             exitCode,
             ProcessId_,
             ContainerInstance_->GetName());

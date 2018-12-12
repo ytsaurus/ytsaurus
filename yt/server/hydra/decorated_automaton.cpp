@@ -258,7 +258,7 @@ protected:
         }
         LockAcquired_ = true;
 
-        LOG_INFO("Snapshot builder lock acquired");
+        YT_LOG_INFO("Snapshot builder lock acquired");
     }
 
     void ReleaseLock()
@@ -267,7 +267,7 @@ protected:
             Owner_->BuildingSnapshot_.clear();
             LockAcquired_ = false;
 
-            LOG_INFO("Snapshot builder lock released");
+            YT_LOG_INFO("Snapshot builder lock released");
         }
     }
 
@@ -316,7 +316,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         auto pipe = TPipeFactory().Create();
-        LOG_INFO("Snapshot transfer pipe opened (Pipe: %v)",
+        YT_LOG_INFO("Snapshot transfer pipe opened (Pipe: %v)",
             pipe);
 
         InputStream_ = pipe.CreateAsyncReader();
@@ -362,7 +362,7 @@ private:
 
     void TransferLoop()
     {
-        LOG_INFO("Snapshot transfer loop started");
+        YT_LOG_INFO("Snapshot transfer loop started");
 
         WaitFor(SnapshotWriter_->Open())
             .ThrowOnError();
@@ -389,21 +389,21 @@ private:
                 .ThrowOnError();
         }
 
-        LOG_INFO("Snapshot transfer loop completed (Size: %v)",
+        YT_LOG_INFO("Snapshot transfer loop completed (Size: %v)",
             size);
     }
 
     void OnFinished()
     {
-        LOG_INFO("Waiting for transfer loop to finish");
+        YT_LOG_INFO("Waiting for transfer loop to finish");
         WaitFor(AsyncTransferResult_)
             .ThrowOnError();
-        LOG_INFO("Transfer loop finished");
+        YT_LOG_INFO("Transfer loop finished");
 
-        LOG_INFO("Waiting for snapshot writer to close");
+        YT_LOG_INFO("Waiting for snapshot writer to close");
         WaitFor(SnapshotWriter_->Close())
             .ThrowOnError();
-        LOG_INFO("Snapshot writer closed");
+        YT_LOG_INFO("Snapshot writer closed");
     }
 };
 
@@ -469,11 +469,11 @@ public:
 
         TGuard<TSpinLock> guard(SpinLock_);
         if (UnderlyingStream_) {
-            LOG_TRACE("Got async snapshot block (Size: %v)", blockCopy.Size());
+            YT_LOG_TRACE("Got async snapshot block (Size: %v)", blockCopy.Size());
             AsyncSize_ += block.Size();
             return ForwardBlock(blockCopy);
         } else {
-            LOG_TRACE("Got sync snapshot block (Size: %v)", blockCopy.Size());
+            YT_LOG_TRACE("Got sync snapshot block (Size: %v)", blockCopy.Size());
             SyncBlocks_.push_back(blockCopy);
             SyncSize_ += block.Size();
             return SuspendedPromise_ ? SuspendedPromise_.ToFuture() : VoidFuture;
@@ -545,11 +545,11 @@ private:
 
         AsyncOpenWriterResult_ = SnapshotWriter_->Open();
 
-        LOG_INFO("Snapshot sync phase started");
+        YT_LOG_INFO("Snapshot sync phase started");
 
         AsyncSaveSnapshotResult_ = Owner_->SaveSnapshot(SwitchableSnapshotWriter_);
 
-        LOG_INFO("Snapshot sync phase completed");
+        YT_LOG_INFO("Snapshot sync phase completed");
 
         SwitchableSnapshotWriter_->Suspend();
 
@@ -565,14 +565,14 @@ private:
         WaitFor(AsyncOpenWriterResult_)
             .ThrowOnError();
 
-        LOG_INFO("Switching to async snapshot writer");
+        YT_LOG_INFO("Switching to async snapshot writer");
 
         SwitchableSnapshotWriter_->ResumeAsAsync(SnapshotWriter_);
 
         WaitFor(AsyncSaveSnapshotResult_)
             .ThrowOnError();
 
-        LOG_INFO("Snapshot async phase completed (SyncSize: %v, AsyncSize: %v)",
+        YT_LOG_INFO("Snapshot async phase completed (SyncSize: %v, AsyncSize: %v)",
             SwitchableSnapshotWriter_->GetSyncSize(),
             SwitchableSnapshotWriter_->GetAsyncSize());
 
@@ -706,7 +706,7 @@ void TDecoratedAutomaton::LoadSnapshot(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LOG_INFO("Started loading snapshot (SnapshotId: %v, Version: %v)",
+    YT_LOG_INFO("Started loading snapshot (SnapshotId: %v, Version: %v)",
         snapshotId,
         version);
 
@@ -723,7 +723,7 @@ void TDecoratedAutomaton::LoadSnapshot(
         }
     }
 
-    LOG_INFO("Finished loading snapshot");
+    YT_LOG_INFO("Finished loading snapshot");
 
     // YT-3926
     AutomatonVersion_ = CommittedVersion_ = TVersion(snapshotId, 0);
@@ -866,7 +866,7 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 
     auto loggedVersion = GetLoggedVersion();
 
-    LOG_INFO("Snapshot scheduled (Version: %v)",
+    YT_LOG_INFO("Snapshot scheduled (Version: %v)",
         loggedVersion);
 
     LastSnapshotTime_ = TInstant::Now();
@@ -884,7 +884,7 @@ TFuture<void> TDecoratedAutomaton::RotateChangelog()
 
     auto loggedVersion = GetLoggedVersion();
 
-    LOG_INFO("Rotating changelog (Version: %v)",
+    YT_LOG_INFO("Rotating changelog (Version: %v)",
         loggedVersion);
 
     YCHECK(!RotatingChangelog_);
@@ -927,7 +927,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
 
     YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
 
-    LOG_INFO("Changelog rotated");
+    YT_LOG_INFO("Changelog rotated");
 }
 
 void TDecoratedAutomaton::CommitMutations(TVersion version, bool mayYield)
@@ -936,7 +936,7 @@ void TDecoratedAutomaton::CommitMutations(TVersion version, bool mayYield)
 
     if (version > CommittedVersion_) {
         CommittedVersion_ = version;
-        LOG_DEBUG("Committed version promoted (Version: %v)",
+        YT_LOG_DEBUG("Committed version promoted (Version: %v)",
             version);
     }
 
@@ -1108,7 +1108,7 @@ void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
         CommittedVersion_ = automatonVersion;
     }
 
-    LOG_INFO("Automaton version rotated (Version: %v)",
+    YT_LOG_INFO("Automaton version rotated (Version: %v)",
         automatonVersion);
 }
 
@@ -1159,14 +1159,14 @@ void TDecoratedAutomaton::AcquireSystemLock()
     while (UserLock_.load() != 0) {
         SpinLockPause();
     }
-    LOG_DEBUG("System lock acquired (Lock: %v)",
+    YT_LOG_DEBUG("System lock acquired (Lock: %v)",
         result);
 }
 
 void TDecoratedAutomaton::ReleaseSystemLock()
 {
     int result = --SystemLock_;
-    LOG_DEBUG("System lock released (Lock: %v)",
+    YT_LOG_DEBUG("System lock released (Lock: %v)",
         result);
 }
 
@@ -1182,7 +1182,7 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 void TDecoratedAutomaton::CancelSnapshot()
 {
     if (SnapshotParamsPromise_ && SnapshotParamsPromise_.ToFuture().Cancel()) {
-        LOG_INFO("Snapshot canceled");
+        YT_LOG_INFO("Snapshot canceled");
     }
     SnapshotParamsPromise_.Reset();
 }

@@ -521,7 +521,7 @@ void ValidateOperationPermission(
 {
     const auto& Logger = logger;
 
-    LOG_DEBUG("Validating operation permission (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
+    YT_LOG_DEBUG("Validating operation permission (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
         permission,
         user,
         operationId,
@@ -538,7 +538,7 @@ void ValidateOperationPermission(
 
     const auto& result = resultOrError.Value();
     if (result.Action == ESecurityAction::Allow) {
-        LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
+        YT_LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
             permission,
             user,
             operationId,

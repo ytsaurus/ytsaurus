@@ -244,7 +244,7 @@ IOutputStream* TFileLogWriter::GetOutputStream() const noexcept
 void TFileLogWriter::OnException(const std::exception& ex)
 {
     Disabled_ = true;
-    LOG_ERROR(ex, "Disabled log file (FileName: %v)", FileName_);
+    YT_LOG_ERROR(ex, "Disabled log file (FileName: %v)", FileName_);
 
     Close();
 }
@@ -257,7 +257,7 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
         if (statistics.AvailableSpace < minSpace) {
             if (!Disabled_.load(std::memory_order_acquire)) {
                 Disabled_ = true;
-                LOG_ERROR("Log file disabled: not enough space available (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
+                YT_LOG_ERROR("Log file disabled: not enough space available (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
                     directoryName,
                     statistics.AvailableSpace,
                     minSpace);
@@ -268,13 +268,13 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
             if (Disabled_.load(std::memory_order_acquire)) {
                 Reload(); // Reinitialize all descriptors.
 
-                LOG_INFO("Log file enabled: space check passed (FileName: %v)", FileName_);
+                YT_LOG_INFO("Log file enabled: space check passed (FileName: %v)", FileName_);
                 Disabled_ = false;
             }
         }
     } catch (const std::exception& ex) {
         Disabled_ = true;
-        LOG_ERROR(ex, "Log file disabled: space check failed (FileName: %v)", FileName_);
+        YT_LOG_ERROR(ex, "Log file disabled: space check failed (FileName: %v)", FileName_);
 
         Close();
     }
@@ -300,7 +300,7 @@ void TFileLogWriter::Open()
         LogFormatter->WriteLogStartEvent(GetOutputStream());
     } catch (const std::exception& ex) {
         Disabled_ = true;
-        LOG_ERROR(ex, "Failed to open log file (FileName: %v)", FileName_);
+        YT_LOG_ERROR(ex, "Failed to open log file (FileName: %v)", FileName_);
 
         Close();
     } catch (...) {
@@ -325,7 +325,7 @@ void TFileLogWriter::Close()
 
     } catch (const std::exception& ex) {
         Disabled_ = true;
-        LOG_ERROR(ex, "Failed to close log file %v", FileName_);
+        YT_LOG_ERROR(ex, "Failed to close log file %v", FileName_);
     } catch (...) {
         Y_UNREACHABLE();
     }

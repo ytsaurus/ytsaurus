@@ -181,15 +181,15 @@ public:
         // Ask to cancel background jobs all table engines, and also query_log.
         // It is important to do early, not in destructor of Context, because
         // table engines could use Context on destroy.
-        CH_LOG_INFO(log, "Shutting down storages.");
+        LOG_INFO(log, "Shutting down storages.");
         Context->shutdown();
-        CH_LOG_DEBUG(log, "Shutted down storages.");
+        LOG_DEBUG(log, "Shutted down storages.");
 
         // Explicitly destroy Context. It is more convenient than in destructor of Server,
         // because logger is still available.
         // At this moment, no one could own shared part of Context.
         Context.reset();
-        CH_LOG_DEBUG(log, "Destroyed global context.");
+        LOG_DEBUG(log, "Destroyed global context.");
 
         ExecutionClusterNodeTracker.reset();
     }
@@ -242,7 +242,7 @@ private:
 
     void SetupExecutionClusterNodeTracker()
     {
-        CH_LOG_INFO(&logger(), "Starting cluster node tracker...");
+        LOG_INFO(&logger(), "Starting cluster node tracker...");
 
         ExecutionClusterNodeTracker = CreateClusterNodeTracker(
             CoordinationService,
@@ -285,9 +285,9 @@ private:
         RegisterTableDictionarySource(Storage, ServerAuthToken);
 
         // Initialize DateLUT early, to not interfere with running time of first query.
-        CH_LOG_DEBUG(log, "Initializing DateLUT.");
+        LOG_DEBUG(log, "Initializing DateLUT.");
         DateLUT::instance();
-        CH_LOG_TRACE(log, "Initialized DateLUT with time zone `" << DateLUT::instance().getTimeZone() << "'.");
+        LOG_TRACE(log, "Initialized DateLUT with time zone `" << DateLUT::instance().getTimeZone() << "'.");
 
         // Limit on total number of concurrently executed queries.
         Context->getProcessList().setMaxSize(EngineConfig_->getInt("max_concurrent_queries", 0));
@@ -314,7 +314,7 @@ private:
             // Clearing old temporary files.
             for (Poco::DirectoryIterator it(tmpPath), end; it != end; ++it) {
                 if (it->isFile() && startsWith(it.name(), "tmp")) {
-                    CH_LOG_DEBUG(log, "Removing old temporary file " << it->path());
+                    LOG_DEBUG(log, "Removing old temporary file " << it->path());
                     it->remove();
                 }
             }
@@ -344,7 +344,7 @@ private:
         // Default database that wraps connection to YT cluster.
         {
             auto defaultDatabase = CreateDatabase(Storage, ExecutionClusterNodeTracker);
-            CH_LOG_INFO(log, "Main database is available under names 'default' and " << CliqueId_);
+            LOG_INFO(log, "Main database is available under names 'default' and " << CliqueId_);
             Context->addDatabase("default", defaultDatabase);
             Context->addDatabase(CliqueId_, defaultDatabase);
         }
@@ -387,7 +387,7 @@ private:
 #endif
                     )
                 {
-                    CH_LOG_ERROR(log,
+                    LOG_ERROR(log,
                         "Cannot resolve listen_host (" << host << "), error: " << e.message() << ". "
                         "If it is an IPv6 address and your host has disabled IPv6, then consider to "
                         "specify IPv4 address to listen in <listen_host> element of configuration "
@@ -421,7 +421,7 @@ private:
                         socket,
                         httpParams));
 
-                    CH_LOG_INFO(log, "Listening http://" + socketAddress.toString());
+                    LOG_INFO(log, "Listening http://" + socketAddress.toString());
                 }
 
                 // TCP
@@ -438,14 +438,14 @@ private:
                         socket,
                         new Poco::Net::TCPServerParams()));
 
-                    CH_LOG_INFO(log, "Listening tcp: " + socketAddress.toString());
+                    LOG_INFO(log, "Listening tcp: " + socketAddress.toString());
                 }
             } catch (const Poco::Net::NetException& e) {
                 if (!(tryListen && e.code() == POCO_EPROTONOSUPPORT)) {
                     throw;
                 }
 
-                CH_LOG_ERROR(log, "Listen [" << listenHost << "]: " << e.what() << ": " << e.message()
+                LOG_ERROR(log, "Listen [" << listenHost << "]: " << e.what() << ": " << e.message()
                     << "  If it is an IPv6 or IPv4 address and your host has disabled IPv6 or IPv4, then consider to "
                     "specify not disabled IPv4 or IPv6 address to listen in <listen_host> element of configuration "
                     "file. Example for disabled IPv6: <listen_host>0.0.0.0</listen_host> ."
@@ -457,7 +457,7 @@ private:
             server->start();
         }
 
-        CH_LOG_INFO(log, "Ready for connections.");
+        LOG_INFO(log, "Ready for connections.");
     }
 
     void EnterExecutionCluster()

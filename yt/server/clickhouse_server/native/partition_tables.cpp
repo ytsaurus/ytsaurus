@@ -136,7 +136,7 @@ void TMultiTablesPartitioner::InitializeTables()
 
 void TMultiTablesPartitioner::CollectBasicAttributes()
 {
-    LOG_DEBUG("Collecting basic object attributes");
+    YT_LOG_DEBUG("Collecting basic object attributes");
 
     GetUserObjectBasicAttributes<TTableObject>(
         Client,
@@ -157,7 +157,7 @@ void TMultiTablesPartitioner::CollectBasicAttributes()
 
 void TMultiTablesPartitioner::CollectTableSpecificAttributes()
 {
-    LOG_DEBUG("Collecting table specific attributes");
+    YT_LOG_DEBUG("Collecting table specific attributes");
 
     auto channel = Client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
 
@@ -201,7 +201,7 @@ void TMultiTablesPartitioner::CollectTableSpecificAttributes()
 
 void TMultiTablesPartitioner::CollectTablesAttributes()
 {
-    LOG_INFO("Collecting input tables attributes");
+    YT_LOG_INFO("Collecting input tables attributes");
 
     CollectBasicAttributes();
     CollectTableSpecificAttributes();
@@ -274,7 +274,7 @@ TChunkSpecList TMultiTablesPartitioner::FetchAndFilterTableChunks(const size_t t
     DataSourceDirectory->DataSources().push_back(std::move(dataSource));
 
 
-    LOG_DEBUG("Fetching %Qlv chunks", table.GetPath());
+    YT_LOG_DEBUG("Fetching %Qlv chunks", table.GetPath());
 
     TChunkSpecList chunkSpecs;
     chunkSpecs.reserve(table.ChunkCount);
@@ -304,7 +304,7 @@ TChunkSpecList TMultiTablesPartitioner::FetchAndFilterTableChunks(const size_t t
         FilterChunks(chunkSpecs);
     }
 
-    LOG_INFO("Selected %v/%v chunks for table %Qlv", chunkSpecs.size(), table.ChunkCount, table.Path);
+    YT_LOG_INFO("Selected %v/%v chunks for table %Qlv", chunkSpecs.size(), table.ChunkCount, table.Path);
 
     for (int i = 0; i < static_cast<int>(chunkSpecs.size()); ++i) {
         auto& chunk = chunkSpecs[i];
@@ -316,7 +316,7 @@ TChunkSpecList TMultiTablesPartitioner::FetchAndFilterTableChunks(const size_t t
 
 void TMultiTablesPartitioner::FetchAndFilterChunks()
 {
-    LOG_DEBUG("Fetching chunks");
+    YT_LOG_DEBUG("Fetching chunks");
 
     DataSourceDirectory = New<TDataSourceDirectory>();
     NodeDirectory = New<TNodeDirectory>();

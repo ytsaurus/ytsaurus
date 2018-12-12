@@ -457,7 +457,7 @@ public:
 
         MasterConnector_->RegisterOperation(operationId);
 
-        LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
+        YT_LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
     void DoDisposeAndUnregisterOperation(const TOperationId& operationId)
@@ -501,7 +501,7 @@ public:
 
         MasterConnector_->UnregisterOperation(operationId);
 
-        LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
+        YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
     TFuture<void> UpdateOperationRuntimeParameters(const TOperationId& operationId, TOperationRuntimeParametersPtr runtimeParameters)
@@ -622,7 +622,7 @@ public:
 
         const auto& controller = operation->GetController();
         if (!controller) {
-            LOG_DEBUG("No controller to abort (OperationId: %v)",
+            YT_LOG_DEBUG("No controller to abort (OperationId: %v)",
                 operation->GetId());
             return VoidFuture;
         }
@@ -640,7 +640,7 @@ public:
 
         std::vector<TFuture<TSharedRef>> asyncJobSpecs;
         for (const auto& request : requests) {
-            LOG_DEBUG("Extracting job spec (OperationId: %v, JobId: %v)",
+            YT_LOG_DEBUG("Extracting job spec (OperationId: %v, JobId: %v)",
                 request.OperationId,
                 request.JobId);
 
@@ -826,7 +826,7 @@ private:
             FetchOperationsEffectiveAcl();
             OnConnected();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error connecting to scheduler");
+            YT_LOG_WARNING(ex, "Error connecting to scheduler");
             SchedulerDisconnected_.Fire();
             DoCleanup();
             ScheduleConnect(false);
@@ -841,7 +841,7 @@ private:
         // fiber cancelation.
         DoCleanup();
 
-        LOG_INFO("Connecting to scheduler");
+        YT_LOG_INFO("Connecting to scheduler");
 
         YCHECK(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
@@ -854,7 +854,7 @@ private:
 
     void SyncClusterDirectory()
     {
-        LOG_INFO("Synchronizing cluster directory");
+        YT_LOG_INFO("Synchronizing cluster directory");
 
         WaitFor(Bootstrap_
             ->GetMasterClient()
@@ -863,22 +863,22 @@ private:
             ->Sync(/* force */ true))
             .ThrowOnError();
 
-        LOG_INFO("Cluster directory synchronized");
+        YT_LOG_INFO("Cluster directory synchronized");
     }
 
     void UpdateConfig()
     {
-        LOG_INFO("Updating config");
+        YT_LOG_INFO("Updating config");
 
         WaitFor(MasterConnector_->UpdateConfig())
             .ThrowOnError();
 
-        LOG_INFO("Config updates");
+        YT_LOG_INFO("Config updates");
     }
 
     void PerformHandshake()
     {
-        LOG_INFO("Sending handshake");
+        YT_LOG_INFO("Sending handshake");
 
         auto req = SchedulerProxy_.Handshake();
         req->SetTimeout(Config_->SchedulerHandshakeRpcTimeout);
@@ -888,14 +888,14 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        LOG_DEBUG("Handshake succeeded");
+        YT_LOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
     }
 
     void FetchOperationsEffectiveAcl()
     {
-        LOG_INFO("Fetching operations effective acl");
+        YT_LOG_INFO("Fetching operations effective acl");
 
         OperationsEffectiveAcl_ = ConvertToNode(
             WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/operations/@effective_acl"))
@@ -907,7 +907,7 @@ private:
         Connected_ = true;
         ConnectionTime_.store(TInstant::Now());
 
-        LOG_INFO("Controller agent connected (IncarnationId: %v)",
+        YT_LOG_INFO("Controller agent connected (IncarnationId: %v)",
             IncarnationId_);
 
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
@@ -946,11 +946,11 @@ private:
         TForbidContextSwitchGuard contextSwitchGuard;
 
         if (Connected_) {
-            LOG_WARNING(error, "Disconnecting scheduler");
+            YT_LOG_WARNING(error, "Disconnecting scheduler");
 
             SchedulerDisconnected_.Fire();
 
-            LOG_WARNING("Scheduler disconnected");
+            YT_LOG_WARNING("Scheduler disconnected");
         }
 
         DoCleanup();
@@ -1160,7 +1160,7 @@ private:
     {
         auto preparedRequest = PrepareHeartbeatRequest();
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
+        YT_LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
             "OperationEventCount: %v, JobEventCount: %v, ScheduleJobResponseCount: %v)",
             preparedRequest.ExecNodesRequested,
             preparedRequest.OperationsSent,
@@ -1173,7 +1173,7 @@ private:
         auto rspOrError = WaitFor(preparedRequest.RpcRequest->Invoke());
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
-                LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
+                YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
                 Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->SchedulerHeartbeatFailureBackoff)));
             } else {
                 Disconnect(rspOrError);
@@ -1181,7 +1181,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Heartbeat succeeded");
+        YT_LOG_DEBUG("Heartbeat succeeded");
         const auto& rsp = rspOrError.Value();
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
@@ -1203,14 +1203,14 @@ private:
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
             }
-            LOG_DEBUG("Exec node descriptors updated");
+            YT_LOG_DEBUG("Exec node descriptors updated");
         }
 
         for (const auto& protoOperationId : rsp->operation_ids_to_unregister()) {
             auto operationId = FromProto<TOperationId>(protoOperationId);
             auto operation = FindOperation(operationId);
             if (!operation) {
-                LOG_DEBUG("Requested to unregister an unknown operation; ignored (OperationId: %v)",
+                YT_LOG_DEBUG("Requested to unregister an unknown operation; ignored (OperationId: %v)",
                     operationId);
                 continue;
             }
@@ -1309,14 +1309,14 @@ private:
             [&] (auto* protoRequest) {
                 auto jobId = FromProto<TJobId>(protoRequest->job_id());
                 auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
-                LOG_DEBUG("Processing schedule job request (OperationId: %v, JobId: %v)",
+                YT_LOG_DEBUG("Processing schedule job request (OperationId: %v, JobId: %v)",
                     operationId,
                     jobId);
 
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
                     replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
-                    LOG_DEBUG("Failed to schedule job due to unknown operation (OperationId: %v, JobId: %v)",
+                    YT_LOG_DEBUG("Failed to schedule job due to unknown operation (OperationId: %v, JobId: %v)",
                         operationId,
                         jobId);
                     return;
@@ -1330,7 +1330,7 @@ private:
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
                         if (descriptorIt == execNodeDescriptors->end()) {
                             replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownNode);
-                            LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
+                            YT_LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
                                 operationId,
                                 jobId,
                                 nodeId);
@@ -1357,13 +1357,13 @@ private:
                         }
 
                         outbox->Enqueue(std::move(response));
-                        LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
                     }),
                     BIND([=, this_ = MakeStrong(this)] {
                         replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
-                        LOG_DEBUG("Failed to schedule job due to operation cancelation (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG("Failed to schedule job due to operation cancelation (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
                     }));
@@ -1387,7 +1387,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Exec nodes filtered (Formula: %v, MatchingNodeCount: %v)",
+        YT_LOG_DEBUG("Exec nodes filtered (Formula: %v, MatchingNodeCount: %v)",
             filter.GetBooleanFormula().GetFormula(),
             result->size());
 

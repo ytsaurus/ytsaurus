@@ -85,12 +85,12 @@ TSortedChunkStore::TSortedChunkStore(
     , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
 {
-    LOG_DEBUG("Sorted chunk store created");
+    YT_LOG_DEBUG("Sorted chunk store created");
 }
 
 TSortedChunkStore::~TSortedChunkStore()
 {
-    LOG_DEBUG("Sorted chunk store destroyed");
+    YT_LOG_DEBUG("Sorted chunk store destroyed");
 }
 
 TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()

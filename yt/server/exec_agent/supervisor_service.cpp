@@ -220,7 +220,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, ThrottleJob)
             TDelayedExecutor::Submit(BIND([throttlingRequestId, this_] () {
                     const auto& Logger = ExecAgentLogger;
 
-                    LOG_DEBUG("Evict outstanding throttling request (ThrottlingRequestId: %v)", throttlingRequestId);
+                    YT_LOG_DEBUG("Evict outstanding throttling request (ThrottlingRequestId: %v)", throttlingRequestId);
                     YCHECK(this_->OutstandingThrottlingRequests_.erase(throttlingRequestId) == 1);
                 }).Via(this_->Bootstrap->GetControlInvoker()),
                 Bootstrap->GetConfig()->JobThrottler->MaxBackoffTime * 2);

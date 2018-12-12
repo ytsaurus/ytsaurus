@@ -174,7 +174,7 @@ public:
                 State_));
         }
 
-        LOG_DEBUG("Preparing transaction");
+        YT_LOG_DEBUG("Preparing transaction");
         State_ = ETransactionState::Prepare;
         return BIND(&TTransaction::DoPrepare, MakeStrong(this))
             .AsyncVia(GetThreadPoolInvoker())
@@ -191,7 +191,7 @@ public:
                 State_));
         }
 
-        LOG_DEBUG("Flushing transaction");
+        YT_LOG_DEBUG("Flushing transaction");
         State_ = ETransactionState::Flush;
         return BIND(&TTransaction::DoFlush, MakeStrong(this))
             .AsyncVia(GetThreadPoolInvoker())
@@ -219,7 +219,7 @@ public:
         auto session = GetOrCreateCellCommitSession(cellId);
         session->RegisterAction(data);
 
-        LOG_DEBUG("Transaction action added (CellId: %v, ActionType: %v)",
+        YT_LOG_DEBUG("Transaction action added (CellId: %v, ActionType: %v)",
             cellId,
             data.Type);
     }
@@ -373,7 +373,7 @@ public:
                 State_);
         }
 
-        LOG_DEBUG("Buffering client row modifications (Count: %v)",
+        YT_LOG_DEBUG("Buffering client row modifications (Count: %v)",
             modifications.Size());
 
         EnqueueModificationRequest(std::make_unique<TModificationRequest>(
@@ -598,7 +598,7 @@ private:
                 auto replicaOptions = Options_;
                 replicaOptions.UpstreamReplicaId = replicaData.ReplicaInfo->ReplicaId;
                 if (replicaData.Transaction) {
-                    LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
+                    YT_LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
                         Modifications_.Size());
                     replicaData.Transaction->ModifyRows(
                         replicaData.ReplicaInfo->ReplicaPath,
@@ -609,7 +609,7 @@ private:
                     // YT-7551: Local sync replicas must be handled differenly.
                     // We cannot add more modifications via ITransactions interface since
                     // the transaction is already committing.
-                    LOG_DEBUG("Bufferring local sync replication modifications (Count: %v)",
+                    YT_LOG_DEBUG("Bufferring local sync replication modifications (Count: %v)",
                         Modifications_.Size());
                     Transaction_->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
                         Transaction_,
@@ -819,7 +819,7 @@ private:
                     continue;
                 }
 
-                LOG_DEBUG("Sync table replica registered (ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
+                YT_LOG_DEBUG("Sync table replica registered (ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
                     replicaInfo->ReplicaId,
                     replicaInfo->ClusterName,
                     replicaInfo->ReplicaPath);
@@ -1144,7 +1144,7 @@ private:
             }
             req->Attachments().push_back(batch->RequestData);
 
-            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, "
+            YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, "
                 "Versioned: %v, UpstreamReplicaId: %v)",
                 InvokeBatchIndex_,
                 Batches_.size(),
@@ -1167,7 +1167,7 @@ private:
             if (!rspOrError.IsOK()) {
                 auto error = TError("Error sending transaction rows")
                     << rspOrError;
-                LOG_DEBUG(error);
+                YT_LOG_DEBUG(error);
                 TableMountCache_->InvalidateOnError(error);
                 InvokePromise_.Set(error);
                 return;
@@ -1178,7 +1178,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
+            YT_LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
                 InvokeBatchIndex_,
                 Batches_.size());
 
@@ -1239,7 +1239,7 @@ private:
                 return MakeFuture(TError("Transaction is no longer available"));
             }
 
-            LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
+            YT_LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
                 Actions_.size());
 
             TFuture<void> asyncResult;
@@ -1296,7 +1296,7 @@ private:
             if (!result.IsOK()) {
                 auto error = TError("Error sending transaction actions")
                     << result;
-                LOG_DEBUG(error);
+                YT_LOG_DEBUG(error);
                 THROW_ERROR(error);
             }
 
@@ -1309,7 +1309,7 @@ private:
                 transaction->Transaction_->ConfirmParticipant(CellId_);
             }
 
-            LOG_DEBUG("Transaction actions sent successfully");
+            YT_LOG_DEBUG("Transaction actions sent successfully");
         }
     };
 
@@ -1355,7 +1355,7 @@ private:
         auto connection = clusterDirectory->FindConnection(replicaInfo->ClusterName);
         if (!connection) {
             if (!*clusterDirectorySynced) {
-                LOG_DEBUG("Replica cluster is not known; synchronizing cluster directory");
+                YT_LOG_DEBUG("Replica cluster is not known; synchronizing cluster directory");
                 WaitFor(Client_->GetNativeConnection()->GetClusterDirectorySynchronizer()->Sync())
                     .ThrowOnError();
                 *clusterDirectorySynced = true;
@@ -1376,7 +1376,7 @@ private:
 
         YCHECK(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
 
-        LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
+        YT_LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
             replicaInfo->ClusterName);
 
         return transaction;

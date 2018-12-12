@@ -203,12 +203,12 @@ void TBootstrap::DoRun()
     }
 
     if (HttpServer) {
-        LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
+        YT_LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
         HttpServer->Start();
     }
 
     if (RpcServer) {
-        LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
+        YT_LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
         RpcServer->Start();
     }
 

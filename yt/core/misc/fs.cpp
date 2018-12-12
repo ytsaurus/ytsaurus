@@ -214,14 +214,14 @@ TString GetFileNameWithoutExtension(const TString& path)
 
 void CleanTempFiles(const TString& path)
 {
-    LOG_INFO("Cleaning temp files in %v", path);
+    YT_LOG_INFO("Cleaning temp files in %v", path);
 
     // TODO(ignat): specify suffix in EnumerateFiles.
     auto entries = EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& entry : entries) {
         if (entry.EndsWith(TempFileSuffix)) {
             auto fileName = NFS::CombinePaths(path, entry);
-            LOG_INFO("Removing file %v", fileName);
+            YT_LOG_INFO("Removing file %v", fileName);
             NFS::Remove(fileName);
         }
     }
@@ -726,10 +726,10 @@ void ExpectIOErrors(std::function<void()> func)
             throw;
         }
         TError error(ex);
-        LOG_FATAL(error,"Unexpected exception thrown during IO operation");
+        YT_LOG_FATAL(error,"Unexpected exception thrown during IO operation");
     } catch (...) {
         TError error(CurrentExceptionMessage());
-        LOG_FATAL(error, "Unexpected exception thrown during IO operation");
+        YT_LOG_FATAL(error, "Unexpected exception thrown during IO operation");
     }
 }
 

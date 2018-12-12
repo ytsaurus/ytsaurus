@@ -55,7 +55,7 @@ TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::AddUpdate(const TKe
 
     auto pair = Updates_.insert(std::make_pair(key, TUpdateRecord(key, parameters)));
     YCHECK(pair.second);
-    LOG_DEBUG("Item added to periodic updates (Key: %v)", key);
+    YT_LOG_DEBUG("Item added to periodic updates (Key: %v)", key);
     return &pair.first->second.UpdateParameters;
 }
 
@@ -65,7 +65,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::RemoveUpdate(const TKey& key)
     VERIFY_THREAD_AFFINITY(UpdateThread);
 
     YCHECK(Updates_.erase(key) == 1);
-    LOG_DEBUG("Item removed from periodic updates (Key: %v)", key);
+    YT_LOG_DEBUG("Item removed from periodic updates (Key: %v)", key);
 }
 
 template <class TKey, class TUpdateParameters>
@@ -100,7 +100,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
 {
     VERIFY_THREAD_AFFINITY(UpdateThread);
 
-    LOG_INFO("Updating items (Count: %v)", Updates_.size());
+    YT_LOG_INFO("Updating items (Count: %v)", Updates_.size());
 
     std::vector<TKey> updatesToRemove;
     std::vector<TFuture<void>> asyncResults;
@@ -111,7 +111,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
         if (ShouldRemoveUpdateAction_(&updateRecord.UpdateParameters)) {
             updatesToRemove.push_back(key);
         } else {
-            LOG_DEBUG("Updating item (Key: %v)", key);
+            YT_LOG_DEBUG("Updating item (Key: %v)", key);
             requestKeys.push_back(key);
             asyncResults.push_back(DoExecuteUpdate(&updateRecord));
         }
@@ -129,7 +129,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
         return;
     }
 
-    LOG_INFO("Update completed");
+    YT_LOG_INFO("Update completed");
 }
 
 template <class TKey, class TUpdateParameters>

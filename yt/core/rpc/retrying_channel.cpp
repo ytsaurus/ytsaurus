@@ -111,7 +111,7 @@ private:
 
         virtual void HandleAcknowledgement() override
         {
-            LOG_DEBUG("Request attempt acknowledged (RequestId: %v)",
+            YT_LOG_DEBUG("Request attempt acknowledged (RequestId: %v)",
                 Request_->GetRequestId());
 
             // NB: The underlying handler is not notified.
@@ -119,7 +119,7 @@ private:
 
         virtual void HandleError(const TError& error) override
         {
-            LOG_DEBUG(error, "Request attempt failed (RequestId: %v, Attempt: %v of %v)",
+            YT_LOG_DEBUG(error, "Request attempt failed (RequestId: %v, Attempt: %v of %v)",
                 Request_->GetRequestId(),
                 CurrentAttempt_,
                 Config_->RetryAttempts);
@@ -135,7 +135,7 @@ private:
 
         virtual void HandleResponse(TSharedRefArray message) override
         {
-            LOG_DEBUG("Request attempt succeeded (RequestId: %v)",
+            YT_LOG_DEBUG("Request attempt succeeded (RequestId: %v)",
                 Request_->GetRequestId());
 
             ResponseHandler_->HandleResponse(message);
@@ -184,7 +184,7 @@ private:
 
         void DoSend()
         {
-            LOG_DEBUG("Request attempt started (RequestId: %v, Method: %v:%v, User: %v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
+            YT_LOG_DEBUG("Request attempt started (RequestId: %v, Method: %v:%v, User: %v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),

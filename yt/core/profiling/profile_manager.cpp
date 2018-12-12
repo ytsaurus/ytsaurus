@@ -376,7 +376,7 @@ private:
             return it->second;
         }
 
-        LOG_DEBUG("Creating bucket %v", path);
+        YT_LOG_DEBUG("Creating bucket %v", path);
         auto bucket = New<TBucket>();
         YCHECK(PathToBucket.insert(std::make_pair(path, bucket)).second);
 
@@ -407,7 +407,7 @@ private:
                     tags.insert(std::make_pair(tag.Key, tag.Value));
                 }
             }
-            LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)",
+            YT_LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)",
                 queuedSample.Path,
                 tags);
             ProfilingProfiler.Increment(DroppedCounter);

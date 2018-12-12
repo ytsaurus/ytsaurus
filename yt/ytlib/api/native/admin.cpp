@@ -100,12 +100,12 @@ private:
     {
         return BIND([=, this_ = MakeStrong(this)] () {
                 try {
-                    LOG_DEBUG("Command started (Command: %v)", commandName);
+                    YT_LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
-                    LOG_DEBUG("Command completed (Command: %v)", commandName);
+                    YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
                     return result.Unwrap();
                 } catch (const std::exception& ex) {
-                    LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
+                    YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
                     throw;
                 }
             })

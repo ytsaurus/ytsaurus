@@ -193,7 +193,7 @@ void TMasterConnector::RegisterAlert(const TError& alert)
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(!alert.IsOK());
 
-    LOG_WARNING(alert, "Static alert registered");
+    YT_LOG_WARNING(alert, "Static alert registered");
 
     {
         TGuard<TSpinLock> guard(AlertsLock_);
@@ -209,7 +209,7 @@ std::vector<TError> TMasterConnector::GetAlerts()
     PopulateAlerts_.Fire(&alerts);
 
     for (const auto& alert : alerts) {
-        LOG_WARNING(alert, "Dynamic alert registered");
+        YT_LOG_WARNING(alert, "Dynamic alert registered");
     }
 
     {
@@ -282,7 +282,7 @@ void TMasterConnector::RegisterAtMaster()
             SyncDirectories();
         }
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Error registering at primary master");
+        YT_LOG_WARNING(ex, "Error registering at primary master");
         ResetAndScheduleRegisterAtMaster();
         return;
     }
@@ -294,7 +294,7 @@ void TMasterConnector::RegisterAtMaster()
 
     MasterConnected_.Fire();
 
-    LOG_INFO("Successfully registered at primary master (NodeId: %v)",
+    YT_LOG_INFO("Successfully registered at primary master (NodeId: %v)",
         NodeId_);
 
     for (auto cellTag : MasterCellTags_) {
@@ -307,7 +307,7 @@ void TMasterConnector::InitMedia()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Requesting medium directory");
+    YT_LOG_INFO("Requesting medium directory");
 
     const auto& client = Bootstrap_->GetMasterClient();
     TGetClusterMetaOptions options;
@@ -316,7 +316,7 @@ void TMasterConnector::InitMedia()
     auto result = WaitFor(client->GetClusterMeta(options))
         .ValueOrThrow();
 
-    LOG_INFO("Medium directory received");
+    YT_LOG_INFO("Medium directory received");
 
     auto mediumDirectory = New<NChunkClient::TMediumDirectory>();
     mediumDirectory->LoadFrom(*result.MediumDirectory);
@@ -338,7 +338,7 @@ void TMasterConnector::InitMedia()
                 newDescriptor->Index);
         }
         location->SetMediumDescriptor(*newDescriptor);
-        LOG_INFO("Location medium descriptor initialized (Location: %v, MediumName: %v, MediumIndex: %v)",
+        YT_LOG_INFO("Location medium descriptor initialized (Location: %v, MediumName: %v, MediumIndex: %v)",
             location->GetId(),
             newDescriptor->Name,
             newDescriptor->Index);
@@ -358,15 +358,15 @@ void TMasterConnector::SyncDirectories()
 
     const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
 
-    LOG_INFO("Synchronizing cell directory");
+    YT_LOG_INFO("Synchronizing cell directory");
     WaitFor(connection->GetCellDirectorySynchronizer()->Sync())
         .ThrowOnError();
-    LOG_INFO("Cell directory synchronized");
+    YT_LOG_INFO("Cell directory synchronized");
 
-    LOG_INFO("Synchronizing cluster directory");
+    YT_LOG_INFO("Synchronizing cluster directory");
     WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
         .ThrowOnError();
-    LOG_INFO("Cluster directory synchronized");
+    YT_LOG_INFO("Cluster directory synchronized");
 }
 
 void TMasterConnector::StartLeaseTransaction()
@@ -421,7 +421,7 @@ void TMasterConnector::RegisterAtPrimaryMaster()
     req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).GetData());
     req->set_build_version(GetVersion());
 
-    LOG_INFO("Registering at primary master (%v)",
+    YT_LOG_INFO("Registering at primary master (%v)",
         *req->mutable_statistics());
 
     auto rsp = WaitFor(req->Invoke())
@@ -434,7 +434,7 @@ void TMasterConnector::OnLeaseTransactionAborted()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_WARNING("Master transaction lease aborted");
+    YT_LOG_WARNING("Master transaction lease aborted");
 
     ResetAndScheduleRegisterAtMaster();
 }
@@ -677,7 +677,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
         ++mediumIndex;
     }
 
-    LOG_INFO("Full node heartbeat sent to master (StoredChunkCount: %v, CachedChunkCount: %v, %v)",
+    YT_LOG_INFO("Full node heartbeat sent to master (StoredChunkCount: %v, CachedChunkCount: %v, %v)",
         storedChunkCount,
         cachedChunkCount,
         request->statistics());
@@ -685,7 +685,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     auto rspOrError = WaitFor(request->Invoke());
 
     if (!rspOrError.IsOK()) {
-        LOG_WARNING(rspOrError, "Error reporting full node heartbeat to master",
+        YT_LOG_WARNING(rspOrError, "Error reporting full node heartbeat to master",
             cellTag);
 
         if (NRpc::IsRetriableError(rspOrError)) {
@@ -696,7 +696,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
         return;
     }
 
-    LOG_INFO("Successfully reported full node heartbeat to master");
+    YT_LOG_INFO("Successfully reported full node heartbeat to master");
 
     // Schedule another full heartbeat.
     if (Config_->FullHeartbeatPeriod) {
@@ -825,7 +825,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         }
     }
 
-    LOG_INFO("Incremental node heartbeat sent to master (%v, AddedChunks: %v, RemovedChunks: %v)",
+    YT_LOG_INFO("Incremental node heartbeat sent to master (%v, AddedChunks: %v, RemovedChunks: %v)",
         request->statistics(),
         request->added_chunks_size(),
         request->removed_chunks_size());
@@ -835,7 +835,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         delta->HeartbeatBarrier.SetFrom(barrierPromise.ToFuture());
         delta->HeartbeatBarrier = std::move(barrierPromise);
 
-        LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
+        YT_LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
         if (NRpc::IsRetriableError(rspOrError)) {
             ScheduleNodeHeartbeat(cellTag);
         } else {
@@ -844,7 +844,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         return;
     }
 
-    LOG_INFO("Successfully reported incremental node heartbeat to master");
+    YT_LOG_INFO("Successfully reported incremental node heartbeat to master");
 
     barrierPromise.Set();
 
@@ -899,7 +899,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             YCHECK(cellId);
             auto slot = slotManager->FindSlot(cellId);
             if (!slot) {
-                LOG_WARNING("Requested to remove a non-existing slot, ignored (CellId: %v)",
+                YT_LOG_WARNING("Requested to remove a non-existing slot, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
@@ -910,12 +910,12 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             auto cellId = FromProto<TCellId>(info.cell_id());
             YCHECK(cellId);
             if (slotManager->GetAvailableTabletSlotCount() == 0) {
-                LOG_WARNING("Requested to start cell when all slots are used, ignored (CellId: %v)",
+                YT_LOG_WARNING("Requested to start cell when all slots are used, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
             if (slotManager->FindSlot(cellId)) {
-                LOG_WARNING("Requested to start cell when this cell is already being served by the node, ignored (CellId: %v)",
+                YT_LOG_WARNING("Requested to start cell when this cell is already being served by the node, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
@@ -926,12 +926,12 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
             auto slot = slotManager->FindSlot(descriptor.CellId);
             if (!slot) {
-                LOG_WARNING("Requested to configure a non-existing slot, ignored (CellId: %v)",
+                YT_LOG_WARNING("Requested to configure a non-existing slot, ignored (CellId: %v)",
                     descriptor.CellId);
                 continue;
             }
             if (!slot->CanConfigure()) {
-                LOG_WARNING("Cannot configure slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
+                YT_LOG_WARNING("Cannot configure slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
                     descriptor.CellId,
                     slot->GetControlState());
                 continue;
@@ -943,12 +943,12 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             auto cellId = FromProto<TCellId>(info.cell_id());
             auto slot = slotManager->FindSlot(cellId);
             if (!slot) {
-                LOG_WARNING("Requested to update dynamic options for a non-existing slot, ignored (CellId: %v)",
+                YT_LOG_WARNING("Requested to update dynamic options for a non-existing slot, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
             if (!slot->CanConfigure()) {
-                LOG_WARNING("Cannot update slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
+                YT_LOG_WARNING("Cannot update slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
                     cellId,
                     slot->GetControlState());
                 continue;
@@ -1001,13 +1001,13 @@ void TMasterConnector::ReportJobHeartbeat()
             EObjectType::MasterJob,
             req.Get());
 
-        LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v)",
+        YT_LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v)",
             FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 
         auto rspOrError = WaitFor(req->Invoke());
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error reporting job heartbeat to master");
+            YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master");
             if (NRpc::IsRetriableError(rspOrError)) {
                 ScheduleJobHeartbeat();
             } else {
@@ -1016,7 +1016,7 @@ void TMasterConnector::ReportJobHeartbeat()
             return;
         }
 
-        LOG_INFO("Successfully reported job heartbeat to master");
+        YT_LOG_INFO("Successfully reported job heartbeat to master");
 
         const auto& rsp = rspOrError.Value();
         jobController->ProcessHeartbeatResponse(rsp, EObjectType::MasterJob);
@@ -1055,7 +1055,7 @@ void TMasterConnector::Reset()
 
     MasterDisconnected_.Fire();
 
-    LOG_INFO("Master disconnected");
+    YT_LOG_INFO("Master disconnected");
 }
 
 void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
@@ -1072,7 +1072,7 @@ void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
     delta->RemovedSinceLastSuccess.erase(chunk);
     delta->AddedSinceLastSuccess.insert(chunk);
 
-    LOG_DEBUG("Chunk addition registered (ChunkId: %v, LocationId: %v)",
+    YT_LOG_DEBUG("Chunk addition registered (ChunkId: %v, LocationId: %v)",
         chunk->GetId(),
         chunk->GetLocation()->GetId());
 }
@@ -1093,7 +1093,7 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
 
     Bootstrap_->GetBlockMetaCache()->TryRemove(chunk->GetId());
 
-    LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
+    YT_LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
         chunk->GetId(),
         chunk->GetLocation()->GetId());
 }

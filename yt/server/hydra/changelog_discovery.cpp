@@ -57,7 +57,7 @@ private:
 
     void DoRun()
     {
-        LOG_INFO("Running changelog discovery");
+        YT_LOG_INFO("Running changelog discovery");
 
         std::vector<TFuture<void>> asyncResults;
         for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
@@ -65,7 +65,7 @@ private:
             if (!channel)
                 continue;
 
-            LOG_DEBUG("Requesting changelog info (PeerId: %v)",
+            YT_LOG_DEBUG("Requesting changelog info (PeerId: %v)",
                 peerId,
                 ChangelogId_);
 
@@ -89,14 +89,14 @@ private:
         const THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
+            YT_LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
                 peerId);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         int recordCount = rsp->record_count();
-        LOG_INFO("Changelog info received (PeerId: %v, RecordCount: %v)",
+        YT_LOG_INFO("Changelog info received (PeerId: %v, RecordCount: %v)",
             peerId,
             recordCount);
 
@@ -110,7 +110,7 @@ private:
         result.RecordCount = recordCount;
 
         if (Promise_.TrySet(result)) {
-            LOG_INFO("Changelog discovery succeeded (PeerId: %v, RecordCount: %v)",
+            YT_LOG_INFO("Changelog discovery succeeded (PeerId: %v, RecordCount: %v)",
                 peerId,
                 recordCount);
         }
@@ -199,7 +199,7 @@ private:
 
     void DoRun()
     {
-        LOG_INFO("Computing changelog quorum record count");
+        YT_LOG_INFO("Computing changelog quorum record count");
 
         std::vector<TFuture<void>> asyncResults;
         for (auto peerId = 0; peerId < CellManager_->GetVotingPeerCount(); ++peerId) {
@@ -212,7 +212,7 @@ private:
                 continue;
             }
 
-            LOG_DEBUG("Requesting changelog info (PeerId: %v)",
+            YT_LOG_DEBUG("Requesting changelog info (PeerId: %v)",
                 peerId);
 
             THydraServiceProxy proxy(channel);
@@ -237,13 +237,13 @@ private:
             int recordCount = rsp->record_count();
             RegisterSuccess(recordCount);
 
-            LOG_DEBUG("Changelog info received (PeerId: %v, RecordCount: %v)",
+            YT_LOG_DEBUG("Changelog info received (PeerId: %v, RecordCount: %v)",
                 peerId,
                 recordCount);
         } else {
             RegisterFailure(rspOrError);
 
-            LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
+            YT_LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
                 peerId);
         }
     }
@@ -259,7 +259,7 @@ private:
             RecordCountsHi_[quorum - 1]
         };
 
-        LOG_INFO("Changelog quorum info count computed successfully (RecordCountLo: %v, RecordCountHi: %v)",
+        YT_LOG_INFO("Changelog quorum info count computed successfully (RecordCountLo: %v, RecordCountHi: %v)",
             result.RecordCountLo,
             result.RecordCountHi);
 

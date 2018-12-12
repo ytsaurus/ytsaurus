@@ -97,14 +97,14 @@ protected:
 
 TEST_F(TLoggingTest, ReloadsOnSigHup)
 {
-    LOG_INFO("Preparing logging thread");
+    YT_LOG_INFO("Preparing logging thread");
     Sleep(TDuration::MilliSeconds(100)); // In sleep() we trust.
 
     int version = TLogManager::Get()->GetVersion();
 
     kill(getpid(), SIGHUP);
 
-    LOG_INFO("Awaking logging thread");
+    YT_LOG_INFO("Awaking logging thread");
     Sleep(TDuration::Seconds(1)); // In sleep() we trust.
 
     int newVersion = TLogManager::Get()->GetVersion();
@@ -229,9 +229,9 @@ TEST_F(TLoggingTest, LogManager)
 
     TLogManager::Get()->Configure(config);
 
-    LOG_DEBUG("Debug message");
-    LOG_INFO("Info message");
-    LOG_ERROR("Error message");
+    YT_LOG_DEBUG("Debug message");
+    YT_LOG_INFO("Info message");
+    YT_LOG_ERROR("Error message");
 
     Sleep(TDuration::Seconds(1));
 
@@ -328,7 +328,7 @@ TEST(TRandomAccessGZipTest, RepairIncompleteBlocks)
     NFs::Remove("test.txt.gz");
 }
 
-// This test is for manual check of LOG_FATAL
+// This test is for manual check of YT_LOG_FATAL
 TEST_F(TLoggingTest, DISABLED_LogFatal)
 {
     NFs::Remove("test.log");
@@ -355,12 +355,12 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
     TLogManager::Get()->Configure(config);
 
-    LOG_INFO("Info message");
+    YT_LOG_INFO("Info message");
 
     Sleep(TDuration::MilliSeconds(100));
 
-    LOG_INFO("Info message");
-    LOG_FATAL("FATAL");
+    YT_LOG_INFO("Info message");
+    YT_LOG_FATAL("FATAL");
 
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");

@@ -197,7 +197,7 @@ void TBootstrap::DoRun()
         Config->ClusterConnection->Networks = GetLocalNetworks();
     }
 
-    LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
+    YT_LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
         GetValues(localRpcAddresses),
         Config->ClusterConnection->PrimaryMaster->Addresses,
         Config->Tags);
@@ -599,9 +599,9 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper));
 
-    LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
+    YT_LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
 
-    LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
     RpcServer->Configure(Config->RpcServer);
 
     // Do not start subsystems until everything is initialized.
@@ -1000,7 +1000,7 @@ void TBootstrap::UpdateFootprintMemoryUsage()
 
     auto oldFootprint = GetMemoryUsageTracker()->GetUsed(EMemoryCategory::Footprint);
 
-    LOG_INFO("Memory footprint updated (BytesCommitted: %v, OldFootprint: %v, NewFootprint: %v)",
+    YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, OldFootprint: %v, NewFootprint: %v)",
         bytesCommitted,
         oldFootprint,
         newFootprint);

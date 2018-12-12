@@ -251,7 +251,7 @@ public:
 
     virtual TJobResult Run() override
     {
-        LOG_DEBUG("Starting job process");
+        YT_LOG_DEBUG("Starting job process");
 
         UserJobWriteController_->Init();
 
@@ -260,7 +260,7 @@ public:
         bool expected = false;
         if (Prepared_.compare_exchange_strong(expected, true)) {
             ProcessFinished_ = Process_->Spawn();
-            LOG_INFO("Job process started");
+            YT_LOG_INFO("Job process started");
 
             if (BlockIOWatchdogExecutor_) {
                 BlockIOWatchdogExecutor_->Start();
@@ -269,7 +269,7 @@ public:
             TDelayedExecutorCookie timeLimitCookie;
             if (UserJobSpec_.has_job_time_limit()) {
                 auto timeLimit = FromProto<TDuration>(UserJobSpec_.job_time_limit());
-                LOG_INFO("Setting job time limit (Limit: %v)",
+                YT_LOG_INFO("Setting job time limit (Limit: %v)",
                     timeLimit);
                 timeLimitCookie = TDelayedExecutor::Submit(
                     BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this))
@@ -318,7 +318,7 @@ public:
             try {
                 DumpFailContexts(schedulerResultExt);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Failed to dump input context");
+                YT_LOG_ERROR(ex, "Failed to dump input context");
             }
         } else {
             UserJobWriteController_->PopulateResult(schedulerResultExt);
@@ -328,10 +328,10 @@ public:
             bool coreDumped = jobResultError.operator bool() && jobResultError->Attributes().Get("core_dumped", false /* defaultValue */);
             auto coreResult = CoreProcessorService_->Finalize(coreDumped ? Config_->CoreForwarderTimeout : TDuration::Zero());
 
-            LOG_INFO("User job produced %v core files", coreResult.CoreInfos.size());
+            YT_LOG_INFO("User job produced %v core files", coreResult.CoreInfos.size());
             if (!coreResult.CoreInfos.empty()) {
                 for (const auto& coreInfo : coreResult.CoreInfos) {
-                    LOG_DEBUG("Core file (Pid: %v, ExecutableName: %v, Size: %v)",
+                    YT_LOG_DEBUG("Core file (Pid: %v, ExecutableName: %v, Size: %v)",
                         coreInfo.process_id(),
                         coreInfo.executable_name(),
                         coreInfo.size());
@@ -550,7 +550,7 @@ private:
         try {
             SignalJob("SIGKILL");
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Failed to kill user processes");
+            YT_LOG_DEBUG(ex, "Failed to kill user processes");
         }
     }
 
@@ -617,7 +617,7 @@ private:
         auto errorChunkId = ErrorOutput_->GetChunkId();
         if (errorChunkId) {
             ToProto(schedulerResultExt->mutable_stderr_chunk_id(), errorChunkId);
-            LOG_INFO("Stderr chunk generated (ChunkId: %v)", errorChunkId);
+            YT_LOG_INFO("Stderr chunk generated (ChunkId: %v)", errorChunkId);
         }
     }
 
@@ -682,7 +682,7 @@ private:
             contextOutput.Finish();
 
             auto contextChunkId = contextOutput.GetChunkId();
-            LOG_INFO("Input context chunk generated (ChunkId: %v, InputIndex: %v)",
+            YT_LOG_INFO("Input context chunk generated (ChunkId: %v, InputIndex: %v)",
                 contextChunkId,
                 index);
 
@@ -856,7 +856,7 @@ private:
             } catch (const std::exception& ex) {
                 auto error = wrappingError
                     << ex;
-                LOG_ERROR(error);
+                YT_LOG_ERROR(error);
 
                 // We abort asyncInput for stderr.
                 // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
@@ -925,7 +925,7 @@ private:
 
     void PreparePipes()
     {
-        LOG_DEBUG("Initializing pipes");
+        YT_LOG_DEBUG("Initializing pipes");
 
         // We use the following convention for designating input and output file descriptors
         // in job processes:
@@ -968,7 +968,7 @@ private:
 
         PrepareInputTablePipe();
 
-        LOG_DEBUG("Pipes initialized");
+        YT_LOG_DEBUG("Pipes initialized");
     }
 
     void AddCustomStatistics(const INodePtr& sample)
@@ -1030,28 +1030,28 @@ private:
                 auto cpuStatistics = UserJobEnvironment_->GetCpuStatistics();
                 statistics.AddSample("/user_job/cpu", cpuStatistics);
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Unable to get cpu statistics for user job");
+                YT_LOG_WARNING(ex, "Unable to get cpu statistics for user job");
             }
 
             try {
                 auto blockIOStatistics = UserJobEnvironment_->GetBlockIOStatistics();
                 statistics.AddSample("/user_job/block_io", blockIOStatistics);
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Unable to get block io statistics for user job");
+                YT_LOG_WARNING(ex, "Unable to get block io statistics for user job");
             }
 
             try {
                 auto memoryStatistics = UserJobEnvironment_->GetMemoryStatistics();
                 statistics.AddSample("/user_job/current_memory", memoryStatistics);
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Unable to get memory statistics for user job");
+                YT_LOG_WARNING(ex, "Unable to get memory statistics for user job");
             }
 
             try {
                 auto maxMemoryUsage = UserJobEnvironment_->GetMaxMemoryUsage();
                 statistics.AddSample("/user_job/max_memory", maxMemoryUsage);
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Unable to get max memory usage for user job");
+                YT_LOG_WARNING(ex, "Unable to get max memory usage for user job");
             }
 
             statistics.AddSample("/user_job/cumulative_memory_mb_sec", CumulativeMemoryUsageMbSec_);
@@ -1116,7 +1116,7 @@ private:
             return;
         }
 
-        LOG_ERROR(error, "%v", message);
+        YT_LOG_ERROR(error, "%v", message);
 
         KillUserProcesses();
 
@@ -1159,7 +1159,7 @@ private:
             try {
                 auto userJobError = Synchronizer_->GetUserProcessStatus();
 
-                LOG_DEBUG("Process finished (UserJobError: %v, SatelliteError: %v)",
+                YT_LOG_DEBUG("Process finished (UserJobError: %v, SatelliteError: %v)",
                     userJobError,
                     satelliteError);
 
@@ -1172,10 +1172,10 @@ private:
                     OnIOErrorOrFinished(userJobError, "Job control process has finished, aborting");
                 }
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Unable to get user process status");
+                YT_LOG_ERROR(ex, "Unable to get user process status");
 
                 // Likely it is a real bug in satellite or rpc code.
-                LOG_FATAL_IF(satelliteError.IsOK(),
+                YT_LOG_FATAL_IF(satelliteError.IsOK(),
                      "Unable to get process status but satellite returns no errors");
                 OnIOErrorOrFinished(satelliteError, "Satellite failed");
             }
@@ -1205,7 +1205,7 @@ private:
 
         // Wait until executor opens and dup named pipes,
         // satellite calls waitpid()
-        LOG_DEBUG("Wait for signal from executor/satellite");
+        YT_LOG_DEBUG("Wait for signal from executor/satellite");
         Synchronizer_->Wait();
 
         auto jobSatelliteRss = Synchronizer_->GetJobSatelliteRssUsage();
@@ -1218,10 +1218,10 @@ private:
             InputPipeBlinker_->Start();
             JobStarted_ = true;
         } else {
-            LOG_ERROR(JobErrorPromise_.Get(), "Failed to prepare satellite/executor");
+            YT_LOG_ERROR(JobErrorPromise_.Get(), "Failed to prepare satellite/executor");
             return;
         }
-        LOG_INFO("Start actions finished (SatelliteRss: %v)", jobSatelliteRss);
+        YT_LOG_INFO("Start actions finished (SatelliteRss: %v)", jobSatelliteRss);
         auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto outputFutures = runActions(OutputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto stderrFutures = runActions(StderrActions_, onIOError, ReadStderrInvoker_);
@@ -1230,17 +1230,17 @@ private:
         // If job successfully completes or dies prematurely, they close automatically.
         WaitFor(CombineAll(outputFutures))
             .ThrowOnError();
-        LOG_INFO("Output actions finished");
+        YT_LOG_INFO("Output actions finished");
 
         WaitFor(CombineAll(stderrFutures))
             .ThrowOnError();
-        LOG_INFO("Error actions finished");
+        YT_LOG_INFO("Error actions finished");
 
         // Then, wait for job process to finish.
         // Theoretically, process could have explicitely closed its output pipes
         // but still be doing some computations.
         auto jobExitError = WaitFor(ProcessFinished_);
-        LOG_INFO(jobExitError, "Job process finished");
+        YT_LOG_INFO(jobExitError, "Job process finished");
         onIOError.Run(jobExitError);
 
         // Abort input pipes unconditionally.
@@ -1253,7 +1253,7 @@ private:
         // Now make sure that input pipes are also completed.
         WaitFor(CombineAll(inputFutures))
             .ThrowOnError();
-        LOG_INFO("Input actions finished");
+        YT_LOG_INFO("Input actions finished");
     }
 
     void FinalizeJobIO()
@@ -1280,14 +1280,14 @@ private:
             }
             try {
                 auto memoryUsage = GetProcessMemoryUsage(pid);
-                LOG_DEBUG("Pid: %v, ProcessName: %v, Rss: %v, Shared: %v",
+                YT_LOG_DEBUG("Pid: %v, ProcessName: %v, Rss: %v, Shared: %v",
                     pid,
                     GetProcessName(pid),
                     memoryUsage.Rss,
                     memoryUsage.Shared);
                 rss += memoryUsage.Rss;
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to get memory usage for pid %v", pid);
+                YT_LOG_DEBUG(ex, "Failed to get memory usage for pid %v", pid);
             }
         }
         return rss;
@@ -1314,7 +1314,7 @@ private:
     void CheckMemoryUsage()
     {
         if (!UserId_) {
-            LOG_DEBUG("Memory usage control is disabled");
+            YT_LOG_DEBUG("Memory usage control is disabled");
             return;
         }
 
@@ -1331,7 +1331,7 @@ private:
                     return GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
                 }
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Unable to get memory statistics to check memory limits");
+                YT_LOG_WARNING(ex, "Unable to get memory statistics to check memory limits");
             }
 
             return 0l;
@@ -1344,12 +1344,12 @@ private:
 
         CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / 1_MB) * MemoryWatchdogPeriod_.Seconds();
 
-        LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
+        YT_LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
             tmpfsSize,
             rss,
             memoryLimit);
         if (currentMemoryUsage > memoryLimit) {
-            LOG_DEBUG("Memory limit exceeded");
+            YT_LOG_DEBUG("Memory limit exceeded");
             auto error = TError(
                 NJobProxy::EErrorCode::MemoryLimitExceeded,
                 "Memory limit exceeded")
@@ -1375,7 +1375,7 @@ private:
         try {
             blockIOStats = UserJobEnvironment_->GetBlockIOStatistics();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Unable to get block io statistics to find a woodpecker");
+            YT_LOG_WARNING(ex, "Unable to get block io statistics to find a woodpecker");
             return;
         }
 
@@ -1383,14 +1383,14 @@ private:
             blockIOStats.IOTotal > UserJobSpec_.iops_threshold() &&
             !Woodpecker_)
         {
-            LOG_DEBUG("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
+            YT_LOG_DEBUG("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
                 blockIOStats.IORead,
                 blockIOStats.IOTotal,
                 UserJobSpec_.iops_threshold());
             Woodpecker_ = true;
 
             if (UserJobSpec_.has_iops_throttler_limit()) {
-                LOG_DEBUG("Set IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());
+                YT_LOG_DEBUG("Set IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());
                 UserJobEnvironment_->SetIOThrottle(UserJobSpec_.iops_throttler_limit());
             }
         }
@@ -1416,7 +1416,7 @@ private:
         if (fd >= 0) {
             ::close(fd);
         } else {
-            LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe (Path: %v)", InputPipePath_);
+            YT_LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe (Path: %v)", InputPipePath_);
         }
     }
 };

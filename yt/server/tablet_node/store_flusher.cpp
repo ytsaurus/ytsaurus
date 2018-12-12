@@ -165,7 +165,7 @@ private:
             if (!tabletSnapshot)
                 continue;
 
-            LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
+            YT_LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
                 "TotalMemoryUsage: %v, PassiveMemoryUsage: %v, TabletMemoryUsage: %v, "
                 "MemoryLimit: %v)",
                 candidate.TabletId,
@@ -196,13 +196,13 @@ private:
         tablet->UpdateUnflushedTimestamp();
 
         if (storeManager->IsOverflowRotationNeeded()) {
-            LOG_DEBUG("Scheduling store rotation due to overflow (TabletId: %v)",
+            YT_LOG_DEBUG("Scheduling store rotation due to overflow (TabletId: %v)",
                 tablet->GetId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
         if (storeManager->IsPeriodicRotationNeeded()) {
-            LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
+            YT_LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
                 tablet->GetId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
@@ -300,7 +300,7 @@ private:
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
         if (!tabletSnapshot) {
-            LOG_DEBUG("Tablet snapshot is missing, aborting flush");
+            YT_LOG_DEBUG("Tablet snapshot is missing, aborting flush");
             storeManager->BackoffStoreFlush(store);
             return;
         }
@@ -308,7 +308,7 @@ private:
         try {
             NProfiling::TWallTimer timer;
 
-            LOG_INFO("Store flush started");
+            YT_LOG_INFO("Store flush started");
 
             TTransactionStartOptions options;
             options.CellTag = CellTagFromId(tablet->GetId());
@@ -326,7 +326,7 @@ private:
             auto transaction = WaitFor(asyncTransaction)
                 .ValueOrThrow();
 
-            LOG_INFO("Store flush transaction created (TransactionId: %v)",
+            YT_LOG_INFO("Store flush transaction created (TransactionId: %v)",
                 transaction->GetId());
 
             auto asyncFlushResult = flushCallback
@@ -336,7 +336,7 @@ private:
             auto flushResult = WaitFor(asyncFlushResult)
                 .ValueOrThrow();
 
-            LOG_INFO("Store chunks written (ChunkIds: %v)",
+            YT_LOG_INFO("Store chunks written (ChunkIds: %v)",
                 MakeFormattableRange(flushResult, [] (TStringBuilder* builder, const TAddStoreDescriptor& descriptor) {
                     FormatValue(builder, FromProto<TChunkId>(descriptor.store_id()), TStringBuf());
                 }));
@@ -359,7 +359,7 @@ private:
             storeManager->EndStoreFlush(store);
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(TError());
 
-            LOG_INFO("Store flush completed (WallTime: %v)",
+            YT_LOG_INFO("Store flush completed (WallTime: %v)",
                 timer.GetElapsedTime());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
@@ -367,7 +367,7 @@ private:
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Flush);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(error);
-            LOG_ERROR(error, "Error flushing tablet store, backing off");
+            YT_LOG_ERROR(error, "Error flushing tablet store, backing off");
 
             storeManager->BackoffStoreFlush(store);
         }

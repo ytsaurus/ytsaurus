@@ -343,7 +343,7 @@ private:
         {
             if (BannedNodeToDeadline_.find(address) == BannedNodeToDeadline_.end()) {
                 BannedNodeToDeadline_.insert(std::make_pair(address, TInstant::Now() + Config_->NodeBanTimeout));
-                LOG_INFO("Node banned (Address: %v)", address);
+                YT_LOG_INFO("Node banned (Address: %v)", address);
             }
         }
 
@@ -355,7 +355,7 @@ private:
             while (it != BannedNodeToDeadline_.end()) {
                 auto jt = it++;
                 if (jt->second < now) {
-                    LOG_INFO("Node unbanned (Address: %v)", jt->first);
+                    YT_LOG_INFO("Node unbanned (Address: %v)", jt->first);
                     BannedNodeToDeadline_.erase(jt);
                 } else {
                     result.push_back(jt->first);
@@ -400,7 +400,7 @@ private:
             UploadMasterChannel_ = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
 
             {
-                LOG_INFO("Requesting extended journal attributes");
+                YT_LOG_INFO("Requesting extended journal attributes");
 
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
                 TObjectServiceProxy proxy(channel);
@@ -431,7 +431,7 @@ private:
                 Account_ = attributes->Get<TString>("account");
                 PrimaryMedium_ = attributes->Get<TString>("primary_medium");
 
-                LOG_INFO("Extended journal attributes received (ReplicationFactor: %v, WriteQuorum: %v, Account: %v, "
+                YT_LOG_INFO("Extended journal attributes received (ReplicationFactor: %v, WriteQuorum: %v, Account: %v, "
                     "PrimaryMedium: %v)",
                     ReplicationFactor_,
                     WriteQuorum_,
@@ -444,7 +444,7 @@ private:
                 GetStageTag("get_extended_attributes"));
 
             {
-                LOG_INFO("Starting journal upload");
+                YT_LOG_INFO("Starting journal upload");
 
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
                 TObjectServiceProxy proxy(channel);
@@ -488,7 +488,7 @@ private:
                     UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
                     StartListenTransaction(UploadTransaction_);
 
-                    LOG_INFO("Journal upload started (UploadTransactionId: %v)",
+                    YT_LOG_INFO("Journal upload started (UploadTransactionId: %v)",
                         uploadTransactionId);
                 }
             }
@@ -498,7 +498,7 @@ private:
                 GetStageTag("begin_upload"));
 
             {
-                LOG_INFO("Requesting journal upload parameters");
+                YT_LOG_INFO("Requesting journal upload parameters");
 
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
                 TObjectServiceProxy proxy(channel);
@@ -515,7 +515,7 @@ private:
                 const auto& rsp = rspOrError.Value();
                 ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
 
-                LOG_INFO("Journal upload parameters received (ChunkListId: %v)",
+                YT_LOG_INFO("Journal upload parameters received (ChunkListId: %v)",
                     ChunkListId_);
             }
 
@@ -523,13 +523,13 @@ private:
                 DelayTimer_,
                 GetStageTag("get_upload_parameters"));
 
-            LOG_INFO("Journal opened");
+            YT_LOG_INFO("Journal opened");
             OpenedPromise_.Set(TError());
         }
 
         void CloseJournal()
         {
-            LOG_INFO("Closing journal");
+            YT_LOG_INFO("Closing journal");
 
             DelayTimer_ = Profiler.TimingStart(
                 DelayCounterPath_,
@@ -570,7 +570,7 @@ private:
                 DelayTimer_,
                 GetStageTag("close_journal"));
 
-            LOG_INFO("Journal closed");
+            YT_LOG_INFO("Journal closed");
 
             UploadTransaction_->Detach();
 
@@ -586,7 +586,7 @@ private:
                 EmptyTagIds,
                 ETimerMode::Sequential);
 
-            LOG_INFO("Creating chunk");
+            YT_LOG_INFO("Creating chunk");
 
             {
                 TChunkServiceProxy proxy(UploadMasterChannel_);
@@ -618,7 +618,7 @@ private:
                 session->Id = FromProto<TSessionId>(rsp.session_id());
             }
 
-            LOG_INFO("Chunk created (ChunkId: %v)",
+            YT_LOG_INFO("Chunk created (ChunkId: %v)",
                 session->Id);
 
             Profiler.TimingCheckpoint(
@@ -664,7 +664,7 @@ private:
                 session->Nodes.push_back(node);
             }
 
-            LOG_INFO("Starting chunk sessions");
+            YT_LOG_INFO("Starting chunk sessions");
             try {
                 std::vector<TFuture<void>> asyncResults;
                 for (const auto& node : session->Nodes) {
@@ -680,10 +680,10 @@ private:
                 auto result = WaitFor(CombineQuorum(asyncResults, WriteQuorum_));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
-                LOG_WARNING(TError(ex));
+                YT_LOG_WARNING(TError(ex));
                 return false;
             }
-            LOG_INFO("Chunk sessions started");
+            YT_LOG_INFO("Chunk sessions started");
 
             Profiler.TimingCheckpoint(
                 DelayTimer_,
@@ -699,7 +699,7 @@ private:
 
             const auto& chunkId = session->Id.ChunkId;
 
-            LOG_INFO("Confirming chunk");
+            YT_LOG_INFO("Confirming chunk");
             {
                 TChunkServiceProxy proxy(UploadMasterChannel_);
 
@@ -724,13 +724,13 @@ private:
                     "Error confirming chunk %v",
                     chunkId);
             }
-            LOG_INFO("Chunk confirmed");
+            YT_LOG_INFO("Chunk confirmed");
 
             Profiler.TimingCheckpoint(
                 DelayTimer_,
                 GetStageTag("confirm_chunk"));
 
-            LOG_INFO("Attaching chunk");
+            YT_LOG_INFO("Attaching chunk");
             {
                 TChunkServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
@@ -747,7 +747,7 @@ private:
                     "Error attaching chunk %v",
                     chunkId);
             }
-            LOG_INFO("Chunk attached");
+            YT_LOG_INFO("Chunk attached");
 
             Profiler.TimingCheckpoint(
                 DelayTimer_,
@@ -811,7 +811,7 @@ private:
 
         void HandleClose()
         {
-            LOG_INFO("Closing journal writer");
+            YT_LOG_INFO("Closing journal writer");
             Closing_ = true;
         }
 
@@ -833,7 +833,7 @@ private:
             // Reset flushed replica count: this batch might have already been
             // flushed (partially) by the previous (failed session).
             if (batch->FlushedReplicas > 0) {
-                LOG_DEBUG("Resetting flushed replica counter (Rows: %v-%v, FlushCounter: %v)",
+                YT_LOG_DEBUG("Resetting flushed replica counter (Rows: %v-%v, FlushCounter: %v)",
                     batch->FirstRowIndex,
                     batch->FirstRowIndex + batch->Rows.size() - 1,
                     batch->FlushedReplicas);
@@ -843,7 +843,7 @@ private:
             CurrentSession_->RowCount += batch->Rows.size();
             CurrentSession_->DataSize += batch->DataSize;
 
-            LOG_DEBUG("Batch enqueued (Rows: %v-%v)",
+            YT_LOG_DEBUG("Batch enqueued (Rows: %v-%v)",
                 batch->FirstRowIndex,
                 batch->FirstRowIndex + batch->Rows.size() - 1);
 
@@ -855,7 +855,7 @@ private:
 
         void SwitchChunk()
         {
-            LOG_INFO("Switching chunk");
+            YT_LOG_INFO("Switching chunk");
         }
 
         void CloseChunk()
@@ -872,7 +872,7 @@ private:
                 EmptyTagIds,
                 ETimerMode::Sequential);
 
-            LOG_INFO("Finishing chunk sessions");
+            YT_LOG_INFO("Finishing chunk sessions");
             for (const auto& node : session->Nodes) {
                 auto req = node->LightProxy.FinishChunk();
                 ToProto(req->mutable_session_id(), sessionId);
@@ -890,7 +890,7 @@ private:
                 GetStageTag("finish_chunk"));
 
             {
-                LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
+                YT_LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
                     sessionId,
                     session->FlushedRowCount);
 
@@ -914,7 +914,7 @@ private:
                     "Error sealing chunk %v",
                     sessionId);
 
-                LOG_INFO("Chunk sealed");
+                YT_LOG_INFO("Chunk sealed");
 
                 SealedRowCount_ += session->FlushedRowCount;
             }
@@ -933,7 +933,7 @@ private:
                 try {
                     PumpFailed(ex);
                 } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Error pumping journal writer command queue");
+                    YT_LOG_ERROR(ex, "Error pumping journal writer command queue");
                 }
             }
         }
@@ -951,7 +951,7 @@ private:
 
         void PumpFailed(const TError& error)
         {
-            LOG_WARNING(error, "Journal writer failed");
+            YT_LOG_WARNING(error, "Journal writer failed");
 
             {
                 TGuard<TSpinLock> guard(CurrentBatchSpinLock_);
@@ -1033,7 +1033,7 @@ private:
 
             TDelayedExecutor::CancelAndClear(CurrentBatchFlushCookie_);
 
-            LOG_DEBUG("Flushing batch (Rows: %v-%v)",
+            YT_LOG_DEBUG("Flushing batch (Rows: %v-%v)",
                 CurrentBatch_->FirstRowIndex,
                 CurrentBatch_->FirstRowIndex + CurrentBatch_->Rows.size() - 1);
 
@@ -1060,7 +1060,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Sending ping (Address: %v, ChunkId: %v)",
+            YT_LOG_DEBUG("Sending ping (Address: %v, ChunkId: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id);
 
@@ -1085,7 +1085,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Ping succeeded (Address: %v, ChunkId: %v)",
+            YT_LOG_DEBUG("Ping succeeded (Address: %v, ChunkId: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id);
         }
@@ -1097,7 +1097,7 @@ private:
             const TDataNodeServiceProxy::TErrorOrRspStartChunkPtr& rspOrError)
         {
             if (rspOrError.IsOK()) {
-                LOG_DEBUG("Chunk session started (Address: %v)",
+                YT_LOG_DEBUG("Chunk session started (Address: %v)",
                     node->Descriptor.GetDefaultAddress());
                 node->Started = true;
                 if (CurrentSession_ == session) {
@@ -1117,11 +1117,11 @@ private:
             const TDataNodeServiceProxy::TErrorOrRspFinishChunkPtr& rspOrError)
         {
             if (rspOrError.IsOK()) {
-                LOG_DEBUG("Chunk session finished (Address: %v)",
+                YT_LOG_DEBUG("Chunk session finished (Address: %v)",
                     node->Descriptor.GetDefaultAddress());
             } else {
                 BanNode(node->Descriptor.GetDefaultAddress());
-                LOG_WARNING(rspOrError, "Chunk session has failed to finish (Address: %v)",
+                YT_LOG_WARNING(rspOrError, "Chunk session has failed to finish (Address: %v)",
                     node->Descriptor.GetDefaultAddress());
             }
         }
@@ -1172,7 +1172,7 @@ private:
                 node->InFlightBatches.push_back(batch);
             }
 
-            LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
+            YT_LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
                 node->Descriptor.GetDefaultAddress(),
                 CurrentSession_->Id,
                 node->FirstPendingBlockIndex,
@@ -1199,7 +1199,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Journal replica flushed (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
+            YT_LOG_DEBUG("Journal replica flushed (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id,
                 node->FirstPendingBlockIndex,
@@ -1226,7 +1226,7 @@ private:
                 session->FlushedDataSize += front->DataSize;
                 PendingBatches_.pop_front();
 
-                LOG_DEBUG("Rows are flushed by quorum (Rows: %v-%v)",
+                YT_LOG_DEBUG("Rows are flushed by quorum (Rows: %v-%v)",
                     front->FirstRowIndex,
                     front->FirstRowIndex + front->Rows.size() - 1);
             }
@@ -1244,7 +1244,7 @@ private:
             const TChunkSessionPtr& session)
         {
             const auto& address = node->Descriptor.GetDefaultAddress();
-            LOG_WARNING(error, "Journal replica failed (Address: %v, SessionId: %v)",
+            YT_LOG_WARNING(error, "Journal replica failed (Address: %v, SessionId: %v)",
                 address,
                 session->Id);
 

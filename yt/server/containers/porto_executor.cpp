@@ -225,12 +225,12 @@ private:
         Api_->GetLastError(error, message);
         if (error == EError::ContainerDoesNotExist || error == EError::InvalidState) {
             // This is typical during job cleanup: we might try to kill a container that is already stopped.
-            LOG_DEBUG("Porto API error (Error: %v, Command: %v, Message: %v)",
+            YT_LOG_DEBUG("Porto API error (Error: %v, Command: %v, Message: %v)",
                 error,
                 command,
                 message);
         } else {
-            LOG_ERROR("Porto API error (Error: %v, Command: %v, Message: %v)",
+            YT_LOG_ERROR("Porto API error (Error: %v, Command: %v, Message: %v)",
                 error,
                 command,
                 message);
@@ -279,7 +279,7 @@ private:
     {
         auto entry = ContainersMap_.insert({name, NewPromise<int>()});
         if (!entry.second) {
-            LOG_WARNING("Container already added for polling (Container: %v)",
+            YT_LOG_WARNING("Container already added for polling (Container: %v)",
                 name);
         } else {
             Containers_.push_back(name);
@@ -323,7 +323,7 @@ private:
                 //TODO(dcherednik): other states
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Fatal exception during porto polling");
+            YT_LOG_ERROR(ex, "Fatal exception during porto polling");
             Failed_.Fire(TError(ex));
         }
     }
@@ -383,7 +383,7 @@ private:
     {
         auto it = ContainersMap_.find(name);
         if (it == ContainersMap_.end()) {
-            LOG_ERROR("Got an unexpected container "
+            YT_LOG_ERROR("Got an unexpected container "
                 "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
                 name,
                 rsp.Error,
@@ -392,7 +392,7 @@ private:
             return;
         } else {
             if (rsp.Error) {
-                LOG_ERROR("Container finished with porto API error "
+                YT_LOG_ERROR("Container finished with porto API error "
                     "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
                     name,
                     rsp.Error,
@@ -402,7 +402,7 @@ private:
             } else {
                 try {
                     int exitStatus = std::stoi(rsp.Value);
-                    LOG_DEBUG("Container finished with exit code (Container: %v, ExitCode: %v)",
+                    YT_LOG_DEBUG("Container finished with exit code (Container: %v, ExitCode: %v)",
                         name,
                         exitStatus);
 

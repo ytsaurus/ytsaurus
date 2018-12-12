@@ -288,7 +288,7 @@ private:
         auto now = TInstant::Now();
 
         if (PrevOnTimerInstant_ != TInstant::Zero() && now - PrevOnTimerInstant_ > PeriodicPrecisionWarningThreshold) {
-            LOG_DEBUG("Delayed executor stall detected (Delta: %v)",
+            YT_LOG_DEBUG("Delayed executor stall detected (Delta: %v)",
                 now - PrevOnTimerInstant_);
         }
 
@@ -299,7 +299,7 @@ private:
                 return;
             }
             if (entry->Deadline + LateWarningThreshold < now) {
-                LOG_DEBUG("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
+                YT_LOG_DEBUG("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);
             }
@@ -328,7 +328,7 @@ private:
                 break;
             }
             if (entry->Deadline + LateWarningThreshold < now) {
-                LOG_DEBUG("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
+                YT_LOG_DEBUG("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);
             }

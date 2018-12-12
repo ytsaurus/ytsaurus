@@ -154,7 +154,7 @@ public:
         YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
-        LOG_INFO("Creating operation node (OperationId: %v)",
+        YT_LOG_INFO("Creating operation node (OperationId: %v)",
             operationId);
 
         auto batchReq = StartObjectBatchRequest();
@@ -206,7 +206,7 @@ public:
         YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
-        LOG_INFO("Updating initialized operation node (OperationId: %v)",
+        YT_LOG_INFO("Updating initialized operation node (OperationId: %v)",
             operationId);
 
         auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
@@ -241,7 +241,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
 
-        LOG_INFO("Flushing operation node (OperationId: %v)",
+        YT_LOG_INFO("Flushing operation node (OperationId: %v)",
             operation->GetId());
 
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
@@ -318,7 +318,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
 
-        LOG_INFO("Flushing operation runtime parameters (OperationId: %v)",
+        YT_LOG_INFO("Flushing operation runtime parameters (OperationId: %v)",
             operation->GetId());
 
         auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
@@ -335,7 +335,7 @@ public:
         auto error = GetCumulativeError(rspOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error updating operation %v runtime params", operation->GetId());
 
-        LOG_INFO("Flushed operation runtime parameters (OperationId: %v)",
+        YT_LOG_INFO("Flushed operation runtime parameters (OperationId: %v)",
             operation->GetId());
     }
 
@@ -515,7 +515,7 @@ private:
         }
         State_ = EMasterConnectorState::Connecting;
 
-        LOG_INFO("Connecting to master");
+        YT_LOG_INFO("Connecting to master");
 
         YCHECK(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
@@ -569,7 +569,7 @@ private:
         YCHECK(State_ == EMasterConnectorState::Connecting);
 
         if (!error.IsOK()) {
-            LOG_WARNING(error, "Error connecting to master");
+            YT_LOG_WARNING(error, "Error connecting to master");
             DoCleanup();
             StartConnecting(false);
             return;
@@ -580,7 +580,7 @@ private:
         State_.store(EMasterConnectorState::Connected);
         ConnectionTime_.store(TInstant::Now());
 
-        LOG_INFO("Master connected");
+        YT_LOG_INFO("Master connected");
 
         LockTransaction_->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
@@ -714,7 +714,7 @@ private:
 
             Owner_->LockTransaction_ = transactionOrError.Value();
 
-            LOG_INFO("Lock transaction is %v", Owner_->LockTransaction_->GetId());
+            YT_LOG_INFO("Lock transaction is %v", Owner_->LockTransaction_->GetId());
         }
 
         // - Take lock.
@@ -767,7 +767,7 @@ private:
         // - Request operations and their states.
         void ListOperations()
         {
-            LOG_INFO("Started listing existing operations");
+            YT_LOG_INFO("Started listing existing operations");
 
             auto createBatchRequest = BIND(
                 &TImpl::StartObjectBatchRequest,
@@ -779,7 +779,7 @@ private:
             OperationIds_.reserve(listOperationsResult.OperationsToRevive.size());
 
             for (const auto& pair : listOperationsResult.OperationsToRevive) {
-                LOG_DEBUG("Found operation in Cypress (OperationId: %v, State: %v)",
+                YT_LOG_DEBUG("Found operation in Cypress (OperationId: %v, State: %v)",
                     pair.first,
                     pair.second);
                 OperationIds_.push_back(pair.first);
@@ -789,7 +789,7 @@ private:
             OperationIdsToRemove_ = std::move(listOperationsResult.OperationsToRemove);
             OperationIdsToSync_ = std::move(listOperationsResult.OperationsToSync);
 
-            LOG_INFO("Finished listing existing operations");
+            YT_LOG_INFO("Finished listing existing operations");
         }
 
         // - Request attributes for unfinished operations.
@@ -814,7 +814,7 @@ private:
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
-                LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
+                YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                     OperationIds_.size());
 
                 for (const auto& operationId : OperationIds_) {
@@ -862,7 +862,7 @@ private:
                         if (secureVaultNode->GetType() == ENodeType::Map) {
                             secureVault = secureVaultNode->AsMap();
                         } else {
-                            LOG_ERROR("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
+                            YT_LOG_ERROR("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
                                 operationId,
                                 secureVaultNode->GetType(),
                                 ENodeType::Map);
@@ -896,7 +896,7 @@ private:
             try {
                 spec = ConvertTo<TOperationSpecBasePtr>(specNode);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
+                YT_LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
                     operationId);
                 return nullptr;
             }
@@ -962,7 +962,7 @@ private:
 
         void SubmitOperationsToCleaner()
         {
-            LOG_INFO("Submitting operations to cleaner (ArchiveCount: %v, RemoveCount: %v)",
+            YT_LOG_INFO("Submitting operations to cleaner (ArchiveCount: %v, RemoveCount: %v)",
                 OperationIdsToArchive_.size(),
                 OperationIdsToRemove_.size());
 
@@ -993,7 +993,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Fetching operation revival descriptors (OperationCount: %v)",
+        YT_LOG_INFO("Fetching operation revival descriptors (OperationCount: %v)",
             operations.size());
 
         {
@@ -1036,7 +1036,7 @@ private:
                 auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
                     if (!transactionId) {
                         if (name) {
-                            LOG_DEBUG("Missing %v transaction (OperationId: %v, TransactionId: %v)",
+                            YT_LOG_DEBUG("Missing %v transaction (OperationId: %v, TransactionId: %v)",
                                 name,
                                 operationId,
                                 transactionId);
@@ -1052,7 +1052,7 @@ private:
                         options.PingAncestors = false;
                         return client->AttachTransaction(transactionId, options);
                     } catch (const std::exception& ex) {
-                        LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
+                        YT_LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
                             operationId,
                             transactionId);
                         return nullptr;
@@ -1103,7 +1103,7 @@ private:
             }
         }
 
-        LOG_INFO("Fetching committed flags (OperationCount: %v)",
+        YT_LOG_INFO("Fetching committed flags (OperationCount: %v)",
             operations.size());
 
         {
@@ -1225,9 +1225,9 @@ private:
         TForbidContextSwitchGuard contextSwitchGuard;
 
         if (State_ == EMasterConnectorState::Connected) {
-            LOG_WARNING(error, "Disconnecting master");
+            YT_LOG_WARNING(error, "Disconnecting master");
             MasterDisconnected_.Fire();
-            LOG_WARNING("Master disconnected");
+            YT_LOG_WARNING("Master disconnected");
         }
 
         DoCleanup();
@@ -1350,7 +1350,7 @@ private:
                         << TErrorAttribute("operation_id", operation->GetId())
                         << rspOrErr;
                     operation->SetAlert(EOperationAlertType::InvalidAcl, error);
-                    LOG_INFO(error);
+                    YT_LOG_INFO(error);
                 } else {
                     operation->ResetAlert(EOperationAlertType::InvalidAcl);
                 }
@@ -1407,7 +1407,7 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
 
-            LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
+            YT_LOG_DEBUG("Operation node updated (OperationId: %v)", operation->GetId());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation node %v",
                 operation->GetId())
@@ -1440,7 +1440,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
             operationId);
 
-        LOG_INFO("Operation node created (OperationId: %v)",
+        YT_LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
     }
 
@@ -1455,7 +1455,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error updating initialized operation node %v",
             operationId);
 
-        LOG_INFO("Initialized operation node updated (OperationId: %v)",
+        YT_LOG_INFO("Initialized operation node updated (OperationId: %v)",
             operationId);
     }
 
@@ -1468,7 +1468,7 @@ private:
         requester.Run(batchReq);
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         if (!batchRspOrError.IsOK()) {
-            LOG_ERROR(batchRspOrError, "Error updating custom watcher");
+            YT_LOG_ERROR(batchRspOrError, "Error updating custom watcher");
             return;
         }
         handler.Run(batchRspOrError.Value());
@@ -1479,7 +1479,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ == EMasterConnectorState::Connected);
 
-        LOG_DEBUG("Updating watchers");
+        YT_LOG_DEBUG("Updating watchers");
 
         // Global watchers.
         {
@@ -1527,7 +1527,7 @@ private:
         YCHECK(State_ == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
-            LOG_ERROR(batchRspOrError, "Error updating global watchers");
+            YT_LOG_ERROR(batchRspOrError, "Error updating global watchers");
             return;
         }
 
@@ -1536,7 +1536,7 @@ private:
             handler.Run(batchRsp);
         }
 
-        LOG_DEBUG("Global watchers updated");
+        YT_LOG_DEBUG("Global watchers updated");
     }
 
     void OnOperationWatchersUpdated(
@@ -1547,7 +1547,7 @@ private:
         YCHECK(State_ == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
-            LOG_ERROR(batchRspOrError, "Error updating operation watchers (OperationId: %v)",
+            YT_LOG_ERROR(batchRspOrError, "Error updating operation watchers (OperationId: %v)",
                 operation->GetId());
             return;
         }
@@ -1564,7 +1564,7 @@ private:
             handler.Run(batchRsp);
         }
 
-        LOG_DEBUG("Operation watchers updated (OperationId: %v)",
+        YT_LOG_DEBUG("Operation watchers updated (OperationId: %v)",
             operation->GetId());
     }
 
@@ -1590,7 +1590,7 @@ private:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error updating scheduler alerts");
+            YT_LOG_WARNING(rspOrError, "Error updating scheduler alerts");
         }
     }
 
@@ -1616,7 +1616,7 @@ private:
 
         if (!rspOrError.IsOK()) {
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                LOG_WARNING(rspOrError, "Error updating lock transaction timeout (TransactionId: %v)",
+                YT_LOG_WARNING(rspOrError, "Error updating lock transaction timeout (TransactionId: %v)",
                     LockTransaction_->GetId());
             } else {
                 THROW_ERROR_EXCEPTION("Error updating lock transaction timeout")
@@ -1626,7 +1626,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Lock transaction timeout updated (TransactionId: %v, Timeout: %v)",
+        YT_LOG_DEBUG("Lock transaction timeout updated (TransactionId: %v, Timeout: %v)",
             LockTransaction_->GetId(),
             timeout.MilliSeconds());
     }

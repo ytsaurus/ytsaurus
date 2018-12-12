@@ -51,7 +51,7 @@ private:
         const auto& ticket = credentials.Ticket;
         auto ticketHash = GetCryptoHash(ticket);
 
-        LOG_DEBUG("Validating ticket via Blackbox (TicketHash: %v)",
+        YT_LOG_DEBUG("Validating ticket via Blackbox (TicketHash: %v)",
             ticketHash);
 
         return BlackboxService_->Call(
@@ -68,13 +68,13 @@ private:
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            LOG_DEBUG(result, "Blackbox authentication failed (TicketHash: %v)",
+            YT_LOG_DEBUG(result, "Blackbox authentication failed (TicketHash: %v)",
                 ticketHash);
             THROW_ERROR result
                 << TErrorAttribute("ticket_hash", ticketHash);
         }
 
-        LOG_DEBUG("Blackbox authentication successful (TicketHash: %v, Login: %v, Realm: %v)",
+        YT_LOG_DEBUG("Blackbox authentication successful (TicketHash: %v, Login: %v, Realm: %v)",
             ticketHash,
             result.Value().Login,
             result.Value().Realm);

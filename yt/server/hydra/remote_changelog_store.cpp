@@ -105,7 +105,7 @@ private:
     {
         auto path = GetChangelogPath(Path_, id);
         try {
-            LOG_DEBUG("Creating remote changelog (ChangelogId: %v)",
+            YT_LOG_DEBUG("Creating remote changelog (ChangelogId: %v)",
                 id);
 
             if (!PrerequisiteTransaction_) {
@@ -144,7 +144,7 @@ private:
                     .ThrowOnError();
             }
 
-            LOG_DEBUG("Remote changelog created (ChangelogId: %v)",
+            YT_LOG_DEBUG("Remote changelog created (ChangelogId: %v)",
                 id);
 
             return CreateRemoteChangelog(
@@ -169,7 +169,7 @@ private:
             int recordCount;
             i64 dataSize;
 
-            LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
+            YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
                 id);
             {
                 TGetNodeOptions options;
@@ -190,7 +190,7 @@ private:
                 dataSize = attributes.Get<i64>("uncompressed_data_size");
                 recordCount = attributes.Get<int>("quorum_row_count");
             }
-            LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
+            YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
                 id);
 
             return CreateRemoteChangelog(
@@ -449,10 +449,10 @@ private:
 
     int GetLatestChangelogId()
     {
-        LOG_DEBUG("Requesting changelog list from remote store");
+        YT_LOG_DEBUG("Requesting changelog list from remote store");
         auto result = WaitFor(MasterClient_->ListNode(Path_))
             .ValueOrThrow();
-        LOG_DEBUG("Changelog list received");
+        YT_LOG_DEBUG("Changelog list received");
 
         auto keys = ConvertTo<std::vector<TString>>(result);
         int latestId = InvalidSegmentId;
@@ -461,7 +461,7 @@ private:
             try {
                 id = FromString<int>(key);
             } catch (const std::exception&) {
-                LOG_WARNING("Unrecognized item %Qv in remote changelog store",
+                YT_LOG_WARNING("Unrecognized item %Qv in remote changelog store",
                     key);
                 continue;
             }
@@ -484,7 +484,7 @@ private:
         auto path = GetChangelogPath(Path_, latestId);
 
         int recordCount;
-        LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
+        YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
             latestId);
         {
             TGetNodeOptions options;
@@ -499,7 +499,7 @@ private:
             }
             recordCount = attributes.Get<int>("quorum_row_count");
         }
-        LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
+        YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
             latestId);
 
         return TVersion(latestId, recordCount);

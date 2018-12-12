@@ -52,7 +52,7 @@ TTransaction::TTransaction(
     , ModifyRowsRequestSequenceCounter_(0)
 {
     // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
-    LOG_DEBUG("Transaction started (TransactionId: %v, Type: %v, StartTimestamp: %llx, Atomicity: %v, "
+    YT_LOG_DEBUG("Transaction started (TransactionId: %v, Type: %v, StartTimestamp: %llx, Atomicity: %v, "
         "Durability: %v, Timeout: %v, PingPeriod: %v, Sticky: %v)",
         Id_,
         Type_,
@@ -137,7 +137,7 @@ void TTransaction::Detach()
         }
     }
 
-    LOG_DEBUG("Transaction detached (TransactionId: %v)",
+    YT_LOG_DEBUG("Transaction detached (TransactionId: %v)",
         Id_);
 }
 
@@ -173,7 +173,7 @@ void TTransaction::UnsubscribeAborted(const TCallback<void()>& handler)
 
 TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions&)
 {
-    LOG_DEBUG("Committing transaction (TransactionId: %v)",
+    YT_LOG_DEBUG("Committing transaction (TransactionId: %v)",
         Id_);
 
     {
@@ -264,7 +264,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& /*options*/)
 {
     // TODO(babenko): options are ignored
-    LOG_DEBUG("Transaction abort requested (TransactionId: %v)",
+    YT_LOG_DEBUG("Transaction abort requested (TransactionId: %v)",
         Id_);
     SetAborted(TError("Transaction aborted by user request"));
 
@@ -672,7 +672,7 @@ TError TTransaction::SetCommitted(const NApi::TTransactionCommitResult& result)
         State_ = ETransactionState::Committed;
     }
 
-    LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamps: %v)",
+    YT_LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamps: %v)",
         Id_,
         result.CommitTimestamps);
 
@@ -708,7 +708,7 @@ void TTransaction::OnFailure(const TError& error)
 
 TFuture<void> TTransaction::SendAbort()
 {
-    LOG_DEBUG("Aborting transaction (TransactionId: %v)",
+    YT_LOG_DEBUG("Aborting transaction (TransactionId: %v)",
         Id_);
 
     const auto& config = Connection_->GetConfig();
@@ -724,15 +724,15 @@ TFuture<void> TTransaction::SendAbort()
     return req->Invoke().Apply(
         BIND([id = Id_, Logger = Logger] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
             if (rspOrError.IsOK()) {
-                LOG_DEBUG("Transaction aborted (TransactionId: %v)",
+                YT_LOG_DEBUG("Transaction aborted (TransactionId: %v)",
                     id);
                 return TError();
             } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v)",
+                YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v)",
                     id);
                 return TError();
             } else {
-                LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v)",
+                YT_LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v)",
                     id);
                 return TError("Error aborting transaction %v",
                     id)
@@ -743,7 +743,7 @@ TFuture<void> TTransaction::SendAbort()
 
 TFuture<void> TTransaction::SendPing()
 {
-    LOG_DEBUG("Pinging transaction (TransactionId: %v)",
+    YT_LOG_DEBUG("Pinging transaction (TransactionId: %v)",
         Id_);
 
     const auto& config = Connection_->GetConfig();
@@ -759,12 +759,12 @@ TFuture<void> TTransaction::SendPing()
     return req->Invoke().Apply(
         BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
             if (rspOrError.IsOK()) {
-                LOG_DEBUG("Transaction pinged (TransactionId: %v)",
+                YT_LOG_DEBUG("Transaction pinged (TransactionId: %v)",
                     Id_);
                 return TError();
             } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 // Hard error.
-                LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v)",
+                YT_LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v)",
                     Id_);
                 auto error = TError(
                     NTransactionClient::EErrorCode::NoSuchTransaction,
@@ -776,7 +776,7 @@ TFuture<void> TTransaction::SendPing()
                 return error;
             } else {
                 // Soft error.
-                LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v)",
+                YT_LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v)",
                     Id_);
                 return TError("Failed to ping transaction %v",
                     Id_)
@@ -805,7 +805,7 @@ void TTransaction::RunPeriodicPings()
             return;
         }
 
-        LOG_DEBUG("Transaction ping scheduled (TransactionId: %v)",
+        YT_LOG_DEBUG("Transaction ping scheduled (TransactionId: %v)",
             Id_);
 
         TDelayedExecutor::Submit(

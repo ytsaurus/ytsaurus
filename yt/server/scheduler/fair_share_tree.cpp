@@ -265,7 +265,7 @@ bool TFairShareTree::AttachOperation(
         return true;
     }
 
-    LOG_DEBUG("Max running operation count violated (OperationId: %v, Pool: %v, Limit: %v)",
+    YT_LOG_DEBUG("Max running operation count violated (OperationId: %v, Pool: %v, Limit: %v)",
         operationId,
         violatedPool->GetId(),
         violatedPool->GetMaxRunningOperationCount());
@@ -317,7 +317,7 @@ bool TFairShareTree::DetachOperation(const TFairShareStrategyOperationStatePtr& 
     pool->IncreaseOperationCount(-1);
     pool->IncreaseHierarchicalResourceUsage(-operationElement->GetLocalResourceUsage());
 
-    LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
+    YT_LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
         operationId,
         pool->GetId());
 
@@ -372,7 +372,7 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
     if (LastPoolsNodeUpdate && AreNodesEqual(LastPoolsNodeUpdate, poolsNode)) {
-        LOG_INFO("Pools are not changed, skipping update");
+        YT_LOG_INFO("Pools are not changed, skipping update");
         return {LastPoolsNodeUpdateError, false};
     }
 
@@ -513,7 +513,7 @@ bool TFairShareTree::ChangeOperationPool(
         THROW_ERROR_EXCEPTION("Operation element for operation %Qv not found", operationId);
     }
 
-    LOG_INFO("Operation is changing operation pool (OperationId: %v, OldPool: %v NewPool: %v)",
+    YT_LOG_INFO("Operation is changing operation pool (OperationId: %v, OldPool: %v NewPool: %v)",
         operationId,
         element->GetParent()->GetId(),
         newPool.GetPool());
@@ -744,7 +744,7 @@ void TFairShareTree::LogOperationsInfo()
     for (const auto& pair : OperationIdToElement) {
         const auto& operationId = pair.first;
         const auto& element = pair.second;
-        LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+        YT_LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
             element->GetLoggingString(GlobalDynamicAttributes_),
             operationId);
     }
@@ -755,7 +755,7 @@ void TFairShareTree::LogPoolsInfo()
     for (const auto& pair : Pools) {
         const auto& poolName = pair.first;
         const auto& pool = pair.second;
-        LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
+        YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
             pool->GetLoggingString(GlobalDynamicAttributes_),
             poolName);
     }
@@ -951,7 +951,7 @@ void TFairShareTree::DoScheduleJobsWithoutPreemption(
     auto& rootElement = rootElementSnapshot->RootElement;
 
     {
-        LOG_TRACE("Scheduling new jobs");
+        YT_LOG_TRACE("Scheduling new jobs");
 
         bool prescheduleExecuted = false;
         TDuration prescheduleDuration;
@@ -1004,14 +1004,14 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     }
 
     // Compute discount to node usage.
-    LOG_TRACE("Looking for preemptable jobs");
+    YT_LOG_TRACE("Looking for preemptable jobs");
     THashSet<TCompositeSchedulerElementPtr> discountedPools;
     std::vector<TJobPtr> preemptableJobs;
     PROFILE_AGGREGATED_TIMING(AnalyzePreemptableJobsTimeCounter) {
         for (const auto& job : context->SchedulingContext->RunningJobs()) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
             if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
-                LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
+                YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
                 continue;
@@ -1043,7 +1043,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     // NB: Schedule at most one job with preemption.
     TJobPtr jobStartedUsingPreemption;
     {
-        LOG_TRACE("Scheduling new jobs with preemption");
+        YT_LOG_TRACE("Scheduling new jobs with preemption");
 
         // Clean data from previous profiling.
         context->TotalScheduleJobDuration = TDuration::Zero();
@@ -1121,7 +1121,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     auto findOperationElementForJob = [&] (const TJobPtr& job) -> TOperationElement* {
         auto operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
         if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
-            LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
+            YT_LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
 
@@ -1179,7 +1179,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     }
 
     if (!Dominates(context->SchedulingContext->ResourceLimits(), context->SchedulingContext->ResourceUsage())) {
-        LOG_INFO("Resource usage exceeds node resorce limits even after preemption.");
+        YT_LOG_INFO("Resource usage exceeds node resorce limits even after preemption.");
     }
 }
 
@@ -1228,7 +1228,7 @@ void TFairShareTree::DoScheduleJobs(
         if (!enableSchedulingInfoLogging) {
             return;
         }
-        LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v)",
+        YT_LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v)",
             stageName,
             context.ActiveTreeSize,
             context.ActiveOperationCount,
@@ -1267,7 +1267,7 @@ void TFairShareTree::DoScheduleJobs(
     if (scheduleJobsWithPreemption) {
         DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now, profileTimings, logAndCleanSchedulingStatistics);
     } else {
-        LOG_DEBUG("Skip preemptive scheduling");
+        YT_LOG_DEBUG("Skip preemptive scheduling");
     }
 
     schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);
@@ -1318,7 +1318,7 @@ void TFairShareTree::AddOperationToPool(const TOperationId& operationId)
     auto* parent = operationElement->GetParent();
     parent->IncreaseRunningOperationCount(1);
 
-    LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
+    YT_LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
         operationId,
         parent->GetId());
 }
@@ -1335,7 +1335,7 @@ void TFairShareTree::RegisterPool(const TPoolPtr& pool)
 {
     DoRegisterPool(pool);
 
-    LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
+    YT_LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
 }
 
 void TFairShareTree::RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
@@ -1345,7 +1345,7 @@ void TFairShareTree::RegisterPool(const TPoolPtr& pool, const TCompositeSchedule
     pool->SetParent(parent.Get());
     parent->AddChild(pool);
 
-    LOG_INFO("Pool registered (Pool: %v, Parent: %v)",
+    YT_LOG_INFO("Pool registered (Pool: %v, Parent: %v)",
         pool->GetId(),
         parent->GetId());
 }
@@ -1379,7 +1379,7 @@ void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
     auto parent = pool->GetParent();
     SetPoolParent(pool, nullptr);
 
-    LOG_INFO("Pool unregistered (Pool: %v, Parent: %v)",
+    YT_LOG_INFO("Pool unregistered (Pool: %v, Parent: %v)",
         pool->GetId(),
         parent->GetId());
 }
@@ -1413,7 +1413,7 @@ void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperatio
         if (TryAllocatePoolSlotIndex(poolName, *slotIndex)) {
             return;
         }
-        LOG_ERROR("Failed to reuse slot index during revive (OperationId: %v, SlotIndex: %v)",
+        YT_LOG_ERROR("Failed to reuse slot index during revive (OperationId: %v, SlotIndex: %v)",
             state->GetHost()->GetId(),
             *slotIndex);
     }
@@ -1432,7 +1432,7 @@ void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperatio
 
     state->GetHost()->SetSlotIndex(TreeId, *slotIndex);
 
-    LOG_DEBUG("Operation slot index allocated (OperationId: %v, SlotIndex: %v)",
+    YT_LOG_DEBUG("Operation slot index allocated (OperationId: %v, SlotIndex: %v)",
         state->GetHost()->GetId(),
         *slotIndex);
 }
@@ -1449,7 +1449,7 @@ void TFairShareTree::ReleaseOperationSlotIndex(const TFairShareStrategyOperation
         it->second.insert(*slotIndex);
     }
 
-    LOG_DEBUG("Operation slot index released (OperationId: %v, SlotIndex: %v)",
+    YT_LOG_DEBUG("Operation slot index released (OperationId: %v, SlotIndex: %v)",
         state->GetHost()->GetId(),
         *slotIndex);
 }
@@ -1551,7 +1551,7 @@ void TFairShareTree::SetPoolParent(const TPoolPtr& pool, const TCompositeSchedul
         parent->IncreaseOperationCount(pool->OperationCount());
         parent->IncreaseRunningOperationCount(pool->RunningOperationCount());
 
-        LOG_INFO("Parent pool set (Pool: %v, Parent: %v)",
+        YT_LOG_INFO("Parent pool set (Pool: %v, Parent: %v)",
             pool->GetId(),
             parent->GetId());
     }

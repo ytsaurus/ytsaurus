@@ -185,7 +185,7 @@ private:
             }
 
             if (!bannedPartIndicesList.empty()) {
-                LOG_DEBUG("Reading blocks with repair (BlockIndexes: %v, BannedPartIndices: %v)",
+                YT_LOG_DEBUG("Reading blocks with repair (BlockIndexes: %v, BannedPartIndices: %v)",
                     BlockIndexes_,
                     bannedPartIndicesList);
             }

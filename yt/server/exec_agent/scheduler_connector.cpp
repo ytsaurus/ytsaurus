@@ -72,7 +72,7 @@ void TSchedulerConnector::SendHeartbeat()
     }
 
     if (TInstant::Now() < std::max(LastFailedHeartbeatTime_, LastThrottledHeartbeatTime_) + FailedHeartbeatBackoffTime_) {
-        LOG_INFO("Skipping heartbeat");
+        YT_LOG_INFO("Skipping heartbeat");
         return;
     }
 
@@ -89,7 +89,7 @@ void TSchedulerConnector::SendHeartbeat()
         EObjectType::SchedulerJob,
         req.Get());
 
-    LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
+    YT_LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
         FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_info()));
 
     auto profileInterval = [&] (TInstant lastTime, NProfiling::TAggregateGauge& counter) {
@@ -113,12 +113,12 @@ void TSchedulerConnector::SendHeartbeat()
                 FailedHeartbeatBackoffTime_ * Config_->FailedHeartbeatBackoffMultiplier,
                 Config_->FailedHeartbeatBackoffMaxTime);
         }
-        LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler (BackoffTime: %v)",
+        YT_LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler (BackoffTime: %v)",
             FailedHeartbeatBackoffTime_);
         return;
     }
 
-    LOG_INFO("Successfully reported heartbeat to scheduler");
+    YT_LOG_INFO("Successfully reported heartbeat to scheduler");
 
     FailedHeartbeatBackoffTime_ = TDuration::Zero();
 

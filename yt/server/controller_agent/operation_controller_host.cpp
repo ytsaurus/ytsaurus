@@ -42,7 +42,7 @@ void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReaso
         {},
         {}
     });
-    LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
+    YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
         jobId);
 }
@@ -57,7 +57,7 @@ void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error
         {},
         {}
     });
-    LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
+    YT_LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
 }
@@ -72,7 +72,7 @@ void TOperationControllerHost::FailJob(const TJobId& jobId)
         {},
         {}
     });
-    LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
+    YT_LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
 }
@@ -94,7 +94,7 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
         });
     }
     JobEventsOutbox_->Enqueue(std::move(events));
-    LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
+    YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
         jobsToRelease.size());
 }
@@ -231,7 +231,7 @@ void TOperationControllerHost::OnOperationCompleted()
         OperationId_,
         {}
     });
-    LOG_DEBUG("Operation completion notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG("Operation completion notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
@@ -242,7 +242,7 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG(error, "Operation abort notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG(error, "Operation abort notification enqueued (OperationId: %v)",
         OperationId_,
         error);
 }
@@ -254,7 +254,7 @@ void TOperationControllerHost::OnOperationFailed(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG(error, "Operation failure notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG(error, "Operation failure notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
@@ -265,7 +265,7 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
@@ -278,7 +278,7 @@ void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& t
         treeId,
         jobIds
     });
-    LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
+    YT_LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
         OperationId_,
         treeId);
 }

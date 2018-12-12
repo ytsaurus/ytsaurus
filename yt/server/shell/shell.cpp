@@ -71,7 +71,7 @@ public:
         auto user = SafeGetUsernameByUid(uid);
         auto home = Options_->WorkingDir;
 
-        LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v, Command: %v)",
+        YT_LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v, Command: %v)",
             Options_->Term,
             CurrentHeight_,
             CurrentWidth_,
@@ -146,7 +146,7 @@ public:
             .Subscribe(
                 BIND(&TShell::Terminate, MakeWeak(this))
                     .Via(GetCurrentInvoker()));
-        LOG_INFO("Shell started");
+        YT_LOG_INFO("Shell started");
     }
 
     virtual void ResizeWindow(int height, int width) override
@@ -172,7 +172,7 @@ public:
         }
 
         if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
-            LOG_WARNING(
+            YT_LOG_WARNING(
                 "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
                 ConsumedOffset_,
                 inputOffset);
@@ -215,7 +215,7 @@ public:
         Writer_->Abort();
         CleanupShellProcesses();
         TerminatedPromise_.TrySet();
-        LOG_INFO(error, "Shell terminated");
+        YT_LOG_INFO(error, "Shell terminated");
     }
 
     virtual TFuture<void> Shutdown(const TError& error) override
@@ -277,7 +277,7 @@ private:
             Freezer_.Create();
             Process_->AddArguments({ "--cgroup", Freezer_.GetFullPath() });
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to create required cgroups");
+            YT_LOG_FATAL(ex, "Failed to create required cgroups");
         }
     }
 
@@ -296,7 +296,7 @@ private:
             RunKiller(Freezer_.GetFullPath());
             Freezer_.Destroy();
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to clean up shell processes");
+            YT_LOG_FATAL(ex, "Failed to clean up shell processes");
         }
     }
 

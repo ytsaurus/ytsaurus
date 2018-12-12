@@ -201,7 +201,7 @@ public:
                 properties.push_back(rules.first);
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Unknown resource field requested");
+            YT_LOG_ERROR(ex, "Unknown resource field requested");
             THROW_ERROR_EXCEPTION("Unknown resource field requested")
                 << TErrorAttribute("container", Name_)
                 << ex;
@@ -362,7 +362,7 @@ public:
             command += " ";
         }
 
-        LOG_DEBUG("Executing porto container (Command: %v)", command);
+        YT_LOG_DEBUG("Executing porto container (Command: %v)", command);
 
         // NB(psushin): Make sure subcontainer starts with the same user.
         // For unknown reason in the cloud we've seen user_job containers with user=loadbase.

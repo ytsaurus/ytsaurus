@@ -60,13 +60,13 @@ public:
     {
         auto block = New<TCachedBlock>(id, data);
         if (TryInsert(block)) {
-            LOG_DEBUG("Block is put into cache (BlockId: %v, BlockType: %v, BlockSize: %v)",
+            YT_LOG_DEBUG("Block is put into cache (BlockId: %v, BlockType: %v, BlockSize: %v)",
                 id,
                 Type_,
                 data.Size());
         } else {
             // Already have the block cached, do nothing.
-            LOG_TRACE("Block is already in cache (BlockId: %v, BlockType: %v)",
+            YT_LOG_TRACE("Block is already in cache (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
         }
@@ -76,12 +76,12 @@ public:
     {
         auto block = TSyncSlruCacheBase::Find(id);
         if (block) {
-            LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",
+            YT_LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
             return block->GetData();
         } else {
-            LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
+            YT_LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
             return TBlock();

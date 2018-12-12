@@ -183,12 +183,12 @@ TOrderedDynamicStore::TOrderedDynamicStore(
 {
     AllocateCurrentSegment(InitialOrderedDynamicSegmentIndex);
 
-    LOG_DEBUG("Ordered dynamic store created");
+    YT_LOG_DEBUG("Ordered dynamic store created");
 }
 
 TOrderedDynamicStore::~TOrderedDynamicStore()
 {
-    LOG_DEBUG("Ordered dynamic memory store destroyed");
+    YT_LOG_DEBUG("Ordered dynamic memory store destroyed");
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
@@ -287,7 +287,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
     auto tableReader = CreateSnapshotReader();
 
     return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
-        LOG_DEBUG("Store snapshot serialization started");
+        YT_LOG_DEBUG("Store snapshot serialization started");
 
         auto chunkWriter = New<TMemoryWriter>();
 
@@ -307,12 +307,12 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         std::vector<TUnversionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
 
-        LOG_DEBUG("Serializing store snapshot");
+        YT_LOG_DEBUG("Serializing store snapshot");
 
         i64 rowCount = 0;
         while (tableReader->Read(&rows)) {
             if (rows.empty()) {
-                LOG_DEBUG("Waiting for table reader");
+                YT_LOG_DEBUG("Waiting for table reader");
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
@@ -320,7 +320,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
 
             rowCount += rows.size();
             if (!tableWriter->Write(rows)) {
-                LOG_DEBUG("Waiting for table writer");
+                YT_LOG_DEBUG("Waiting for table writer");
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -335,20 +335,20 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         Save(context, true);
 
         // NB: This also closes chunkWriter.
-        LOG_DEBUG("Closing table writer");
+        YT_LOG_DEBUG("Closing table writer");
         WaitFor(tableWriter->Close())
             .ThrowOnError();
 
         Save(context, *chunkWriter->GetChunkMeta());
 
         auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
-        LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
+        YT_LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
             rowCount,
             blocks.size());
 
         Save(context, blocks);
 
-        LOG_DEBUG("Store snapshot serialization complete");
+        YT_LOG_DEBUG("Store snapshot serialization complete");
     });
 }
 

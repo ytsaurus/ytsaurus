@@ -252,7 +252,7 @@ void TInvokerQueue::Invoke(TClosure callback)
     Y_ASSERT(callback);
 
     if (!Running.load(std::memory_order_relaxed)) {
-        LOG_TRACE_IF(
+        YT_LOG_TRACE_IF(
             EnableLogging,
             "Queue had been shut down, incoming action ignored: %p",
             callback.GetHandle());
@@ -263,7 +263,7 @@ void TInvokerQueue::Invoke(TClosure callback)
 
     auto index = Profiler.Increment(EnqueuedCounter);
 
-    LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
+    YT_LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
         callback.GetHandle());
 
     TEnqueuedAction action;

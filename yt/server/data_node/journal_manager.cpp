@@ -148,10 +148,10 @@ public:
         for (const auto& descriptor : descriptors) {
             int id = descriptor.Id;
             if (descriptor.Clean) {
-                LOG_INFO("Found clean multiplexed changelog (ChangelogId: %v)", id);
+                YT_LOG_INFO("Found clean multiplexed changelog (ChangelogId: %v)", id);
                 maxCleanId = std::max(maxCleanId, id);
             } else {
-                LOG_INFO("Found dirty multiplexed changelog (ChangelogId: %v)", id);
+                YT_LOG_INFO("Found dirty multiplexed changelog (ChangelogId: %v)", id);
                 minDirtyId = std::min(minDirtyId, id);
                 maxDirtyId = std::max(maxDirtyId, id);
             }
@@ -159,7 +159,7 @@ public:
 
         for (const auto& descriptor : descriptors) {
             if (descriptor.Clean && descriptor.Id > minDirtyId) {
-                LOG_FATAL("Found unexpected clean multiplexed changelog (ChangelogId: %v)",
+                YT_LOG_FATAL("Found unexpected clean multiplexed changelog (ChangelogId: %v)",
                     descriptor.Id);
             }
         }
@@ -259,7 +259,7 @@ private:
 
     void AnalyzeChangelog(int changelogId)
     {
-        LOG_INFO("Analyzing dirty multiplexed changelog (ChangelogId: %v)", changelogId);
+        YT_LOG_INFO("Analyzing dirty multiplexed changelog (ChangelogId: %v)", changelogId);
 
         ScanChangelog(changelogId, [&] (TVersion version, const TMultiplexedRecord& record) {
             const auto& chunkId = record.Header.ChunkId;
@@ -302,7 +302,7 @@ private:
     {
         auto dumpChunkIds = [&] (const THashSet<TChunkId>& chunkIds, const TString& action) {
             for (const auto& chunkId : chunkIds) {
-                LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: %v)",
+                YT_LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: %v)",
                     action,
                     chunkId,
                     GetFirstRelevantVersion(chunkId));
@@ -324,7 +324,7 @@ private:
 
     void ReplayChangelog(int changelogId)
     {
-        LOG_INFO("Replaying dirty multiplexed changelog (ChangelogId: %v)", changelogId);
+        YT_LOG_INFO("Replaying dirty multiplexed changelog (ChangelogId: %v)", changelogId);
 
         ScanChangelog(changelogId, [&] (TVersion version, const TMultiplexedRecord& record) {
             const auto& chunkId = record.Header.ChunkId;
@@ -358,7 +358,7 @@ private:
                 .Get()
                 .ThrowOnError();
 
-            LOG_INFO("Replay appended to journal chunk (ChunkId: %v, RecordCount: %v, RecordsAdded: %v)",
+            YT_LOG_INFO("Replay appended to journal chunk (ChunkId: %v, RecordCount: %v, RecordsAdded: %v)",
                 pair.first,
                 entry.Changelog->GetRecordCount(),
                 entry.RecordsAdded);
@@ -377,7 +377,7 @@ private:
         if (it == SplitMap_.end()) {
             auto changelog = Callbacks_->OpenSplitChangelog(chunkId);
             if (!changelog) {
-                LOG_FATAL("Journal chunk %v is missing but has relevant records in the multiplexed changelog",
+                YT_LOG_FATAL("Journal chunk %v is missing but has relevant records in the multiplexed changelog",
                     chunkId);
             }
             it = SplitMap_.insert(std::make_pair(
@@ -393,7 +393,7 @@ private:
         if (!splitEntry.SealedChecked) {
             splitEntry.SealedChecked = true;
             if (Callbacks_->IsSplitChangelogSealed(chunkId)) {
-                LOG_INFO("Replay ignores sealed journal chunk; "
+                YT_LOG_INFO("Replay ignores sealed journal chunk; "
                     "further similar messages suppressed (ChunkId: %v)",
                     chunkId);
                 splitEntry.AppendSealedLogged = true;
@@ -404,7 +404,7 @@ private:
         int recordCount = splitEntry.Changelog->GetRecordCount();
         if (recordCount > record.Header.RecordId) {
             if (!splitEntry.AppendSkipLogged) {
-                LOG_INFO("Replay skips multiplexed records that are present in journal chunk; "
+                YT_LOG_INFO("Replay skips multiplexed records that are present in journal chunk; "
                     "further similar messages suppressed (ChunkId: %v, RecordId: %v, RecordCount: %v)",
                     chunkId,
                     record.Header.RecordId,
@@ -415,14 +415,14 @@ private:
         }
 
         if (recordCount != record.Header.RecordId) {
-            LOG_FATAL("Journal chunk %v has %v records while multiplexed changelog has relevant records starting from %v",
+            YT_LOG_FATAL("Journal chunk %v has %v records while multiplexed changelog has relevant records starting from %v",
                 record.Header.ChunkId,
                 recordCount,
                 record.Header.RecordId);
         }
 
         if (!splitEntry.AppendLogged) {
-            LOG_INFO(
+            YT_LOG_INFO(
                 "Replay appends record to journal chunk; further similar messages suppressed "
                 "(ChunkId: %v, RecordId: %v)",
                 chunkId,
@@ -440,7 +440,7 @@ private:
 
         auto changelog = Callbacks_->CreateSplitChangelog(chunkId);
         if (!changelog) {
-            LOG_INFO("Journal chunk creation skipped since the chunk already exists (ChunkId: %v)",
+            YT_LOG_INFO("Journal chunk creation skipped since the chunk already exists (ChunkId: %v)",
                 chunkId);
             return;
         }
@@ -449,7 +449,7 @@ private:
             chunkId,
             TSplitEntry(chunkId, changelog))).second);
 
-        LOG_INFO("Replay created journal chunk (ChunkId: %v)",
+        YT_LOG_INFO("Replay created journal chunk (ChunkId: %v)",
             chunkId);
     }
 
@@ -462,7 +462,7 @@ private:
         if (!Callbacks_->RemoveSplitChangelog(chunkId))
             return;
 
-        LOG_INFO("Replay removed journal chunk (ChunkId: %v)",
+        YT_LOG_INFO("Replay removed journal chunk (ChunkId: %v)",
             chunkId);
     }
 
@@ -572,7 +572,7 @@ public:
 
     void MarkMultiplexedChangelogClean(int changelogId)
     {
-        LOG_INFO("Multiplexed changelog will be marked as clean (ChangelogId: %v)", changelogId);
+        YT_LOG_INFO("Multiplexed changelog will be marked as clean (ChangelogId: %v)", changelogId);
 
         auto curResultIt = MultiplexedChangelogIdToCleanResult_.find(changelogId);
         YCHECK(curResultIt != MultiplexedChangelogIdToCleanResult_.end());
@@ -648,7 +648,7 @@ private:
             MultiplexedChangelog_->GetDataSize() >= Config_->MaxDataSize ||
             NProfiling::GetCpuInstant() > MultiplexedChangelogRotationDeadline_)
         {
-            LOG_INFO("Started rotating multiplexed changelog (ChangelogId: %v)",
+            YT_LOG_INFO("Started rotating multiplexed changelog (ChangelogId: %v)",
                 MultiplexedChangelogId_);
 
             auto multiplexedFlushResult = MultiplexedChangelog_->Flush();
@@ -700,7 +700,7 @@ private:
 
     IChangelogPtr CreateMultiplexedChangelog(int id)
     {
-        LOG_INFO("Started creating new multiplexed changelog (ChangelogId: %v)",
+        YT_LOG_INFO("Started creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
         auto changelog = MultiplexedChangelogDispatcher_->CreateChangelog(
@@ -708,7 +708,7 @@ private:
             TChangelogMeta(),
             Config_);
 
-        LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
+        YT_LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
         YCHECK(MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(id, NewPromise<void>())).second);
@@ -723,12 +723,12 @@ private:
     {
         auto flushError = WaitFor(flushResult);
         if (!flushError.IsOK()) {
-            LOG_FATAL(flushError, "Error flushing multiplexed changelog");
+            YT_LOG_FATAL(flushError, "Error flushing multiplexed changelog");
         }
 
         auto changelog = CreateMultiplexedChangelog(newId);
 
-        LOG_INFO("Finished rotating multiplexed changelog (ChangelogId: %v)",
+        YT_LOG_INFO("Finished rotating multiplexed changelog (ChangelogId: %v)",
             oldId);
 
         return changelog;
@@ -738,11 +738,11 @@ private:
         TFuture<void> combinedBarrier,
         int id)
     {
-        LOG_INFO("Waiting for multiplexed changelog to become clean (ChangelogId: %v)", id);
+        YT_LOG_INFO("Waiting for multiplexed changelog to become clean (ChangelogId: %v)", id);
 
         auto error = WaitFor(combinedBarrier);
         if (!error.IsOK()) {
-            LOG_FATAL(error, "Error waiting for multiplexed changelog barrier");
+            YT_LOG_FATAL(error, "Error waiting for multiplexed changelog barrier");
         }
 
         MarkMultiplexedChangelogClean(id);
@@ -775,13 +775,13 @@ private:
             ids.erase(ids.end() - Config_->MaxCleanChangelogsToKeep, ids.end());
 
             for (int id : ids) {
-                LOG_INFO("Removing clean multiplexed changelog (ChangelogId: %v)", id);
+                YT_LOG_INFO("Removing clean multiplexed changelog (ChangelogId: %v)", id);
 
                 auto fileName = GetMultiplexedChangelogPath(id) + "." + CleanExtension;
                 RemoveChangelogFiles(fileName);
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error cleaning up multiplexed changelogs");
+            YT_LOG_ERROR(ex, "Error cleaning up multiplexed changelogs");
         }
     }
 
@@ -815,9 +815,9 @@ private:
             auto cleanDataFileName = dataFileName + "." + CleanExtension;
             NFS::Rename(dataFileName, cleanDataFileName);
             NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
-            LOG_INFO("Multiplexed changelog is marked as clean (ChangelogId: %v)", changelogId);
+            YT_LOG_INFO("Multiplexed changelog is marked as clean (ChangelogId: %v)", changelogId);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error marking multiplexed changelog as clean (ChangelogId: %v) ", changelogId);
+            YT_LOG_FATAL(ex, "Error marking multiplexed changelog as clean (ChangelogId: %v) ", changelogId);
         }
     }
 
@@ -862,7 +862,7 @@ public:
 
     void Initialize()
     {
-        LOG_INFO("Initializing journals");
+        YT_LOG_INFO("Initializing journals");
 
         // Initialize and replay multiplexed changelogs.
         TMultiplexedReplayCallbacks replayCallbacks(this);
@@ -875,7 +875,7 @@ public:
         // Create new multiplexed changelog.
         MultiplexedWriter_->Initialize(newId);
 
-        LOG_INFO("Journals initialized");
+        YT_LOG_INFO("Journals initialized");
     }
 
     TFuture<IChangelogPtr> OpenChangelog(const TChunkId& chunkId)
@@ -989,7 +989,7 @@ private:
     {
         IChangelogPtr changelog;
 
-        LOG_DEBUG("Started creating journal chunk (ChunkId: %v)",
+        YT_LOG_DEBUG("Started creating journal chunk (ChunkId: %v)",
             chunkId);
 
         {
@@ -1001,7 +1001,7 @@ private:
                 GetSplitChangelogConfig(enableMultiplexing));
         }
 
-        LOG_DEBUG("Finished creating journal chunk (ChunkId: %v)",
+        YT_LOG_DEBUG("Finished creating journal chunk (ChunkId: %v)",
             chunkId);
 
         return changelog;
@@ -1011,7 +1011,7 @@ private:
     {
         IChangelogPtr changelog;
 
-        LOG_TRACE("Started opening journal chunk (ChunkId: %v)",
+        YT_LOG_TRACE("Started opening journal chunk (ChunkId: %v)",
             chunkId);
 
         {
@@ -1022,7 +1022,7 @@ private:
                 Config_->HighLatencySplitChangelog);
         }
 
-        LOG_TRACE("Finished opening journal chunk (ChunkId: %v)",
+        YT_LOG_TRACE("Finished opening journal chunk (ChunkId: %v)",
             chunkId);
 
         return changelog;

@@ -107,14 +107,14 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     if (chunkMeta->GetChunkFormat() != ETableChunkFormat::VersionedSimple &&
         chunkMeta->GetChunkFormat() != ETableChunkFormat::SchemalessHorizontal)
     {
-        LOG_INFO("Cannot create lookup hash table for %Qlv chunk format (ChunkId: %v)",
+        YT_LOG_INFO("Cannot create lookup hash table for %Qlv chunk format (ChunkId: %v)",
             chunkMeta->GetChunkId(),
             chunkMeta->GetChunkFormat());
         return nullptr;
     }
 
     if (chunkMeta->BlockMeta()->blocks_size() > MaxBlockIndex) {
-        LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, BlockCount: %v)",
+        YT_LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, BlockCount: %v)",
             chunkMeta->GetChunkId(),
             chunkMeta->BlockMeta()->blocks_size());
         return nullptr;
@@ -131,7 +131,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
         auto blockId = TBlockId(chunkMeta->GetChunkId(), blockIndex);
         auto uncompressedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
         if (!uncompressedBlock) {
-            LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache (ChunkId: %v, BlockIndex: %v)",
+            YT_LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache (ChunkId: %v, BlockIndex: %v)",
                 chunkMeta->GetChunkId(),
                 blockIndex);
             return nullptr;

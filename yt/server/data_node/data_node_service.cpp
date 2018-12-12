@@ -459,7 +459,7 @@ private:
                 for (const auto& peer : peers) {
                     ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
                 }
-                LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
+                YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
                     blockId,
                     peers.size());
             }
@@ -741,7 +741,7 @@ private:
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
                     chunkId);
-                LOG_WARNING(error);
+                YT_LOG_WARNING(error);
                 ToProto(slices->mutable_error(), error);
                 continue;
             }
@@ -845,7 +845,7 @@ private:
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             ToProto(result->mutable_error(), error);
         }
     }
@@ -882,7 +882,7 @@ private:
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
                     chunkId);
-                LOG_WARNING(error);
+                YT_LOG_WARNING(error);
                 ToProto(sampleResponse->mutable_error(), error);
                 continue;
             }
@@ -957,7 +957,7 @@ private:
 
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             ToProto(sampleResponse->mutable_error(), error);
         }
     }
@@ -1028,7 +1028,7 @@ private:
                 chunkId,
                 keyColumns,
                 chunkKeyColumns);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             ToProto(chunkSamples->mutable_error(), error);
             return;
         }
@@ -1096,7 +1096,7 @@ private:
             }
         } catch (const std::exception& ex) {
             auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
-            LOG_WARNING(ex, "Failed to gather samples (ChunkId: %v)", chunkId);
+            YT_LOG_WARNING(ex, "Failed to gather samples (ChunkId: %v)", chunkId);
 
             // We failed to deserialize name table, so we don't return any samples.
             return;
@@ -1173,7 +1173,7 @@ private:
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
                     chunkId);
-                LOG_WARNING(error);
+                YT_LOG_WARNING(error);
                 ToProto(subresponse->mutable_error(), error);
                 continue;
             }
@@ -1261,7 +1261,7 @@ private:
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             ToProto(subresponse->mutable_error(), error);
         }
     }

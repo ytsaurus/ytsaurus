@@ -65,7 +65,7 @@ private:
             default:
                 // Unable to reply, no request id is known.
                 // Let's just drop the message.
-                LOG_ERROR("Incoming message has invalid type, ignored (Type: %x)",
+                YT_LOG_ERROR("Incoming message has invalid type, ignored (Type: %x)",
                     static_cast<ui32>(messageType));
                 break;
         }
@@ -77,7 +77,7 @@ private:
         if (!ParseRequestHeader(message, header.get())) {
             // Unable to reply, no request id is known.
             // Let's just drop the message.
-            LOG_ERROR("Error parsing request header");
+            YT_LOG_ERROR("Error parsing request header");
             return;
         }
 
@@ -87,17 +87,17 @@ private:
         auto tosLevel = header->tos_level();
 
         if (message.Size() < 2) {
-            LOG_ERROR("Too few request parts: expected >= 2, actual %v (RequestId: %v)",
+            YT_LOG_ERROR("Too few request parts: expected >= 2, actual %v (RequestId: %v)",
                 message.Size(),
                 requestId);
             return;
         }
 
-        LOG_DEBUG("Request received (RequestId: %v)",
+        YT_LOG_DEBUG("Request received (RequestId: %v)",
             requestId);
 
         auto replyWithError = [&] (const TError& error) {
-            LOG_DEBUG(error);
+            YT_LOG_DEBUG(error);
             auto response = CreateErrorResponseMessage(requestId, error);
             replyBus->Send(std::move(response), TSendOptions(EDeliveryTrackingLevel::None));
         };
@@ -135,7 +135,7 @@ private:
         if (!ParseRequestCancelationHeader(message, &header)) {
             // Unable to reply, no request id is known.
             // Let's just drop the message.
-            LOG_ERROR("Error parsing request cancelation header");
+            YT_LOG_ERROR("Error parsing request cancelation header");
             return;
         }
 
@@ -147,14 +147,14 @@ private:
         TServiceId serviceId(serviceName, realmId);
         auto service = FindService(serviceId);
         if (!service) {
-            LOG_DEBUG("Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",
+            YT_LOG_DEBUG("Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",
                 serviceName,
                 realmId,
                 requestId);
             return;
         }
 
-        LOG_DEBUG("Request cancelation received (Method: %v:%v, RealmId: %v, RequestId: %v)",
+        YT_LOG_DEBUG("Request cancelation received (Method: %v:%v, RealmId: %v, RequestId: %v)",
             serviceName,
             methodName,
             realmId,
