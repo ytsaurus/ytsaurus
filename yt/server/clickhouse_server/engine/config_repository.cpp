@@ -20,21 +20,6 @@ namespace NEngine {
 
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
-IConfigPtr LoadXmlConfigFromContent(const std::string& content)
-{
-    if (!content.empty()) {
-        std::stringstream in(content);
-        return new Poco::Util::XMLConfiguration(in);
-    }
-    return nullptr;
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Effective polling through metadata cache
 
 class TPoller
@@ -88,15 +73,10 @@ public:
     std::vector<std::string> List() const override;
     NNative::TObjectAttributes GetAttributes(const std::string& name) const override;
 
-    IConfigPtr Load(const std::string& name) const override;
-
     IConfigPollerPtr CreatePoller(const std::string& name) const override;
 
 private:
     bool LooksLikeConfig(const NNative::TObjectAttributes& attributes) const;
-
-    IConfigPtr LoadFromFile(const std::string& path) const;
-    IConfigPtr LoadFromDocument(const std::string& path) const;
 
     std::string GetConfigPath(const std::string& name) const;
 };
@@ -147,68 +127,6 @@ bool TConfigRepository::LooksLikeConfig(const NNative::TObjectAttributes& attrib
 {
     return static_cast<int>(attributes.Type) == static_cast<int>(NNative::EObjectType::Document) ||
            static_cast<int>(attributes.Type) == static_cast<int>(NNative::EObjectType::File);
-}
-
-IConfigPtr TConfigRepository::LoadFromFile(const std::string& path) const
-{
-    CH_LOG_INFO(Logger, "Loading configuration from file " << Quoted(path));
-
-    std::string content;
-    try {
-        content = ToStdString(Storage->ReadFile(*Token, ToString(path)));
-    } catch (...) {
-        CH_LOG_WARNING(Logger, "Cannot read configuration file " << Quoted(path) << " from storage: " << CurrentExceptionText());
-        return nullptr;
-    }
-
-    try {
-        return LoadXmlConfigFromContent(content);
-    } catch (...) {
-        CH_LOG_WARNING(Logger, "Cannot parse content of configuration file " << Quoted(path) << ": " << CurrentExceptionText());
-        return nullptr;
-    }
-}
-
-IConfigPtr TConfigRepository::LoadFromDocument(const std::string& path) const
-{
-    CH_LOG_INFO(Logger, "Loading configuration from document " << Quoted(path));
-
-    NNative::IDocumentPtr document;
-    try {
-        document = Storage->ReadDocument(*Token, ToString(path));
-    } catch (...) {
-        CH_LOG_WARNING(Logger, "Cannot read configuration document " << Quoted(path) << " from storage: " << CurrentExceptionText());
-        return nullptr;
-    }
-    return CreateDocumentConfig(std::move(document));
-}
-
-IConfigPtr TConfigRepository::Load(const std::string& name) const
-{
-    const auto path = GetConfigPath(name);
-
-    CH_LOG_DEBUG(Logger, "Loading configuration " << Quoted(name) << " from " << Quoted(path));
-
-    NNative::TObjectAttributes attributes;
-    try {
-        attributes = Storage->GetObjectAttributes(*Token, ToString(path));
-    } catch (...) {
-        CH_LOG_WARNING(Logger, "Cannot get attributes of object " << Quoted(path) << " in storage: " << CurrentExceptionText());
-        return nullptr;
-    }
-
-    switch (attributes.Type) {
-        case NNative::EObjectType::File:
-            return LoadFromFile(path);
-        case NNative::EObjectType::Document:
-            return LoadFromDocument(path);
-        default:
-            CH_LOG_WARNING(Logger,
-                "Unexpected configuration object type: " << ToStdString(::ToString(static_cast<int>(attributes.Type))));
-            return nullptr;
-    }
-
-    Y_UNREACHABLE();
 }
 
 IConfigPollerPtr TConfigRepository::CreatePoller(const std::string& name) const
