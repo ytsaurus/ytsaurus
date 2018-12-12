@@ -289,6 +289,8 @@ private:
 
     void SetSucceeded(const TLeaderCommitterPtr& owner)
     {
+        VERIFY_THREAD_AFFINITY(owner->ControlThread);
+
         if (QuorumFlushResult_.IsSet()) {
             return;
         }
@@ -307,6 +309,8 @@ private:
 
     void SetFailed(const TLeaderCommitterPtr& owner, const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(owner->ControlThread);
+
         if (QuorumFlushResult_.IsSet()) {
             return;
         }
@@ -548,7 +552,8 @@ void TLeaderCommitter::OnAutoSnapshotCheck()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (DecoratedAutomaton_->GetLastSnapshotTime() != TInstant::Zero() &&
+    if (DecoratedAutomaton_->GetState() == EPeerState::Leading &&
+        DecoratedAutomaton_->GetLastSnapshotTime() != TInstant::Zero() &&
         TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod)
     {
         YT_LOG_INFO("Requesting periodic snapshot (LastSnapshotTime: %v, SnapshotBuildPeriod: %v)",
