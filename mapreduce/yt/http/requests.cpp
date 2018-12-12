@@ -145,7 +145,7 @@ TTransactionId StartTransaction(
     header.AddParameter("attributes", attributes);
 
     auto txId = ParseGuidFromResponse(RetryRequest(auth, header));
-    LOG_INFO("Transaction %s started", GetGuidAsString(txId).data());
+    LOG_DEBUG("Transaction %s started", GetGuidAsString(txId).data());
     return txId;
 }
 
@@ -166,7 +166,7 @@ void AbortTransaction(
 {
     TransactionRequest(auth, "abort_tx", transactionId);
 
-    LOG_INFO("Transaction %s aborted", GetGuidAsString(transactionId).data());
+    LOG_DEBUG("Transaction %s aborted", GetGuidAsString(transactionId).data());
 }
 
 void CommitTransaction(
@@ -175,7 +175,7 @@ void CommitTransaction(
 {
     TransactionRequest(auth, "commit_tx", transactionId);
 
-    LOG_INFO("Transaction %s commited", GetGuidAsString(transactionId).data());
+    LOG_DEBUG("Transaction %s commited", GetGuidAsString(transactionId).data());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
