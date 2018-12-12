@@ -868,7 +868,9 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--instance-count", required=True, type=int)
     parser.add_argument("--cypress-ytserver-clickhouse-path")
     parser.add_argument("--host-ytserver-clickhouse-path")
+    parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
     add_structured_argument(parser, "--spec")
+    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
 def add_map_reduce_parser(add_parser):
     MAP_REDUCE_EPILOG = '''Options --mapper, --reducer, --combiner specify bash commands to run.
