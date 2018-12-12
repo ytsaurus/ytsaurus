@@ -169,3 +169,12 @@ class TestClickhouse(YTEnvSetup):
         result = self._make_query(clique, 'select CAST(a as datetime) from "//tmp/t"')
         assert result["data"] == [{"CAST(a, 'datetime')": "2012-12-12 20:00:00"}]
 
+    def test_settings(self):
+        clique = self._start_clique(1)
+
+        # I took some random option from the documentation and changed it in config.yson.
+        # Let's see if it changed in internal table with settings.
+
+        result = self._make_query(clique, "select * from system.settings where name = 'max_temporary_non_const_columns'")
+        assert result["data"][0]["value"] == "1234"
+        assert result["data"][0]["changed"] == 1
