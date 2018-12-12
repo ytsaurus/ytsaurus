@@ -41,6 +41,8 @@ class TestClickhouse(YTEnvSetup):
                                                           host_ytserver_clickhouse_path=self._ytserver_clickhouse_binary,
                                                           cypress_config_path="//sys/clickhouse/config.yson",
                                                           max_failed_job_count=max_failed_job_count,
+                                                          cpu_limit=1,
+                                                          memory_limit=5*2**30,
                                                           **kwargs)
         spec = simplify_structure(spec_builder.build())
         op = start_op("vanilla",
