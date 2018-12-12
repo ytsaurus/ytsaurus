@@ -1,5 +1,8 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import java.util.List;
+
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
@@ -12,6 +15,10 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes> {
     public ConcatenateNodes(String [] from, String to) {
         this.from = from;
         this.to = to;
+    }
+
+    public ConcatenateNodes(List<YPath> source, YPath dest) {
+        this((String[])source.stream().map(YPath::toString).toArray(), dest.toString());
     }
 
     public ConcatenateNodes setAppend(boolean append) {
