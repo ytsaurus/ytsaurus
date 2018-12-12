@@ -336,7 +336,8 @@ TCheckpointer::TCheckpointer(
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , EpochContext_(epochContext)
-    , Logger(HydraLogger)
+    , Logger(NLogging::TLogger(HydraLogger)
+        .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
@@ -344,8 +345,6 @@ TCheckpointer::TCheckpointer(
     YCHECK(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
-
-    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
 TCheckpointer::TRotateChangelogResult TCheckpointer::RotateChangelog()

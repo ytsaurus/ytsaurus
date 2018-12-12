@@ -1058,13 +1058,13 @@ private:
         }
     }
 
-    void OnCommitFailed(const TEpochId& epochId, const TError& error)
+    void OnCommitFailed(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto wrappedError = TError("Error committing mutation")
             << error;
-        Restart(epochId, wrappedError);
+        Restart(AutomatonEpochContext_, wrappedError);
     }
 
     void OnLeaderLeaseLost(const TEpochId& epochId, const TError& error)
@@ -1152,7 +1152,7 @@ private:
         epochContext->LeaderCommitter->SubscribeCheckpointNeeded(
             BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this)));
         epochContext->LeaderCommitter->SubscribeCommitFailed(
-            BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this), epochContext->EpochId));
+            BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
 
         epochContext->Checkpointer = New<TCheckpointer>(
             Config_,
