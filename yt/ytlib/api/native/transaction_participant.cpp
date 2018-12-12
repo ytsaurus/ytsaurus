@@ -5,6 +5,8 @@
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
+#include <yt/ytlib/hydra/hydra_service_proxy.h>
+
 #include <yt/client/hive/transaction_participant.h>
 
 #include <yt/client/api/connection.h>
@@ -13,9 +15,11 @@ namespace NYT {
 namespace NApi {
 namespace NNative {
 
-using namespace NHiveClient;
-using namespace NTransactionClient;
+using namespace NConcurrency;
 using namespace NElection;
+using namespace NHiveClient;
+using namespace NHydra;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,6 +101,16 @@ public:
                 ToProto(req->mutable_transaction_id(), transactionId);
                 return req;
             });
+    }
+
+    virtual TFuture<void> CheckAvailability() override
+    {
+        return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
+            THydraServiceProxy proxy(channel);
+            auto req = proxy.CommitMutation();
+            req->set_type(HeartbeatMutationType);
+            return req->Invoke().template As<void>();
+        }));
     }
 
 private:

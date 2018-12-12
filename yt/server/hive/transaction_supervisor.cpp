@@ -413,16 +413,56 @@ private:
         {
             auto guard = Guard(SpinLock_);
 
-            if (Up_ || PendingSenders_.empty()) {
+            if (Up_) {
                 return;
             }
 
-            auto sender = std::move(PendingSenders_.back());
-            PendingSenders_.pop_back();
+            if (PendingSenders_.empty()) {
+                guard.Release();
+                CheckParticipantAvailability();
+            } else {
+                auto sender = std::move(PendingSenders_.back());
+                PendingSenders_.pop_back();
+
+                guard.Release();
+
+                sender.Run();
+            }
+        }
+
+        void CheckParticipantAvailability()
+        {
+            auto guard = Guard(SpinLock_);
+            auto underlying = GetUnderlying();
+
+            if (!underlying) {
+                return;
+            }
 
             guard.Release();
 
-            sender.Run();
+            switch (underlying->GetState()) {
+                case ETransactionParticipantState::Valid: {
+                    auto error = WaitFor(underlying->CheckAvailability());
+                    if (error.IsOK()) {
+                        SetUp();
+                    } else {
+                        LOG_DEBUG(error, "Transaction participant availability check failed");
+                    }
+                    break;
+                }
+
+                case ETransactionParticipantState::Unregistered:
+                    LOG_DEBUG("Transaction participant is unregistered");
+                    break;
+
+                case ETransactionParticipantState::Invalid:
+                    LOG_DEBUG("Transaction participant is not valid");
+                    break;
+
+                default:
+                    Y_UNREACHABLE();
+            }
         }
 
         TError MakeUnavailableError() const
