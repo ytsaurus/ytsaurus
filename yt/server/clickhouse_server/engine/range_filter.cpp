@@ -4,9 +4,9 @@
 
 #include <yt/server/clickhouse_server/native/range_filter.h>
 
-//#include <Common/Exception.h>
-//#include <Interpreters/ExpressionActions.h>
-//#include <Storages/MergeTree/KeyCondition.h>
+#include <Common/Exception.h>
+#include <Interpreters/ExpressionActions.h>
+#include <Storages/MergeTree/KeyCondition.h>
 
 namespace DB {
 

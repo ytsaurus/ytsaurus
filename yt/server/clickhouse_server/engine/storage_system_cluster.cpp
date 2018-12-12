@@ -1,10 +1,10 @@
 #include "storage_system_cluster.h"
 
-//#include <Columns/ColumnString.h>
-//#include <Columns/ColumnsNumber.h>
-//#include <DataTypes/DataTypeString.h>
-//#include <DataTypes/DataTypesNumber.h>
-//#include <DataStreams/OneBlockInputStream.h>
+#include <Columns/ColumnString.h>
+#include <Columns/ColumnsNumber.h>
+#include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <DataStreams/OneBlockInputStream.h>
 
 #include <algorithm>
 

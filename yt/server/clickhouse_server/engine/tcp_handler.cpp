@@ -1,8 +1,8 @@
 #include "tcp_handler.h"
 
-//#include <server/TCPHandler.h>
+#include <server/TCPHandler.h>
 
-//#include <common/logger_useful.h>
+#include <common/logger_useful.h>
 
 namespace NYT {
 namespace NClickHouseServer {

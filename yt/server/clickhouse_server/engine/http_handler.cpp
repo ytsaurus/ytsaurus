@@ -1,14 +1,14 @@
 #include "http_handler.h"
 
-//#include <server/HTTPHandler.h>
-//#include <server/NotFoundHandler.h>
-//#include <server/PingRequestHandler.h>
-//#include <server/RootRequestHandler.h>
+#include <server/HTTPHandler.h>
+#include <server/NotFoundHandler.h>
+#include <server/PingRequestHandler.h>
+#include <server/RootRequestHandler.h>
 
-//#include <common/logger_useful.h>
+#include <common/logger_useful.h>
 
-//#include <Poco/Net/HTTPServerRequest.h>
-//#include <Poco/URI.h>
+#include <Poco/Net/HTTPServerRequest.h>
+#include <Poco/URI.h>
 
 namespace NYT {
 namespace NClickHouseServer {

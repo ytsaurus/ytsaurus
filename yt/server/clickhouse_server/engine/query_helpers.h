@@ -1,9 +1,7 @@
 #pragma once
 
-#include "clickhouse.h"
-
-//#include <Parsers/ASTSelectQuery.h>
-//#include <Parsers/ASTTablesInSelectQuery.h>
+#include <Parsers/ASTSelectQuery.h>
+#include <Parsers/ASTTablesInSelectQuery.h>
 
 namespace NYT::NClickHouseServer::NEngine {
 

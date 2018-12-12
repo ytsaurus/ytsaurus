@@ -5,9 +5,9 @@
 #include <yt/server/clickhouse_server/native/table_schema.h>
 #include <yt/server/clickhouse_server/native/value.h>
 
-//#include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeFactory.h>
 
-//#include <IO/WriteHelpers.h>
+#include <IO/WriteHelpers.h>
 
 namespace DB {
 

@@ -1,10 +1,8 @@
 #pragma once
 
-#include "clickhouse.h"
+#include <server/IServer.h>
 
-//#include <server/IServer.h>
-
-//#include <Poco/Net/TCPServerConnectionFactory.h>
+#include <Poco/Net/TCPServerConnectionFactory.h>
 
 namespace NYT::NClickHouseServer::NEngine {
 

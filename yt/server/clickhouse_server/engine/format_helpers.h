@@ -1,7 +1,5 @@
 #pragma once
 
-#include "clickhouse.h"
-
 #include <util/generic/string.h>
 
 #include <string>

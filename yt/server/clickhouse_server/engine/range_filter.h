@@ -1,13 +1,11 @@
 #pragma once
 
-#include "clickhouse.h"
-
 #include "table_schema.h"
 
 #include <yt/server/clickhouse_server/native/public.h>
 
-//#include <Interpreters/Context.h>
-//#include <Storages/SelectQueryInfo.h>
+#include <Interpreters/Context.h>
+#include <Storages/SelectQueryInfo.h>
 
 namespace NYT::NClickHouseServer::NEngine {
 

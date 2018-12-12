@@ -2,7 +2,7 @@
 
 #include "format_helpers.h"
 
-//#include <Poco/Exception.h>
+#include <Poco/Exception.h>
 
 #include <yt/server/clickhouse_server/native/objects.h>
 #include <yt/server/clickhouse_server/native/storage.h>

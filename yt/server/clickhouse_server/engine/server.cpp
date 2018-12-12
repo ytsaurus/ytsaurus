@@ -13,43 +13,39 @@
 #include "tcp_handler.h"
 
 #include <yt/server/clickhouse_server/native/storage.h>
-
 #include <yt/server/clickhouse_server/helpers/poco_config.h>
-
 #include <yt/server/clickhouse_server/native/config.h>
 
-//#include <AggregateFunctions/registerAggregateFunctions.h>
-//#include <Common/Exception.h>
-//#include <Common/StringUtils/StringUtils.h>
-//#include <Common/config.h>
-//#include <Common/getMultipleKeysFromConfig.h>
-//#include <Common/getNumberOfPhysicalCPUCores.h>
-//#include <Databases/DatabaseMemory.h>
-//#include <Functions/registerFunctions.h>
-//#include <IO/HTTPCommon.h>
-//#include <Interpreters/AsynchronousMetrics.h>
-//#include <Interpreters/Context.h>
-//#include <Interpreters/ProcessList.h>
-//#include <server/IServer.h>
-//#include <Storages/System/attachSystemTables.h>
-//#include <TableFunctions/registerTableFunctions.h>
+#include <AggregateFunctions/registerAggregateFunctions.h>
+#include <Common/Exception.h>
+#include <Common/StringUtils/StringUtils.h>
+#include <Common/config.h>
+#include <Common/getMultipleKeysFromConfig.h>
+#include <Common/getNumberOfPhysicalCPUCores.h>
+#include <Databases/DatabaseMemory.h>
+#include <Functions/registerFunctions.h>
+#include <IO/HTTPCommon.h>
+#include <Interpreters/AsynchronousMetrics.h>
+#include <Interpreters/Context.h>
+#include <Interpreters/ProcessList.h>
+#include <server/IServer.h>
+#include <Storages/System/attachSystemTables.h>
+#include <TableFunctions/registerTableFunctions.h>
 
-//#include <common/DateLUT.h>
-////#include <common/logger_useful.h>
+#include <common/DateLUT.h>
+#include <common/logger_useful.h>
 
-//#include <Poco/DirectoryIterator.h>
-//#include <Poco/Ext/LevelFilterChannel.h>
-//#include <Poco/File.h>
-//#include <Poco/Logger.h>
-//#include <Poco/Net/HTTPServer.h>
-//#include <Poco/Net/NetException.h>
-//#include <Poco/Net/TCPServer.h>
-//#include <Poco/String.h>
-//#include <Poco/ThreadPool.h>
-//#include <Poco/Util/LayeredConfiguration.h>
-//#include <Poco/Util/XMLConfiguration.h>
-
-#include <yt/core/ytree/fluent.h>
+#include <Poco/DirectoryIterator.h>
+#include <Poco/Ext/LevelFilterChannel.h>
+#include <Poco/File.h>
+#include <Poco/Logger.h>
+#include <Poco/Net/HTTPServer.h>
+#include <Poco/Net/NetException.h>
+#include <Poco/Net/TCPServer.h>
+#include <Poco/String.h>
+#include <Poco/ThreadPool.h>
+#include <Poco/Util/LayeredConfiguration.h>
+#include <Poco/Util/XMLConfiguration.h>
 
 #include <util/system/hostname.h>
 
@@ -72,7 +68,8 @@ namespace NClickHouseServer {
 namespace NEngine {
 
 using namespace DB;
-using namespace NYTree;
+
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +84,8 @@ std::string GetCanonicalPath(std::string path)
     }
     return path;
 }
+
+}   // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,14 +1,12 @@
 #pragma once
 
-#include "clickhouse.h"
-
 #include "config.h"
 
 #include <yt/server/clickhouse_server/native/public.h>
 #include <yt/server/clickhouse_server/native/objects.h>
 
-//#include <Poco/Util/LayeredConfiguration.h>
-//#include <Poco/AutoPtr.h>
+#include <Poco/Util/LayeredConfiguration.h>
+#include <Poco/AutoPtr.h>
 
 #include <memory>
 #include <vector>

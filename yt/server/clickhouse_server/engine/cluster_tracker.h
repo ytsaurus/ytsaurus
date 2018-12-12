@@ -1,12 +1,10 @@
 #pragma once
 
-#include "clickhouse.h"
-
 #include "cluster_nodes.h"
 
 #include <yt/server/clickhouse_server/native/directory.h>
 
-//#include <Interpreters/Context.h>
+#include <Interpreters/Context.h>
 
 #include <string>
 #include <unordered_set>

@@ -6,11 +6,11 @@
 #include "logging_helpers.h"
 #include "type_helpers.h"
 
-//#include <Common/Exception.h>
+#include <Common/Exception.h>
 
-//#include <Poco/Logger.h>
+#include <Poco/Logger.h>
 
-//#include <common/logger_useful.h>
+#include <common/logger_useful.h>
 
 #include <util/string/cast.h>
 #include <util/system/rwlock.h>

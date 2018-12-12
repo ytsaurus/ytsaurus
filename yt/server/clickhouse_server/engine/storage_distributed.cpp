@@ -4,12 +4,12 @@
 #include "range_filter.h"
 #include "type_helpers.h"
 
-//#include <Common/Exception.h>
-//#include <DataStreams/materializeBlock.h>
-//#include <DataStreams/MaterializingBlockInputStream.h>
-//#include <DataStreams/RemoteBlockInputStream.h>
-//#include <Interpreters/InterpreterSelectQuery.h>
-//#include <Parsers/queryToString.h>
+#include <Common/Exception.h>
+#include <DataStreams/materializeBlock.h>
+#include <DataStreams/MaterializingBlockInputStream.h>
+#include <DataStreams/RemoteBlockInputStream.h>
+#include <Interpreters/InterpreterSelectQuery.h>
+#include <Parsers/queryToString.h>
 
 namespace NYT {
 namespace NClickHouseServer {

@@ -9,13 +9,13 @@
 
 #include <yt/server/clickhouse_server/native/storage.h>
 
-//#include <Common/Exception.h>
-//#include <DataStreams/IBlockInputStream.h>
-//#include <Dictionaries/DictionarySourceFactory.h>
+#include <Common/Exception.h>
+#include <DataStreams/IBlockInputStream.h>
+#include <Dictionaries/DictionarySourceFactory.h>
 
-//#include <Poco/Util/AbstractConfiguration.h>
+#include <Poco/Util/AbstractConfiguration.h>
 
-//#include <common/logger_useful.h>
+#include <common/logger_useful.h>
 
 namespace DB
 {

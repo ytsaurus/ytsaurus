@@ -4,7 +4,7 @@
 
 #include <yt/server/clickhouse_server/native/system_columns.h>
 
-//#include <Core/Names.h>
+#include <Core/Names.h>
 
 namespace NYT {
 namespace NClickHouseServer {

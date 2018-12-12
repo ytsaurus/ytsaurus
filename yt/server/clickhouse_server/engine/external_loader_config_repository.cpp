@@ -5,9 +5,9 @@
 #include "logging_helpers.h"
 #include "type_helpers.h"
 
-//#include <Poco/Logger.h>
+#include <Poco/Logger.h>
 
-//#include <common/logger_useful.h>
+#include <common/logger_useful.h>
 
 namespace NYT {
 namespace NClickHouseServer {

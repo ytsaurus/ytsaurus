@@ -7,10 +7,10 @@
 
 #include <yt/server/clickhouse_server/native/storage.h>
 
-//#include <Poco/Logger.h>
-//#include <Poco/Util/XMLConfiguration.h>
+#include <Poco/Logger.h>
+#include <Poco/Util/XMLConfiguration.h>
 
-//#include <common/logger_useful.h>
+#include <common/logger_useful.h>
 
 #include <util/string/cast.h>
 
@@ -121,8 +121,8 @@ NNative::TObjectAttributes TConfigRepository::GetAttributes(const std::string& n
 
 bool TConfigRepository::LooksLikeConfig(const NNative::TObjectAttributes& attributes) const
 {
-    return static_cast<int>(attributes.Type) == static_cast<int>(NNative::EObjectType::Document) ||
-           static_cast<int>(attributes.Type) == static_cast<int>(NNative::EObjectType::File);
+    return attributes.Type == NNative::EObjectType::Document ||
+           attributes.Type == NNative::EObjectType::File;
 }
 
 IConfigPollerPtr TConfigRepository::CreatePoller(const std::string& name) const
