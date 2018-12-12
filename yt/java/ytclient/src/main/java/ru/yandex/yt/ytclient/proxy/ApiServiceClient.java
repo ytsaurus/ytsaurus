@@ -113,7 +113,7 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
 /**
  * Клиент для высокоуровневой работы с ApiService
  */
-public class ApiServiceClient {
+public class ApiServiceClient implements TransactionalClient {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
 
     private final ApiService service;

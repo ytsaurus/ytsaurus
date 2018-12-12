@@ -32,7 +32,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
-public class ApiServiceTransaction implements AutoCloseable {
+public class ApiServiceTransaction implements AutoCloseable, TransactionalClient {
     private final ApiServiceClient client;
     private final GUID id;
     private final YtTimestamp startTimestamp;
