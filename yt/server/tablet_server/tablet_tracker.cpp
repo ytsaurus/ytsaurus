@@ -116,7 +116,7 @@ bool TTabletTracker::TImpl::IsEnabled()
 
     if (gotOnline < needOnline) {
         if (!LastEnabled_ || *LastEnabled_) {
-            LOG_INFO("Tablet tracker disabled: too few online nodes, needed >= %v but got %v",
+            YT_LOG_INFO("Tablet tracker disabled: too few online nodes, needed >= %v but got %v",
                 needOnline,
                 gotOnline);
             LastEnabled_ = false;
@@ -125,7 +125,7 @@ bool TTabletTracker::TImpl::IsEnabled()
     }
 
     if (!LastEnabled_ || !*LastEnabled_) {
-        LOG_INFO("Tablet tracker enabled");
+        YT_LOG_INFO("Tablet tracker enabled");
         LastEnabled_ = true;
     }
 

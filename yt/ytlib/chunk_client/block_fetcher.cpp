@@ -101,7 +101,7 @@ TBlockFetcher::TBlockFetcher(
     // Now Window_ and BlockInfos_ correspond to each other.
     BlockInfos_.resize(WindowSize_);
 
-    LOG_DEBUG("Creating block fetcher (Blocks: %v)",
+    YT_LOG_DEBUG("Creating block fetcher (Blocks: %v)",
         blockIndexes);
 
     YCHECK(TotalRemainingSize_ > 0);
@@ -128,7 +128,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
 
     YCHECK(windowSlot.RemainingFetches > 0);
     if (!windowSlot.FetchStarted.test_and_set()) {
-        LOG_DEBUG("Fetching block out of turn (BlockIndex: %v, WindowIndex: %v)",
+        YT_LOG_DEBUG("Fetching block out of turn (BlockIndex: %v, WindowIndex: %v)",
             blockIndex,
             windowIndex);
 
@@ -179,7 +179,7 @@ void TBlockFetcher::DecompressBlocks(
         int blockIndex = blockInfo.Index;
         TBlockId blockId(ChunkReader_->GetChunkId(), blockInfo.Index);
 
-        LOG_DEBUG("Started decompressing block (BlockIndex: %v, WindowIndex: %v, Codec: %v)",
+        YT_LOG_DEBUG("Started decompressing block (BlockIndex: %v, WindowIndex: %v, Codec: %v)",
             blockIndex,
             windowIndex,
             Codec_->GetId());
@@ -203,7 +203,7 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
 
-        LOG_DEBUG("Finished decompressing block (BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
+        YT_LOG_DEBUG("Finished decompressing block (BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
             blockIndex,
             windowIndex,
             compressedBlock.Size(),
@@ -228,7 +228,7 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
         if (windowIndexes.empty() || uncompressedSize + blockInfo.UncompressedDataSize < availableSlots) {
             if (Window_[FirstUnfetchedWindowIndex_].FetchStarted.test_and_set()) {
                 // This block has been already requested out of order.
-                LOG_DEBUG("Skipping out of turn block (BlockIndex: %v, WindowIndex: %v)",
+                YT_LOG_DEBUG("Skipping out of turn block (BlockIndex: %v, WindowIndex: %v)",
                     blockIndex,
                     FirstUnfetchedWindowIndex_);
                 ++FirstUnfetchedWindowIndex_;
@@ -285,7 +285,7 @@ void TBlockFetcher::ReleaseBlock(int windowIndex)
 {
     Window_[windowIndex].AsyncSemaphoreGuard.reset();
     Window_[windowIndex].BlockPromise->Reset();
-    LOG_DEBUG("Releasing block (WindowIndex: %v, WindowSize: %v)",
+    YT_LOG_DEBUG("Releasing block (WindowIndex: %v, WindowSize: %v)",
         windowIndex,
         AsyncSemaphore_->GetFree());
 }
@@ -295,7 +295,7 @@ void TBlockFetcher::RequestBlocks(
     const std::vector<int>& blockIndexes,
     i64 uncompressedSize)
 {
-    LOG_DEBUG("Requesting block group (Blocks: %v, UncompressedSize: %v)",
+    YT_LOG_DEBUG("Requesting block group (Blocks: %v, UncompressedSize: %v)",
         MakeShrunkFormattableRange(blockIndexes, TDefaultFormatter(), 3),
         uncompressedSize);
 
@@ -311,7 +311,7 @@ void TBlockFetcher::RequestBlocks(
         return;
     }
 
-    LOG_DEBUG("Got block group (Blocks: %v)",
+    YT_LOG_DEBUG("Got block group (Blocks: %v)",
         MakeShrunkFormattableRange(blockIndexes, TDefaultFormatter(), 3));
 
     CompressionInvoker_->Invoke(BIND(

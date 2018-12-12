@@ -185,7 +185,7 @@ public:
 
         RpcServer_->RegisterService(this);
 
-        LOG_INFO("Hydra instance initialized (SelfAddress: %v, SelfId: %v)",
+        YT_LOG_INFO("Hydra instance initialized (SelfAddress: %v, SelfId: %v)",
             CellManager_->GetSelfConfig(),
             CellManager_->GetSelfPeerId());
 
@@ -204,7 +204,7 @@ public:
             return VoidFuture;
         }
 
-        LOG_INFO("Hydra instance is finalizing");
+        YT_LOG_INFO("Hydra instance is finalizing");
 
         CancelableContext_->Cancel();
 
@@ -926,7 +926,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_DEBUG(error, "Requesting Hydra instance restart");
+        YT_LOG_DEBUG(error, "Requesting Hydra instance restart");
 
         CancelableControlInvoker_->Invoke(BIND(
             &TDistributedHydraManager::DoRestart,
@@ -955,7 +955,7 @@ private:
             return;
         }
 
-        LOG_WARNING(error, "Restarting Hydra instance");
+        YT_LOG_WARNING(error, "Restarting Hydra instance");
 
         IncrementRestartCounter(error.GetMessage());
 
@@ -966,7 +966,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Initializing persistent stores");
+        YT_LOG_INFO("Initializing persistent stores");
 
         while (true) {
             try {
@@ -975,11 +975,11 @@ private:
                     .ValueOrThrow();
 
                 if (maxSnapshotId == InvalidSegmentId) {
-                    LOG_INFO("No snapshots found");
+                    YT_LOG_INFO("No snapshots found");
                     // Let's pretend we have snapshot 0.
                     maxSnapshotId = 0;
                 } else {
-                    LOG_INFO("The latest snapshot is %v", maxSnapshotId);
+                    YT_LOG_INFO("The latest snapshot is %v", maxSnapshotId);
                 }
 
                 auto asyncChangelogStore = ChangelogStoreFactory_->Lock();
@@ -987,7 +987,7 @@ private:
                     .ValueOrThrow();
 
                 auto changelogVersion = ChangelogStore_->GetReachableVersion();
-                LOG_INFO("The latest changelog version is %v", changelogVersion);
+                YT_LOG_INFO("The latest changelog version is %v", changelogVersion);
 
                 ReachableVersion_ = changelogVersion.SegmentId < maxSnapshotId
                     ? TVersion(maxSnapshotId, 0)
@@ -995,12 +995,12 @@ private:
 
                 break;
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Error initializing persistent stores, backing off and retrying");
+                YT_LOG_WARNING(ex, "Error initializing persistent stores, backing off and retrying");
                 TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             }
         }
 
-        LOG_INFO("Reachable version is %v", ReachableVersion_);
+        YT_LOG_INFO("Reachable version is %v", ReachableVersion_);
 
         ElectionManager_->Participate();
     }
@@ -1031,7 +1031,7 @@ private:
 
         ResetAutomatonEpochContext();
 
-        LOG_INFO("Hydra instance finalized");
+        YT_LOG_INFO("Hydra instance finalized");
     }
 
 
@@ -1053,7 +1053,7 @@ private:
         if (checkpointer->CanBuildSnapshot()) {
             BuildSnapshotAndWatch(false);
         } else if (checkpointer->CanRotateChangelogs() && !snapshotIsMandatory) {
-            LOG_WARNING("Cannot build a snapshot, just rotating changlogs");
+            YT_LOG_WARNING("Cannot build a snapshot, just rotating changlogs");
             RotateChangelogAndWatch();
         }
     }
@@ -1117,7 +1117,7 @@ private:
             return;
         }
 
-        LOG_INFO("Distributed changelog rotation succeeded");
+        YT_LOG_INFO("Distributed changelog rotation succeeded");
     }
 
 
@@ -1125,7 +1125,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Starting leader recovery");
+        YT_LOG_INFO("Starting leader recovery");
 
         YCHECK(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::LeaderRecovery;
@@ -1214,14 +1214,14 @@ private:
             YCHECK(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
 
-            LOG_INFO("Leader recovery completed");
+            YT_LOG_INFO("Leader recovery completed");
 
-            LOG_INFO("Waiting for leader lease");
+            YT_LOG_INFO("Waiting for leader lease");
 
             WaitFor(epochContext->LeaseTracker->GetLeaseAcquired())
                 .ThrowOnError();
 
-            LOG_INFO("Leader lease acquired");
+            YT_LOG_INFO("Leader lease acquired");
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1229,7 +1229,7 @@ private:
             WaitFor(epochContext->Checkpointer->RotateChangelog())
                 .ThrowOnError();
 
-            LOG_INFO("Initial changelog rotated");
+            YT_LOG_INFO("Initial changelog rotated");
 
             LeaderRecovered_ = true;
             if (Options_.ResponseKeeper) {
@@ -1244,7 +1244,7 @@ private:
 
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Leader recovery failed, backing off");
+            YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             Restart(epochContext, ex);
         }
@@ -1254,7 +1254,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Stopped leading");
+        YT_LOG_INFO("Stopped leading");
 
         // Save for later to respect the thread affinity.
         auto leaderCommitter = ControlEpochContext_->LeaderCommitter;
@@ -1283,7 +1283,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Starting follower recovery");
+        YT_LOG_INFO("Starting follower recovery");
 
         YCHECK(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::FollowerRecovery;
@@ -1331,7 +1331,7 @@ private:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            LOG_INFO("Follower recovery completed");
+            YT_LOG_INFO("Follower recovery completed");
 
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
@@ -1346,7 +1346,7 @@ private:
 
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Follower recovery failed, backing off");
+            YT_LOG_WARNING(ex, "Follower recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             Restart(epochContext, ex);
         }
@@ -1356,7 +1356,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Stopped following");
+        YT_LOG_INFO("Stopped following");
 
         // Save for later to respect the thread affinity.
         auto followerCommitter = ControlEpochContext_->LeaderCommitter;
@@ -1401,13 +1401,13 @@ private:
         // with an empty changelog that nobody else has.
         auto reachableVersion = epochContext->ReachableVersion;
         if (pingVersion < reachableVersion) {
-            LOG_DEBUG("Received initial ping from leader with a stale version; ignored (LeaderVersion: %v, ReachableVersion: %v)",
+            YT_LOG_DEBUG("Received initial ping from leader with a stale version; ignored (LeaderVersion: %v, ReachableVersion: %v)",
                 pingVersion,
                 epochContext->ReachableVersion);
             return;
         }
 
-        LOG_INFO("Received initial ping from leader (LeaderVersion: %v)",
+        YT_LOG_INFO("Received initial ping from leader (LeaderVersion: %v)",
             pingVersion);
 
         epochContext->FollowerRecovery = New<TFollowerRecovery>(
@@ -1535,7 +1535,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        LOG_DEBUG("Synchronizing with upstream");
+        YT_LOG_DEBUG("Synchronizing with upstream");
 
         auto epochContext = AutomatonEpochContext_;
         epochContext->UpstreamSyncDeadlineReached = false;
@@ -1580,7 +1580,7 @@ private:
         }
 
         if (combinedError.IsOK()) {
-            LOG_DEBUG("Upstream synchronization complete");
+            YT_LOG_DEBUG("Upstream synchronization complete");
             auto syncTime = NProfiling::CpuDurationToDuration(
                 NProfiling::GetCpuInstant() -
                 epochContext->UpstreamSyncStartTime);
@@ -1599,7 +1599,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        LOG_DEBUG("Synchronizing with leader");
+        YT_LOG_DEBUG("Synchronizing with leader");
 
         auto epochContext = AutomatonEpochContext_;
 
@@ -1640,7 +1640,7 @@ private:
         const auto& rsp = rspOrError.Value();
         auto committedVersion = TVersion::FromRevision(rsp->committed_revision());
 
-        LOG_DEBUG("Received synchronization response from leader (CommittedVersion: %v)",
+        YT_LOG_DEBUG("Received synchronization response from leader (CommittedVersion: %v)",
             committedVersion);
 
         YCHECK(!epochContext->LeaderSyncVersion);
@@ -1665,7 +1665,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Leader synchronization complete (NeededCommittedVersion: %v, ActualCommittedVersion: %v)",
+        YT_LOG_DEBUG("Leader synchronization complete (NeededCommittedVersion: %v, ActualCommittedVersion: %v)",
             neededCommittedVersion,
             actualCommittedVersion);
 
@@ -1688,7 +1688,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        LOG_DEBUG("Committing heartbeat mutation");
+        YT_LOG_DEBUG("Committing heartbeat mutation");
 
         // Fire-and-forget.
         CommitMutation(TMutationRequest());
@@ -1712,14 +1712,14 @@ private:
 
         bool expected = false;
         if (ReadOnly_.compare_exchange_strong(expected, true)) {
-            LOG_INFO("Read-only mode activated");
+            YT_LOG_INFO("Read-only mode activated");
         }
     }
 
 
     void BackoffPostpone()
     {
-        LOG_DEBUG("Cannot postpone more actions at the moment; backing off and retrying");
+        YT_LOG_DEBUG("Cannot postpone more actions at the moment; backing off and retrying");
         TDelayedExecutor::WaitForDuration(PostponeBackoffTime);
         SwitchTo(ControlInvoker_);
     }

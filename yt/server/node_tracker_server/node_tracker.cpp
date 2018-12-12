@@ -314,7 +314,7 @@ public:
             ++group->PendingRegisterNodeMutationCount;
         }
 
-        LOG_DEBUG("Node register mutation scheduled (Address: %v, NodeGroups: %v)",
+        YT_LOG_DEBUG("Node register mutation scheduled (Address: %v, NodeGroups: %v)",
             address,
             MakeFormattableRange(groups, [] (auto* builder, const auto* group) {
                 builder->AppendFormat("%v", group->Id);
@@ -485,7 +485,7 @@ public:
         if (node->GetBanned() != value) {
             node->SetBanned(value);
             if (value) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
                 if (Bootstrap_->IsPrimaryMaster()) {
@@ -495,7 +495,7 @@ public:
                     }
                 }
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer banned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Node is no longer banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -508,11 +508,11 @@ public:
         if (node->GetDecommissioned() != value) {
             node->SetDecommissioned(value);
             if (value) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -525,11 +525,11 @@ public:
         if (node->GetDisableWriteSessions() != value) {
             node->SetDisableWriteSessions(value);
             if (value) {
-                LOG_INFO_UNLESS(IsRecovery(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -541,11 +541,11 @@ public:
         if (node->GetDisableTabletCells() != value) {
             node->SetDisableTabletCells(value);
             if (value) {
-                LOG_INFO_UNLESS(IsRecovery(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Enabled tablet cells on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Enabled tablet cells on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -559,7 +559,7 @@ public:
             auto* oldRack = node->GetRack();
             UpdateNodeCounters(node, -1);
             node->SetRack(rack);
-            LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
                 rack ? std::make_optional(rack->GetName()) : std::nullopt);
@@ -683,7 +683,7 @@ public:
                 UpdateNodeCounters(node, +1);
             }
 
-            LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
                 std::make_optional(rack->GetName()),
                 dataCenter ? std::make_optional(dataCenter->GetName()) : std::nullopt);
 
@@ -973,7 +973,7 @@ private:
             if (Bootstrap_->IsPrimaryMaster()) {
                 auto localState = node->GetLocalState();
                 if (localState == ENodeState::Registered || localState == ENodeState::Online) {
-                    LOG_INFO_UNLESS(IsRecovery(), "Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
+                    YT_LOG_INFO_UNLESS(IsRecovery(), "Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
                         node->GetId(),
                         address,
                         localState);
@@ -996,7 +996,7 @@ private:
             node = CreateNode(nodeId, nodeAddresses);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
             node->GetId(),
             address,
             tags,
@@ -1084,7 +1084,7 @@ private:
         }
 
         PROFILE_AGGREGATED_TIMING (FullHeartbeatTimeCounter) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
@@ -1098,7 +1098,7 @@ private:
 
             UpdateLastSeenTime(node);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
                 nodeId,
                 node->GetDefaultAddress());
 
@@ -1123,7 +1123,7 @@ private:
         }
 
         PROFILE_AGGREGATED_TIMING (IncrementalHeartbeatTimeCounter) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
@@ -1159,12 +1159,12 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Received cell node descriptor gossip message (CellTag: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Received cell node descriptor gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -1411,7 +1411,7 @@ private:
             return;
 
         auto* node = it->second;
-        LOG_INFO_UNLESS(IsRecovery(), "Node lease transaction finished (NodeId: %v, Address: %v, TransactionId: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Node lease transaction finished (NodeId: %v, Address: %v, TransactionId: %v)",
             node->GetId(),
             node->GetDefaultAddress(),
             transaction->GetId());
@@ -1456,7 +1456,7 @@ private:
                 SyncExecuteVerb(rootService, req);
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
+            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
         }
 
         UpdateNode(node, nodeAddresses);
@@ -1479,7 +1479,7 @@ private:
             req->set_value(ConvertToYsonString(node->GetAddressesOrThrow(EAddressType::InternalRpc)).GetData());
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");
+            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");
         }
     }
 
@@ -1507,7 +1507,7 @@ private:
                 }
             }
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
         }
@@ -1519,7 +1519,7 @@ private:
             node->SetLocalState(ENodeState::Offline);
             NodeDisposed_.Fire(node);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
         }
@@ -1570,7 +1570,7 @@ private:
             return;
         }
 
-        LOG_INFO("Sending node states gossip message (Incremental: %v)",
+        YT_LOG_INFO("Sending node states gossip message (Incremental: %v)",
             incremental);
         multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
     }

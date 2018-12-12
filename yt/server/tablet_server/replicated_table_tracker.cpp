@@ -147,7 +147,7 @@ private:
 
         TFuture<void> SetMode(TBootstrap* const bootstrap, ETableReplicaMode mode)
         {
-            LOG_DEBUG("Switching table replica mode (Path: %v, ReplicaId: %v, Mode: %v)",
+            YT_LOG_DEBUG("Switching table replica mode (Path: %v, ReplicaId: %v, Mode: %v)",
                 Path_,
                 Id_,
                 mode);
@@ -170,12 +170,12 @@ private:
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTableReplicaYPathProxy::TRspAlterPtr>& rspOrError) {
                     if (rspOrError.IsOK()) {
                         Mode_ = mode;
-                        LOG_DEBUG("Table replica mode switched (Path: %v, ReplicaId: %v, Mode: %v)",
+                        YT_LOG_DEBUG("Table replica mode switched (Path: %v, ReplicaId: %v, Mode: %v)",
                             Path_,
                             Id_,
                             mode);
                     } else {
-                        LOG_DEBUG(rspOrError, "Error switching table replica mode (Path: %v, ReplicaId: %v, Mode: %v)",
+                        YT_LOG_DEBUG(rspOrError, "Error switching table replica mode (Path: %v, ReplicaId: %v, Mode: %v)",
                             Path_,
                             Id_,
                             mode);
@@ -345,7 +345,7 @@ private:
 
         if (!dynamicConfig->EnableReplicatedTableTracker) {
             Enabled_ = false;
-            LOG_INFO("Replicated table manager is disabled, see //sys/@config");
+            YT_LOG_INFO("Replicated table manager is disabled, see //sys/@config");
             return;
         }
 
@@ -368,7 +368,7 @@ private:
             auto object = Bootstrap_->GetObjectManager()->FindObject(id);
             if (!IsObjectAlive(object)) {
                 auto lock = Guard(Lock_);
-                LOG_DEBUG("Table no longer exists (TableId: %v)",
+                YT_LOG_DEBUG("Table no longer exists (TableId: %v)",
                     id);
                 Tables_.erase(id);
                 continue;
@@ -390,13 +390,13 @@ private:
             for (const auto& item : Tables_) {
                 const auto& tableId = item.first;
                 if (!item.second->IsEnabled()) {
-                    LOG_DEBUG("Replicated Table Tracker is disabled (TableId: %v)",
+                    YT_LOG_DEBUG("Replicated Table Tracker is disabled (TableId: %v)",
                         tableId);
                     continue;
                 }
                 auto future = item.second->Check(Bootstrap_);
                 future.Subscribe(BIND([tableId] (const TErrorOr<void>& errorOr) {
-                    LOG_DEBUG_UNLESS(errorOr.IsOK(), errorOr, "Error on checking table (TableId: %v)",
+                    YT_LOG_DEBUG_UNLESS(errorOr.IsOK(), errorOr, "Error on checking table (TableId: %v)",
                         tableId);
                 }));
                 futures.push_back(future);
@@ -419,7 +419,7 @@ private:
         try {
             UpdateTables();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Cannot update tables");
+            YT_LOG_WARNING(ex, "Cannot update tables");
         }
     }
 
@@ -434,7 +434,7 @@ private:
         try {
             CheckTables();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Cannot check tables");
+            YT_LOG_WARNING(ex, "Cannot check tables");
         }
     }
 
@@ -544,7 +544,7 @@ private:
 
             auto connection = ClusterDirectory_->FindConnection(replica->GetClusterName());
             if (!connection) {
-                LOG_WARNING("Unknown replica cluster (Name: %v, ReplicaId: %v, TableId: %v)",
+                YT_LOG_WARNING("Unknown replica cluster (Name: %v, ReplicaId: %v, TableId: %v)",
                     replica->GetClusterName(),
                     replica->GetId(),
                     table->GetId());
@@ -561,7 +561,7 @@ private:
                     replica->ComputeReplicationLagTime(lastestTimestamp)));
         }
 
-        LOG_DEBUG("Table added (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredSyncReplicas: %v)",
+        YT_LOG_DEBUG("Table added (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredSyncReplicas: %v)",
             object->GetId(),
             object->Replicas().size(),
             syncReplicas,

@@ -362,7 +362,7 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 
     DoInitializeBlockSequence();
 
-    LOG_DEBUG("Reading %v blocks", BlockIndexes_.size());
+    YT_LOG_DEBUG("Reading %v blocks", BlockIndexes_.size());
 
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     for (int blockIndex : BlockIndexes_) {
@@ -488,7 +488,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         std::move(partitionTag))
     , ReadRange_(readRange)
 {
-    LOG_DEBUG("Reading range %v", ReadRange_);
+    YT_LOG_DEBUG("Reading range %v", ReadRange_);
 
     // Initialize to lowest reasonable value.
     RowIndex_ = ReadRange_.LowerLimit().HasRowIndex()
@@ -967,7 +967,7 @@ public:
             chunkState->BlockCache,
             blockReadOptions)
     {
-        LOG_DEBUG("Reading range %v", readRange);
+        YT_LOG_DEBUG("Reading range %v", readRange);
 
         LowerLimit_ = readRange.LowerLimit();
         UpperLimit_ = readRange.UpperLimit();
@@ -1253,7 +1253,7 @@ private:
         InitLowerRowIndex();
         InitUpperRowIndex();
 
-        LOG_DEBUG("Initialized row index limits (LowerRowIndex: %v, SafeUpperRowIndex: %v, HardUpperRowIndex: %v)",
+        YT_LOG_DEBUG("Initialized row index limits (LowerRowIndex: %v, SafeUpperRowIndex: %v, HardUpperRowIndex: %v)",
             LowerRowIndex_,
             SafeUpperRowIndex_,
             HardUpperRowIndex_);
@@ -1270,7 +1270,7 @@ private:
             RowIndex_ = LowerRowIndex_;
             LowerKeyLimitReached_ = !LowerLimit_.HasKey();
 
-            LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
+            YT_LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
                 LowerKeyLimitReached_,
                 RowIndex_);
 
@@ -2562,7 +2562,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         boundaries.push_back(minKey);
     }
 
-    LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Chunks: %v, ColumnFilter: %v)",
+    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Chunks: %v, ColumnFilter: %v)",
         boundaries,
         MakeFormattableRange(chunkSpecs, [] (TStringBuilder* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
@@ -2612,7 +2612,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             THROW_ERROR_EXCEPTION("Row index limit is not supported");
         }
 
-        LOG_DEBUG("Create versioned chunk reader (ChunkId: %v, Range: <%v : %v>)",
+        YT_LOG_DEBUG("Create versioned chunk reader (ChunkId: %v, Range: <%v : %v>)",
             chunkId,
             lowerLimit,
             upperLimit);

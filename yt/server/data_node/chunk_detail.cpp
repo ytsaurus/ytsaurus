@@ -75,7 +75,7 @@ bool TChunkBase::TryAcquireReadLock()
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (RemovedFuture_) {
-            LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %v)",
+            YT_LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %v)",
                 Id_);
             return false;
         }
@@ -83,7 +83,7 @@ bool TChunkBase::TryAcquireReadLock()
         lockCount = ++ReadLockCounter_;
     }
 
-    LOG_TRACE("Chunk read lock acquired (ChunkId: %v, LockCount: %v)",
+    YT_LOG_TRACE("Chunk read lock acquired (ChunkId: %v, LockCount: %v)",
         Id_,
         lockCount);
 
@@ -105,7 +105,7 @@ void TChunkBase::ReleaseReadLock()
         }
     }
 
-    LOG_TRACE("Chunk read lock released (ChunkId: %v, LockCount: %v)",
+    YT_LOG_TRACE("Chunk read lock released (ChunkId: %v, LockCount: %v)",
         Id_,
         lockCount);
 
@@ -124,7 +124,7 @@ bool TChunkBase::IsReadLockAcquired() const
 
 TFuture<void> TChunkBase::ScheduleRemove()
 {
-    LOG_INFO("Chunk remove scheduled (ChunkId: %v)",
+    YT_LOG_INFO("Chunk remove scheduled (ChunkId: %v)",
         Id_);
 
     bool removing = false;

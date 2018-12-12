@@ -77,7 +77,7 @@ void TIntermediateChunkScraper::ResetChunkScraper()
 
     auto intermediateChunks = GetChunksCallback_();
 
-    LOG_DEBUG("Reset intermediate chunk scraper (ChunkCount: %v)",
+    YT_LOG_DEBUG("Reset intermediate chunk scraper (ChunkCount: %v)",
         intermediateChunks.size());
     ChunkScraper_ = New<TChunkScraper>(
         Config_,

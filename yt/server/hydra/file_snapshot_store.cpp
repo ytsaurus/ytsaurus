@@ -101,7 +101,7 @@ private:
 
     void DoOpen()
     {
-        LOG_DEBUG("Opening local snapshot reader (Raw: %v, Offset: %v)",
+        YT_LOG_DEBUG("Opening local snapshot reader (Raw: %v, Offset: %v)",
             IsRaw_,
             Offset_);
 
@@ -170,7 +170,7 @@ private:
                 << ex;
         }
 
-        LOG_DEBUG("Local snapshot reader opened");
+        YT_LOG_DEBUG("Local snapshot reader opened");
     }
 
     TSharedRef DoRead()
@@ -228,7 +228,7 @@ public:
                 File_->Close();
                 NFS::Remove(FileName_ + TempFileSuffix);
             } catch (const std::exception& ex) {
-                LOG_WARNING("Error removing temporary local snapshot %v, ignored",
+                YT_LOG_WARNING("Error removing temporary local snapshot %v, ignored",
                     FileName_ + TempFileSuffix);
             }
         }
@@ -297,7 +297,7 @@ private:
     {
         YCHECK(!IsOpened_);
 
-        LOG_DEBUG("Opening local snapshot writer (Codec: %v, Raw: %v)",
+        YT_LOG_DEBUG("Opening local snapshot writer (Codec: %v, Raw: %v)",
             Codec_,
             IsRaw_);
 
@@ -339,7 +339,7 @@ private:
 
         IsOpened_ = true;
 
-        LOG_DEBUG("Local snapshot writer opened");
+        YT_LOG_DEBUG("Local snapshot writer opened");
     }
 
     void DoFinish()
@@ -366,7 +366,7 @@ private:
     {
         YCHECK(IsOpened_ && !IsClosed_);
 
-        LOG_DEBUG("Closing local snapshot writer");
+        YT_LOG_DEBUG("Closing local snapshot writer");
 
         DoFinish();
 
@@ -400,7 +400,7 @@ private:
 
         IsClosed_ = true;
 
-        LOG_DEBUG("Local snapshot writer closed");
+        YT_LOG_DEBUG("Local snapshot writer closed");
     }
 
 };
@@ -438,12 +438,12 @@ public:
     {
         auto path = Config_->Path;
 
-        LOG_DEBUG("Preparing snapshot directory");
+        YT_LOG_DEBUG("Preparing snapshot directory");
 
         NFS::MakeDirRecursive(path);
         NFS::CleanTempFiles(path);
 
-        LOG_DEBUG("Looking for snapshots");
+        YT_LOG_DEBUG("Looking for snapshots");
 
         auto fileNames = EnumerateFiles(path);
         for (const auto& fileName : fileNames) {
@@ -454,12 +454,12 @@ public:
                     int snapshotId = FromString<int>(name);
                     RegisterSnapshot(snapshotId);
                 } catch (const std::exception&) {
-                    LOG_WARNING("Found unrecognized file %Qv", fileName);
+                    YT_LOG_WARNING("Found unrecognized file %Qv", fileName);
                 }
             }
         }
 
-        LOG_DEBUG("Snapshot scan complete");
+        YT_LOG_DEBUG("Snapshot scan complete");
     }
 
     bool CheckSnapshotExists(int snapshotId)
@@ -472,7 +472,7 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (SnapshotIds_.erase(snapshotId) == 1) {
-                LOG_WARNING("Erased orphaned snapshot %v from store", snapshotId);
+                YT_LOG_WARNING("Erased orphaned snapshot %v from store", snapshotId);
             }
         }
 
@@ -566,7 +566,7 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock_);
         YCHECK(SnapshotIds_.insert(snapshotId).second);
-        LOG_DEBUG("Registered snapshot %v", snapshotId);
+        YT_LOG_DEBUG("Registered snapshot %v", snapshotId);
     }
 
 };

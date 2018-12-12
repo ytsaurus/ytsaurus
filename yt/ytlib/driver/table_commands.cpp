@@ -64,7 +64,7 @@ TReadTableCommand::TReadTableCommand()
 
 void TReadTableCommand::DoExecute(ICommandContextPtr context)
 {
-    LOG_DEBUG("Executing \"read_table\" command (Path: %v, Unordered: %v, StartRowIndexOnly: %v)",
+    YT_LOG_DEBUG("Executing \"read_table\" command (Path: %v, Unordered: %v, StartRowIndexOnly: %v)",
         Path,
         Unordered,
         StartRowIndexOnly);
@@ -111,7 +111,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
 
     auto finally = Finally([&] () {
         auto dataStatistics = reader->GetDataStatistics();
-        LOG_DEBUG("Command statistics (RowCount: %v, WrittenSize: %v, "
+        YT_LOG_DEBUG("Command statistics (RowCount: %v, WrittenSize: %v, "
             "ReadUncompressedDataSize: %v, ReadCompressedDataSize: %v)",
             dataStatistics.row_count(),
             writer->GetWrittenSize(),
@@ -560,7 +560,7 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
     WaitFor(writer->Close())
         .ThrowOnError();
 
-    LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
+    YT_LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
         "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
         statistics.RowsRead,
         statistics.RowsWritten,

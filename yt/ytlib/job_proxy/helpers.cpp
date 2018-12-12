@@ -64,7 +64,7 @@ void RunQuery(
     auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
     auto reader = CreateSchemafulReaderAdapter(readerFactory, query->GetReadSchema());
 
-    LOG_INFO("Reading, evaluating query and writing");
+    YT_LOG_INFO("Reading, evaluating query and writing");
     evaluator->Run(
         query,
         reader,

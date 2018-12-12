@@ -77,7 +77,7 @@ private:
     {
         auto callId = TGuid::Create();
 
-        LOG_DEBUG("Retrieving secrets from Vault (Count: %v, CallId: %v)",
+        YT_LOG_DEBUG("Retrieving secrets from Vault (Count: %v, CallId: %v)",
             subrequests.size(),
             callId);
 
@@ -110,7 +110,7 @@ private:
         auto onError = [&] (TError error) {
             error.Attributes().Set("call_id", callId);
             Profiler_.Increment(FailedCallCountCounter_);
-            LOG_DEBUG(error);
+            YT_LOG_DEBUG(error);
             THROW_ERROR(error);
         };
 
@@ -127,12 +127,12 @@ private:
 
         IMapNodePtr rootNode;
         try {
-            LOG_DEBUG("Started reading response body from Vault (CallId: %v)",
+            YT_LOG_DEBUG("Started reading response body from Vault (CallId: %v)",
                 callId);
 
             auto body = rsp->ReadAll();
 
-            LOG_DEBUG("Finished reading response body from Vault (CallId: %v)\n%v",
+            YT_LOG_DEBUG("Finished reading response body from Vault (CallId: %v)\n%v",
                 callId,
                 body);
 
@@ -188,7 +188,7 @@ private:
             Profiler_.Increment(SuccessfulSubrequestCountCounter_, successCount);
             Profiler_.Increment(FailedSubrequestCountCounter_, errorCount);
 
-            LOG_DEBUG("Secrets retrieved from Vault (CallId: %v, SuccessCount: %v, ErrorCount: %v)",
+            YT_LOG_DEBUG("Secrets retrieved from Vault (CallId: %v, SuccessCount: %v, ErrorCount: %v)",
                 callId,
                 successCount,
                 errorCount);

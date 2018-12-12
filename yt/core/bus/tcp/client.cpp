@@ -143,7 +143,7 @@ public:
 
         auto id = TConnectionId::Create();
 
-        LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v)",
+        YT_LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v)",
             EndpointDescription_,
             id);
 

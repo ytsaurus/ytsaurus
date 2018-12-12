@@ -232,7 +232,7 @@ void TTabletTrackerImpl::ScheduleLeaderReassignment(TTabletCell* cell)
     if (goodPeerId == InvalidPeerId)
         return;
 
-    LOG_DEBUG(error, "Schedule leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
+    YT_LOG_DEBUG(error, "Schedule leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
         cell->GetId(),
         cell->GetLeadingPeerId(),
         leadingPeer.Descriptor.GetDefaultAddress());
@@ -302,7 +302,7 @@ void TTabletTrackerImpl::SchedulePeerRevocation(TTabletCell* cell, ITabletCellBa
         auto error = IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), Config_->PeerRevocationTimeout);
 
         if (!error.IsOK()) {
-            LOG_DEBUG(error, "Schedule peer revocation (CellId: %v, PeerId: %v, Address: %v)",
+            YT_LOG_DEBUG(error, "Schedule peer revocation (CellId: %v, PeerId: %v, Address: %v)",
                 cell->GetId(),
                 peerId,
                 peer.Descriptor.GetDefaultAddress());

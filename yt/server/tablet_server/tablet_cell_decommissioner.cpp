@@ -125,7 +125,7 @@ private:
                 // When cell is decommissioned all tablet actions should be unlinked.
                 for (const auto* cell : action->TabletCells()) {
                     if (cell->GetDecommissioned()) {
-                        LOG_ERROR("Tablet action target cell is decommissioned (ActionId: %v, CellId: %v)",
+                        YT_LOG_ERROR("Tablet action target cell is decommissioned (ActionId: %v, CellId: %v)",
                             action->GetId(),
                             cell->GetId());
 
@@ -135,7 +135,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
+        YT_LOG_DEBUG("Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
             retiringCells.size());
 
         for (const auto& pair : tabletManager->TabletCells()) {

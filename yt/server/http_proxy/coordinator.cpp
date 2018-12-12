@@ -98,7 +98,7 @@ void TCoordinator::Start()
     Periodic_->ScheduleOutOfBand();
 
     auto result = WaitFor(FirstUpdateIterationFinished_.ToFuture());
-    LOG_INFO(result, "Initial coordination iteration finished");
+    YT_LOG_INFO(result, "Initial coordination iteration finished");
 }
 
 bool TCoordinator::IsBanned() const
@@ -199,7 +199,7 @@ std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
             proxy->Endpoint = proxyNode->GetValue<TString>();
             proxies.emplace_back(std::move(proxy));
         } catch (std::exception& ex) {
-            LOG_WARNING(ex, "Broken proxy node found in cypress (ProxyNode: %v)", ConvertToYsonString(proxyNode));
+            YT_LOG_WARNING(ex, "Broken proxy node found in cypress (ProxyNode: %v)", ConvertToYsonString(proxyNode));
         }
     }
 
@@ -228,9 +228,9 @@ void TCoordinator::Update()
 
             auto error = WaitFor(Client_->CreateNode(selfPath, EObjectType::MapNode, options));
             if (error.FindMatching(NYTree::EErrorCode::AlreadyExists)) {
-                LOG_INFO("Cypress node already exists (Path: %v)", selfPath);
+                YT_LOG_INFO("Cypress node already exists (Path: %v)", selfPath);
             } else if (error.IsOK()) {
-                LOG_INFO("Created cypress node (Path: %v)", selfPath);
+                YT_LOG_INFO("Created cypress node (Path: %v)", selfPath);
             } else {
                 error.ValueOrThrow();
             }
@@ -248,7 +248,7 @@ void TCoordinator::Update()
         }
 
         if (!Config_->Enable) {
-            LOG_INFO("Coordinator is disabled");
+            YT_LOG_INFO("Coordinator is disabled");
             FirstUpdateIterationFinished_.TrySet();
             return;
         }
@@ -269,13 +269,13 @@ void TCoordinator::Update()
                 }
 
                 if (proxy->IsBanned != Self_->IsBanned) {
-                    LOG_INFO("Updating self banned attribute (Old: %v, New: %v)",
+                    YT_LOG_INFO("Updating self banned attribute (Old: %v, New: %v)",
                         Self_->IsBanned,
                         proxy->IsBanned);
                 }
 
                 if (proxy->Role != Self_->Role) {
-                    LOG_INFO("Updating self role attribute (Old: %v, New: %v)",
+                    YT_LOG_INFO("Updating self role attribute (Old: %v, New: %v)",
                         Self_->Role,
                         proxy->Role);
                 }
@@ -288,7 +288,7 @@ void TCoordinator::Update()
 
         FirstUpdateIterationFinished_.TrySet();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Coordinator update failed");
+        YT_LOG_ERROR(ex, "Coordinator update failed");
         FirstUpdateIterationFinished_.TrySet(TError(ex));
     }
 }

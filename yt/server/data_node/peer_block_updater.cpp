@@ -53,7 +53,7 @@ TDuration TPeerBlockUpdater::GetPeerUpdateExpirationTime() const
 
 void TPeerBlockUpdater::Update()
 {
-    LOG_INFO("Updating peer blocks");
+    YT_LOG_INFO("Updating peer blocks");
 
     auto expirationTime = GetPeerUpdateExpirationTime().ToDeadLine();
     auto localDescriptor = Bootstrap_
@@ -92,7 +92,7 @@ void TPeerBlockUpdater::Update()
     }
 
     for (const auto& pair : requests) {
-        LOG_DEBUG("Sending peer block update request (Address: %v, ExpirationTime: %v)",
+        YT_LOG_DEBUG("Sending peer block update request (Address: %v, ExpirationTime: %v)",
             pair.first,
             expirationTime);
         pair.second->Invoke();

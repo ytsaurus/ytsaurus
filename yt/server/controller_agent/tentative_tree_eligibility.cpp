@@ -204,7 +204,7 @@ void TTentativeTreeEligibility::BanTree(const TString& treeId)
     auto nonTentativeDurationAvg = NonTentativeTreeDuration_.GetAvg();
     YCHECK(nonTentativeDurationAvg);
 
-    LOG_DEBUG("Tentative tree banned for the task as average tentative job duration is much longer than average job duration "
+    YT_LOG_DEBUG("Tentative tree banned for the task as average tentative job duration is much longer than average job duration "
         "(TreeId: %v, TentativeJobDuration: %v, NonTentativeJobDuration: %v, MaxTentativeJobDurationRatio: %v)",
         treeId,
         tentativeDurationAvg,

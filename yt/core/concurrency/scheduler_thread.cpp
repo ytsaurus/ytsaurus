@@ -35,7 +35,7 @@ void UnwindFiber(TFiberPtr fiber)
 void CheckForCanceledFiber(TFiber* fiber)
 {
     if (fiber->IsCanceled()) {
-        LOG_DEBUG("Throwing fiber cancelation exception");
+        YT_LOG_DEBUG("Throwing fiber cancelation exception");
         throw TFiberCanceledException();
     }
 }
@@ -85,7 +85,7 @@ void TSchedulerThread::Start()
 
     if (!alreadyDone) {
         if ((epoch & ShutdownEpochMask) == 0x0) {
-            LOG_DEBUG_IF(EnableLogging_, "Starting thread (Name: %v)", ThreadName_);
+            YT_LOG_DEBUG_IF(EnableLogging_, "Starting thread (Name: %v)", ThreadName_);
 
             try {
                 Thread_.Start();
@@ -131,7 +131,7 @@ void TSchedulerThread::Shutdown()
             // in this case. Ensure proper event sequencing by synchronizing with thread startup.
             ThreadStartedEvent_.Wait();
 
-            LOG_DEBUG_IF(EnableLogging_, "Stopping thread (Name: %v)", ThreadName_);
+            YT_LOG_DEBUG_IF(EnableLogging_, "Stopping thread (Name: %v)", ThreadName_);
 
             CallbackEventCount_->NotifyAll();
 
@@ -174,7 +174,7 @@ void TSchedulerThread::ThreadMain()
 
     try {
         OnThreadStart();
-        LOG_DEBUG_IF(EnableLogging_, "Thread started (Name: %v)", ThreadName_);
+        YT_LOG_DEBUG_IF(EnableLogging_, "Thread started (Name: %v)", ThreadName_);
 
         ThreadStartedEvent_.NotifyAll();
 
@@ -183,9 +183,9 @@ void TSchedulerThread::ThreadMain()
         }
 
         OnThreadShutdown();
-        LOG_DEBUG_IF(EnableLogging_, "Thread stopped (Name: %v)", ThreadName_);
+        YT_LOG_DEBUG_IF(EnableLogging_, "Thread stopped (Name: %v)", ThreadName_);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %v)", ThreadName_);
+        YT_LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %v)", ThreadName_);
     }
 }
 
@@ -268,7 +268,7 @@ void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
     {
         auto createdFibers = Profiler.Increment(CreatedFibersCounter_);
         auto aliveFibers = Profiler.Increment(AliveFibersCounter_, 1);
-        LOG_TRACE_IF(EnableLogging_, "Fiber started (Name: %v, Created: %v, Alive: %v)",
+        YT_LOG_TRACE_IF(EnableLogging_, "Fiber started (Name: %v, Created: %v, Alive: %v)",
             ThreadName_,
             createdFibers,
             aliveFibers);
@@ -281,7 +281,7 @@ void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
     {
         auto createdFibers = CreatedFibersCounter_.GetCurrent();
         auto aliveFibers = Profiler.Increment(AliveFibersCounter_, -1);
-        LOG_TRACE_IF(EnableLogging_, "Fiber finished (Name: %v, Created: %v, Alive: %v)",
+        YT_LOG_TRACE_IF(EnableLogging_, "Fiber finished (Name: %v, Created: %v, Alive: %v)",
             ThreadName_,
             createdFibers,
             aliveFibers);
@@ -364,7 +364,7 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
             resumer = std::move(resumer),
             unwinder = std::move(unwinder)
         ] (const TError&) mutable {
-            LOG_DEBUG("Waking up fiber %llx", fiber->GetId());
+            YT_LOG_DEBUG("Waking up fiber %llx", fiber->GetId());
             GuardedInvoke(std::move(invoker), std::move(resumer), std::move(unwinder));
         }));
     } else {

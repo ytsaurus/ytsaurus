@@ -123,7 +123,7 @@ public:
             TabletIdQueue_[bundleId].push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
             Profiler.Increment(QueueSizeCounter_);
-            LOG_DEBUG("Tablet is put into balancer queue (TableId: %v, TabletId: %v)",
+            YT_LOG_DEBUG("Tablet is put into balancer queue (TableId: %v, TabletId: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId());
         }
@@ -180,12 +180,12 @@ private:
     {
         const auto& local = bundle->TabletBalancerConfig()->TabletBalancerSchedule;
         if (!local.IsEmpty()) {
-            LOG_DEBUG("Using local balancer schedule for bundle (BundleName: %v, ScheduleFormula: %Qv)",
+            YT_LOG_DEBUG("Using local balancer schedule for bundle (BundleName: %v, ScheduleFormula: %Qv)",
                 bundle->GetName(),
                 local.GetFormula());
             return local;
         }
-        LOG_DEBUG("Using global balancer schedule for bundle (BundleName: %v, ScheduleFormula: %Qv)",
+        YT_LOG_DEBUG("Using global balancer schedule for bundle (BundleName: %v, ScheduleFormula: %Qv)",
             bundle->GetName(),
             FallbackBalancingSchedule_.GetFormula());
         return FallbackBalancingSchedule_;
@@ -212,12 +212,12 @@ private:
 
             // If it is necessary and possible to balance cells, do it...
             if (BundlesPendingCellBalancing_.contains(bundleId) && !BundlesWithActiveActions_.contains(bundle)) {
-                LOG_DEBUG("Balancing cells for bundle (Bundle: %v)",
+                YT_LOG_DEBUG("Balancing cells for bundle (Bundle: %v)",
                     bundle->GetName());
                 forMove.push_back(bundle);
             // ... else if time has come for reshard, do it.
             } else if (DidBundleBalancingTimeHappen(bundle)) {
-                LOG_DEBUG("Balancing tablets for bundle (Bundle: %v)",
+                YT_LOG_DEBUG("Balancing tablets for bundle (Bundle: %v)",
                     bundle->GetName());
                 forReshard.push_back(bundle);
                 bundlesForCellBalancingOnNextIteration.insert(bundleId);
@@ -225,7 +225,7 @@ private:
 
             // If it was nesessary but not possible to balance cells, postpone balancing to the next iteration and log it.
             if (BundlesPendingCellBalancing_.contains(bundleId) && BundlesWithActiveActions_.contains(bundle)) {
-                LOG_DEBUG(
+                YT_LOG_DEBUG(
                     "Tablet balancer did not balance cells because bundle participates in action (Bundle: %v)",
                     bundle->GetName());
                 bundlesForCellBalancingOnNextIteration.insert(bundleId);
@@ -304,7 +304,7 @@ private:
                 return formula.IsSatisfiedBy(CurrentTime_);
             }
         } catch (TErrorException& ex) {
-            LOG_ERROR("Failed to evaluate tablet balancer schedule formula: %v", ex.Error().GetMessage());
+            YT_LOG_ERROR("Failed to evaluate tablet balancer schedule formula: %v", ex.Error().GetMessage());
             return false;
         }
     }
@@ -325,7 +325,7 @@ private:
         auto* table = tablet->GetTable();
         auto* srcCell = tablet->GetCell();
 
-        LOG_DEBUG("Tablet balancer would like to move tablet "
+        YT_LOG_DEBUG("Tablet balancer would like to move tablet "
             "(TableId: %v, InMemoryMode: %v, TabletId: %v, SrcCellId: %v, DstCellId: %v, Bundle: %v)",
             table->GetId(),
             table->GetInMemoryMode(),
@@ -793,7 +793,7 @@ private:
         }
 
         if (newTabletCount == endIndex - startIndex + 1 && newTabletCount == 1) {
-            LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v)",
+            YT_LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v)",
                 table->GetId(),
                 tablet->GetId());
             return false;
@@ -805,7 +805,7 @@ private:
             TouchedTablets_.insert(table->Tablets()[index]);
         }
 
-        LOG_DEBUG("Tablet balancer would like to reshard tablets (TableId: %v, TabletIds: %v, NewTabletCount: %v)",
+        YT_LOG_DEBUG("Tablet balancer would like to reshard tablets (TableId: %v, TabletIds: %v, NewTabletCount: %v)",
             table->GetId(),
             tabletIds,
             newTabletCount);
@@ -908,7 +908,7 @@ private:
 
         if (!Config_->EnableTabletBalancer) {
             if (Enabled_) {
-                LOG_INFO("Tablet balancer is disabled, see master config");
+                YT_LOG_INFO("Tablet balancer is disabled, see master config");
             }
             Enabled_ = false;
             return;
@@ -918,7 +918,7 @@ private:
 
         if (!balancerConfig->EnableTabletBalancer) {
             if (Enabled_) {
-                LOG_INFO("Tablet balancer is disabled, see //sys/@config");
+                YT_LOG_INFO("Tablet balancer is disabled, see //sys/@config");
             }
             Enabled_ = false;
             return;
@@ -927,7 +927,7 @@ private:
         FallbackBalancingSchedule_ = balancerConfig->TabletBalancerSchedule;
 
         if (!Enabled_) {
-            LOG_INFO("Tablet balancer enabled");
+            YT_LOG_INFO("Tablet balancer enabled");
         }
         Enabled_ = true;
     }

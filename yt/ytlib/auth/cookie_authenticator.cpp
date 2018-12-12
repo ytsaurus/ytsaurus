@@ -79,7 +79,7 @@ public:
     {
         auto sessionIdMD5 = TMD5Hasher().Append(credentials.SessionId).GetHexDigestUpper();
         auto sslSessionIdMD5 = TMD5Hasher().Append(credentials.SslSessionId).GetHexDigestUpper();
-        LOG_DEBUG(
+        YT_LOG_DEBUG(
             "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v)",
             sessionIdMD5,
             sslSessionIdMD5);
@@ -107,11 +107,11 @@ private:
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            LOG_DEBUG(result, "Authentication failed (SessionIdMD5: %v, SslSessionIdMD5: %v)", sessionIdMD5, sslSessionIdMD5);
+            YT_LOG_DEBUG(result, "Authentication failed (SessionIdMD5: %v, SslSessionIdMD5: %v)", sessionIdMD5, sslSessionIdMD5);
             result.Attributes().Set("sessionid_md5", sessionIdMD5);
             result.Attributes().Set("sslsessionid_md5", sslSessionIdMD5);
         } else {
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "Authentication successful (SessionIdMD5: %v, SslSessionIdMD5: %v, Login: %v, Realm: %v)",
                 sessionIdMD5,
                 sslSessionIdMD5,

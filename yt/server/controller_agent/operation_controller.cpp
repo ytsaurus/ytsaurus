@@ -206,9 +206,9 @@ public:
             auto Logger = NLogging::TLogger(ControllerLogger)
                 .AddTag("OperationId: %v", id);
             NProfiling::TWallTimer timer;
-            LOG_INFO("Started destroying operation controller");
+            YT_LOG_INFO("Started destroying operation controller");
             underlying.Reset();
-            LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
+            YT_LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
                 timer.GetElapsedTime());
             memoryTagQueue->ReclaimTag(memoryTag);
         }));

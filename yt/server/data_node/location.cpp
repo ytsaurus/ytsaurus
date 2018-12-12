@@ -213,7 +213,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         ValidateMinimumSpace();
         ValidateWritable();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Location disabled");
+        YT_LOG_ERROR(ex, "Location disabled");
         MarkAsDisabled(ex);
         return std::vector<TChunkDescriptor>();
     }
@@ -248,7 +248,7 @@ void TLocation::Disable(const TError& reason)
         Sleep(TDuration::Max());
     }
 
-    LOG_ERROR(reason);
+    YT_LOG_ERROR(reason);
 
     // Save the reason in a file and exit.
     // Location will be disabled during the scan in the restart process.
@@ -259,11 +259,11 @@ void TLocation::Disable(const TError& reason)
         TUnbufferedFileOutput fileOutput(file);
         fileOutput << errorData;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error creating location lock file");
+        YT_LOG_ERROR(ex, "Error creating location lock file");
         // Exit anyway.
     }
 
-    LOG_ERROR("Location is disabled; terminating");
+    YT_LOG_ERROR("Location is disabled; terminating");
     NLogging::TLogManager::Get()->Shutdown();
     _exit(1);
 }
@@ -409,7 +409,7 @@ void TLocation::UpdatePendingIOSize(
 
     auto& counter = GetPendingIOSizeCounter(direction, category);
     i64 result = Profiler_.Increment(counter, delta);
-    LOG_TRACE("Pending IO size updated (Direction: %v, Category: %v, PendingSize: %v, Delta: %v)",
+    YT_LOG_TRACE("Pending IO size updated (Direction: %v, Category: %v, PendingSize: %v, Delta: %v)",
         direction,
         category,
         result,
@@ -473,7 +473,7 @@ TString TLocation::GetChunkPath(const TChunkId& chunkId) const
 void TLocation::RemoveChunkFilesPermanently(const TChunkId& chunkId)
 {
     try {
-        LOG_DEBUG("Started removing chunk files (ChunkId: %v)", chunkId);
+        YT_LOG_DEBUG("Started removing chunk files (ChunkId: %v)", chunkId);
 
         auto partNames = GetChunkPartNames(chunkId);
         auto directory = NFS::GetDirectoryName(GetChunkPath(chunkId));
@@ -485,7 +485,7 @@ void TLocation::RemoveChunkFilesPermanently(const TChunkId& chunkId)
             }
         }
 
-        LOG_DEBUG("Finished removing chunk files (ChunkId: %v)", chunkId);
+        YT_LOG_DEBUG("Finished removing chunk files (ChunkId: %v)", chunkId);
     } catch (const std::exception& ex) {
         auto error = TError(
             NChunkClient::EErrorCode::IOError,
@@ -605,7 +605,7 @@ bool TLocation::ShouldSkipFileName(const TString& fileName) const
 
 std::vector<TChunkDescriptor> TLocation::DoScan()
 {
-    LOG_INFO("Scanning storage location");
+    YT_LOG_INFO("Scanning storage location");
 
     NFS::CleanTempFiles(GetPath());
     ForceHashDirectories(GetPath());
@@ -622,7 +622,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
             TChunkId chunkId;
             auto bareFileName = NFS::GetFileNameWithoutExtension(fileName);
             if (!TChunkId::FromString(bareFileName, &chunkId)) {
-                LOG_ERROR("Unrecognized file %v in location directory", fileName);
+                YT_LOG_ERROR("Unrecognized file %v in location directory", fileName);
                 continue;
             }
 
@@ -641,7 +641,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
         }
     }
 
-    LOG_INFO("Done, %v chunks found", descriptors.size());
+    YT_LOG_INFO("Done, %v chunks found", descriptors.size());
 
     return descriptors;
 }
@@ -663,7 +663,7 @@ void TLocation::DoStart()
                 cellId);
         }
     } else {
-        LOG_INFO("Cell id file is not found, creating");
+        YT_LOG_INFO("Cell id file is not found, creating");
         TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TUnbufferedFileOutput cellIdFile(file);
         cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
@@ -730,7 +730,7 @@ bool TStoreLocation::IsFull() const
     auto full = available < watermark;
     auto expected = !full;
     if (Full_.compare_exchange_strong(expected, full)) {
-        LOG_DEBUG("Location is %v full (AvailableSpace: %v, WatermarkSpace: %v)",
+        YT_LOG_DEBUG("Location is %v full (AvailableSpace: %v, WatermarkSpace: %v)",
             full ? "now" : "no longer",
             available,
             watermark);
@@ -810,7 +810,7 @@ void TStoreLocation::RegisterTrashChunk(const TChunkId& chunkId)
         TrashDiskSpace_ += diskSpace;
     }
 
-    LOG_DEBUG("Trash chunk registered (ChunkId: %v, Timestamp: %v, DiskSpace: %v)",
+    YT_LOG_DEBUG("Trash chunk registered (ChunkId: %v, Timestamp: %v, DiskSpace: %v)",
         chunkId,
         timestamp,
         diskSpace);
@@ -867,7 +867,7 @@ void TStoreLocation::CheckTrashWatermark()
         return;
     }
 
-    LOG_INFO("Low available disk space, starting trash cleanup (AvailableSpace: %v)",
+    YT_LOG_INFO("Low available disk space, starting trash cleanup (AvailableSpace: %v)",
         availableSpace);
 
     while (availableSpace < Config_->TrashCleanupWatermark) {
@@ -886,7 +886,7 @@ void TStoreLocation::CheckTrashWatermark()
         availableSpace += entry.DiskSpace;
     }
 
-    LOG_INFO("Finished trash cleanup (AvailableSpace: %v)",
+    YT_LOG_INFO("Finished trash cleanup (AvailableSpace: %v)",
         availableSpace);
 }
 
@@ -901,7 +901,7 @@ void TStoreLocation::RemoveTrashFiles(const TTrashChunkEntry& entry)
         }
     }
 
-    LOG_DEBUG("Trash chunk removed (ChunkId: %v, DiskSpace: %v)",
+    YT_LOG_DEBUG("Trash chunk removed (ChunkId: %v, DiskSpace: %v)",
         entry.ChunkId,
         entry.DiskSpace);
 }
@@ -909,7 +909,7 @@ void TStoreLocation::RemoveTrashFiles(const TTrashChunkEntry& entry)
 void TStoreLocation::MoveChunkFilesToTrash(const TChunkId& chunkId)
 {
     try {
-        LOG_DEBUG("Started moving chunk files to trash (ChunkId: %v)", chunkId);
+        YT_LOG_DEBUG("Started moving chunk files to trash (ChunkId: %v)", chunkId);
 
         auto partNames = GetChunkPartNames(chunkId);
         auto directory = NFS::GetDirectoryName(GetChunkPath(chunkId));
@@ -924,7 +924,7 @@ void TStoreLocation::MoveChunkFilesToTrash(const TChunkId& chunkId)
             }
         }
 
-        LOG_DEBUG("Finished moving chunk files to trash (ChunkId: %v)", chunkId);
+        YT_LOG_DEBUG("Finished moving chunk files to trash (ChunkId: %v)", chunkId);
 
         RegisterTrashChunk(chunkId);
     } catch (const std::exception& ex) {
@@ -969,17 +969,17 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(const TChunkId& 
         }
         // EXT4 specific thing.
         // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
-        LOG_WARNING("Chunk meta file %v is empty, removing chunk files",
+        YT_LOG_WARNING("Chunk meta file %v is empty, removing chunk files",
             metaFileName);
         NFS::Remove(dataFileName);
         NFS::Remove(metaFileName);
     } else if (!hasMeta && hasData) {
-        LOG_WARNING("Chunk meta file %v is missing, moving data file %v to trash",
+        YT_LOG_WARNING("Chunk meta file %v is missing, moving data file %v to trash",
             metaFileName,
             dataFileName);
         NFS::Replace(dataFileName, trashDataFileName);
     } else if (!hasData && hasMeta) {
-        LOG_WARNING("Chunk data file %v is missing, moving meta file %v to trash",
+        YT_LOG_WARNING("Chunk data file %v is missing, moving meta file %v to trash",
             dataFileName,
             metaFileName);
         NFS::Replace(metaFileName, trashMetaFileName);
@@ -1014,7 +1014,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkI
         return descriptor;
 
     } else if (!hasData && hasIndex) {
-        LOG_WARNING("Journal data file %v is missing, moving index file %v to trash",
+        YT_LOG_WARNING("Journal data file %v is missing, moving index file %v to trash",
             dataFileName,
             indexFileName);
         NFS::Replace(indexFileName, trashIndexFileName);
@@ -1038,7 +1038,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(const TChunkId& chun
             break;
 
         default:
-            LOG_WARNING("Invalid type %Qlv of chunk %v, skipped",
+            YT_LOG_WARNING("Invalid type %Qlv of chunk %v, skipped",
                 chunkType,
                 chunkId);
             break;
@@ -1090,7 +1090,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
 {
     auto result = TLocation::DoScan();
 
-    LOG_INFO("Scanning storage trash");
+    YT_LOG_INFO("Scanning storage trash");
 
     ForceHashDirectories(GetTrashPath());
 
@@ -1104,7 +1104,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
             TChunkId chunkId;
             auto bareFileName = NFS::GetFileNameWithoutExtension(fileName);
             if (!TChunkId::FromString(bareFileName, &chunkId)) {
-                LOG_ERROR("Unrecognized file %v in location trash directory", fileName);
+                YT_LOG_ERROR("Unrecognized file %v in location trash directory", fileName);
                 continue;
             }
             trashChunkIds.insert(chunkId);
@@ -1115,7 +1115,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
         }
     }
 
-    LOG_INFO("Done, %v trash chunks found", trashChunkIds.size());
+    YT_LOG_INFO("Done, %v trash chunks found", trashChunkIds.size());
 
     return result;
 }
@@ -1174,14 +1174,14 @@ std::optional<TChunkDescriptor> TCacheLocation::Repair(
             descriptor.DiskSpace = dataSize + metaSize;
             return descriptor;
         }
-        LOG_WARNING("Chunk meta file %v is empty, removing chunk files",
+        YT_LOG_WARNING("Chunk meta file %v is empty, removing chunk files",
             metaFileName);
     } else if (hasData && !hasMeta) {
-        LOG_WARNING("Chunk meta file %v is missing, removing data file %v",
+        YT_LOG_WARNING("Chunk meta file %v is missing, removing data file %v",
             metaFileName,
             dataFileName);
     } else if (!hasData && hasMeta) {
-        LOG_WARNING("Chunk data file %v is missing, removing meta file %v",
+        YT_LOG_WARNING("Chunk data file %v is missing, removing meta file %v",
             dataFileName,
             metaFileName);
     }
@@ -1210,7 +1210,7 @@ std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(const TChunkId& chun
             break;
 
         default:
-            LOG_WARNING("Invalid type %Qlv of chunk %v, skipped",
+            YT_LOG_WARNING("Invalid type %Qlv of chunk %v, skipped",
                 chunkType,
                 chunkId);
             break;

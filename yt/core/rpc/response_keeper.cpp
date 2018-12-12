@@ -66,7 +66,7 @@ public:
             : 0;
         Started_ = true;
 
-        LOG_INFO("Response keeper started (WarmupTime: %v, ExpirationTime: %v)",
+        YT_LOG_INFO("Response keeper started (WarmupTime: %v, ExpirationTime: %v)",
             Config_->WarmupTime,
             Config_->ExpirationTime);
     }
@@ -86,7 +86,7 @@ public:
         FinishedResponseCount_ = 0;
         Started_ = false;
 
-        LOG_INFO("Response keeper stopped");
+        YT_LOG_INFO("Response keeper stopped");
     }
 
     TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id, bool isRetry)
@@ -104,7 +104,7 @@ public:
                 THROW_ERROR_EXCEPTION("Duplicate request is not marked as \"retry\"")
                     << TErrorAttribute("mutation_id", id);
             }
-            LOG_DEBUG("Replying with pending response (MutationId: %v)", id);
+            YT_LOG_DEBUG("Replying with pending response (MutationId: %v)", id);
             return pendingIt->second;
         }
 
@@ -114,7 +114,7 @@ public:
                 THROW_ERROR_EXCEPTION("Duplicate request is not marked as \"retry\"")
                     << TErrorAttribute("mutation_id", id);
             }
-            LOG_DEBUG("Replying with finished response (MutationId: %v)", id);
+            YT_LOG_DEBUG("Replying with finished response (MutationId: %v)", id);
             return MakeFuture(finishedIt->second);
         }
 
@@ -126,7 +126,7 @@ public:
 
         YCHECK(PendingResponses_.insert(std::make_pair(id, NewPromise<TSharedRefArray>())).second);
 
-        LOG_TRACE("Response will be kept (MutationId: %v)", id);
+        YT_LOG_TRACE("Response will be kept (MutationId: %v)", id);
 
         return TFuture<TSharedRefArray>();
     }
@@ -161,7 +161,7 @@ public:
             promise.Set(response);
         }
 
-        LOG_TRACE("Response kept (MutationId: %v)", id);
+        YT_LOG_TRACE("Response kept (MutationId: %v)", id);
     }
 
     void CancelRequest(const TMutationId& id, const TError& error)
@@ -181,7 +181,7 @@ public:
         it->second.Set(error);
         PendingResponses_.erase(it);
 
-        LOG_DEBUG(error, "Pending request canceled (MutationId: %v)", id);
+        YT_LOG_DEBUG(error, "Pending request canceled (MutationId: %v)", id);
     }
 
     bool TryReplyFrom(IServiceContextPtr context)

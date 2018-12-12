@@ -54,7 +54,7 @@ void TCpuMonitor::DoCheck()
 
     auto decision = TryMakeDecision();
     if (decision) {
-        LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)",
+        YT_LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)",
             SoftLimit_,
             *decision);
         SoftLimit_ = *decision;
@@ -72,7 +72,7 @@ bool TCpuMonitor::TryUpdateSmoothedValue()
     try {
         totalCpu = JobProxy_->GetSpentCpuTime();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Failed to get CPU statistics");
+        YT_LOG_ERROR(ex, "Failed to get CPU statistics");
         return false;
     }
 
@@ -85,7 +85,7 @@ bool TCpuMonitor::TryUpdateSmoothedValue()
         auto newSmoothedUsage = SmoothedUsage_
             ? Config_->SmoothingFactor * cpuUsage + (1 - Config_->SmoothingFactor) * (*SmoothedUsage_)
             : HardLimit_;
-        LOG_DEBUG("Smoothed CPU usage updated (OldValue: %v, NewValue: %v)",
+        YT_LOG_DEBUG("Smoothed CPU usage updated (OldValue: %v, NewValue: %v)",
             SmoothedUsage_,
             newSmoothedUsage);
         SmoothedUsage_ = newSmoothedUsage;

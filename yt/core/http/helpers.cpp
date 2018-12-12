@@ -130,7 +130,7 @@ public:
         } catch(const std::exception& ex) {
             TError error(ex);
 
-            LOG_DEBUG(error, "Error handling HTTP request (Path: %v)",
+            YT_LOG_DEBUG(error, "Error handling HTTP request (Path: %v)",
                 req->GetUrl().Path);
 
             FillYTErrorHeaders(rsp, error);

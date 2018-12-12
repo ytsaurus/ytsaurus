@@ -128,7 +128,7 @@ public:
 
     virtual void UpdateInputDataWeight(i64 inputDataWeight) override
     {
-        LOG_DEBUG("Job size constraints input data weight updated (OldInputDataWeight: %v, NewInputDataWeight: %v)",
+        YT_LOG_DEBUG("Job size constraints input data weight updated (OldInputDataWeight: %v, NewInputDataWeight: %v)",
             InputDataWeight_,
             inputDataWeight);
         InputDataWeight_ = inputDataWeight;
@@ -189,7 +189,7 @@ private:
         i64 minSamplingJobDataWeightForSliceCountFit = InitialInputDataWeight_ / maxJobCountForSliceCountFit;
         SamplingDataWeightPerJob_ = std::max<i64>({1, minSamplingJobDataWeightForIOEfficiency, minSamplingJobDataWeightForSliceCountFit});
         SamplingPrimaryDataWeightPerJob_ = std::max<i64>(1, minSamplingJobPrimaryDataWeightForIOEfficiency);
-        LOG_INFO(
+        YT_LOG_INFO(
             "Sampling parameters calculated (InitialInputDataWeight: %v, SamplingRate: %v, InputDataWeight: %v, "
             "PrimaryInputDataWeight: %v, MinSamplingJobDataWeightForIOEfficiency: %v, "
             "MinSamplingJobPrimaryDataWeightForIOEfficiency: %v, MaxJobCountForSliceCountFit: %v, "

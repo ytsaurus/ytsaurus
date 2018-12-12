@@ -310,7 +310,7 @@ protected:
 
         InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
-        LOG_INFO(
+        YT_LOG_INFO(
             "Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
@@ -361,7 +361,7 @@ protected:
     void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
+            YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
@@ -390,7 +390,7 @@ protected:
                 }
             }
 
-            LOG_INFO("Processed inputs (PrimaryUnversionedSlices: %v, PrimaryVersionedSlices: %v, ForeignSlices: %v)",
+            YT_LOG_INFO("Processed inputs (PrimaryUnversionedSlices: %v, PrimaryVersionedSlices: %v, ForeignSlices: %v)",
                 primaryUnversionedSlices,
                 primaryVersionedSlices,
                 foreignSlices);
@@ -679,10 +679,10 @@ public:
     virtual void AdjustKeyColumns() override
     {
         const auto& specKeyColumns = Spec_->MergeBy;
-        LOG_INFO("Spec key columns are %v", specKeyColumns);
+        YT_LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         PrimaryKeyColumns_ = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are %v", PrimaryKeyColumns_);
+        YT_LOG_INFO("Adjusted key columns are %v", PrimaryKeyColumns_);
     }
 
     virtual bool IsKeyGuaranteeEnabled() override
@@ -1031,7 +1031,7 @@ public:
     virtual void AdjustKeyColumns() override
     {
         auto specKeyColumns = Spec_->SortBy.empty() ? Spec_->ReduceBy : Spec_->SortBy;
-        LOG_INFO("Spec key columns are %v", specKeyColumns);
+        YT_LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         SortKeyColumns_ = CheckInputTablesSorted(specKeyColumns, &TInputTable::IsPrimary);
 
@@ -1045,7 +1045,7 @@ public:
         PrimaryKeyColumns_ = Spec_->ReduceBy;
         ForeignKeyColumns_ = Spec_->JoinBy;
         if (!ForeignKeyColumns_.empty()) {
-            LOG_INFO("Foreign key columns are %v", ForeignKeyColumns_);
+            YT_LOG_INFO("Foreign key columns are %v", ForeignKeyColumns_);
 
             CheckInputTablesSorted(ForeignKeyColumns_, &TInputTable::IsForeign);
 
@@ -1204,7 +1204,7 @@ public:
 
     virtual void AdjustKeyColumns() override
     {
-        LOG_INFO("Spec key columns are %v", Spec_->JoinBy);
+        YT_LOG_INFO("Spec key columns are %v", Spec_->JoinBy);
         SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_ = CheckInputTablesSorted(Spec_->JoinBy);
     }
 
@@ -1323,7 +1323,7 @@ public:
 
     virtual void AdjustKeyColumns() override
     {
-        LOG_INFO("Adjusting key columns (EnableKeyGuarantee: %v, ReduceBy: %v, SortBy: %v, JoinBy: %v)",
+        YT_LOG_INFO("Adjusting key columns (EnableKeyGuarantee: %v, ReduceBy: %v, SortBy: %v, JoinBy: %v)",
             *Spec_->EnableKeyGuarantee,
             Spec_->ReduceBy,
             Spec_->SortBy,
@@ -1374,7 +1374,7 @@ public:
                 return table->IsPrimary();
             });
         }
-        LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
+        YT_LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
             PrimaryKeyColumns_,
             ForeignKeyColumns_,
             SortKeyColumns_);

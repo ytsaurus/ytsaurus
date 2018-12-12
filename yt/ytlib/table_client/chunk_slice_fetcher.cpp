@@ -69,7 +69,7 @@ public:
 
     virtual TFuture<void> Fetch() override
     {
-        LOG_DEBUG("Started fetching chunk slices (ChunkCount: %v)",
+        YT_LOG_DEBUG("Started fetching chunk slices (ChunkCount: %v)",
             Chunks_.size());
         return TFetcherBase::Fetch();
     }
@@ -178,7 +178,7 @@ private:
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetChunkSlicesPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            LOG_INFO("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
+            YT_LOG_INFO("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
                 NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
                 nodeId);
 
@@ -219,7 +219,7 @@ private:
                 continue;
             }
 
-            LOG_TRACE("Received %v chunk slices for chunk #%v",
+            YT_LOG_TRACE("Received %v chunk slices for chunk #%v",
                 slices.chunk_slices_size(),
                 index);
 

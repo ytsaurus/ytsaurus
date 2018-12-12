@@ -106,7 +106,7 @@ private:
 
     void Update()
     {
-        LOG_DEBUG("Started updating monitoring state");
+        YT_LOG_DEBUG("Started updating monitoring state");
         PROFILE_TIMING ("/update_time") {
             auto newRoot = GetEphemeralNodeFactory()->CreateMap();
             for (const auto& pair : PathToProducer_) {
@@ -119,7 +119,7 @@ private:
                 std::swap(Root_, newRoot);
             }
         }
-        LOG_DEBUG("Finished updating monitoring state");
+        YT_LOG_DEBUG("Finished updating monitoring state");
     }
 
     IMapNodePtr GetRoot()

@@ -93,7 +93,7 @@ TFileChunkWriter::TFileChunkWriter(
 
 bool TFileChunkWriter::Write(const TRef& data)
 {
-    LOG_DEBUG("Writing data (Size: %v)", data.Size());
+    YT_LOG_DEBUG("Writing data (Size: %v)", data.Size());
 
     if (data.Empty()) {
         return true;
@@ -130,7 +130,7 @@ TFuture<void> TFileChunkWriter::GetReadyEvent()
 void TFileChunkWriter::FlushBlock()
 {
     YCHECK(!Buffer_.IsEmpty());
-    LOG_DEBUG("Flushing block (BlockSize: %v)", Buffer_.Size());
+    YT_LOG_DEBUG("Flushing block (BlockSize: %v)", Buffer_.Size());
 
     auto* block = BlocksExt_.add_blocks();
     block->set_size(Buffer_.Size());

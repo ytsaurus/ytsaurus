@@ -62,7 +62,7 @@ void TColumnarStatisticsFetcher::OnResponse(
     const TDataNodeServiceProxy::TErrorOrRspGetColumnarStatisticsPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        LOG_INFO(rspOrError, "Failed to get columnar statistics from node (Address: %v, NodeId: %v)",
+        YT_LOG_INFO(rspOrError, "Failed to get columnar statistics from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
         OnNodeFailed(nodeId, chunkIndexes);

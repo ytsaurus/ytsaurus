@@ -1027,7 +1027,7 @@ void TQueryProfiler::Profile(
     if (useMultijoin) {
         std::vector<size_t> joinGroups = GetJoinGroups(query->JoinClauses, schema);
         if (!joinGroups.empty()) {
-            LOG_DEBUG("Join groups: [%v]", JoinToString(joinGroups));
+            YT_LOG_DEBUG("Join groups: [%v]", JoinToString(joinGroups));
         }
 
         size_t joinIndex = 0;

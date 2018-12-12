@@ -69,7 +69,7 @@ public:
         }
 
         // Enqueue request to be executed later.
-        LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
+        YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
         TRequest request{count, NewPromise<void>()};
         Requests_.push(request);
         QueueTotalCount_ += count;
@@ -234,7 +234,7 @@ private:
 
         while (!Requests_.empty() && (!Limit_ || Available_ > 0)) {
             auto& request = Requests_.front();
-            LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
+            YT_LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
             if (request.Promise.IsCanceled()) {
                 canceledList.push_back(std::move(request.Promise));
             } else {

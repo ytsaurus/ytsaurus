@@ -55,7 +55,7 @@ std::set<std::string> TExternalLoaderConfigRepository::list(
         return {configs.begin(), configs.end()};
     } catch (...) {
         // Workaround to prevent crash of background reloader thread in DB::ExternalReloader
-        CH_LOG_WARNING(
+        LOG_WARNING(
            Logger,
            "Error occurred while listing repository with address " << ConfigRepository->GetAddress() <<
            ": " << CurrentExceptionText());

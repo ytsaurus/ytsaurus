@@ -99,7 +99,7 @@ public:
         auto cookie = BeginInsert(MakeReaderCacheKey(chunk.Get()));
         if (cookie.IsActive()) {
             auto fileName = chunk->GetFileName();
-            LOG_TRACE("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
+            YT_LOG_TRACE("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
                 location->GetId(),
                 chunkId);
 
@@ -124,7 +124,7 @@ public:
                 }
             }
 
-            LOG_TRACE("Finished opening blob chunk reader (LocationId: %v, ChunkId: %v)",
+            YT_LOG_TRACE("Finished opening blob chunk reader (LocationId: %v, ChunkId: %v)",
                 chunk->GetLocation()->GetId(),
                 chunkId);
         }

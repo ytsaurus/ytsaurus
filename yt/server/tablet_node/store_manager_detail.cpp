@@ -138,7 +138,7 @@ void TStoreManagerBase::ScheduleRotation()
 
     RotationScheduled_ = true;
 
-    LOG_INFO("Tablet store rotation scheduled");
+    YT_LOG_INFO("Tablet store rotation scheduled");
 }
 
 void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
@@ -156,7 +156,7 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
             auto chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
             if (!TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
                 Tablet_->PreloadStoreIds().push_back(store->GetId());
-                LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
             }
         }
     }
@@ -261,7 +261,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     TInMemoryChunkDataPtr chunkData)
 {
     if (!chunkData) {
-        LOG_WARNING_UNLESS(
+        YT_LOG_WARNING_UNLESS(
             IsRecovery(),
             "Intercepted chunk data for in-memory store is missing (StoreId: %v)",
             store->GetId());
@@ -269,7 +269,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     }
 
     if(!chunkData->Finalized) {
-        LOG_WARNING_UNLESS(
+        YT_LOG_WARNING_UNLESS(
             IsRecovery(),
             "Intercepted chunk data for in-memory store is not finalized (StoreId: %v)",
             store->GetId());
@@ -278,7 +278,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
 
     auto mode = Tablet_->GetConfig()->InMemoryMode;
     if (mode != chunkData->InMemoryMode) {
-        LOG_WARNING_UNLESS(
+        YT_LOG_WARNING_UNLESS(
             IsRecovery(),
             "Intercepted chunk data for in-memory store has invalid mode (StoreId: %v, ExpectedMode: %v, ActualMode: %v)",
             store->GetId(),
@@ -290,7 +290,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     store->Preload(chunkData);
     store->SetPreloadState(EStorePreloadState::Complete);
 
-    LOG_INFO_UNLESS(IsRecovery(), "In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
+    YT_LOG_INFO_UNLESS(IsRecovery(), "In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
         store->GetId(),
         mode);
 
@@ -299,7 +299,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
 
 IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
 {
-    LOG_INFO("Peeking store for preload");
+    YT_LOG_INFO("Peeking store for preload");
 
     for (size_t size = Tablet_->PreloadStoreIds().size(); size != 0; --size) {
         auto id = Tablet_->PreloadStoreIds().front();
@@ -308,16 +308,16 @@ IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
             auto chunkStore = store->AsChunk();
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
                 if (chunkStore->IsPreloadAllowed()) {
-                    LOG_INFO("Peeked store for preload (StoreId: %v)", chunkStore->GetId());
+                    YT_LOG_INFO("Peeked store for preload (StoreId: %v)", chunkStore->GetId());
                     return chunkStore;
                 } else {
-                    LOG_INFO("Preload not allowed (StoreId: %v)", chunkStore->GetId());
+                    YT_LOG_INFO("Preload not allowed (StoreId: %v)", chunkStore->GetId());
                 }
                 Tablet_->PreloadStoreIds().pop_front();
                 Tablet_->PreloadStoreIds().push_back(id);
                 continue;
             } else {
-                LOG_INFO("Preload not scheduled (StoreId: %v)", chunkStore->GetId());
+                YT_LOG_INFO("Preload not scheduled (StoreId: %v)", chunkStore->GetId());
             }
         }
         Tablet_->PreloadStoreIds().pop_front();
@@ -414,17 +414,17 @@ void TStoreManagerBase::Rotate(bool createNewStore)
     YCHECK(activeStore);
     activeStore->SetStoreState(EStoreState::PassiveDynamic);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, StoreMemoryUsage: %v)",
+    YT_LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, StoreMemoryUsage: %v)",
         activeStore->GetId(),
         activeStore->GetMemoryUsage());
 
     if (activeStore->GetLockCount() > 0) {
-        LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
             activeStore->GetId(),
             activeStore->GetLockCount());
         YCHECK(LockedStores_.insert(IStorePtr(activeStore)).second);
     } else {
-        LOG_INFO_UNLESS(IsRecovery(), "Active store is not locked and will be dropped (StoreId: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is not locked and will be dropped (StoreId: %v)",
             activeStore->GetId(),
             activeStore->GetLockCount());
     }
@@ -438,7 +438,7 @@ void TStoreManagerBase::Rotate(bool createNewStore)
         Tablet_->SetActiveStore(nullptr);
     }
 
-    LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated");
+    YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated");
 }
 
 bool TStoreManagerBase::IsStoreLocked(IStorePtr store) const
@@ -580,7 +580,7 @@ void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
         return;
     }
 
-    LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
+    YT_LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
         store->GetId());
     YCHECK(LockedStores_.erase(store) == 1);
 }
@@ -598,7 +598,7 @@ void TStoreManagerBase::UpdateInMemoryMode()
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
                 chunkStore->UpdatePreloadAttempt(false);
                 Tablet_->PreloadStoreIds().push_back(store->GetId());
-                LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
             }
         }
     }

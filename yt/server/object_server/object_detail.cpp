@@ -179,7 +179,7 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
         objectManager->ValidatePrerequisites(prerequisitesExt);
     }
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, RequestId: %v, User: %v)",
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, RequestId: %v, User: %v)",
         context->GetService(),
         context->GetMethod(),
         ypathExt.path(),

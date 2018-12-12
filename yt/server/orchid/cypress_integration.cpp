@@ -87,7 +87,7 @@ public:
         outerRequest->SetMultiplexingBand(EMultiplexingBand::Heavy);
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
-        LOG_DEBUG("Sending request to remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
+        YT_LOG_DEBUG("Sending request to remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
             GetDefaultAddress(manifest->RemoteAddresses),
             path,
             method,
@@ -140,7 +140,7 @@ private:
         const TOrchidServiceProxy::TErrorOrRspExecutePtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
-            LOG_DEBUG("Orchid request succeeded");
+            YT_LOG_DEBUG("Orchid request succeeded");
             const auto& rsp = rspOrError.Value();
             auto innerResponseMessage = TSharedRefArray(rsp->Attachments());
             context->Reply(innerResponseMessage);

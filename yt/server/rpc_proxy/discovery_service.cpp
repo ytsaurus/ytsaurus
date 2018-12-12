@@ -205,7 +205,7 @@ private:
             "Error creating proxy node %Qv",
             ProxyPath_);
 
-        LOG_INFO("Proxy node created (Path: %v)", ProxyPath_);
+        YT_LOG_INFO("Proxy node created (Path: %v)", ProxyPath_);
     }
 
     bool IsAvailable() const
@@ -223,10 +223,10 @@ private:
             } catch (const std::exception& ex) {
                 backoffDuration = Min(backoffDuration + RandomDuration(Max(backoffDuration, Config_->LivenessUpdatePeriod)),
                     Config_->BackoffPeriod);
-                LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", backoffDuration);
+                YT_LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", backoffDuration);
                 if (!IsAvailable() && Coordinator_->SetAvailableState(false)) {
                     Initialized_ = false;
-                    LOG_WARNING("Connectivity lost");
+                    YT_LOG_WARNING("Connectivity lost");
                 }
                 WaitFor(TDelayedExecutor::MakeDelayed(backoffDuration))
                     .ThrowOnError();
@@ -261,7 +261,7 @@ private:
 
         LastSuccessTimestamp_ = Now();
         if (Coordinator_->SetAvailableState(true)) {
-            LOG_INFO("Connectivity restored");
+            YT_LOG_INFO("Connectivity restored");
         }
     }
 
@@ -314,7 +314,7 @@ private:
                 if (banned) {
                     Coordinator_->SetBanMessage(attributes->Get(BanMessageAttributeName, TString()));
                 }
-                LOG_INFO("Proxy has been %v (Path: %v)", banned ? "banned" : "unbanned", ProxyPath_);
+                YT_LOG_INFO("Proxy has been %v (Path: %v)", banned ? "banned" : "unbanned", ProxyPath_);
             }
         }
         {
@@ -331,7 +331,7 @@ private:
                     proxies.push_back({child.first, role});
                 }
             }
-            LOG_DEBUG("Updated proxy list (ProxyCount: %v)", proxies.size());
+            YT_LOG_DEBUG("Updated proxy list (ProxyCount: %v)", proxies.size());
 
             {
                 auto guard = Guard(ProxySpinLock_);

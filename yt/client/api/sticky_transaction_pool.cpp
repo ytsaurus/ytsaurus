@@ -35,7 +35,7 @@ public:
         transaction->SubscribeAborted(
             BIND(&TStickyTransactionPool::OnStickyTransactionFinished, MakeWeak(this), transactionId));
 
-        LOG_DEBUG("Sticky transaction registered (TransactionId: %v)",
+        YT_LOG_DEBUG("Sticky transaction registered (TransactionId: %v)",
             transactionId);
 
         return transaction;
@@ -60,7 +60,7 @@ public:
             lease = entry.Lease;
         }
         NConcurrency::TLeaseManager::RenewLease(lease);
-        LOG_DEBUG("Sticky transaction lease renewed (TransactionId: %v)",
+        YT_LOG_DEBUG("Sticky transaction lease renewed (TransactionId: %v)",
             transactionId);
         return transaction;
     }
@@ -90,7 +90,7 @@ private:
             IdToStickyTransactionEntry_.erase(it);
         }
 
-        LOG_DEBUG("Sticky transaction lease expired (TransactionId: %v)",
+        YT_LOG_DEBUG("Sticky transaction lease expired (TransactionId: %v)",
             transactionId);
 
         transaction->Abort();
@@ -108,7 +108,7 @@ private:
             IdToStickyTransactionEntry_.erase(it);
         }
 
-        LOG_DEBUG("Sticky transaction unregistered (TransactionId: %v)",
+        YT_LOG_DEBUG("Sticky transaction unregistered (TransactionId: %v)",
             transactionId);
 
         NConcurrency::TLeaseManager::CloseLease(lease);

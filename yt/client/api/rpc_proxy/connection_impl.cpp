@@ -171,7 +171,7 @@ void TConnection::ClearMetadataCaches()
 
 void TConnection::Terminate()
 {
-    LOG_DEBUG("Terminating connection");
+    YT_LOG_DEBUG("Terminating connection");
     ChannelPool_->Terminate();
     UpdateProxyListExecutor_->Stop();
 }
@@ -222,11 +222,11 @@ void TConnection::OnProxyListUpdate()
         try {
             std::vector<TString> proxies;
             if (Config_->ClusterUrl) {
-                LOG_DEBUG("Updating proxy list from HTTP");
+                YT_LOG_DEBUG("Updating proxy list from HTTP");
                 YCHECK(HttpCredentials_);
                 proxies = DiscoverProxiesByHttp(*HttpCredentials_);
             } else {
-                LOG_DEBUG("Updating proxy list from RPC");
+                YT_LOG_DEBUG("Updating proxy list from RPC");
                 if (!DiscoveryChannel_) {
                     auto address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
                     DiscoveryChannel_ = ChannelFactory_->CreateChannel(address);
@@ -252,7 +252,7 @@ void TConnection::OnProxyListUpdate()
                 ChannelPool_->SetAddressList(TError(ex));
             }
 
-            LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
+            YT_LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
             TDelayedExecutor::WaitForDuration(backoff);
 
             if (backoff < Config_->MaxProxyListRetryPeriod) {

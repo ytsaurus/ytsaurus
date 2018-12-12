@@ -405,7 +405,7 @@ void THttpInput::FinishMessage()
 
     auto stats = Connection_->GetReadStatistics();
     if (MessageType_ == EMessageType::Request) {
-        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %v, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
+        YT_LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %v, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
             RequestId_,
             GetReadByteCount(),
             stats.IdleDuration - StartStatistics_.IdleDuration,
@@ -466,7 +466,7 @@ void THttpInput::MaybeLogSlowProgress()
 {
     auto now = TInstant::Now();
     if (LastProgressLogTime_ + Config_->BodyReadIdleTimeout < now) {
-        LOG_DEBUG("Reading HTTP message (RequestId: %v, BytesIn: %v)",
+        YT_LOG_DEBUG("Reading HTTP message (RequestId: %v, BytesIn: %v)",
             RequestId_,
             GetReadByteCount());
         LastProgressLogTime_ = now;
@@ -753,7 +753,7 @@ void THttpOutput::OnWriteFinish()
     auto now = TInstant::Now();
     auto stats = Connection_->GetWriteStatistics();
     if (LastProgressLogTime_ + Config_->WriteIdleTimeout < now) {
-        LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %v, IdleDuration: %v, BusyDuration: %v)",
+        YT_LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %v, IdleDuration: %v, BusyDuration: %v)",
             RequestId_,
             GetWriteByteCount(),
             stats.IdleDuration - StartStatistics_.IdleDuration,
@@ -764,13 +764,13 @@ void THttpOutput::OnWriteFinish()
     if (MessageType_ == EMessageType::Response) {
         if (HeadersFlushed_ && !HeadersLogged_) {
             HeadersLogged_ = true;
-            LOG_DEBUG("Finished writing HTTP headers (RequestId: %v, StatusCode: %v)",
+            YT_LOG_DEBUG("Finished writing HTTP headers (RequestId: %v, StatusCode: %v)",
                 RequestId_,
                 Status_);
         }
 
         if (MessageFinished_) {
-            LOG_DEBUG("Finished writing HTTP response (RequestId: %v, BytesOut: %d)",
+            YT_LOG_DEBUG("Finished writing HTTP response (RequestId: %v, BytesOut: %d)",
                 RequestId_,
                 GetWriteByteCount());
         }

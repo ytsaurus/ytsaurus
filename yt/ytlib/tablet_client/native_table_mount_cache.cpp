@@ -131,7 +131,7 @@ private:
                 auto wrappedError = TError("Error getting mount info for %v",
                     Key_.Path)
                     << mountInfoOrError;
-                LOG_WARNING(wrappedError);
+                YT_LOG_WARNING(wrappedError);
                 THROW_ERROR wrappedError;
             }
 
@@ -152,7 +152,7 @@ private:
 
         TFuture<void> RequestTableAttributes(std::optional<i64> refreshPrimaryRevision)
         {
-            LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
+            YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
                 refreshPrimaryRevision);
 
             auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
@@ -210,7 +210,7 @@ private:
 
         TFuture<TTableMountInfoPtr> RequestMountInfo(std::optional<i64> refreshSecondaryRevision)
         {
-            LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
+            YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
                 TableId_,
                 CellTag_,
                 refreshSecondaryRevision);
@@ -336,7 +336,7 @@ private:
                 tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
             }
 
-            LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
+            YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
                 tableInfo->TableId,
                 tableInfo->Tablets.size(),
                 tableInfo->Dynamic,

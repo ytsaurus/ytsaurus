@@ -154,7 +154,7 @@ TClusterNodeTicket TClusterNodeTracker::EnterCluster(const std::string& id, cons
     auto result = Directory->CreateAndKeepEphemeralNode(TString(id), attributes);
 
     // Synchronously update cluster directory.
-    CH_LOG_DEBUG(Logger, "Forcing cluster directory update");
+    LOG_DEBUG(Logger, "Forcing cluster directory update");
     OnUpdate(static_cast<NNative::TNodeRevision>(-2));
     return result;
 }
@@ -184,14 +184,14 @@ TClusterNodes TClusterNodeTracker::GetAvailableNodes()
 
 void TClusterNodeTracker::OnUpdate(NNative::TNodeRevision newRevision)
 {
-    CH_LOG_DEBUG(Logger, "Cluster directory updated: new revision = " << newRevision);
+    LOG_DEBUG(Logger, "Cluster directory updated: new revision = " << newRevision);
 
     NNative::TDirectoryListing listing;
 
     try {
         listing = Directory->ListNodes();
     } catch (...) {
-        CH_LOG_WARNING(Logger, "Failed to list cluster directory: " << CurrentExceptionText());
+        LOG_WARNING(Logger, "Failed to list cluster directory: " << CurrentExceptionText());
         Directory->SubscribeToUpdate(NonexistingNodeRevision, EventHandler);
         return;
     }
@@ -200,7 +200,7 @@ void TClusterNodeTracker::OnUpdate(NNative::TNodeRevision newRevision)
     try {
         nodeNames = ProcessNodeList(listing);
     } catch (...) {
-        CH_LOG_WARNING(Logger, "Failed to process cluster nodes list: " << CurrentExceptionText());
+        LOG_WARNING(Logger, "Failed to process cluster nodes list: " << CurrentExceptionText());
     }
 
     UpdateClusterNodes(nodeNames);
@@ -210,13 +210,13 @@ void TClusterNodeTracker::OnUpdate(NNative::TNodeRevision newRevision)
 
 void TClusterNodeTracker::OnRemove()
 {
-    CH_LOG_WARNING(Logger, "Cluster directory removed");
+    LOG_WARNING(Logger, "Cluster directory removed");
     Directory->SubscribeToUpdate(NonexistingNodeRevision, EventHandler);
 }
 
 void TClusterNodeTracker::OnError(const TString& errorMessage)
 {
-    CH_LOG_WARNING(Logger, "Error occurred during cluster directory polling: " << ToStdString(errorMessage));
+    LOG_WARNING(Logger, "Error occurred during cluster directory polling: " << ToStdString(errorMessage));
     Directory->SubscribeToUpdate(NonexistingNodeRevision, EventHandler);
 }
 
@@ -227,7 +227,7 @@ TClusterDirectoryEventHandlerPtr TClusterNodeTracker::CreateEventHandler()
 
 TClusterNodeNames TClusterNodeTracker::ProcessNodeList(NNative::TDirectoryListing listing)
 {
-    CH_LOG_INFO(
+    LOG_INFO(
         Logger,
         "Discovered " << listing.Children.size() <<
         " node(s) in cluster directory at revision " << listing.Revision);
@@ -237,7 +237,7 @@ TClusterNodeNames TClusterNodeTracker::ProcessNodeList(NNative::TDirectoryListin
     for (const auto& node : listing.Children) {
         auto name = NEphemeralNodes::ToClusterNodeName(node.Attributes);
 
-        CH_LOG_DEBUG(
+        LOG_DEBUG(
             Logger,
             "Discovered cluster node: " << name.ToString() <<
             ", ephemeral node name = " << ToStdString(node.Name));
@@ -264,7 +264,7 @@ void TClusterNodeTracker::UpdateClusterNodes(const TClusterNodeNames& newNodeNam
             try {
                 newNode = CreateClusterNode(nodeName, Settings_, ClickHousePort_);
             } catch (...) {
-                CH_LOG_WARNING(Logger, "Failed to create cluster node " << nodeName.ToString());
+                LOG_WARNING(Logger, "Failed to create cluster node " << nodeName.ToString());
                 // TODO: reschedule
                 continue;
             }

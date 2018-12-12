@@ -98,7 +98,7 @@ TEST(TYsonParserTest, ContextInExceptions_TableConsumer)
         parser.Finish();
         GTEST_FAIL() << "Expected exception to be thrown";
     } catch (const std::exception& ex) {
-        EXPECT_THAT(ex.what(), testing::HasSubstr("LOG_INFO something happened"));
+        EXPECT_THAT(ex.what(), testing::HasSubstr("YT_LOG_INFO something happened"));
     }
 }
 

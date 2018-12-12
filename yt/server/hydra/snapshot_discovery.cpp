@@ -46,10 +46,10 @@ public:
     void DoRun()
     {
         if (ExactId_) {
-            LOG_INFO("Running snapshot discovery (SnapshotId: %v)",
+            YT_LOG_INFO("Running snapshot discovery (SnapshotId: %v)",
                 MaxSnapshotId_);
         } else {
-            LOG_INFO("Running snapshot discovery (MaxSnapshotId: %v)",
+            YT_LOG_INFO("Running snapshot discovery (MaxSnapshotId: %v)",
                 MaxSnapshotId_);
         }
 
@@ -60,7 +60,7 @@ public:
                 continue;
             }
 
-            LOG_DEBUG("Requesting snapshot info (PeerId: %v)",
+            YT_LOG_DEBUG("Requesting snapshot info (PeerId: %v)",
                 peerId);
 
             TSnapshotServiceProxy proxy(channel);
@@ -96,7 +96,7 @@ private:
         const TSnapshotServiceProxy::TErrorOrRspLookupSnapshotPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error requesting snapshot info (PeerId: %v)",
+            YT_LOG_WARNING(rspOrError, "Error requesting snapshot info (PeerId: %v)",
                 peerId);
             return;
         }
@@ -104,7 +104,7 @@ private:
         const auto& rsp = rspOrError.Value();
         int snapshotId = rsp->snapshot_id();
 
-        LOG_DEBUG("Snapshot info received (PeerId: %v, SnapshotId: %v)",
+        YT_LOG_DEBUG("Snapshot info received (PeerId: %v, SnapshotId: %v)",
             peerId,
             snapshotId);
 
@@ -128,9 +128,9 @@ private:
         }
 
         if (Params_.SnapshotId == InvalidSegmentId) {
-            LOG_INFO("Snapshot discovery finished; no feasible snapshot is found");
+            YT_LOG_INFO("Snapshot discovery finished; no feasible snapshot is found");
         } else {
-            LOG_INFO("Snapshot discovery succeeded (PeerId: %v, SnapshotId: %v)",
+            YT_LOG_INFO("Snapshot discovery succeeded (PeerId: %v, SnapshotId: %v)",
                 Params_.PeerId,
                 Params_.SnapshotId);
         }

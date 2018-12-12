@@ -110,7 +110,7 @@ public:
 
         if (rv < 0) {
             if (errno != EAGAIN) {
-                LOG_ERROR(
+                YT_LOG_ERROR(
                     TError::FromSystem(errno),
                     "Unable to poll inotify() descriptor %v",
                     FD_);
@@ -120,17 +120,17 @@ public:
             struct inotify_event* event = (struct inotify_event*)buffer;
 
             if (event->mask & IN_ATTRIB) {
-                LOG_TRACE(
+                YT_LOG_TRACE(
                     "Watch %v has triggered metadata change (IN_ATTRIB)",
                     event->wd);
             }
             if (event->mask & IN_DELETE_SELF) {
-                LOG_TRACE(
+                YT_LOG_TRACE(
                     "Watch %v has triggered a deletion (IN_DELETE_SELF)",
                     event->wd);
             }
             if (event->mask & IN_MOVE_SELF) {
-                LOG_TRACE(
+                YT_LOG_TRACE(
                     "Watch %v has triggered a movement (IN_MOVE_SELF)",
                     event->wd);
             }
@@ -195,11 +195,11 @@ private:
             IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF);
 
         if (WD_ < 0) {
-            LOG_ERROR(TError::FromSystem(errno), "Error registering watch for %v",
+            YT_LOG_ERROR(TError::FromSystem(errno), "Error registering watch for %v",
                 Path_);
             WD_ = -1;
         } else if (WD_ > 0) {
-            LOG_TRACE("Registered watch %v for %v",
+            YT_LOG_TRACE("Registered watch %v for %v",
                 WD_,
                 Path_);
         } else {
@@ -214,7 +214,7 @@ private:
     {
 #ifdef _linux_
         if (WD_ > 0) {
-            LOG_TRACE("Unregistering watch %v for %v",
+            YT_LOG_TRACE("Unregistering watch %v for %v",
                 WD_,
                 Path_);
             inotify_rm_watch(FD_, WD_);
@@ -457,13 +457,13 @@ public:
         if (Suspended_) {
             if (backlogEvents < LowBacklogWatermark_) {
                 Suspended_ = false;
-                LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
+                YT_LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
                     LowBacklogWatermark_);
             }
         } else {
             if (backlogEvents >= HighBacklogWatermark_) {
                 Suspended_ = true;
-                LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
+                YT_LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
                     HighBacklogWatermark_);
             }
         }

@@ -128,7 +128,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         if (JobPhase_ != EJobPhase::Created) {
-            LOG_DEBUG("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
+            YT_LOG_DEBUG("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
                 JobState_,
                 JobPhase_);
             return;
@@ -138,7 +138,7 @@ public:
             SetJobState(EJobState::Running);
             PrepareTime_ = TInstant::Now();
 
-            LOG_INFO("Starting job");
+            YT_LOG_INFO("Starting job");
 
             InitializeArtifacts();
 
@@ -175,7 +175,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        LOG_INFO(error, "Job abort requested (Phase: %v)", JobPhase_);
+        YT_LOG_INFO(error, "Job abort requested (Phase: %v)", JobPhase_);
 
         switch (JobPhase_) {
             case EJobPhase::Created:
@@ -204,7 +204,7 @@ public:
                 break;
 
             default:
-                LOG_DEBUG("Cannot abort job (JobState: %v, JobPhase: %v)", JobState_, JobPhase_);
+                YT_LOG_DEBUG("Cannot abort job (JobState: %v, JobPhase: %v)", JobState_, JobPhase_);
                 break;
         }
     }
@@ -214,7 +214,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         GuardedAction([&] {
-            LOG_INFO("Job prepared");
+            YT_LOG_INFO("Job prepared");
 
             ValidateJobPhase(EJobPhase::PreparingProxy);
             SetJobPhase(EJobPhase::Running);
@@ -808,7 +808,7 @@ private:
                 NExecAgent::EErrorCode::NodeDirectoryPreparationFailed,
                 "Failed to prepare job node directory");
 
-            LOG_INFO("Node directory prepared");
+            YT_LOG_INFO("Node directory prepared");
 
             SetJobPhase(EJobPhase::DownloadingArtifacts);
             auto artifactsFuture = DownloadArtifacts();
@@ -827,7 +827,7 @@ private:
             ValidateJobPhase(EJobPhase::DownloadingArtifacts);
             THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
 
-            LOG_INFO("Artifacts downloaded");
+            YT_LOG_INFO("Artifacts downloaded");
 
             const auto& chunks = errorOrArtifacts.Value();
 
@@ -855,7 +855,7 @@ private:
             ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
 
-            LOG_INFO("Slot directories prepared");
+            YT_LOG_INFO("Slot directories prepared");
 
             SetJobPhase(EJobPhase::PreparingArtifacts);
             BIND(&TJob::PrepareArtifacts, MakeWeak(this))
@@ -876,12 +876,12 @@ private:
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare artifacts");
 
-            LOG_INFO("Artifacts prepared");
+            YT_LOG_INFO("Artifacts prepared");
             if (LayerArtifactKeys_.empty()) {
                 RunJobProxy();
             } else {
                 SetJobPhase(EJobPhase::PreparingRootVolume);
-                LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
+                YT_LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
                 Slot_->PrepareRootVolume(LayerArtifactKeys_)
                     .Subscribe(BIND(
                         &TJob::OnVolumePrepared,
@@ -934,7 +934,7 @@ private:
             return;
         }
 
-        LOG_INFO("Job proxy finished");
+        YT_LOG_INFO("Job proxy finished");
 
         if (!error.IsOK()) {
             DoSetResult(TError("Job proxy failed")
@@ -954,7 +954,7 @@ private:
             TForbidContextSwitchGuard contextSwitchGuard;
             action();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error preparing scheduler job");
+            YT_LOG_WARNING(ex, "Error preparing scheduler job");
 
             DoSetResult(ex);
             Cleanup();
@@ -970,18 +970,18 @@ private:
             return;
         }
 
-        LOG_INFO("Cleaning up after scheduler job");
+        YT_LOG_INFO("Cleaning up after scheduler job");
 
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
 
         if (Slot_) {
             try {
-                LOG_DEBUG("Clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
+                YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
                 Slot_->CleanProcesses();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
-                LOG_ERROR(ex, "Failed to clean processed (SlotIndex: %v)", Slot_->GetSlotIndex());
+                YT_LOG_ERROR(ex, "Failed to clean processed (SlotIndex: %v)", Slot_->GetSlotIndex());
             }
         }
 
@@ -1011,7 +1011,7 @@ private:
             }
         }
 
-        LOG_INFO(error, "Setting final job state (JobState: %v)", GetState());
+        YT_LOG_INFO(error, "Setting final job state (JobState: %v)", GetState());
 
         // Release resources.
         GpuSlots_.clear();
@@ -1023,18 +1023,18 @@ private:
 
         if (Slot_) {
             try {
-                LOG_DEBUG("Clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
+                YT_LOG_DEBUG("Clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
                 Slot_->CleanSandbox();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
-                LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
+                YT_LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
             }
             Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
         }
 
         SetJobPhase(EJobPhase::Finished);
 
-        LOG_INFO("Job finalized (JobState: %v)", GetState());
+        YT_LOG_INFO("Job finalized (JobState: %v)", GetState());
 
         Bootstrap_->GetExecSlotManager()->OnJobFinished(GetState());
     }
@@ -1047,7 +1047,7 @@ private:
         auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt->has_input_node_directory()) {
-            LOG_INFO("Node directory is provided by scheduler");
+            YT_LOG_INFO("Node directory is provided by scheduler");
             return;
         }
 
@@ -1107,17 +1107,17 @@ private:
             }
 
             if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
-                LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)", *unresolvedNodeId);
+                YT_LOG_WARNING("Some node ids were not resolved, skipping corresponding replicas (UnresolvedNodeId: %v)", *unresolvedNodeId);
                 break;
             }
 
-            LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
+            YT_LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
                 *unresolvedNodeId,
                 attempt);
             TDelayedExecutor::WaitForDuration(Config_->NodeDirectoryPrepareBackoffTime);
         }
 
-        LOG_INFO("Node directory is constructed locally");
+        YT_LOG_INFO("Node directory is constructed locally");
     }
 
     TJobProxyConfigPtr CreateConfig()
@@ -1215,7 +1215,7 @@ private:
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
         for (const auto& artifact : Artifacts_) {
-            LOG_INFO("Downloading user file (FileName: %v, SandboxKind: %v)",
+            YT_LOG_INFO("Downloading user file (FileName: %v, SandboxKind: %v)",
                 artifact.Name,
                 artifact.SandboxKind);
 
@@ -1227,7 +1227,7 @@ private:
                         fileName);
 
                     const auto& chunk = chunkOrError.Value();
-                    LOG_INFO("Artifact chunk ready (FileName: %v, LocationId: %v, ChunkId: %v)",
+                    YT_LOG_INFO("Artifact chunk ready (FileName: %v, LocationId: %v, ChunkId: %v)",
                         fileName,
                         chunk->GetLocation()->GetId(),
                         chunk->GetId());
@@ -1255,7 +1255,7 @@ private:
             YCHECK(artifact.Chunk);
 
             if (copyFiles) {
-                LOG_INFO("Copying artifact (FileName: %v, IsExecutable: %v, SandboxKind: %v)",
+                YT_LOG_INFO("Copying artifact (FileName: %v, IsExecutable: %v, SandboxKind: %v)",
                     artifact.Name,
                     artifact.IsExecutable,
                     artifact.SandboxKind);
@@ -1267,7 +1267,7 @@ private:
                     artifact.IsExecutable))
                 .ThrowOnError();
             } else {
-                LOG_INFO("Making symlink for artifact (FileName: %v, IsExecutable: %v, SandboxKind: %v)",
+                YT_LOG_INFO("Making symlink for artifact (FileName: %v, IsExecutable: %v, SandboxKind: %v)",
                     artifact.Name,
                     artifact.IsExecutable,
                     artifact.SandboxKind);
@@ -1280,7 +1280,7 @@ private:
                 .ThrowOnError();
             }
 
-            LOG_INFO("Artifact prepared successfully (FileName: %v, SandboxKind: %v)",
+            YT_LOG_INFO("Artifact prepared successfully (FileName: %v, SandboxKind: %v)",
                 artifact.Name,
                 artifact.SandboxKind);
         }
@@ -1288,7 +1288,7 @@ private:
         // When all artifacts are prepared we can finally change permission for sandbox which will
         // take away write access from the current user (see slot_location.cpp for details).
         if (schedulerJobSpecExt.has_user_job_spec()) {
-            LOG_INFO("Setting sandbox permissions");
+            YT_LOG_INFO("Setting sandbox permissions");
             WaitFor(Slot_->FinalizePreparation())
                 .ThrowOnError();
         }

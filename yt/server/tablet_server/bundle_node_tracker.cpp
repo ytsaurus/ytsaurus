@@ -81,7 +81,7 @@ private:
 
     void OnTabletCellBundleCreated(TTabletCellBundle* bundle)
     {
-        LOG_DEBUG("Bundle node tracker caught bundle create signal (BundleId: %v)",
+        YT_LOG_DEBUG("Bundle node tracker caught bundle create signal (BundleId: %v)",
             bundle->GetId());
 
         auto result = NodeMap_.emplace(bundle, TNodeSet());
@@ -91,7 +91,7 @@ private:
 
     void OnTabletCellBundleChanged(TTabletCellBundle* bundle)
     {
-        LOG_DEBUG("Bundle node tracker caught bundle change signal (BundleId: %v)",
+        YT_LOG_DEBUG("Bundle node tracker caught bundle change signal (BundleId: %v)",
             bundle->GetId());
 
         RevisitTabletCellBundleNodes(&NodeMap_[bundle], bundle);
@@ -107,7 +107,7 @@ private:
 
     void OnTabletCellBundleRemoved(TTabletCellBundle* bundle)
     {
-        LOG_DEBUG("Bundle node tracker caught bundle remove signal (BundleId: %v)",
+        YT_LOG_DEBUG("Bundle node tracker caught bundle remove signal (BundleId: %v)",
             bundle->GetId());
 
         YCHECK(NodeMap_.erase(bundle) > 0);
@@ -120,7 +120,7 @@ private:
 
     void OnNodeChanged(TNode* node)
     {
-        LOG_DEBUG("Bundle node tracker caught node change signal (NodeAddress: %v)",
+        YT_LOG_DEBUG("Bundle node tracker caught node change signal (NodeAddress: %v)",
             node->GetDefaultAddress());
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -137,7 +137,7 @@ private:
         bool good = CheckIfNodeCanHostTabletCells(node);
         bool satisfy = bundle->NodeTagFilter().IsSatisfiedBy(node->Tags());
 
-        LOG_DEBUG("Bundle node tracker is checking node (NodeAddress: %v, BundleId: %v, State: %v, IsGood: %v, Satisfy: %v)",
+        YT_LOG_DEBUG("Bundle node tracker is checking node (NodeAddress: %v, BundleId: %v, State: %v, IsGood: %v, Satisfy: %v)",
             node->GetDefaultAddress(),
             bundle->GetId(),
             node->GetLocalState(),
@@ -146,7 +146,7 @@ private:
 
         if (good & satisfy) {
             if (nodeSet->find(node) == nodeSet->end()) {
-                LOG_DEBUG("Node added to bundle (NodeAddress: %v, BundleId: %v)",
+                YT_LOG_DEBUG("Node added to bundle (NodeAddress: %v, BundleId: %v)",
                     node->GetDefaultAddress(),
                     bundle->GetId());
                 YCHECK(nodeSet->insert(node).second);
@@ -155,7 +155,7 @@ private:
         } else {
             auto it = nodeSet->find(node);
             if (it != nodeSet->end()) {
-                LOG_DEBUG("Node removed from bundle (NodeAddress: %v, BundleId: %v)",
+                YT_LOG_DEBUG("Node removed from bundle (NodeAddress: %v, BundleId: %v)",
                     node->GetDefaultAddress(),
                     bundle->GetId());
                 nodeSet->erase(it);

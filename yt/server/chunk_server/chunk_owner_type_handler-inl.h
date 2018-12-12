@@ -153,7 +153,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
 {
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
-    LOG_DEBUG_UNLESS(
+    YT_LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
         "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
         "PrimaryMedium: %v, Replication: %v, Mode: %v, LockTimestamp: %llx)",
@@ -311,7 +311,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto* originatingPrimaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     const auto* branchedPrimaryMedium = chunkManager->GetMediumByIndex(branchedNode->GetPrimaryMediumIndex());
-    LOG_DEBUG_UNLESS(
+    YT_LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
         "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, "
         "OriginatingReplication: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "

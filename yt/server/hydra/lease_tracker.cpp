@@ -83,7 +83,7 @@ private:
         auto pingVersion = decoratedAutomaton->GetPingVersion();
         auto committedVersion = decoratedAutomaton->GetAutomatonVersion();
 
-        LOG_DEBUG("Sending ping to follower (FollowerId: %v, PingVersion: %v, CommittedVersion: %v, EpochId: %v)",
+        YT_LOG_DEBUG("Sending ping to follower (FollowerId: %v, PingVersion: %v, CommittedVersion: %v, EpochId: %v)",
             followerId,
             pingVersion,
             committedVersion,
@@ -108,14 +108,14 @@ private:
 
         if (!rspOrError.IsOK()) {
             PingErrors_.push_back(rspOrError);
-            LOG_WARNING(rspOrError, "Error pinging follower (PeerId: %v)",
+            YT_LOG_WARNING(rspOrError, "Error pinging follower (PeerId: %v)",
                 followerId);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         auto state = EPeerState(rsp->state());
-        LOG_DEBUG("Follower ping succeeded (PeerId: %v, State: %v)",
+        YT_LOG_DEBUG("Follower ping succeeded (PeerId: %v, State: %v)",
             followerId,
             state);
 
@@ -201,7 +201,7 @@ void TLeaseTracker::OnLeaseCheck()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_DEBUG("Starting leader lease check");
+    YT_LOG_DEBUG("Starting leader lease check");
 
     auto startTime = NProfiling::GetCpuInstant();
     auto asyncResult = FireLeaseCheck();
@@ -209,12 +209,12 @@ void TLeaseTracker::OnLeaseCheck()
 
     if (result.IsOK()) {
         Lease_->SetDeadline(startTime + NProfiling::DurationToCpuDuration(Config_->LeaderLeaseTimeout));
-        LOG_DEBUG("Leader lease check succeeded");
+        YT_LOG_DEBUG("Leader lease check succeeded");
         if (!LeaseAcquired_.IsSet()) {
             LeaseAcquired_.Set();
         }
     } else {
-        LOG_DEBUG(result, "Leader lease check failed");
+        YT_LOG_DEBUG(result, "Leader lease check failed");
         if (Lease_->IsValid() && LeaseAcquired_.IsSet() && !LeaseLost_.IsSet()) {
             Lease_->Invalidate();
             LeaseLost_.Set(result);

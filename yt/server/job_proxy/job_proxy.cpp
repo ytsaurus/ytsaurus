@@ -202,7 +202,7 @@ void TJobProxy::SendHeartbeat()
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
-    LOG_DEBUG("Supervisor heartbeat sent");
+    YT_LOG_DEBUG("Supervisor heartbeat sent");
 }
 
 void TJobProxy::OnHeartbeatResponse(const TError& error)
@@ -212,30 +212,30 @@ void TJobProxy::OnHeartbeatResponse(const TError& error)
         // Good user processes are supposed to die themselves
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
-        LOG_ERROR(error, "Error sending heartbeat to supervisor");
+        YT_LOG_ERROR(error, "Error sending heartbeat to supervisor");
         Exit(EJobProxyExitCode::HeartbeatFailed);
     }
 
-    LOG_DEBUG("Successfully reported heartbeat to supervisor");
+    YT_LOG_DEBUG("Successfully reported heartbeat to supervisor");
 }
 
 void TJobProxy::RetrieveJobSpec()
 {
-    LOG_INFO("Requesting job spec");
+    YT_LOG_INFO("Requesting job spec");
 
     auto req = SupervisorProxy_->GetJobSpec();
     ToProto(req->mutable_job_id(), JobId_);
 
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {
-        LOG_ERROR(rspOrError, "Failed to get job spec");
+        YT_LOG_ERROR(rspOrError, "Failed to get job spec");
         Exit(EJobProxyExitCode::GetJobSpecFailed);
     }
 
     const auto& rsp = rspOrError.Value();
 
     if (rsp->job_spec().version() != GetJobSpecVersion()) {
-        LOG_WARNING("Invalid job spec version (Expected: %v, Actual: %v)",
+        YT_LOG_WARNING("Invalid job spec version (Expected: %v, Actual: %v)",
             GetJobSpecVersion(),
             rsp->job_spec().version());
         Exit(EJobProxyExitCode::InvalidSpecVersion);
@@ -246,7 +246,7 @@ void TJobProxy::RetrieveJobSpec()
 
     Ports_ = FromProto<std::vector<int>>(rsp->ports());
 
-    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})\n%v",
+    YT_LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
         resourceUsage.cpu(),
         resourceUsage.memory(),
@@ -292,7 +292,7 @@ void TJobProxy::Run()
 
     TJobResult result;
     if (!resultOrError.IsOK()) {
-        LOG_ERROR(resultOrError, "Job failed");
+        YT_LOG_ERROR(resultOrError, "Job failed");
         ToProto(result.mutable_error(), resultOrError);
     } else {
         result = resultOrError.Value();
@@ -321,7 +321,7 @@ void TJobProxy::Run()
     if (Job_) {
         auto failedChunkIds = Job_->GetFailedChunkIds();
         if (!failedChunkIds.empty()) {
-            LOG_INFO("Failed chunks found (ChunkIds: %v)",
+            YT_LOG_INFO("Failed chunks found (ChunkIds: %v)",
                 failedChunkIds);
         }
 
@@ -353,7 +353,7 @@ void TJobProxy::Run()
                     schedulerResultExt->mutable_chunk_spec_count_per_read_data_slice(),
                     interruptDescriptor.ReadDataSliceDescriptors);
 
-                LOG_DEBUG(
+                YT_LOG_DEBUG(
                     "Interrupt descriptor found (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
                     interruptDescriptor.UnreadDataSliceDescriptors.size(),
                     interruptDescriptor.ReadDataSliceDescriptors.size(),
@@ -421,16 +421,16 @@ TJobResult TJobProxy::DoRun()
 
         auto createRootFS = [&] () -> std::optional<TRootFS> {
             if (!Config_->RootPath) {
-                LOG_DEBUG("Job is not using custom root fs");
+                YT_LOG_DEBUG("Job is not using custom root fs");
                 return std::nullopt;
             }
 
             if (Config_->TestRootFS) {
-                LOG_DEBUG("Job is running in testing root fs mode");
+                YT_LOG_DEBUG("Job is running in testing root fs mode");
                 return std::nullopt;
             }
 
-            LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
+            YT_LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
 
             TRootFS rootFS;
             rootFS.IsRootReadOnly = true;
@@ -480,7 +480,7 @@ TJobResult TJobProxy::DoRun()
         CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuLimit_);
 
         if (Config_->JobThrottler) {
-            LOG_DEBUG("Job throttling enabled");
+            YT_LOG_DEBUG("Job throttling enabled");
 
             InBandwidthThrottler_ = CreateInJobBandwidthThrottler(
                 Config_->JobThrottler,
@@ -500,14 +500,14 @@ TJobResult TJobProxy::DoRun()
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
                 JobId_);
         } else {
-            LOG_DEBUG("Job throttling disabled");
+            YT_LOG_DEBUG("Job throttling disabled");
 
             InBandwidthThrottler_ = GetUnlimitedThrottler();
             OutBandwidthThrottler_ = GetUnlimitedThrottler();
             OutRpsThrottler_ = GetUnlimitedThrottler();
         }
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Failed to prepare job proxy");
+        YT_LOG_ERROR(ex, "Failed to prepare job proxy");
         Exit(EJobProxyExitCode::JobProxyPrepareFailed);
     }
 
@@ -546,7 +546,7 @@ TJobResult TJobProxy::DoRun()
         }
 
         JobProxyMemoryReserve_ -= userJobSpec.memory_reserve();
-        LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
+        YT_LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
             JobProxyMemoryReserve_,
             userJobSpec.memory_reserve());
         Job_ = CreateUserJob(
@@ -575,7 +575,7 @@ void TJobProxy::ReportResult(
     TInstant finishTime)
 {
     if (!SupervisorProxy_) {
-        LOG_ERROR("Supervisor channel is not available");
+        YT_LOG_ERROR("Supervisor channel is not available");
         Exit(EJobProxyExitCode::ResultReportFailed);
     }
 
@@ -600,13 +600,13 @@ void TJobProxy::ReportResult(
             }
         } catch (const std::exception& ex) {
             // NB(psushin): this could happen if job was not fully prepared.
-            LOG_WARNING(ex, "Failed to get job stderr and fail context on teardown");
+            YT_LOG_WARNING(ex, "Failed to get job stderr and fail context on teardown");
         }
     }
 
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {
-        LOG_ERROR(rspOrError, "Failed to report job result");
+        YT_LOG_ERROR(rspOrError, "Failed to report job result");
         Exit(EJobProxyExitCode::ResultReportFailed);
     }
 }
@@ -620,14 +620,14 @@ TStatistics TJobProxy::GetStatistics() const
             auto cpuStatistics = JobProxyEnvironment_->GetCpuStatistics();
             statistics.AddSample("/job_proxy/cpu", cpuStatistics);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Unable to get cpu statistics from resource controller");
+            YT_LOG_ERROR(ex, "Unable to get cpu statistics from resource controller");
         }
 
         try {
             auto blockIOStatistics = JobProxyEnvironment_->GetBlockIOStatistics();
             statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
+            YT_LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
         }
     }
 
@@ -698,7 +698,7 @@ void TJobProxy::SetUserJobMemoryUsage(i64 memoryUsage)
 void TJobProxy::OnResourcesUpdated(i64 memoryReserve, const TError& error)
 {
     if (!error.IsOK()) {
-        LOG_ERROR(error, "Failed to update resource usage");
+        YT_LOG_ERROR(error, "Failed to update resource usage");
         if (Job_) {
             Job_->Cleanup();
         }
@@ -706,21 +706,21 @@ void TJobProxy::OnResourcesUpdated(i64 memoryReserve, const TError& error)
     }
 
     if (ApprovedMemoryReserve_ < memoryReserve) {
-        LOG_DEBUG("Successfully updated resource usage (MemoryReserve: %v)", memoryReserve);
+        YT_LOG_DEBUG("Successfully updated resource usage (MemoryReserve: %v)", memoryReserve);
         ApprovedMemoryReserve_ = memoryReserve;
     }
 }
 
 void TJobProxy::ReleaseNetwork()
 {
-    LOG_DEBUG("Releasing network");
+    YT_LOG_DEBUG("Releasing network");
     NetworkUsage_ = 0;
     UpdateResourceUsage();
 }
 
 void TJobProxy::OnPrepared()
 {
-    LOG_DEBUG("Job prepared");
+    YT_LOG_DEBUG("Job prepared");
 
     auto req = SupervisorProxy_->OnJobPrepared();
     ToProto(req->mutable_job_id(), JobId_);
@@ -752,17 +752,17 @@ void TJobProxy::CheckMemoryUsage()
     i64 jobProxyMemoryUsage = GetProcessMemoryUsage().Rss;
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
 
-    LOG_DEBUG("Job proxy memory check (JobProxyMemoryUsage: %v, JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, UserJobCurrentMemoryUsage: %v)",
+    YT_LOG_DEBUG("Job proxy memory check (JobProxyMemoryUsage: %v, JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, UserJobCurrentMemoryUsage: %v)",
         jobProxyMemoryUsage,
         JobProxyMaxMemoryUsage_.load(),
         JobProxyMemoryReserve_,
         UserJobCurrentMemoryUsage_.load());
 
-    LOG_DEBUG("YTAlloc counters (%v)", NYTAlloc::FormatCounters());
+    YT_LOG_DEBUG("YTAlloc counters (%v)", NYTAlloc::FormatCounters());
 
     if (JobProxyMaxMemoryUsage_.load() > JobProxyMemoryReserve_) {
         if (TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_) {
-            LOG_WARNING("Job proxy used more memory than estimated "
+            YT_LOG_WARNING("Job proxy used more memory than estimated "
                 "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
                 JobProxyMaxMemoryUsage_.load(),
                 JobProxyMemoryReserve_,
@@ -772,7 +772,7 @@ void TJobProxy::CheckMemoryUsage()
     }
 
     if (JobProxyMemoryOvercommitLimit_ && jobProxyMemoryUsage > JobProxyMemoryReserve_ + *JobProxyMemoryOvercommitLimit_) {
-        LOG_FATAL("Job proxy exceeded the memory overcommit limit "
+        YT_LOG_FATAL("Job proxy exceeded the memory overcommit limit "
             "(JobProxyMemoryUsage: %v, JobProxyMemoryReserve: %v, MemoryOvercommitLimit: %v, RefCountedTracker: %v)",
             jobProxyMemoryUsage,
             JobProxyMemoryReserve_,
@@ -783,12 +783,12 @@ void TJobProxy::CheckMemoryUsage()
     i64 totalMemoryUsage = UserJobCurrentMemoryUsage_ + jobProxyMemoryUsage;
 
     if (TotalMaxMemoryUsage_ < totalMemoryUsage) {
-        LOG_DEBUG("Total memory usage increased (OldTotalMaxMemoryUsage: %v, NewTotalMaxMemoryUsage: %v)",
+        YT_LOG_DEBUG("Total memory usage increased (OldTotalMaxMemoryUsage: %v, NewTotalMaxMemoryUsage: %v)",
             TotalMaxMemoryUsage_,
             totalMemoryUsage);
         TotalMaxMemoryUsage_ = totalMemoryUsage;
         if (TotalMaxMemoryUsage_ > ApprovedMemoryReserve_) {
-            LOG_ERROR("Total memory usage exceeded the limit approved by the node "
+            YT_LOG_ERROR("Total memory usage exceeded the limit approved by the node "
                 "(TotalMaxMemoryUsage: %v, ApprovedMemoryReserve: %v, AheadMemoryReserve: %v)",
                 TotalMaxMemoryUsage_,
                 ApprovedMemoryReserve_.load(),
@@ -799,7 +799,7 @@ void TJobProxy::CheckMemoryUsage()
     }
     i64 memoryReserve = TotalMaxMemoryUsage_ + Config_->AheadMemoryReserve;
     if (RequestedMemoryReserve_ < memoryReserve) {
-        LOG_DEBUG("Request node for memory usage increase (OldMemoryReserve: %v, NewMemoryReserve: %v)",
+        YT_LOG_DEBUG("Request node for memory usage increase (OldMemoryReserve: %v, NewMemoryReserve: %v)",
             RequestedMemoryReserve_.load(),
             memoryReserve);
         RequestedMemoryReserve_ = memoryReserve;
@@ -817,7 +817,7 @@ void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
     // If we were provided with stderr_table_spec we are expected to write stderr and provide some results.
     if (userJobSpec.has_stderr_table_spec() && !schedulerJobResultExt->has_stderr_table_boundary_keys()) {
         // If error occurred during user job initialization, stderr blob table writer may not have been created at all.
-        LOG_WARNING("Stderr table boundary keys are absent");
+        YT_LOG_WARNING("Stderr table boundary keys are absent");
         auto* stderrBoundaryKeys = schedulerJobResultExt->mutable_stderr_table_boundary_keys();
         stderrBoundaryKeys->set_sorted(true);
         stderrBoundaryKeys->set_unique_keys(true);
@@ -836,7 +836,7 @@ void TJobProxy::Exit(EJobProxyExitCode exitCode)
 
 void TJobProxy::SetCpuLimit(double cpuLimit)
 {
-    LOG_INFO("Changing CPU limit (OldCpuLimit: %v, NewCpuLimit: %v)",
+    YT_LOG_INFO("Changing CPU limit (OldCpuLimit: %v, NewCpuLimit: %v)",
         CpuLimit_.load(),
         cpuLimit);
     CpuLimit_ = cpuLimit;

@@ -738,7 +738,7 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
         objectManager->WeakRefObject(entry.Account);
     }
 
-    LOG_DEBUG("Requisition created (RequisitionIndex: %v, Requisition: %v)",
+    YT_LOG_DEBUG("Requisition created (RequisitionIndex: %v, Requisition: %v)",
         index,
         requisition);
 
@@ -754,7 +754,7 @@ void TChunkRequisitionRegistry::Erase(
     // accounts to hash requisitions when erasing them.
     auto requisition = it->second.Requisition;
 
-    LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)",
+    YT_LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)",
         index,
         requisition);
 
@@ -771,7 +771,7 @@ void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
     auto it = IndexToItem_.find(index);
     YCHECK(it != IndexToItem_.end());
     ++it->second.RefCount;
-    LOG_TRACE("Requisition referenced (RequisitionIndex: %v, RefCount: %v)",
+    YT_LOG_TRACE("Requisition referenced (RequisitionIndex: %v, RefCount: %v)",
         index,
         it->second.RefCount);
 }
@@ -785,7 +785,7 @@ void TChunkRequisitionRegistry::Unref(
     YCHECK(it->second.RefCount != 0);
     --it->second.RefCount;
 
-    LOG_TRACE("Requisition unreferenced (RequisitionIndex: %v, RefCount: %v)",
+    YT_LOG_TRACE("Requisition unreferenced (RequisitionIndex: %v, RefCount: %v)",
         index,
         it->second.RefCount);
 

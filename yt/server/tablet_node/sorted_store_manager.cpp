@@ -370,7 +370,7 @@ void TSortedStoreManager::CreateActiveStore()
     Tablet_->AddStore(ActiveStore_);
     Tablet_->SetActiveStore(ActiveStore_);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v)",
+    YT_LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v)",
         storeId);
 }
 
@@ -447,7 +447,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
-        LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, RetentionConfig: %v)",
+        YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, RetentionConfig: %v)",
             store->GetId(),
             tabletSnapshot->Config->MergeRowsOnFlush,
             ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
@@ -500,7 +500,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->WriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
-        LOG_DEBUG("Flushed sorted store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
+        YT_LOG_DEBUG("Flushed sorted store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
             store->GetId(),
             chunkWriter->GetChunkId(),
             diskSpace);
@@ -717,7 +717,7 @@ void TSortedStoreManager::WaitOnBlockedRow(
         return;
     }
 
-    LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
+    YT_LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
         RowToKey(Tablet_->PhysicalSchema(), row),
         lockIndex,
         transaction->GetId());

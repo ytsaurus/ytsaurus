@@ -41,7 +41,7 @@ void TSlotManager::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Initializing exec slots (Count: %v)", SlotCount_);
+    YT_LOG_INFO("Initializing exec slots (Count: %v)", SlotCount_);
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
         FreeSlots_.insert(slotIndex);
@@ -56,7 +56,7 @@ void TSlotManager::Initialize()
         Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->Cpu);
 
     if (!JobEnvironment_->IsEnabled()) {
-        LOG_INFO("Job environment is disabled");
+        YT_LOG_INFO("Job environment is disabled");
         return;
     }
 
@@ -74,7 +74,7 @@ void TSlotManager::Initialize()
                 AliveLocations_.push_back(Locations_.back());
             }
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Failed to initialize slot location (Path: %v)", locationConfig->Path);
+            YT_LOG_WARNING(ex, "Failed to initialize slot location (Path: %v)", locationConfig->Path);
         }
 
         ++locationIndex;
@@ -89,7 +89,7 @@ void TSlotManager::Initialize()
                     .ThrowOnError();
             }
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Failed to clean up sandboxes during initialization");
+            YT_LOG_WARNING(ex, "Failed to clean up sandboxes during initialization");
         }
     }
 
@@ -107,14 +107,14 @@ void TSlotManager::Initialize()
         } catch (const std::exception& ex) {
             auto alert = TError("Failed to create a job proxy socket name directory")
                 << ex;
-            LOG_WARNING(alert);
+            YT_LOG_WARNING(alert);
             Bootstrap_->GetMasterConnector()->RegisterAlert(alert);
         }
     }
 
     UpdateAliveLocations();
 
-    LOG_INFO("Exec slots initialized");
+    YT_LOG_INFO("Exec slots initialized");
 }
 
 void TSlotManager::UpdateAliveLocations()

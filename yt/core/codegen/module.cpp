@@ -297,7 +297,7 @@ private:
         }
 #endif
 
-        LOG_DEBUG("Started compiling module");
+        YT_LOG_DEBUG("Started compiling module");
 
         // See YT-8035 for details why we are clearing COMDAT.
         for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
@@ -316,14 +316,14 @@ private:
             llvm::errs() << "\n****************************************************************\n";
         }
 
-        LOG_DEBUG("Verifying IR");
+        YT_LOG_DEBUG("Verifying IR");
         YCHECK(!llvm::verifyModule(*Module_, &llvm::errs()));
 
         std::unique_ptr<PassManager> modulePassManager;
         std::unique_ptr<FunctionPassManager> functionPassManager;
 
         // Run DCE pass to strip unused code.
-        LOG_DEBUG("Pruning dead code (ExportedSymbols: %v)", ExportedSymbols_);
+        YT_LOG_DEBUG("Pruning dead code (ExportedSymbols: %v)", ExportedSymbols_);
 
         modulePassManager = std::make_unique<PassManager>();
 #if !LLVM_VERSION_GE(3, 9)
@@ -342,7 +342,7 @@ private:
         modulePassManager->run(*Module_);
 
         // Now, setup optimization pipeline and run actual optimizations.
-        LOG_DEBUG("Optimizing IR");
+        YT_LOG_DEBUG("Optimizing IR");
 
         llvm::PassManagerBuilder passManagerBuilder;
         passManagerBuilder.OptLevel = 0;
@@ -378,7 +378,7 @@ private:
             llvm::errs() << "\n****************************************************************\n";
         }
 
-        LOG_DEBUG("Finalizing module");
+        YT_LOG_DEBUG("Finalizing module");
 
         Engine_->finalizeObject();
 #ifdef PRINT_PASSES_TIME
@@ -386,7 +386,7 @@ private:
             llvm::TimerGroup::printAll(llvm::errs());
         }
 #endif
-        LOG_DEBUG("Finished compiling module");
+        YT_LOG_DEBUG("Finished compiling module");
         // TODO(sandello): Clean module here.
     }
 
@@ -402,7 +402,7 @@ private:
 
         info.print(printer);
 
-        LOG_INFO("LLVM has triggered a message: %s/%s: %s",
+        YT_LOG_INFO("LLVM has triggered a message: %s/%s: %s",
             DiagnosticSeverityToString(info.getSeverity()),
             DiagnosticKindToString((llvm::DiagnosticKind)info.getKind()),
             os.str().c_str());

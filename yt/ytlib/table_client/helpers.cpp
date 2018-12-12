@@ -705,7 +705,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 {
     const auto& Logger = logger;
 
-    LOG_INFO("Getting table attributes (Path: %v)", path);
+    YT_LOG_INFO("Getting table attributes (Path: %v)", path);
 
     TYPath objectIdPath;
     TCellTag tableCellTag;
@@ -731,7 +731,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         }
     }
 
-    LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)", tableCellTag, objectIdPath);
+    YT_LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)", tableCellTag, objectIdPath);
     int chunkCount;
     {
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
@@ -752,7 +752,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         chunkCount = attributes->Get<int>("chunk_count");
     }
 
-    LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
+    YT_LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
 
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
     FetchChunkSpecs(

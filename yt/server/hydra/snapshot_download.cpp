@@ -38,7 +38,7 @@ void DoDownloadSnapshot(
         WaitFor(writer->Open())
             .ThrowOnError();
 
-        LOG_INFO("Downloading %v bytes from peer %v",
+        YT_LOG_INFO("Downloading %v bytes from peer %v",
             params.CompressedLength,
             params.PeerId);
 
@@ -63,7 +63,7 @@ void DoDownloadSnapshot(
             YCHECK(attachments.size() == 1);
 
             const auto& block = attachments[0];
-            LOG_DEBUG("Snapshot block received (Offset: %v, Size: %v)",
+            YT_LOG_DEBUG("Snapshot block received (Offset: %v, Size: %v)",
                 downloadedLength,
                 block.Size());
 
@@ -76,7 +76,7 @@ void DoDownloadSnapshot(
         WaitFor(writer->Close())
             .ThrowOnError();
 
-        LOG_INFO("Snapshot downloaded successfully");
+        YT_LOG_INFO("Snapshot downloaded successfully");
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error downloading snapshot %v", snapshotId)
            << ex;

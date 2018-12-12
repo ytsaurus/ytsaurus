@@ -110,7 +110,7 @@ void TDataBalancer::TNode::Persist(const NYT::NTableClient::TPersistenceContext&
 
 void TDataBalancer::LogViolation(const TDataBalancer::TNode& node, i64 dataWeight)
 {
-    LOG_DEBUG("Data balancing violation (NodeAddress: %v, NodeId: %v, DataWeight: %v, NodeDataWeight: %v, NodeLimit: %v)",
+    YT_LOG_DEBUG("Data balancing violation (NodeAddress: %v, NodeId: %v, DataWeight: %v, NodeDataWeight: %v, NodeLimit: %v)",
         node.Descriptor.Address,
         node.Descriptor.Id,
         dataWeight,
@@ -120,7 +120,7 @@ void TDataBalancer::LogViolation(const TDataBalancer::TNode& node, i64 dataWeigh
     auto now = GetInstant();
     if (now > LastLogTime_ + Options_->LoggingPeriod) {
         LastLogTime_ = now;
-        LOG_WARNING("Too many data balancing violations (ConsecutiveViolationCount: %v, AdjustedDataWeightPerNode: %v)",
+        YT_LOG_WARNING("Too many data balancing violations (ConsecutiveViolationCount: %v, AdjustedDataWeightPerNode: %v)",
             ConsecutiveViolationCount_,
             DivCeil<i64>(TotalDataWeight_ * Options_->Tolerance, std::max<i64>(ActiveNodeTotalIOWeight_, 1)));
         LogStatistics();
@@ -150,7 +150,7 @@ void TDataBalancer::LogStatistics() const
             node.DataWeight,
             GetNodeDataWeightLimit(node));
     }
-    LOG_DEBUG("Data balancer statistics (Statistics: {%v})", line.Flush());
+    YT_LOG_DEBUG("Data balancer statistics (Statistics: {%v})", line.Flush());
 }
 
 i64 TDataBalancer::GetNodeDataWeightLimit(const TDataBalancer::TNode& node) const

@@ -86,7 +86,7 @@ void TSamplesFetcher::AddChunk(TInputChunkPtr chunk)
 
 TFuture<void> TSamplesFetcher::Fetch()
 {
-    LOG_DEBUG("Started fetching chunk samples (ChunkCount: %v, DesiredSampleCount: %v)",
+    YT_LOG_DEBUG("Started fetching chunk samples (ChunkCount: %v, DesiredSampleCount: %v)",
         Chunks_.size(),
         DesiredSampleCount_);
 
@@ -169,7 +169,7 @@ void TSamplesFetcher::OnResponse(
     const TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        LOG_INFO(rspOrError, "Failed to get samples from node (Address: %v, NodeId: %v)",
+        YT_LOG_INFO(rspOrError, "Failed to get samples from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
         OnNodeFailed(nodeId, requestedChunkIndexes);
@@ -196,7 +196,7 @@ void TSamplesFetcher::OnResponse(
             continue;
         }
 
-        LOG_TRACE("Received %v samples for chunk #%v",
+        YT_LOG_TRACE("Received %v samples for chunk #%v",
             sampleResponse.samples_size(),
             requestedChunkIndexes[index]);
 

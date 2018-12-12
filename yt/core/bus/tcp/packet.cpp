@@ -82,14 +82,14 @@ size_t TPacketDecoder::GetPacketSize() const
 bool TPacketDecoder::EndFixedHeaderPhase()
 {
     if (FixedHeader_.Signature != PacketSignature) {
-        LOG_ERROR("Packet header signature mismatch: expected %X, actual %X",
+        YT_LOG_ERROR("Packet header signature mismatch: expected %X, actual %X",
             PacketSignature,
             FixedHeader_.Signature);
         return false;
     }
 
     if (FixedHeader_.PartCount > MaxMessagePartCount) {
-        LOG_ERROR("Invalid part count %v",
+        YT_LOG_ERROR("Invalid part count %v",
             FixedHeader_.PartCount);
         return false;
     }
@@ -99,7 +99,7 @@ bool TPacketDecoder::EndFixedHeaderPhase()
         if (expectedChecksum != NullChecksum) {
             auto actualChecksum = GetFixedChecksum();
             if (expectedChecksum != actualChecksum) {
-                LOG_ERROR("Fixed packet header checksum mismatch");
+                YT_LOG_ERROR("Fixed packet header checksum mismatch");
                 return false;
             }
         }
@@ -116,7 +116,7 @@ bool TPacketDecoder::EndFixedHeaderPhase()
             return true;
 
         default:
-            LOG_ERROR("Invalid packet type %v",
+            YT_LOG_ERROR("Invalid packet type %v",
                 FixedHeader_.Type);
             return false;
     }
@@ -129,7 +129,7 @@ bool TPacketDecoder::EndVariableHeaderPhase()
         if (expectedChecksum != NullChecksum) {
             auto actualChecksum = GetVariableChecksum();
             if (expectedChecksum != actualChecksum) {
-                LOG_ERROR("Variable packet header checksum mismatch");
+                YT_LOG_ERROR("Variable packet header checksum mismatch");
                 return false;
             }
         }
@@ -138,7 +138,7 @@ bool TPacketDecoder::EndVariableHeaderPhase()
     for (int index = 0; index < FixedHeader_.PartCount; ++index) {
         ui32 partSize = PartSizes_[index];
         if (partSize != NullPacketPartSize && partSize > MaxMessagePartSize) {
-            LOG_ERROR("Invalid size %v of part %v",
+            YT_LOG_ERROR("Invalid size %v of part %v",
                 partSize,
                 index);
             return false;
@@ -156,7 +156,7 @@ bool TPacketDecoder::EndMessagePartPhase()
         if (expectedChecksum != NullChecksum) {
             auto actualChecksum = GetChecksum(Parts_[PartIndex_]);
             if (expectedChecksum != actualChecksum) {
-                LOG_ERROR("Packet part checksum mismatch");
+                YT_LOG_ERROR("Packet part checksum mismatch");
                 return false;
             }
         }
@@ -242,7 +242,7 @@ bool TPacketEncoder::Start(
 
     if (type == EPacketType::Message) {
         if (Message_.Size() > MaxMessagePartCount) {
-            LOG_ERROR("Message exceeds part count limit: %v > %v",
+            YT_LOG_ERROR("Message exceeds part count limit: %v > %v",
                 Message_.Size(),
                 MaxMessagePartCount);
             return false;
@@ -252,7 +252,7 @@ bool TPacketEncoder::Start(
             const auto& part = Message_[index];
             if (part) {
                 if (part.Size() > MaxMessagePartSize) {
-                    LOG_ERROR("Part %v exceeds size limit: %v > %v",
+                    YT_LOG_ERROR("Part %v exceeds size limit: %v > %v",
                         index,
                         part.Size(),
                         MaxMessagePartSize);

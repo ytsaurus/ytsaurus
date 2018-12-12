@@ -207,13 +207,13 @@ private:
             Logger);
 
         Logger.AddTag("ChunkId: %v", SessionId_);
-        LOG_DEBUG("Chunk created");
+        YT_LOG_DEBUG("Chunk created");
 
         UnderlyingWriter_ = CreateUnderlyingWriter();
         WaitFor(UnderlyingWriter_->Open())
             .ThrowOnError();
 
-        LOG_DEBUG("Chunk writer opened");
+        YT_LOG_DEBUG("Chunk writer opened");
     }
 
     IChunkWriterPtr CreateUnderlyingWriter() const
@@ -264,7 +264,7 @@ private:
             "Failed to close chunk %v",
             SessionId_.ChunkId);
 
-        LOG_DEBUG("Chunk closed");
+        YT_LOG_DEBUG("Chunk closed");
 
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicas();
         YCHECK(!replicas.empty());
@@ -310,7 +310,7 @@ private:
 
         Closed_ = true;
 
-        LOG_DEBUG("Chunk confirmed");
+        YT_LOG_DEBUG("Chunk confirmed");
     }
 };
 

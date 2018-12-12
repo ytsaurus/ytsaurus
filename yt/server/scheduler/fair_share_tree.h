@@ -271,7 +271,7 @@ private:
         virtual void ProcessUpdatedJob(const TOperationId& operationId, const TJobId& jobId, const TJobResources& delta)
         {
             // NB: Should be filtered out on large clusters.
-            LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
+            YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
             auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             if (operationElement) {
                 operationElement->IncreaseJobResourceUsage(jobId, delta);
@@ -281,7 +281,7 @@ private:
         virtual void ProcessFinishedJob(const TOperationId& operationId, const TJobId& jobId) override
         {
             // NB: Should be filtered out on large clusters.
-            LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
+            YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
             auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             if (operationElement) {
                 operationElement->OnJobFinished(jobId);

@@ -283,7 +283,7 @@ protected:
         const TLockRequest& lockRequest)
     {
         const auto& Logger = CypressServerLogger;
-        LOG_DEBUG_UNLESS(
+        YT_LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v, LockTimestamp: %llx)",
             originatingNode->GetVersionedId(),
@@ -305,7 +305,7 @@ protected:
         TImpl* branchedNode)
     {
         const auto& Logger = CypressServerLogger;
-        LOG_DEBUG_UNLESS(
+        YT_LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
             originatingNode->GetVersionedId(),

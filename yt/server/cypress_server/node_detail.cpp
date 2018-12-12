@@ -690,7 +690,7 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
 
     implHolder->SetTargetPath(targetPath);
 
-    LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
+    YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
         id,
         targetPath);
 

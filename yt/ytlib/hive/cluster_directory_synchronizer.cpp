@@ -108,7 +108,7 @@ private:
             }
 
             auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
-            LOG_DEBUG("Started updating cluster directory");
+            YT_LOG_DEBUG("Started updating cluster directory");
 
             TGetClusterMetaOptions options;
             options.PopulateClusterDirectory = true;
@@ -123,7 +123,7 @@ private:
 
             clusterDirectory->UpdateDirectory(*meta.ClusterDirectory);
 
-            LOG_DEBUG("Finished updating cluster directory");
+            YT_LOG_DEBUG("Finished updating cluster directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating cluster directory")
                 << ex;
@@ -139,7 +139,7 @@ private:
         } catch (const std::exception& ex) {
             error = TError(ex);
             Synchronized_.Fire(error);
-            LOG_DEBUG(error);
+            YT_LOG_DEBUG(error);
         }
 
         auto guard = Guard(SpinLock_);

@@ -44,7 +44,7 @@ public:
         auto residual = IsResidual();
         auto interruptHint = Statistics_.GetInterruptHint(jobId);
         auto isSplittable = job.IsSplittable(Config_);
-        LOG_TRACE("Checking if job is splittable (Residual: %v, GetInterruptHint: %v, IsSplittable: %v)",
+        YT_LOG_TRACE("Checking if job is splittable (Residual: %v, GetInterruptHint: %v, IsSplittable: %v)",
             residual,
             interruptHint,
             isSplittable);
@@ -118,7 +118,7 @@ public:
             1,
             Config_->MaxJobsPerSplit);
 
-        LOG_DEBUG("Estimated optimal job count for unread data slices "
+        YT_LOG_DEBUG("Estimated optimal job count for unread data slices "
             "(JobCount: %v, JobId: %v, PrepareDuration: %.6g, ExecDuration: %.6g, "
             "ProcessedRowCount: %v, MedianCompletionDuration: %.6g, MinJobTime: %v, "
             "ExecToPrepareTimeRatio: %v, UnreadRowCount: %v, ExpectedExecDuration: %.6g)",
@@ -312,7 +312,7 @@ private:
                 config->MinJobTime,
                 PrepareWithoutDownloadDuration_ * config->ExecToPrepareTimeRatio);
             const auto& Logger = Owner_->Logger;
-            LOG_TRACE("Checking if job is splittable (IsSplittable: %v, RowCount: %v, ExecDuration: %v, "
+            YT_LOG_TRACE("Checking if job is splittable (IsSplittable: %v, RowCount: %v, ExecDuration: %v, "
                 "RemainingDuration: %v, MinJobTime: %v, TotalDataWeight: %v, MinTotalDataWeight: %v)",
                 IsSplittable_,
                 RowCount_,

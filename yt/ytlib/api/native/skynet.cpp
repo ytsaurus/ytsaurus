@@ -69,7 +69,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     int chunkCount;
 
     {
-        LOG_INFO("Requesting chunk count");
+        YT_LOG_INFO("Requesting chunk count");
 
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
@@ -93,7 +93,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
 
     auto skynetShareLocations = New<TSkynetSharePartsLocations>();
 
-    LOG_INFO("Fetching table chunks");
+    YT_LOG_INFO("Fetching table chunks");
 
     FetchChunkSpecs(
         client,

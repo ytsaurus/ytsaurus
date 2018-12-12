@@ -67,9 +67,9 @@ public:
         auto cachedBlock = TAsyncSlruCacheBase::Find(blockId);
 
         if (cachedBlock) {
-            LOG_TRACE("Block cache hit (BlockId: %v)", blockId);
+            YT_LOG_TRACE("Block cache hit (BlockId: %v)", blockId);
         } else {
-            LOG_TRACE("Block cache miss (BlockId: %v)", blockId);
+            YT_LOG_TRACE("Block cache miss (BlockId: %v)", blockId);
         }
 
         return cachedBlock;

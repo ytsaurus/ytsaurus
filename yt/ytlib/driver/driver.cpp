@@ -413,7 +413,7 @@ private:
 
         TError result;
         TRACE_CHILD("Driver", request.CommandName) {
-            LOG_DEBUG("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            YT_LOG_DEBUG("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
@@ -427,12 +427,12 @@ private:
         }
 
         if (result.IsOK()) {
-            LOG_DEBUG("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            YT_LOG_DEBUG("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
         } else {
-            LOG_DEBUG(result, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            YT_LOG_DEBUG(result, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);

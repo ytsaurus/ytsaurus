@@ -158,7 +158,7 @@ private:
         auto objectIdPath = FromObjectId(ObjectId_);
 
         {
-            LOG_INFO("Requesting extended file attributes");
+            YT_LOG_INFO("Requesting extended file attributes");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             TObjectServiceProxy proxy(channel);
@@ -200,12 +200,12 @@ private:
                     NErasure::ECodec::None);
             }
 
-            LOG_INFO("Extended file attributes received (Account: %v)",
+            YT_LOG_INFO("Extended file attributes received (Account: %v)",
                 writerOptions->Account);
         }
 
         {
-            LOG_INFO("Starting file upload");
+            YT_LOG_INFO("Starting file upload");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
@@ -251,7 +251,7 @@ private:
                 UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
                 StartListenTransaction(UploadTransaction_);
 
-                LOG_INFO("File upload started (UploadTransactionId: %v)",
+                YT_LOG_INFO("File upload started (UploadTransactionId: %v)",
                     uploadTransactionId);
             }
         }
@@ -259,7 +259,7 @@ private:
         TChunkListId chunkListId;
 
         {
-            LOG_INFO("Requesting file upload parameters");
+            YT_LOG_INFO("Requesting file upload parameters");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTag_);
             TObjectServiceProxy proxy(channel);
@@ -290,7 +290,7 @@ private:
                 }
             }
 
-            LOG_INFO("File upload parameters received (ChunkListId: %v)",
+            YT_LOG_INFO("File upload parameters received (ChunkListId: %v)",
                 chunkListId);
         }
 
@@ -302,14 +302,14 @@ private:
             UploadTransaction_->GetId(),
             chunkListId);
 
-        LOG_INFO("File opened");
+        YT_LOG_INFO("File opened");
     }
 
     void DoClose()
     {
         ValidateAborted();
 
-        LOG_INFO("Closing file");
+        YT_LOG_INFO("Closing file");
 
         {
             auto result = WaitFor(Writer_->Close());
@@ -360,7 +360,7 @@ private:
 
         UploadTransaction_->Detach();
 
-        LOG_INFO("File closed");
+        YT_LOG_INFO("File closed");
     }
 
 };

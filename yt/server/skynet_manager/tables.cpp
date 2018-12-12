@@ -280,7 +280,7 @@ std::vector<TRequestKey> TTables::ListActiveRequests()
 
 bool TTables::StartRequest(const TRequestKey& key, TRequestState* state)
 {
-    LOG_INFO("Starting request (RequestKey: %v)", key);
+    YT_LOG_INFO("Starting request (RequestKey: %v)", key);
 
     auto nameTable = New<TNameTable>();
     auto rowBuffer = New<TRowBuffer>();
@@ -292,7 +292,7 @@ bool TTables::StartRequest(const TRequestKey& key, TRequestState* state)
     bool ok = LookupRequest(tx, nameTable, rowBuffer, key, &oldState);
     if (ok) {
         if (oldState.State == ERequestState::Failed) {
-            LOG_INFO("Found failed request (RequestKey: %v)", key);
+            YT_LOG_INFO("Found failed request (RequestKey: %v)", key);
             DeleteRequest(tx, nameTable, rowBuffer, key);
             WaitFor(tx->Commit())
                 .ThrowOnError();
@@ -302,16 +302,16 @@ bool TTables::StartRequest(const TRequestKey& key, TRequestState* state)
 
         // TODO(prime@): move to config
         if (!oldState.IsExpired(TDuration::Minutes(5))) {
-            LOG_INFO("Found existing active request (RequestKey: %v)", key);
+            YT_LOG_INFO("Found existing active request (RequestKey: %v)", key);
             WaitFor(tx->Abort())
                 .ThrowOnError();
             *state = oldState;
             return false;
         }
 
-        LOG_INFO("Found existing expired request (RequestKey: %v)", key);
+        YT_LOG_INFO("Found existing expired request (RequestKey: %v)", key);
     } else {
-        LOG_INFO("Existing request not found (RequestKey: %v)", key);
+        YT_LOG_INFO("Existing request not found (RequestKey: %v)", key);
     }
 
     TRequestState newState;

@@ -349,9 +349,9 @@ private:
                     options);
 
                 ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
-                LOG_DEBUG("Splitting %v prunned / %v original ranges (TableId: %v)", prunedRanges.size(), ranges.Size(), tableId);
+                YT_LOG_DEBUG("Splitting %v prunned / %v original ranges (TableId: %v)", prunedRanges.size(), ranges.Size(), tableId);
             } else {
-                LOG_DEBUG("Splitting %v ranges (TableId: %v)", ranges.Size(), tableId);
+                YT_LOG_DEBUG("Splitting %v ranges (TableId: %v)", ranges.Size(), tableId);
             }
 
             size_t keyWidth = std::numeric_limits<size_t>::max();
@@ -418,7 +418,7 @@ private:
 
             size_t keyWidth = dataSource.Schema.size();
 
-            LOG_DEBUG("Splitting %v keys (TableId: %v)", keys.Size(), tableId);
+            YT_LOG_DEBUG("Splitting %v keys (TableId: %v)", keys.Size(), tableId);
 
             struct TTraits
             {
@@ -527,7 +527,7 @@ private:
                 TString address;
                 std::tie(dataSources, address) = getSubsources(index);
 
-                LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v)",
+                YT_LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v)",
                     subquery->Id,
                     address,
                     options.MaxSubqueries);
@@ -541,7 +541,7 @@ private:
                     address);
             },
             [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
-                LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
+                YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return Evaluator_->Run(
                     std::move(topQuery),
                     std::move(reader),
@@ -579,12 +579,12 @@ private:
                     THROW_ERROR_EXCEPTION("Primary table key is not used in the where clause (full scan); "
                         "the query is inefficient, consider rewriting it");
                 } else {
-                    LOG_DEBUG("Executing query with full scan");
+                    YT_LOG_DEBUG("Executing query with full scan");
                 }
             }
         }
 
-        LOG_DEBUG("Regrouping %v splits into groups",
+        YT_LOG_DEBUG("Regrouping %v splits into groups",
             allSplits.size());
 
         THashMap<TString, std::vector<TDataRanges>> groupsByAddress;
@@ -598,7 +598,7 @@ private:
             groupedSplits.emplace_back(group.second, group.first);
         }
 
-        LOG_DEBUG("Regrouped %v splits into %v groups",
+        YT_LOG_DEBUG("Regrouped %v splits into %v groups",
             allSplits.size(),
             groupsByAddress.size());
 
@@ -636,7 +636,7 @@ private:
             Logger);
 
         // Should be already sorted.
-        LOG_DEBUG("Sorting splits (SplitCount: %v)", allSplits.size());
+        YT_LOG_DEBUG("Sorting splits (SplitCount: %v)", allSplits.size());
 
         YCHECK(std::is_sorted(
             allSplits.begin(),
@@ -662,7 +662,7 @@ private:
             [&] (int index) {
                 const auto& split = allSplits[index];
 
-                LOG_DEBUG("Delegating request to tablet (TabletId: %v, Address: %v)",
+                YT_LOG_DEBUG("Delegating request to tablet (TabletId: %v, Address: %v)",
                     split.first.Id,
                     split.second);
 
@@ -712,7 +712,7 @@ private:
             }
 
             auto queryFingerprint = InferName(query, true);
-            LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
+            YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
                 "RequestSize: %v)",
                 queryFingerprint,
                 query->GetReadSchema(),

@@ -54,7 +54,7 @@ public:
             if (mergeJobSpec.has_partition_tag()) {
                 partitionTag = mergeJobSpec.partition_tag();
             }
-            LOG_INFO("Ordered merge produces sorted output");
+            YT_LOG_INFO("Ordered merge produces sorted output");
         }
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;

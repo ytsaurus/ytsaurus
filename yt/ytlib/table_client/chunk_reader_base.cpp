@@ -170,7 +170,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
     const auto& lastBlock = *(--blockMetaEntries.end());
 
     if (lowerLimit.GetRowIndex() >= lastBlock.chunk_row_count()) {
-        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, RowCount: %v)",
+        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, RowCount: %v)",
             lowerLimit,
             lastBlock.chunk_row_count());
 
@@ -202,7 +202,7 @@ int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKey
 
     int blockIndex = GetBlockIndexByKey(lowerLimit.GetKey(), blockIndexKeys, keyColumnCount);
     if (blockIndex == blockIndexKeys.Size()) {
-        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v)",
+        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v)",
             lowerLimit,
             blockIndexKeys.Back());
     }

@@ -103,7 +103,7 @@ private:
 
 void Check(SRes sres)
 {
-    LOG_FATAL_IF(sres != SZ_OK, "Lzma failed with errorcode %v", sres);
+    YT_LOG_FATAL_IF(sres != SZ_OK, "Lzma failed with errorcode %v", sres);
 }
 
 

@@ -152,12 +152,12 @@ TOrderedChunkStore::TOrderedChunkStore(
         localDescriptor)
     , TOrderedStoreBase(config, id, tablet)
 {
-    LOG_DEBUG("Ordered chunk store created");
+    YT_LOG_DEBUG("Ordered chunk store created");
 }
 
 TOrderedChunkStore::~TOrderedChunkStore()
 {
-    LOG_DEBUG("Ordered chunk store destroyed");
+    YT_LOG_DEBUG("Ordered chunk store destroyed");
 }
 
 void TOrderedChunkStore::Initialize(const TAddStoreDescriptor* descriptor)

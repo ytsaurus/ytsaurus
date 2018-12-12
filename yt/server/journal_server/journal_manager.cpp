@@ -67,7 +67,7 @@ public:
             chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Journal node sealed (NodeId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Journal node sealed (NodeId: %v)",
             trunkNode->GetId());
 
         if (trunkNode->IsForeign()) {

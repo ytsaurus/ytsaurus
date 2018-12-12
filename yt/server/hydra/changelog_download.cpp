@@ -31,7 +31,7 @@ void DoDownloadChangelog(
     int recordCount)
 {
     try {
-        LOG_INFO("Requested %v records in changelog %v",
+        YT_LOG_INFO("Requested %v records in changelog %v",
             recordCount,
             changelogId);
 
@@ -40,7 +40,7 @@ void DoDownloadChangelog(
             .ValueOrThrow();
 
         if (changelog->GetRecordCount() >= recordCount) {
-            LOG_INFO("Local changelog already contains %v records, no download needed",
+            YT_LOG_INFO("Local changelog already contains %v records, no download needed",
                 changelog->GetRecordCount());
             return;
         }
@@ -50,7 +50,7 @@ void DoDownloadChangelog(
             .ValueOrThrow();
         int downloadedRecordCount = changelog->GetRecordCount();
 
-        LOG_INFO("Downloading records %v-%v from peer %v",
+        YT_LOG_INFO("Downloading records %v-%v from peer %v",
             changelog->GetRecordCount(),
             recordCount - 1,
             changelogInfo.PeerId);
@@ -63,7 +63,7 @@ void DoDownloadChangelog(
                 config->MaxChangelogRecordsPerRequest,
                 recordCount - downloadedRecordCount);
 
-            LOG_DEBUG("Requesting records %v-%v",
+            YT_LOG_DEBUG("Requesting records %v-%v",
                 downloadedRecordCount,
                 downloadedRecordCount + desiredChunkSize - 1);
 
@@ -91,13 +91,13 @@ void DoDownloadChangelog(
 
             int actualChunkSize = static_cast<int>(recordsData.size());
             if (actualChunkSize != desiredChunkSize) {
-                LOG_DEBUG("Received records %v-%v while %v records were requested",
+                YT_LOG_DEBUG("Received records %v-%v while %v records were requested",
                     downloadedRecordCount,
                     downloadedRecordCount + actualChunkSize - 1,
                     desiredChunkSize);
                 // Continue anyway.
             } else {
-                LOG_DEBUG("Received records %v-%v",
+                YT_LOG_DEBUG("Received records %v-%v",
                     downloadedRecordCount,
                     downloadedRecordCount + actualChunkSize - 1);
             }
@@ -117,7 +117,7 @@ void DoDownloadChangelog(
         WaitFor(changelog->Flush())
             .ThrowOnError();
 
-        LOG_INFO("Changelog downloaded successfully");
+        YT_LOG_INFO("Changelog downloaded successfully");
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error downloading changelog %v", changelogId)
             << ex;

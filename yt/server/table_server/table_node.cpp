@@ -423,7 +423,7 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
             {
                 auto it = attributes.find(attributeName);
                 if (it != attributes.end()) {
-                    LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
+                    YT_LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
                         attributeName,
                         ConvertToYsonString(it->second, EYsonFormat::Text),
                         Id_);

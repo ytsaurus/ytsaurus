@@ -71,7 +71,7 @@ public:
             Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
         }
 
-        LOG_INFO("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
+        YT_LOG_INFO("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
                 startOffset,
                 endOffset);
 
@@ -168,12 +168,12 @@ private:
 
     void DoOpen()
     {
-        LOG_INFO("Requesting chunk meta");
+        YT_LOG_INFO("Requesting chunk meta");
 
         auto metaOrError = WaitFor(ChunkReader_->GetMeta(BlockReadOptions_));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
-        LOG_INFO("Chunk meta received");
+        YT_LOG_INFO("Chunk meta received");
         const auto& meta = metaOrError.Value();
 
         auto type = EChunkType(meta->type());
@@ -235,7 +235,7 @@ private:
         }
         YCHECK(blockCount >= 0);
 
-        LOG_INFO("Reading %v blocks out of %v starting from %v (SelectedSize: %v)",
+        YT_LOG_INFO("Reading %v blocks out of %v starting from %v (SelectedSize: %v)",
             blockSequence.size(),
             blockCount,
             blockIndex,
@@ -253,7 +253,7 @@ private:
             static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
             BlockReadOptions_);
 
-        LOG_INFO("File reader opened");
+        YT_LOG_INFO("File reader opened");
     }
 
     TBlock GetBlock()

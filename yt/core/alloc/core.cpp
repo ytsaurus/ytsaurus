@@ -697,7 +697,7 @@ public:
         const auto& Logger = context.Logger;
         if (Logger) {
             for (const auto& event : PullEvents()) {
-                LOG_DEBUG("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
+                YT_LOG_DEBUG("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
                     event.Type,
                     event.Duration,
                     event.Size,
@@ -885,23 +885,23 @@ public:
             return;
         }
         if (IsBuggyKernel() && !BuggyKernelLogged_) {
-            LOG_WARNING("Kernel is buggy; see KERNEL-118");
+            YT_LOG_WARNING("Kernel is buggy; see KERNEL-118");
             BuggyKernelLogged_ = true;
         }
         if (MlockallFailed_ && !MlockallFailedLogged_) {
-            LOG_WARNING("Failed lock process memory");
+            YT_LOG_WARNING("Failed lock process memory");
             MlockallFailedLogged_ = true;
         }
         if (PopulateUnavailable_.load() && !PopulateUnavailableLogged_) {
-            LOG_WARNING("MADV_POPULATE is not supported");
+            YT_LOG_WARNING("MADV_POPULATE is not supported");
             PopulateUnavailableLogged_ = true;
         }
         if (FreeUnavailable_.load() && !FreeUnavailableLogged_) {
-            LOG_WARNING("MADV_FREE is not supported");
+            YT_LOG_WARNING("MADV_FREE is not supported");
             FreeUnavailableLogged_ = true;
         }
         if (StockpileUnavailable_.load() && !StockpileUnavailableLogged_) {
-            LOG_WARNING("MADV_STOCKPILE is not supported");
+            YT_LOG_WARNING("MADV_STOCKPILE is not supported");
             StockpileUnavailableLogged_ = true;
         }
     }
@@ -2609,7 +2609,7 @@ private:
         }
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG_IF(count > 0, "Locked spare blobs reinstalled (Rank: %v, Blobs: %v)",
+        YT_LOG_DEBUG_IF(count > 0, "Locked spare blobs reinstalled (Rank: %v, Blobs: %v)",
             arena->Rank,
             count);
     }
@@ -2628,7 +2628,7 @@ private:
         }
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG_IF(count > 0, "Locked freed blobs reinstalled (Rank: %v, Blobs: %v)",
+        YT_LOG_DEBUG_IF(count > 0, "Locked freed blobs reinstalled (Rank: %v, Blobs: %v)",
             arena->Rank,
             count);
     }
@@ -2643,7 +2643,7 @@ private:
         auto* state = TThreadManager::GetThreadState();
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG("Started processing spare memory in arena (BytesToReclaim: %vM, Rank: %v)",
+        YT_LOG_DEBUG("Started processing spare memory in arena (BytesToReclaim: %vM, Rank: %v)",
             bytesToReclaim / 1_MB,
             rank);
 
@@ -2682,7 +2682,7 @@ private:
 
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::SpareBytesReclaimed, bytesReclaimed);
 
-        LOG_DEBUG("Finished processing spare memory in arena (Rank: %v, BytesReclaimed: %vM, BlobsReclaimed: %v)",
+        YT_LOG_DEBUG("Finished processing spare memory in arena (Rank: %v, BytesReclaimed: %vM, BlobsReclaimed: %v)",
             arena->Rank,
             bytesReclaimed / 1_MB,
             blobsReclaimed);
@@ -2698,7 +2698,7 @@ private:
         auto rank = arena->Rank;
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG("Started processing overhead memory in arena (BytesToReclaim: %vM, Rank: %v)",
+        YT_LOG_DEBUG("Started processing overhead memory in arena (BytesToReclaim: %vM, Rank: %v)",
             bytesToReclaim / 1_MB,
             rank);
 
@@ -2756,7 +2756,7 @@ private:
 
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::OverheadBytesReclaimed, bytesReclaimed);
 
-        LOG_DEBUG("Finished processing overhead memory in arena (Rank: %v, Extents: %v, Segments: %v, BytesReclaimed: %vM)",
+        YT_LOG_DEBUG("Finished processing overhead memory in arena (Rank: %v, Extents: %v, Segments: %v, BytesReclaimed: %vM)",
             arena->Rank,
             extentsTraversed,
             segmentsTraversed,
@@ -2780,7 +2780,7 @@ private:
         }
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG("Memory reclaim started (BytesToReclaim: %vM)",
+        YT_LOG_DEBUG("Memory reclaim started (BytesToReclaim: %vM)",
             bytesToReclaim / 1_MB);
 
         std::array<ssize_t, LargeRankCount * 2> bytesReclaimablePerArena;
@@ -2820,7 +2820,7 @@ private:
             ReclaimSpareMemory(context, &arena, bytesToReclaimPerArena[rank * 2 + 1]);
         }
 
-        LOG_DEBUG("Memory reclaim finished");
+        YT_LOG_DEBUG("Memory reclaim finished");
     }
 
     template <class TState>

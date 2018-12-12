@@ -58,7 +58,7 @@ void GetUserObjectBasicAttributes(
 {
     const auto& Logger = logger;
 
-    LOG_INFO("Getting basic attributes of user objects");
+    YT_LOG_INFO("Getting basic attributes of user objects");
 
     auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower);
     NObjectClient::TObjectServiceProxy proxy(channel);

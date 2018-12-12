@@ -38,7 +38,7 @@ TGrpcLibraryLock::TGrpcLibraryLock()
     if (GrpcLibraryRefCounter.fetch_add(1) == 0) {
         // Failure here indicates an attempt to re-initialize GRPC after shutdown.
         YCHECK(GrpcLibraryInitCounter.fetch_add(1) == 0);
-        LOG_INFO("Initializing GRPC library");
+        YT_LOG_INFO("Initializing GRPC library");
         grpc_init_openssl();
         grpc_init();
     }
@@ -47,7 +47,7 @@ TGrpcLibraryLock::TGrpcLibraryLock()
 TGrpcLibraryLock::~TGrpcLibraryLock()
 {
     if (GrpcLibraryRefCounter.fetch_sub(1) == 1) {
-        LOG_INFO("Shutting down GRPC library");
+        YT_LOG_INFO("Shutting down GRPC library");
         grpc_shutdown();
     }
 }
@@ -132,7 +132,7 @@ private:
             auto threadName = Format("Grpc:%v", Index_);
             ::TThread::CurrentThreadSetName(threadName.c_str());
 
-            LOG_DEBUG("Dispatcher thread started (Name: %v)", threadName);
+            YT_LOG_DEBUG("Dispatcher thread started (Name: %v)", threadName);
 
             Owner_->StartLatch_.CountDown();
 
@@ -160,7 +160,7 @@ private:
                 }
             }
 
-            LOG_DEBUG("Dispatcher thread stopped (Name: %v)", threadName);
+            YT_LOG_DEBUG("Dispatcher thread stopped (Name: %v)", threadName);
         }
     };
 

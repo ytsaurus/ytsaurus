@@ -129,7 +129,7 @@ TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
 TJobResult TSimpleJobBase::Run()
 {
     PROFILE_TIMING ("/job_time") {
-        LOG_INFO("Initializing");
+        YT_LOG_INFO("Initializing");
 
         Host_->OnPrepared();
 
@@ -148,7 +148,7 @@ TJobResult TSimpleJobBase::Run()
 
             PROFILE_TIMING_CHECKPOINT("init");
 
-            LOG_INFO("Reading and writing");
+            YT_LOG_INFO("Reading and writing");
 
             TPipeReaderToWriterOptions options;
             options.BufferRowCount = Host_->GetJobSpecHelper()->GetJobIOConfig()->BufferRowCount;
@@ -162,7 +162,7 @@ TJobResult TSimpleJobBase::Run()
 
         PROFILE_TIMING_CHECKPOINT("reading_writing");
 
-        LOG_INFO("Finalizing");
+        YT_LOG_INFO("Finalizing");
         {
             TJobResult result;
             ToProto(result.mutable_error(), TError());
@@ -191,12 +191,12 @@ bool TSimpleJobBase::ShouldSendBoundaryKeys() const
 double TSimpleJobBase::GetProgress() const
 {
     if (TotalRowCount_ == 0) {
-        LOG_WARNING("Job progress: empty total");
+        YT_LOG_WARNING("Job progress: empty total");
         return 0;
     } else {
         i64 rowCount = Reader_ ? Reader_->GetDataStatistics().row_count() : 0;
         double progress = (double) rowCount / TotalRowCount_;
-        LOG_DEBUG("Job progress: %lf, read row count: %" PRId64, progress, rowCount);
+        YT_LOG_DEBUG("Job progress: %lf, read row count: %" PRId64, progress, rowCount);
         return progress;
     }
 }

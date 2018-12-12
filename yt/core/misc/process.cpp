@@ -180,7 +180,7 @@ void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     bool isOK = TryWaitid(idtype, id, infop, options);
 
     if (!isOK) {
-        LOG_FATAL(TError::FromSystem(), "Waitid failed with options: %v", options);
+        YT_LOG_FATAL(TError::FromSystem(), "Waitid failed with options: %v", options);
     }
 
     YCHECK(infop->si_pid == id);
@@ -356,7 +356,7 @@ void TSimpleProcess::DoSpawn()
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
-    LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: %v,  Arguments: %v, Environment: %v)",
+    YT_LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: %v,  Arguments: %v, Environment: %v)",
         ResolvedPath_,
         Pipe_,
         Args_,
@@ -486,7 +486,7 @@ void TSimpleProcess::ValidateSpawnResult()
         // * child killed by signal before exec
         // * child killed by signal after exec
         // So we treat kill-before-exec the same way as kill-after-exec.
-        LOG_DEBUG("Child process spawned successfully (Pid: %v)", ProcessId_);
+        YT_LOG_DEBUG("Child process spawned successfully (Pid: %v)", ProcessId_);
         return;
     }
 
@@ -532,7 +532,7 @@ void TSimpleProcess::AsyncPeriodicTryWait()
 
     Finished_ = true;
     auto error = ProcessInfoToError(processInfo);
-    LOG_DEBUG("Process finished (Pid: %v, Error: %v)", ProcessId_, error);
+    YT_LOG_DEBUG("Process finished (Pid: %v, Error: %v)", ProcessId_, error);
 
     FinishedPromise_.Set(error);
 #else
@@ -551,7 +551,7 @@ void TSimpleProcess::Kill(int signal)
         return;
     }
 
-    LOG_DEBUG("Killing child process (Pid: %v)", ProcessId_);
+    YT_LOG_DEBUG("Killing child process (Pid: %v)", ProcessId_);
 
     auto result = TryKill(ProcessId_, signal);
     if (!result) {

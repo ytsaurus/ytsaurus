@@ -217,7 +217,7 @@ private:
         auto* tablet = partition->GetTablet();
         const auto& hydraManager = slot->GetHydraManager();
 
-        LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
+        YT_LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
             splitFactor);
 
         try {
@@ -256,7 +256,7 @@ private:
             CreateMutation(hydraManager, request)
                 ->CommitAndLog(Logger);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Partition splitting aborted");
+            YT_LOG_ERROR(ex, "Partition splitting aborted");
             partition->CheckedSetState(EPartitionState::Splitting, EPartitionState::Normal);
         }
     }
@@ -290,7 +290,7 @@ private:
                     tablet->PartitionList().data() + lastPartitionIndex + 1),
                 TPartitionIdFormatter()));
 
-        LOG_INFO("Partition is eligible for merge");
+        YT_LOG_INFO("Partition is eligible for merge");
 
         const auto& hydraManager = slot->GetHydraManager();
 
@@ -346,7 +346,7 @@ private:
             auto uncompressedDataSize = partition->GetUncompressedDataSize();
             auto scaledSamples = static_cast<int>(
                 config->SamplesPerPartition * std::max(compressedDataSize, uncompressedDataSize) / compressedDataSize);
-            LOG_INFO("Sampling partition (DesiredSampleCount: %v)", scaledSamples);
+            YT_LOG_INFO("Sampling partition (DesiredSampleCount: %v)", scaledSamples);
 
             auto rowBuffer = New<TRowBuffer>();
             auto samples = GetPartitionSamples(rowBuffer, slot, partition, scaledSamples);
@@ -366,7 +366,7 @@ private:
             CreateMutation(hydraManager, request)
                 ->CommitAndLog(Logger);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Partition sampling aborted");
+            YT_LOG_ERROR(ex, "Partition sampling aborted");
         }
 
         partition->CheckedSetState(EPartitionState::Sampling, EPartitionState::Normal);
@@ -452,7 +452,7 @@ private:
                 return std::vector<TKey>();
             }
 
-            LOG_INFO("Locating partition chunks (ChunkCount: %v)",
+            YT_LOG_INFO("Locating partition chunks (ChunkCount: %v)",
                 req->subrequests_size());
 
             auto rspOrError = WaitFor(req->Invoke());
@@ -460,7 +460,7 @@ private:
             const auto& rsp = rspOrError.Value();
             YCHECK(req->subrequests_size() == rsp->subresponses_size());
 
-            LOG_INFO("Partition chunks located");
+            YT_LOG_INFO("Partition chunks located");
 
             nodeDirectory->MergeFrom(rsp->node_directory());
 

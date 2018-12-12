@@ -306,7 +306,7 @@ private:
         WrapAgentException([&] {
             auto operation = controllerAgent->FindOperation(operationId);
             if (!operation) {
-                LOG_DEBUG("Operation is missing; ignoring request");
+                YT_LOG_DEBUG("Operation is missing; ignoring request");
                 context->Reply();
                 return;
             }

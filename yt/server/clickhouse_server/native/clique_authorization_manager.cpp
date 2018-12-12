@@ -42,7 +42,7 @@ public:
                 Logger);
             return true;
         } catch (const std::exception& ex) {
-            LOG_INFO(ex, "User does not have access to the containing operation (User: %v, OperationId: %v)",
+            YT_LOG_INFO(ex, "User does not have access to the containing operation (User: %v, OperationId: %v)",
                 user,
                 CliqueId_);
             return false;

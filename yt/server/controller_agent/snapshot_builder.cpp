@@ -76,11 +76,11 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-    LOG_INFO("Snapshot builder started");
+    YT_LOG_INFO("Snapshot builder started");
 
     std::vector<TOperationId> operationIds;
 
-    LOG_INFO("Preparing controllers for suspension");
+    YT_LOG_INFO("Preparing controllers for suspension");
     std::vector<TFuture<TSnapshotCookie>> onSnapshotStartedFutures;
 
     // Capture everything needed in Build.
@@ -114,7 +114,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
             .Run());
         operationIds.push_back(operationId);
 
-        LOG_INFO("Preparing controller for suspension (OperationId: %v)",
+        YT_LOG_INFO("Preparing controller for suspension (OperationId: %v)",
             operationId);
     }
 
@@ -130,11 +130,11 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
         for (int index = 0; index < Jobs_.size(); ++index) {
             const auto& coookieOrError = results[index];
             if (!coookieOrError.IsOK()) {
-                LOG_WARNING(coookieOrError, "Failed to get snapshot index from controller (OperationId: %v)",
+                YT_LOG_WARNING(coookieOrError, "Failed to get snapshot index from controller (OperationId: %v)",
                     Jobs_[index]->OperationId);
                 continue;
             } else if (Jobs_[index]->WeakController.IsExpired()) {
-                LOG_INFO("Controller was destroyed between OnSnapshotStarted was called and suspension (OperationId: %v)",
+                YT_LOG_INFO("Controller was destroyed between OnSnapshotStarted was called and suspension (OperationId: %v)",
                     Jobs_[index]->OperationId);
             } else {
                 Jobs_[index]->Cookie = coookieOrError.Value();
@@ -145,7 +145,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
 
     Jobs_ = std::move(preparedJobs);
 
-    LOG_INFO("Suspending controllers (ControllerCount: %v)", Jobs_.size());
+    YT_LOG_INFO("Suspending controllers (ControllerCount: %v)", Jobs_.size());
 
     std::vector<TFuture<void>> operationSuspendFutures;
 
@@ -162,14 +162,14 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
             .WithTimeout(Config_->OperationControllerSuspendTimeout));
         if (!result.IsOK()) {
             if (result.GetCode() == NYT::EErrorCode::Timeout) {
-                LOG_WARNING("Some of the controllers timed out");
+                YT_LOG_WARNING("Some of the controllers timed out");
             } else {
-                LOG_FATAL(result, "Failed to suspend controllers");
+                YT_LOG_FATAL(result, "Failed to suspend controllers");
             }
         }
     }
 
-    LOG_INFO("Controllers suspended");
+    YT_LOG_INFO("Controllers suspended");
 
     ControllersSuspended_ = true;
 
@@ -178,7 +178,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
         forkFuture = Fork();
     }
 
-    LOG_INFO("Resuming controllers");
+    YT_LOG_INFO("Resuming controllers");
 
     for (const auto& job : Jobs_) {
         if (auto controller = job->WeakController.Lock()) {
@@ -186,12 +186,12 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
         } else {
             // It is a strange situation: how could controller be terminated if its invoker was suspended?
             // The most adequate reaction for us is to not do anything, we no longer have controller anyway.
-            LOG_WARNING("Controller was destroyed between suspension and resumption (OperationId: %v)",
+            YT_LOG_WARNING("Controller was destroyed between suspension and resumption (OperationId: %v)",
                 job->OperationId);
         }
     }
 
-    LOG_INFO("Controllers resumed");
+    YT_LOG_INFO("Controllers resumed");
 
     auto uploadFuture = UploadSnapshots()
         .Apply(
@@ -199,7 +199,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
                 for (size_t i = 0; i < errors.size(); ++i) {
                     const auto& error = errors[i];
                     if (!error.IsOK()) {
-                        LOG_INFO(error, "Failed to build snapshot for operation (OperationId: %v)",
+                        YT_LOG_INFO(error, "Failed to build snapshot for operation (OperationId: %v)",
                             operationIds[i]);
                     }
                 }
@@ -212,12 +212,12 @@ void TSnapshotBuilder::OnControllerSuspended(const TSnapshotJobPtr& job)
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     if (!ControllersSuspended_) {
-        LOG_DEBUG("Controller suspended (OperationId: %v, SnapshotIndex: %v)",
+        YT_LOG_DEBUG("Controller suspended (OperationId: %v, SnapshotIndex: %v)",
             job->OperationId,
             job->Cookie.SnapshotIndex);
         job->Suspended = true;
     } else {
-        LOG_DEBUG("Controller suspended too late (OperationId: %v, SnapshotIndex: %v)",
+        YT_LOG_DEBUG("Controller suspended too late (OperationId: %v, SnapshotIndex: %v)",
             job->OperationId,
             job->Cookie.SnapshotIndex);
     }
@@ -326,7 +326,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
     Logger.AddTag("OperationId: %v", operationId);
 
     try {
-        LOG_INFO("Started uploading snapshot");
+        YT_LOG_INFO("Started uploading snapshot");
 
         auto snapshotPath = GetSnapshotPath(operationId);
         auto snapshotUploadPath = snapshotPath + TmpSuffix;
@@ -395,13 +395,13 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Close())
                 .ThrowOnError();
 
-            LOG_INFO("Snapshot file uploaded successfully (Size: %v, Path: %v)",
+            YT_LOG_INFO("Snapshot file uploaded successfully (Size: %v, Path: %v)",
                 snapshotSize,
                 snapshotUploadPath);
         }
 
         if (snapshotSize == 0) {
-            LOG_WARNING("Empty snapshot found, skipping it");
+            YT_LOG_WARNING("Empty snapshot found, skipping it");
             transaction->Abort();
             return;
         }
@@ -422,12 +422,12 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
                 options))
                 .ThrowOnError();
 
-            LOG_INFO("Snapshot file moved successfully (Source: %v, Destination: %v)",
+            YT_LOG_INFO("Snapshot file moved successfully (Source: %v, Destination: %v)",
                 snapshotUploadPath,
                 snapshotPath);
         }
 
-        LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
+        YT_LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
             job->Cookie.SnapshotIndex);
 
         auto future = VoidFuture;
@@ -438,14 +438,14 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
                     .Run(job->Cookie);
             }
         } else {
-            LOG_INFO("Controller was destroyed between snapshot upload and OnSnapshotCompleted call");
+            YT_LOG_INFO("Controller was destroyed between snapshot upload and OnSnapshotCompleted call");
         }
 
         // Notify controller about snapshot procedure finish.
         WaitFor(future)
             .ThrowOnError();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error uploading snapshot");
+        YT_LOG_ERROR(ex, "Error uploading snapshot");
     }
 }
 

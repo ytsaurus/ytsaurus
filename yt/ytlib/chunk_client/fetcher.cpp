@@ -114,18 +114,18 @@ private:
         ++ChunkLocatedCallCount_;
         if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerRequest) {
             ChunkLocatedCallCount_ = 0;
-            LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
+            YT_LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
                 Config_->MaxChunksPerRequest,
                 UnavailableFetcherChunkCount_);
         }
 
-        LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v, Missing: %v)",
+        YT_LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v, Missing: %v)",
             chunkId,
             replicas,
             missing);
 
         if (missing) {
-            LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkId);
+            YT_LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkId);
             auto asyncError = Scraper_->Stop()
                 .Apply(BIND([=] () {
                     THROW_ERROR_EXCEPTION("Chunk scraper failed: chunk %v is missing", chunkId);
@@ -150,7 +150,7 @@ private:
 
         description.IsWaiting = false;
 
-        LOG_TRACE("Fetcher chunk is available (ChunkId: %v, Replicas: %v)",
+        YT_LOG_TRACE("Fetcher chunk is available (ChunkId: %v, Replicas: %v)",
             chunkId,
             replicas);
 
@@ -165,7 +165,7 @@ private:
         if (UnavailableFetcherChunkCount_ == 0) {
             // Wait for all scraper callbacks to finish before session completion.
             BatchLocatedPromise_.TrySetFrom(Scraper_->Stop());
-            LOG_DEBUG("All fetcher chunks are available");
+            YT_LOG_DEBUG("All fetcher chunks are available");
         }
     }
 };
@@ -229,7 +229,7 @@ TFuture<void> TFetcherBase::Fetch()
 
 void TFetcherBase::StartFetchingRound()
 {
-    LOG_DEBUG("Start fetching round (UnfetchedChunkCount: %v, DeadNodes: %v, DeadChunks: %v)",
+    YT_LOG_DEBUG("Start fetching round (UnfetchedChunkCount: %v, DeadNodes: %v, DeadChunks: %v)",
         UnfetchedChunkIndexes_.size(),
         DeadNodes_.size(),
         DeadChunks_.size());
@@ -268,10 +268,10 @@ void TFetcherBase::StartFetchingRound()
 
     if (!unavailableChunks.empty()) {
         YCHECK(ChunkScraper_);
-        LOG_DEBUG("Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)",
+        YT_LOG_DEBUG("Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)",
             unavailableChunks.size());
         auto error = WaitFor(ChunkScraper_->ScrapeChunks(std::move(unavailableChunks)));
-        LOG_DEBUG("All unavailable chunks are located");
+        YT_LOG_DEBUG("All unavailable chunks are located");
         DeadNodes_.clear();
         DeadChunks_.clear();
         BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this))
@@ -328,7 +328,7 @@ void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& e
     const auto& chunk = Chunks_[chunkIndex];
     const auto& chunkId = chunk->ChunkId();
 
-    LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)",
+    YT_LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)",
         chunkId,
         NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
 
@@ -338,7 +338,7 @@ void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& e
 
 void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkIndexes)
 {
-    LOG_DEBUG("Error fetching chunks from node (Address: %v, ChunkCount: %v)",
+    YT_LOG_DEBUG("Error fetching chunks from node (Address: %v, ChunkCount: %v)",
         NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
         chunkIndexes.size());
 
@@ -349,13 +349,13 @@ void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkInd
 void TFetcherBase::OnFetchingRoundCompleted(const TError& error)
 {
     if (!error.IsOK()) {
-        LOG_ERROR(error, "Fetching failed");
+        YT_LOG_ERROR(error, "Fetching failed");
         Promise_.Set(error);
         return;
     }
 
     if (UnfetchedChunkIndexes_.empty()) {
-        LOG_DEBUG("Fetching complete");
+        YT_LOG_DEBUG("Fetching complete");
         OnFetchingCompleted();
         Promise_.Set(TError());
         return;

@@ -359,7 +359,7 @@ public:
                 }
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(
+            YT_LOG_ERROR_UNLESS(
                 IsRecovery(),
                 ex,
                 "Error registering tablet cell in Cypress (CellId: %v)",
@@ -426,7 +426,7 @@ public:
                 // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
                 cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
             } catch (const std::exception& ex) {
-                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error unregisterting tablet cell from Cypress");
+                YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error unregisterting tablet cell from Cypress");
             }
         }
     }
@@ -445,7 +445,7 @@ public:
         auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
         objectManager->RefObject(tablet);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet created (TableId: %v, TabletId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet created (TableId: %v, TabletId: %v)",
             table->GetId(),
             tablet->GetId());
 
@@ -511,7 +511,7 @@ public:
 
         YCHECK(table->Replicas().insert(replica).second);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %llx)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %llx)",
             table->GetId(),
             replica->GetId(),
             mode,
@@ -633,7 +633,7 @@ public:
             preserveTimestamps = std::nullopt;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica updated (TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica updated (TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
             table->GetId(),
             replica->GetId(),
             enabled,
@@ -655,12 +655,12 @@ public:
 
         if (enabled) {
             if (*enabled) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Enabling table replica (TableId: %v, ReplicaId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Enabling table replica (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Enabling);
             } else {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Disabling);
@@ -874,7 +874,7 @@ public:
         action->SetFreeze(freeze);
         action->SetKeepFinished(keepFinished);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action created (%v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action created (%v)",
             *action);
 
         return action;
@@ -915,7 +915,7 @@ public:
 
         UnbindTabletAction(action);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action destroyed (ActionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action destroyed (ActionId: %v)",
             action->GetId());
     }
 
@@ -1018,7 +1018,7 @@ public:
                             tablet->GetState());
                 }
             } catch (const std::exception& ex) {
-                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error mounting missed in action tablet (TabletId: %v, ActionId: %v)",
+                YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error mounting missed in action tablet (TabletId: %v, ActionId: %v)",
                     tablet->GetId(),
                     action->GetId());
             }
@@ -1080,7 +1080,7 @@ public:
     void ChangeTabletActionState(TTabletAction* action, ETabletActionState state, bool recursive = true)
     {
         action->SetState(state);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %v)",
             action->GetId(),
             state);
         if (recursive) {
@@ -1349,7 +1349,7 @@ public:
             }
 
             case ETabletActionState::Failing: {
-                LOG_DEBUG_UNLESS(IsRecovery(), action->Error(), "Tablet action failed (ActionId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), action->Error(), "Tablet action failed (ActionId: %v)",
                     action->GetId());
 
                 MountMissedInActionTablets(action);
@@ -1786,7 +1786,7 @@ public:
                     startingRowIndex += chunk->MiscExt().row_count();
                 }
 
-                LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
                     "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v)",
                     table->GetId(),
                     tablet->GetId(),
@@ -1991,7 +1991,7 @@ public:
             auto state = tablet->GetState();
 
             if (state != ETabletState::Unmounted) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId());
@@ -2087,7 +2087,7 @@ public:
             state == ETabletState::Freezing);
 
         if (tablet->GetState() == ETabletState::Mounted) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId(),
                 cell->GetId());
@@ -2170,7 +2170,7 @@ public:
             state == ETabletState::Unfreezing);
 
         if (tablet->GetState() == ETabletState::Frozen) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId(),
                 cell->GetId());
@@ -2489,7 +2489,7 @@ public:
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Resharding table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Resharding table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, "
             "TabletCount %v, PivotKeys: %v)",
             table->GetId(),
             firstTabletIndex,
@@ -2719,7 +2719,7 @@ public:
                     Y_UNREACHABLE();
             }
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Unexpected exception while cloning table (TableId: %v)",
+            YT_LOG_FATAL(ex, "Unexpected exception while cloning table (TableId: %v)",
                 sourceTable->GetId());
         }
 
@@ -2843,7 +2843,7 @@ public:
         securityManager->UpdateTabletResourceUsage(table, tabletResourceUsage);
         ScheduleTableStatisticsUpdate(table, false);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
             table->GetId());
     }
 
@@ -2915,7 +2915,7 @@ public:
         securityManager->UpdateTabletResourceUsage(table, -tabletResourceUsage);
         ScheduleTableStatisticsUpdate(table, false);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
     }
 
@@ -3511,7 +3511,7 @@ private:
     void ScheduleTableStatisticsUpdate(TTableNode* table, bool updateDataStatistics = true)
     {
         if (!Bootstrap_->IsPrimaryMaster()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, UpdateDataStatistics: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, UpdateDataStatistics: %v)",
                 table->GetId(),
                 updateDataStatistics);
 
@@ -3546,7 +3546,7 @@ private:
     {
         YCHECK(!Bootstrap_->IsPrimaryMaster());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (TableId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (TableId: %v)",
             table->GetId());
 
         NProto::TReqUpdateTableStatistics req;
@@ -3592,7 +3592,7 @@ private:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (RequestedTableCount: %v, TableIds: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (RequestedTableCount: %v, TableIds: %v)",
             tableCount,
             tableIds);
 
@@ -3610,7 +3610,7 @@ private:
             tableIds.push_back(FromProto<TTableId>(entry.table_id()));
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Received table statistics update (TableIds: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received table statistics update (TableIds: %v)",
             tableIds);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -3672,7 +3672,7 @@ private:
             return;
         }
 
-        LOG_INFO("Sending tablet cell statistics gossip message");
+        YT_LOG_INFO("Sending tablet cell statistics gossip message");
 
         NProto::TReqSetTabletCellStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -3704,12 +3704,12 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Received tablet cell statistics gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received tablet cell statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Received tablet cell statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Received tablet cell statistics gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -3740,7 +3740,7 @@ private:
         for (const auto& slot : node->TabletSlots()) {
             auto* cell = slot.Cell;
             if (cell) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %v, CellId: %v, PeerId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %v, CellId: %v, PeerId: %v)",
                     node->GetDefaultAddress(),
                     cell->GetId(),
                     slot.PeerId);
@@ -3778,7 +3778,7 @@ private:
 
             protoInfo->set_tablet_cell_bundle(cellBundle->GetName());
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 peerId);
@@ -3802,7 +3802,7 @@ private:
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
                 "(Address: %v, CellId: %v, Version: %v, PrerequisiteTransactionId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
@@ -3827,7 +3827,7 @@ private:
             protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
             protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).GetData());
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 cellBundle->GetDynamicConfigVersion());
@@ -3843,7 +3843,7 @@ private:
             auto* protoInfo = response->add_tablet_slots_to_remove();
             ToProto(protoInfo->mutable_cell_id(), cellId);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
                 node->GetDefaultAddress(),
                 cellId);
         };
@@ -3882,7 +3882,7 @@ private:
             const auto& cellId = cellInfo.CellId;
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -3891,7 +3891,7 @@ private:
 
             auto peerId = cell->FindPeerId(address);
             if (peerId == InvalidPeerId) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %v, CellId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -3899,7 +3899,7 @@ private:
             }
 
             if (slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId)  {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     peerId,
                     address,
@@ -3911,7 +3911,7 @@ private:
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
                     address,
                     cellId,
                     peerId);
@@ -3927,7 +3927,7 @@ private:
             slot.PeerState = state;
             slot.PeerId = slot.Cell->GetPeerId(node); // don't trust peerInfo, it may still be InvalidPeerId
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
                 address,
                 slot.Cell->GetId(),
                 slot.PeerId,
@@ -3948,7 +3948,7 @@ private:
         // Check for expected slots that are missing.
         for (auto* cell : expectedCells) {
             if (actualCells.find(cell) == actualCells.end()) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: slot is missing (CellId: %v, Address: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: slot is missing (CellId: %v, Address: %v)",
                     cell->GetId(),
                     address);
                 cell->DetachPeer(node);
@@ -4133,7 +4133,7 @@ private:
             cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
                 cellId,
                 descriptor.GetDefaultAddress(),
                 peerId);
@@ -4212,7 +4212,7 @@ private:
         cell->SetLeadingPeerId(peerId);
 
         const auto& descriptor = cell->Peers()[peerId].Descriptor;
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
             cellId,
             descriptor.GetDefaultAddress(),
             peerId);
@@ -4246,7 +4246,7 @@ private:
 
         auto* table = node->As<TTableNode>();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Received update upstream tablet state request "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received update upstream tablet state request "
             "(TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, ExpectedLastMountTransactionId: %v, ActualLastMountTransactionId: %v)",
             tableId,
             actualState,
@@ -4281,7 +4281,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         table->SetPrimaryLastMountTransactionId(transactionId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state check request received (TableId: %v, LastMountTransactionId %v, PrimaryLastMountTransactionId %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state check request received (TableId: %v, LastMountTransactionId %v, PrimaryLastMountTransactionId %v)",
             table->GetId(),
             table->GetLastMountTransactionId(),
             table->GetPrimaryLastMountTransactionId());
@@ -4309,14 +4309,14 @@ private:
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, table->GetExternalCellTag());
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state check requested (TableId: %v, LastMountTransactionId %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state check requested (TableId: %v, LastMountTransactionId %v)",
                 table->GetId(),
                 table->GetLastMountTransactionId());
             return;
         }
 
         // TODO(savrus): Remove this after testing multicell on real cluster is done.
-        LOG_DEBUG("Table tablet state check started (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v, TabletCountByState: %v, TabletCountByExpectedState: %v)",
+        YT_LOG_DEBUG("Table tablet state check started (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v, TabletCountByState: %v, TabletCountByExpectedState: %v)",
             table->GetId(),
             table->GetLastMountTransactionId(),
             table->GetPrimaryLastMountTransactionId(),
@@ -4355,7 +4355,7 @@ private:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state updated "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state updated "
             "(TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v)",
             table->GetId(),
             actualState,
@@ -4411,7 +4411,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Mounting && state != ETabletState::FrozenMounting) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -4421,7 +4421,7 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %llx, CellId: %v, Frozen: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %llx, CellId: %v, Frozen: %v)",
             table->GetId(),
             tablet->GetId(),
             tablet->GetMountRevision(),
@@ -4444,7 +4444,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unmounting) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_WARNING_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -4467,13 +4467,13 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Freezing) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_WARNING_UNLESS(IsRecovery(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
@@ -4496,13 +4496,13 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unfreezing) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_WARNING_UNLESS(IsRecovery(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet unfrozen (TableId: %v, TabletId: %v, CellId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet unfrozen (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
@@ -4534,7 +4534,7 @@ private:
         auto* replicaInfo = tablet->GetReplicaInfo(replica);
         PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
             "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tabletId,
             replicaId,
@@ -4563,7 +4563,7 @@ private:
 
         auto* replicaInfo = tablet->GetReplicaInfo(replica);
         if (replicaInfo->GetState() != ETableReplicaState::Enabling) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Enabled replica notification received for a replica in a wrong state, "
+            YT_LOG_WARNING_UNLESS(IsRecovery(), "Enabled replica notification received for a replica in a wrong state, "
                 "ignored (TabletId: %v, ReplicaId: %v, State: %v)",
                 tabletId,
                 replicaId,
@@ -4596,7 +4596,7 @@ private:
 
         auto* replicaInfo = tablet->GetReplicaInfo(replica);
         if (replicaInfo->GetState() != ETableReplicaState::Disabling) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Disabled replica notification received for a replica in a wrong state, "
+            YT_LOG_WARNING_UNLESS(IsRecovery(), "Disabled replica notification received for a replica in a wrong state, "
                 "ignored (TabletId: %v, ReplicaId: %v, State: %v)",
                 tabletId,
                 replicaId,
@@ -4610,7 +4610,7 @@ private:
 
     void StartReplicaTransition(TTablet* tablet, TTableReplica* replica, TTableReplicaInfo* replicaInfo, ETableReplicaState newState)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica is now transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica is now transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
             tablet->GetTable()->GetId(),
             tablet->GetId(),
             replica->GetId(),
@@ -4622,7 +4622,7 @@ private:
 
     void StopReplicaTransition(TTablet* tablet, TTableReplica* replica, TTableReplicaInfo* replicaInfo, ETableReplicaState newState)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica is no longer transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica is no longer transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
             tablet->GetTable()->GetId(),
             tablet->GetId(),
             replica->GetId(),
@@ -4647,14 +4647,14 @@ private:
 
         switch (state) {
             case ETableReplicaState::Enabling:
-                LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Enabled);
                 break;
 
             case ETableReplicaState::Disabling:
-                LOG_DEBUG_UNLESS(IsRecovery(), "Table replica disabled (TableId: %v, ReplicaId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica disabled (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Disabled);
@@ -4670,7 +4670,7 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet unmounted (TableId: %v, TabletId: %v, CellId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet unmounted (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
@@ -4696,13 +4696,13 @@ private:
             auto* replica = pair.first;
             auto& replicaInfo = pair.second;
             if (replica->TransitioningTablets().erase(tablet) == 1) {
-                LOG_WARNING_UNLESS(IsRecovery(), "Unexpected error: table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
+                YT_LOG_WARNING_UNLESS(IsRecovery(), "Unexpected error: table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
                     tablet->GetTable()->GetId(),
                     tablet->GetId(),
                     replica->GetId(),
                     replicaInfo.GetState());
             } else {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Table replica state updated (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica state updated (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
                     tablet->GetTable()->GetId(),
                     tablet->GetId(),
                     replica->GetId(),
@@ -4761,7 +4761,7 @@ private:
             oldRootChunkList->RemoveOwningNode(table);
             objectManager->UnrefObject(oldRootChunkList);
             if (newRootChunkList->Statistics() != statistics) {
-                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid new root chunk list statistics (TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
+                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid new root chunk list statistics (TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
                     newRootChunkList->Statistics(),
                     statistics);
@@ -4784,7 +4784,7 @@ private:
             }
 
             if (oldRootChunkList->Statistics() != statistics) {
-                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid old root chunk list statistics (TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
+                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid old root chunk list statistics (TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
                     oldRootChunkList->Statistics(),
                     statistics);
@@ -4867,7 +4867,7 @@ private:
 
         tablet->SetStoresUpdatePreparedTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
             transaction->GetId(),
             table->GetId(),
             tabletId);
@@ -4882,7 +4882,7 @@ private:
         }
 
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
                 "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
                 tabletId,
                 transaction->GetId(),
@@ -4894,7 +4894,7 @@ private:
 
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Invalid mount revision on tablet stores update commit; ignored "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invalid mount revision on tablet stores update commit; ignored "
                 "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %llx, ActualMountRevision: %llx)",
                 tabletId,
                 transaction->GetId(),
@@ -5010,7 +5010,7 @@ private:
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
         ScheduleTableStatisticsUpdate(table);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkIds: %v, "
             "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %llx)",
             transaction->GetId(),
@@ -5044,7 +5044,7 @@ private:
 
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update aborted (TransactionId: %v, TableId: %v, TabletId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update aborted (TransactionId: %v, TableId: %v, TabletId: %v)",
             transaction->GetId(),
             table->GetId(),
             tabletId);
@@ -5067,7 +5067,7 @@ private:
 
         tablet->SetTrimmedRowCount(trimmedRowCount);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet trimmed row count updated (TabletId: %v, TrimmedRowCount: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet trimmed row count updated (TabletId: %v, TrimmedRowCount: %v)",
             tabletId,
             trimmedRowCount);
     }
@@ -5104,7 +5104,7 @@ private:
                 false,
                 keepFinished);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, Tablets: %v, TabletCellsL %v, PivotKeys %v, TabletCount %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, Tablets: %v, TabletCellsL %v, PivotKeys %v, TabletCount %v)",
                 kind,
                 tablets,
                 cells,
@@ -5193,7 +5193,7 @@ private:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
     }
@@ -5378,7 +5378,7 @@ private:
         ToProto(request.mutable_transaction_id(), transaction->GetId());
         multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
     }
@@ -5399,7 +5399,7 @@ private:
         auto transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            LOG_INFO("Prerequisite transaction is not found on secondary master (CellId: %v, TransactionId: %v)",
+            YT_LOG_INFO("Prerequisite transaction is not found on secondary master (CellId: %v, TransactionId: %v)",
                 cellId,
                 transactionId);
             return;
@@ -5407,7 +5407,7 @@ private:
 
         YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
     }
@@ -5447,7 +5447,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transactionId);
     }
@@ -5463,7 +5463,7 @@ private:
         auto transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            LOG_INFO("XXX: Prerequisite transaction not found on secondary master (CellId: %v, TransactionId: %v)",
+            YT_LOG_INFO("XXX: Prerequisite transaction not found on secondary master (CellId: %v, TransactionId: %v)",
                 cellId,
                 transactionId);
             return;
@@ -5472,7 +5472,7 @@ private:
         // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
         TransactionToCellMap_.erase(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
             cellId,
             transactionId);
     }
@@ -5488,7 +5488,7 @@ private:
         cell->SetPrerequisiteTransaction(nullptr);
         TransactionToCellMap_.erase(it);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction finished (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction finished (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
 
@@ -5506,7 +5506,7 @@ private:
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
             descriptor.GetDefaultAddress(),
             peerId);
@@ -5550,7 +5550,7 @@ private:
         auto* cell = tablet->GetCell();
         YCHECK(cell);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId(),
@@ -5764,7 +5764,7 @@ private:
                 try {
                     snapshotsMap = cypressManager->ResolvePathToNodeProxy(snapshotsPath)->AsMap();
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Tablet cell has no valid snapshot store (CellId: %v)",
+                    YT_LOG_WARNING(ex, "Tablet cell has no valid snapshot store (CellId: %v)",
                         cellId);
                     continue;
                 }
@@ -5789,7 +5789,7 @@ private:
                     snapshotKeys.push_back(key);
                     int snapshotId;
                     if (!TryFromString<int>(key, snapshotId)) {
-                        LOG_WARNING("Unrecognized item in tablet snapshot store (CellId: %v, Name: %v)",
+                        YT_LOG_WARNING("Unrecognized item in tablet snapshot store (CellId: %v, Name: %v)",
                             cellId,
                             key);
                         continue;
@@ -5819,18 +5819,18 @@ private:
                     }
 
                     if (snapshotId <= thresholdId) {
-                        LOG_INFO("Removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
+                        YT_LOG_INFO("Removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
                             cellId,
                             snapshotId);
                         auto req = TYPathProxy::Remove(snapshotsPath + "/" + ToYPathLiteral(key));
                         ExecuteVerb(rootService, req)
                             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
                                 if (rspOrError.IsOK()) {
-                                    LOG_INFO("Tablet cell snapshot removed successfully (CellId: %v, SnapshotId: %v)",
+                                    YT_LOG_INFO("Tablet cell snapshot removed successfully (CellId: %v, SnapshotId: %v)",
                                         cellId,
                                         snapshotId);
                                 } else {
-                                    LOG_INFO(rspOrError, "Error removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
+                                    YT_LOG_INFO(rspOrError, "Error removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
                                         cellId,
                                         snapshotId);
                                 }
@@ -5844,7 +5844,7 @@ private:
                 try {
                     changelogsMap = cypressManager->ResolvePathToNodeProxy(changelogsPath)->AsMap();
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Tablet cell has no valid changelog store (CellId: %v)",
+                    YT_LOG_WARNING(ex, "Tablet cell has no valid changelog store (CellId: %v)",
                         cellId);
                     continue;
                 }
@@ -5858,25 +5858,25 @@ private:
 
                     int changelogId;
                     if (!TryFromString<int>(key, changelogId)) {
-                        LOG_WARNING("Unrecognized item in tablet changelog store (CellId: %v, Name: %v)",
+                        YT_LOG_WARNING("Unrecognized item in tablet changelog store (CellId: %v, Name: %v)",
                             cellId,
                             key);
                         continue;
                     }
 
                     if (changelogId <= thresholdId) {
-                        LOG_INFO("Removing tablet cell changelog (CellId: %v, ChangelogId: %v)",
+                        YT_LOG_INFO("Removing tablet cell changelog (CellId: %v, ChangelogId: %v)",
                             cellId,
                             changelogId);
                         auto req = TYPathProxy::Remove(changelogsPath + "/" + ToYPathLiteral(key));
                         ExecuteVerb(rootService, req)
                             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
                                 if (rspOrError.IsOK()) {
-                                    LOG_INFO("Tablet cell changelog removed successfully (CellId: %v, ChangelodId: %v)",
+                                    YT_LOG_INFO("Tablet cell changelog removed successfully (CellId: %v, ChangelodId: %v)",
                                         cellId,
                                         changelogId);
                                 } else {
-                                    LOG_WARNING(rspOrError, "Error removing tablet cell changelog (CellId: %v, ChangelodId: %v)",
+                                    YT_LOG_WARNING(rspOrError, "Error removing tablet cell changelog (CellId: %v, ChangelodId: %v)",
                                         cellId,
                                         changelogId);
                                 }
@@ -5887,7 +5887,7 @@ private:
             }
 
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error performing tablets cleanup");
+            YT_LOG_ERROR(ex, "Error performing tablets cleanup");
         }
     }
 

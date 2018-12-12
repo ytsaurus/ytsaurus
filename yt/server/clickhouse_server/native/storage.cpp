@@ -100,11 +100,11 @@ TTableList BuildTablesList(
 
     TTableList tables;
 
-    LOG_DEBUG("Start traverse from %Qlv", rootPath);
+    YT_LOG_DEBUG("Start traverse from %Qlv", rootPath);
 
     std::stack<INodePtr> queue;
     if (auto rootNode = fetchNode(rootPath)) {
-        LOG_DEBUG("Add root node %Qlv", rootPath);
+        YT_LOG_DEBUG("Add root node %Qlv", rootPath);
         queue.push(rootNode);
     }
 
@@ -116,7 +116,7 @@ TTableList BuildTablesList(
         auto type = attrs.Get<TString>("type");
         auto path = attrs.Get<TString>("path");
 
-        LOG_DEBUG("Current node: %Qlv, type: %Qlv", path, type);
+        YT_LOG_DEBUG("Current node: %Qlv, type: %Qlv", path, type);
 
         if (type == NODE_TYPE_TABLE) {
             auto table = std::make_shared<TTable>(path);
@@ -374,7 +374,7 @@ TTableList TStorage::DoListTables(
     const TString& path,
     bool recursive)
 {
-    LOG_INFO("Requesting tables list in %Qlv", path);
+    YT_LOG_INFO("Requesting tables list in %Qlv", path);
 
     TGetNodeOptions options;
     options.Attributes = {
@@ -390,14 +390,14 @@ TTableList TStorage::DoListTables(
         if (!rspOrError.IsOK()) {
             auto error = rspOrError.Wrap("Could not fetch Cypress node attributes")
                 << TErrorAttribute("path", path);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             return nullptr;
         }
         return ConvertToNode(rspOrError.Value());
     };
 
     auto tables =  BuildTablesList(GetAbsolutePath(path), fetchNode, recursive);
-    LOG_INFO("Tables found in %Qlv: %v", path, tables.size());
+    YT_LOG_INFO("Tables found in %Qlv: %v", path, tables.size());
     return tables;
 }
 
@@ -411,7 +411,7 @@ std::unique_ptr<TTableObject> TStorage::GetTableAttributes(
     auto userObject = std::make_unique<TTableObject>();
     userObject->Path = path;
 
-    // LOG_INFO("Requesting object attributes");
+    // YT_LOG_INFO("Requesting object attributes");
 
     {
         GetUserObjectBasicAttributes(
@@ -430,7 +430,7 @@ std::unique_ptr<TTableObject> TStorage::GetTableAttributes(
         }
     }
 
-    LOG_INFO("Requesting table attributes");
+    YT_LOG_INFO("Requesting table attributes");
 
     {
         auto objectIdPath = FromObjectId(userObject->ObjectId);
@@ -550,7 +550,7 @@ ITableReaderPtr TStorage::DoCreateTableReader(
     const TString& name,
     const TTableReaderOptions& options)
 {
-    LOG_INFO("Create reader for table %Qv", name);
+    YT_LOG_INFO("Create reader for table %Qv", name);
 
     auto path = TRichYPath::Parse(name);
 
@@ -581,7 +581,7 @@ TString TStorage::DoReadFile(
     const NApi::NNative::IClientPtr& client,
     const TString& name)
 {
-    LOG_INFO("Requesting file %Qv", name);
+    YT_LOG_INFO("Requesting file %Qv", name);
     TString fileContent;
 
     {
@@ -605,7 +605,7 @@ IDocumentPtr TStorage::DoReadDocument(
     const TString& name)
 {
 
-    LOG_INFO("Requesting document %Qv", name);
+    YT_LOG_INFO("Requesting document %Qv", name);
 
     // TODO: Workaround, remove later
     const auto type = GetAttribute(client, name, "type");
@@ -643,7 +643,7 @@ TObjectList TStorage::DoListObjects(
     const NApi::NNative::IClientPtr& client,
     const TString& name)
 {
-    LOG_INFO("List objects in %Qv", name);
+    YT_LOG_INFO("List objects in %Qv", name);
 
     TListNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Follower;
@@ -674,7 +674,7 @@ TObjectAttributes TStorage::DoGetObjectAttributes(
     const NApi::NNative::IClientPtr& client,
     const TString& name)
 {
-    LOG_INFO("Requesting attributes of %Qv", name);
+    YT_LOG_INFO("Requesting attributes of %Qv", name);
 
     const auto attributesMap = GetAttributes(client, name, GetBasicAttributesKeys());
     return CreateBasicAttributes(*attributesMap);
@@ -711,7 +711,7 @@ TMaybe<TRevision> TStorage::DoGetObjectRevision(
 
         auto error = rspOrError.Wrap("Cannot fetch Cypress node attributes")
             << TErrorAttribute("path", name);
-        LOG_ERROR(error);
+        YT_LOG_ERROR(error);
         error.ThrowOnError();
     }
 

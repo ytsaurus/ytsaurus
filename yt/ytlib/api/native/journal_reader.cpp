@@ -105,7 +105,7 @@ private:
 
     void DoOpen()
     {
-        LOG_INFO("Opening journal reader");
+        YT_LOG_INFO("Opening journal reader");
 
         TUserObject userObject;
         userObject.Path = Path_;
@@ -130,7 +130,7 @@ private:
         }
 
         {
-            LOG_INFO("Fetching journal chunks");
+            YT_LOG_INFO("Fetching journal chunks");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
             TObjectServiceProxy proxy(channel);
@@ -175,7 +175,7 @@ private:
             StartListenTransaction(Transaction_);
         }
 
-        LOG_INFO("Journal reader opened");
+        YT_LOG_INFO("Journal reader opened");
     }
 
     std::vector<TSharedRef> DoRead()

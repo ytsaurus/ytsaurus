@@ -84,7 +84,7 @@ private:
                         auto error = !subresponse.IsOK()
                             ? static_cast<TError>(subresponse)
                             : TError("Controller returned empty job spec (has controller crashed?)");
-                        LOG_DEBUG(error, "Failed to extract job spec (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG(error, "Failed to extract job spec (OperationId: %v, JobId: %v)",
                             subrequest.OperationId,
                             subrequest.JobId);
 

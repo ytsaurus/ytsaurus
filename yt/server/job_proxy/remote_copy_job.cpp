@@ -158,7 +158,7 @@ public:
             WaitFor(Combine(chunkCopyResults))
                 .ThrowOnError();
 
-            LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)", OutputChunkListId_);
+            YT_LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)", OutputChunkListId_);
             AttachChunksToChunkList(outputChunkIds);
         }
     }
@@ -272,7 +272,7 @@ private:
     {
         auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
 
-        LOG_INFO("Copying chunk (InputChunkId: %v, OutputChunkId: %v)",
+        YT_LOG_INFO("Copying chunk (InputChunkId: %v, OutputChunkId: %v)",
             inputChunkId, outputSessionId);
 
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
@@ -346,7 +346,7 @@ private:
                 copyResults.push_back(resultFuture);
             }
 
-            LOG_INFO("Waiting for erasure parts data to be copied");
+            YT_LOG_INFO("Waiting for erasure parts data to be copied");
 
             WaitFor(Combine(copyResults))
                 .ThrowOnError();
@@ -406,7 +406,7 @@ private:
                 .AsyncVia(GetRemoteCopyInvoker())
                 .Run(reader, writer, blockSizes, chunkMeta);
 
-            LOG_INFO("Waiting for chunk data to be copied");
+            YT_LOG_INFO("Waiting for chunk data to be copied");
 
             WaitFor(result)
                 .ThrowOnError();
@@ -419,7 +419,7 @@ private:
         DataStatistics_.set_chunk_count(DataStatistics_.chunk_count() + 1);
 
         // Confirm chunk.
-        LOG_INFO("Confirming output chunk (ChunkId: %v)", outputSessionId);
+        YT_LOG_INFO("Confirming output chunk (ChunkId: %v)", outputSessionId);
         ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
 
         TotalSize_ -= totalChunkSize;

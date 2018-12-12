@@ -134,7 +134,7 @@ void TOrderedStoreManager::CreateActiveStore()
     Tablet_->AddStore(ActiveStore_);
     Tablet_->SetActiveStore(ActiveStore_);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v, StartingRowIndex: %v)",
+    YT_LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v, StartingRowIndex: %v)",
         storeId,
         startingRowIndex);
 }
@@ -241,7 +241,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         i64 rowCount = 0;
 
-        LOG_DEBUG("Ordered store flush started (StoreId: %v)",
+        YT_LOG_DEBUG("Ordered store flush started (StoreId: %v)",
             store->GetId());
 
         while (true) {
@@ -285,7 +285,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->WriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
-        LOG_DEBUG("Flushed ordered store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
+        YT_LOG_DEBUG("Flushed ordered store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
             store->GetId(),
             chunkWriter->GetChunkId(),
             diskSpace);

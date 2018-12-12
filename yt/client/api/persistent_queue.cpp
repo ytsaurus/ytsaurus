@@ -90,7 +90,7 @@ public:
 
         RecreateState(false);
 
-        LOG_INFO("Persistent queue poller initialized (DataTablePath: %v, StateTablePath: %v, TabletIndexes: %v)",
+        YT_LOG_INFO("Persistent queue poller initialized (DataTablePath: %v, StateTablePath: %v, TabletIndexes: %v)",
             DataTablePath_,
             StateTablePath_,
             TabletIndexes_);
@@ -281,7 +281,7 @@ private:
 
     void DoLoadState(const TStatePtr& state)
     {
-        LOG_INFO("Loading queue poller state for initialization");
+        YT_LOG_INFO("Loading queue poller state for initialization");
 
         auto stateRows = ReadStateTable(Client_);
 
@@ -318,13 +318,13 @@ private:
         for (const auto& pair : state->TabletMap) {
             int tabletIndex = pair.first;
             const auto& tablet = pair.second;
-            LOG_DEBUG("Tablet state collected (TabletIndex: %v, ConsumedRowIndexes: %v, FetchRowIndex: %v)",
+            YT_LOG_DEBUG("Tablet state collected (TabletIndex: %v, ConsumedRowIndexes: %v, FetchRowIndex: %v)",
                 tabletIndex,
                 tablet.ConsumedRowIndexes,
                 tablet.FetchRowIndex);
         }
 
-        LOG_INFO("Queue poller state loaded");
+        YT_LOG_INFO("Queue poller state loaded");
     }
 
     void LoadState(const TStatePtr& state)
@@ -333,7 +333,7 @@ private:
             DoLoadState(state);
         } catch (const std::exception& ex) {
             OnStateFailed(state);
-            LOG_ERROR(ex, "Error loading queue poller state");
+            YT_LOG_ERROR(ex, "Error loading queue poller state");
         }
     }
 
@@ -373,7 +373,7 @@ private:
         {
             TGuard<TSpinLock> guard(state->SpinLock);
             if (tablet.FetchRowIndex > tablet.LastTrimmedRowIndex + Config_->MaxFetchedUntrimmedRowCount) {
-                LOG_INFO("Number of fetched but trimmed rows exceeds the limit; fetching new rows suspended (TabletIndex: %v, RowCount: %v, Limit: %v)",
+                YT_LOG_INFO("Number of fetched but trimmed rows exceeds the limit; fetching new rows suspended (TabletIndex: %v, RowCount: %v, Limit: %v)",
                     tabletIndex,
                     tablet.FetchRowIndex - tablet.LastTrimmedRowIndex,
                     Config_->MaxFetchedUntrimmedRowCount);
@@ -389,7 +389,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Started fetching data (TabletIndex: %v, FetchRowIndex: %v, RowLimit: %v)",
+        YT_LOG_DEBUG("Started fetching data (TabletIndex: %v, FetchRowIndex: %v, RowLimit: %v)",
             tabletIndex,
             tablet.FetchRowIndex,
             rowLimit);
@@ -411,7 +411,7 @@ private:
         const auto& schema = rowset->Schema();
         auto rows = rowset->GetRows();
 
-        LOG_DEBUG("Finished fetching data (TabletIndex: %v, RowCount: %v)",
+        YT_LOG_DEBUG("Finished fetching data (TabletIndex: %v, RowCount: %v)",
             tabletIndex,
             rows.Size());
 
@@ -452,7 +452,7 @@ private:
             }
             batches.emplace_back(std::move(batch));
 
-            LOG_DEBUG("Rows fetched (TabletIndex: %v, RowIndexes: %v-%v, DataWeight: %v)",
+            YT_LOG_DEBUG("Rows fetched (TabletIndex: %v, RowIndexes: %v-%v, DataWeight: %v)",
                 tabletIndex,
                 batchBeginRowIndex,
                 batchEndRowIndex - 1,
@@ -511,7 +511,7 @@ private:
         try {
             DoFetchTablet(tabletIndex);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error fetching queue data (TabletIndex: %v)",
+            YT_LOG_ERROR(ex, "Error fetching queue data (TabletIndex: %v)",
                 tabletIndex);
         }
     }
@@ -539,7 +539,7 @@ private:
         for (auto& tuple : toFulfill) {
             const auto& rowset = std::get<0>(tuple);
             auto& promise = std::get<1>(tuple);
-            LOG_DEBUG("Rows offered (TabletIndex: %v, RowIndexes: %v-%v)",
+            YT_LOG_DEBUG("Rows offered (TabletIndex: %v, RowIndexes: %v-%v)",
                 rowset.TabletIndex,
                 rowset.BeginRowIndex,
                 rowset.EndRowIndex - 1);
@@ -561,7 +561,7 @@ private:
         State_->BatchesDataWeight += batch.DataWeight;
         State_->Batches.emplace_back(std::move(batch));
 
-        LOG_DEBUG("Rows reclaimed (TabletIndex: %v RowIndexes: %v-%v)",
+        YT_LOG_DEBUG("Rows reclaimed (TabletIndex: %v RowIndexes: %v-%v)",
             batch.TabletIndex,
             batch.BeginRowIndex,
             batch.EndRowIndex - 1);
@@ -671,7 +671,7 @@ private:
                     MakeSharedRange(std::move(rows), std::move(rowBuffer)));
             }
 
-            LOG_DEBUG("Rows processing confirmed (TabletIndex: %v, RowIndexes: %v-%v, TransactionId: %v)",
+            YT_LOG_DEBUG("Rows processing confirmed (TabletIndex: %v, RowIndexes: %v-%v, TransactionId: %v)",
                 batch.TabletIndex,
                 batch.BeginRowIndex,
                 batch.EndRowIndex - 1,
@@ -695,7 +695,7 @@ private:
 
     void OnBatchCommitted(const TBatch& batch)
     {
-        LOG_DEBUG("Rows processing committed (TabletIndex: %v RowIndexes: %v-%v)",
+        YT_LOG_DEBUG("Rows processing committed (TabletIndex: %v RowIndexes: %v-%v)",
             batch.TabletIndex,
             batch.BeginRowIndex,
             batch.EndRowIndex - 1);
@@ -710,7 +710,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Getting tablet infos");
+        YT_LOG_DEBUG("Getting tablet infos");
 
         auto asyncTabletInfos = Client_->GetTabletInfos(
             DataTablePath_,
@@ -724,21 +724,21 @@ private:
             YCHECK(tabletIndexToInfo.emplace(TabletIndexes_[index], &tabletInfos[index]).second);
         }
 
-        LOG_DEBUG("Tablet infos received");
+        YT_LOG_DEBUG("Tablet infos received");
 
-        LOG_DEBUG("Starting state trim transaction");
+        YT_LOG_DEBUG("Starting state trim transaction");
 
         auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
             .ValueOrThrow();
 
-        LOG_DEBUG("State trim transaction started (TransactionId: %v)",
+        YT_LOG_DEBUG("State trim transaction started (TransactionId: %v)",
             transaction->GetId());
 
-        LOG_DEBUG("Loading queue poller state for trim");
+        YT_LOG_DEBUG("Loading queue poller state for trim");
 
         auto stateRows = ReadStateTable(transaction);
 
-        LOG_DEBUG("Queue poller state loaded");
+        YT_LOG_DEBUG("Queue poller state loaded");
 
         struct TTabletStatistics
         {
@@ -811,7 +811,7 @@ private:
                         nameTable,
                         MakeSharedRange(std::move(writeRows), rowBuffer));
 
-                    LOG_DEBUG("Tablet state update scheduled (TabletIndex: %v, TrimRowIndex: %v)",
+                    YT_LOG_DEBUG("Tablet state update scheduled (TabletIndex: %v, TrimRowIndex: %v)",
                         tabletIndex,
                         stateTrimRowIndex);
                 }
@@ -821,19 +821,19 @@ private:
                 const auto& tabletInfo = tabletInfoIt->second;
                 if (stateTrimRowIndex - tabletInfo->TrimmedRowCount >= Config_->UntrimmedDataRowsHigh) {
                     statistics.TrimmedRowCountRequest = stateTrimRowIndex - Config_->UntrimmedDataRowsLow;
-                    LOG_DEBUG("Tablet data trim scheduled (TabletIndex: %v, TrimmedRowCount: %v)",
+                    YT_LOG_DEBUG("Tablet data trim scheduled (TabletIndex: %v, TrimmedRowCount: %v)",
                         tabletIndex,
                         statistics.TrimmedRowCountRequest);
                 }
             }
         }
 
-        LOG_DEBUG("Committing state trim transaction");
+        YT_LOG_DEBUG("Committing state trim transaction");
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        LOG_DEBUG("State trim transaction committed");
+        YT_LOG_DEBUG("State trim transaction committed");
 
         std::vector<TFuture<void>> dataTrimAsyncResults;
         for (const auto& pair : tabletStatisticsMap) {
@@ -851,7 +851,7 @@ private:
             WaitFor(Combine(dataTrimAsyncResults))
                 .ThrowOnError();
 
-            LOG_DEBUG("Tablet data trim completed");
+            YT_LOG_DEBUG("Tablet data trim completed");
         }
     }
 
@@ -860,7 +860,7 @@ private:
         try {
             GuardedTrim();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error trimming queue poller");
+            YT_LOG_ERROR(ex, "Error trimming queue poller");
         }
     }
 

@@ -99,7 +99,7 @@ public:
 
         auto config = ConvertTo<NApi::TConnectionConfigPtr>(ConfigNode_);
 
-        LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
+        YT_LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
     }
 
     void DoTerminate()
@@ -143,7 +143,7 @@ public:
 
     Py::Object Execute(Py::Tuple& args, Py::Dict& kwargs)
     {
-        LOG_DEBUG("Preparing driver request");
+        YT_LOG_DEBUG("Preparing driver request");
 
         auto pyRequest = ExtractArgument(args, kwargs, "request");
         ValidateArgumentsEmpty(args, kwargs);
@@ -210,7 +210,7 @@ public:
             }
         } CATCH_AND_CREATE_YT_ERROR("Driver command execution failed");
 
-        LOG_DEBUG("Request execution started (RequestId: %v, CommandName: %v, User: %v)",
+        YT_LOG_DEBUG("Request execution started (RequestId: %v, CommandName: %v, User: %v)",
             request.Id,
             request.CommandName,
             request.AuthenticatedUser);
@@ -416,17 +416,17 @@ public:
 
         RegisterShutdown();
         RegisterShutdownCallback(BIND([] () {
-                LOG_INFO("Module shutdown started");
+                YT_LOG_INFO("Module shutdown started");
                 for (const auto& pair : ActiveDrivers) {
                     auto driver = pair.second.Lock();
                     if (!driver) {
                         continue;
                     }
-                    LOG_INFO("Terminating leaked driver (DriverId: %v)", pair.first);
+                    YT_LOG_INFO("Terminating leaked driver (DriverId: %v)", pair.first);
                     driver->Terminate();
                 }
                 ActiveDrivers.clear();
-                LOG_INFO("Module shutdown finished");
+                YT_LOG_INFO("Module shutdown finished");
             }),
             /*index*/ 0);
 

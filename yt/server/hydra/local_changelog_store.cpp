@@ -243,7 +243,7 @@ public:
 
     void Start()
     {
-        LOG_DEBUG("Preparing changelog store");
+        YT_LOG_DEBUG("Preparing changelog store");
 
         NFS::MakeDirRecursive(Config_->Path);
         NFS::CleanTempFiles(Config_->Path);
@@ -295,7 +295,7 @@ private:
             auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error creating changelog %v",
+            YT_LOG_FATAL(ex, "Error creating changelog %v",
                 path);
         }
 
@@ -320,7 +320,7 @@ private:
                     auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
-                    LOG_FATAL(ex, "Error opening changelog %v",
+                    YT_LOG_FATAL(ex, "Error opening changelog %v",
                         path);
                 }
             }
@@ -367,7 +367,7 @@ private:
                     latestId = id;
                 }
             } catch (const std::exception&) {
-                LOG_WARNING("Found unrecognized file %Qv", fileName);
+                YT_LOG_WARNING("Found unrecognized file %Qv", fileName);
             }
         }
 
@@ -387,7 +387,7 @@ private:
                 .ValueOrThrow();
             return TVersion(latestId, changelog->GetRecordCount());
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error opening changelog %v",
+            YT_LOG_FATAL(ex, "Error opening changelog %v",
                 GetChangelogPath(Config_->Path, latestId));
         }
     }

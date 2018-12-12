@@ -384,10 +384,10 @@ private:
 
     void InitInput()
     {
-        LOG_INFO("Initializing input");
+        YT_LOG_INFO("Initializing input");
         PROFILE_TIMING ("/reduce/init_time") {
             EstimatedBucketCount_ = (EstimatedRowCount_ + SortBucketSize - 1) / SortBucketSize;
-            LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
+            YT_LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
                 EstimatedRowCount_,
                 EstimatedBucketCount_);
 
@@ -399,7 +399,7 @@ private:
 
     void ReadInput()
     {
-        LOG_INFO("Started reading input");
+        YT_LOG_INFO("Started reading input");
         PROFILE_TIMING ("/reduce/read_time" ) {
             bool isNetworkReleased = false;
 
@@ -468,7 +468,7 @@ private:
                 YCHECK(bucketCount <= EstimatedBucketCount_);
             }
 
-            LOG_INFO("Finished reading input (RowCount: %v, BucketCount: %v)",
+            YT_LOG_INFO("Finished reading input (RowCount: %v, BucketCount: %v)",
                 TotalRowCount_,
                 bucketCount);
         }
@@ -476,23 +476,23 @@ private:
 
     void DoSortBucket(int bucketId)
     {
-        LOG_DEBUG("Started sorting bucket %v", bucketId);
+        YT_LOG_DEBUG("Started sorting bucket %v", bucketId);
 
         int startIndex = BucketStart_[bucketId];
         int endIndex = BucketStart_[bucketId + 1] - 1;
         std::sort(Buckets_.begin() + startIndex, Buckets_.begin() + endIndex, SortComparer_);
 
-        LOG_DEBUG("Finished sorting bucket %v", bucketId);
+        YT_LOG_DEBUG("Finished sorting bucket %v", bucketId);
     }
 
     void StartMerge()
     {
-        LOG_INFO("Waiting for sort thread");
+        YT_LOG_INFO("Waiting for sort thread");
         PROFILE_TIMING ("/reduce/sort_wait_time") {
             WaitFor(Combine(SortErrors_))
                 .ThrowOnError();
         }
-        LOG_INFO("Sort thread is idle");
+        YT_LOG_INFO("Sort thread is idle");
 
         SortedIndexes_.reserve(TotalRowCount_);
 
@@ -511,7 +511,7 @@ private:
     void DoMerge()
     {
         try {
-            LOG_INFO("Started merge");
+            YT_LOG_INFO("Started merge");
             PROFILE_TIMING ("/reduce/merge_time") {
                 int sortedRowCount = 0;
                 while (!BucketHeap_.empty()) {
@@ -538,7 +538,7 @@ private:
                 YCHECK(sortedRowCount == TotalRowCount_);
                 SortedRowCount_ = sortedRowCount;
             }
-            LOG_INFO("Finished merge");
+            YT_LOG_INFO("Finished merge");
         } catch (const TErrorException& ex) {
             MergeError_ = ex;
         }

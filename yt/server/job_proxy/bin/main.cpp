@@ -55,7 +55,7 @@ protected:
         try {
             SafeCreateStderrFile("stderr");
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Job proxy preparation (startup) failed");
+            YT_LOG_ERROR(ex, "Job proxy preparation (startup) failed");
             Exit(static_cast<int>(NJobProxy::EJobProxyExitCode::JobProxyPrepareFailed));
         }
 

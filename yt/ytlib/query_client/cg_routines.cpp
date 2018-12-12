@@ -84,7 +84,7 @@ public:
     void Checkpoint(size_t processedRows)
     {
         if (GetElapsedTime() > YieldThreshold) {
-            LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
+            YT_LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
                 processedRows,
                 GetElapsedTime());
             Yield();
@@ -150,7 +150,7 @@ void ScanOpHelper(
     void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     auto finalLogger = Finally([&] () {
-        LOG_DEBUG("Finalizing scan helper");
+        YT_LOG_DEBUG("Finalizing scan helper");
     });
 
     auto& reader = context->Reader;
@@ -695,7 +695,7 @@ void JoinOpHelper(
         auto keysToRows = std::move(closure.KeysToRows);
         auto chainedRows = std::move(closure.ChainedRows);
 
-        LOG_DEBUG("Collected %v join keys from %v rows",
+        YT_LOG_DEBUG("Collected %v join keys from %v rows",
             keysToRows.size(),
             chainedRows.size());
 
@@ -722,7 +722,7 @@ void JoinOpHelper(
         if (!parameters->IsOrdered) {
             auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
 
-            LOG_DEBUG("Joining started");
+            YT_LOG_DEBUG("Joining started");
 
             if (parameters->IsSortMergeJoin) {
                 // Sort-merge join
@@ -782,8 +782,8 @@ void JoinOpHelper(
                 }
             }
 
-            LOG_DEBUG("Got %v foreign rows", foreignLookup.size());
-            LOG_DEBUG("Joining started");
+            YT_LOG_DEBUG("Got %v foreign rows", foreignLookup.size());
+            YT_LOG_DEBUG("Joining started");
 
             for (const auto& item : chainedRows) {
                 auto row = item.Row;
@@ -801,7 +801,7 @@ void JoinOpHelper(
             batchState.ConsumeJoinedRows();
         }
 
-        LOG_DEBUG("Joining finished");
+        YT_LOG_DEBUG("Joining finished");
 
         closure.Lookup.clear();
         closure.Buffer->Clear();
@@ -832,7 +832,7 @@ void MultiJoinOpHelper(
     void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     auto finalLogger = Finally([&] () {
-        LOG_DEBUG("Finalizing multijoin helper");
+        YT_LOG_DEBUG("Finalizing multijoin helper");
     });
 
     TMultiJoinClosure closure;
@@ -860,7 +860,7 @@ void MultiJoinOpHelper(
     };
 
     closure.ProcessJoinBatch = [&] () {
-        LOG_DEBUG("Joining started");
+        YT_LOG_DEBUG("Joining started");
 
         std::vector<ISchemafulReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
@@ -893,7 +893,7 @@ void MultiJoinOpHelper(
 
             auto orderedKeys = std::move(closure.Items[joinId].OrderedKeys);
 
-            LOG_DEBUG("Collected %v join keys",
+            YT_LOG_DEBUG("Collected %v join keys",
                 orderedKeys.size());
 
             auto reader = readers[joinId];
@@ -1012,7 +1012,7 @@ void MultiJoinOpHelper(
 
             sortedForeignSequences.push_back(std::move(sortedForeignSequence));
 
-            LOG_DEBUG("Finished precessing foreign rowset (SortingTime: %v)", sortingForeignTime);
+            YT_LOG_DEBUG("Finished precessing foreign rowset (SortingTime: %v)", sortingForeignTime);
         }
 
         auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
@@ -1037,7 +1037,7 @@ void MultiJoinOpHelper(
             resultRowSize += parameters->Items[joinId].ForeignColumns.size();
         }
 
-        LOG_DEBUG("Started producing joined rows");
+        YT_LOG_DEBUG("Started producing joined rows");
 
         std::vector<size_t> indexes(closure.Items.size(), 0);
 
@@ -1105,7 +1105,7 @@ void MultiJoinOpHelper(
             joinItem.Buffer->Clear();
         }
 
-        LOG_DEBUG("Joining finished");
+        YT_LOG_DEBUG("Joining finished");
     };
 
     try {
@@ -1165,7 +1165,7 @@ void GroupOpHelper(
     void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     auto finalLogger = Finally([&] () {
-        LOG_DEBUG("Finalizing group helper");
+        YT_LOG_DEBUG("Finalizing group helper");
     });
 
     TGroupByClosure closure(context->MemoryChunkProvider, groupHasher, groupComparer, keySize, checkNulls);
@@ -1177,7 +1177,7 @@ void GroupOpHelper(
         context->Statistics->IncompleteOutput = true;
     }
 
-    LOG_DEBUG("Collected %v group rows",
+    YT_LOG_DEBUG("Collected %v group rows",
         closure.GroupedRows.size());
 
     auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
@@ -1217,7 +1217,7 @@ void OrderOpHelper(
     size_t rowSize)
 {
     auto finalLogger = Finally([&] () {
-        LOG_DEBUG("Finalizing order helper");
+        YT_LOG_DEBUG("Finalizing order helper");
     });
 
     auto limit = context->Limit;
@@ -1262,7 +1262,7 @@ void WriteOpHelper(
     auto& batch = closure.OutputRowsBatch;
     auto& writer = context->Writer;
 
-    LOG_DEBUG("Flushing writer");
+    YT_LOG_DEBUG("Flushing writer");
     if (!batch.empty()) {
         bool shouldNotWait;
         {
@@ -1277,7 +1277,7 @@ void WriteOpHelper(
         }
     }
 
-    LOG_DEBUG("Closing writer");
+    YT_LOG_DEBUG("Closing writer");
     {
         NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
         WaitFor(context->Writer->Close())

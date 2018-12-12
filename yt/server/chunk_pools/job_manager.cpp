@@ -324,7 +324,7 @@ void TJobManager::AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs)
     if (jobStubs.empty()) {
         return;
     }
-    LOG_DEBUG("Adding jobs to job manager (JobCount: %v)",
+    YT_LOG_DEBUG("Adding jobs to job manager (JobCount: %v)",
         jobStubs.size());
     for (auto& jobStub : jobStubs) {
         AddJob(std::move(jobStub));
@@ -338,14 +338,14 @@ IChunkPoolOutput::TCookie TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
     IChunkPoolOutput::TCookie outputCookie = Jobs_.size();
 
     if (jobStub->GetIsBarrier()) {
-        LOG_DEBUG("Adding barrier to job manager (Index: %v)", outputCookie);
+        YT_LOG_DEBUG("Adding barrier to job manager (Index: %v)", outputCookie);
         Jobs_.emplace_back(this, std::move(jobStub), outputCookie);
         Jobs_.back().SetState(EJobState::Completed);
         // TODO(max42): do not assign cookie to barriers.
         return outputCookie;
     }
 
-    LOG_DEBUG("Job added to job manager (Index: %v, PrimaryDataWeight: %v, PrimaryRowCount: %v, "
+    YT_LOG_DEBUG("Job added to job manager (Index: %v, PrimaryDataWeight: %v, PrimaryRowCount: %v, "
         "PrimarySliceCount: %v, ForeignDataWeight: %v, ForeignRowCount: %v, "
         "ForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
         outputCookie,
@@ -526,7 +526,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
     // procedure not only during the initial creation of jobs or right after the whole pool invalidation,
     // but at the arbitrary moment of job manager lifetime. After that implement YT-9019.
 
-    LOG_DEBUG("Enlarging jobs (DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v)",
+    YT_LOG_DEBUG("Enlarging jobs (DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v)",
         dataWeightPerJob,
         primaryDataWeightPerJob);
 
@@ -557,7 +557,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
 
             return true;
         }
-        LOG_DEBUG("Stopping enlargement due to data weight constraints "
+        YT_LOG_DEBUG("Stopping enlargement due to data weight constraints "
             "(NewDataWeight: %v, DataWeightPerJob: %v, NewPrimaryDataWeight: %v, PrimaryDataWeightPerJob: %v)",
             foreignDataWeight + primaryDataWeight,
             dataWeightPerJob,
@@ -579,7 +579,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
         currentJobStub = std::make_unique<TJobStub>();
         while (true) {
             if (finishIndex == Jobs_.size()) {
-                LOG_DEBUG("Stopping enlargement due to end of job list (StartIndex: %v, FinishIndex: %v)", startIndex, finishIndex);
+                YT_LOG_DEBUG("Stopping enlargement due to end of job list (StartIndex: %v, FinishIndex: %v)", startIndex, finishIndex);
                 break;
             }
 
@@ -588,7 +588,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
             YCHECK(!Jobs_[finishIndex].IsInvalidated());
 
             if (Jobs_[finishIndex].GetIsBarrier()) {
-                LOG_DEBUG("Stopping enlargement due to barrier (StartIndex: %v, FinishIndex: %v)", startIndex, finishIndex);
+                YT_LOG_DEBUG("Stopping enlargement due to barrier (StartIndex: %v, FinishIndex: %v)", startIndex, finishIndex);
                 break;
             }
 
@@ -601,7 +601,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
 
         if (joinedJobCookies.size() > 1) {
             std::vector<IChunkPoolOutput::TCookie> outputCookies;
-            LOG_DEBUG("Joining together jobs (JoinedJobCookies: %v, DataWeight: %v, PrimaryDataWeight: %v)",
+            YT_LOG_DEBUG("Joining together jobs (JoinedJobCookies: %v, DataWeight: %v, PrimaryDataWeight: %v)",
                 joinedJobCookies,
                 currentJobStub->GetDataWeight(),
                 currentJobStub->GetPrimaryDataWeight());
@@ -611,7 +611,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
             }
             newJobs.emplace_back(std::move(currentJobStub));
         } else {
-            LOG_DEBUG("Leaving job as is (Cookie: %v)", startIndex);
+            YT_LOG_DEBUG("Leaving job as is (Cookie: %v)", startIndex);
         }
         joinedJobCookies.clear();
     }

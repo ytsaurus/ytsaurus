@@ -116,7 +116,7 @@ private:
                     deadline);
             } catch (const std::exception& ex) {
                 AuthProfiler.Increment(BlackboxCallErrors_);
-                LOG_WARNING(
+                YT_LOG_WARNING(
                     ex,
                     "Blackbox call attempt failed, backing off (CallId: %v, Attempt: %v)",
                     callId,
@@ -154,13 +154,13 @@ private:
                         return result;
                     case EBlackboxException::DBFetchFailed:
                     case EBlackboxException::DBException:
-                        LOG_WARNING(blackboxError,
+                        YT_LOG_WARNING(blackboxError,
                             "Blackbox has raised an exception, backing off (CallId: %v, Attempt: %v)",
                             callId,
                             attempt);
                         break;
                     default:
-                        LOG_WARNING(blackboxError,
+                        YT_LOG_WARNING(blackboxError,
                             "Blackbox has raised an exception (CallId: %v, Attempt: %v)",
                             callId,
                             attempt);
@@ -212,13 +212,13 @@ private:
     {
         auto onError = [&] (TError error) {
             error.Attributes().Set("call_id", callId);
-            LOG_DEBUG(error);
+            YT_LOG_DEBUG(error);
             THROW_ERROR(error);
         };
 
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
 
-        LOG_DEBUG("Calling Blackbox (Url: %v, CallId: %v, Attempt: %v, Timeout: %v)",
+        YT_LOG_DEBUG("Calling Blackbox (Url: %v, CallId: %v, Attempt: %v, Timeout: %v)",
             safeUrl,
             callId,
             attempt,
@@ -239,13 +239,13 @@ private:
         INodePtr rootNode;
         try {
 
-            LOG_DEBUG("Started reading response body from Blackbox (CallId: %v, Attempt: %v)",
+            YT_LOG_DEBUG("Started reading response body from Blackbox (CallId: %v, Attempt: %v)",
                 callId,
                 attempt);
 
             auto body = rsp->ReadAll();
 
-            LOG_DEBUG("Finished reading response body from Blackbox (CallId: %v, Attempt: %v)\n%v",
+            YT_LOG_DEBUG("Finished reading response body from Blackbox (CallId: %v, Attempt: %v)\n%v",
                 callId,
                 attempt,
                 body);
@@ -257,7 +257,7 @@ private:
             NJson::ParseJson(&stream, builder.get(), Config);
             rootNode = builder->EndTree();
 
-            LOG_DEBUG("Parsed Blackbox daemon reply (CallId: %v, Attempt: %v)",
+            YT_LOG_DEBUG("Parsed Blackbox daemon reply (CallId: %v, Attempt: %v)",
                 callId,
                 attempt);
         } catch (const std::exception& ex) {

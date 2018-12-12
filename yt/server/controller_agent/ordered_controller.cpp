@@ -319,7 +319,7 @@ protected:
 
         InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
-        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
+        YT_LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             InputSliceDataWeight_);
@@ -336,7 +336,7 @@ protected:
     void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
+            YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
@@ -350,7 +350,7 @@ protected:
                 yielder.TryYield();
             }
 
-            LOG_INFO("Processed inputs (Slices: %v)", sliceCount);
+            YT_LOG_INFO("Processed inputs (Slices: %v)", sliceCount);
         }
     }
 

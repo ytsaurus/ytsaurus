@@ -221,7 +221,7 @@ void TTcpConnection::Open()
 {
     State_ = EState::Open;
 
-    LOG_DEBUG("Connection established (LocalPort: %v)", GetSocketPort());
+    YT_LOG_DEBUG("Connection established (LocalPort: %v)", GetSocketPort());
 }
 
 void TTcpConnection::ResolveAddress()
@@ -259,7 +259,7 @@ void TTcpConnection::OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& r
 
     TNetworkAddress address(result.Value(), Port_);
 
-    LOG_DEBUG("Connection network address resolved (Address: %v)",
+    YT_LOG_DEBUG("Connection network address resolved (Address: %v)",
         address);
 
     if (IsLocalBusTransportEnabled() && TAddressResolver::Get()->IsLocalAddress(address)) {
@@ -282,7 +282,7 @@ void TTcpConnection::SetupNetwork(const TString& networkName)
 {
     YCHECK(!Counters_);
 
-    LOG_DEBUG("Using %Qv network", networkName);
+    YT_LOG_DEBUG("Using %Qv network", networkName);
 
     Counters_ = TTcpDispatcher::TImpl::Get()->GetCounters(networkName);
 
@@ -304,7 +304,7 @@ void TTcpConnection::Abort(const TError& error)
     CloseError_ = error << *EndpointAttributes_;
 
     // Construct a detailed error.
-    LOG_DEBUG(CloseError_, "Connection aborted");
+    YT_LOG_DEBUG(CloseError_, "Connection aborted");
 
     UnregisterFromPoller();
 }
@@ -397,7 +397,7 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
     auto pendingOutPayloadBytes = PendingOutPayloadBytes_.fetch_add(queuedMessage.PayloadSize);
 
     // NB: Log first to avoid producing weird traces.
-    LOG_DEBUG("Outcoming message enqueued (PacketId: %v, PendingOutPayloadBytes: %v)",
+    YT_LOG_DEBUG("Outcoming message enqueued (PacketId: %v, PendingOutPayloadBytes: %v)",
         queuedMessage.PacketId,
         pendingOutPayloadBytes);
 
@@ -435,7 +435,7 @@ void TTcpConnection::Terminate(const TError& error)
         return;
     }
 
-    LOG_DEBUG("Sending termination request");
+    YT_LOG_DEBUG("Sending termination request");
 
     YCHECK(!error.IsOK());
     YCHECK(TerminateError_.IsOK());
@@ -443,7 +443,7 @@ void TTcpConnection::Terminate(const TError& error)
     TerminateRequested_ = true;
 
     if (State_ != EState::Open) {
-        LOG_TRACE("Cannot arm poller since connection is not open yet");
+        YT_LOG_TRACE("Cannot arm poller since connection is not open yet");
         return;
     }
 
@@ -465,12 +465,12 @@ void TTcpConnection::OnEvent(EPollControl control)
     do {
         TTryGuard<TSpinLock> guard(EventHandlerSpinLock_);
         if (!guard.WasAcquired()) {
-            LOG_TRACE("Event handler is already running");
+            YT_LOG_TRACE("Event handler is already running");
             return;
         }
 
         if (State_ == EState::Aborted || State_ == EState::Closed) {
-            LOG_TRACE("Connection is already closed");
+            YT_LOG_TRACE("Connection is already closed");
             return;
         }
 
@@ -489,7 +489,7 @@ void TTcpConnection::OnEvent(EPollControl control)
             Open();
         }
 
-        LOG_TRACE("Event processing started");
+        YT_LOG_TRACE("Event processing started");
 
         ProcessQueuedMessages();
 
@@ -504,7 +504,7 @@ void TTcpConnection::OnEvent(EPollControl control)
         }
 
         HasUnsentData_ = HasUnsentData();
-        LOG_TRACE("Event processing finished (HasUnsentData: %v)", HasUnsentData_.load());
+        YT_LOG_TRACE("Event processing finished (HasUnsentData: %v)", HasUnsentData_.load());
     } while (ArmedForQueuedMessages_);
 
     RearmPoller();
@@ -517,7 +517,7 @@ void TTcpConnection::OnShutdown()
 
     State_ = EState::Closed;
 
-    LOG_DEBUG(CloseError_, "Connection terminated");
+    YT_LOG_DEBUG(CloseError_, "Connection terminated");
 
     Terminated_.Fire(CloseError_);
 }
@@ -559,7 +559,7 @@ void TTcpConnection::OnSocketRead()
         return;
     }
 
-    LOG_TRACE("Started serving read request");
+    YT_LOG_TRACE("Started serving read request");
     size_t bytesReadTotal = 0;
 
     while (true) {
@@ -570,7 +570,7 @@ void TTcpConnection::OnSocketRead()
         if (decoderChunkSize >= MinBatchReadSize) {
             // Read directly into the decoder buffer.
             size_t bytesToRead = std::min(decoderChunkSize, MaxBatchReadSize);
-            LOG_TRACE("Reading from socket into decoder (BytesToRead: %v)",bytesToRead);
+            YT_LOG_TRACE("Reading from socket into decoder (BytesToRead: %v)",bytesToRead);
 
             size_t bytesRead;
             if (!ReadSocket(decoderChunk.Begin(), bytesToRead, &bytesRead)) {
@@ -583,7 +583,7 @@ void TTcpConnection::OnSocketRead()
             }
         } else {
             // Read a chunk into the read buffer.
-            LOG_TRACE("Reading from socket into buffer (BytesToRead: %v)", ReadBuffer_.Size());
+            YT_LOG_TRACE("Reading from socket into buffer (BytesToRead: %v)", ReadBuffer_.Size());
 
             size_t bytesRead;
             if (!ReadSocket(ReadBuffer_.Begin(), ReadBuffer_.Size(), &bytesRead)) {
@@ -598,7 +598,7 @@ void TTcpConnection::OnSocketRead()
                 decoderChunk = Decoder_.GetFragment();
                 decoderChunkSize = decoderChunk.Size();
                 size_t bytesToCopy = std::min(recvRemaining, decoderChunkSize);
-                LOG_TRACE("Feeding buffer into decoder (DecoderNeededBytes: %v, RemainingBufferBytes: %v, BytesToCopy: %v)",
+                YT_LOG_TRACE("Feeding buffer into decoder (DecoderNeededBytes: %v, RemainingBufferBytes: %v, BytesToCopy: %v)",
                     decoderChunkSize,
                     recvRemaining,
                     bytesToCopy);
@@ -609,7 +609,7 @@ void TTcpConnection::OnSocketRead()
                 recvBegin += bytesToCopy;
                 recvRemaining -= bytesToCopy;
             }
-            LOG_TRACE("Buffer exhausted");
+            YT_LOG_TRACE("Buffer exhausted");
         }
     }
 
@@ -617,7 +617,7 @@ void TTcpConnection::OnSocketRead()
         ? NProfiling::GetCpuInstant()
         : std::numeric_limits<NProfiling::TCpuInstant>::max();
 
-    LOG_TRACE("Finished serving read request (BytesReadTotal: %v)",
+    YT_LOG_TRACE("Finished serving read request (BytesReadTotal: %v)",
         bytesReadTotal);
 }
 
@@ -632,7 +632,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     auto result = HandleEintr(recv, Socket_, buffer, size, 0);
     auto elapsed = timer.GetElapsedTime();
     if (elapsed > ReadTimeWarningThreshold) {
-        LOG_DEBUG("Socket read took too long (Elapsed: %v)",
+        YT_LOG_DEBUG("Socket read took too long (Elapsed: %v)",
             elapsed);
     }
 
@@ -644,11 +644,11 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     *bytesRead = static_cast<size_t>(result);
     Counters_->InBytes.fetch_add(result, std::memory_order_relaxed);
 
-    LOG_TRACE("Socket read (BytesRead: %v)", *bytesRead);
+    YT_LOG_TRACE("Socket read (BytesRead: %v)", *bytesRead);
 
     if (Config_->EnableQuickAck) {
         if (!TrySetSocketEnableQuickAck(Socket_)) {
-            LOG_TRACE("Failed to set socket quick ack option");
+            YT_LOG_TRACE("Failed to set socket quick ack option");
         }
     }
 
@@ -723,7 +723,7 @@ bool TTcpConnection::OnAckPacketReceived()
         return false;
     }
 
-    LOG_DEBUG("Ack received (PacketId: %v)", Decoder_.GetPacketId());
+    YT_LOG_DEBUG("Ack received (PacketId: %v)", Decoder_.GetPacketId());
 
     if (unackedMessage.Promise) {
         unackedMessage.Promise.Set(TError());
@@ -736,7 +736,7 @@ bool TTcpConnection::OnAckPacketReceived()
 
 bool TTcpConnection::OnMessagePacketReceived()
 {
-    LOG_DEBUG("Incoming message received (PacketId: %v, PacketSize: %v)",
+    YT_LOG_DEBUG("Incoming message received (PacketId: %v, PacketSize: %v)",
         Decoder_.GetPacketId(),
         Decoder_.GetPacketSize());
 
@@ -777,7 +777,7 @@ void TTcpConnection::OnSocketWrite()
         return;
     }
 
-    LOG_TRACE("Started serving write request");
+    YT_LOG_TRACE("Started serving write request");
 
     size_t bytesWrittenTotal = 0;
     while (HasUnsentData()) {
@@ -797,7 +797,7 @@ void TTcpConnection::OnSocketWrite()
         }
     }
 
-    LOG_TRACE("Finished serving write request (BytesWrittenTotal: %v)", bytesWrittenTotal);
+    YT_LOG_TRACE("Finished serving write request (BytesWrittenTotal: %v)", bytesWrittenTotal);
 }
 
 bool TTcpConnection::HasUnsentData() const
@@ -807,7 +807,7 @@ bool TTcpConnection::HasUnsentData() const
 
 bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 {
-    LOG_TRACE("Writing fragments (EncodedFragments: %v)", EncodedFragments_.size());
+    YT_LOG_TRACE("Writing fragments (EncodedFragments: %v)", EncodedFragments_.size());
 
     auto fragmentIt = EncodedFragments_.begin();
     auto fragmentEnd = EncodedFragments_.end();
@@ -833,7 +833,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     auto result = HandleEintr(::writev, Socket_, SendVector_.data(), SendVector_.size());
     auto elapsed = timer.GetElapsedTime();
     if (elapsed > WriteTimeWarningThreshold) {
-        LOG_DEBUG("Socket write took too long (Elapsed: %v)",
+        YT_LOG_DEBUG("Socket write took too long (Elapsed: %v)",
             elapsed);
     }
 
@@ -841,7 +841,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     bool isOK = CheckWriteError(result);
     if (isOK) {
         Counters_->OutBytes.fetch_add(*bytesWritten, std::memory_order_relaxed);
-        LOG_TRACE("Socket written (BytesWritten: %v)", *bytesWritten);
+        YT_LOG_TRACE("Socket written (BytesWritten: %v)", *bytesWritten);
     }
     return isOK;
 }
@@ -849,7 +849,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
 {
     size_t bytesToFlush = bytesWritten;
-    LOG_TRACE("Flushing fragments (BytesWritten: %v)", bytesWritten);
+    YT_LOG_TRACE("Flushing fragments (BytesWritten: %v)", bytesWritten);
 
     while (bytesToFlush != 0) {
         Y_ASSERT(!EncodedFragments_.empty());
@@ -857,14 +857,14 @@ void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
 
         if (fragment.Size() > bytesToFlush) {
             size_t bytesRemaining = fragment.Size() - bytesToFlush;
-            LOG_TRACE("Partial write (Size: %v, RemainingSize: %v)",
+            YT_LOG_TRACE("Partial write (Size: %v, RemainingSize: %v)",
                 fragment.Size(),
                 bytesRemaining);
             fragment = TRef(fragment.End() - bytesRemaining, bytesRemaining);
             break;
         }
 
-        LOG_TRACE("Full write (Size: %v)", fragment.Size());
+        YT_LOG_TRACE("Full write (Size: %v)", fragment.Size());
 
         bytesToFlush -= fragment.Size();
         EncodedFragments_.pop();
@@ -874,7 +874,7 @@ void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
 void TTcpConnection::FlushWrittenPackets(size_t bytesWritten)
 {
     size_t bytesToFlush = bytesWritten;
-    LOG_TRACE("Flushing packets (BytesWritten: %v)", bytesWritten);
+    YT_LOG_TRACE("Flushing packets (BytesWritten: %v)", bytesWritten);
 
     while (bytesToFlush != 0) {
         Y_ASSERT(!EncodedPacketSizes_.empty());
@@ -882,14 +882,14 @@ void TTcpConnection::FlushWrittenPackets(size_t bytesWritten)
 
         if (packetSize > bytesToFlush) {
             size_t bytesRemaining = packetSize - bytesToFlush;
-            LOG_TRACE("Partial write (Size: %v, RemainingSize: %v)",
+            YT_LOG_TRACE("Partial write (Size: %v, RemainingSize: %v)",
                 packetSize,
                 bytesRemaining);
             packetSize = bytesRemaining;
             break;
         }
 
-        LOG_TRACE("Full write (Size: %v)", packetSize);
+        YT_LOG_TRACE("Full write (Size: %v)", packetSize);
 
         bytesToFlush -= packetSize;
         OnPacketSent();
@@ -940,7 +940,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         const auto& packet = EncodedPackets_.back();
 
         // Encode the packet.
-        LOG_TRACE("Starting encoding packet (PacketId: %v)", packet.PacketId);
+        YT_LOG_TRACE("Starting encoding packet (PacketId: %v)", packet.PacketId);
 
         bool encodeResult = Encoder_.Start(
             packet.Type,
@@ -963,14 +963,14 @@ bool TTcpConnection::MaybeEncodeFragments()
                 flushCoalesced();
                 EncodedFragments_.push(fragment);
             }
-            LOG_TRACE("Fragment encoded (Size: %v)", fragment.Size());
+            YT_LOG_TRACE("Fragment encoded (Size: %v)", fragment.Size());
             Encoder_.NextFragment();
         } while (!Encoder_.IsFinished());
 
         EncodedPacketSizes_.push(packet.PacketSize);
         encodedSize += packet.PacketSize;
 
-        LOG_TRACE("Finished encoding packet (PacketId: %v)", packet.PacketId);
+        YT_LOG_TRACE("Finished encoding packet (PacketId: %v)", packet.PacketId);
     }
 
     flushCoalesced();
@@ -1018,13 +1018,13 @@ void TTcpConnection::OnPacketSent()
 
 void  TTcpConnection::OnAckPacketSent(const TPacket& packet)
 {
-    LOG_DEBUG("Ack sent (PacketId: %v)",
+    YT_LOG_DEBUG("Ack sent (PacketId: %v)",
         packet.PacketId);
 }
 
 void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
 {
-    LOG_DEBUG("Outcoming message sent (PacketId: %v)",
+    YT_LOG_DEBUG("Outcoming message sent (PacketId: %v)",
         packet.PacketId);
 
     PendingOutPayloadBytes_.fetch_sub(packet.PayloadSize);
@@ -1038,7 +1038,7 @@ void TTcpConnection::OnTerminated()
         error = TerminateError_;
     }
 
-    LOG_DEBUG("Termination request received");
+    YT_LOG_DEBUG("Termination request received");
 
     Abort(error);
 }
@@ -1064,7 +1064,7 @@ void TTcpConnection::ProcessQueuedMessages()
             std::move(queuedMessage.Message),
             queuedMessage.PayloadSize);
 
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %v, PacketSize: %v, Flags: %v)",
+        YT_LOG_DEBUG("Outcoming message dequeued (PacketId: %v, PacketSize: %v, Flags: %v)",
             packetId,
             packet->PacketSize,
             flags);
@@ -1081,7 +1081,7 @@ void TTcpConnection::DiscardOutcomingMessages(const TError& error)
 {
     TQueuedMessage queuedMessage;
     while (QueuedMessages_.Dequeue(&queuedMessage)) {
-        LOG_DEBUG("Outcoming message discarded (PacketId: %v)",
+        YT_LOG_DEBUG("Outcoming message discarded (PacketId: %v)",
             queuedMessage.PacketId);
         if (queuedMessage.Promise) {
             queuedMessage.Promise.Set(error);
@@ -1118,7 +1118,7 @@ void TTcpConnection::UnregisterFromPoller()
 void TTcpConnection::ArmPollerForWrite()
 {
     if (State_ != EState::Open) {
-        LOG_TRACE("Cannot arm poller since connection is not open yet");
+        YT_LOG_TRACE("Cannot arm poller since connection is not open yet");
         return;
     }
 
@@ -1126,7 +1126,7 @@ void TTcpConnection::ArmPollerForWrite()
     // ArmedForQueuedMessages_ is used to batch these arm calls.
     bool expected = false;
     if (!ArmedForQueuedMessages_.compare_exchange_strong(expected, true)) {
-        LOG_TRACE("Poller is already armed");
+        YT_LOG_TRACE("Poller is already armed");
         return;
     }
 
@@ -1139,18 +1139,18 @@ void TTcpConnection::ArmPollerForWrite()
 void TTcpConnection::DoArmPoller()
 {
     if (Unregistered_) {
-        LOG_TRACE("Cannot arm poller since connection is unregistered");
+        YT_LOG_TRACE("Cannot arm poller since connection is unregistered");
         return;
     }
 
     if (Socket_ == INVALID_SOCKET) {
-        LOG_TRACE("Cannot arm poller since socket is closed");
+        YT_LOG_TRACE("Cannot arm poller since socket is closed");
         return;
     }
 
     Poller_->Arm(Socket_, this, EPollControl::Read|EPollControl::Write);
 
-    LOG_TRACE("Poller armed");
+    YT_LOG_TRACE("Poller armed");
 }
 
 void TTcpConnection::RearmPoller()
@@ -1158,12 +1158,12 @@ void TTcpConnection::RearmPoller()
     NConcurrency::TReaderGuard guard(ControlSpinLock_);
 
     if (Unregistered_) {
-        LOG_TRACE("Cannot rearm poller since connection is unregistered");
+        YT_LOG_TRACE("Cannot rearm poller since connection is unregistered");
         return;
     }
 
     if (Socket_ == INVALID_SOCKET) {
-        LOG_TRACE("Cannot rearm poller since socket is closed");
+        YT_LOG_TRACE("Cannot rearm poller since socket is closed");
         return;
     }
 
@@ -1183,7 +1183,7 @@ void TTcpConnection::RearmPoller()
 
         forWrite = mustArmForWrite();
         Poller_->Arm(Socket_, this, EPollControl::Read | (forWrite ? EPollControl::Write : EPollControl::None));
-        LOG_TRACE("Poller rearmed (ForWrite: %v)", forWrite);
+        YT_LOG_TRACE("Poller rearmed (ForWrite: %v)", forWrite);
     } while (!forWrite && mustArmForWrite());
 }
 
@@ -1203,10 +1203,10 @@ bool TTcpConnection::IsSocketError(ssize_t result)
 void TTcpConnection::InitSocketTosLevel(TTosLevel tosLevel)
 {
     if (TrySetSocketTosLevel(Socket_, tosLevel)) {
-        LOG_DEBUG("Socket TOS level set (TosLevel: %x)",
+        YT_LOG_DEBUG("Socket TOS level set (TosLevel: %x)",
             tosLevel);
     } else {
-        LOG_DEBUG("Failed to set socket TOS level");
+        YT_LOG_DEBUG("Failed to set socket TOS level");
     }
 }
 

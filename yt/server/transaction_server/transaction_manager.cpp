@@ -271,7 +271,7 @@ public:
             multicellManager->PostToMasters(startRequest, replicateToCellTags);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "SecondaryCellTags: %v, Timeout: %v, Deadline: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
@@ -296,7 +296,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -321,7 +321,7 @@ public:
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
                 transactionId);
             AbortTransaction(nestedTransaction, true);
@@ -361,7 +361,7 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
             transactionId,
             commitTimestamp);
     }
@@ -435,7 +435,7 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
             force);
     }
@@ -587,7 +587,7 @@ public:
                 ? ETransactionState::PersistentCommitPrepared
                 : ETransactionState::TransientCommitPrepared);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
                 transactionId,
                 persistent,
                 prepareTimestamp);
@@ -617,7 +617,7 @@ public:
         if (state == ETransactionState::Active) {
             transaction->SetState(ETransactionState::TransientAbortPrepared);
 
-            LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
                 transactionId);
         }
     }
@@ -761,7 +761,7 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
                 data.Type);
         }
@@ -841,7 +841,7 @@ private:
             if (dependentTransaction->GetPersistentState() != ETransactionState::Active) {
                 continue;
             }
-            LOG_DEBUG("Aborting dependent transaction (DependentTransactionId: %v, PrerequisiteTransactionId: %v)",
+            YT_LOG_DEBUG("Aborting dependent transaction (DependentTransactionId: %v, PrerequisiteTransactionId: %v)",
                 dependentTransaction->GetId(),
                 transaction->GetId());
             AbortTransaction(dependentTransaction, true, false);
@@ -971,7 +971,7 @@ private:
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(transactionId).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
+                YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
                     transactionId);
             }
         }));

@@ -272,7 +272,7 @@ private:
         while (IsEnabled()) {
             auto dropped = DroppedCount_.exchange(0);
             if (dropped) {
-                LOG_WARNING("Maximum items reached, dropping job statistics (DroppedItems: %v)", dropped);
+                YT_LOG_WARNING("Maximum items reached, dropping job statistics (DroppedItems: %v)", dropped);
             }
             try {
                 TryHandleBatch(batch);
@@ -285,7 +285,7 @@ private:
             } catch (const std::exception& ex) {
                 WriteFailuresCount_.fetch_add(1, std::memory_order_relaxed);
                 Profiler_.Increment(WriteFailuresCounter_);
-                LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v, PendingItems: %v)",
+                YT_LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v, PendingItems: %v)",
                     delay.Seconds(),
                     GetPendingCount());
             }
@@ -299,7 +299,7 @@ private:
 
     void TryHandleBatch(const TBatch& batch)
     {
-        LOG_DEBUG("Job statistics transaction starting (Items: %v, PendingItems: %v, ArchiveVersion: %v)",
+        YT_LOG_DEBUG("Job statistics transaction starting (Items: %v, PendingItems: %v, ArchiveVersion: %v)",
             batch.size(),
             GetPendingCount(),
             Data_->GetOperationArchiveVersion());
@@ -308,7 +308,7 @@ private:
         auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet, transactionOptions);
         auto transactionOrError = WaitFor(asyncTransaction);
         auto transaction = transactionOrError.ValueOrThrow();
-        LOG_DEBUG("Job statistics transaction started (TransactionId: %v, Items: %v)",
+        YT_LOG_DEBUG("Job statistics transaction started (TransactionId: %v, Items: %v)",
             transaction->GetId(),
             batch.size());
 
@@ -320,7 +320,7 @@ private:
         Profiler_.Increment(CommittedCounter_, batch.size());
         Profiler_.Increment(CommittedDataWeightCounter_, dataWeight);
 
-        LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
+        YT_LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
             "CommittedItems: %v, CommittedDataWeight: %v)",
             transaction->GetId(),
             batch.size(),
@@ -335,7 +335,7 @@ private:
     void DoEnable()
     {
         EnableSemaphore_.Release();
-        LOG_INFO("Job statistics reporter enabled");
+        YT_LOG_INFO("Job statistics reporter enabled");
     }
 
     void DoDisable()
@@ -346,7 +346,7 @@ private:
         DroppedCount_.store(0, std::memory_order_relaxed);
         Profiler_.Update(PendingCounter_, 0);
         Profiler_.Update(QueueIsTooLargeCounter_, 0);
-        LOG_INFO("Job statistics reporter disabled");
+        YT_LOG_INFO("Job statistics reporter disabled");
     }
 
     bool IsEnabled()
@@ -359,10 +359,10 @@ private:
         if (IsEnabled()) {
             return;
         }
-        LOG_INFO("Waiting for job statistics reporter to become enabled");
+        YT_LOG_INFO("Waiting for job statistics reporter to become enabled");
         auto event = EnableSemaphore_.GetReadyEvent();
         WaitFor(event).ThrowOnError();
-        LOG_INFO("Job statistics reporter became enabled, resuming statistics writing");
+        YT_LOG_INFO("Job statistics reporter became enabled, resuming statistics writing");
     }
 };
 

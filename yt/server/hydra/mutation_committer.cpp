@@ -79,7 +79,7 @@ public:
         BatchedRecordsData_.push_back(std::move(recordData));
         LocalFlushResult_ = std::move(localFlushResult);
 
-        LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v, MutationId: %v)",
+        YT_LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v, MutationId: %v)",
             currentVersion,
             GetStartVersion(),
             request.Type,
@@ -101,7 +101,7 @@ public:
         int mutationCount = GetMutationCount();
         CommittedVersion_ = GetStartVersion().Advance(mutationCount);
 
-        LOG_DEBUG("Flushing batched mutations (StartVersion: %v, MutationCount: %v)",
+        YT_LOG_DEBUG("Flushing batched mutations (StartVersion: %v, MutationCount: %v)",
             GetStartVersion(),
             mutationCount);
 
@@ -130,7 +130,7 @@ public:
                     continue;
                 }
 
-                LOG_DEBUG("Sending mutations to follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
+                YT_LOG_DEBUG("Sending mutations to follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
                     followerId,
                     GetStartVersion(),
                     GetMutationCount());
@@ -203,7 +203,7 @@ private:
             {owner->CellManager_->GetPeerTag(followerId)});
 
         if (!rspOrError.IsOK()) {
-            LOG_DEBUG(rspOrError, "Error logging mutations at follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
+            YT_LOG_DEBUG(rspOrError, "Error logging mutations at follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
                 followerId,
                 GetStartVersion(),
                 GetMutationCount());
@@ -212,14 +212,14 @@ private:
 
         const auto& rsp = rspOrError.Value();
         if (rsp->logged()) {
-            LOG_DEBUG("Mutations are logged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
+            YT_LOG_DEBUG("Mutations are logged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,
                 GetStartVersion(),
                 GetMutationCount(),
                 time);
             OnSuccessfulFlush(owner);
         } else {
-            LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
+            YT_LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,
                 GetStartVersion(),
                 GetMutationCount(),
@@ -250,7 +250,7 @@ private:
             Timer_,
             {owner->CellManager_->GetPeerTag(owner->CellManager_->GetSelfPeerId())});
 
-        LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v, WallTime: %v)",
+        YT_LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
             GetMutationCount(),
             time);
@@ -297,7 +297,7 @@ private:
             Timer_,
             {owner->CellManager_->GetPeerQuorumTag()});
 
-        LOG_DEBUG("Mutations are flushed by quorum (StartVersion: %v, MutationCount: %v, WallTime: %v)",
+        YT_LOG_DEBUG("Mutations are flushed by quorum (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
             GetMutationCount(),
             time);
@@ -383,12 +383,12 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(TMutationRequest&& request)
         std::move(localFlushResult));
 
     if (DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint() >= Config_->MaxChangelogRecordCount) {
-        LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
+        YT_LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
             DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint(),
             Config_->MaxChangelogRecordCount);
         CheckpointNeeded_.Fire(false);
     } else if (DecoratedAutomaton_->GetDataSizeSinceLastCheckpoint() >= Config_->MaxChangelogDataSize)  {
-        LOG_INFO("Requesting checkpoint due to data size limit (DataSizeSinceLastCheckpoint: %v, MaxChangelogDataSize: %v)",
+        YT_LOG_INFO("Requesting checkpoint due to data size limit (DataSizeSinceLastCheckpoint: %v, MaxChangelogDataSize: %v)",
             DecoratedAutomaton_->GetDataSizeSinceLastCheckpoint(),
             Config_->MaxChangelogDataSize);
         CheckpointNeeded_.Fire(false);
@@ -422,7 +422,7 @@ void TLeaderCommitter::SuspendLogging()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(!LoggingSuspended_);
 
-    LOG_DEBUG("Mutations logging suspended");
+    YT_LOG_DEBUG("Mutations logging suspended");
 
     LoggingSuspended_ = true;
     YCHECK(PendingMutations_.empty());
@@ -433,7 +433,7 @@ void TLeaderCommitter::ResumeLogging()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(LoggingSuspended_);
 
-    LOG_DEBUG("Mutations logging resumed");
+    YT_LOG_DEBUG("Mutations logging resumed");
 
     for (auto& pendingMutation : PendingMutations_) {
         auto version = DecoratedAutomaton_->GetLoggedVersion();
@@ -551,7 +551,7 @@ void TLeaderCommitter::OnAutoSnapshotCheck()
     if (DecoratedAutomaton_->GetLastSnapshotTime() != TInstant::Zero() &&
         TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod)
     {
-        LOG_INFO("Requesting periodic snapshot (LastSnapshotTime: %v, SnapshotBuildPeriod: %v)",
+        YT_LOG_INFO("Requesting periodic snapshot (LastSnapshotTime: %v, SnapshotBuildPeriod: %v)",
             DecoratedAutomaton_->GetLastSnapshotTime(),
             Config_->SnapshotBuildPeriod);
         CheckpointNeeded_.Fire(true);
@@ -637,7 +637,7 @@ void TFollowerCommitter::SuspendLogging()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(!LoggingSuspended_);
 
-    LOG_DEBUG("Mutations logging suspended");
+    YT_LOG_DEBUG("Mutations logging suspended");
 
     LoggingSuspended_ = true;
     YCHECK(PendingMutations_.empty());
@@ -648,7 +648,7 @@ void TFollowerCommitter::ResumeLogging()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(LoggingSuspended_);
 
-    LOG_DEBUG("Mutations logging resumed");
+    YT_LOG_DEBUG("Mutations logging resumed");
 
     for (auto& pendingMutation : PendingMutations_) {
         auto result = DoAcceptMutations(pendingMutation.ExpectedVersion, pendingMutation.RecordsData);

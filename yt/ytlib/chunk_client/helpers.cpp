@@ -67,7 +67,7 @@ TSessionId CreateChunk(
 {
     const auto& Logger = logger;
 
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, TransactionId: %v, ChunkListId: %v, MediumName: %v)",
+    YT_LOG_DEBUG("Creating chunk (ReplicationFactor: %v, TransactionId: %v, ChunkListId: %v, MediumName: %v)",
         options->ReplicationFactor,
         transactionId,
         chunkListId,
@@ -108,7 +108,7 @@ TSessionId CreateChunk(
     const auto& rsp = batchRsp->create_chunk_subresponses(0);
     auto sessionId = FromProto<TSessionId>(rsp.session_id());
 
-    LOG_DEBUG("Chunk created (MediumIndex: %v)",
+    YT_LOG_DEBUG("Chunk created (MediumIndex: %v)",
         sessionId.MediumIndex);
 
     return sessionId;
@@ -226,7 +226,7 @@ TChunkReplicaList AllocateWriteTargets(
 {
     const auto& Logger = logger;
 
-    LOG_DEBUG("Allocating write targets "
+    YT_LOG_DEBUG("Allocating write targets "
         "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, PreferLocalHost: %v, "
         "ForbiddenAddresses: %v)",
         sessionId,
@@ -279,7 +279,7 @@ TChunkReplicaList AllocateWriteTargets(
             sessionId);
     }
 
-    LOG_DEBUG("Write targets allocated (ChunkId: %v, Targets: %v)",
+    YT_LOG_DEBUG("Write targets allocated (ChunkId: %v, Targets: %v)",
         sessionId,
         MakeFormattableRange(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
@@ -371,7 +371,7 @@ IChunkReaderPtr CreateRemoteReader(
 
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
-        LOG_DEBUG("Creating erasure remote reader (Codec: %v)", erasureCodecId);
+        YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)", erasureCodecId);
 
         std::array<TNodeId, MaxTotalPartCount> partIndexToNodeId;
         std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
@@ -418,7 +418,7 @@ IChunkReaderPtr CreateRemoteReader(
 
         return CreateRepairingReader(erasureCodec, config, readers, Logger);
     } else {
-        LOG_DEBUG("Creating regular remote reader");
+        YT_LOG_DEBUG("Creating regular remote reader");
 
         return CreateReplicationReader(
             config,
@@ -472,7 +472,7 @@ void LocateChunks(
                 *req->add_subrequests() = chunkSpecs[index]->chunk_id();
             }
 
-            LOG_DEBUG("Locating chunks (CellTag: %v, ChunkCount: %v)",
+            YT_LOG_DEBUG("Locating chunks (CellTag: %v, ChunkCount: %v)",
                 cellTag,
                 req->subrequests_size());
 

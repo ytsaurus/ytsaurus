@@ -122,7 +122,7 @@ private:
 
     void DoOpen()
     {
-        LOG_INFO("Opening file reader");
+        YT_LOG_INFO("Opening file reader");
 
         TUserObject userObject;
         userObject.Path = Path_;
@@ -175,7 +175,7 @@ private:
 
         bool isEmptyRead = Options_.Length && *Options_.Length == 0;
         if (!isEmptyRead) {
-            LOG_INFO("Fetching file chunks");
+            YT_LOG_INFO("Fetching file chunks");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
             TObjectServiceProxy proxy(channel);
@@ -230,7 +230,7 @@ private:
             StartListenTransaction(Transaction_);
         }
 
-        LOG_INFO("File reader opened");
+        YT_LOG_INFO("File reader opened");
     }
 
 };

@@ -94,7 +94,7 @@ UserPtr TUserRegistry::GetOrRegisterNewUser(const String& userName)
             return found->second;
         }
 
-        CH_LOG_INFO(GetLogger(), "Register new user " << Quoted(userName) << " from user template");
+        LOG_INFO(GetLogger(), "Register new user " << Quoted(userName) << " from user template");
 
         auto inserted = Users.emplace(userName, CreateNewUserFromTemplate(userName));
         return inserted.first->second;
@@ -116,7 +116,7 @@ void TUserRegistry::Reload(Poco::Util::AbstractConfiguration& config)
     config.keys("users", userNames);
 
     for (const auto& userName : userNames) {
-        CH_LOG_DEBUG(GetLogger(), "Load user " << Quoted(userName));
+        LOG_DEBUG(GetLogger(), "Load user " << Quoted(userName));
         auto user = std::make_shared<const DB::User>(userName, "users." + userName, config);
         Users.emplace(userName, std::move(user));
     }
@@ -187,7 +187,7 @@ UserPtr TSecurityManager::authorizeAndGetUser(
 {
     auto user = Users.GetOrRegisterNewUser(userName);
     Authorize(user, password, address);
-    CH_LOG_DEBUG(GetLogger(), "User authorized: " << Quoted(userName) << " (address: " << address.toString() << ")");
+    LOG_DEBUG(GetLogger(), "User authorized: " << Quoted(userName) << " (address: " << address.toString() << ")");
     return user;
 }
 

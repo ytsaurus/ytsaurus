@@ -430,7 +430,7 @@ TJobResources TSchedulerElement::GetLocalResourceUsage() const
 {
     auto resourceUsage = SharedState_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
-        LOG_WARNING("Found usage of schedulable element %Qv with non-zero "
+        YT_LOG_WARNING("Found usage of schedulable element %Qv with non-zero "
             "user slots and zero memory (TreeId: %v)",
             GetId(),
             GetTreeId());
@@ -1557,13 +1557,13 @@ void TPool::SetStarving(bool starving)
 
     if (starving && !GetStarving()) {
         TSchedulerElement::SetStarving(true);
-        LOG_INFO("Pool is now starving (TreeId: %v, PoolId: %v, Status: %v)",
+        YT_LOG_INFO("Pool is now starving (TreeId: %v, PoolId: %v, Status: %v)",
             GetTreeId(),
             GetId(),
             GetStatus());
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
-        LOG_INFO("Pool is no longer starving (TreeId: %v, PoolId: %v)",
+        YT_LOG_INFO("Pool is no longer starving (TreeId: %v, PoolId: %v)",
             GetTreeId(),
             GetId());
     }
@@ -1777,7 +1777,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
 
     bool enableLogging = (UpdatePreemptableJobsListCount_.fetch_add(1) % UpdatePreemptableJobsListLoggingPeriod_) == 0;
 
-    LOG_DEBUG_IF(enableLogging,
+    YT_LOG_DEBUG_IF(enableLogging,
         "Update preemptable job lists inputs (FairShareRatio: %v, TotalResourceLimits: %v, "
         "PreemptionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
         fairShareRatio,
@@ -1788,7 +1788,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     // NB: We need 2 iterations since thresholds may change significantly such that we need
     // to move job from preemptable list to non-preemptable list through aggressively preemptable list.
     for (int iteration = 0; iteration < 2; ++iteration) {
-        LOG_DEBUG_IF(enableLogging,
+        YT_LOG_DEBUG_IF(enableLogging,
             "Preemptable lists usage bounds before update (NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v, Iteration: %v)",
             FormatResources(NonpreemptableResourceUsage_),
             FormatResources(AggressivelyPreemptableResourceUsage_),
@@ -1815,7 +1815,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         AggressivelyPreemptableResourceUsage_ = nonpreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
     }
 
-    LOG_DEBUG_IF(enableLogging,
+    YT_LOG_DEBUG_IF(enableLogging,
         "Preemptable lists usage bounds after update (NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v)",
         FormatResources(NonpreemptableResourceUsage_),
         FormatResources(AggressivelyPreemptableResourceUsage_));
@@ -1991,7 +1991,7 @@ std::optional<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
 
 void TOperationElement::Disable()
 {
-    LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
+    YT_LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
 
     auto delta = SharedState_->Disable();
     IncreaseLocalResourceUsage(-delta);
@@ -1999,7 +1999,7 @@ void TOperationElement::Disable()
 
 void TOperationElement::Enable()
 {
-    LOG_DEBUG("Operation element enabled in strategy (OperationId: %v)", OperationId_);
+    YT_LOG_DEBUG("Operation element enabled in strategy (OperationId: %v)", OperationId_);
 
     return SharedState_->Enable();
 }
@@ -2342,7 +2342,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     }
 
     if (!HasJobsSatisfyingResourceLimits(*context)) {
-        LOG_TRACE(
+        YT_LOG_TRACE(
             "No pending jobs can satisfy available resources on node "
             "(TreeId: %v, OperationId: %v, FreeResources: %v, DiscountResources: %v)",
             GetTreeId(),
@@ -2379,7 +2379,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
         bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
-        LOG_DEBUG_IF(enableBackoff, "Failed to schedule job, backing off (TreeId: %v, OperationId: %v, Reasons: %v)",
+        YT_LOG_DEBUG_IF(enableBackoff, "Failed to schedule job, backing off (TreeId: %v, OperationId: %v, Reasons: %v)",
             GetTreeId(),
             OperationId_,
             scheduleJobResult->Failed);
@@ -2471,13 +2471,13 @@ void TOperationElement::SetStarving(bool starving)
     if (starving && !GetStarving()) {
         SharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
         TSchedulerElement::SetStarving(true);
-        LOG_INFO("Operation is now starving (TreeId: %v, OperationId: %v, Status: %v)",
+        YT_LOG_INFO("Operation is now starving (TreeId: %v, OperationId: %v, Status: %v)",
             GetTreeId(),
             GetId(),
             GetStatus());
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
-        LOG_INFO("Operation is no longer starving (TreeId: %v, OperationId: %v)",
+        YT_LOG_INFO("Operation is no longer starving (TreeId: %v, OperationId: %v)",
             GetTreeId(),
             GetId());
     }
@@ -2617,7 +2617,7 @@ bool TOperationElement::OnJobStarted(
     bool force)
 {
     // XXX(ignat): remove before deploy on production clusters.
-    LOG_DEBUG("Adding job to strategy (JobId: %v)", jobId);
+    YT_LOG_DEBUG("Adding job to strategy (JobId: %v)", jobId);
 
     auto resourceUsageDelta = SharedState_->AddJob(jobId, resourceUsage, force);
     if (resourceUsageDelta) {
@@ -2632,7 +2632,7 @@ bool TOperationElement::OnJobStarted(
 void TOperationElement::OnJobFinished(const TJobId& jobId)
 {
     // XXX(ignat): remove before deploy on production clusters.
-    LOG_DEBUG("Removing job from strategy (JobId: %v)", jobId);
+    YT_LOG_DEBUG("Removing job from strategy (JobId: %v)", jobId);
 
     auto delta = SharedState_->RemoveJob(jobId);
     if (delta) {
@@ -2712,7 +2712,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
         } else {
             const auto& jobId = scheduleJobResult->StartDescriptor->Id;
             const auto availableDelta = GetHierarchicalAvailableResources(*context);
-            LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, OperationId: %v, Limits: %v, JobResources: %v)",
+            YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, OperationId: %v, Limits: %v, JobResources: %v)",
                 jobId,
                 OperationId_,
                 FormatResources(*precommittedResources + availableDelta),
@@ -2725,7 +2725,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
             scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
         }
     } else if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
-        LOG_WARNING("Job scheduling timed out (OperationId: %v)",
+        YT_LOG_WARNING("Job scheduling timed out (OperationId: %v)",
             OperationId_);
 
         SetOperationAlert(
@@ -2785,7 +2785,7 @@ void TOperationElement::UpdatePreemptableJobsList()
     Profiler.Update(GetTreeHost()->GetProfilingCounter("/preemptable_list_update_move_count"), moveCount);
 
     if (elapsed > TreeConfig_->UpdatePreemptableListDurationLoggingThreshold) {
-        LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v, TreeId: %v)",
+        YT_LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v, OperationId: %v, TreeId: %v)",
             elapsed.MilliSeconds(),
             moveCount,
             OperationId_,

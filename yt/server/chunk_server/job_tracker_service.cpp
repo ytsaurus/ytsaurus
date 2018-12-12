@@ -98,31 +98,31 @@ private:
             } else {
                 switch (state) {
                     case EJobState::Completed:
-                        LOG_DEBUG("Unknown job has completed, removal scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Unknown job has completed, removal scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                         break;
 
                     case EJobState::Failed:
-                        LOG_DEBUG("Unknown job has failed, removal scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Unknown job has failed, removal scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                         break;
 
                     case EJobState::Aborted:
-                        LOG_DEBUG("Job aborted, removal scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Job aborted, removal scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                         break;
 
                     case EJobState::Running:
-                        LOG_DEBUG("Unknown job is running, abort scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Unknown job is running, abort scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_abort(), jobId);
                         break;
 
                     case EJobState::Waiting:
-                        LOG_DEBUG("Unknown job is waiting, abort scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Unknown job is waiting, abort scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_abort(), jobId);
                         break;

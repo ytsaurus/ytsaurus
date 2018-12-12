@@ -386,7 +386,7 @@ private:
                 } else {
                     Error_ = TError("SSL_do_handshake failed")
                         << GetLastSslError();
-                    LOG_DEBUG(Error_, "TLS handshake failed");
+                    YT_LOG_DEBUG(Error_, "TLS handshake failed");
                     CheckError();
                     return;
                 }
@@ -405,7 +405,7 @@ private:
                 if (count < 0) {
                     Error_ = TError("SSL_write failed")
                         << GetLastSslError();
-                    LOG_DEBUG(Error_, "TLS write failed");
+                    YT_LOG_DEBUG(Error_, "TLS write failed");
                     CheckError();
                     return;
                 }
@@ -437,7 +437,7 @@ private:
                 } else {
                     Error_ = TError("SSL_read failed")
                         << GetLastSslError();
-                    LOG_DEBUG(Error_, "TLS read failed");
+                    YT_LOG_DEBUG(Error_, "TLS read failed");
                     CheckError();
                     return;
                 }

@@ -242,12 +242,12 @@ private:
             if (Config_->EnableNoDelay && family != AF_UNIX) {
                 if (Config_->EnableNoDelay) {
                     if (!TrySetSocketNoDelay(Socket_)) {
-                        LOG_DEBUG("Failed to set socket no delay option");
+                        YT_LOG_DEBUG("Failed to set socket no delay option");
                     }
                 }
 
                 if (!TrySetSocketKeepAlive(Socket_)) {
-                    LOG_DEBUG("Failed to set socket keep alive option");
+                    YT_LOG_DEBUG("Failed to set socket keep alive option");
                 }
             }
 
@@ -326,7 +326,7 @@ private:
             Timeout_ *= Config_->RtoScale * GetRandomVariation();
         }
 
-        LOG_DEBUG("Connect timeout, trying to reconnect (Timeout: %v)", Timeout_);
+        YT_LOG_DEBUG("Connect timeout, trying to reconnect (Timeout: %v)", Timeout_);
 
         Connect();
         if (Finished_) {

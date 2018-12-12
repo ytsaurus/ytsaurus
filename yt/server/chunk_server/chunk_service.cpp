@@ -124,7 +124,7 @@ private:
         }
 
         if (leaderRequest->subrequests_size() > 0) {
-            LOG_DEBUG("Touching chunks at leader (Count: %v)",
+            YT_LOG_DEBUG("Touching chunks at leader (Count: %v)",
                 leaderRequest->subrequests_size());
             leaderRequest->Invoke();
         }
@@ -209,7 +209,7 @@ private:
                     subresponse->add_replicas(ToProto<ui32>(replica));
                 }
 
-                LOG_DEBUG("Write targets allocated "
+                YT_LOG_DEBUG("Write targets allocated "
                     "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
                     "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
                     sessionId,
@@ -221,7 +221,7 @@ private:
                     MakeFormattableRange(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
-                LOG_DEBUG(error, "Error allocating write targets "
+                YT_LOG_DEBUG(error, "Error allocating write targets "
                     "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
                     "PreferredHostName: %v, ForbiddenAddresses: %v, MediumIndex: %v)",
                     sessionId,

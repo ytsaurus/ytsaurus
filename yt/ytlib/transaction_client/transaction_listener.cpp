@@ -15,7 +15,7 @@ static const auto& Logger = TransactionClientLogger;
 
 void TTransactionListener::StartListenTransaction(const ITransactionPtr& transaction)
 {
-    LOG_DEBUG("Started listening for transaction (TransactionId: %v)",
+    YT_LOG_DEBUG("Started listening for transaction (TransactionId: %v)",
         transaction->GetId());
 
     transaction->SubscribeAborted(
@@ -24,7 +24,7 @@ void TTransactionListener::StartListenTransaction(const ITransactionPtr& transac
 
 void TTransactionListener::StopListenTransaction(const ITransactionPtr& transaction)
 {
-    LOG_DEBUG("Stopped listening for transaction (TransactionId: %v)",
+    YT_LOG_DEBUG("Stopped listening for transaction (TransactionId: %v)",
         transaction->GetId());
 
     auto guard = Guard(SpinLock_);

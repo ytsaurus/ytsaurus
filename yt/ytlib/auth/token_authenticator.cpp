@@ -53,7 +53,7 @@ public:
         }
 
         auto tokenHash = GetCryptoHash(token);
-        LOG_DEBUG("Authenticating user with token via Blackbox (TokenHash: %v, UserIP: %v)",
+        YT_LOG_DEBUG("Authenticating user with token via Blackbox (TokenHash: %v, UserIP: %v)",
             tokenHash,
             userIP);
         return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIP}})
@@ -77,13 +77,13 @@ private:
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            LOG_DEBUG(result, "Blackbox authentication failed (TokenHash: %v)",
+            YT_LOG_DEBUG(result, "Blackbox authentication failed (TokenHash: %v)",
                 tokenHash);
             THROW_ERROR result
                 << TErrorAttribute("token_hash", tokenHash);
         }
 
-        LOG_DEBUG("Blackbox authentication successful (TokenHash: %v, Login: %v, Realm: %v)",
+        YT_LOG_DEBUG("Blackbox authentication successful (TokenHash: %v, Login: %v, Realm: %v)",
             tokenHash,
             result.Value().Login,
             result.Value().Realm);
@@ -180,7 +180,7 @@ public:
         const auto& token = credentials.Token;
         const auto& userIP = credentials.UserIP;
         auto tokenHash = GetCryptoHash(token);
-        LOG_DEBUG("Authenticating user with token via Cypress (TokenHash: %v, UserIP: %v)",
+        YT_LOG_DEBUG("Authenticating user with token via Cypress (TokenHash: %v, UserIP: %v)",
             tokenHash,
             userIP);
 
@@ -201,11 +201,11 @@ private:
     {
         if (!callResult.IsOK()) {
             if (callResult.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                LOG_DEBUG(callResult, "Token is missing in Cypress (TokenHash: %v)",
+                YT_LOG_DEBUG(callResult, "Token is missing in Cypress (TokenHash: %v)",
                     tokenHash);
                 THROW_ERROR_EXCEPTION("Token is missing in Cypress");
             } else {
-                LOG_DEBUG(callResult, "Cypress authentication failed (TokenHash: %v)",
+                YT_LOG_DEBUG(callResult, "Cypress authentication failed (TokenHash: %v)",
                     tokenHash);
                 THROW_ERROR_EXCEPTION("Cypress authentication failed")
                     << TErrorAttribute("token_hash", tokenHash)
@@ -218,12 +218,12 @@ private:
             TAuthenticationResult authResult;
             authResult.Login = ConvertTo<TString>(ysonString);
             authResult.Realm = Config_->Realm;
-            LOG_DEBUG("Cypress authentication successful (TokenHash: %v, Login: %v)",
+            YT_LOG_DEBUG("Cypress authentication successful (TokenHash: %v, Login: %v)",
                 tokenHash,
                 authResult.Login);
             return authResult;
         } catch (const std::exception& ex) {
-            LOG_DEBUG(callResult, "Cypress contains malformed authentication entry (TokenHash: %v)",
+            YT_LOG_DEBUG(callResult, "Cypress contains malformed authentication entry (TokenHash: %v)",
                 tokenHash);
             THROW_ERROR_EXCEPTION("Malformed Cypress authentication entry")
                 << TErrorAttribute("token_hash", tokenHash);

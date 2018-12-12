@@ -145,7 +145,7 @@ private:
         } catch (const std::exception& ex) {
             error = TError(ex);
             Synchronized_.Fire(error);
-            LOG_DEBUG(error);
+            YT_LOG_DEBUG(error);
         }
 
         auto guard = Guard(SpinLock_);

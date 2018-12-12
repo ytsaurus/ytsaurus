@@ -1313,7 +1313,7 @@ void TTablet::UpdateOverlappingStoreCount()
     overlappingStoreCount += Eden_->Stores().size();
 
     if (OverlappingStoreCount_ != overlappingStoreCount) {
-        LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",
+        YT_LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",
             overlappingStoreCount);
     }
 

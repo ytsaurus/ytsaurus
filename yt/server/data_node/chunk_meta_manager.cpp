@@ -74,10 +74,10 @@ public:
                 Bootstrap_->GetMemoryUsageTracker());
             cookie.EndInsert(cachedMeta);
 
-            LOG_DEBUG("Chunk meta is put into cache (ChunkId: %v)",
+            YT_LOG_DEBUG("Chunk meta is put into cache (ChunkId: %v)",
                 chunkId);
         } else {
-            LOG_DEBUG("Failed to cache chunk meta due to concurrent read (ChunkId: %v)",
+            YT_LOG_DEBUG("Failed to cache chunk meta due to concurrent read (ChunkId: %v)",
                 chunkId);
         }
     }

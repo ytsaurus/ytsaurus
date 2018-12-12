@@ -156,7 +156,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
     std::vector<TExternalFunctionSpec> result;
 
-    LOG_DEBUG("Looking for UDFs in Cypress");
+    YT_LOG_DEBUG("Looking for UDFs in Cypress");
 
     auto attributeFilter = std::vector<TString>{
         FunctionDescriptorAttribute,
@@ -207,7 +207,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto objectId = NYT::FromProto<NObjectClient::TObjectId>(basicAttrsRsp->object_id());
         auto cellTag = basicAttrsRsp->cell_tag();
 
-        LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
+        YT_LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
             function.second,
             ConvertToYsonString(item, NYson::EYsonFormat::Text).GetData());
 
@@ -271,14 +271,14 @@ void AppendUdfDescriptors(
 {
     YCHECK(functionNames.size() == externalFunctionSpecs.size());
 
-    LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
+    YT_LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
 
     for (size_t index = 0; index < externalFunctionSpecs.size(); ++index) {
         const auto& item = externalFunctionSpecs[index];
         const auto& descriptor = item.Descriptor;
         const auto& name = functionNames[index];
 
-        LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
+        YT_LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
             name,
             ConvertToYsonString(descriptor, NYson::EYsonFormat::Text).GetData());
 
@@ -305,13 +305,13 @@ void AppendUdfDescriptors(
         functionBody.Name = name;
         functionBody.ChunkSpecs = chunks;
 
-        LOG_DEBUG("Appending UDF descriptor {%v}",
+        YT_LOG_DEBUG("Appending UDF descriptor {%v}",
             MakeFormattableRange(chunks, [] (TStringBuilder* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
                 builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
             }));
 
         if (functionDescriptor) {
-            LOG_DEBUG("Appending function UDF descriptor %Qv", name);
+            YT_LOG_DEBUG("Appending function UDF descriptor %Qv", name);
 
             functionBody.IsAggregate = false;
             functionBody.SymbolName = functionDescriptor->Name;
@@ -338,7 +338,7 @@ void AppendUdfDescriptors(
         }
 
         if (aggregateDescriptor) {
-            LOG_DEBUG("Appending aggregate UDF descriptor %Qv", name);
+            YT_LOG_DEBUG("Appending aggregate UDF descriptor %Qv", name);
 
             functionBody.IsAggregate = true;
             functionBody.SymbolName = aggregateDescriptor->Name;
@@ -523,7 +523,7 @@ public:
         YCHECK(client);
         auto chunks = key.ChunkSpecs;
 
-        LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v, ReadSessionId: %v)",
+        YT_LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v, ReadSessionId: %v)",
             key,
             blockReadOptions.ReadSessionId);
 
@@ -667,7 +667,7 @@ void FetchFunctionImplementationsFromCypress(
     for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
-        LOG_DEBUG("Fetching UDF implementation (Name: %v, ReadSessionId: %v)",
+        YT_LOG_DEBUG("Fetching UDF implementation (Name: %v, ReadSessionId: %v)",
             name,
             blockReadOptions.ReadSessionId);
 
@@ -699,7 +699,7 @@ void FetchFunctionImplementationsFromFiles(
      for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
-        LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
+        YT_LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
         auto path = rootPath + "/" + function.Name;
         auto file = TUnbufferedFileInput(path);

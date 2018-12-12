@@ -210,7 +210,7 @@ TJobProbeToolsPtr TJobProbeTools::Create(
     try {
         tools->Init(jobId);
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Unable to create cgroup tools");
+        YT_LOG_ERROR(ex, "Unable to create cgroup tools");
         THROW_ERROR_EXCEPTION("Unable to create cgroup tools")
             << ex;
     }
@@ -290,7 +290,7 @@ TYsonString TJobProbeTools::StraceJob()
         pids.erase(it);
     }
 
-    LOG_DEBUG("Run strace for %v", pids);
+    YT_LOG_DEBUG("Run strace for %v", pids);
 
     auto result = WaitFor(BIND([=] () {
         return RunTool<TStraceTool>(pids);
@@ -317,7 +317,7 @@ void TJobProbeTools::SignalJob(const TString& signalName)
 
     arg->SignalName = signalName;
 
-    LOG_INFO("Sending signal %v to pids %v",
+    YT_LOG_INFO("Sending signal %v to pids %v",
         arg->SignalName,
         arg->Pids);
 
@@ -397,7 +397,7 @@ TJobSatelliteWorker::TJobSatelliteWorker(
         .AddTag("JobId: %v", JobId_))
 {
     YCHECK(JobId_);
-    LOG_DEBUG("Starting job satellite service");
+    YT_LOG_DEBUG("Starting job satellite service");
 }
 
 void TJobSatelliteWorker::EnsureJobProbe()
@@ -544,7 +544,7 @@ void RunJobSatellite(
         try {
             SafeCreateStderrFile("../satellite_stderr");
         } catch (const std::exception& ex) {
-            LOG_ERROR("Failed to reopen satellite stderr");
+            YT_LOG_ERROR("Failed to reopen satellite stderr");
             _exit(1);
         }
 
@@ -558,10 +558,10 @@ void RunJobSatellite(
 
             jobSatellite->Stop(ProcessInfoToError(processInfo));
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Exception thrown during job satellite functioning");
+            YT_LOG_ERROR(ex, "Exception thrown during job satellite functioning");
             _exit(1);
         }
-        LOG_DEBUG("User process finished (Pid: %v, Status: %v)",
+        YT_LOG_DEBUG("User process finished (Pid: %v, Status: %v)",
             pid,
             ProcessInfoToError(processInfo));
         NLogging::TLogManager::StaticShutdown();

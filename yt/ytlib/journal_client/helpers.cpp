@@ -102,7 +102,7 @@ private:
 
     void DoRun()
     {
-        LOG_INFO("Aborting journal chunk session quorum (Replicas: %v)",
+        YT_LOG_INFO("Aborting journal chunk session quorum (Replicas: %v)",
             Replicas_);
 
         if (Replicas_.size() < Quorum_) {
@@ -135,17 +135,17 @@ private:
         // NB: Missing session is also OK.
         if (rspOrError.IsOK() || rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
             ++SuccessCounter_;
-            LOG_INFO("Journal chunk session aborted successfully (Replica: %v)",
+            YT_LOG_INFO("Journal chunk session aborted successfully (Replica: %v)",
                 replica);
 
         } else {
             InnerErrors_.push_back(rspOrError);
-            LOG_WARNING(rspOrError, "Failed to abort journal chunk session (Replica: %v)",
+            YT_LOG_WARNING(rspOrError, "Failed to abort journal chunk session (Replica: %v)",
                 replica);
         }
 
         if (SuccessCounter_ == Quorum_) {
-            LOG_INFO("Journal chunk session quorum aborted successfully");
+            YT_LOG_INFO("Journal chunk session quorum aborted successfully");
             Promise_.TrySet();
         }
 
@@ -203,7 +203,7 @@ private:
             return;
         }
 
-        LOG_INFO("Computing quorum info for journal chunk (Replicas: %v)",
+        YT_LOG_INFO("Computing quorum info for journal chunk (Replicas: %v)",
             Replicas_);
 
         std::vector<TFuture<void>> asyncResults;
@@ -237,7 +237,7 @@ private:
 
             Infos_.push_back(miscExt);
 
-            LOG_INFO("Received info for journal chunk (Address: %v, MediumIndex: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            YT_LOG_INFO("Received info for journal chunk (Address: %v, MediumIndex: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
                 replica.NodeDescriptor.GetDefaultAddress(),
                 replica.MediumIndex,
                 miscExt.row_count(),
@@ -246,7 +246,7 @@ private:
         } else {
             InnerErrors_.push_back(rspOrError);
 
-            LOG_WARNING(rspOrError, "Failed to get journal info (Replica: %v)",
+            YT_LOG_WARNING(rspOrError, "Failed to get journal info (Replica: %v)",
                 replica);
         }
     }
@@ -272,7 +272,7 @@ private:
 
         const auto& quorumInfo = Infos_[Quorum_ - 1];
 
-        LOG_INFO("Quorum info for journal chunk computed successfully (RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+        YT_LOG_INFO("Quorum info for journal chunk computed successfully (RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             quorumInfo.row_count(),
             quorumInfo.uncompressed_data_size(),
             quorumInfo.compressed_data_size());

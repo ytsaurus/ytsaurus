@@ -60,7 +60,7 @@ public:
     //! Starts periodic polling.
     void Start()
     {
-        LOG_DEBUG("Starting scraper task (ChunkCount: %v)",
+        YT_LOG_DEBUG("Starting scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
         LocateFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
@@ -76,7 +76,7 @@ public:
     //! Stops periodic polling.
     TFuture<void> Stop()
     {
-        LOG_DEBUG("Stopping scraper task (ChunkCount: %v)",
+        YT_LOG_DEBUG("Stopping scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
         Started_ = false;
@@ -129,7 +129,7 @@ private:
         });
 
         if (!error.IsOK()) {
-            LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");
+            YT_LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");
             return;
         }
 
@@ -158,20 +158,20 @@ private:
             }
         }
 
-        LOG_DEBUG("Locating chunks (Count: %v, SampleChunkIds: %v)",
+        YT_LOG_DEBUG("Locating chunks (Count: %v, SampleChunkIds: %v)",
             req->subrequests_size(),
             sampleChunkIds);
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Failed to locate chunks");
+            YT_LOG_WARNING(rspOrError, "Failed to locate chunks");
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         YCHECK(req->subrequests_size() == rsp->subresponses_size());
 
-        LOG_DEBUG("Chunks located (Count: %v, SampleChunkIds: %v)",
+        YT_LOG_DEBUG("Chunks located (Count: %v, SampleChunkIds: %v)",
             req->subrequests_size(),
             sampleChunkIds);
 

@@ -30,7 +30,7 @@ TMultiReaderBase::TMultiReaderBase(
 {
     CurrentSession_.Reset();
 
-    LOG_DEBUG("Creating multi reader (ReaderCount: %v)",
+    YT_LOG_DEBUG("Creating multi reader (ReaderCount: %v)",
         readerFactories.size());
 
     if (readerFactories.empty()) {
@@ -115,7 +115,7 @@ void TMultiReaderBase::OpenNextChunks()
         ++ActiveReaderCount_;
         FreeBufferSize_ -= ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint();
 
-        LOG_DEBUG("Reserve buffer for the next reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
+        YT_LOG_DEBUG("Reserve buffer for the next reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
             PrefetchIndex_,
             ActiveReaderCount_.load(),
             ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint(),
@@ -136,7 +136,7 @@ void TMultiReaderBase::DoOpenReader(int index)
         return;
     }
 
-    LOG_DEBUG("Opening reader (Index: %v)", index);
+    YT_LOG_DEBUG("Opening reader (Index: %v)", index);
 
     IReaderBasePtr reader;
     TError error;
@@ -156,7 +156,7 @@ void TMultiReaderBase::DoOpenReader(int index)
             for (const auto& chunkSpec : descriptor.ChunkSpecs) {
                 chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
             }
-            LOG_WARNING("Failed to open reader (Index: %v, ChunkIds: %v)", index, chunkIds);
+            YT_LOG_WARNING("Failed to open reader (Index: %v, ChunkIds: %v)", index, chunkIds);
 
             TGuard<TSpinLock> guard(FailedChunksLock_);
             FailedChunks_.insert(chunkIds.begin(), chunkIds.end());
@@ -191,7 +191,7 @@ void TMultiReaderBase::OnReaderFinished()
     --ActiveReaderCount_;
     FreeBufferSize_ += ReaderFactories_[CurrentSession_.Index]->GetMemoryFootprint();
 
-    LOG_DEBUG("Release buffer reserved by finished reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
+    YT_LOG_DEBUG("Release buffer reserved by finished reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
         CurrentSession_.Index,
         static_cast<int>(ActiveReaderCount_),
         ReaderFactories_[CurrentSession_.Index]->GetMemoryFootprint(),
@@ -223,7 +223,7 @@ TFuture<void> TMultiReaderBase::CombineCompletionError(TFuture<void> future)
 void TMultiReaderBase::RegisterFailedReader(IReaderBasePtr reader)
 {
     auto chunkIds = reader->GetFailedChunkIds();
-    LOG_WARNING("Chunk reader failed (ChunkIds: %v)", chunkIds);
+    YT_LOG_WARNING("Chunk reader failed (ChunkIds: %v)", chunkIds);
 
     TGuard<TSpinLock> guard(FailedChunksLock_);
     for (const auto& chunkId : chunkIds) {
@@ -247,7 +247,7 @@ TSequentialMultiReaderBase::TSequentialMultiReaderBase(
         options,
         readerFactories)
 {
-    LOG_DEBUG("Multi chunk reader is sequential");
+    YT_LOG_DEBUG("Multi chunk reader is sequential");
     NextReaders_.reserve(ReaderFactories_.size());
     for (int i = 0; i < ReaderFactories_.size(); ++i) {
         NextReaders_.push_back(NewPromise<IReaderBasePtr>());
@@ -364,7 +364,7 @@ TParallelMultiReaderBase::TParallelMultiReaderBase(
         options,
         readerFactories)
 {
-    LOG_DEBUG("Multi chunk reader is parallel");
+    YT_LOG_DEBUG("Multi chunk reader is parallel");
     CompletionError_.ToFuture().Subscribe(
         BIND(&TParallelMultiReaderBase::PropagateError, MakeWeak(this)));
 }

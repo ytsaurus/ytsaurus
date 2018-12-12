@@ -85,7 +85,7 @@ TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slot
     return BIND([=, this_ = MakeStrong(this)] () -> std::optional<TString> {
          ValidateEnabled();
 
-         LOG_DEBUG("Making sandbox directiories (SlotIndex: %v)", slotIndex);
+         YT_LOG_DEBUG("Making sandbox directiories (SlotIndex: %v)", slotIndex);
 
          auto slotPath = GetSlotPath(slotIndex);
          try {
@@ -220,7 +220,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         auto sandboxPath = GetSandboxPath(slotIndex, kind);
         auto destinationPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, destinationName));
 
-        LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)",
+        YT_LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)",
             sourcePath,
             destinationName);
 
@@ -293,7 +293,7 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
         auto sandboxPath = GetSandboxPath(slotIndex, kind);
         auto linkPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, linkName));
 
-        LOG_DEBUG("Making sandbox symlink (TargetPath: %v, LinkName: %v)", targetPath, linkName);
+        YT_LOG_DEBUG("Making sandbox symlink (TargetPath: %v, LinkName: %v)", targetPath, linkName);
 
         try {
             // These validations do not disable slot.
@@ -427,12 +427,12 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                     continue;
                 }
 
-                LOG_DEBUG("Removing job directories (Path: %v)", sandboxPath);
+                YT_LOG_DEBUG("Removing job directories (Path: %v)", sandboxPath);
 
                 WaitFor(JobDirectoryManager_->CleanDirectories(sandboxPath))
                     .ThrowOnError();
 
-                LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
+                YT_LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
 
                 if (HasRootPermissions_) {
                     RunTool<TRemoveDirAsRootTool>(sandboxPath);
@@ -543,7 +543,7 @@ void TSlotLocation::Disable(const TError& error)
         "Slot location at %v is disabled",
         Config_->Path) << error;
 
-    LOG_ERROR(alert);
+    YT_LOG_ERROR(alert);
 
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
@@ -600,7 +600,7 @@ void TSlotLocation::UpdateDiskInfo()
 
         diskLimit -= Config_->DiskUsageWatermark;
 
-        LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v)",
+        YT_LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v)",
             Config_->Path,
             diskUsage,
             diskLimit);
@@ -612,7 +612,7 @@ void TSlotLocation::UpdateDiskInfo()
         }
     } catch (const std::exception& ex) {
         auto error = TError("Failed to get disk info") << ex;
-        LOG_WARNING(error);
+        YT_LOG_WARNING(error);
         Disable(error);
     }
 }

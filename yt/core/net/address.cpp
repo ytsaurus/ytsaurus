@@ -976,7 +976,7 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
     if (getifaddrs(&ifAddresses) == -1) {
         auto error = TError("getifaddrs failed")
             << TError::FromSystem();
-        LOG_WARNING(error, "Failed to initialize local addresses");
+        YT_LOG_WARNING(error, "Failed to initialize local addresses");
     } else {
         auto holder = std::unique_ptr<ifaddrs, decltype(&freeifaddrs)>(ifAddresses, &freeifaddrs);
 
@@ -1011,7 +1011,7 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
 void TAddressResolver::TImpl::PurgeCache()
 {
     Clear();
-    LOG_INFO("Address cache purged");
+    YT_LOG_INFO("Address cache purged");
 }
 
 void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
@@ -1022,11 +1022,11 @@ void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
         SetLocalHostName(*Config_->LocalHostFqdn);
     } else {
         UpdateLocalHostName([&] (const char* message, const char* details) {
-            LOG_INFO("Localhost FQDN resolution failed: %v: %v", message, details);
+            YT_LOG_INFO("Localhost FQDN resolution failed: %v: %v", message, details);
         });
     }
 
-    LOG_INFO("Localhost FQDN configured: %v", GetLocalHostName());
+    YT_LOG_INFO("Localhost FQDN configured: %v", GetLocalHostName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

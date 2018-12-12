@@ -3,12 +3,6 @@
 #include <yt/core/misc/common.h>
 #include <yt/core/logging/log.h>
 
-#undef LOG_TRACE
-#undef LOG_DEBUG
-#undef LOG_INFO
-#undef LOG_WARNING
-#undef LOG_ERROR
-
 #include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Columns/ColumnsNumber.h>
 #include <Columns/ColumnString.h>
@@ -126,49 +120,3 @@
 
 #include <common/logger_useful.h>
 
-// ClickHouse uses the same macro as we do, so we perform a nasty hack to fix this issue.
-#undef LOG_TRACE
-#undef LOG_DEBUG
-#undef LOG_INFO
-#undef LOG_WARNING
-#undef LOG_ERROR
-
-#define CH_LOG_TRACE(logger, message) do { \
-    if ((logger)->trace()) {\
-    std::stringstream oss_internal_rare;    \
-    oss_internal_rare << message; \
-    (logger)->trace(oss_internal_rare.str());}} while(false)
-
-#define CH_LOG_DEBUG(logger, message) do { \
-    if ((logger)->debug()) {\
-    std::stringstream oss_internal_rare;    \
-    oss_internal_rare << message; \
-    (logger)->debug(oss_internal_rare.str());}} while(false)
-
-#define CH_LOG_INFO(logger, message) do { \
-    if ((logger)->information()) {\
-    std::stringstream oss_internal_rare;    \
-    oss_internal_rare << message; \
-    (logger)->information(oss_internal_rare.str());}} while(false)
-
-#define CH_LOG_WARNING(logger, message) do { \
-    if ((logger)->warning()) {\
-    std::stringstream oss_internal_rare;    \
-    oss_internal_rare << message; \
-    (logger)->warning(oss_internal_rare.str());}} while(false)
-
-#define CH_LOG_ERROR(logger, message) do { \
-    if ((logger)->error()) {\
-    std::stringstream oss_internal_rare;    \
-    oss_internal_rare << message; \
-    (logger)->error(oss_internal_rare.str());}} while(false)
-
-#ifdef YT_ENABLE_TRACE_LOGGING
-#define LOG_TRACE(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Trace, __VA_ARGS__)
-#else
-#define LOG_TRACE(...)                      LOG_UNUSED(__VA_ARGS__)
-#endif
-#define LOG_DEBUG(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Debug, __VA_ARGS__)
-#define LOG_INFO(...)                       LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Info, __VA_ARGS__)
-#define LOG_WARNING(...)                    LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Warning, __VA_ARGS__)
-#define LOG_ERROR(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Error, __VA_ARGS__)

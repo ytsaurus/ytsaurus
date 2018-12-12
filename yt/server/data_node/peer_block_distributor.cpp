@@ -136,7 +136,7 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
         totalOutQueueSize >= Config_->OutQueueSizeActivationThreshold ||
         totalRequestedBlockSize >= Config_->TotalRequestedBlockSizeActivationThreshold * Config_->IterationPeriod.Seconds();
 
-    LOG_DEBUG("Determining if blocks should be distributed (IterationPeriod: %v, OutTraffic: %v, "
+    YT_LOG_DEBUG("Determining if blocks should be distributed (IterationPeriod: %v, OutTraffic: %v, "
         "OutTrafficActivationThreshold: %v, OutThrottlerQueueSize: %v, DefaultNetworkPendingOutBytes: %v, "
         "TotalOutQueueSize: %v, OutQueueSizeActivationThreshold: %v, TotalRequestedBlockSize: %v, "
         "TotalRequestedBlockSizeActivationThreshold: %v, ShouldDistributeBlocks: %v)",
@@ -173,11 +173,11 @@ void TPeerBlockDistributor::DistributeBlocks()
     auto totalBlockSize = chosenBlocks.TotalSize;
 
     if (blocks.empty()) {
-        LOG_DEBUG("No blocks may be distributed on current iteration");
+        YT_LOG_DEBUG("No blocks may be distributed on current iteration");
         return;
     }
 
-    LOG_INFO("Ready to distribute blocks (BlockCount: %v, TotalBlockSize: %v)",
+    YT_LOG_INFO("Ready to distribute blocks (BlockCount: %v, TotalBlockSize: %v)",
         blocks.size(),
         totalBlockSize);
 
@@ -207,7 +207,7 @@ void TPeerBlockDistributor::DistributeBlocks()
         // using the information from peer block table.
         auto destinationNodes = ChooseDestinationNodes(nodes);
         if (destinationNodes.empty()) {
-            LOG_WARNING("No suitable destination nodes found");
+            YT_LOG_WARNING("No suitable destination nodes found");
             // We have no chances to succeed with following blocks.
             break;
         }
@@ -216,7 +216,7 @@ void TPeerBlockDistributor::DistributeBlocks()
         const auto& blockId = blockIds[index];
         const auto& reqTemplate = reqTemplates[index];;
 
-        LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
+        YT_LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
             blockId,
             destinationNodes);
 
@@ -304,7 +304,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
             // TODO(max42): the block is both hot enough to be distributed,
             // but missing in the block cache? Sounds strange, but maybe we
             // should fetch it from the disk then?
-            LOG_DEBUG("Candidate block is missing in chunk block manager cache (BlockId: %v, RequestCount: %v, "
+            YT_LOG_DEBUG("Candidate block is missing in chunk block manager cache (BlockId: %v, RequestCount: %v, "
                 "LastDistributionTime: %v, DistributionCount: %v)",
                 blockId,
                 candidate.RequestCount,
@@ -329,7 +329,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
             source = Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
         }
         if (chosenBlocks.TotalSize + blockSize <= Config_->MaxPopulateRequestSize || chosenBlocks.TotalSize == 0) {
-            LOG_DEBUG("Block is ready for distribution (BlockId: %v, RequestCount: %v, LastDistributionTime: %v, "
+            YT_LOG_DEBUG("Block is ready for distribution (BlockId: %v, RequestCount: %v, LastDistributionTime: %v, "
                 "DistributionCount: %v, Source: %v, Size: %v)",
                 blockId,
                 requestCount,
@@ -371,7 +371,7 @@ void TPeerBlockDistributor::UpdateTransmittedBytes()
     try {
         interfaceToStatistics = GetNetworkInterfaceStatistics();
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Error getting network interface statistics");
+        YT_LOG_WARNING(ex, "Error getting network interface statistics");
         return;
     }
 
@@ -395,14 +395,14 @@ void TPeerBlockDistributor::OnBlockDistributed(
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     if (!rspOrError.IsOK()) {
-        LOG_DEBUG(rspOrError, "Populate cache request failed (Address: %v)",
+        YT_LOG_DEBUG(rspOrError, "Populate cache request failed (Address: %v)",
             address);
         return;
     }
 
     TInstant expirationTime;
     FromProto(&expirationTime, rspOrError.Value()->expiration_time());
-    LOG_DEBUG("Populate cache request succeeded, registering node as a peer for block "
+    YT_LOG_DEBUG("Populate cache request succeeded, registering node as a peer for block "
         "(BlockId: %v, Address: %v, ExpirationTime: %v, Size: %v)",
         blockId,
         address,

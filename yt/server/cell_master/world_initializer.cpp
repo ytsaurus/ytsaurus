@@ -122,7 +122,7 @@ private:
     void InitializeIfNeeded()
     {
         if (IsInitialized()) {
-            LOG_INFO("World is already initialized");
+            YT_LOG_INFO("World is already initialized");
         } else {
             Initialize();
         }
@@ -138,7 +138,7 @@ private:
 
     void Initialize()
     {
-        LOG_INFO("World initialization started");
+        YT_LOG_INFO("World initialization started");
 
         try {
             // Check for pre-existing transactions to avoid collisions with previous (failed)
@@ -534,9 +534,9 @@ private:
 
             CommitTransaction(transactionId);
 
-            LOG_INFO("World initialization completed");
+            YT_LOG_INFO("World initialization completed");
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "World initialization failed");
+            YT_LOG_ERROR(ex, "World initialization failed");
             AbandonScheduled();
             ScheduleInitialize(InitRetryPeriod);
         }

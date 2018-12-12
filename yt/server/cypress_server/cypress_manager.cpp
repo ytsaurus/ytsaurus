@@ -1178,7 +1178,7 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        LOG_INFO("Started initializing locks");
+        YT_LOG_INFO("Started initializing locks");
         for (const auto& pair : LockMap_) {
             auto* lock = pair.second;
             if (!IsObjectAlive(lock)) {
@@ -1218,9 +1218,9 @@ private:
                 }
             }
         }
-        LOG_INFO("Finished initializing locks");
+        YT_LOG_INFO("Finished initializing locks");
 
-        LOG_INFO("Started initializing nodes");
+        YT_LOG_INFO("Started initializing nodes");
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
 
@@ -1263,7 +1263,7 @@ private:
                 ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
             }
         }
-        LOG_INFO("Finished initializing nodes");
+        YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
 
@@ -1281,7 +1281,7 @@ private:
                             auto* targetNode = FindNode(TVersionedObjectId(objectId));
                             if (IsObjectAlive(targetNode)) {
                                 auto fixedPath = GetNodePath(targetNode, nullptr);
-                                LOG_DEBUG("Fixed link target: %v -> %v", targetPath, fixedPath);
+                                YT_LOG_DEBUG("Fixed link target: %v -> %v", targetPath, fixedPath);
                                 linkNode->SetTargetPath(fixedPath);
                             }
                         }
@@ -1298,7 +1298,7 @@ private:
             {
                 auto it = attributes.find(attributeName);
                 if (it != attributes.end()) {
-                    LOG_DEBUG("Remove //sys attribute (AttributeName: %Qv, AttributeValue: %v)",
+                    YT_LOG_DEBUG("Remove //sys attribute (AttributeName: %Qv, AttributeValue: %v)",
                         attributeName,
                         ConvertToYsonString(it->second, EYsonFormat::Text));
                     attributes.erase(it);
@@ -1400,12 +1400,12 @@ private:
         node->SetContentRevision(mutationContext->GetVersion().ToRevision());
 
         if (node->IsExternal()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
                 node->GetId(),
                 node->GetType(),
                 node->GetExternalCellTag());
         } else {
-            LOG_DEBUG_UNLESS(IsRecovery(), "%v node registered (NodeId: %v, Type: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "%v node registered (NodeId: %v, Type: %v)",
                 node->IsForeign() ? "Foreign" : "Local",
                 node->GetId(),
                 node->GetType());
@@ -1429,7 +1429,7 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* lock : lockingState.PendingLocks) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %v)",
                 lock->GetId());
             lock->SetTrunkNode(nullptr);
             auto* transaction = lock->GetTransaction();
@@ -1704,7 +1704,7 @@ private:
         auto* transaction = lock->GetTransaction();
         const auto& request = lock->Request();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Lock acquired (LockId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock acquired (LockId: %v)",
             lock->GetId());
 
         YCHECK(lock->GetState() == ELockState::Pending);
@@ -1744,7 +1744,7 @@ private:
         }
 
         if (transaction->LockedNodes().insert(trunkNode).second) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node locked (NodeId: %v, TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node locked (NodeId: %v, TransactionId: %v)",
                 trunkNode->GetId(),
                 transaction->GetId());
         }
@@ -1820,7 +1820,7 @@ private:
         YCHECK(transaction->Locks().insert(lock).second);
         objectManager->RefObject(lock);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v)",
             id,
             request.Mode,
             request.Key,
@@ -1875,7 +1875,7 @@ private:
                 YCHECK(parentTransaction->Locks().insert(lock).second);
                 // NB: Node could be locked more than once.
                 parentTransaction->LockedNodes().insert(trunkNode);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, TransactionId: %v -> %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, TransactionId: %v -> %v)",
                     lock->GetId(),
                     transaction->GetId(),
                     parentTransaction->GetId());
@@ -1921,14 +1921,14 @@ private:
                 }
                 lock->SetTransaction(nullptr);
                 objectManager->UnrefObject(lock);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Lock released (LockId: %v, TransactionId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock released (LockId: %v, TransactionId: %v)",
                     lock->GetId(),
                     transaction->GetId());
             }
         }
 
         for (auto* trunkNode : lockedNodes) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node unlocked (NodeId: %v, TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node unlocked (NodeId: %v, TransactionId: %v)",
                 trunkNode->GetId(),
                 transaction->GetId());
         }
@@ -2102,7 +2102,7 @@ private:
             Y_ASSERT(branchedNode->GetTransaction() == transaction);
             handler->Destroy(branchedNode);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedNodeId);
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
 
         // Drop the implicit reference to the originator.
@@ -2111,7 +2111,7 @@ private:
         // Remove the branched copy.
         NodeMap_.Remove(branchedNodeId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
     }
 
     void MergeNodes(TTransaction* transaction)
@@ -2147,7 +2147,7 @@ private:
         handler->Destroy(branchedNode);
         NodeMap_.Remove(branchedNodeId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
     }
 
     void RemoveBranchedNodes(TTransaction* transaction)
@@ -2248,7 +2248,7 @@ private:
 
         auto versionedNodeId = TVersionedNodeId(nodeId, transactionId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v)",
             versionedNodeId,
             type,
             account ? std::make_optional(account->GetName()) : std::nullopt);
@@ -2303,7 +2303,7 @@ private:
             account,
             TNodeFactoryOptions());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Cloning foreign node (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Cloning foreign node (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
             TVersionedNodeId(sourceNodeId, sourceTransactionId),
             TVersionedNodeId(clonedNodeId, clonedTransactionId),
             account->GetName());
@@ -2340,14 +2340,14 @@ private:
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             try {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Removing expired node (NodeId: %v, Path: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removing expired node (NodeId: %v, Path: %v)",
                     nodeId,
                     cypressManager->GetNodePath(trunkNode, nullptr));
                 auto nodeProxy = GetNodeProxy(trunkNode, nullptr);
                 auto parentProxy = nodeProxy->GetParent();
                 parentProxy->RemoveChild(nodeProxy);
             } catch (const std::exception& ex) {
-                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v, Path: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v, Path: %v)",
                     nodeId,
                     cypressManager->GetNodePath(trunkNode, nullptr));
                 ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
@@ -2366,7 +2366,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            LOG_ERROR("Unexpected error: lock transaction is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ERROR("Unexpected error: lock transaction is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -2374,7 +2374,7 @@ private:
 
         auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
         if (!IsObjectAlive(trunkNode)) {
-            LOG_ERROR("Unexpected error: lock node is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ERROR("Unexpected error: lock node is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -2396,7 +2396,7 @@ private:
             lockRequest,
             false);
         if (!error.IsOK()) {
-            LOG_ERROR(error, "Unexpected error: cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
+            YT_LOG_ERROR(error, "Unexpected error: cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
                 nodeId,
                 transactionId,
                 lockRequest.Mode,

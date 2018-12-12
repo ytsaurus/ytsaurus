@@ -36,7 +36,7 @@ private:
     {
         const auto& path = key.Path;
 
-        LOG_DEBUG("Requesting table mount info (Path: %v)", path);
+        YT_LOG_DEBUG("Requesting table mount info (Path: %v)", path);
 
         TApiServiceProxy proxy(Channel_);
         proxy.SetDefaultTimeout(Timeout_);
@@ -99,7 +99,7 @@ private:
                     tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
                 }
 
-                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v)",
+                YT_LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v)",
                     path,
                     tableInfo->TableId,
                     tableInfo->Tablets.size(),

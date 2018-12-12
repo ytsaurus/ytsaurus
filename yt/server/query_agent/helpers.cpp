@@ -31,7 +31,7 @@ void ExecuteRequestWithRetries(
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             if (IsRetriableError(error)) {
-                LOG_INFO(error, "Request failed, retrying");
+                YT_LOG_INFO(error, "Request failed, retrying");
                 errors.push_back(error);
                 continue;
             } else {

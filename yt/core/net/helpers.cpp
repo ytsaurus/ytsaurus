@@ -37,16 +37,16 @@ std::vector<int> AllocateFreePorts(
         YCHECK(socket != INVALID_SOCKET);
 
         try {
-            LOG_DEBUG("Making a preliminary port bind (Port: %v, Socket: %v)", port, socket);
+            YT_LOG_DEBUG("Making a preliminary port bind (Port: %v, Socket: %v)", port, socket);
             BindSocket(socket, TNetworkAddress::CreateIPv6Any(port));
         } catch (const std::exception& ex) {
             SafeClose(socket, false /* ignoreBadFD */);
-            LOG_DEBUG(ex, "Error while trying making a preliminary port bind, skipping it (Port: %v, Socket: %v)", port, socket);
+            YT_LOG_DEBUG(ex, "Error while trying making a preliminary port bind, skipping it (Port: %v, Socket: %v)", port, socket);
             continue;
         }
 
         SafeClose(socket, false /* ignoreBadFD */);
-        LOG_DEBUG("Socket used in preliminary bind is closed (Port: %v, Socket: %v)", port, socket);
+        YT_LOG_DEBUG("Socket used in preliminary bind is closed (Port: %v, Socket: %v)", port, socket);
 
         allocatedPorts.push_back(port);
 

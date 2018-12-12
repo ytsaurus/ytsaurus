@@ -189,7 +189,7 @@ int TGarbageCollector::EphemeralUnrefObject(TObjectBase* object, TEpoch epoch)
         if (object->IsDestroyed()) {
             YCHECK(!object->IsAlive());
 
-            LOG_TRACE("Ephemeral ghost disposed (ObjectId: %v)",
+            YT_LOG_TRACE("Ephemeral ghost disposed (ObjectId: %v)",
                 object->GetId());
             YCHECK(EphemeralGhosts_.erase(object) == 1);
             delete object;
@@ -228,12 +228,12 @@ int TGarbageCollector::WeakUnrefObject(TObjectBase* object, TEpoch epoch)
             YCHECK(!object->IsAlive());
 
             if (ephemeralRefCounter == 0) {
-                LOG_TRACE_UNLESS(IsRecovery(), "Weak ghost disposed (ObjectId: %v)",
+                YT_LOG_TRACE_UNLESS(IsRecovery(), "Weak ghost disposed (ObjectId: %v)",
                     object->GetId());
                 YCHECK(WeakGhosts_.erase(object->GetId()) == 1);
                 delete object;
             } else {
-                LOG_TRACE_UNLESS(IsRecovery(), "Weak ghost became ephemeral ghost (ObjectId: %v)",
+                YT_LOG_TRACE_UNLESS(IsRecovery(), "Weak ghost became ephemeral ghost (ObjectId: %v)",
                     object->GetId());
                 YCHECK(WeakGhosts_.erase(object->GetId()) == 1);
                 YCHECK(EphemeralGhosts_.insert(object).second);
@@ -253,7 +253,7 @@ void TGarbageCollector::RegisterZombie(TObjectBase* object)
         CollectPromise_ = NewPromise<void>();
     }
 
-    LOG_TRACE_UNLESS(IsRecovery(), "Object has become zombie (ObjectId: %v)",
+    YT_LOG_TRACE_UNLESS(IsRecovery(), "Object has become zombie (ObjectId: %v)",
         object->GetId());
     YCHECK(Zombies_.insert(object).second);
 }
@@ -264,7 +264,7 @@ void TGarbageCollector::UnregisterZombie(TObjectBase* object)
     Y_ASSERT(object->GetObjectRefCounter() == 1);
 
     if (Zombies_.erase(object) == 1) {
-        LOG_DEBUG("Object has been resurrected (ObjectId: %v)",
+        YT_LOG_DEBUG("Object has been resurrected (ObjectId: %v)",
             object->GetId());
         CheckEmpty();
     }
@@ -284,7 +284,7 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
     handler->DestroyObject(object);
 
     if (weakRefCounter > 0) {
-        LOG_TRACE_UNLESS(IsRecovery(), "Zombie has become weak ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+        YT_LOG_TRACE_UNLESS(IsRecovery(), "Zombie has become weak ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
             object->GetId(),
             ephemeralRefCounter,
             weakRefCounter);
@@ -292,14 +292,14 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
         object->SetDestroyed();
     } else if (ephemeralRefCounter > 0) {
         Y_ASSERT(weakRefCounter == 0);
-        LOG_TRACE_UNLESS(IsRecovery(), "Zombie has become ephemeral ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+        YT_LOG_TRACE_UNLESS(IsRecovery(), "Zombie has become ephemeral ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
             object->GetId(),
             ephemeralRefCounter,
             weakRefCounter);
         YCHECK(EphemeralGhosts_.insert(object).second);
         object->SetDestroyed();
     } else {
-        LOG_TRACE_UNLESS(IsRecovery(), "Zombie disposed (ObjectId: %v)",
+        YT_LOG_TRACE_UNLESS(IsRecovery(), "Zombie disposed (ObjectId: %v)",
             object->GetId());
         delete object;
     }
@@ -321,7 +321,7 @@ void TGarbageCollector::Reset()
 
 void TGarbageCollector::ClearEphemeralGhosts()
 {
-    LOG_INFO("Started deleting ephemeral ghost objects (Count: %v)",
+    YT_LOG_INFO("Started deleting ephemeral ghost objects (Count: %v)",
         EphemeralGhosts_.size());
     for (auto* object : EphemeralGhosts_) {
         Y_ASSERT(object->IsDestroyed());
@@ -331,12 +331,12 @@ void TGarbageCollector::ClearEphemeralGhosts()
     LockedObjectCount_ -= EphemeralGhosts_.size();
 
     EphemeralGhosts_.clear();
-    LOG_INFO("Finished deleting ephemeral ghost objects");
+    YT_LOG_INFO("Finished deleting ephemeral ghost objects");
 }
 
 void TGarbageCollector::ClearWeakGhosts()
 {
-    LOG_INFO("Started deleting weak ghost objects (Count: %v)", WeakGhosts_.size());
+    YT_LOG_INFO("Started deleting weak ghost objects (Count: %v)", WeakGhosts_.size());
     for (const auto& pair : WeakGhosts_) {
         auto* object = pair.second;
         YCHECK(object->IsDestroyed());
@@ -346,7 +346,7 @@ void TGarbageCollector::ClearWeakGhosts()
     LockedObjectCount_ -= WeakGhosts_.size();
 
     WeakGhosts_.clear();
-    LOG_INFO("Finished deleting weak ghost objects");
+    YT_LOG_INFO("Finished deleting weak ghost objects");
 }
 
 void TGarbageCollector::CheckEmpty()
@@ -354,7 +354,7 @@ void TGarbageCollector::CheckEmpty()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (Zombies_.empty() && CollectPromise_ && !CollectPromise_.IsSet()) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Zombie queue is empty");
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Zombie queue is empty");
         CollectPromise_.Set();
     }
 }
@@ -383,7 +383,7 @@ void TGarbageCollector::OnSweep()
             break;
     }
 
-    LOG_DEBUG("Starting zombie objects sweep (Count: %v, Weight: %v)",
+    YT_LOG_DEBUG("Starting zombie objects sweep (Count: %v, Weight: %v)",
         request.object_ids_size(),
         totalWeight);
 

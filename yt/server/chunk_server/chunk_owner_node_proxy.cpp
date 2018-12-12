@@ -767,7 +767,7 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
 
     const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
 
-    LOG_DEBUG_UNLESS(
+    YT_LOG_DEBUG_UNLESS(
         IsRecovery(),
         "Chunk owner replication changed (NodeId: %v, PrimaryMedium: %v, Replication: %v)",
         node->GetId(),
@@ -798,7 +798,7 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
         chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
     }
 
-    LOG_DEBUG_UNLESS(
+    YT_LOG_DEBUG_UNLESS(
         IsRecovery(),
         "Chunk owner primary medium changed (NodeId: %v, PrimaryMedium: %v)",
         node->GetId(),
@@ -940,7 +940,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     switch (updateMode) {
         case EUpdateMode::Append: {
             if (node->IsExternal() || node->GetType() == EObjectType::Journal) {
-                LOG_DEBUG_UNLESS(
+                YT_LOG_DEBUG_UNLESS(
                     IsRecovery(),
                     "Node is switched to \"append\" mode (NodeId: %v)",
                     lockedNode->GetId());
@@ -962,7 +962,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                 objectManager->UnrefObject(snapshotChunkList);
 
-                LOG_DEBUG_UNLESS(
+                YT_LOG_DEBUG_UNLESS(
                     IsRecovery(),
                     "Node is switched to \"append\" mode (NodeId: %v, NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v)",
                     node->GetId(),
@@ -976,7 +976,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
         case EUpdateMode::Overwrite: {
             if (node->IsExternal() || node->GetType() == EObjectType::Journal) {
-                LOG_DEBUG_UNLESS(
+                YT_LOG_DEBUG_UNLESS(
                     IsRecovery(),
                     "Node is switched to \"overwrite\" mode (NodeId: %v)",
                     node->GetId());
@@ -990,7 +990,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 lockedNode->SetChunkList(newChunkList);
                 objectManager->RefObject(newChunkList);
 
-                LOG_DEBUG_UNLESS(
+                YT_LOG_DEBUG_UNLESS(
                     IsRecovery(),
                     "Node is switched to \"overwrite\" mode (NodeId: %v, NewChunkListId: %v)",
                     node->GetId(),

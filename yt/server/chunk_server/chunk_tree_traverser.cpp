@@ -117,7 +117,7 @@ protected:
 
     void OnFinish(const TError& error)
     {
-        LOG_DEBUG(error, "Chunk tree traversal finished (CpuTime: %v, WallTime: %v, ChunkCount: %v, ChunkListCount: %v)",
+        YT_LOG_DEBUG(error, "Chunk tree traversal finished (CpuTime: %v, WallTime: %v, ChunkCount: %v, ChunkListCount: %v)",
             CpuTime_,
             TInstant::Now() - StartInstant_,
             ChunkCount_,
@@ -770,7 +770,7 @@ public:
 
         StartInstant_ = TInstant::Now();
 
-        LOG_DEBUG("Chunk tree traversal started (LowerBound: %v, UpperBound: %v",
+        YT_LOG_DEBUG("Chunk tree traversal started (LowerBound: %v, UpperBound: %v",
             lowerBound,
             upperBound);
 

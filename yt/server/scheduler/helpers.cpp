@@ -116,7 +116,7 @@ EAbortReason GetAbortReason(const TError& resultError)
         return resultError.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
     } catch (const std::exception& ex) {
         // Process unknown abort reason from node.
-        LOG_WARNING(ex, "Found unknown abort_reason in job result");
+        YT_LOG_WARNING(ex, "Found unknown abort_reason in job result");
         return EAbortReason::Unknown;
     }
 }
@@ -284,13 +284,13 @@ void ValidateOperationAccess(
         .ValueOrThrow();
 
     if (!result.MissingSubjects.empty()) {
-        LOG_DEBUG("Operation has missing subjects in ACL (OperationId: %v, MissingSubjects: %v)",
+        YT_LOG_DEBUG("Operation has missing subjects in ACL (OperationId: %v, MissingSubjects: %v)",
             operationId,
             result.MissingSubjects);
     }
 
     if (result.Action == ESecurityAction::Allow) {
-        LOG_DEBUG("Operation access successfully validated (OperationId: %v, User: %v, AccessType: %v)",
+        YT_LOG_DEBUG("Operation access successfully validated (OperationId: %v, User: %v, AccessType: %v)",
             operationId,
             user,
             accessType);

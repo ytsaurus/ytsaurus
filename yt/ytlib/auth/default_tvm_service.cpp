@@ -41,7 +41,7 @@ public:
 
     virtual TFuture<TString> GetTicket(const TString& serviceId) override
     {
-        LOG_DEBUG("Retrieving TVM ticket (ServiceId: %v)",
+        YT_LOG_DEBUG("Retrieving TVM ticket (ServiceId: %v)",
             serviceId);
 
         auto headers = MakeRequestHeaders();
@@ -55,7 +55,7 @@ public:
 
         auto callId = TGuid::Create();
 
-        LOG_DEBUG("Calling TVM daemon (Url: %v, CallId: %v)",
+        YT_LOG_DEBUG("Calling TVM daemon (Url: %v, CallId: %v)",
             safeUrl,
             callId);
 
@@ -110,7 +110,7 @@ private:
         auto onError = [&] (TError error) {
             error.Attributes().Set("call_id", callId);
             Profiler_.Increment(FailedCallCountCounter_);
-            LOG_DEBUG(error);
+            YT_LOG_DEBUG(error);
             THROW_ERROR(error);
         };
 
@@ -128,12 +128,12 @@ private:
         INodePtr rootNode;
         try {
 
-            LOG_DEBUG("Started reading response body from TVM (CallId: %v)",
+            YT_LOG_DEBUG("Started reading response body from TVM (CallId: %v)",
             callId);
 
             auto body = rsp->ReadAll();
 
-            LOG_DEBUG("Finished reading response body from TVM (CallId: %v)\n%v",
+            YT_LOG_DEBUG("Finished reading response body from TVM (CallId: %v)\n%v",
                 callId,
                 body);
 
@@ -144,7 +144,7 @@ private:
             NJson::ParseJson(&stream, builder.get(), Config);
             rootNode = builder->EndTree();
 
-            LOG_DEBUG("Parsed TVM daemon reply (CallId: %v)",
+            YT_LOG_DEBUG("Parsed TVM daemon reply (CallId: %v)",
                 callId);
         } catch (const std::exception& ex) {
             onError(TError(

@@ -107,13 +107,13 @@ ISessionPtr TSessionManager::StartSession(
     if (SessionMap_.size() >= Config_->MaxWriteSessions) {
         auto error = TError("Maximum concurrent write session limit %v has been reached",
             Config_->MaxWriteSessions);
-        LOG_ERROR(error);
+        YT_LOG_ERROR(error);
         THROW_ERROR(error);
     }
 
     if (DisableWriteSessions_) {
         auto error = TError("Write sessions are disabled");
-        LOG_ERROR(error);
+        YT_LOG_ERROR(error);
         THROW_ERROR(error);
     }
 
@@ -182,7 +182,7 @@ void TSessionManager::OnSessionLeaseExpired(const TSessionId& sessionId)
         return;
     }
 
-    LOG_INFO("Session lease expired (ChunkId: %v)",
+    YT_LOG_INFO("Session lease expired (ChunkId: %v)",
         sessionId);
 
     session->Cancel(TError("Session lease expired"));
@@ -197,7 +197,7 @@ void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& session, const
         return;
     }
 
-    LOG_INFO("Session finished (ChunkId: %v)",
+    YT_LOG_INFO("Session finished (ChunkId: %v)",
         session_->GetId());
 
     UnregisterSession(session_);

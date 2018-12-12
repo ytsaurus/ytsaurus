@@ -2378,7 +2378,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     const auto& table = ast.Table;
 
-    LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v)",
+    YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v)",
         table.Path,
         MakeFormattableRange(ast.Joins, [] (TStringBuilder* builder, const auto& join) {
             FormatValue(builder, join.Table.Path, TStringBuf());
@@ -2393,7 +2393,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     auto dataSplits = WaitFor(Combine(asyncDataSplits))
         .ValueOrThrow();
 
-    LOG_DEBUG("Initial data splits received");
+    YT_LOG_DEBUG("Initial data splits received");
 
     const auto& selfDataSplit = dataSplits[0];
 
@@ -2610,7 +2610,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         joinClause->ForeignKeyPrefix = keyPrefix;
         joinClause->CommonKeyPrefix = commonKeyPrefix;
 
-        LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
+        YT_LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
             commonKeyPrefix,
             keyPrefix);
 
@@ -2686,7 +2686,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
         query->UseDisjointGroupBy = containsPrimaryKey;
 
-        LOG_DEBUG("Group key contains primary key, can omit top-level GROUP BY");
+        YT_LOG_DEBUG("Group key contains primary key, can omit top-level GROUP BY");
     }
 
 
@@ -2697,7 +2697,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     }
 
     auto queryFingerprint = InferName(query, true);
-    LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
+    YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
         queryFingerprint,
         query->GetReadSchema(),
         query->GetTableSchema());

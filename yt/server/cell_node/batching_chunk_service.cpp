@@ -144,7 +144,7 @@ private:
             auto& state = CurrentBatch_->ContextsWithStates.back().second;
             BatchRequest(&context->Request(), CurrentBatch_->BatchRequest.Get(), &state);
 
-            LOG_DEBUG("Chunk Service request batched (RequestId: %v -> %v)",
+            YT_LOG_DEBUG("Chunk Service request batched (RequestId: %v -> %v)",
                 context->GetRequestId(),
                 CurrentBatch_->BatchRequest->GetRequestId());
 
@@ -254,7 +254,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Chunk Service batch request sent (RequestId: %v)",
+            YT_LOG_DEBUG("Chunk Service batch request sent (RequestId: %v)",
                 batch->BatchRequest->GetRequestId());
 
             batch->BatchRequest->Invoke().Subscribe(
@@ -265,10 +265,10 @@ private:
         void OnBatchResponse(const TBatchPtr& batch, const TErrorOr<TResponsePtr>& responseOrError)
         {
             if (responseOrError.IsOK()) {
-                LOG_DEBUG("Chunk Service batch request succeeded (RequestId: %v)",
+                YT_LOG_DEBUG("Chunk Service batch request succeeded (RequestId: %v)",
                     batch->BatchRequest->GetRequestId());
             } else {
-                LOG_DEBUG(responseOrError, "Chunk Service batch request failed (RequestId: %v)",
+                YT_LOG_DEBUG(responseOrError, "Chunk Service batch request failed (RequestId: %v)",
                     batch->BatchRequest->GetRequestId());
             }
 
