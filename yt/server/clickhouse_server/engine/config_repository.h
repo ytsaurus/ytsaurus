@@ -40,8 +40,6 @@ public:
     virtual std::vector<std::string> List() const = 0;
     virtual NNative::TObjectAttributes GetAttributes(const std::string& name) const = 0;
 
-    virtual IConfigPtr Load(const std::string& name) const = 0;
-
     virtual IConfigPollerPtr CreatePoller(const std::string& name) const = 0;
 };
 
