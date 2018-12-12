@@ -379,9 +379,9 @@ class YtStuff(object):
                 args += ["--rpc-proxy"]
 
             if self.config.jobs_cpu_limit:
-                args += ["--jobs-cpu-limit", str(self.jobs_cpu_limit)]
+                args += ["--jobs-cpu-limit", str(self.config.jobs_cpu_limit)]
             if self.config.jobs_user_slot_count:
-                args += ["--jobs-user-slot-count", str(self.jobs_user_slot_count)]
+                args += ["--jobs-user-slot-count", str(self.config.jobs_user_slot_count)]
 
             if self.config.wait_tablet_cell_initialization:
                 args += ["--wait-tablet-cell-initialization"]
