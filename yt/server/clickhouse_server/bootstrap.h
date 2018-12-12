@@ -27,7 +27,6 @@ class TBootstrap
 private:
     const NNative::TConfigPtr Config;
     const NYTree::INodePtr ConfigNode;
-    const TString XmlConfig;
     TString InstanceId_;
     TString CliqueId_;
     ui16 RpcPort_;
@@ -56,7 +55,6 @@ public:
     TBootstrap(
         NNative::TConfigPtr config,
         NYTree::INodePtr configNode,
-        TString xmlConfig,
         TString instanceId,
         TString cliqueId,
         ui16 rpcPort,
