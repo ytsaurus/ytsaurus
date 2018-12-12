@@ -77,6 +77,7 @@ def prepare_python_source_tree(python_root, yt_root):
             cp_r(path, packages_dir)
 
     replace(os.path.join(yt_root, "yt/python/yt_yson_bindings"), python_root)
+    replace(os.path.join(yt_root, "yt/python/yt_driver_bindings"), python_root)
     replace(python_contrib_path("python-decorator/src/decorator.py"), packages_dir)
     replace(python_contrib_path("python-fusepy/fuse.py"), packages_dir)
 
