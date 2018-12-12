@@ -70,7 +70,7 @@ TYsonString CombineObjectIds(
     return TYsonString(result);
 }
 
-} // namesapce NDetail
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

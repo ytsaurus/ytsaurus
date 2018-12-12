@@ -191,4 +191,4 @@ TString ToString(const TArtifactKey& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespaca NYT::NDataNode
+} // namespace NYT::NDataNode
