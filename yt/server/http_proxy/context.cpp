@@ -783,7 +783,7 @@ void TContext::Run()
 
 void TContext::Finalize()
 {
-    if (IsWrapperBuggy(Request_)) {
+    if (IsClientBuggy(Request_)) {
         try {
             while (true) {
                 auto chunk = WaitFor(Request_->Read())

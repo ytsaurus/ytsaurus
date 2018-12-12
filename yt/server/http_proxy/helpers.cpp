@@ -255,24 +255,39 @@ TNullable<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent)
     return {};
 }
 
-bool IsWrapperBuggy(const NHttp::IRequestPtr& req)
+static const re2::RE2 JavaIcebergPattern{"iceberg/inside-yt@@(\\d+)"};
+
+std::optional<i64> DetectJavaIceberg(const TString& userAgent)
+{
+    i64 version;
+    if (re2::RE2::PartialMatch(
+        userAgent.c_str(),
+        JavaIcebergPattern,
+        &version))
+    {
+        return version;
+    }
+
+    return {};
+}
+
+bool IsClientBuggy(const NHttp::IRequestPtr& req)
 {
     auto userAgent = req->GetHeaders()->Find("User-Agent");
     if (!userAgent) {
         return false;
     }
 
-    auto version = DetectPythonWrapper(*userAgent);
-    if (!version) {
-        return false;
-    }
+    if (auto version = DetectPythonWrapper(*userAgent); version) {
+        if (version->Major == 0 && version->Minor == 8) {
+            return version->Patch < 49;
+        }
 
-    if (version->Major == 0 && version->Minor == 8) {
-        return version->Patch < 49;
-    }
-
-    if (version->Major == 0 && version->Minor == 9) {
-        return version->Patch < 3;
+        if (version->Major == 0 && version->Minor == 9) {
+            return version->Patch < 3;
+        }
+    } else if (auto version = DetectJavaIceberg(*userAgent); version) {
+        return true;
     }
 
     return false;

@@ -30,7 +30,9 @@ struct TPythonWrapperVersion
 
 TNullable<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent);
 
-bool IsWrapperBuggy(const NHttp::IRequestPtr& req);
+std::optional<i64> DetectJavaIceberg(const TString& userAgent);
+
+bool IsClientBuggy(const NHttp::IRequestPtr& req);
 
 ////////////////////////////////////////////////////////////////////////////////
 
