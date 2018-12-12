@@ -93,7 +93,7 @@ TEST(TYsonParserTest, ContextInExceptions_TableConsumer)
         TTableConsumer consumer(&emptyValueConsumer);
         TYsonParser parser(&consumer, EYsonType::ListFragment);
         parser.Read("{foo=bar};");
-        parser.Read("{bar=baz};LOG_IN");
+        parser.Read("{bar=baz};YT_LOG_IN");
         parser.Read("FO something happened");
         parser.Finish();
         GTEST_FAIL() << "Expected exception to be thrown";
