@@ -1053,7 +1053,7 @@ private:
         if (checkpointer->CanBuildSnapshot()) {
             BuildSnapshotAndWatch(false);
         } else if (checkpointer->CanRotateChangelogs() && !snapshotIsMandatory) {
-            YT_LOG_WARNING("Cannot build a snapshot, just rotating changlogs");
+            YT_LOG_WARNING("Cannot build a snapshot, just rotating changelogs");
             RotateChangelogAndWatch();
         }
     }
