@@ -2,7 +2,6 @@
 
 #include "auth_token.h"
 #include "cluster_tracker.h"
-#include "config_manager.h"
 #include "database.h"
 #include "http_handler.h"
 #include "logger.h"
