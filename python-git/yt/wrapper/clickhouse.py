@@ -10,11 +10,15 @@ from .yson import dumps
 from tempfile import NamedTemporaryFile
 from os import unlink
 
+MEMORY_FOOTPRINT = 2*2**30
+
 def get_clickhouse_clique_spec_builder(instance_count,
                                        cypress_ytserver_clickhouse_path=None,
                                        host_ytserver_clickhouse_path=None,
                                        cypress_config_path=None,
                                        max_failed_job_count=None,
+                                       cpu_limit=8,
+                                       memory_limit=15*2**30,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -64,7 +68,8 @@ def get_clickhouse_clique_spec_builder(instance_count,
                          '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port $YT_PORT_1 '
                          '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3'
                          .format(executable_path)) \
-                .memory_limit(10 * 2**30) \
+                .memory_limit(memory_limit + MEMORY_FOOTPRINT) \
+                .cpu_limit(cpu_limit) \
                 .port_count(4) \
             .end_task() \
             .max_failed_job_count(max_failed_job_count) \
@@ -72,7 +77,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     return spec_builder
 
-def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=None, client=None):
+def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=None, cpu_limit=None, memory_limit=None, client=None):
     """Merges a document pointed by `config_template_cypress_path` and `config` and uploads the
     result as a config.yson file suitable for specifying as a config file for clickhouse clique.
 
@@ -85,6 +90,18 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
 
     if clickhouse_config is None:
         clickhouse_config = {}
+
+    require(cpu_limit is not None, lambda: YtError("Cpu limit should be set to prepare the ClickHouse config"))
+    require(memory_limit is not None, lambda: YtError("Memory limit should be set to prepare the ClickHouse config"))
+
+    clickhouse_config["engine"] = clickhouse_config.get("engine", {})
+    clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
+    clickhouse_config["engine"]["settings"]["max_threads"] = cpu_limit
+
+    clickhouse_config["engine"] = clickhouse_config.get("engine", {})
+    clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
+    clickhouse_config["engine"]["settings"]["max_memory_usage_for_all_queries"] = memory_limit
+
     base_config = get(cypress_base_config_path, client=client) if cypress_base_config_path not in [None, ""] else {}
     resulting_config = update(base_config, clickhouse_config)
     temp = NamedTemporaryFile(delete=False)
@@ -97,19 +114,30 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
 
     return str(result)
 
-def start_clickhouse_clique(instance_count, cypress_base_config_path="//sys/clickhouse/config", clickhouse_config=None, client=None, **kwargs):
+def start_clickhouse_clique(instance_count,
+                            cypress_base_config_path="//sys/clickhouse/config",
+                            clickhouse_config=None,
+                            cpu_limit=8,
+                            memory_limit=15*2**30,
+                            client=None,
+                            **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
 
     :param instance_count: number of instances (also the number of jobs in the underlying vanilla operation).
     :type instance_count: int
     :param clickhouse_config: patch to be applied to clickhouse config.
     :type clickhouse_config: dict or None
-
+    :param cpu_limit: number of cores that will be available to each instance
+    :type cpu_limit: int
+    :param memory_limit: amount of memory that will be available to each instance
+    :type memory_limit: int
     .. seealso::  :ref:`operation_parameters`.
     """
 
     cypress_config_path = prepare_clickhouse_config(cypress_base_config_path=cypress_base_config_path,
                                                     clickhouse_config=clickhouse_config,
+                                                    cpu_limit=cpu_limit,
+                                                    memory_limit=memory_limit,
                                                     client=client)
 
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,

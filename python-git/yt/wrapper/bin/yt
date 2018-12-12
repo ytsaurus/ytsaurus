@@ -869,6 +869,8 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--cypress-ytserver-clickhouse-path")
     parser.add_argument("--host-ytserver-clickhouse-path")
     parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
+    parser.add_argument("--cpu-limit", default=8)
+    parser.add_argument("--memory-limit", default=15*2**30)
     add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
