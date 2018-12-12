@@ -1114,8 +1114,6 @@ private:
         std::vector<TFuture<TDataNodeServiceProxy::TRspGetBlockSetPtr>> asyncResults;
         std::vector<TPeer> probePeers;
 
-
-
         for (const auto& peer : candidates) {
             auto channel = GetChannel(peer.Address);
             if (!channel) {
@@ -1265,6 +1263,7 @@ private:
         }
 
         TNullable<TPeer> maybePeer;
+        NProfiling::TWallTimer pickPeerTimer;
         while (!maybePeer) {
             auto candidates = PickPeerCandidates(
                 ReaderConfig_->ProbePeerCount,
@@ -1291,6 +1290,8 @@ private:
 
             maybePeer = SelectBestPeer(candidates, blockIndexes, reader);
         }
+
+        SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
 
         const auto& peerAddress = maybePeer->Address;
         auto channel = GetChannel(peerAddress);
@@ -1333,7 +1334,9 @@ private:
             req->set_peer_expiration_time(expirationTime.GetValue());
         }
 
+        NProfiling::TWallTimer dataWaitTimer;
         auto rspOrError = WaitFor(req->Invoke());
+        SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
         if (!rspOrError.IsOK()) {
             ProcessError(
