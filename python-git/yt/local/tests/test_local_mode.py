@@ -91,8 +91,7 @@ if yatest_common is not None:
             from yt.environment import arcadia_interop
             destination = os.path.join(yatest_common.work_path(), "build")
             os.makedirs(destination)
-            path, node_path = arcadia_interop.prepare_yt_environment(destination)
-            os.environ["NODE_PATH"] = node_path
+            path = arcadia_interop.prepare_yt_environment(destination)
             os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
         except ImportError:
             pass
@@ -101,6 +100,7 @@ if yatest_common is not None:
 def local_yt(*args, **kwargs):
     environment = None
     try:
+        kwargs["use_new_proxy"] = True
         environment = start(*args, enable_debug_logging=True, **kwargs)
         yield environment
     finally:
@@ -134,8 +134,6 @@ class YtLocalBinary(object):
             "PYTHONPATH": os.environ["PYTHONPATH"],
             "PATH": os.environ["PATH"],
         }
-        if "NODE_PATH" in os.environ:
-            env["NODE_PATH"] = os.environ["NODE_PATH"]
         return command, env
 
     def __call__(self, *args, **kwargs):
@@ -172,7 +170,7 @@ class TestLocalMode(object):
         scheduler_count = 4
 
         with local_yt(id=_get_id("test_logging"), master_count=master_count, node_count=node_count,
-                      scheduler_count=scheduler_count, start_proxy=True) as lyt:
+                      scheduler_count=scheduler_count, start_proxy=True, use_new_proxy=True) as lyt:
             path = lyt.path
             logs_path = lyt.logs_path
 
@@ -189,7 +187,6 @@ class TestLocalMode(object):
             assert os.path.exists(os.path.join(logs_path, name))
 
         assert os.path.exists(os.path.join(logs_path, "http-proxy.log"))
-
         assert os.path.exists(os.path.join(path, "stderrs"))
 
     def test_user_configs_path(self):
@@ -225,7 +222,7 @@ class TestLocalMode(object):
             "logs_rotate_interval": 1,
             "logs_rotate_max_part_count": 5
         }
-        with local_yt(id=_get_id("test_watcher"), watcher_config=watcher_config) as environment:
+        with local_yt(id=_get_id("test_watcher"), watcher_config=watcher_config, use_new_proxy=True) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
 
@@ -318,7 +315,7 @@ class TestLocalMode(object):
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
     def test_use_context_manager(self):
-        with yt_local.LocalYt(id=_get_id("test_use_context_manager")) as client:
+        with yt_local.LocalYt(id=_get_id("test_use_context_manager"), use_new_proxy=True) as client:
             client.config["tabular_data_format"] = yt.format.DsvFormat()
             client.mkdir("//test")
 
@@ -339,7 +336,7 @@ class TestLocalMode(object):
 
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
-        with yt_local.LocalYt(path="test_path"):
+        with yt_local.LocalYt(path="test_path", use_new_proxy=True):
             pass
 
     def test_local_cypress_synchronization(self):
