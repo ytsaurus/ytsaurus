@@ -18,7 +18,7 @@ public:
         NNative::IStoragePtr storage,
         NNative::ICoordinationServicePtr coordinationService,
         NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-        std::string configFile,
+        NNative::TConfigPtr nativeConfig,
         std::string cliqueId,
         std::string instanceId,
         ui16 tcpPort,

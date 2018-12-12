@@ -78,35 +78,12 @@ class TestClickhouse(YTEnvSetup):
         if exists("//sys/clickhouse"):
             return
         create("map_node", "//sys/clickhouse")
-        create("map_node", "//sys/clickhouse/config_files")
-        create("map_node", "//sys/clickhouse/configuration")
-
-        # Setup necessary config files and upload them to the Cypress as files.
-        file_configs = dict()
-
-        file_configs["config_files/config.xml"] = self._read_local_config_file("config.xml")
 
         # We need to inject cluster_connection into yson config.
-        yson_config = yson.loads(self._read_local_config_file("config.yson"))
-        yson_config["cluster_connection"] = self.__class__.Env.configs["driver"]
-        file_configs["config_files/config.yson"] = yson.dumps(yson_config, yson_format="pretty")
-
-        file_configs["configuration/clusters"] = ""
-
-        # Upload some of the configs as yson documents.
-        document_configs = dict()
-
-        document_configs["configuration/server"] = yson.loads(self._read_local_config_file("server.yson"))
-
-        for config_name, content in file_configs.iteritems():
-            cypress_path = "//sys/clickhouse/{0}".format(config_name)
-            create("file", cypress_path)
-            write_file(cypress_path, content)
-
-        for config_name, content in document_configs.iteritems():
-            cypress_path = "//sys/clickhouse/{0}".format(config_name)
-            create("document", cypress_path)
-            set(cypress_path, content)
+        config = yson.loads(self._read_local_config_file("config.yson"))
+        config["cluster_connection"] = self.__class__.Env.configs["driver"]
+        create("file", "//sys/clickhouse/config.yson")
+        write_file("//sys/clickhouse/config.yson", yson.dumps(config, yson_format="pretty"))
 
     def _make_query(self, clique, query, verbose=True):
         instances = get("//sys/clickhouse/cliques/{0}".format(clique.id), attributes=["host", "tcp_port"])
