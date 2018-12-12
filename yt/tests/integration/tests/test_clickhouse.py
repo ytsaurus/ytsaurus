@@ -39,8 +39,9 @@ class TestClickhouse(YTEnvSetup):
     def _start_clique(self, instance_count, max_failed_job_count=1, **kwargs):
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
                                                           host_ytserver_clickhouse_path=self._ytserver_clickhouse_binary,
+                                                          cypress_config_path="//sys/clickhouse/config.yson",
                                                           max_failed_job_count=max_failed_job_count,
-                                                          *kwargs)
+                                                          **kwargs)
         spec = simplify_structure(spec_builder.build())
         op = start_op("vanilla",
                       spec=spec,
