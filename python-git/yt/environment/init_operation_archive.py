@@ -946,8 +946,7 @@ TRANSFORMS[27] = [
             ("runtime_parameters", "any"),
             ("slot_index_per_pool_tree", "any"),
         ],
-            in_memory=True,
-            get_pivot_keys=get_default_pivots))
+            in_memory=True))
 ]
 
 TRANSFORMS[28] = [
