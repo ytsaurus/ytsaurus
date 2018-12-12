@@ -8,6 +8,7 @@
 #include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/ypath/token.h>
+#include <yt/core/ypath/tokenizer.h>
 
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/varint.h>
@@ -203,6 +204,11 @@ public:
         return Underlying_->is_optional();
     }
 
+    bool IsMessage() const
+    {
+        return MessageType_ != nullptr;
+    }
+
     bool IsYsonString() const
     {
         return YsonString_;
@@ -212,6 +218,8 @@ public:
     {
         return YsonMap_;
     }
+
+    const TProtobufField* GetYsonMapValueField() const;
 
     const TProtobufMessageType* GetMessageType() const
     {
@@ -257,6 +265,11 @@ public:
         }
     }
 
+    const Descriptor* GetUnderlying() const
+    {
+        return Underlying_;
+    }
+
     bool IsAttributeDictionary() const
     {
         return AttributeDictionary_;
@@ -300,6 +313,13 @@ private:
     THashMap<TStringBuf, std::unique_ptr<TProtobufField>> NameToField_;
     THashMap<int, const TProtobufField*> NumberToField_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TProtobufField* TProtobufField::GetYsonMapValueField() const
+{
+    return MessageType_->GetFieldByNumber(ProtobufMapValueFieldNumber);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -383,6 +403,11 @@ const TProtobufEnumType* TProtobufTypeRegistry::ReflectEnumType(const EnumDescri
 const TProtobufMessageType* ReflectProtobufMessageType(const Descriptor* descriptor)
 {
     return TProtobufTypeRegistry::Get()->ReflectMessageType(descriptor);
+}
+
+const ::google::protobuf::Descriptor* UnreflectProtobufMessageType(const TProtobufMessageType* type)
+{
+    return type->GetUnderlying();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -768,7 +793,7 @@ private:
         BodyCodedStream_.WriteRaw(key.data(), static_cast<int>(key.length()));
 
         const auto* field = FieldStack_.back().Field;
-        const auto* valueField = field->GetMessageType()->GetFieldByNumber(ProtobufMapValueFieldNumber);
+        const auto* valueField = field->GetYsonMapValueField();
         FieldStack_.emplace_back(valueField, 0, false);
         YPathStack_.Push(TString(key));
     }
@@ -1874,6 +1899,95 @@ void ParseProtobuf(
 {
     TProtobufParser parser(consumer, inputStream, rootType, options);
     parser.Parse();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TProtobufMessageType* GetMessageTypeByYPath(
+    const TProtobufMessageType* rootType,
+    const TYPath& path)
+{
+    auto formatYPath = [] (TStringBuf ypath) {
+        return ypath.empty() ? AsStringBuf("/") : ypath;
+    };
+
+    NYPath::TTokenizer tokenizer(path);
+    auto* currentType = rootType;
+    while (true) {
+        YCHECK(currentType);
+
+        tokenizer.Advance();
+        if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+            break;
+        }
+
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+
+        if (currentType->IsAttributeDictionary()) {
+            THROW_ERROR_EXCEPTION("Field %v is an attribute dictionary",
+                formatYPath(tokenizer.GetPrefix()))
+                << TErrorAttribute("ypath", tokenizer.GetPrefix())
+                << TErrorAttribute("message_type", currentType->GetFullName());
+        }
+
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+
+        const auto& fieldName = tokenizer.GetLiteralValue();
+        const auto* field = currentType->FindFieldByName(fieldName);
+        auto fieldYPath = tokenizer.GetPrefixPlusToken();
+        if (!field) {
+            THROW_ERROR_EXCEPTION("No such field %v",
+                formatYPath(fieldYPath))
+                << TErrorAttribute("ypath", fieldYPath)
+                << TErrorAttribute("message_type", currentType->GetFullName());
+        }
+        if (!field->IsMessage()) {
+            THROW_ERROR_EXCEPTION("Field %v is not a message",
+                formatYPath(fieldYPath))
+                << TErrorAttribute("ypath", fieldYPath)
+                << TErrorAttribute("message_type", currentType->GetFullName());
+        }
+
+        if (field->IsYsonMap()) {
+            tokenizer.Advance();
+            if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                THROW_ERROR_EXCEPTION("Field %v is a YSON map",
+                    formatYPath(tokenizer.GetPrefix()))
+                    << TErrorAttribute("ypath", tokenizer.GetPrefix())
+                    << TErrorAttribute("message_type", currentType->GetFullName());
+            }
+
+            tokenizer.Expect(NYPath::ETokenType::Slash);
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+
+            const auto* valueField = field->GetYsonMapValueField();
+            if (!valueField->IsMessage()) {
+                THROW_ERROR_EXCEPTION("Map value %v is not a message",
+                    formatYPath(tokenizer.GetPrefixPlusToken()))
+                    << TErrorAttribute("ypath", tokenizer.GetPrefixPlusToken());
+            }
+            currentType = valueField->GetMessageType();
+        } else if (field->IsRepeated()) {
+            tokenizer.Advance();
+            if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                THROW_ERROR_EXCEPTION("Field %v is repeated",
+                    formatYPath(tokenizer.GetPrefix()))
+                    << TErrorAttribute("ypath", tokenizer.GetPrefix())
+                    << TErrorAttribute("message_type", currentType->GetFullName());
+            }
+
+            tokenizer.Expect(NYPath::ETokenType::Slash);
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+
+            currentType = field->GetMessageType();
+        } else {
+            currentType = field->GetMessageType();
+        }
+    }
+    return currentType;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

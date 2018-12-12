@@ -16,6 +16,7 @@ public:
     ETokenType GetType() const;
     TStringBuf GetToken() const;
     TStringBuf GetPrefix() const;
+    TStringBuf GetPrefixPlusToken() const;
     TStringBuf GetSuffix() const;
     TStringBuf GetInput() const;
     const TString& GetLiteralValue() const;
