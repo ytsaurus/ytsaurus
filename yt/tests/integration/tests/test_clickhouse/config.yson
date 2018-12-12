@@ -50,7 +50,10 @@
     "rpc_port" = 32236;
     "monitoring_port" = 32238;
     "validate_operation_permission" = %false;
+    "user" = "root";
     "engine" = {
-        "user_name" = "root";
+        "settings" = {
+            "max_temporary_non_const_columns" = 1234;
+        };
     };
 }

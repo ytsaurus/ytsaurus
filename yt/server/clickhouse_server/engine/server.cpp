@@ -228,11 +228,10 @@ private:
 
     void CreateServerAuthToken()
     {
-        auto serverUser = NativeConfig_->Engine->UserName;
+        auto serverUser = NativeConfig_->User;
         auto* auth = Storage->AuthTokenService();
         ServerAuthToken = CreateAuthToken(*auth, serverUser);
     }
-
 
     void SetupLoggers()
     {
@@ -271,8 +270,7 @@ private:
 
         Context->setConfig(EngineConfig_);
 
-        // TODO(max42): move into global config and make customizable.
-        Context->setUsersConfig(ConvertToPocoConfig(NativeConfig_->Engine->ClickHouseUsers));
+        Context->setUsersConfig(ConvertToPocoConfig(ConvertToNode(NativeConfig_->Engine->Users)));
 
         registerFunctions();
         registerAggregateFunctions();
