@@ -1081,5 +1081,40 @@ TEST(TProtobufToYsonTest, UnknownFields)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DO(path, result) \
+    EXPECT_EQ( \
+        ReflectProtobufMessageType<NYT::NProto::result>(), \
+        GetMessageTypeByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path));
+
+TEST(TGetMessageByYPath, Success)
+{
+    DO("", TMessage)
+    DO("/nested_message1", TNestedMessage)
+    DO("/repeated_nested_message1/0/nested_message", TNestedMessage)
+    DO("/nested_message_map/k", TNestedMessage)
+    DO("/nested_message_map/k/nested_message", TNestedMessage)
+    DO("/nested_message_map/k/nested_message/nested_message_map/k", TNestedMessage)
+}
+
+#undef DO
+
+#define DO(path, errorPath) \
+    EXPECT_YPATH({GetMessageTypeByYPath(ReflectProtobufMessageType<NYT::NProto::TMessage>(), path);}, errorPath);
+
+TEST(TGetMessageByYPath, Failure)
+{
+    DO("/int64_field", "/int64_field")
+    DO("/repeated_int32_field", "/repeated_int32_field")
+    DO("/attributes/k", "/attributes")
+    DO("/missing", "/missing")
+    DO("/nested_message_map", "/nested_message_map")
+    DO("/int32_map/k", "/int32_map/k")
+    DO("/repeated_nested_message1", "/repeated_nested_message1")
+}
+
+#undef DO
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NYson

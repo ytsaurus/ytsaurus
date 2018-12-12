@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/ypath/public.h>
+
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +29,17 @@ const TProtobufMessageType* ReflectProtobufMessageType();
  *  Should not be assumed to be efficient.
  */
 const TProtobufMessageType* ReflectProtobufMessageType(const ::google::protobuf::Descriptor* descriptor);
+
+//! Extracts the underlying ::google::protobuf::Descriptor from a reflected instance.
+const ::google::protobuf::Descriptor* UnreflectProtobufMessageType(const TProtobufMessageType* type);
+
+//! Returns the type of the message inside #rootType pointed to by #path.
+/*!
+ *  #path must actually point to a submessage; no repeated or scalar types allowed.
+ */
+const TProtobufMessageType* GetMessageTypeByYPath(
+    const TProtobufMessageType* rootType,
+    const NYPath::TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
