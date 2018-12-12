@@ -1,6 +1,6 @@
 #include "cluster_nodes.h"
 
-//#include <Common/Exception.h>
+#include <Common/Exception.h>
 
 namespace DB {
 

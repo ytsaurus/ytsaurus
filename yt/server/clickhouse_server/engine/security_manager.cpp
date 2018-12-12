@@ -4,17 +4,17 @@
 
 #include <yt/server/clickhouse_server/native/clique_authorization_manager.h>
 
-//#include <Poco/Net/IPAddress.h>
-//#include <Poco/Util/AbstractConfiguration.h>
+#include <Poco/Net/IPAddress.h>
+#include <Poco/Util/AbstractConfiguration.h>
 
-//#include <Common/Exception.h>
-//#include <Interpreters/Users.h>
-//#include <Interpreters/ISecurityManager.h>
+#include <Common/Exception.h>
+#include <Interpreters/Users.h>
+#include <Interpreters/ISecurityManager.h>
 
 #include <util/generic/maybe.h>
 #include <util/system/rwlock.h>
 
-//#include <common/logger_useful.h>
+#include <common/logger_useful.h>
 
 #include <map>
 

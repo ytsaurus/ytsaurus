@@ -3,7 +3,7 @@
 #include <yt/server/clickhouse_server/native/auth_token.h>
 #include <yt/server/clickhouse_server/native/storage.h>
 
-//#include <Interpreters/Context.h>
+#include <Interpreters/Context.h>
 
 namespace NYT {
 namespace NClickHouseServer {

@@ -1,11 +1,9 @@
 #pragma once
 
-#include "clickhouse.h"
-
 #include <yt/server/clickhouse_server/native/public.h>
 
-//#include <Poco/AutoPtr.h>
-//#include <Poco/Util/AbstractConfiguration.h>
+#include <Poco/AutoPtr.h>
+#include <Poco/Util/AbstractConfiguration.h>
 
 namespace NYT::NClickHouseServer::NEngine {
 

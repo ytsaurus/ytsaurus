@@ -1,10 +1,8 @@
 #pragma once
 
-#include "clickhouse.h"
-
 #include <yt/server/clickhouse_server/native/public.h>
 
-//#include <DataStreams/IBlockInputStream.h>
+#include <DataStreams/IBlockInputStream.h>
 
 namespace NYT::NClickHouseServer::NEngine {
 

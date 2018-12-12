@@ -12,11 +12,11 @@
 #include <yt/server/clickhouse_server/native/table_reader.h>
 #include <yt/server/clickhouse_server/native/table_schema.h>
 
-//#include <Interpreters/Context.h>
+#include <Interpreters/Context.h>
 
-//#include <Poco/Logger.h>
+#include <Poco/Logger.h>
 
-//#include <common/logger_useful.h>
+#include <common/logger_useful.h>
 
 namespace DB {
 

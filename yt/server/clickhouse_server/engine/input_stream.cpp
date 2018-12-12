@@ -5,9 +5,9 @@
 
 #include <yt/server/clickhouse_server/native/table_reader.h>
 
-//#include <Core/Block.h>
-//#include <DataStreams/IProfilingBlockInputStream.h>
-//#include <DataTypes/DataTypeFactory.h>
+#include <Core/Block.h>
+#include <DataStreams/IProfilingBlockInputStream.h>
+#include <DataTypes/DataTypeFactory.h>
 
 #include <sstream>
 #include <string>

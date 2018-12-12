@@ -4,7 +4,7 @@
 
 #include <yt/server/clickhouse_server/native/document.h>
 
-//#include <Common/Exception.h>
+#include <Common/Exception.h>
 
 #include <util/string/cast.h>
 #include <util/string/split.h>

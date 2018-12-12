@@ -7,15 +7,15 @@
 #include <yt/server/clickhouse_server/native/auth_token.h>
 #include <yt/server/clickhouse_server/native/storage.h>
 
-//#include <Common/Exception.h>
+#include <Common/Exception.h>
 
-//#include <Dictionaries/Embedded/GeodataProviders/IHierarchiesProvider.h>
-//#include <Dictionaries/Embedded/GeodataProviders/INamesProvider.h>
+#include <Dictionaries/Embedded/GeodataProviders/IHierarchiesProvider.h>
+#include <Dictionaries/Embedded/GeodataProviders/INamesProvider.h>
 
-//#include <Dictionaries/Embedded/GeodataProviders/HierarchyFormatReader.h>
-//#include <Dictionaries/Embedded/GeodataProviders/NamesFormatReader.h>
+#include <Dictionaries/Embedded/GeodataProviders/HierarchyFormatReader.h>
+#include <Dictionaries/Embedded/GeodataProviders/NamesFormatReader.h>
 
-//#include <IO/ReadBufferFromMemory.h>
+#include <IO/ReadBufferFromMemory.h>
 
 #include <util/string/cast.h>
 
@@ -183,7 +183,7 @@ void TRegionsHierarchiesDataProvider::CheckDefaultHierarchy() const
         throw Poco::Exception("File with default regions hierarchy not found: " + defaultFile);
     }
     const auto attributes = Storage->GetObjectAttributes(*Token, ToString(defaultFile));
-    if (static_cast<int>(attributes.Type) != static_cast<int>(NNative::EObjectType::File)) {
+    if (attributes.Type != NNative::EObjectType::File) {
         throw Poco::Exception(
             "File with default regions hierarchy has unexpected type: ");
 //          +  ToStdString(::ToString(attributes.Type)));
@@ -192,7 +192,7 @@ void TRegionsHierarchiesDataProvider::CheckDefaultHierarchy() const
 
 bool TRegionsHierarchiesDataProvider::LooksLikeHierarchyFile(
     const NNative::TObjectListItem object) const {
-    return static_cast<int>(object.Attributes.Type) == static_cast<int>(NNative::EObjectType::File) &&
+    return object.Attributes.Type == NNative::EObjectType::File &&
            object.Name.size() == 2;
 }
 

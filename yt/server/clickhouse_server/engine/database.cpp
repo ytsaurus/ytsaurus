@@ -8,10 +8,10 @@
 #include <yt/server/clickhouse_server/native/storage.h>
 #include <yt/server/clickhouse_server/native/table_schema.h>
 
-//#include <Common/Exception.h>
-//#include <Common/LRUCache.h>
-//#include <Interpreters/Context.h>
-//#include <Storages/IStorage.h>
+#include <Common/Exception.h>
+#include <Common/LRUCache.h>
+#include <Interpreters/Context.h>
+#include <Storages/IStorage.h>
 
 #include <memory>
 #include <mutex>
