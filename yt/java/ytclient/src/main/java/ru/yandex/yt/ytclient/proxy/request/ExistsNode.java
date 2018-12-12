@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqExistsNode;
@@ -9,6 +10,10 @@ import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 public class ExistsNode extends GetLikeReq<ExistsNode> {
     public ExistsNode(String path) {
         super(path);
+    }
+
+    public ExistsNode(YPath path) {
+        this(path.toString());
     }
 
     public TReqExistsNode.Builder writeTo(TReqExistsNode.Builder builder) {

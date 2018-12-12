@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqMoveNode;
@@ -8,6 +9,10 @@ import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 public class MoveNode extends CopyLikeReq<MoveNode> {
     public MoveNode(String src, String dst) {
         super(src, dst);
+    }
+
+    public MoveNode(YPath src, YPath dst) {
+        this(src.toString(), dst.toString());
     }
 
     public TReqMoveNode.Builder writeTo(TReqMoveNode.Builder builder) {
