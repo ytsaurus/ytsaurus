@@ -18,10 +18,6 @@ namespace NYT {
 namespace NClickHouseServer {
 namespace NEngine {
 
-namespace {
-
-// Effective polling through metadata cache
-
 class TPoller
     : public IConfigPoller
 {
