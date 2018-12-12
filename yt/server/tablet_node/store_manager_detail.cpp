@@ -299,7 +299,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
 
 IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
 {
-    YT_LOG_INFO("Peeking store for preload");
+    YT_LOG_DEBUG("Peeking store for preload");
 
     for (size_t size = Tablet_->PreloadStoreIds().size(); size != 0; --size) {
         auto id = Tablet_->PreloadStoreIds().front();
@@ -308,16 +308,16 @@ IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
             auto chunkStore = store->AsChunk();
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
                 if (chunkStore->IsPreloadAllowed()) {
-                    YT_LOG_INFO("Peeked store for preload (StoreId: %v)", chunkStore->GetId());
+                    YT_LOG_DEBUG("Peeked store for preload (StoreId: %v)", chunkStore->GetId());
                     return chunkStore;
                 } else {
-                    YT_LOG_INFO("Preload not allowed (StoreId: %v)", chunkStore->GetId());
+                    YT_LOG_DEBUG("Store preload is not allowed (StoreId: %v)", chunkStore->GetId());
                 }
                 Tablet_->PreloadStoreIds().pop_front();
                 Tablet_->PreloadStoreIds().push_back(id);
                 continue;
             } else {
-                YT_LOG_INFO("Preload not scheduled (StoreId: %v)", chunkStore->GetId());
+                YT_LOG_DEBUG("Store preload is not scheduled (StoreId: %v)", chunkStore->GetId());
             }
         }
         Tablet_->PreloadStoreIds().pop_front();
