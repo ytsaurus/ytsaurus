@@ -15,6 +15,9 @@ void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const T
     protoChunkReaderStatistics->set_data_bytes_read_from_disk(chunkReaderStatistics->DataBytesReadFromDisk);
     protoChunkReaderStatistics->set_data_bytes_read_from_cache(chunkReaderStatistics->DataBytesReadFromCache);
     protoChunkReaderStatistics->set_meta_bytes_read_from_disk(chunkReaderStatistics->MetaBytesReadFromDisk);
+    protoChunkReaderStatistics->set_data_wait_time(chunkReaderStatistics->DataWaitTime);
+    protoChunkReaderStatistics->set_meta_wait_time(chunkReaderStatistics->MetaWaitTime);
+    protoChunkReaderStatistics->set_pick_peer_wait_time(chunkReaderStatistics->PickPeerWaitTime);
 }
 
 void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
@@ -24,6 +27,9 @@ void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto
     chunkReaderStatistics->DataBytesReadFromDisk = protoChunkReaderStatistics.data_bytes_read_from_disk();
     chunkReaderStatistics->DataBytesReadFromCache = protoChunkReaderStatistics.data_bytes_read_from_cache();
     chunkReaderStatistics->MetaBytesReadFromDisk = protoChunkReaderStatistics.meta_bytes_read_from_disk();
+    chunkReaderStatistics->DataWaitTime = protoChunkReaderStatistics.data_wait_time();
+    chunkReaderStatistics->MetaWaitTime = protoChunkReaderStatistics.meta_wait_time();
+    chunkReaderStatistics->PickPeerWaitTime = protoChunkReaderStatistics.pick_peer_wait_time();
 }
 
 void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
@@ -32,6 +38,9 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
     chunkReaderStatistics->DataBytesReadFromDisk += protoChunkReaderStatistics.data_bytes_read_from_disk();
     chunkReaderStatistics->DataBytesReadFromCache += protoChunkReaderStatistics.data_bytes_read_from_cache();
     chunkReaderStatistics->MetaBytesReadFromDisk += protoChunkReaderStatistics.meta_bytes_read_from_disk();
+    chunkReaderStatistics->DataWaitTime += protoChunkReaderStatistics.data_wait_time();
+    chunkReaderStatistics->MetaWaitTime += protoChunkReaderStatistics.meta_wait_time();
+    chunkReaderStatistics->PickPeerWaitTime += protoChunkReaderStatistics.pick_peer_wait_time();
 }
 
 void DumpChunkReaderStatistics(
@@ -52,6 +61,9 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(
     : DataBytesReadFromDisk(path + "/data_bytes_read_from_disk", tagIds)
     , DataBytesReadFromCache(path + "/data_bytes_read_from_cache", tagIds)
     , MetaBytesReadFromDisk(path + "/meta_bytes_read_from_disk", tagIds)
+    , DataWaitTime(path + "/data_wait_time", tagIds)
+    , MetaWaitTime(path + "/meta_wait_time", tagIds)
+    , PickPeerWaitTime(path + "/pick_peer_wait_time", tagIds)
 { }
 
 
@@ -62,6 +74,9 @@ void TChunkReaderStatisticsCounters::Increment(
     profiler.Increment(DataBytesReadFromDisk, chunkReaderStatistics->DataBytesReadFromDisk);
     profiler.Increment(DataBytesReadFromCache, chunkReaderStatistics->DataBytesReadFromCache);
     profiler.Increment(MetaBytesReadFromDisk, chunkReaderStatistics->MetaBytesReadFromDisk);
+    profiler.Increment(DataWaitTime, chunkReaderStatistics->DataWaitTime);
+    profiler.Increment(MetaWaitTime, chunkReaderStatistics->MetaWaitTime);
+    profiler.Increment(PickPeerWaitTime, chunkReaderStatistics->PickPeerWaitTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

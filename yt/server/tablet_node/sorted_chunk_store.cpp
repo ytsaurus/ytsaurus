@@ -16,6 +16,7 @@
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/client/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/ref_counted_proto.h>
 
@@ -302,12 +303,15 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
 
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+
+    NProfiling::TWallTimer metaWaitTimer;
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,
         blockReadOptions);
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
+    blockReadOptions.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
 
     return New<TChunkState>(
         BlockCache_,
