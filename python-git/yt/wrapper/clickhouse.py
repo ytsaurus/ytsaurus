@@ -1,24 +1,27 @@
-from .operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state  
+from .operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from .common import YtError, require, update 
 from .spec_builders import VanillaSpecBuilder 
 from .run_operation_commands import run_operation 
 from .cypress_commands import get, exists 
-from .ypath import YPath 
+from .ypath import FilePath
 from .file_commands import smart_upload_file 
 from .yson import dumps 
  
 from tempfile import NamedTemporaryFile 
 from os import unlink 
  
-MEMORY_FOOTPRINT = 2*2**30 
- 
+DEFAULT_CPU_LIMIT = 8
+DEFAULT_MEMORY_LIMIT = 15 * 2**30
+MEMORY_FOOTPRINT = 2 * 2**30 
+DEFAULT_CYPRESS_BASE_CONFIG_PATH = "//sys/clickhouse/config"
+
 def get_clickhouse_clique_spec_builder(instance_count, 
                                        cypress_ytserver_clickhouse_path=None, 
                                        host_ytserver_clickhouse_path=None, 
                                        cypress_config_path=None, 
                                        max_failed_job_count=None, 
-                                       cpu_limit=8, 
-                                       memory_limit=15*2**30, 
+                                       cpu_limit=None, 
+                                       memory_limit=None, 
                                        spec=None): 
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances. 
  
@@ -35,11 +38,17 @@ def get_clickhouse_clique_spec_builder(instance_count,
  
     .. seealso::  :ref:`operation_parameters`. 
     """ 
- 
+
+    if cpu_limit is None:
+        cpu_limit = DEFAULT_CPU_LIMIT
+    
+    if memory_limit is None:
+        memory_limit = DEFAULT_MEMORY_LIMIT
+
     require(cypress_config_path is not None, 
             lambda: YtError("Cypress config.yson path should be specified; consider using " 
                             "prepare_clickhouse_config helper")) 
-    file_paths = [YPath(cypress_config_path, attributes={"file_name": "config.yson"})] 
+    file_paths = [FilePath(cypress_config_path, file_name="config.yson")]
     if cypress_ytserver_clickhouse_path is None and host_ytserver_clickhouse_path is None: 
         cypress_ytserver_clickhouse_path = "//sys/clickhouse/bin/ytserver-clickhouse" 
     require(cypress_ytserver_clickhouse_path is None or host_ytserver_clickhouse_path is None, 
@@ -48,7 +57,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
  
     if cypress_ytserver_clickhouse_path is not None: 
         executable_path = "./ytserver-clickhouse" 
-        file_paths.append(YPath(cypress_ytserver_clickhouse_path, attributes={"file_name": "ytserver-clickhouse"})) 
+        file_paths.append(FilePath(cypress_ytserver_clickhouse_path, file_name="ytserver-clickhouse"))
     else: 
         executable_path = host_ytserver_clickhouse_path 
  
@@ -59,20 +68,20 @@ def get_clickhouse_clique_spec_builder(instance_count,
     if "expose_to_yql" not in spec["annotations"]: 
         spec["annotations"]["expose_to_yql"] = True 
  
-    spec_builder = \ 
-        VanillaSpecBuilder() \ 
-            .begin_task("clickhouse_servers") \ 
-                .job_count(instance_count) \ 
-                .file_paths(file_paths) \ 
-                .command('{} --config config.yson --instance-id $YT_JOB_ID ' 
-                         '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port $YT_PORT_1 ' 
-                         '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3' 
-                         .format(executable_path)) \ 
-                .memory_limit(memory_limit + MEMORY_FOOTPRINT) \ 
-                .cpu_limit(cpu_limit) \ 
-                .port_count(4) \ 
-            .end_task() \ 
-            .max_failed_job_count(max_failed_job_count) \ 
+    spec_builder = \
+        VanillaSpecBuilder() \
+            .begin_task("clickhouse_servers") \
+                .job_count(instance_count) \
+                .file_paths(file_paths) \
+                .command('{} --config config.yson --instance-id $YT_JOB_ID '
+                         '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port $YT_PORT_1 '
+                         '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3'
+                         .format(executable_path)) \
+                .memory_limit(memory_limit + MEMORY_FOOTPRINT) \
+                .cpu_limit(cpu_limit) \
+                .port_count(4) \
+            .end_task() \
+            .max_failed_job_count(max_failed_job_count) \
             .spec(spec) 
  
     return spec_builder 
@@ -87,7 +96,16 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
     :type clickhouse_config: dict or None 
     :return: path to the resulting file in Cypress. 
     """ 
- 
+
+    if cpu_limit is None:
+        cpu_limit = DEFAULT_CPU_LIMIT
+    
+    if memory_limit is None:
+        memory_limit = DEFAULT_MEMORY_LIMIT
+
+    if cypress_base_config_path is None:
+        cypress_base_config_path = DEFAULT_CYPRESS_BASE_CONFIG_PATH
+
     if clickhouse_config is None: 
         clickhouse_config = {} 
  
@@ -102,23 +120,21 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
     clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {}) 
     clickhouse_config["engine"]["settings"]["max_memory_usage_for_all_queries"] = memory_limit 
  
-    base_config = get(cypress_base_config_path, client=client) if cypress_base_config_path not in [None, ""] else {} 
+    base_config = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else {}
     resulting_config = update(base_config, clickhouse_config) 
-    temp = NamedTemporaryFile(delete=False) 
-    temp.write(dumps(resulting_config, yson_format="pretty")) 
-    temp.close() 
+
+    with NamedTemporaryFile() as temp:
+        temp.write(dumps(resulting_config, yson_format="pretty"))
+        temp.flush()
+        result = smart_upload_file(temp.name)
  
-    result = smart_upload_file(temp.name) 
- 
-    unlink(temp.name) 
- 
-    return str(result) 
+    return str(result)
  
 def start_clickhouse_clique(instance_count, 
-                            cypress_base_config_path="//sys/clickhouse/config", 
+                            cypress_base_config_path=None,
                             clickhouse_config=None, 
-                            cpu_limit=8, 
-                            memory_limit=15*2**30, 
+                            cpu_limit=None, 
+                            memory_limit=None, 
                             client=None, 
                             **kwargs): 
     """Starts a clickhouse clique consisting of a given number of instances. 
@@ -147,13 +163,12 @@ def start_clickhouse_clique(instance_count,
                        sync=False) 
  
     for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)): 
-        if state.is_running() and \ 
-                exists("//sys/clickhouse/cliques/{0}".format(op.id), client=client) and \ 
+        if state.is_running() and \
+                exists("//sys/clickhouse/cliques/{0}".format(op.id), client=client) and \
                 get("//sys/clickhouse/cliques/{0}/@count".format(op.id), client=client) == instance_count: 
             return op 
         elif state.is_unsuccessfully_finished(): 
             process_operation_unsuccesful_finish_state(op, state) 
         else: 
             op.printer(state) 
- 
- 
+
