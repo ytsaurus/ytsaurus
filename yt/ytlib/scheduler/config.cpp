@@ -1199,10 +1199,9 @@ TOperationRuntimeParametersPtr TUserFriendlyOperationRuntimeParameters::UpdatePa
         if (Weight) {
             pair.second->Weight = Weight;
         }
-//        TODO(renadeen): fix this when we revive pool change
-//        if (Pool) {
-//            pair.second->Pool = Pool;
-//        }
+        if (Pool) {
+            pair.second->Pool = TPoolName(*Pool, std::nullopt);
+        }
     }
     return result;
 }

@@ -520,6 +520,7 @@ bool TFairShareTree::ChangeOperationPool(
 
     auto wasActive = DetachOperation(state, element);
     YCHECK(AttachOperation(state, element, newPool));
+    element->GetParent()->EnableChild(element);
     return wasActive;
 }
 
