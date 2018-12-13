@@ -207,6 +207,35 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetFileFromCacheParser
+    : public TResponseParserBase<TMaybe<TYPath>>
+{
+public:
+    virtual void SetResponse(TMaybe<TNode> node) override
+    {
+        EnsureType(node, TNode::String);
+        if (node->AsString().Empty()) {
+            Result.SetValue(Nothing());
+        } else {
+            Result.SetValue(node->AsString());
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TYPathParser
+    : public TResponseParserBase<TYPath>
+{
+public:
+    virtual void SetResponse(TMaybe<TNode> node) override
+    {
+        EnsureType(node, TNode::String);
+        Result.SetValue(node->AsString());
+    }
+};
+
+////////////////////////////////////////////////////////////////////
 TRawBatchRequest::TBatchItem::TBatchItem(TNode parameters, ::TIntrusivePtr<IResponseItemParser> responseParser)
     : Parameters(std::move(parameters))
     , ResponseParser(std::move(responseParser))
@@ -378,6 +407,29 @@ TFuture<TLockId> TRawBatchRequest::Lock(
     return AddRequest<TGuidResponseParser>(
         "lock",
         SerializeParamsForLock(transaction, path, mode, options),
+        Nothing());
+}
+
+TFuture<TMaybe<TYPath>> TRawBatchRequest::GetFileFromCache(
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TGetFileFromCacheOptions& options)
+{
+    return AddRequest<TGetFileFromCacheParser>(
+        "get_file_from_cache",
+        SerializeParamsForGetFileFromCache(md5Signature, cachePath, options),
+        Nothing());
+}
+
+TFuture<TYPath> TRawBatchRequest::PutFileToCache(
+    const TYPath& filePath,
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TPutFileToCacheOptions& options)
+{
+    return AddRequest<TYPathParser>(
+        "put_file_to_cache",
+        SerializeParamsForPutFileToCache(filePath, md5Signature, cachePath, options),
         Nothing());
 }
 

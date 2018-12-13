@@ -9,7 +9,7 @@
 
 #include <mapreduce/yt/node/node_io.h>
 
-#include <util/stream/str.h>
+#include <util/string/builder.h>
 
 namespace NYT {
 namespace NDetail {
@@ -43,9 +43,7 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const TErrorRespo
 
 TString TAttemptLimitedRetryPolicy::GetAttemptDescription() const
 {
-    TStringStream s;
-    s << "attempt " << Attempt_ << " of " << AttemptLimit_;
-    return s.Str();
+    return TStringBuilder() << "attempt " << Attempt_ << " of " << AttemptLimit_;
 }
 
 bool TAttemptLimitedRetryPolicy::IsAttemptLimitExceeded() const

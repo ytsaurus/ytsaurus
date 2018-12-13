@@ -113,6 +113,17 @@ TNode SerializeParamsForGetTableColumnarStatistics(
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& paths);
 
+TNode SerializeParamsForGetFileFromCache(
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TGetFileFromCacheOptions&);
+
+TNode SerializeParamsForPutFileToCache(
+    const TYPath& filePath,
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TPutFileToCacheOptions&);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
