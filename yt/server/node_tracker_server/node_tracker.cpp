@@ -1190,7 +1190,7 @@ private:
     {
         auto* node = FindNode(request->node_id());
         if (!node) {
-            LOG_ERROR_UNLESS(IsRecovery(),
+            YT_LOG_ERROR_UNLESS(IsRecovery(),
                 "Error updating cluster node resource usage and limits: node not found (NodeId: %v)",
                 request->node_id());
             return;
