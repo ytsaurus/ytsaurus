@@ -1565,7 +1565,7 @@ private:
 
     bool IsBackingStoreRequired(TTablet* tablet)
     {
-        return tablet->GetAtomicity() == EAtomicity::Full && !tablet->GetUpstreamReplicaId();
+        return tablet->GetAtomicity() == EAtomicity::Full;
     }
 
     void HydraCommitUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
