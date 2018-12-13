@@ -30,8 +30,8 @@ using TRefCounted = TRefCountedImpl<true>;
 /*!
  *  Does not support weak pointers.
  *
- *  Compared to TRefCounted, Ref/unref calls are somewhat cheaper.
- *  Also instances of TSimpleRefCounted have smaller memory footprint.
+ *  Compared to TRefCounted, Ref/Unref calls are somewhat cheaper.
+ *  Also instances of TIntrinsicRefCounted have smaller memory footprint.
  */
 using TIntrinsicRefCounted = TRefCountedImpl<false>;
 
