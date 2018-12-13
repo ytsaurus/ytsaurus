@@ -16,7 +16,11 @@
 #include <mapreduce/yt/library/lazy_sort/lazy_sort.h>
 #include <mapreduce/yt/library/operation_tracker/operation_tracker.h>
 
+#include <mapreduce/yt/raw_client/raw_requests.h>
+
 #include <mapreduce/yt/util/wait_for_tablets_state.h>
+
+#include <library/digest/md5/md5.h>
 
 #include <library/unittest/registar.h>
 
@@ -2579,6 +2583,98 @@ Y_UNIT_TEST_SUITE(Operations)
         };
         auto actual = ReadTable(client, "//testing/output");
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
+    }
+
+    Y_UNIT_TEST(CachedFilesExpiration)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->StartOperationRetryCount = 100;
+        TConfig::Get()->StartOperationRetryInterval = TDuration::Seconds(1);
+        TConfig::Get()->UseAbortableResponse = true;
+
+        TYPath cachePath = "//tmp/yt_wrapper/file_storage/new_cache";
+        TString md5;
+        auto content = CreateGuidAsString();
+        TTempFile tempFile("/tmp/yt-cpp-api-testing-cached-files-expiration");
+        {
+            TOFStream os(tempFile.Name());
+            os << content;
+            md5 = MD5::Calc(content);
+        }
+
+        auto client = CreateTestClient();
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TString poolTree = "default";
+        TString pool = "some_pool";
+        TString poolPath = TStringBuilder() << "//sys/pool_trees/" << poolTree << "/" << pool;
+        client->Create(poolPath, ENodeType::NT_MAP, TCreateOptions().Recursive(true).IgnoreExisting(true));
+        client->Set(poolPath + "/@max_operation_count", 1);
+
+        auto extraSpec = TNode()
+            ("pool_trees", TNode().Add(poolTree))
+            ("scheduling_options_per_pool_tree", TNode()
+                (poolTree, TNode()
+                    ("pool", pool)));
+
+        // Run long operation.
+        auto sleepinOp = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/dummy_output"),
+            new TSleepingMapper(TDuration::Seconds(100)),
+            TOperationOptions()
+                .Wait(false)
+                .Spec(extraSpec));
+
+        // Make thread to retry running second operation.
+        auto thread = SystemThreadPool()->Run([&] () {
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output")
+                    .MapperSpec(
+                        TUserJobSpec().AddLocalFile(tempFile.Name())),
+                new TMapperThatChecksFile(tempFile.Name()),
+                TOperationOptions()
+                    .Spec(extraSpec));
+        });
+
+        TInstant startTime = TInstant::Now();
+        auto timeout = TDuration::Seconds(5);
+        // TODO(levysotsky): Revert to the commented version when
+        // https://st.yandex-team.ru/YT-9951 is deployed on prod clusters.
+        //TMaybe<TYPath> filePath;
+        //while (!filePath) {
+        //    Sleep(TDuration::Seconds(1));
+        //    if (TInstant::Now() - startTime >= timeout) {
+        //        UNIT_FAIL("File hasn't appeared in cache");
+        //    }
+        //    filePath = client->GetFileFromCache(md5, cachePath);
+        //}
+        //// Sleep to allow the other thread lock the file.
+        //Sleep(TDuration::Seconds(1));
+        //client->Remove(*filePath);
+
+        TMaybe<TYPath> filePath;
+        while (!filePath) {
+            Sleep(TDuration::Seconds(1));
+            if (TInstant::Now() - startTime >= timeout) {
+                UNIT_FAIL("File hasn't appeared in cache");
+            }
+            filePath = client->GetFileFromCache(md5, cachePath);
+        }
+        auto modificationTimeBefore = TInstant::ParseIso8601(client->Get(*filePath + "/@modification_time").AsString());
+        // Sleep for two retries to be sure modification time
+        // must be updated.
+        Sleep(TDuration::Seconds(2));
+        auto modificationTimeAfter = TInstant::ParseIso8601(client->Get(*filePath + "/@modification_time").AsString());
+        UNIT_ASSERT(modificationTimeAfter > modificationTimeBefore);
+
+        // Unlock operation.
+        sleepinOp->AbortOperation();
+
+        UNIT_ASSERT_NO_EXCEPTION(thread->Join());
     }
 
     void TestProtobufSchemaInferring(bool setOperationOptions)

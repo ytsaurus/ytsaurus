@@ -272,6 +272,7 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(i64, RowCountLimit);
 
     FLUENT_FIELD_OPTION(TString, FileName);
+    FLUENT_FIELD_OPTION(TYPath, OriginalPath);
     FLUENT_FIELD_OPTION(bool, Executable);
     FLUENT_FIELD_OPTION(TNode, Format);
     FLUENT_FIELD_OPTION(TTableSchema, Schema);

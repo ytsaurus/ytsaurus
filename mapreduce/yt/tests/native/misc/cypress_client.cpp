@@ -408,9 +408,10 @@ Y_UNIT_TEST_SUITE(CypressClient) {
     Y_UNIT_TEST(FileCache)
     {
         auto client = CreateTestClient();
-        TString content = "Hello world!";
-        TYPath cachePath = "//tmp/yt_wrapper/file_storage";
+        TYPath cachePath = "//tmp/yt_wrapper/file_storage/new_cache";
+        client->Create(cachePath, ENodeType::NT_MAP, TCreateOptions().IgnoreExisting(true));
 
+        TString content = "Hello world!";
         {
             auto writer = client->CreateFileWriter("//testing/file", TFileWriterOptions().ComputeMD5(true));
             *writer << content;

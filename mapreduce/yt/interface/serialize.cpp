@@ -254,6 +254,9 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(path.FileName_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("file_name").Value(*path.FileName_);
         })
+        .DoIf(path.OriginalPath_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("original_path").Value(*path.OriginalPath_);
+        })
         .DoIf(path.Executable_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("executable").Value(*path.Executable_);
         })
@@ -297,6 +300,7 @@ void Deserialize(TRichYPath& path, const TNode& node)
     DESERIALIZE_ATTR("foreign", path.Foreign_);
     DESERIALIZE_ATTR("row_count_limit", path.RowCountLimit_);
     DESERIALIZE_ATTR("file_name", path.FileName_);
+    DESERIALIZE_ATTR("original_path", path.OriginalPath_);
     DESERIALIZE_ATTR("executable", path.Executable_);
     DESERIALIZE_ATTR("format", path.Format_);
     DESERIALIZE_ATTR("schema", path.Schema_);

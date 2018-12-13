@@ -508,5 +508,27 @@ TNode SerializeParamsForGetTableColumnarStatistics(
     return result;
 }
 
+TNode SerializeParamsForGetFileFromCache(
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TGetFileFromCacheOptions&)
+{
+    return TNode()
+        ("md5", md5Signature)
+        ("cache_path", cachePath);
+}
+
+TNode SerializeParamsForPutFileToCache(
+    const TYPath& filePath,
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TPutFileToCacheOptions&)
+{
+    return TNode()
+        ("path", filePath)
+        ("md5", md5Signature)
+        ("cache_path", cachePath);
+}
+
 } // namespace NDetail
 } // namespace NYT
