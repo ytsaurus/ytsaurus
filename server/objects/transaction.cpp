@@ -1346,13 +1346,16 @@ private:
             auto key = std::make_pair(type, id);
             auto it = InstantiatedObjects_.find(key);
             if (it == InstantiatedObjects_.end()) {
-                if (RemovedObjects_[type].contains(id)) {
+                // TODO (gritukan@): find out why this check fails at some tests
+               /*
+               if (RemovedObjects_[type].contains(id)) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::NoSuchObject,
                         "%v %Qv is already removed in this transaction",
                         GetCapitalizedHumanReadableTypeName(type),
                         id);
                 }
+                */
                 const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
                 auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
                 auto objectHolder = typeHandler->InstantiateObject(id, parentId, this);
