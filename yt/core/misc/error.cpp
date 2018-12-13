@@ -382,6 +382,11 @@ bool operator != (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
     return !(lhs == rhs);
 }
 
+void FormatValue(TStringBuilder* builder, const TError& error, TStringBuf /*spec*/)
+{
+    AppendError(builder, error, 0);
+}
+
 TString ToString(const TError& error)
 {
     TStringBuilder builder;

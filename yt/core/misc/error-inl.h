@@ -231,6 +231,12 @@ const T& TErrorOr<T>::Value() const &
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+void FormatValue(TStringBuilder* builder, const TErrorOr<T>& error, TStringBuf spec)
+{
+    FormatValue(builder, static_cast<const TError&>(error), spec);
+}
+
+template <class T>
 TString ToString(const TErrorOr<T>& valueOrError)
 {
     return ToString(TError(valueOrError));
