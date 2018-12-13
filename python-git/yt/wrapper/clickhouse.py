@@ -65,9 +65,10 @@ def get_clickhouse_clique_spec_builder(instance_count,
         spec = dict() 
     if "annotations" not in spec: 
         spec["annotations"] = dict() 
-    if "expose_to_yql" not in spec["annotations"]: 
-        spec["annotations"]["expose_to_yql"] = True 
- 
+    spec["annotations"]["is_clique"] = True
+    if "expose" not in spec["annotations"]: 
+        spec["annotations"]["expose"] = True  
+
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("clickhouse_servers") \
