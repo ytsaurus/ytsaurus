@@ -935,13 +935,15 @@ public:
         auto userRuntimeParams = New<TUserFriendlyOperationRuntimeParameters>();
         Deserialize(userRuntimeParams, parameters);
 
-        // TODO(renadeen): remove this quick and dirty fix
-        if (userRuntimeParams->Pool) {
-            THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
-        }
-        for (const auto& pair : userRuntimeParams->SchedulingOptionsPerPoolTree) {
-            if (pair.second->Pool) {
+        // TODO(renadeen): remove this someday
+        if (!Config_->PoolChangeIsAllowed) {
+            if (userRuntimeParams->Pool) {
                 THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+            }
+            for (const auto& pair : userRuntimeParams->SchedulingOptionsPerPoolTree) {
+                if (pair.second->Pool) {
+                    THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+                }
             }
         }
 

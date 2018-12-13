@@ -408,6 +408,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("operation_transaction_ping_period", OperationTransactionPingPeriod)
         .Default(TDuration::Seconds(30));
 
+    RegisterParameter("pool_change_is_allowed", PoolChangeIsAllowed)
+        .Default(false);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

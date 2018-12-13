@@ -442,6 +442,8 @@ public:
     // Operations cleaner config.
     TOperationsCleanerConfigPtr OperationsCleaner;
 
+    bool PoolChangeIsAllowed;
+
     TSchedulerConfig();
 };
 
