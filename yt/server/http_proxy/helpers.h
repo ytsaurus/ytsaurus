@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <optional>
+
 #include <yt/core/misc/nullable.h>
 
 #include <yt/core/http/public.h>
