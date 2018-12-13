@@ -15,6 +15,8 @@
 
 #include <util/random/random.h>
 
+#include <util/string/builder.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,38 +179,12 @@ void* TPingableTransaction::Pinger(void* opaque)
 
 TYPath Snapshot(const TAuth& auth, const TTransactionId& transactionId, const TYPath& path)
 {
-    const int maxAttempt = TConfig::Get()->RetryCount;
-    for (int attempt = 0; attempt < maxAttempt; ++attempt) {
-        bool canRetry = attempt + 1 < maxAttempt;
-        try {
-            // A race condition is possible if object at path is replaced between
-            // calls to Get() and Lock() methods and its id is invalidated
-            auto id = NDetail::Get(auth, transactionId, path + "/@id").AsString();
-            TYPath result = TString("#") + id;
-            try {
-                // It is important to lock object-id path (which will be used later)
-                // instead of original cypress path (which can be invalidated
-                // regardless of snapshot lock)
-                NDetail::Lock(auth, transactionId, result, LM_SNAPSHOT);
-            } catch (TErrorResponse& e) {
-                if (canRetry && e.IsResolveError()) {
-                    // Object id got invalidated before Lock(), retry with
-                    // updated object id
-                    NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
-                    continue;
-                }
-                throw;
-            }
-            return result;
-        } catch (TErrorResponse& e) {
-            if (canRetry && NDetail::IsRetriable(e)) {
-                NDetail::TWaitProxy::Get()->Sleep(NDetail::GetRetryInterval(e));
-                continue;
-            }
-            throw;
-        }
-    }
-    Y_FAIL("unreachable");
+    auto lockId = NDetail::Lock(auth, transactionId, path, ELockMode::LM_SNAPSHOT);
+    auto lockedNodeId = NDetail::Get(
+        auth,
+        transactionId,
+        TStringBuilder() << '#' << GetGuidAsString(lockId) << "/@node_id");
+    return "#" + lockedNodeId.AsString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
