@@ -13,7 +13,6 @@ import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import itervalues
-from yt.packages.six.moves import reload_module
 
 import yt.wrapper as yt
 
@@ -169,13 +168,6 @@ class YtTestEnvironment(object):
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
-        if yatest_common is None:
-            reload_module(yt)
-            reload_module(yt.config)
-            reload_module(yt.native_driver)
-
-        yt._cleanup_http_session()
-
         # TODO(ignat): Remove after max_replication_factor will be implemented.
         set_option("_is_testing_mode", True, client=None)
 
@@ -239,10 +231,7 @@ class YtTestEnvironment(object):
         self.env.check_liveness(callback_func=_pytest_finalize_func)
 
     def reload_global_configuration(self):
-        if yatest_common is None:
-            reload_module(yt)
-            reload_module(yt.config)
-            reload_module(yt.native_driver)
+        yt.config._init_state()
         yt._cleanup_http_session()
         update_inplace(yt.config.config, self.config)
 
