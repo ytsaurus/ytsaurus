@@ -56,11 +56,15 @@ namespace NYT {
 
 extern const TStringBuf DefaultRangeEllipsisFormat;
 
+template <class... TArgs, size_t FormatLength>
+void Format(TStringBuilder* builder, const char (&format)[FormatLength], TArgs&&... args);
 template <class... TArgs>
-void Format(TStringBuilder* builder, const char* format, const TArgs&... args);
+void Format(TStringBuilder* builder, TStringBuf format, TArgs&&... args);
 
+template <class... TArgs, size_t FormatLength>
+TString Format(const char (&format)[FormatLength], TArgs&&... args);
 template <class... TArgs>
-TString Format(const char* format, const TArgs&... args);
+TString Format(TStringBuf format, TArgs&&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 

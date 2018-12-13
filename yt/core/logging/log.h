@@ -71,7 +71,7 @@ public:
 
     TLogger& AddRawTag(const TString& tag);
     template <class... TArgs>
-    TLogger& AddTag(const char* format, const TArgs&... args);
+    TLogger& AddTag(const char* format, TArgs&&... args);
     const TString& GetContext() const;
 
     void Save(TStreamSaveContext& context) const;
@@ -82,8 +82,6 @@ private:
     const TLoggingCategory* Category_;
 
     TString Context_;
-
-    static TString GetMessageWithContext(const TString& originalMessage, const TString& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +149,7 @@ void LogStructuredEvent(const TLogger& logger,
             break; \
         } \
         \
-        auto message__##__LINE__ = ::NYT::NLogging::NDetail::FormatLogMessage(__VA_ARGS__); \
+        auto message__##__LINE__ = ::NYT::NLogging::NDetail::BuildLogMessage(logger.GetContext(), __VA_ARGS__); \
         if (!positionUpToDate__##__LINE__) { \
             logger.UpdatePosition(&position__##__LINE__, message__##__LINE__); \
         } \
