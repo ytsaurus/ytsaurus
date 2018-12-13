@@ -19,6 +19,8 @@ import yt.json_wrapper as json
 from yt.packages.six import PY3, iteritems
 from yt.packages.six.moves import builtins, map as imap
 
+import yt.wrapper.clickhouse as clickhouse
+
 import yt.wrapper as yt
 
 import os
@@ -858,21 +860,21 @@ def add_shuffle_parser(add_parser):
     parser.add_argument("--print-statistics", action="store_true", default=False)
     parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
 
-@copy_docstring_from(yt.start_clickhouse_clique)
-def start_clickhouse_clique_handler(*args, **kwargs):
-    op = yt.start_clickhouse_clique(*args, **kwargs)
-    print(op.id)
-
-def add_start_clickhouse_clique_parser(add_parser):
-    parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler)
-    parser.add_argument("--instance-count", required=True, type=int)
-    parser.add_argument("--cypress-ytserver-clickhouse-path")
-    parser.add_argument("--host-ytserver-clickhouse-path")
-    parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
-    parser.add_argument("--cpu-limit", default=8)
-    parser.add_argument("--memory-limit", default=15*2**30)
-    add_structured_argument(parser, "--spec")
-    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
+@copy_docstring_from(yt.start_clickhouse_clique) 
+def start_clickhouse_clique_handler(*args, **kwargs): 
+    op = yt.start_clickhouse_clique(*args, **kwargs) 
+    print(op.id) 
+ 
+def add_start_clickhouse_clique_parser(add_parser): 
+    parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler) 
+    parser.add_argument("--instance-count", required=True, type=int) 
+    parser.add_argument("--cypress-ytserver-clickhouse-path") 
+    parser.add_argument("--host-ytserver-clickhouse-path") 
+    parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config") 
+    parser.add_argument("--cpu-limit", default=clickhouse.DEFAULT_CPU_LIMIT, type=int) 
+    parser.add_argument("--memory-limit", default=clickhouse.DEFAULT_MEMORY_LIMIT, type=int) 
+    add_structured_argument(parser, "--spec") 
+    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch") 
 
 def add_map_reduce_parser(add_parser):
     MAP_REDUCE_EPILOG = '''Options --mapper, --reducer, --combiner specify bash commands to run.
