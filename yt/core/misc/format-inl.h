@@ -468,7 +468,7 @@ void FormatValueViaSprintf(
     formatBuf[0] = '%';
     if (format[format.length() - 1] == GenericSpecSymbol) {
         char* formatEnd = copyFormat(formatBuf + 1, format.begin(), format.length() - 1);
-        memcpy(formatEnd, genericSpec.begin(), genericSpec.length());
+        ::memcpy(formatEnd, genericSpec.begin(), genericSpec.length());
         formatEnd[genericSpec.length()] = '\0';
     } else {
         char* formatEnd = copyFormat(formatBuf + 1, format.begin(), format.length());
@@ -476,10 +476,10 @@ void FormatValueViaSprintf(
     }
 
     char* result = builder->Preallocate(SmallResultSize);
-    size_t resultSize = snprintf(result, SmallResultSize, formatBuf, value);
+    size_t resultSize = ::snprintf(result, SmallResultSize, formatBuf, value);
     if (resultSize >= SmallResultSize) {
         result = builder->Preallocate(resultSize + 1);
-        YCHECK(snprintf(result, resultSize + 1, formatBuf, value) == static_cast<int>(resultSize));
+        YCHECK(::snprintf(result, resultSize + 1, formatBuf, value) == static_cast<int>(resultSize));
     }
     builder->Advance(resultSize);
 }
@@ -547,16 +547,16 @@ inline void FormatValue(TStringBuilder* builder, const TDuration& value, TString
 template <class TArgFormatter>
 void FormatImpl(
     TStringBuilder* builder,
-    const char* format,
+    TStringBuf format,
     const TArgFormatter& argFormatter)
 {
     size_t argIndex = 0;
-    const char* current = format;
+    auto current = format.begin();
     while (true) {
         // Scan verbatim part until stop symbol.
-        const char* verbatimBegin = current;
-        const char* verbatimEnd = verbatimBegin;
-        while (*verbatimEnd != '\0' && *verbatimEnd != '%') {
+        auto verbatimBegin = current;
+        auto verbatimEnd = verbatimBegin;
+        while (verbatimEnd != format.end() && *verbatimEnd != '%') {
             ++verbatimEnd;
         }
 
@@ -568,8 +568,9 @@ void FormatImpl(
 
         // Handle stop symbol.
         current = verbatimEnd;
-        if (*current == '\0')
+        if (current == format.end()) {
             break;
+        }
 
         Y_ASSERT(*current == '%');
         ++current;
@@ -580,13 +581,13 @@ void FormatImpl(
             ++current;
         } else {
             // Scan format part until stop symbol.
-            const char* argFormatBegin = current;
-            const char* argFormatEnd = argFormatBegin;
+            auto argFormatBegin = current;
+            auto argFormatEnd = argFormatBegin;
             bool singleQuotes = false;
             bool doubleQuotes = false;
 
             while (
-                *argFormatEnd != '\0' &&                  // end of format string
+                argFormatEnd != format.end() &&
                 *argFormatEnd != GenericSpecSymbol &&     // value in generic format
                 *argFormatEnd != 'd' &&                   // others are standard specifiers supported by printf
                 *argFormatEnd != 'i' &&
@@ -616,7 +617,7 @@ void FormatImpl(
             }
 
             // Handle end of format string.
-            if (*argFormatEnd != '\0') {
+            if (argFormatEnd != format.end()) {
                 ++argFormatEnd;
             }
 
@@ -638,7 +639,6 @@ void FormatImpl(
                     builder->AppendChar('"');
                 }
             }
-
 
             current = argFormatEnd;
         }
@@ -683,23 +683,42 @@ struct TArgFormatterImpl<IndexBase, THeadArg, TTailArgs...>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class... TArgs, size_t FormatLength>
+void Format(
+    TStringBuilder* builder,
+    const char (&format)[FormatLength],
+    TArgs&&... args)
+{
+    Format(builder, TStringBuf(format, FormatLength - 1), std::forward<TArgs>(args)...);
+}
+
 template <class... TArgs>
 void Format(
     TStringBuilder* builder,
-    const char* format,
-    const TArgs&... args)
+    TStringBuf format,
+    TArgs&&... args)
 {
     TArgFormatterImpl<0, TArgs...> argFormatter(args...);
     FormatImpl(builder, format, argFormatter);
 }
 
-template <class... TArgs>
+template <class... TArgs, size_t FormatLength>
 TString Format(
-    const char* format,
-    const TArgs&... args)
+    const char (&format)[FormatLength],
+    TArgs&&... args)
 {
     TStringBuilder builder;
-    Format(&builder, format, args...);
+    Format(&builder, format, std::forward<TArgs>(args)...);
+    return builder.Flush();
+}
+
+template <class... TArgs>
+TString Format(
+    TStringBuf format,
+    TArgs&&... args)
+{
+    TStringBuilder builder;
+    Format(&builder, format, std::forward<TArgs>(args)...);
     return builder.Flush();
 }
 

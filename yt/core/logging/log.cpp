@@ -52,10 +52,6 @@ void TLogger::UpdatePosition(TLoggingPosition* position, const TString& message)
 
 void TLogger::Write(TLogEvent&& event) const
 {
-    if (!Context_.empty()) {
-        event.Message = GetMessageWithContext(event.Message, Context_);
-    }
-
     LogManager_->Enqueue(std::move(event));
 }
 
@@ -90,25 +86,6 @@ void TLogger::Load(TStreamLoadContext& context)
     LogManager_ = TLogManager::Get();
     Category_ = LogManager_->GetCategory(categoryName.data());
     Load(context, Context_);
-}
-
-TString TLogger::GetMessageWithContext(const TString& originalMessage, const TString& context)
-{
-    auto endIndex = originalMessage.find('\n');
-    if (endIndex == TString::npos) {
-        endIndex = originalMessage.length();
-    }
-    if (endIndex > 0 && originalMessage[endIndex - 1] == ')') {
-        return
-            originalMessage.substr(0, endIndex - 1) +
-            ", " + context +
-            originalMessage.substr(endIndex - 1);
-    } else {
-        return
-            originalMessage.substr(0, endIndex) +
-            " (" + context + ")" +
-            originalMessage.substr(endIndex);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
