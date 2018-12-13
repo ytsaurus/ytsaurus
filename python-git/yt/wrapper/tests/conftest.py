@@ -28,7 +28,6 @@ import sys
 import uuid
 from copy import deepcopy
 import shutil
-import tempfile
 import logging
 import pytest
 
@@ -77,12 +76,7 @@ class YtTestEnvironment(object):
         common_delta_node_config = {
             "exec_agent" : {
                 "slot_manager" : {
-                    "enforce_job_control" : ENABLE_JOB_CONTROL,
-                    "job_environment": {
-                        "type": "cgroups",
-                        "memory_watchdog_period": 100,
-                        "supported_cgroups": ["cpuacct", "blkio", "cpu"],
-                    },
+                    "enforce_job_control" : False,
                 },
                 "statistics_reporter": {
                     "reporting_period": 1000,
@@ -96,6 +90,19 @@ class YtTestEnvironment(object):
                 ]
             },
         }
+        if ENABLE_JOB_CONTROL:
+            common_delta_node_config.update({
+                "exec_agent" : {
+                    "slot_manager" : {
+                        "enforce_job_control" : True,
+                        "job_environment": {
+                            "type": "cgroups",
+                            "memory_watchdog_period": 100,
+                            "supported_cgroups": ["cpuacct", "blkio", "cpu"],
+                        },
+                    },
+                }
+            })
         common_delta_scheduler_config = {
             "scheduler" : {
                 "max_operation_count": 5,
