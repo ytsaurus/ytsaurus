@@ -739,7 +739,7 @@ public:
                     } else if (!job.SnapshotRevision || *job.SnapshotRevision == *snapshotRevision) {
                         jobsToSave.insert(job.JobId);
                     } else {
-                        LOG_DEBUG("Dropping finished job (OperationId: %v, JobId: %v)", job.OperationId, job.JobId);
+                        YT_LOG_DEBUG("Dropping finished job (OperationId: %v, JobId: %v)", job.OperationId, job.JobId);
                     }
                     break;
                 }
