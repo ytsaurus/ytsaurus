@@ -7,6 +7,8 @@ namespace NYT::NYTAlloc {
 ////////////////////////////////////////////////////////////////////////////////
 // YTAlloc public API
 
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
+
 void* Allocate(size_t size, bool dumpable)
 {
     return AllocateInline(size, dumpable);
@@ -22,11 +24,26 @@ void Free(void* ptr)
     FreeInline(ptr);
 }
 
-#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
-
 size_t GetAllocationSize(void* ptr)
 {
     return GetAllocationSizeInline(ptr);
+}
+
+#else
+
+void* Allocate(size_t size, bool dumpable)
+{
+    return ::malloc(size);
+}
+
+void* AllocatePageAligned(size_t size, bool /*dumpable*/)
+{
+    return ::valloc(size);
+}
+
+void Free(void* ptr)
+{
+    ::free(ptr);
 }
 
 #endif
