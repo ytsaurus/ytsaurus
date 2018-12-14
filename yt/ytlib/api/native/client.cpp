@@ -1793,7 +1793,7 @@ private:
 
                     if (startShard->InMemoryMode) {
                         YCHECK(!inMemory || *inMemory == startShard->IsInMemory());
-                        inMemory == startShard->IsInMemory();
+                        inMemory = startShard->IsInMemory();
                     }
 
                     std::vector<TKey> rows;
