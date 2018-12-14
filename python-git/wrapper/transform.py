@@ -37,7 +37,7 @@ def _get_compression_ratio(table, codec, client, spec):
                           client=client)
 
         run_merge(input, tmp, mode="ordered", spec=spec, client=client)
-        return get(table + "/@compression_ratio", client=client)
+        return get(tmp + "/@compression_ratio", client=client)
 
 def _check_codec(table, codec_name, codec_value, client):
     if codec_value is None:

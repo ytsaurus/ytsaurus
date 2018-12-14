@@ -126,7 +126,6 @@ b"""
 }
 """)
 
-# TODO(babenko): drop cluster_directory_synchronizer in the root
 def get_scheduler_config():
     return yson.loads(
 b"""
@@ -158,6 +157,8 @@ b"""
         orchid_keys_update_period = 100;
 
         min_needed_resources_update_period = 100;
+
+        job_revival_abort_timeout = 2000;
     };
 }
 """)
@@ -210,6 +211,8 @@ b"""
 
         transactions_refresh_period = 500;
 
+        max_archived_job_spec_count_per_operation = 10;
+
         operation_options = {
             spec_template = {
                 max_failed_job_count = 10;
@@ -220,8 +223,7 @@ b"""
 }
 """)
 
-
-# TODO(babenko): drop cluster_directory_synchronizer in the root
+# COMPAT(babenko): drop unsuccess_heartbeat_backoff_time
 def get_node_config(enable_debug_logging=True):
     config = yson.loads(
 b"""
@@ -285,8 +287,10 @@ b"""
         node_directory_prepare_backoff_time = 100;
 
         scheduler_connector = {
-            failed_heartbeat_backoff_time = 50;
-            unsuccess_heartbeat_backoff_time = 50;
+            unsuccess_heartbeat_backoff_time  = 50;
+            failed_heartbeat_backoff_start_time = 50;
+            failed_heartbeat_backoff_max_time = 50;
+            failed_heartbeat_backoff_multiplier = 1.0;
             heartbeat_period = 200;
         };
 
@@ -349,6 +353,7 @@ b"""
             {
                 min_level = debug;
                 writers = [ debug ];
+                exclude_categories = ["Bus"];
             };
         ];
         writers = {

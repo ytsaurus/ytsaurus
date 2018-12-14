@@ -6,7 +6,6 @@ import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.driver import get_command_list
 from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TablePath, TempTable
-from yt.wrapper.common import parse_bool
 
 from yt.yson import YsonMap
 
@@ -245,7 +244,7 @@ class TestTableCommands(object):
             schema = '<schema=[{"name"="x";"type"="int64"}; {"name"="y";"type"="int64"}; {"name"="z";"type"="int64"}]>'
             return list(yt.select_rows(
                 "* from [{0}{1}]".format(schema, table),
-                format=yt.YsonFormat(format="text", process_table_index=False),
+                format=yt.YsonFormat(format="text"),
                 raw=False))
 
         yt.remove(table, force=True)
@@ -305,7 +304,7 @@ class TestTableCommands(object):
             self._sync_create_tablet_cell()
 
             yt.mount_table(table, sync=True)
-            vanilla_client = yt.YtClient(config=yt.config)
+            vanilla_client = yt.YtClient(config=yt.config.config)
 
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == []
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == []
@@ -567,8 +566,13 @@ class TestTableCommands(object):
 
         with set_config_option("proxy/content_encoding", "identity"):
             table = TEST_DIR + "/table"
+            def gen_table():
+                yield b'{"abc": "123"}\n' * 100000
+                yield b'{a:b}\n'
+                yield b'{"dfg": "456"}\n' * 10000000
+            
             try:
-                yt.write_table(table, iter([b'{"abc": "123"}\n'] * 100000 + [b"{a:b}"] + [b'{"abc": "123"}\n'] * 100000), raw=True, format=yt.JsonFormat())
+                yt.write_table(table, gen_table(), raw=True, format=yt.JsonFormat())
             except yt.YtResponseError as err:
                 assert "JSON" in str(err), "Incorrect error message: " + str(err)
             else:
@@ -875,8 +879,8 @@ class TestTableCommands(object):
             replicas = client.get("#%s/@stored_replicas" % chunk_id)
             address = str(replicas[0])
 
-            client.set("//sys/nodes/{0}/@banned".format(address), True)
-            wait(lambda: client.get("//sys/nodes/{0}/@state".format(address)) == "offline")
+            client.set("//sys/cluster_nodes/{0}/@banned".format(address), True)
+            wait(lambda: client.get("//sys/cluster_nodes/{0}/@state".format(address)) == "offline")
 
             assert list(client.read_table(table)) == [{"x": 1}, {"x": 2}]
         finally:

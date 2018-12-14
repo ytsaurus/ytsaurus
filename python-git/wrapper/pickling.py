@@ -6,16 +6,22 @@ except ImportError:
 import yt
 
 FRAMEWORKS = {
-    "dill": "yt.packages.dill",
-    "cloudpickle": "yt.packages.cloudpickle",
-    "pickle": "yt.packages.six.moves.cPickle"
+    "dill": ("yt.packages.dill",),
+    "cloudpickle": ("yt.packages.cloudpickle", "cloudpickle"),
+    "pickle": ("yt.packages.six.moves.cPickle",),
 }
 
 def import_framework_module(framework):
     if framework not in FRAMEWORKS:
         raise yt.YtError("Cannot find pickling framework {0}. Available frameworks: {1}."
                          .format(framework, list(FRAMEWORKS)))
-    return import_module(FRAMEWORKS[framework])
+    modules = FRAMEWORKS[framework]
+    for module in modules:
+        try:
+            return import_module(module)
+        except ImportError:
+            pass
+    raise RuntimeError("Failed to find module for framework '{}', tried modules {}".format(framework, modules))
 
 class Pickler(object):
     def __init__(self, framework):

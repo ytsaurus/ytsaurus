@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, check, get_test_file_path, get_test_dir_path,
-                      build_python_egg, get_python, dumps_yt_config, run_python_script_with_check)
+                      build_python_egg, get_python, dumps_yt_config, run_python_script_with_check, get_operation_path)
 
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 import yt.subprocess_wrapper as subprocess
@@ -237,7 +237,7 @@ if __name__ == "__main__":
 
             op_id = subprocess.check_output([get_python(), f.name],
                                             env={"PYTHONPATH": os.environ["PYTHONPATH"]}).strip()
-            op_path = "//sys/operations/{0}".format(op_id)
+            op_path = get_operation_path(op_id)
             while not yt.exists(op_path) \
                     or yt.get(op_path + "/@state") not in ["aborted", "failed", "completed"]:
                 time.sleep(0.2)

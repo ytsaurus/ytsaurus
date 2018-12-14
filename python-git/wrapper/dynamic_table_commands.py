@@ -1,6 +1,6 @@
 from .driver import make_request
 from .table_helpers import _prepare_command_format, _to_chunk_stream
-from .common import set_param, bool_to_string, require, is_master_transaction, YtError, get_value
+from .common import set_param, require, is_master_transaction, YtError, get_value
 from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
 from .errors import YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted
@@ -124,9 +124,9 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "input_row_limit", input_row_limit)
     set_param(params, "output_row_limit", output_row_limit)
     set_param(params, "range_expansion_limit", range_expansion_limit)
-    set_param(params, "fail_on_incomplete_result", fail_on_incomplete_result, transform=bool_to_string)
-    set_param(params, "verbose_logging", verbose_logging, transform=bool_to_string)
-    set_param(params, "enable_code_cache", enable_code_cache, transform=bool_to_string)
+    set_param(params, "fail_on_incomplete_result", fail_on_incomplete_result)
+    set_param(params, "verbose_logging", verbose_logging)
+    set_param(params, "enable_code_cache", enable_code_cache)
     set_param(params, "max_subqueries", max_subqueries)
     set_param(params, "workload_descriptor", workload_descriptor)
     set_param(params, "allow_full_scan", allow_full_scan)
@@ -168,8 +168,8 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     params = {}
     params["path"] = table
     params["input_format"] = format.to_yson_type()
-    set_param(params, "update", update, transform=bool_to_string)
-    set_param(params, "aggregate", aggregate, transform=bool_to_string)
+    set_param(params, "update", update)
+    set_param(params, "aggregate", aggregate)
     set_param(params, "atomicity", atomicity)
     set_param(params, "durability", durability)
     set_param(params, "require_sync_replica", require_sync_replica)
@@ -244,7 +244,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
         client=client).run()
 
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
-                format=None, raw=None, client=None):
+                format=None, raw=None, versioned=None, client=None):
     """Lookups rows in dynamic table.
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -252,6 +252,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     :param format: output format.
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
     :param bool raw: don't parse response to rows.
+    :param bool versioned: return all versions of the requested rows.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
@@ -265,7 +266,8 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     params["output_format"] = format.to_yson_type()
     set_param(params, "timestamp", timestamp)
     set_param(params, "column_names", column_names)
-    set_param(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
+    set_param(params, "keep_missing_rows", keep_missing_rows)
+    set_param(params, "versioned", versioned)
 
     input_data = b"".join(_to_chunk_stream(
         input_stream,
@@ -290,7 +292,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
         return format.load_rows(response)
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None,
-                freeze=False, sync=False, client=None):
+                freeze=False, sync=False, target_cell_ids=None, client=None):
     """Mounts table.
 
     TODO
@@ -303,6 +305,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
     set_param(params, "cell_id", cell_id)
+    set_param(params, "target_cell_ids", target_cell_ids)
     set_param(params, "freeze", freeze)
 
     response = make_request("mount_table", params, client=client)

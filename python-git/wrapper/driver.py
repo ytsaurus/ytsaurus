@@ -13,15 +13,27 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.yson.convert import json_to_yson
 
-from yt.packages.six import iteritems
-from yt.packages.six.moves import map as imap
+from yt.packages.six import string_types
 
-from copy import copy, deepcopy
+from copy import deepcopy
 
 _DEFAULT_COMMAND_PARAMS = {
     "transaction_id": YT_NULL_TRANSACTION_ID,
     "ping_ancestor_transactions": False
 }
+
+# TODO(ignat): move it to more appropriate place.
+def _create_http_client_from_rpc(client, command_name):
+    from .client import YtClient
+    config = get_config(client)
+    command_params = get_option("COMMAND_PARAMS", client)
+    if config["proxy"]["url"] is None:
+        raise YtError("For rpc proxy url must be specified in command '{}'".format(command_name))
+    new_config = deepcopy(config)
+    new_config["backend"] = "http"
+    new_client = YtClient(config=new_config)
+    new_client.COMMAND_PARAMS = command_params
+    return new_client
 
 def get_command_list(client=None):
     if get_option("_client_type", client) == "batch":
@@ -128,7 +140,7 @@ def make_formatted_request(command_name, params, format, **kwargs):
                 params["output_format"] = "json"
                 response_format = "json"
         else:
-            if isinstance(format, str):
+            if isinstance(format, string_types):
                 format = create_format(format)
             params["output_format"] = format.to_yson_type()
 

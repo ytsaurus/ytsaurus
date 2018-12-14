@@ -64,22 +64,29 @@ class WrapResult(object):
         self.title = title
 
 class OperationParameters(object):
-    __slots__ = ["input_format", "output_format", "operation_type", "job_type", "group_by", "input_table_count", "output_table_count",
-                 "use_yamr_descriptors", "attributes", "python_version", "is_local_mode"]
+    __slots__ = ["input_format", "output_format", "operation_type", "job_type", "group_by", "should_process_key_switch",
+                 "input_table_count", "output_table_count", "use_yamr_descriptors", "attributes", "python_version", "is_local_mode"]
 
-    def __init__(self, input_format=None, output_format=None, operation_type=None, job_type=None, group_by=None, python_version=None,
+    def __init__(self, input_format=None, output_format=None, operation_type=None, job_type=None, group_by=None, should_process_key_switch=None, python_version=None,
                  input_table_count=None, output_table_count=None, use_yamr_descriptors=None, attributes=None, is_local_mode=None):
         self.input_format = input_format
         self.output_format = output_format
         self.operation_type = operation_type
         self.job_type = job_type
         self.group_by = group_by
+        self.should_process_key_switch = should_process_key_switch
         self.input_table_count = input_table_count
         self.output_table_count = output_table_count
         self.use_yamr_descriptors = use_yamr_descriptors
         self.attributes = attributes
         self.python_version = python_version
         self.is_local_mode = is_local_mode
+
+def get_local_temp_directory(client):
+    local_temp_directory = get_config(client)["local_temp_directory"]
+    if local_temp_directory is not None:
+        return local_temp_directory
+    return tempfile.gettempdir()
 
 # Md5 tools.
 def calc_md5_from_file(filename):
@@ -204,8 +211,10 @@ class Tar(object):
         suffix = ".tar"
         if self._compression_codec == "gzip":
             suffix += ".gz"
-        self.filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
-                                                          prefix=prefix, suffix=suffix)
+        self.filename = tempfiles_manager.create_tempfile(
+            dir=get_local_temp_directory(client),
+            prefix=prefix,
+            suffix=suffix)
         self.size = 0
         self.python_eggs = []
         self.dynamic_libraries = set()
@@ -324,7 +333,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
             if hasattr(module, "__path__") and \
                     get_config(client)["pickling"]["create_init_file_for_package_modules"]:
                 init_file = tempfiles_manager.create_tempfile(
-                    dir=get_config(client)["local_temp_directory"],
+                    dir=get_local_temp_directory(client),
                     prefix="__init__.py")
 
                 with open(init_file, "w") as f:
@@ -531,8 +540,10 @@ def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
     assert params.job_type in ["mapper", "reducer", "reduce_combiner"]
 
     def create_temp_file(prefix="", suffix=""):
-        return tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
-                                                 prefix=prefix, suffix=suffix)
+        return tempfiles_manager.create_tempfile(
+            dir=get_local_temp_directory(client),
+            prefix=prefix,
+            suffix=suffix)
 
     uploaded_files = []
     def file_argument_builder(file, caller=False):
@@ -586,7 +597,7 @@ def wrap(client, **kwargs):
     local_mode = is_local_mode(client)
     remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
 
-    with TempfilesManager(remove_temp_files, get_config(client)["local_temp_directory"]) as tempfiles_manager:
+    with TempfilesManager(remove_temp_files, get_local_temp_directory(client)) as tempfiles_manager:
         result = do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
         if enable_local_files_usage_in_job(client):
             # NOTE: Some temp files can be created inside tmp dir so it is necessary that _tmp_dir goes

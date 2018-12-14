@@ -1,4 +1,4 @@
-from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, remove_asan_warning
+from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, remove_asan_warning, create_job_events
 
 from yt.wrapper.job_shell import JobShell
 from yt.wrapper.driver import get_command_list
@@ -41,23 +41,21 @@ class TestJobCommands(object):
         if yt.config["backend"] == "native":
             pytest.skip()
 
-        commands = get_command_list()
-        if "poll_job_shell" not in commands:
-            pytest.skip()
-
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
         mapper = job_events.with_breakpoint("cat ; BREAKPOINT")
 
-        op = yt.run_map(mapper, table, other_table, format=yt.DsvFormat(), sync=False)
+        op = yt.run_map(mapper, table, other_table, format=yt.YsonFormat(), sync=False)
 
         job_id = job_events.wait_breakpoint()[0]
 
         shell = JobShell(job_id, interactive=False, timeout=0)
         shell.make_request("spawn", term="screen-256color", height=50, width=132)
-        self._poll_until_prompt(shell)
+
+        output_before_prompt = self._poll_until_prompt(shell)
+        assert b"YT_OPERATION_ID" in output_before_prompt
 
         command = b"echo $TERM; tput lines; tput cols; id -u; id -g\r"
         shell.make_request("update", keys=command, input_offset=0)
@@ -83,10 +81,6 @@ class TestJobCommands(object):
         if yt.config["backend"] == "native":
             pytest.skip()
 
-        commands = get_command_list()
-        if "poll_job_shell" not in commands:
-            pytest.skip()
-
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
@@ -106,6 +100,66 @@ class TestJobCommands(object):
         shell.make_request("terminate")
         with pytest.raises(yt.YtError):
             output = self._poll_until_prompt(shell)
+
+        job_events.release_breakpoint()
+        op.wait()
+
+    # Remove after YT-8596
+    @flaky(max_runs=5)
+    def test_secure_vault_variables_in_job_shell(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        job_events = create_job_events()
+        mapper = job_events.with_breakpoint("cat ; BREAKPOINT")
+
+        op = yt.run_map(mapper, table, other_table,
+                        format=yt.YsonFormat(), spec={"secure_vault": {"MY_VAR": "10"}},
+                        sync=False)
+
+        job_id = job_events.wait_breakpoint()[0]
+
+        shell = JobShell(job_id, interactive=False, timeout=0)
+        shell.make_request("spawn", term="screen-256color", height=50, width=132)
+
+        output_before_prompt = self._poll_until_prompt(shell)
+        assert b"YT_OPERATION_ID" in output_before_prompt
+        assert b"YT_SECURE_VAULT_MY_VAR" in output_before_prompt
+
+        shell.make_request("terminate")
+        with pytest.raises(yt.YtError):
+            self._poll_until_prompt(shell)
+
+        job_events.release_breakpoint()
+        op.wait()
+
+
+        job_events = create_job_events()
+        mapper = job_events.with_breakpoint("cat ; BREAKPOINT")
+        op = yt.run_map(mapper, table, other_table,
+                        format=yt.YsonFormat(),
+                        spec={
+                            "secure_vault": {"MY_VAR": "10"},
+                            "enable_secure_vault_variables_in_job_shell": False,
+                        },
+                        sync=False)
+
+        job_id = job_events.wait_breakpoint()[0]
+
+        shell = JobShell(job_id, interactive=False, timeout=0)
+        shell.make_request("spawn", term="screen-256color", height=50, width=132)
+
+        output_before_prompt = self._poll_until_prompt(shell)
+        assert b"YT_OPERATION_ID" in output_before_prompt
+        assert b"YT_SECURE_VAULT_MY_VAR" not in output_before_prompt
+
+        shell.make_request("terminate")
+        with pytest.raises(yt.YtError):
+            self._poll_until_prompt(shell)
 
         job_events.release_breakpoint()
         op.wait()

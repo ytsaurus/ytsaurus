@@ -215,7 +215,7 @@ class Config(types.ModuleType, client_state.ClientState):
                     value = int(value)
                 self._set(name, apply_type(var_type, key, value))
             elif key == "TRACE":
-                self.COMMAND_PARAMS["trace"] = common.bool_to_string(bool(value))
+                self.COMMAND_PARAMS["trace"] = bool(value)
             elif key == "TRANSACTION":
                 self.COMMAND_PARAMS["transaction_id"] = value
             elif key == "PING_ANCESTOR_TRANSACTIONS":

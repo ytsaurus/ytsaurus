@@ -1,7 +1,7 @@
 from . import yson
 from .config import get_config, get_option, set_option
 from .compression import get_compressor
-from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job, get_value, get_started_by_short
+from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job, get_started_by_short
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
 from .http_helpers import (make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url,
                            get_error_from_headers, get_header_format, ProxyProvider)
@@ -184,7 +184,7 @@ def make_request(command_name,
         if "mutation_id" not in params:
             params["mutation_id"] = generate_uuid(get_option("_random_generator", client))
         if "retry" not in params:
-            params["retry"] = bool_to_string(False)
+            params["retry"] = False
 
     if command.is_volatile and allow_retries:
         def set_retry(error, command, params, arguments):
@@ -192,10 +192,10 @@ def make_request(command_name,
                 if isinstance(error, YtConcurrentOperationsLimitExceeded):
                     # NB: initially specified mutation id is ignored.
                     # Without new mutation id, scheduler always reply with this error.
-                    params["retry"] = bool_to_string(False)
+                    params["retry"] = False
                     params["mutation_id"] = generate_uuid(get_option("_random_generator", client))
                 else:
-                    params["retry"] = bool_to_string(True)
+                    params["retry"] = True
                 if command.input_type is None:
                     arguments["data"] = dump_params(params, header_format)
                 else:

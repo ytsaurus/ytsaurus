@@ -1,10 +1,10 @@
 from __future__ import print_function
 
 from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
-                      sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
+                      sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path,
+                      yatest_common, create_job_events)
 
 from yt.environment import YTInstance
-from yt.test_helpers.job_events import JobEvents
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace
@@ -13,7 +13,6 @@ import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import itervalues
-from yt.packages.six.moves import reload_module
 
 import yt.wrapper as yt
 
@@ -28,10 +27,8 @@ import sys
 import uuid
 from copy import deepcopy
 import shutil
-import tempfile
 import logging
 import pytest
-import stat
 
 def pytest_ignore_collect(path, config):
     path = str(path)
@@ -77,22 +74,34 @@ class YtTestEnvironment(object):
 
         common_delta_node_config = {
             "exec_agent" : {
-                "enable_cgroups" : ENABLE_JOB_CONTROL,
                 "slot_manager" : {
-                    "enforce_job_control" : ENABLE_JOB_CONTROL
+                    "enforce_job_control" : False,
                 },
                 "statistics_reporter": {
-                    "reporting_period": 1000
+                    "reporting_period": 1000,
                 }
             },
             "data_node": {
                 "store_locations": [
                     {
-                        "max_trash_ttl": 2000
-                    }
+                        "max_trash_ttl": 2000,
+                    },
                 ]
             },
         }
+        if ENABLE_JOB_CONTROL:
+            common_delta_node_config.update({
+                "exec_agent" : {
+                    "slot_manager" : {
+                        "enforce_job_control" : True,
+                        "job_environment": {
+                            "type": "cgroups",
+                            "memory_watchdog_period": 100,
+                            "supported_cgroups": ["cpuacct", "blkio", "cpu"],
+                        },
+                    },
+                }
+            })
         common_delta_scheduler_config = {
             "scheduler" : {
                 "max_operation_count": 5,
@@ -159,13 +168,6 @@ class YtTestEnvironment(object):
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
-        if yatest_common is None:
-            reload_module(yt)
-            reload_module(yt.config)
-            reload_module(yt.native_driver)
-
-        yt._cleanup_http_session()
-
         # TODO(ignat): Remove after max_replication_factor will be implemented.
         set_option("_is_testing_mode", True, client=None)
 
@@ -202,7 +204,7 @@ class YtTestEnvironment(object):
         if config["backend"] != "rpc":
             self.config["driver_config"] = self.env.configs["driver"]
         self.config["local_temp_directory"] = local_temp_directory
-        update_inplace(yt.config.config, self.config)
+        self.reload_global_configuration()
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 
@@ -228,9 +230,14 @@ class YtTestEnvironment(object):
     def check_liveness(self):
         self.env.check_liveness(callback_func=_pytest_finalize_func)
 
+    def reload_global_configuration(self):
+        yt.config._init_state()
+        yt._cleanup_http_session()
+        update_inplace(yt.config.config, self.config)
+
 def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
-    if mode == "native":
+    if mode in ("native", "native_multicell"):
         config["backend"] = "native"
     elif mode == "rpc":
         config["backend"] = "rpc"
@@ -266,16 +273,6 @@ def test_environment_with_rpc(request):
 def test_environment_for_yamr(request):
     environment = init_environment_for_test_session("yamr")
     request.addfinalizer(lambda: environment.cleanup())
-
-    yt.set_yamr_mode()
-    yt.config["yamr_mode"]["treat_unexisting_as_empty"] = False
-    if not yt.exists("//sys/empty_yamr_table"):
-        yt.create("table", "//sys/empty_yamr_table", recursive=True)
-    if not yt.is_sorted("//sys/empty_yamr_table"):
-        yt.run_sort("//sys/empty_yamr_table", "//sys/empty_yamr_table", sort_by=["key", "subkey"])
-    yt.config["yamr_mode"]["treat_unexisting_as_empty"] = True
-    yt.config["default_value_of_raw_option"] = True
-
     return environment
 
 @pytest.fixture(scope="session")
@@ -364,6 +361,7 @@ def yt_env(request, test_environment):
         Starts YT cluster once per session but checks its health before each test function.
     """
     test_environment.check_liveness()
+    test_environment.reload_global_configuration()
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment
@@ -375,6 +373,7 @@ def yt_env_with_rpc(request, test_environment_with_rpc):
         Starts YT cluster once per session but checks its health before each test function.
     """
     test_environment_with_rpc.check_liveness()
+    test_environment_with_rpc.reload_global_configuration()
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_with_rpc
@@ -421,6 +420,17 @@ def yt_env_for_yamr(request, test_environment_for_yamr):
         before each test function.
     """
     test_environment_for_yamr.check_liveness()
+    test_environment_for_yamr.reload_global_configuration()
+
+    yt.set_yamr_mode()
+    yt.config["yamr_mode"]["treat_unexisting_as_empty"] = False
+    if not yt.exists("//sys/empty_yamr_table"):
+        yt.create("table", "//sys/empty_yamr_table", recursive=True)
+    if not yt.is_sorted("//sys/empty_yamr_table"):
+        yt.run_sort("//sys/empty_yamr_table", "//sys/empty_yamr_table", sort_by=["key", "subkey"])
+    yt.config["yamr_mode"]["treat_unexisting_as_empty"] = True
+    yt.config["default_value_of_raw_option"] = True
+
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_for_yamr
@@ -430,6 +440,7 @@ def yt_env_multicell(request, test_environment_multicell):
     """ YT cluster fixture for tests with multiple cells.
     """
     test_environment_multicell.check_liveness()
+    test_environment_multicell.reload_global_configuration()
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_multicell
@@ -439,12 +450,11 @@ def yt_env_job_archive(request, test_environment_job_archive):
     """ YT cluster fixture for tests that require job archive
     """
     test_environment_job_archive.check_liveness()
+    test_environment_job_archive.reload_global_configuration()
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_job_archive
 
 @pytest.fixture(scope="function")
 def job_events(request):
-    tmpdir = tempfile.mkdtemp(prefix="job_events", dir=get_tests_sandbox())
-    os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-    return JobEvents(tmpdir)
+    return create_job_events()

@@ -12,6 +12,9 @@ except ImportError:
 from yt.packages.six import iteritems
 from yt.packages.six.moves import map as imap, zip as izip
 
+from yt.wrapper.http_helpers import get_token, get_proxy_url
+
+import os
 import sys
 import time
 import logging
@@ -146,36 +149,6 @@ def _make_tablets_state_checker(client, table, possible_states):
         return all(state in possible_states for state in states)
     return state_checker
 
-def _wait_for_table_consistency(client, table, timeout, pause):
-    _wait_for_predicate(
-        _make_tablets_state_checker(client, table, ["mounted", "unmounted"]),
-        "All %s tablets are either mounted or unmounted" % table,
-        timeout,
-        pause)
-
-def _mount_unmount_table(client, action, table, timeout, pause):
-    start = time.time()
-    if action == "mount":
-        state = "mounted"
-        mount_unmount = client.mount_table
-    else:
-        state = "unmounted"
-        mount_unmount = client.unmount_table
-
-    _wait_for_table_consistency(client, table, timeout, pause)
-
-    check_state = _make_tablets_state_checker(client, table, [state])
-    if check_state():
-        return
-
-    mount_unmount(table)
-
-    _wait_for_predicate(
-        check_state,
-        "All %s tablets are %s" % (table, state),
-        timeout - (time.time() - start),
-        pause)
-
 def wait_for_state_new(client, table, state, timeout=300, pause=1):
     _wait_for_predicate(
         _make_tablets_state_checker(client, table, [state]),
@@ -183,18 +156,18 @@ def wait_for_state_new(client, table, state, timeout=300, pause=1):
         timeout,
         pause)
 
-def mount_table_new(client, table, timeout=300, pause=1):
-    _mount_unmount_table(client, "mount", table, timeout, pause)
+def mount_table_new(client, table):
+    client.mount_table(table, sync=True)
 
-def unmount_table_new(client, table, timeout=300, pause=1):
-    _mount_unmount_table(client, "unmount", table, timeout, pause)
+def unmount_table_new(client, table):
+    client.unmount_table(table, sync=True)
 
 def get_pivot_keys_new(client, tablet):
     pivot_keys = [tablet["pivot_key"]]
     tablet_id = tablet["tablet_id"]
     cell_id = tablet["cell_id"]
     node = client.get("#{0}/@peers/0/address".format(cell_id))
-    partitions_path = "//sys/nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/partitions".format(
+    partitions_path = "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/tablets/{2}/partitions".format(
         node, cell_id, tablet_id)
     partitions = client.get(partitions_path)
     for partition in partitions:
@@ -240,19 +213,23 @@ class DynamicTablesClient(object):
 
     environment = {}
 
-    default_client_config = {
-        "driver_config_path": "/etc/ytdriver.conf",
-        "api_version": "v3"
-    }
-
     # Nice yson format
-    yson_format = yt_module.YsonFormat(
-        boolean_as_string=False, process_table_index=False)
-
+    yson_format = yt_module.YsonFormat()
     yt = None
 
     def __init__(self, yt, **options):
         self.yt = yt
+
+        self.default_client_config = {
+            "api_version": "v3",
+            "backend": "rpc"
+        }
+        proxy_url = get_proxy_url(required=False, client=self.yt)
+        if proxy_url:
+            self.default_client_config["driver_config"] = {
+                "cluster_url": proxy_url
+            }
+
         self.set_options(**options)
 
     def set_options(self, **options):
@@ -265,23 +242,30 @@ class DynamicTablesClient(object):
         self.yt.config["pickling"]["module_filter"] = lambda module: not hasattr(module, "__file__") or "yt_driver_bindings" not in module.__file__
 
     def make_driver_yt_client(self):
-        """ Make an Yt instnatiated client with no proxy/token options
-        (to go from a job to the same cluster) """
-        return yt_module.YtClient(config=self.default_client_config)
-
+        """ Make an Yt client to go from a job to the same cluster
+        (using RPC proxy) """
+        return yt_module.YtClient(config=self.default_client_config,
+            token=os.environ["YT_SECURE_VAULT_YT_TOKEN"])
 
     def build_spec_from_options(self):
         """ Build map operation spec, e.g. from command line args """
         spec = {
             "enable_job_proxy_memory_control": False,
-            "job_proxy_memory_control": False}
+            "job_proxy_memory_control": False,
+            "mapper": {
+                "environment": self.environment
+            },
+            "secure_vault": {
+                "YT_TOKEN": get_token(client=self.yt)
+            }
+        }
 
         if self.job_count:
             spec["job_count"] = self.job_count
         if self.user_slots:
             spec["resource_limits"] = {"user_slots": self.user_slots}
         if self.job_memory_limit:
-            spec["mapper"] = {"memory_limit": self.job_memory_limit, "environment": self.environment}
+            spec["mapper"]["memory_limit"] = self.job_memory_limit
         if self.max_failed_job_count:
             spec["max_failed_job_count"] = self.max_failed_job_count
         if self.data_size_per_job:
@@ -314,14 +298,17 @@ class DynamicTablesClient(object):
                 "job_count": 100, "max_failed_job_count": 10,
                 # XXXX: pool?
                 "resource_limits": {"user_slots": 50},
-                "mapper": {"environment": self.environment}}
+                "mapper": {"environment": self.environment},
+                "secure_vault": {
+                    "YT_TOKEN": get_token(client=self.yt)
+                }
+            }
             with self.yt.TempTable() as tablets_table:
                 with self.yt.TempTable() as partitions_table:
                     self.yt.write_table(tablets_table, tablets, self.yson_format, raw=False)
 
-                    client_config = self.default_client_config
                     def collect_pivot_keys_mapper(tablet):
-                        for pivot_key in get_pivot_keys_new(yt_module.YtClient(config=client_config), tablet):
+                        for pivot_key in get_pivot_keys_new(self.make_driver_yt_client(), tablet):
                             yield {"pivot_key": pivot_key}
 
                     self.yt.run_map(
@@ -394,11 +381,10 @@ class DynamicTablesClient(object):
 
         # Get records from source table.
 
-        client_config = self.default_client_config
         workload_descriptor = self.workload_descriptor
         @yt_module.aggregator
         def select_mapper(bounds):
-            client = yt_module.YtClient(config=client_config)
+            client = self.make_driver_yt_client()
 
             for bound in bounds:
                 def do_select():
@@ -428,11 +414,9 @@ class DynamicTablesClient(object):
 
     # explicit batch_size is for backward compatibility
     def run_map_dynamic(self, mapper, src_table, dst_table, batch_size=None, insert=True):
-
-        client_config = self.default_client_config
         batch_size = batch_size or self.batch_size
         def insert_mapper(rows):
-            client = yt_module.YtClient(config=client_config)
+            client = self.make_driver_yt_client()
 
             def make_inserter(rowset):
                 def do_insert():

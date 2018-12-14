@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from .helpers import TEST_DIR
+from .helpers import TEST_DIR, set_config_option
 
 from yt.wrapper.common import parse_bool
 import yt.json_wrapper as json
@@ -20,17 +20,17 @@ import datetime
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestCypressCommands(object):
     def test_ypath(self):
-        path = yt.TablePath("<append=false;sort-by=[key]>//my/table")
+        path = yt.TablePath("<append=%false;sort-by=[key]>//my/table")
         assert str(path) == "//my/table"
         assert repr(path).endswith("//my/table")
         assert not path.append
-        assert path.attributes == {"append": "false", "sort_by": ["key"]}
+        assert path.attributes == {"append": False, "sort_by": ["key"]}
 
-        path = yt.TablePath("<append=false;sort-by=[key]>//my/table", append=True, attributes={"sort_by": ["subkey"]})
+        path = yt.TablePath("<append=%false;sort-by=[key]>//my/table", append=True, attributes={"sort_by": ["subkey"]})
         assert str(path) == "//my/table"
         assert repr(path).endswith("//my/table")
         assert path.append
-        assert path.attributes == {"append": "true", "sort_by": ["subkey"]}
+        assert path.attributes == {"append": True, "sort_by": ["subkey"]}
 
         path = yt.TablePath("#123", ranges=[])
         assert str(path) == "#123"
@@ -89,9 +89,6 @@ class TestCypressCommands(object):
 
     @pytest.mark.parametrize("enable_batch_mode", [False, True])
     def test_search(self, enable_batch_mode):
-        if yt.config["backend"] == "rpc":
-            pytest.skip()
-
         yt.mkdir(TEST_DIR + "/dir/other_dir", recursive=True)
         yt.create("table", TEST_DIR + "/dir/table")
         yt.write_file(TEST_DIR + "/file", b"")
@@ -235,9 +232,6 @@ class TestCypressCommands(object):
             yt.remove("//sys/accounts/test_account", force=True)
 
     def test_attributes_commands(self):
-        if yt.config["backend"] == "rpc":
-            pytest.skip()
-
         table = TEST_DIR + "/table_with_attributes"
         yt.write_table(table, [{"x": 1, "y": 1}, {"x": 2, "y": 2}], format="dsv")
         assert yt.row_count(table) == 2
@@ -313,9 +307,6 @@ class TestCypressCommands(object):
         assert yt.get_type(map_node) == "map_node"
 
     def test_simple_copy_move(self):
-        if yt.config["backend"] == "rpc":
-            pytest.skip()
-
         table = TEST_DIR + "/table"
         dir = TEST_DIR + "/dir"
         other_table = dir + "/other_table"
@@ -373,9 +364,6 @@ class TestCypressCommands(object):
 
     @flaky(max_runs=5)
     def test_transactions(self):
-        if yt.config["backend"] == "rpc":
-            pytest.skip()
-
         table = TEST_DIR + "/transaction_test_table"
 
         yt.create("table", table)
@@ -383,7 +371,7 @@ class TestCypressCommands(object):
         def read_table(client=None):
             return list(yt.read_table(table, client=client))
 
-        new_client = yt.client.Yt(token=yt.config["token"], config=yt.config)
+        new_client = yt.client.Yt(token=yt.config["token"], config=yt.config.config)
 
         with yt.Transaction():
             yt.write_table(table, [{"x": 2}])
@@ -444,7 +432,7 @@ class TestCypressCommands(object):
 
     @pytest.mark.skipif("True")  # Enable when st/YT-4182 is done.
     def test_signal_in_transactions(self):
-        new_client = yt.YtClient(token=yt.config["token"], config=yt.config)
+        new_client = yt.YtClient(token=yt.config["token"], config=yt.config.config)
 
         yt.config["transaction_use_signal_if_ping_failed"] = True
         old_request_timeout = yt.config["proxy"]["request_timeout"]
@@ -474,6 +462,17 @@ class TestCypressCommands(object):
         finally:
             yt.config["transaction_use_signal_if_ping_failed"] = False
             yt.config["proxy"]["request_timeout"] = old_request_timeout
+
+    def test_ping_failed_mode_pass(self):
+        new_client = yt.YtClient(token=yt.config["token"], config=yt.config.config)
+
+        with set_config_option("ping_failed_mode", "pass"):
+            try:
+                with yt.Transaction() as tx:
+                    new_client.abort_transaction(tx.transaction_id)
+                    time.sleep(5.0)
+            except yt.YtResponseError as err:
+                assert err.is_no_such_transaction()
 
     def test_lock(self, yt_env):
         dir = TEST_DIR + "/dir"
@@ -541,9 +540,6 @@ class TestCypressCommands(object):
         yt.remove(TEST_DIR + "/child")
 
     def test_copy_move_sorted_table(self):
-        if yt.config["backend"] == "rpc":
-            pytest.skip()
-
         def is_sorted_by_y(table_path):
             sorted_by = yt.get_attribute(table_path, "sorted_by", None)
             if sorted_by is None:
@@ -569,9 +565,6 @@ class TestCypressCommands(object):
         yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
 
     def test_concatenate(self):
-        if yt.config["backend"] == "rpc":
-            pytest.skip()
-
         tableA = TEST_DIR + "/tableA"
         tableB = TEST_DIR + "/tableB"
         output_table = TEST_DIR + "/outputTable"

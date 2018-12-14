@@ -4,6 +4,7 @@ from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
 from yt.packages.six.moves import map as imap
 
 from yt.test_helpers import wait
+from yt.test_helpers.job_events import JobEvents
 
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
@@ -21,6 +22,7 @@ import os
 import re
 import shutil
 import sys
+import stat
 import tempfile
 from contextlib import contextmanager
 from copy import deepcopy
@@ -235,3 +237,12 @@ def remove_asan_warning(str_or_bytes):
         return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes.encode("utf-8")).decode("utf-8")
     assert isinstance(str_or_bytes, bytes)
     return re.sub(_ASAN_WARNING_PATTERN, '', str_or_bytes)
+
+def get_operation_path(operation_id):
+    return "//sys/operations/{:02x}/{}".format(int(operation_id.split("-")[-1], 16) % 256, operation_id)
+
+def create_job_events():
+    tmpdir = tempfile.mkdtemp(prefix="job_events", dir=get_tests_sandbox())
+    os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+    return JobEvents(tmpdir)
+

@@ -5,6 +5,11 @@ import yt.tools.dynamic_tables as dt_module
 
 from yt.packages.six import iteritems
 
+try:
+    from yt.wrapper.common import run_with_retries
+except ImportError:
+    from yt.wrapper.retries import run_with_retries
+
 # Attribute prefix
 ATTRIBUTE_PREFIX = "_yt_dump_restore_"
 
@@ -45,7 +50,7 @@ def create_destination(dst, yt, force=False, attributes=None):
             yt.remove(dst)
         else:
             raise Exception("Destination table exists. Use --force")
-    yt.create_table(dst, attributes=attributes)
+    yt.create("table", dst, attributes=attributes)
 
 
 def check_table_schema(dst, schema, key_columns, optimize_for, yt):
@@ -115,7 +120,7 @@ class DumpRestoreClient(dt_module.DynamicTablesClient):
                 force=force,
                 attributes=dt_module.make_dynamic_table_attributes(self.yt, schema, key_columns, optimize_for))
             self.yt.reshard_table(dst_table, pivot_keys)
-            self.mount_table(dst_table)
+            self.yt.mount_table(dst_table)
 
         self.run_map_dynamic(
             None,  # empty mapper, i.e. restore not modified rows
@@ -137,7 +142,7 @@ class DumpRestoreClient(dt_module.DynamicTablesClient):
 
             for rowset in dt_module.split_in_groups(rows, self.batch_size):
                 do_delete_these = make_deleter(rowset)
-                yt_common.run_with_retries(do_delete_these, except_action=dt_module.log_exception)
+                run_with_retries(do_delete_these, except_action=dt_module.log_exception)
 
             if False:  # make this function into a generator
                 yield

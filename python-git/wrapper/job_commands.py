@@ -1,13 +1,16 @@
-from .driver import make_request, make_formatted_request
+from .config import get_config
+from .driver import make_request, make_formatted_request, _create_http_client_from_rpc
 from .common import set_param
 
 def list_jobs(operation_id,
               job_type=None, job_state=None, address=None,
               sort_field=None, sort_order=None,
-              limit=None, offset=None, with_stderr=None,
+              limit=None, offset=None, with_stderr=None, with_spec=None, with_fail_context=None,
               include_cypress=None, include_runtime=None, include_archive=None,
               data_source=None, format=None, client=None):
     """List jobs of operation."""
+    if get_config(client)["backend"] == "rpc":
+        client = _create_http_client_from_rpc(client, "list_jobs")
     params = {"operation_id": operation_id}
     set_param(params, "job_type", job_type)
     set_param(params, "job_state", job_state)
@@ -16,6 +19,9 @@ def list_jobs(operation_id,
     set_param(params, "sort_order", sort_order)
     set_param(params, "limit", limit)
     set_param(params, "offset", offset)
+    set_param(params, "with_stderr", with_stderr)
+    set_param(params, "with_spec", with_spec)
+    set_param(params, "with_fail_context", with_fail_context)
     set_param(params, "include_cypress", include_cypress)
     set_param(params, "include_runtime", include_runtime)
     set_param(params, "include_archive", include_archive)
@@ -50,6 +56,8 @@ def get_job_stderr(operation_id, job_id, client=None):
     :param str operation_id: operation id.
     :param str job_id: job id.
     """
+    if get_config(client)["backend"] == "rpc":
+        client = _create_http_client_from_rpc(client, "get_job_stderr")
     return make_request(
         "get_job_stderr",
         {"operation_id": operation_id, "job_id": job_id},

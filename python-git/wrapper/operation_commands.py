@@ -195,12 +195,7 @@ class OperationProgressFormatter(logging.Formatter):
             def total_minutes(time):
                 return time.seconds // 60 + 60 * 24 * time.days
             elapsed = total_minutes(datetime.now() - self._start_time)
-            time = datetime.now()
-            if time.microsecond > 0:
-                time = time.isoformat(" ")[:-3]
-            else:
-                time = time.isoformat(" ")
-            return "{0} ({1:2} min)".format(time, elapsed)
+            return "{0} ({1:2} min)".format(super(OperationProgressFormatter, self).formatTime(record), elapsed)
 
 def get_operation_attributes(operation, fields=None, client=None):
     """Returns dict with operation attributes.

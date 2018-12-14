@@ -1,4 +1,5 @@
-from .helpers import get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive, get_python, yatest_common
+from .helpers import (get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive,
+                      get_python, yatest_common, get_operation_path)
 
 from yt.common import makedirp, to_native_str
 import yt.subprocess_wrapper as subprocess
@@ -16,10 +17,7 @@ import pytest
 import time
 import json
 
-NODE_ORCHID_JOB_PATH_PATTERN = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
-
-def get_operation_path(operation_id):
-    return "//sys/operations/{:02x}/{}".format(int(operation_id.split("-")[-1], 16) % 256, operation_id)
+NODE_ORCHID_JOB_PATH_PATTERN = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
 
 class TestJobRunner(object):
     @classmethod
@@ -118,7 +116,7 @@ class TestJobTool(object):
             "--job-path",
             os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + job_id),
             "--proxy",
-            yt_env_job_archive.config["proxy"]["url"]
+            yt_env_job_archive.config["proxy"]["url"],
         ]
         if full:
             args += ["--full"]
@@ -127,7 +125,7 @@ class TestJobTool(object):
 
     def _check(self, operation_id, yt_env_job_archive, check_running=False, full=False, expect_ok_return_code=False):
         if not check_running:
-            job_id = yt.list("//sys/operations/{0}/jobs".format(operation_id))[0]
+            job_id = yt.list(get_operation_path(operation_id) + "/jobs")[0]
         else:
             total_job_wait_timeout = 10
             start_time = time.time()
@@ -256,7 +254,7 @@ class TestJobTool(object):
         yt.write_file(file_, b"stringdata")
 
         op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_])
-        job_id = yt.list("//sys/operations/{0}/jobs".format(op.id))[0]
+        job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
         path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
         p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
@@ -273,8 +271,51 @@ class TestJobTool(object):
 
         op = yt.run_map(command, table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_],
                         spec={"mapper": {"environment": {"YT_JOB_TOOL_TEST_VARIABLE": "present"}}})
-        job_id = yt.list("//sys/operations/{0}/jobs".format(op.id))[0]
+        job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
         path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
         p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
+
+    def test_bash_env(self, yt_env_job_archive):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "1", "value": "2"}])
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=get_tests_sandbox(),
+            prefix="bash_env_",
+            suffix=".sh",
+            delete=False,
+        ) as bash_env:
+            bash_env.write("echo \"FROM_BASH_ENV\" >&2")
+
+        spec = {"mapper": {"environment": {"BASH_ENV": bash_env.name}}}
+        op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, spec=spec)
+        job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, p_stderr = p.communicate()
+        assert p_stderr == u"FROM_BASH_ENV\nOK_COMMAND\n".encode("ascii")
+
+    def test_table_download(self, yt_env_job_archive):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "1", "value": "2"}])
+
+        TABLE_AS_FILE_DATA = {"key": "42", "value": "forty two"}
+        table_as_file = TEST_DIR + "/table_as_file"
+        yt.write_table(table_as_file, [TABLE_AS_FILE_DATA])
+
+        command = self.get_ok_command() + """ ; if [ ! -f table_as_file.json ] ; then echo "CANNOT FIND table_as_file.json" >&2 ; exit 1 ; fi """
+        op = yt.run_map(command, table, TEST_DIR + "/output",
+                        format=self.TEXT_YSON,
+                        yt_files=["<file_name=\"table_as_file.json\";format=json>" + table_as_file])
+        job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, p_stderr = p.communicate()
+        assert p_stderr == u"OK_COMMAND\n".encode("ascii")
+
+        with open(os.path.join(path, "sandbox", "table_as_file.json")) as inf:
+            table_as_file_saved = json.load(inf)
+            assert table_as_file_saved == TABLE_AS_FILE_DATA

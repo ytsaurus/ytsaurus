@@ -5,7 +5,7 @@ from __future__ import print_function
 from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
-from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, \
+from yt.wrapper.common import parse_bool, chunk_iter_stream, update, get_value, MB, \
                               DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
                               chunk_iter_rows
 from yt.wrapper.cli_helpers import write_silently, run_main
@@ -18,6 +18,8 @@ import yt.json_wrapper as json
 
 from yt.packages.six import PY3, iteritems
 from yt.packages.six.moves import builtins, map as imap
+
+import yt.wrapper.clickhouse as clickhouse
 
 import yt.wrapper as yt
 
@@ -399,7 +401,7 @@ def write_file(**args):
     func_args.pop("executable")
     yt.write_file(stream=get_binary_std_stream(sys.stdin), **func_args)
     if args["executable"]:
-        yt.set(args["destination"] + "/@executable", bool_to_string(True))
+        yt.set(args["destination"] + "/@executable", True)
 
 def add_compressed_arg(parser):
     parser.add_argument("--compressed", action="store_true", dest="is_stream_compressed",
@@ -485,6 +487,8 @@ def add_set_parser(add_parser):
     parser = add_parser("set", set)
     add_ypath_argument(parser, "path", hybrid=True)
     add_structured_format_argument(parser, default=YT_STRUCTURED_DATA_FORMAT)
+    parser.add_argument("-r", "--recursive", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true")
     add_hybrid_argument(parser, "value", group_required=False,
                         help="new node attribute value, in {0} format. You can specify in bash pipe: "
                              "\"cat file_with_value | yt set //tmp/my_node\"".format(YT_ARGUMENTS_FORMAT))
@@ -510,19 +514,15 @@ def add_copy_parser(add_parser):
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
 
-@copy_docstring_from(yt.move)
-def move(**args):
-    args["preserve_account"] = not args.pop("no_preserve_account")
-    yt.move(**args)
-
 def add_move_parser(add_parser):
-    parser = add_parser("move", move)
+    parser = add_parser("move", yt.move)
 
     add_ypath_argument(parser, "source_path", help="old node address, path must exist", hybrid=True)
     add_ypath_argument(parser, "destination_path", help="new node address, path must not exist", hybrid=True)
 
-    parser.add_argument("--no-preserve-account", action="store_true",
-                        help="do not preserve account of moved nodes")
+    preserve_account_parser = parser.add_mutually_exclusive_group(required=False)
+    preserve_account_parser.add_argument("--preserve-account", dest="preserve_account", default=None, action="store_true")
+    preserve_account_parser.add_argument("--no-preserve-account", dest="preserve_account", default=None, action="store_false")
     parser.add_argument("--preserve-expiration-time", action="store_true",
                         help="preserve expiration time of moved nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
@@ -553,10 +553,16 @@ def tablet_args(parser):
 def add_mount_table_parser(add_parser):
     parser = add_parser("mount-table", yt.mount_table)
     tablet_args(parser)
-    parser.add_argument("--cell-id", help="tablet cell id where the tablets will be mounted to, "
-                                          "if omitted then an appropriate cell is chosen automatically")
     parser.add_argument("--freeze", action="store_true")
     parser.add_argument("--sync", action="store_true")
+    cell_id_parser = parser.add_mutually_exclusive_group(required=False)
+    cell_id_parser.add_argument("--cell-id",
+        help="tablet cell id where the tablets will be mounted to, "
+             "if omitted then an appropriate cell is chosen automatically")
+    cell_id_parser.add_argument("--target-cell-ids", nargs="+",
+        help="tablet cell id for each tablet in range "
+             "[first-tablet-index, last-tablet-index]. Should be used if exact "
+             "destination cell for each tablet is known.")
 
 def add_unmount_table_parser(add_parser):
     parser = add_parser("unmount-table", yt.unmount_table)
@@ -655,6 +661,7 @@ def add_lookup_rows_parser(add_parser):
         parser = add_parser(name, lookup_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
+        parser.add_argument("--versioned", action="store_true", help="return all versions of the requested rows")
         parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin))
 
 
@@ -853,17 +860,21 @@ def add_shuffle_parser(add_parser):
     parser.add_argument("--print-statistics", action="store_true", default=False)
     parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
 
-@copy_docstring_from(yt.start_clickhouse_clique)
-def start_clickhouse_clique_handler(*args, **kwargs):
-    op = yt.start_clickhouse_clique(*args, **kwargs)
-    print(op.id)
-
-def add_start_clickhouse_clique_parser(add_parser):
-    parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler)
-    parser.add_argument("--instance-count", required=True, type=int)
-    parser.add_argument("--cypress-ytserver-clickhouse-path")
-    parser.add_argument("--host-ytserver-clickhouse-path")
-    add_structured_argument(parser, "--spec")
+@copy_docstring_from(yt.start_clickhouse_clique) 
+def start_clickhouse_clique_handler(*args, **kwargs): 
+    op = yt.start_clickhouse_clique(*args, **kwargs) 
+    print(op.id) 
+ 
+def add_start_clickhouse_clique_parser(add_parser): 
+    parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler) 
+    parser.add_argument("--instance-count", required=True, type=int) 
+    parser.add_argument("--cypress-ytserver-clickhouse-path") 
+    parser.add_argument("--host-ytserver-clickhouse-path") 
+    parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config") 
+    parser.add_argument("--cpu-limit", default=clickhouse.DEFAULT_CPU_LIMIT, type=int) 
+    parser.add_argument("--memory-limit", default=clickhouse.DEFAULT_MEMORY_LIMIT, type=int) 
+    add_structured_argument(parser, "--spec") 
+    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch") 
 
 def add_map_reduce_parser(add_parser):
     MAP_REDUCE_EPILOG = '''Options --mapper, --reducer, --combiner specify bash commands to run.
@@ -1132,6 +1143,9 @@ def add_list_jobs_parser(add_parser):
     parser.add_argument("--sort-order", help='sort order. Can be either "ascending" or "descending"')
     parser.add_argument("--limit", type=int, help="output limit")
     parser.add_argument("--offset", type=int, help="offset starting from zero")
+    parser.add_argument("--with-spec", default=None, action="store_true")
+    parser.add_argument("--with-stderr", default=None, action="store_true")
+    parser.add_argument("--with-fail-context", default=None, action="store_true")
     parser.add_argument("--include-cypress", action="store_true",
                         help='include jobs from Cypress in result. Have effect only if --data-source is set to "manual"')
     parser.add_argument("--include-runtime", action="store_true",
@@ -1342,7 +1356,7 @@ def main():
         yt.config["proxy"]["url"] = config_args.proxy
     if config_args.prefix is not None:
         yt.config["prefix"] = config_args.prefix
-    yt.config.COMMAND_PARAMS["trace"] = bool_to_string(config_args.trace)
+    yt.config.COMMAND_PARAMS["trace"] = config_args.trace
     yt.config.update_config(config_args.config)
 
     yt.config["default_value_of_raw_option"] = True

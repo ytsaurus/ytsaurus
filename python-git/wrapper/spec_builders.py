@@ -2,12 +2,12 @@ from .batch_helpers import batch_apply
 from .batch_response import apply_function_to_result
 from .config import get_config
 from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
-                     get_value, unlist, get_started_by, bool_to_string,
-                     parse_bool, is_prefix, require, YtError, update, deprecated)
+                     get_value, unlist, get_started_by,
+                     parse_bool, is_prefix, require, YtError, update)
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .file_commands import LocalFile, _touch_file_in_cache
-from .ypath import TablePath
+from .ypath import TablePath, FilePath
 from .py_wrapper import OperationParameters
 from .table_commands import is_empty, is_sorted
 from .table_helpers import (FileUploader, _prepare_operation_formats, _is_python_function,
@@ -134,7 +134,7 @@ class Finalizer(object):
             table = TablePath(table, client=self.client)
             table.attributes.clear()
             try:
-                spec = {"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job}
+                spec = {"combine_chunks": True, "data_size_per_job": data_size_per_job}
                 if "pool" in self.spec:
                     spec["pool"] = self.spec["pool"]
                 run_merge(source_table=table, destination_table=table, mode=mode, spec=spec, client=self.client)
@@ -375,6 +375,18 @@ class UserJobSpecBuilder(object):
                 result[key] = self._spec[key]
         return result
 
+    def __deepcopy__(self, memodict=None):
+        # Used to not copy user command.
+        result = type(self)()
+
+        for attr_name, attr_value in iteritems(self.__dict__):
+            if attr_name == "_spec":
+                continue
+            setattr(result, attr_name, deepcopy(attr_value, memo=memodict))
+
+        result._spec = self._deepcopy_spec()
+        return result
+
     def _end_script(self):
         assert self._spec_builder is not None
         spec_builder = self._spec_builder
@@ -383,7 +395,7 @@ class UserJobSpecBuilder(object):
         builder_func(self)
         return spec_builder
 
-    def _prepare_job_files(self, spec, group_by, operation_type, local_files_to_remove, uploaded_files, input_format,
+    def _prepare_job_files(self, spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files, input_format,
                            output_format, input_table_count, output_table_count, client):
         file_uploader = FileUploader(client=client)
         local_files = []
@@ -405,6 +417,7 @@ class UserJobSpecBuilder(object):
             operation_type=operation_type,
             job_type=self._job_type,
             group_by=group_by,
+            should_process_key_switch=should_process_key_switch,
             input_table_count=input_table_count,
             output_table_count=output_table_count,
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False))
@@ -435,7 +448,7 @@ class UserJobSpecBuilder(object):
         file_paths = []
         file_paths += flatten(local_files)
         file_paths += flatten(prepare_result.files)
-        file_paths += list(imap(lambda path: TablePath(path, client=client), files))
+        file_paths += list(imap(lambda path: FilePath(path, client=client), files))
         if file_paths:
             spec["file_paths"] = file_paths
         if "local_files" in spec:
@@ -508,33 +521,44 @@ class UserJobSpecBuilder(object):
     def _apply_spec_patch(self, spec):
         self._spec_patch = update(spec, self._spec_patch)
 
-    def build(self, input_tables, output_tables, operation_type, requires_command, requires_format,
+    def build(self, input_tables, output_tables, operation_type, requires_command, requires_format, job_io_spec,
               local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
         spec = update(self._spec_patch, self._deepcopy_spec())
         self._spec_patch = {}
 
+        if job_io_spec is not None:
+            enable_key_switch = job_io_spec.get("control_attributes", {}).get("enable_key_switch")
+        else:
+            enable_key_switch = False
+
         if "command" not in spec and not requires_command:
             return None
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
 
+        should_process_key_switch = False
         if requires_format:
             format_ = spec.pop("format", None)
             input_format, output_format = _prepare_operation_formats(
                 format_, spec.get("input_format"), spec.get("output_format"), spec["command"],
                 input_tables, output_tables, client)
+            if getattr(input_format, "control_attributes_mode", None) == "iterator" and _is_python_function(spec["command"]) and (enable_key_switch is None or enable_key_switch) and group_by is not None:
+                if "control_attributes" not in job_io_spec:
+                    job_io_spec["control_attributes"] = {}
+                job_io_spec["control_attributes"]["enable_key_switch"] = True
+                should_process_key_switch = True
             spec["input_format"] = input_format.to_yson_type()
             spec["output_format"] = output_format.to_yson_type()
         else:
             input_format, output_format = None, None
 
         spec = self._prepare_ld_library_path(spec, client)
-        spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, operation_type, local_files_to_remove, uploaded_files,
+        spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
                                                               input_format, output_format, len(input_tables), len(output_tables), client)
         spec.setdefault("use_yamr_descriptors",
-                        bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]))
+                        get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"])
         spec.setdefault("check_input_fully_consumed",
-                        bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"]))
+                        get_config(client)["yamr_mode"]["check_input_fully_consumed"])
         spec = self._prepare_tmpfs(spec, tmpfs_size, disk_size, client)
         spec = self._prepare_memory_limit(spec, client)
         return spec
@@ -705,20 +729,23 @@ class SpecBuilder(object):
     def _prepare_tables(self, spec, single_output_table=False, replace_unexisting_by_empty=True, client=None):
         require("input_table_paths" in spec,
                 lambda: YtError("You should specify input_table_paths"))
-        input_table_paths = _prepare_source_tables(spec["input_table_paths"],
-                                                   replace_unexisting_by_empty=replace_unexisting_by_empty,
-                                                   client=client)
-        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), input_table_paths))
+
+        self._input_table_paths = _prepare_source_tables(
+            spec["input_table_paths"],
+            replace_unexisting_by_empty=replace_unexisting_by_empty,
+            client=client)
+        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), self._input_table_paths))
 
         output_tables_param = "output_table_path" if single_output_table else "output_table_paths"
         require(output_tables_param in spec,
                 lambda: YtError("You should specify {0}".format(output_tables_param)))
-        output_table_path = _prepare_destination_tables(spec[output_tables_param], client=client)
-        spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), output_table_path))
+        self._output_table_paths = _prepare_destination_tables(spec[output_tables_param], client=client)
         if single_output_table:
-            spec[output_tables_param] = unlist(spec[output_tables_param])
+            spec[output_tables_param] = self._output_table_paths[0].to_yson_type()
+        else:
+            spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), self._output_table_paths))
 
-    def _build_user_job_spec(self, spec, job_type, input_tables, output_tables,
+    def _build_user_job_spec(self, spec, job_type, job_io_type, input_tables, output_tables,
                              requires_command=True, requires_format=True, group_by=None, client=None):
         if isinstance(spec[job_type], UserJobSpecBuilder):
             job_spec_builder = spec[job_type]
@@ -730,12 +757,13 @@ class SpecBuilder(object):
                                                     output_tables=output_tables,
                                                     requires_command=requires_command,
                                                     requires_format=requires_format,
+                                                    job_io_spec=spec.get(job_io_type),
                                                     client=client)
             if spec[job_type] is None:
                 del spec[job_type]
         return spec
 
-    def _build_job_io(self, spec, job_io_type="job_io", client=None):
+    def _build_job_io(self, spec, job_io_type, client=None):
         table_writer = None
         if job_io_type in spec:
             if isinstance(spec.get(job_io_type), JobIOSpecBuilder):
@@ -801,16 +829,6 @@ class SpecBuilder(object):
             spec = update({"pool": get_config(client)["pool"]}, spec)
         if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
             spec = update({"data_size_per_job": 4 * GB}, spec)
-
-        if "input_table_path" in spec:
-            self._input_table_paths = [spec["input_table_path"]]
-        elif "input_table_paths" in spec:
-            self._input_table_paths = spec["input_table_paths"]
-
-        if "output_table_path" in spec:
-            self._output_table_paths = [spec["output_table_path"]]
-        elif "output_table_paths" in spec:
-            self._output_table_paths = spec["output_table_paths"]
 
         self._prepared_spec = spec
 
@@ -931,6 +949,7 @@ class ReduceSpecBuilder(SpecBuilder):
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
+                                             job_io_type="job_io",
                                              input_tables=self.get_input_table_paths(),
                                              output_tables=self.get_output_table_paths(),
                                              group_by=group_by,
@@ -1005,6 +1024,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
+                                             job_io_type="job_io",
                                              input_tables=self.get_output_table_paths(),
                                              output_tables=self.get_output_table_paths(),
                                              group_by=spec.get("join_by"),
@@ -1064,9 +1084,6 @@ class MapSpecBuilder(SpecBuilder):
         spec = self._apply_user_spec(spec)
 
         self._prepare_tables(spec, client=client)
-        if "ordered" in spec:
-            spec["ordered"] = bool_to_string(spec["ordered"])
-
         self._prepare_spec(spec, client=client)
 
     def build(self, client=None):
@@ -1077,6 +1094,7 @@ class MapSpecBuilder(SpecBuilder):
         if "mapper" in spec:
             spec = self._build_user_job_spec(spec=spec,
                                              job_type="mapper",
+                                             job_io_type="job_io",
                                              input_tables=self.get_input_table_paths(),
                                              output_tables=self.get_output_table_paths(),
                                              client=client)
@@ -1237,6 +1255,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         if "mapper" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="mapper",
+                                             job_io_type="map_job_io",
                                              input_tables=self.get_input_table_paths(),
                                              output_tables=mapper_output_tables,
                                              requires_command=False,
@@ -1244,6 +1263,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         if "reducer" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reducer",
+                                             job_io_type="reduce_job_io",
                                              input_tables=[None],
                                              output_tables=reducer_output_tables,
                                              group_by=spec.get("reduce_by"),
@@ -1251,6 +1271,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         if "reduce_combiner" in spec:
             spec = self._build_user_job_spec(spec,
                                              job_type="reduce_combiner",
+                                             job_io_type="reduce_job_io",
                                              input_tables=[None],
                                              output_tables=[None],
                                              group_by=spec.get("reduce_by"),
@@ -1319,11 +1340,13 @@ class MergeSpecBuilder(SpecBuilder):
         spec = self._apply_user_spec(spec)
 
         self._prepare_tables(spec, single_output_table=True, replace_unexisting_by_empty=False, client=client)
+
         mode = get_value(spec.get("mode"), "auto")
         if mode == "auto":
-            mode = "sorted" if all(batch_apply(_is_tables_sorted, spec.get("input_table_paths"),
+            mode = "sorted" if all(batch_apply(_is_tables_sorted, self.get_input_table_paths(),
                                                client=client)) else "ordered"
         spec["mode"] = mode
+
         self._prepare_spec(spec, client=client)
 
 class SortSpecBuilder(SpecBuilder):
@@ -1418,27 +1441,29 @@ class SortSpecBuilder(SpecBuilder):
         return self
 
     def _prepare_tables_to_sort(self, spec, client=None):
-        input_table_paths = _prepare_source_tables(spec["input_table_paths"],
-                                                   replace_unexisting_by_empty=False,
-                                                   client=client)
+        self._input_table_paths = _prepare_source_tables(
+            spec["input_table_paths"],
+            replace_unexisting_by_empty=False,
+            client=client)
 
-        exists_results = batch_apply(exists, input_table_paths, client=client)
-        for table, exists_result in izip(input_table_paths, exists_results):
+        exists_results = batch_apply(exists, self._input_table_paths, client=client)
+        for table, exists_result in izip(self._input_table_paths, exists_results):
             require(exists_result, lambda: YtError("Table %s should exist" % table))
 
-        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), input_table_paths))
-        if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not input_table_paths:
+        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), self._input_table_paths))
+        if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not self._input_table_paths:
             return spec
 
         if "output_table_path" not in spec:
-            require(len(input_table_paths) == 1,
+            require(len(self._input_table_paths) == 1,
                     lambda: YtError("You must specify destination sort table in case of multiple source tables"))
-            require(not input_table_paths[0].has_delimiters(),
+            require(not self._input_table_paths[0].has_delimiters(),
                     lambda: YtError("Source table must not have delimiters in case of inplace sort"))
-            spec["output_table_path"] = input_table_paths[0]
+            spec["output_table_path"] = self._input_table_paths[0]
 
-        output_table_path = _prepare_destination_tables(spec["output_table_path"], client=client)
-        spec["output_table_path"] = unlist(output_table_path)
+        self._output_table_paths = _prepare_destination_tables(spec["output_table_path"], client=client)
+        spec["output_table_path"] = self._output_table_paths[0].to_yson_type()
+
         return spec
 
     def prepare(self, client=None):
@@ -1446,7 +1471,7 @@ class SortSpecBuilder(SpecBuilder):
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
 
-        require("input_table_paths" in spec, lambda: YtError("You should specify input_table_paths"))
+        require("input_table_paths" in spec, lambda: YtError("You should specify \"input_table_paths\""))
 
         spec = self._prepare_tables_to_sort(spec, client=client)
         spec["sort_by"] = _prepare_sort_by(spec.get("sort_by"), client=client)
@@ -1576,6 +1601,7 @@ class VanillaSpecBuilder(SpecBuilder):
         for task in self._user_job_scripts:
             spec["tasks"] = self._build_user_job_spec(spec=spec["tasks"],
                                                       job_type=task,
+                                                      job_io_type=None,
                                                       input_tables=[],
                                                       output_tables=[],
                                                       client=client,

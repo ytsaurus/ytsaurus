@@ -1,5 +1,5 @@
 from .etc_commands import parse_ypath
-from .common import flatten, bool_to_string, parse_bool, update, require
+from .common import flatten, parse_bool, update, require
 from .errors import YtError
 from .config import get_config
 
@@ -118,7 +118,7 @@ class YPath(object):
     """
     def __init__(self,
                  path,
-                 simplify=True,
+                 simplify=None,
                  attributes=None,
                  client=None):
         """
@@ -126,6 +126,9 @@ class YPath(object):
         :param dict attributes: additinal attributes.
         :param bool simplify: perform parsing of given path.
         """
+
+        if simplify is None:
+            simplify = True
 
         if isinstance(path, YPath):
             self._path_object = deepcopy(path._path_object)
@@ -218,7 +221,7 @@ class YPathSupportingAppend(YPath):
     def append(self, value):
         self._append = value
         if self._append is not None:
-            self.attributes["append"] = bool_to_string(self._append)
+            self.attributes["append"] = self._append
         else:
             if "append" in self.attributes:
                 del self.attributes["append"]
@@ -259,7 +262,8 @@ class TablePath(YPathSupportingAppend):
                  ranges=None,
                  schema=None,
                  foreign=None,
-                 simplify=True,
+                 rename_columns=None,
+                 simplify=None,
                  attributes=None,
                  client=None):
         """
@@ -300,7 +304,8 @@ class TablePath(YPathSupportingAppend):
             attributes["schema"] = schema
         if foreign is not None:
             attributes["foreign"] = foreign
-
+        if rename_columns is not None:
+            attributes["rename_columns"] = rename_columns
 
         if ranges is not None:
             def _check_option(value, option_name):
@@ -360,6 +365,14 @@ class TablePath(YPathSupportingAppend):
     @ranges.setter
     def ranges(self, value):
         self.attributes["ranges"] = value
+
+    @property
+    def rename_columns(self):
+        return self.attributes.get("rename_columns", [])
+
+    @rename_columns.setter
+    def rename_columns(self, value):
+        self.attributes["rename_columns"] = value
 
     def canonize_exact_ranges(self):
         """Replaces all "exact" ranges with "lower_limit" and "upper_limit"."""

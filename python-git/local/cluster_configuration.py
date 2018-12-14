@@ -204,7 +204,11 @@ NODE_CONFIG_PATCHES = [
         "cell_directory_synchronizer": None,
         "exec_agent": {
             "scheduler_connector": {
-                "unsuccess_heartbeat_backoff_time": 50
+                # COMPAT(babenko): drop unsuccess_heartbeat_backoff_time
+                "unsuccess_heartbeat_backoff_time": 50,
+                "failed_heartbeat_backoff_start_time": 50,
+                "failed_heartbeat_backoff_max_time": 50,
+                "failed_heartbeat_backoff_multiplier": 1.0
             }
         }
     }

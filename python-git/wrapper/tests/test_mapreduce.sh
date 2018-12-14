@@ -327,8 +327,10 @@ test_spec()
         -dst "ignat/output"
 
     op_id="`$MAPREDUCE_YT -read "ignat/output" | tr -d '[[:space:]]'`"
-    check "10" "`$MAPREDUCE_YT -get "//sys/operations/${op_id}/@spec/opt1"`"
-    check "0.5" "`$MAPREDUCE_YT -get "//sys/operations/${op_id}/@spec/opt2" | python2 -c 'import sys, json; print json.loads(sys.stdin.read())["$value"]'`"
+    op_dir=${op_id:$((${#op_id}-2)):2}
+    op_path="//sys/operations/${op_dir}/${op_id}"
+    check "10" "`$MAPREDUCE_YT -get "${op_path}/@spec/opt1"`"
+    check "0.5" "`$MAPREDUCE_YT -get "${op_path}/@spec/opt2" | python2 -c 'import sys, json; print json.loads(sys.stdin.read())["$value"]'`"
 
     YT_SPEC='{"opt3": "hello", "opt4": {"$attributes": {}, "$value": null}}' $MAPREDUCE_YT \
         -map 'cat >/dev/null; echo -e "${YT_OPERATION_ID}\t"' \
@@ -336,8 +338,10 @@ test_spec()
         -dst "ignat/output"
 
     op_id="`$MAPREDUCE_YT -read "ignat/output" | tr -d '[[:space:]]'`"
-    check '"hello"' "`$MAPREDUCE_YT -get "//sys/operations/${op_id}/@spec/opt3"`"
-    check 'null' "`$MAPREDUCE_YT -get "//sys/operations/${op_id}/@spec/opt4"`"
+    op_dir=${op_id:$((${#op_id}-2)):2}
+    op_path="//sys/operations/${op_dir}/${op_id}"
+    check '"hello"' "`$MAPREDUCE_YT -get "${op_path}/@spec/opt3"`"
+    check 'null' "`$MAPREDUCE_YT -get "${op_path}/@spec/opt4"`"
 
     YT_USE_YAMR_DEFAULTS=1 $MAPREDUCE_YT \
         -map 'cat >/dev/null; echo -e "${YT_OPERATION_ID}\t"' \
@@ -346,7 +350,9 @@ test_spec()
         -dst "ignat/output"
 
     op_id="`$MAPREDUCE_YT -read "ignat/output" | tr -d '[[:space:]]'`"
-    check '1234567890' "`$MAPREDUCE_YT -get "//sys/operations/${op_id}/@spec/mapper/memory_limit"`"
+    op_dir=${op_id:$((${#op_id}-2)):2}
+    op_path="//sys/operations/${op_dir}/${op_id}"
+    check '1234567890' "`$MAPREDUCE_YT -get "${op_path}/@spec/mapper/memory_limit"`"
 }
 
 test_smart_format()

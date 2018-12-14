@@ -8,6 +8,7 @@ from yt.local.commands import _START_DEFAULTS, get_main_process_pid_file_path
 
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
+import yt.yson as yson
 
 import argparse
 import logging
@@ -17,6 +18,8 @@ import os
 import errno
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
+
+SERVICE_LIST = ("master", "node", "scheduler", "proxy", "controller-agent")
 
 logger = logging.getLogger("Yt.local")
 
@@ -93,6 +96,25 @@ def start_func(**kwargs):
     if sync:
         kwargs["set_pdeath_sig"] = True
 
+    for service in SERVICE_LIST:
+        service_undescore = service.replace("-", "_")
+        path_arg_key = service_undescore + "_config_path"
+        arg_key = service_undescore + "_config"
+        if arg_key in kwargs and kwargs[arg_key] is not None:
+            ok = True
+            try:
+                config = yson._loads_from_native_str(kwargs[arg_key])
+                if not isinstance(config, dict):
+                    ok = False
+            except yson.YsonError:
+                ok = False
+            if ok:
+                kwargs[arg_key] = config
+        if path_arg_key in kwargs:
+            if kwargs[path_arg_key] is not None:
+                kwargs[arg_key] = kwargs[path_arg_key]
+            del kwargs[path_arg_key]
+
     environment = start(**kwargs)
 
     if sync:
@@ -135,8 +157,10 @@ def add_start_subparser(subparsers):
     parser.add_argument("--node-count", type=int, default=_USE_START_DEFAULT, help="number of nodes")
     parser.add_argument("--scheduler-count", type=int, default=_USE_START_DEFAULT, help="number of schedulers")
 
-    for service in ["master", "node", "scheduler", "proxy", "controller-agent"]:
-        parser.add_argument("--{0}-config".format(service), help="{0} config path".format(service))
+    for service in SERVICE_LIST:
+        config_parser = parser.add_mutually_exclusive_group(required=False)
+        config_parser.add_argument("--{0}-config".format(service), help="{0} config".format(service))
+        config_parser.add_argument("--{0}-config-path".format(service), help="{0} config path".format(service))
 
     parser.add_argument("--sync", action="store_true", default=False,
                         help="start in synchronized mode (hangs up console and prints info there)")
@@ -150,6 +174,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--use-proxy-from-yt-source", action="store_true", default=False,
                         help="Do not start proxy from package, start from YT source tree using run_proxy.sh. "
                              "Can be specified through YT_LOCAL_USE_PROXY_FROM_SOURCE.")
+    parser.add_argument("--use-new-proxy", action="store_true", default=False,
+                        help="Use C++ implementation of http proxy.")
     parser.add_argument("--no-proxy", action="store_true", default=False, help="do not start proxy")
     parser.add_argument("--proxy-port", type=int, help="proxy port for http requests")
     parser.add_argument("--rpc-proxy", action="store_true", default=False, help="start rpc proxy")
