@@ -1,6 +1,6 @@
 from .config import get_config, get_command_param
 from .driver import make_request, make_formatted_request
-from .common import update, bool_to_string, get_value, get_started_by
+from .common import update, get_value, get_started_by
 
 def transaction_params(transaction, client=None):
     return {"ping_ancestor_transactions": get_command_param("ping_ancestor_transactions", client),
@@ -31,7 +31,7 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, ty
         params["timeout"] = int(timeout)
     params["attributes"] = update(get_started_by(), get_value(attributes, {}))
     params["type"] = type
-    params["sticky"] = bool_to_string(sticky)
+    params["sticky"] = sticky
     return make_formatted_request("start_tx", params, None, client=client)
 
 def abort_transaction(transaction, sticky=False, client=None):

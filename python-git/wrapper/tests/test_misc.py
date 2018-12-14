@@ -188,10 +188,13 @@ class TestMutations(object):
             time.sleep(1.0) # Wait for aborting transactions
 
         def get_operation_count():
-            return len([
-                elem
-                for elem in yt.list("//sys/operations", attributes=["state"])
-                if "state" in elem.attributes])
+            operations = yt.get("//sys/operations")
+            count = 0
+            for key in operations:
+                if len(key) != 2:
+                    continue
+                count += len(operations[key])
+            return count
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -292,9 +295,6 @@ class TestRetries(object):
             yt.config["read_retries"]["enable"] = old_value
 
     def test_read_ranges_with_retries(self, yt_env):
-        old_value = yt.config["read_retries"]["enable"], yt.config["read_retries"]["allow_multiple_ranges"]
-        yt.config["read_retries"]["enable"] = True
-        yt.config["read_retries"]["allow_multiple_ranges"] = True
         yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
         try:
             table = TEST_DIR + "/table"
@@ -314,7 +314,7 @@ class TestRetries(object):
                 [{"x": elem["x"]} for elem in yt.read_table(table + '[#0,"2":"1",#2,#1,1:3]', format=yt.YsonFormat())]
 
             assert [{"x": 1}, {"x": 3}, {"x": 2}, {"x": 1}, {"x": 2}] == \
-                list(yt.read_table(table + '[#0,"2":"1",#2,#1,1:3]', format=yt.YsonFormat(process_table_index=False)))
+                list(yt.read_table(table + '[#0,"2":"1",#2,#1,1:3]', format=yt.YsonFormat()))
 
             assert [to_yson_type(None, attributes={"range_index": 0}),
                     to_yson_type(None, attributes={"row_index": 0}),
@@ -322,7 +322,7 @@ class TestRetries(object):
                     to_yson_type(None, attributes={"range_index": 1}),
                     to_yson_type(None, attributes={"row_index": 2}),
                     {"x": 3}] == \
-                list(yt.read_table(table + "[#0,#2]", format=yt.YsonFormat(process_table_index=False),
+                list(yt.read_table(table + "[#0,#2]", format=yt.YsonFormat(control_attributes_mode="none"),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             assert [{"$attributes": {"range_index": 0}, "$value": None},
@@ -331,16 +331,16 @@ class TestRetries(object):
                     {"$attributes": {"range_index": 1}, "$value": None},
                     {"$attributes": {"row_index": 2}, "$value": None},
                     {"x": 3}] == \
-                list(yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(process_table_index=False),
+                list(yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(control_attributes_mode="none"),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             assert [{"x": 1, "@row_index": 0, "@range_index": 0, "@table_index": None},
                     {"x": 3, "@row_index": 2, "@range_index": 1, "@table_index": None}] == \
-                list(yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(process_table_index=True),
+                list(yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(control_attributes_mode="row_fields"),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             with pytest.raises(yt.YtError):
-                list(yt.read_table(table + "[#0,2]", raw=False, format=yt.YsonFormat(process_table_index=False), unordered=True))
+                list(yt.read_table(table + "[#0,2]", raw=False, format=yt.YsonFormat(), unordered=True))
 
             assert [b"x=2\n", b"x=3\n"] == list(yt.read_table(table + "[2:]", raw=True, format=yt.DsvFormat()))
 
@@ -349,8 +349,6 @@ class TestRetries(object):
 
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
-            yt.config["read_retries"]["enable"] = old_value[0]
-            yt.config["read_retries"]["allow_multiple_ranges"] = old_value[1]
 
     def test_read_parallel_with_retries(self):
         with set_config_option("read_parallel/enable", True):

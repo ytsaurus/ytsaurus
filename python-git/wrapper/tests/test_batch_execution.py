@@ -179,7 +179,7 @@ class TestBatchExecution(object):
 
     def test_transactions(self):
         table = TEST_DIR + "/batch_node/test_transaction_table"
-        new_client = yt.YtClient(token=yt.config["token"], config=yt.config)
+        new_client = yt.YtClient(token=yt.config["token"], config=yt.config.config)
 
         with yt.Transaction():
             client = create_batch_client()

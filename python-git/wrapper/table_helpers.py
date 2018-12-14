@@ -15,7 +15,7 @@ from .skiff import convert_to_skiff_schema
 import yt.logger as logger
 import yt.yson as yson
 
-from yt.packages.six import text_type, binary_type, PY3
+from yt.packages.six import text_type, binary_type, PY3, string_types
 from yt.packages.six.moves import map as imap, zip as izip
 
 import time
@@ -27,7 +27,10 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
-import collections
+try:
+    from collections import Iterable, Iterator
+except ImportError:
+    from collections.abc import Iterable, Iterator
 import itertools
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
@@ -46,7 +49,7 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
                 raise YtError("Cannot split unicode string into chunks, consider encoding it first")
         stream = BytesIO(stream)
 
-    iterable_types = [list, types.GeneratorType, collections.Iterator, collections.Iterable]
+    iterable_types = [list, types.GeneratorType, Iterator, Iterable]
 
     is_iterable = isinstance(stream, tuple(iterable_types))
     is_filelike = hasattr(stream, "read")
@@ -79,8 +82,8 @@ def _prepare_command_format(format, raw, client):
     if format is None:
         format = get_config(client)["tabular_data_format"]
     if not raw and format is None:
-        format = YsonFormat(process_table_index=False, boolean_as_string=False)
-    if isinstance(format, str):
+        format = YsonFormat()
+    if isinstance(format, string_types):
         format = create_format(format)
 
     require(format is not None,
@@ -181,7 +184,7 @@ def _is_python_function(binary):
 def _prepare_format(format, default_format=None):
     if format is None:
         return default_format
-    if isinstance(format, str):
+    if isinstance(format, string_types):
         return create_format(format)
     return format
 
@@ -198,7 +201,13 @@ def _get_skiff_schema_from_tables(tables, client):
         if table is None:
             return None
         try:
-            return get(table + "/@schema", client=client)
+            schema = get(table + "/@schema", client=client)
+            rename_columns = table.attributes.get("rename_columns")
+            if rename_columns is not None:
+                for column in schema:
+                    if column["name"] in rename_columns:
+                        column["name"] = rename_columns[column["name"]]
+            return schema
         except YtError as err:
             if err.is_resolve_error():
                 return None
@@ -220,7 +229,7 @@ def _prepare_default_format(binary, format_type, tables, client):
             return SkiffFormat(skiff_schema)
     format = _prepare_format(get_config(client)["tabular_data_format"])
     if format is None and is_python_function:
-        return YsonFormat(boolean_as_string=False)
+        return YsonFormat()
     if format is None:
         raise YtError("You should specify " + format_type)
     return format

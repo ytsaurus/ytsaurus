@@ -1,4 +1,4 @@
-from .common import update, get_value, remove_nones_from_dict, YtError
+from .common import get_value, YtError
 from .config import get_config, get_option
 from .errors import YtChunkUnavailable
 from .format import YtFormatReadError
@@ -85,6 +85,7 @@ class ParallelReader(object):
 
     def close(self):
         self._pool.close()
+        self._pool = None
         if self._transaction:
             self._transaction.abort()
 

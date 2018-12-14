@@ -80,6 +80,9 @@ test_cypress_commands()
     $YT set //home/wrapper_test/folder/@attr '{"attr": 10}' --format json
     check '{"attr":10}' $($YT get //home/wrapper_test/folder/@attr --format json)
 
+    $YT set //home/wrapper_test/other_folder/my_dir '{}' --recursive --force
+    check 'true' "$($YT exists //home/wrapper_test/other_folder/my_dir)"
+
     $YT create file //home/wrapper_test/file_with_attrs --attributes "{testattr=1;other=2}" --ignore-existing
     check "//home/wrapper_test/file_with_attrs" "$($YT find //home/wrapper_test --attribute-filter "testattr=1")"
     check "" "$($YT find //home/wrapper_test --attribute-filter "attr=1")"
@@ -174,12 +177,12 @@ test_copy_move_link()
     check '"test"' "$($YT get //home/wrapper_test/other_table/@account)"
     $YT remove //home/wrapper_test/other_table
 
-    $YT move //home/wrapper_test/table //home/wrapper_test/other_table
+    $YT move //home/wrapper_test/table //home/wrapper_test/other_table --preserve-account
     check '"test"' "$($YT get //home/wrapper_test/other_table/@account)"
     $YT remove //home/wrapper_test/other_table
 
     $YT create table //home/wrapper_test/table --attributes '{account=test}'
-    $YT move //home/wrapper_test/table //home/wrapper_test/other_table --no-preserve-account
+    $YT move //home/wrapper_test/table //home/wrapper_test/other_table
     check '"sys"' "$($YT get //home/wrapper_test/other_table/@account)"
     $YT remove //home/wrapper_test/other_table
 

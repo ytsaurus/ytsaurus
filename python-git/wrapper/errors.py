@@ -65,6 +65,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtNoSuchTablet
         if self.is_tablet_not_mounted():
             self.__class__ = YtTabletNotMounted
+        if self.is_rpc_unavailable():
+            self.__class__ = YtRpcUnavailable
 
 class YtHttpResponseError(YtResponseError):
     """Reponse error recieved from http proxy with additional http request information."""
@@ -92,6 +94,12 @@ class YtRequestRateLimitExceeded(YtHttpResponseError):
 
 class YtRequestQueueSizeLimitExceeded(YtHttpResponseError):
     """Request queue size limit exceeded error.
+       It is used in retries.
+    """
+    pass
+
+class YtRpcUnavailable(YtHttpResponseError):
+    """Rpc unavailable error.
        It is used in retries.
     """
     pass

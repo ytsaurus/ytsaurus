@@ -16,13 +16,13 @@ def write_statistics(dict):
         sys.stderr.write("Failed to write user statistics\n")
 
 def _get_field(path, name):
-    data = open(path, "rb").read()
+    data = open(path, "r").read()
     for line in data.split("\n"):
         if line.startswith(name):
             return int(line.split()[1])
 
 def _get_value(path):
-    return int(open(path, "rb").read())
+    return int(open(path, "r").read())
 
 def get_blkio_cgroup_statistics():
     """Returns map with blkio statistics from cgroup."""
@@ -37,6 +37,7 @@ def get_blkio_cgroup_statistics():
 
 def get_memory_cgroup_statistics():
     """Returns map with memory statistics from cgroups."""
+    # TODO(ignat): this env variable does not exist anymore. YT-9716.
     memory_cgroup_path = os.environ.get("YT_CGROUP_MEMORY")
     if not memory_cgroup_path:
         return {}

@@ -1,7 +1,7 @@
 import yt.logger as logger
 from .config import get_config, get_option, get_backend_type
-from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param, get_value, \
-                    update, remove_nones_from_dict
+from .common import require, chunk_iter_stream, chunk_iter_string, parse_bool, set_param, get_value
+from .driver import _create_http_client_from_rpc
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .http_helpers import get_api_commands
 from .heavy_commands import make_write_request, make_read_request
@@ -119,6 +119,9 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
     :param int length: length in bytes of desired part of input file, all file without offset by default.
     :return: some stream over downloaded file, string generator by default.
     """
+    if get_config(client)["backend"] == "rpc":
+        client = _create_http_client_from_rpc(client, "read_file")
+
     path = FilePath(path, client=client)
     params = {"path": path}
     set_param(params, "file_reader", file_reader)
@@ -190,6 +193,8 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     :param bool force_create: unconditionally create file and ignores exsting file.
     :param bool compute_md5: compute md5 of file content.
     """
+    if get_config(client)["backend"] == "rpc":
+        client = _create_http_client_from_rpc(client, "write_file")
 
     if force_create is None:
         force_create = True
@@ -233,7 +238,7 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     if not is_one_small_blob and is_stream_compressed:
         enable_retries = False
 
-    if get_config(client)["write_parallel"]["enable"] and not is_stream_compressed:
+    if get_config(client)["write_parallel"]["enable"] and not is_stream_compressed and not compute_md5:
         force_create = True
         make_parallel_write_request(
             "write_file",
@@ -367,7 +372,7 @@ def _upload_file_to_cache_legacy(filename, hash, client=None):
         real_destination = find_free_subpath(prefix, client=client)
         attributes = {
             "hash": hash,
-            "touched": bool_to_string(True),
+            "touched": True,
             "replication_factor": replication_factor
         }
 
@@ -378,7 +383,7 @@ def _upload_file_to_cache_legacy(filename, hash, client=None):
                client=client)
         write_file(real_destination, open(filename, "rb"), force_create=False, client=client)
         link(real_destination, destination, recursive=True, ignore_existing=True,
-             attributes={"touched": bool_to_string(True)}, client=client)
+             attributes={"touched": True}, client=client)
 
     return destination
 
@@ -509,7 +514,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
         try:
             set_attribute(destination, "file_name", yt_filename, client=client)
-            set_attribute(destination, "executable", bool_to_string(executable), client=client)
+            set_attribute(destination, "executable", executable, client=client)
         except YtResponseError as error:
             if error.is_concurrent_transaction_lock_conflict() and ignore_set_attributes_error:
                 pass
@@ -519,4 +524,4 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     return to_yson_type(
         destination,
         {"file_name": yt_filename,
-         "executable": bool_to_string(executable)})
+         "executable": executable})

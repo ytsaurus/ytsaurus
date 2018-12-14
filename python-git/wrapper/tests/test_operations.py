@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
-                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait, remove_asan_warning)
+                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait, remove_asan_warning, get_operation_path)
 
 # Necessary for tests.
 try:
@@ -36,7 +36,6 @@ import logging
 import os
 import pytest
 import random
-import re
 import signal
 import string
 import sys
@@ -73,7 +72,7 @@ class CreateModulesArchive(object):
     def __call__(self, tempfiles_manager=None, custom_python_used=False):
         return create_modules_archive_default(tempfiles_manager, custom_python_used, None)
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperations(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
@@ -321,7 +320,7 @@ class TestOperations(object):
 
         yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
                       reduce_by=["x","y"], join_by=["x"],
-                      format=yt.YsonFormat(process_table_index=None))
+                      format=yt.YsonFormat())
         check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
 
         # Reduce with join_by, but without foreign tables
@@ -350,7 +349,7 @@ class TestOperations(object):
         check(op)
 
     @add_failed_operation_stderrs_to_error_message
-    def test_python_operations(self, yt_env):
+    def test_python_operations_common(self, yt_env):
         def change_x(rec):
             if "x" in rec:
                 rec["x"] = int(rec["x"]) + 1
@@ -381,12 +380,6 @@ class TestOperations(object):
                 sum += int(x)
             sys.stdout.write("sum={0}\n".format(sum))
 
-        def write_statistics(row):
-            yt.write_statistics({"row_count": 1})
-            yt.get_blkio_cgroup_statistics()
-            yt.get_memory_cgroup_statistics()
-            yield row
-
         table = TEST_DIR + "/table"
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
@@ -414,6 +407,15 @@ class TestOperations(object):
         yt.run_map(sum_x_raw, table, table, format=yt.DsvFormat())
         check(yt.read_table(table), [{"sum": "9"}])
 
+    @add_failed_operation_stderrs_to_error_message
+    def test_user_statistics_in_jobs(self):
+        def write_statistics(row):
+            yt.write_statistics({"row_count": 1})
+            assert yt.get_blkio_cgroup_statistics()
+            assert not yt.get_memory_cgroup_statistics()
+            yield row
+
+        table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         op = yt.run_map(write_statistics, table, table, format=None, sync=False)
         op.wait()
@@ -595,7 +597,7 @@ print(op.id)
 
         op_id = subprocess.check_output([get_python(), file.name, table, table],
                                         env=self.env, stderr=sys.stderr).strip()
-        wait(lambda: yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted")
+        wait(lambda: yt.get(get_operation_path(op_id) + "/@state") == "aborted")
 
     def test_abort_operation(self):
         table = TEST_DIR + "/table"
@@ -718,7 +720,7 @@ print(op.id)
         yt.write_table(table, [{"x": 1}])
         try:
             op = yt.run_map("sleep 1; cat", table, table, sync=False)
-            spec = yt.get_attribute("//sys/operations/{0}".format(op.id), "spec")
+            spec = yt.get_attribute(get_operation_path(op.id), "spec")
             assert spec["mapper"]["memory_limit"] == 123
             assert parse_bool(spec["mapper"]["check_input_fully_consumed"]) != check_input_fully_consumed
             assert parse_bool(spec["mapper"]["use_yamr_descriptors"]) != use_yamr_descriptors
@@ -842,6 +844,25 @@ print(op.id)
 
         yt.run_reduce(reducer_that_yields_key, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
         check([{"x": 1}, {"x": 2}], yt.read_table(TEST_DIR + "/other"), ordered=False)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_reduce_without_reading_all_rows(self):
+        def reducer1(key, recs):
+            yield {"x": 10}
+
+        def reducer2(key, recs):
+            next(recs)
+            yield {"x": 10}
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 1}, {"x": 1, "y": 2}, {"x": 2, "y": 3}])
+        yt.run_sort(table, table, sort_by=["x"])
+
+        yt.run_reduce(reducer1, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
+        check([{"x": 10}, {"x": 10}], yt.read_table(TEST_DIR + "/other"), ordered=False)
+
+        yt.run_reduce(reducer2, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
+        check([{"x": 10}, {"x": 10}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
     @add_failed_operation_stderrs_to_error_message
     def test_table_and_row_index_from_job(self):
@@ -1025,7 +1046,7 @@ print(op.id)
             yield rec
 
         def get_spec_option(id, name):
-            return yt.get("//sys/operations/{0}/@spec/".format(id) + name)
+            return yt.get("{}/@spec/{}".format(get_operation_path(id), name))
 
         with set_config_option("mount_sandbox_in_tmpfs/enable", True):
             table = TEST_DIR + "/table"
@@ -1341,6 +1362,9 @@ print(op.id)
             assert remove_asan_warning(stderrs[0]["stderr"]) == "AAA\n"
 
     def test_list_operations(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
         assert yt.list_operations()["operations"] == []
 
         table = TEST_DIR + "/table"
@@ -1435,9 +1459,14 @@ print(op.id)
     @add_failed_operation_stderrs_to_error_message
     def test_skiff(self):
         table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
 
         def mapper(row):
             row["y"] = row["x"] ** 2
+            yield row
+
+        def mapper2(row):
+            row["y"] = row["z"] ** 2
             yield row
 
         table_skiff_schemas = [
@@ -1487,8 +1516,8 @@ print(op.id)
         with pytest.raises(LookupError):
             result[2]["t"]
 
-        yt.run_map(mapper, table, table, format=format)
-        assert list(yt.read_table(table)) == [{"x": 3, "y": 9}, {"x": 5, "y": 25}, {"x": 0, "y": 0}]
+        yt.run_map(mapper, table, output_table, format=format)
+        assert list(yt.read_table(output_table)) == [{"x": 3, "y": 9}, {"x": 5, "y": 25}, {"x": 0, "y": 0}]
 
     @add_failed_operation_stderrs_to_error_message
     def test_skiff_multi_table(self):
@@ -1639,7 +1668,13 @@ print(op.id)
             result["y"] = row["x"] ** 2
             yield result
 
-        input_table = TEST_DIR + "/input_   table"
+        @yt.with_skiff_schemas
+        def mapper2(row, skiff_input_schemas, skiff_output_schemas):
+            result = skiff_output_schemas[0].create_record()
+            result["y"] = row["z"] ** 2
+            yield result
+
+        input_table = TEST_DIR + "/input_table"
         input_table_schema = [{"name": "x", "type": "int64", "required": True}, {"name": "y", "type": "string"}]
         yt.create("table", input_table, attributes={"schema": input_table_schema})
 
@@ -1647,6 +1682,9 @@ print(op.id)
         output_table_schema = [{"name": "y", "type": "int64", "required": True}]
         output_table_schema = YsonList(output_table_schema)
         output_table_schema.attributes["strict"] = True
+
+        output_table2 = TEST_DIR + "/output_table2"
+        output_table3 = TEST_DIR + "/output_table3"
 
         yt.create("table", output_table, attributes={"schema": output_table_schema})
 
@@ -1661,8 +1699,11 @@ print(op.id)
         yt.run_map(mapper, input_table, output_table)
         assert list(yt.read_table(output_table)) == [{"y": 9}, {"y": 25}, {"y": 0}]
 
-        yt.run_map(mapper, input_table, TEST_DIR + "/output_table2")
-        assert list(yt.read_table(TEST_DIR + "/output_table2")) == [{"y": 9}, {"y": 25}, {"y": 0}]
+        yt.run_map(mapper, input_table, output_table2)
+        assert list(yt.read_table(output_table2)) == [{"y": 9}, {"y": 25}, {"y": 0}]
+
+        yt.run_map(mapper2, TablePath(input_table, attributes={"rename_columns": {"x": "z"}}), output_table3)
+        assert list(yt.read_table(output_table3)) == [{"y": 9}, {"y": 25}, {"y": 0}]
 
     @add_failed_operation_stderrs_to_error_message
     def test_shuffle(self):

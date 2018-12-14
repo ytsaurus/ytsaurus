@@ -7,6 +7,7 @@ import datetime
 import os
 import sys
 import time
+import tempfile
 
 class TimeoutError(Exception):
     pass
@@ -83,6 +84,18 @@ class JobEvents(object):
             breakpoint_released=breakpoint_released,
             wait_limit=wait_limit)
 
+    def execute_once(self, cmd):
+        shared_file = self._create_temp_file()
+        tmp_file_pattern = os.path.join(self._tmpdir, "XXXXXX")
+        return 'tmpfile=$(mktemp "{tmp_file_pattern}"); '\
+               'touch "$tmpfile"; '\
+               'mv -n "$tmpfile" "{shared_file}"; '\
+               'if [ ! -e "$tmpfile" ]; then {cmd}; fi; '\
+                .format(
+                    tmp_file_pattern=tmp_file_pattern,
+                    shared_file=shared_file,
+                    cmd=cmd)
+
     def wait_breakpoint(self, breakpoint_name="default", job_id=None, job_count=None, check_fn=None, timeout=datetime.timedelta(seconds=60)):
         """ Wait until some job reaches breakpoint.
             Return list of all jobs that are currently waiting on this breakpoint """
@@ -127,7 +140,7 @@ class JobEvents(object):
                     will skip this breakpoint. """
         self._verify_breakpoint_created(breakpoint_name)
 
-        print("Releasing breakpoint breakpoint_name: {0}, job_id: {1}".format(breakpoint_name, job_id), file=sys.stderr)
+        print("Releasing breakpoint {0}, job id {1}".format(breakpoint_name, job_id), file=sys.stderr)
 
         if job_id is None:
             with open(self._get_breakpoint_filename(breakpoint_name, self.BREAKPOINT_ALL_RELEASED), "w"):
@@ -164,3 +177,9 @@ class JobEvents(object):
         if not event_name:
             raise ValueError("event_name must be non empty")
         return os.path.join(self._tmpdir, event_name)
+
+    def _create_temp_file(self):
+        fd, path = tempfile.mkstemp(dir=self._tmpdir)
+        os.close(fd)
+        os.remove(path)
+        return path

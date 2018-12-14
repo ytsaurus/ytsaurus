@@ -1,12 +1,48 @@
+from __future__ import print_function
+
+def lsb_release():
+    """ Simplified implementation of distro.linux_distribution().
+
+    We cannot use distro module since this function is used in _py_runner
+    before loading user-side modules.
+    """
+    import os
+    import sys
+    import subprocess
+
+    with open(os.devnull, "w") as devnull:
+        try:
+            cmd = ("lsb_release", "-a")
+            stdout = subprocess.check_output(cmd, stderr=devnull)
+        except OSError: # Command not found.
+            return tuple()
+
+    lines = stdout.decode(sys.getfilesystemencoding()).splitlines()
+
+    props = {}
+    for line in lines:
+        kv = line.strip("\n").split(":", 1)
+        if len(kv) != 2:
+            # Ignore lines without colon.
+            continue
+        k, v = kv
+        props.update({k.replace(" ", "_").lower(): v.strip()})
+
+    return (props["distributor_id"], props["release"], props["codename"])
+
 def get_platform_version():
     import sys
-    import platform
 
     version = []
     name = sys.platform
     version.append(name)
     if name in ("linux", "linux2"):
-        version.append(platform.linux_distribution())
+        try:
+            version.append(lsb_release())
+        except IOError:
+            # In some cases libc_ver detection can fail
+            # because of inability to open sys.executable file.
+            pass
     return tuple(version)
 
 def filter_out_modules(module_path, filter_function):

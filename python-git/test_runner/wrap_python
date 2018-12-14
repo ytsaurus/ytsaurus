@@ -1,4 +1,6 @@
 #!/bin/bash
 STRACE_OUT="$1" && shift
 INTERPRETER="$1" && shift
-strace -tt -T -o $STRACE_OUT $INTERPRETER "$@"
+# Temporarily turn strace off 
+# strace -tt -T -o $STRACE_OUT $INTERPRETER "$@"
+$INTERPRETER "$@"

@@ -1,10 +1,9 @@
 from .config import get_config, get_option, set_option, get_backend_type
-from .common import (require, get_value, total_seconds, generate_uuid, update,
-                     remove_nones_from_dict)
+from .common import require, get_value, total_seconds, generate_uuid, forbidden_inside_job
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
-                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut,
-                     YtRetriableError, YtNoSuchTransaction, hide_token)
+                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
+                     YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, hide_token)
 from .command import parse_commands
 
 import yt.logger as logger
@@ -22,6 +21,7 @@ import socket
 from datetime import datetime
 from socket import error as SocketError
 from abc import ABCMeta, abstractmethod
+from copy import deepcopy
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
@@ -50,7 +50,8 @@ def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
     from yt.packages.requests import HTTPError, ConnectionError, Timeout
     return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
-            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded,
+            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded,
+            YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
             YtRequestTimedOut, YtRetriableError)
 
 @add_metaclass(ABCMeta)
@@ -179,15 +180,14 @@ def _process_request_backoff(current_time, client):
         _get_session(client=client).last_request_time = now_seconds
 
 def _raise_for_status(response, request_info):
-    if response.status_code == 503:
+    if response.status_code in (500, 503):
         raise YtProxyUnavailable(response)
     if response.status_code == 401:
-        url_base = "/".join(response.url.split("/")[:3])
         raise YtTokenError(
             "Your authentication token was rejected by the server (X-YT-Request-ID: {0})\n"
-            "Please refer to {1}/auth/ for obtaining a valid token\n"
+            "Please refer to oauth.yt.yandex.net for obtaining a valid token\n"
             "if it will not fix error please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"\
-            .format(response.headers.get("X-YT-Request-ID", "missing"), url_base))
+            .format(response.headers.get("X-YT-Request-ID", "missing")))
 
     if not response.is_ok():
         raise YtHttpResponseError(error=response.error(), **request_info)
@@ -250,14 +250,13 @@ class RequestRetrier(Retrier):
         _process_request_backoff(request_start_time, client=self.client)
         request_info = {"headers": self.headers, "url": url, "params": self.params}
 
-        session = _get_session(client=self.client)
-        if isinstance(self.requests_timeout, tuple):
-            timeout = tuple(imap(lambda elem: elem / 1000.0, self.requests_timeout))
-        else:
-            timeout = self.requests_timeout / 1000.0
-
         try:
-            response = create_response(session.request(self.method, url, timeout=timeout, **self.kwargs),
+            session = _get_session(client=self.client)
+            if isinstance(self.requests_timeout, tuple):
+                timeout = tuple(imap(lambda elem: elem / 1000.0, self.requests_timeout))
+            else:
+                timeout = self.requests_timeout / 1000.0
+            response = create_response(session.request(self.method, url, timeout=deepcopy(timeout), **self.kwargs),
                                        request_info, self.error_format, self.client)
 
         except requests.ConnectionError as error:
@@ -459,6 +458,7 @@ def get_token(token=None, client=None):
 
     return token
 
+@forbidden_inside_job
 def get_user_name(token=None, headers=None, client=None):
     """Requests auth method at proxy to receive user name by token or by cookies in header."""
     if get_backend_type(client) != "http":

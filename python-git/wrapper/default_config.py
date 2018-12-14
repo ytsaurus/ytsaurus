@@ -4,7 +4,6 @@ from .mappings import VerifiedDict
 from yt.yson import YsonEntity
 
 from copy import deepcopy
-import tempfile
 
 # pydoc :: default_config :: begin
 
@@ -317,7 +316,7 @@ default_config = {
     # TODO(ignat): make sections about local temp and remote temp.
     # Remove temporary files after creation.
     "clear_local_temp_files": True,
-    "local_temp_directory": tempfile.gettempdir(),
+    "local_temp_directory": None,
 
     # Path to remote directories for temporary files and tables.
     "remote_temp_files_directory": None,
@@ -404,13 +403,18 @@ default_config = {
     "transaction_timeout": 30 * 1000,
     # How often wake up to determine whether transaction need to be pinged.
     "transaction_sleep_period": 100,
+
+    # Deprecated!
     # Use signal (SIGUSR1) instead of KeyboardInterrupt in main thread if ping failed.
     # Signal is sent to main thread and YtTransactionPingError is raised inside
     # signal handler. The error is processed inside __exit__ block: it will be thrown
     # out to user, all transactions in nested context managers will be aborted.
     # Be careful! If Transaction is created not in main thread this will cause
     # error "ValueError: signal only works in main thread".
-    "transaction_use_signal_if_ping_failed": False,
+    "transaction_use_signal_if_ping_failed": None,
+
+    # interrupt_main (default), send_signal or pass.
+    "ping_failed_mode": None,
 
     # Default value of raw option in read, write, select, insert, lookup, delete.
     "default_value_of_raw_option": False,
@@ -428,7 +432,7 @@ default_config = {
             "decay_factor_bound": 0.3
         }}) \
         .update_template_dict({
-            "allow_multiple_ranges": False,
+            "allow_multiple_ranges": True,
             "create_transaction_and_take_snapshot_lock": True,
             "change_proxy_period": None
         }),
@@ -437,9 +441,9 @@ default_config = {
     "write_retries": retries_config(count=6, enable=True, backoff={
         "policy": "exponential",
         "exponential_policy": {
-            "start_timeout": 2000,
+            "start_timeout": 30000,
             "base": 2,
-            "max_timeout": 60000,
+            "max_timeout": 120000,
             "decay_factor_bound": 0.3
         }}) \
         .update_template_dict({
@@ -447,7 +451,7 @@ default_config = {
             # Parent transaction wrapping whole write process.
             # If "transaction_id" is not specified it will be automatically created.
             "transaction_id": None,
-            # TODO: add comment.
+            # Number of rows to build blobs that will be written to socket.
             "rows_chunk_size": 100,
         }),
 

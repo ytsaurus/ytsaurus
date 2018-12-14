@@ -2,7 +2,7 @@ import yt.wrapper as yt
 
 import pytest
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_with_rpc")
 class TestAclCommands(object):
     def setup(self):
         yt.create("user", attributes={"name": "tester"})

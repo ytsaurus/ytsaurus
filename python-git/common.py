@@ -98,6 +98,10 @@ class YtResponseError(YtError):
         """Request rate limit exceeded."""
         return self.contains_code(108)
 
+    def is_rpc_unavailable(self):
+        """Rpc unavailable."""
+        return self.contains_code(105)
+
     def is_master_communication_error(self):
         """Chunk unavailable."""
         return self.contains_code(712)

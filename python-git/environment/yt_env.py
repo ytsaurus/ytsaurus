@@ -24,15 +24,30 @@ import socket
 import shutil
 import sys
 import getpass
+import random
 from collections import defaultdict, namedtuple
 from threading import RLock
 from itertools import count
 
 logger = logging.getLogger("Yt.local")
 
-CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "memory", "freezer"])
+CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "freezer"])
 
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
+
+# Used to configure driver logging exactly once per environment (as a set of YT instances).
+_environment_driver_logging_config = None
+
+def get_environment_driver_logging_config(default_config):
+    if _environment_driver_logging_config is None:
+        return default_config
+    return _environment_driver_logging_config
+
+def set_environment_driver_logging_config(config):
+    if config is None:
+        raise YtError("Could not set environment driver logging config to None")
+    global _environment_driver_logging_config
+    _environment_driver_logging_config = config
 
 class YtEnvRetriableError(YtError):
     pass
@@ -64,7 +79,7 @@ def _add_binaries_to_path():
 
 def _which_yt_binaries():
     result = {}
-    binaries = ["ytserver", "ytserver-master", "ytserver-node", "ytserver-scheduler"]
+    binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler"]
     for binary in binaries:
         if which(binary):
             version_string = subprocess.check_output([binary, "--version"], stderr=subprocess.STDOUT)
@@ -154,7 +169,7 @@ class YTInstance(object):
                  has_proxy=False, proxy_port=None, has_rpc_proxy=None,
                  rpc_proxy_count=1, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
-                 port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
+                 port_locks_path=None, local_port_range=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
@@ -170,17 +185,9 @@ class YTInstance(object):
         self._use_porto_for_servers = use_porto_for_servers
 
         self._binaries = _which_yt_binaries()
-        if "ytserver" in self._binaries:
-            # Pre-19 era.
-            logger.info('Using single binary "ytserver"')
-            logger.info("  ytserver  %s", self._binaries["ytserver"].literal)
-
-            self.abi_version = self._binaries["ytserver"].abi
-        elif (
-            "ytserver-master" in self._binaries and
+        if ("ytserver-master" in self._binaries and
             "ytserver-node" in self._binaries and
             "ytserver-scheduler" in self._binaries):
-            # Post-19 era.
             logger.info("Using multiple YT binaries with the following versions:")
             logger.info("  ytserver-master     %s", self._binaries["ytserver-master"].literal)
             logger.info("  ytserver-node       %s", self._binaries["ytserver-node"].literal)
@@ -191,7 +198,7 @@ class YTInstance(object):
                 raise YtError("Mismatching YT versions. Make sure that all binaries are of compatible versions.")
             self.abi_version = abi_versions.pop()
         else:
-            raise YtError("Failed to find YT binaries (ytserver, ytserver-*) in $PATH. Make sure that YT is installed.")
+            raise YtError("Failed to find YT binaries (ytserver-*) in $PATH. Make sure that YT is installed.")
 
         valid_driver_backends = ("native", "rpc")
         if driver_backend not in valid_driver_backends:
@@ -208,7 +215,8 @@ class YTInstance(object):
         if not has_rpc_proxy and rpc_proxy_count > 0:
             rpc_proxy_count = 0
 
-        self._uuid = generate_uuid()
+        self._random_generator = random.Random(random.SystemRandom().random())
+        self._uuid = generate_uuid(self._random_generator)
         self._lock = RLock()
 
         self.path = os.path.realpath(os.path.abspath(path))
@@ -243,6 +251,7 @@ class YTInstance(object):
         self.port_locks_path = port_locks_path
         if self.port_locks_path is not None:
             makedirp(self.port_locks_path)
+        self.local_port_range = local_port_range
         self._open_port_iterator = None
 
         if fqdn is None:
@@ -290,7 +299,9 @@ class YTInstance(object):
         if port_range_start and isinstance(port_range_start, int):
             return count(port_range_start)
         else:
-            self._open_port_iterator = OpenPortIterator(self.port_locks_path)
+            self._open_port_iterator = OpenPortIterator(
+                port_locks_path=self.port_locks_path,
+                local_port_range=self.local_port_range)
             return self._open_port_iterator
 
     def _get_cgroup_path(self, cgroup_type, *args):
@@ -302,6 +313,7 @@ class YTInstance(object):
                 cgroup_path = self._get_cgroup_path(cgroup_type)
                 makedirp(cgroup_path)
                 self._all_cgroups.append(cgroup_path)
+                logger.info("Registered cgroup {0}".format(cgroup_path))
 
     def _prepare_directories(self):
         master_dirs = []
@@ -353,6 +365,7 @@ class YTInstance(object):
                              node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port,
                              enable_master_cache, modify_configs_func, enable_structured_master_logging):
         logger.info("Preparing cluster instance as follows:")
+        logger.info("  uuid               %s", self._uuid)
         logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes              %d", self.node_count)
         logger.info("  schedulers         %d", self.scheduler_count)
@@ -573,19 +586,22 @@ class YTInstance(object):
                 freezer_cgroups.append(cgroup_path)
 
         for freezer_path in freezer_cgroups:
-            with open(os.path.join(cgroup_path, "tasks")) as f:
+            logger.info("Checking tasks in {}".format(freezer_path))
+            with open(os.path.join(freezer_path, "tasks")) as f:
                 for line in f:
                     pid = int(line)
                     # Stopping process activity. This prevents
                     # forking of new processes, for example.
+                    logger.info("Sending SIGSTOP to {}".format(pid))
                     os.kill(pid, signal.SIGSTOP)
 
         for freezer_path in freezer_cgroups:
-            with open(os.path.join(cgroup_path, "tasks")) as f:
+            with open(os.path.join(freezer_path, "tasks")) as f:
                 for line in f:
                     pid = int(line)
                     # Stopping process activity. This prevents
                     # forking of new processes, for example.
+                    logger.info("Sending SIGKILL to {}".format(pid))
                     os.kill(pid, signal.SIGKILL)
 
         for cgroup_path in self._all_cgroups:
@@ -594,6 +610,7 @@ class YTInstance(object):
                     inner_cgroup_path = os.path.join(dirpath, dirname)
                     for iter in xrange(5):
                         try:
+                            logger.info("Removing {}".format(inner_cgroup_path))
                             os.rmdir(inner_cgroup_path)
                             break
                         except OSError:
@@ -608,6 +625,7 @@ class YTInstance(object):
             try:
                 # NB(psushin): sometimes cgroups still remain busy.
                 # We don't want to fail tests in this case.
+                logger.info("Removing {}".format(cgroup_path))
                 os.rmdir(cgroup_path)
             except OSError:
                 logger.exception("Failed to remove cgroup dir {0}".format(cgroup_path))
@@ -742,13 +760,6 @@ class YTInstance(object):
             self._all_processes[p.pid] = (p, args)
             self._append_pid(p.pid)
 
-    def _supports_pdeath_signal(self):
-        if hasattr(self, "_supports_pdeath_signal_result"):
-            return self._supports_pdeath_signal_result
-        help_output = subprocess.check_output(["ytserver", "--help"])
-        self._supports_pdeath_signal_result = "--pdeath-signal" in help_output
-        return self._supports_pdeath_signal_result
-
     def _run_yt_component(self, component, name=None):
         if name is None:
             name = component
@@ -758,14 +769,10 @@ class YTInstance(object):
         for i in xrange(len(self.configs[name])):
             args = None
             cgroup_paths = None
-            if self.abi_version[0] == 18:
-                args = ["ytserver", "--" + component]
-                if self._kill_child_processes and self._supports_pdeath_signal():
-                    args.extend(["--pdeath-signal", str(signal.SIGTERM)])
-            elif self.abi_version[0] == 19:
+            if self.abi_version[0] == 19:
                 args = ["ytserver-" + component]
                 if self._kill_child_processes:
-                    args.extend(["--pdeathsig", str(signal.SIGKILL)])
+                    args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
             else:
                 raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
             args.extend(["--config", self.config_paths[name][i]])
@@ -887,7 +894,7 @@ class YTInstance(object):
         def nodes_ready():
             self._validate_processes_are_running("node")
 
-            nodes = native_client.list("//sys/nodes", attributes=["state"])
+            nodes = native_client.list("//sys/cluster_nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
 
         wait_function = lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20))
@@ -1040,7 +1047,9 @@ class YTInstance(object):
                           "yandex-yt-python-driver package (appropriate version: {0})"
                           .format(guessed_version))
 
-        yt_driver_bindings.configure_logging(self.driver_logging_config)
+        yt_driver_bindings.configure_logging(
+            get_environment_driver_logging_config(self.driver_logging_config)
+        )
 
         return YtClient(config=config)
 
@@ -1190,10 +1199,10 @@ class YTInstance(object):
 
     def start_proxy(self, use_proxy_from_package, use_new_proxy=False, sync=True):
         logger.info("Starting proxy")
-        if use_proxy_from_package:
-            self._start_proxy_from_package()
-        elif use_new_proxy:
+        if use_new_proxy or which("ytserver-http-proxy"):
             self._run(["ytserver-http-proxy", "--legacy-config", self.config_paths["proxy"]], "proxy")
+        elif use_proxy_from_package:
+            self._start_proxy_from_package()
         else:
             if not which("run_proxy.sh"):
                 raise YtError("Failed to start proxy from source tree. "
@@ -1240,7 +1249,6 @@ class YTInstance(object):
             http_port = self.configs["skynet_manager"][0]["port"]
             try:
                 rsp = requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
-                rsp.raise_for_status()
             except (requests.exceptions.RequestException, socket.error):
                 return False
 
