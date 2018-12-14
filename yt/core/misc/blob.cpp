@@ -2,15 +2,20 @@
 #include "ref.h"
 #include "align.h"
 
+// Support build without YTAlloc
 namespace NYT {
 namespace NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Support build without YTAlloc
 Y_WEAK void* Allocate(size_t size, bool dumpable = true)
 {
     return malloc(size);
+}
+
+Y_WEAK void Free(void* ptr)
+{
+    free(ptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,7 +196,7 @@ void TBlob::Reallocate(size_t newCapacity)
     char* newBuffer = new char[newCapacity + Alignment_ - 1];
     char* newBegin = AlignUp(newBuffer, Alignment_);
     memcpy(newBegin, Begin_, Size_);
-    free(Buffer_);
+    NYTAlloc::Free(Buffer_);
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTrackerFacade::ReallocateSpace(TagCookie_, Capacity_, newCapacity);
 #endif
@@ -205,7 +210,7 @@ void TBlob::Free()
     if (!Buffer_) {
         return;
     }
-    free(Buffer_);
+    NYTAlloc::Free(Buffer_);
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTrackerFacade::FreeTagInstance(TagCookie_);
     TRefCountedTrackerFacade::FreeSpace(TagCookie_, Capacity_);
