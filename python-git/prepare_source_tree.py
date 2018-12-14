@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import sys
 import argparse
 import glob
 import os
@@ -76,8 +77,9 @@ def prepare_python_source_tree(python_root, yt_root):
         for path in files_to_copy:
             cp_r(path, packages_dir)
 
-    replace(os.path.join(yt_root, "yt/python/yt_yson_bindings"), python_root)
-    replace(os.path.join(yt_root, "yt/python/yt_driver_bindings"), python_root)
+    if yt_root is not None:
+        replace(os.path.join(yt_root, "yt/python/yt_yson_bindings"), python_root)
+        replace(os.path.join(yt_root, "yt/python/yt_driver_bindings"), python_root)
     replace(python_contrib_path("python-decorator/src/decorator.py"), packages_dir)
     replace(python_contrib_path("python-fusepy/fuse.py"), packages_dir)
 
@@ -85,7 +87,10 @@ def prepare_python_source_tree(python_root, yt_root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--python-root", default=os.path.dirname(os.path.abspath(__file__)))
-    parser.add_argument("--yt-root", required=True)
+    parser.add_argument("--yt-root", required=False)
+    
+    print >>sys.stderr, "Warning: driver bindings and yson bindings are not going to be symlinked. To fix that specify --yt-root flag." 
+
     args = parser.parse_args()
 
     prepare_python_source_tree(python_root=args.python_root, yt_root=args.yt_root)
