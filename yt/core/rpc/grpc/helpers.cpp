@@ -195,7 +195,7 @@ size_t TGrpcByteBufferStream::DoRead(void* buf, size_t len)
     const auto* sliceData = GRPC_SLICE_START_PTR(CurrentSlice_);
     auto offset = GRPC_SLICE_LENGTH(CurrentSlice_) - AvailableBytes_;
 
-    ui32 toRead = std::min(static_cast<ui32>(len), AvailableBytes_);
+    size_t toRead = std::min(len, AvailableBytes_);
     ::memcpy(buf, sliceData + offset, toRead);
     AvailableBytes_ -= toRead;
     RemainingBytes_ -= toRead;

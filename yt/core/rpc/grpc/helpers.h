@@ -139,8 +139,8 @@ private:
     grpc_byte_buffer_reader Reader_;
 
     grpc_slice CurrentSlice_;
-    ui32 AvailableBytes_ = 0;
-    ui32 RemainingBytes_;
+    size_t AvailableBytes_ = 0;
+    size_t RemainingBytes_;
 
     virtual size_t DoRead(void* buf, size_t len) override;
 
