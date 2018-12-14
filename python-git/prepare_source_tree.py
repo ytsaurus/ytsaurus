@@ -87,11 +87,12 @@ def prepare_python_source_tree(python_root, yt_root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--python-root", default=os.path.dirname(os.path.abspath(__file__)))
-    parser.add_argument("--yt-root", required=False)
+    parser.add_argument("--yt-root")
     
-    print >>sys.stderr, "Warning: driver bindings and yson bindings are not going to be symlinked. To fix that specify --yt-root flag." 
-
     args = parser.parse_args()
+
+    if args.yt_root is None:
+        print >>sys.stderr, "Warning: driver bindings and yson bindings are not going to be symlinked. To fix that specify --yt-root flag." 
 
     prepare_python_source_tree(python_root=args.python_root, yt_root=args.yt_root)
 
