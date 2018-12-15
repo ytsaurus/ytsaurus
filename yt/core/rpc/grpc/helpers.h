@@ -24,7 +24,7 @@ TString ToString(const grpc_slice& slice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, void(*Deletor)(T*)>
+template <class T, void(*Dtor)(T*)>
 class TGrpcObjectPtr
 {
 public:
@@ -60,24 +60,39 @@ using TGrpcAuthContextPtr = TGrpcObjectPtr<grpc_auth_context, grpc_auth_context_
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGrpcMetadataArray
+template <class T, void(*Ctor)(T*), void(*Dtor)(T*)>
+class TGrpcObject
 {
 public:
-    TGrpcMetadataArray();
-    ~TGrpcMetadataArray();
+    TGrpcObject();
+    ~TGrpcObject();
 
-    TGrpcMetadataArray(const TGrpcMetadataArray&) = delete;
-    TGrpcMetadataArray(TGrpcMetadataArray&&) = delete;
-    TGrpcMetadataArray& operator =(const TGrpcMetadataArray& other) = delete;
-    TGrpcMetadataArray& operator =(TGrpcMetadataArray&& other) = delete;
+    TGrpcObject(const TGrpcObject&) = delete;
+    TGrpcObject(TGrpcObject&&) = delete;
+    TGrpcObject& operator =(const TGrpcObject& other) = delete;
+    TGrpcObject& operator =(TGrpcObject&& other) = delete;
 
-    grpc_metadata_array* Unwrap();
+    T* Unwrap();
+    T* operator->();
 
+protected:
+    T Native_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGrpcMetadataArray
+    : public TGrpcObject<grpc_metadata_array, grpc_metadata_array_init, grpc_metadata_array_destroy>
+{
+public:
     TStringBuf Find(const char* key) const;
 
-private:
-    grpc_metadata_array Native_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TGrpcCallDetails = TGrpcObject<grpc_call_details, grpc_call_details_init, grpc_call_details_destroy>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,27 +108,6 @@ private:
     static constexpr size_t TypicalSize = 4;
     SmallVector<grpc_metadata, TypicalSize> NativeMetadata_;
     SmallVector<TString, TypicalSize> Strings_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TGrpcCallDetails
-{
-public:
-    TGrpcCallDetails();
-    ~TGrpcCallDetails();
-
-    TGrpcCallDetails(const TGrpcCallDetails&) = delete;
-    TGrpcCallDetails(TGrpcCallDetails&&) = delete;
-
-    TGrpcCallDetails& operator=(const TGrpcCallDetails&) = delete;
-    TGrpcCallDetails& operator=(TGrpcCallDetails&&) = delete;
-
-    grpc_call_details* Unwrap();
-    grpc_call_details* operator->();
-
-private:
-    grpc_call_details Native_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
