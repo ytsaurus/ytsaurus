@@ -10,65 +10,65 @@ namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, void(*Deletor)(T*)>
-TGrpcObjectPtr<T, Deletor>::TGrpcObjectPtr()
+template <class T, void(*Dtor)(T*)>
+TGrpcObjectPtr<T, Dtor>::TGrpcObjectPtr()
     : Ptr_(nullptr)
 { }
 
-template <class T, void(*Deletor)(T*)>
-TGrpcObjectPtr<T, Deletor>::~TGrpcObjectPtr()
+template <class T, void(*Dtor)(T*)>
+TGrpcObjectPtr<T, Dtor>::~TGrpcObjectPtr()
 {
     Reset();
 }
 
-template <class T, void(*Deletor)(T*)>
-T* TGrpcObjectPtr<T, Deletor>::Unwrap()
+template <class T, void(*Dtor)(T*)>
+T* TGrpcObjectPtr<T, Dtor>::Unwrap()
 {
     return Ptr_;
 }
 
-template <class T, void(*Deletor)(T*)>
-const T* TGrpcObjectPtr<T, Deletor>::Unwrap() const
+template <class T, void(*Dtor)(T*)>
+const T* TGrpcObjectPtr<T, Dtor>::Unwrap() const
 {
     return Ptr_;
 }
 
-template <class T, void(*Deletor)(T*)>
-TGrpcObjectPtr<T, Deletor>::operator bool() const
+template <class T, void(*Dtor)(T*)>
+TGrpcObjectPtr<T, Dtor>::operator bool() const
 {
     return Ptr_ != nullptr;
 }
 
-template <class T, void(*Deletor)(T*)>
-T** TGrpcObjectPtr<T, Deletor>::GetPtr()
+template <class T, void(*Dtor)(T*)>
+T** TGrpcObjectPtr<T, Dtor>::GetPtr()
 {
     Reset();
     return &Ptr_;
 }
 
-template <class T, void(*Deletor)(T*)>
-void TGrpcObjectPtr<T, Deletor>::Reset()
+template <class T, void(*Dtor)(T*)>
+void TGrpcObjectPtr<T, Dtor>::Reset()
 {
     if (Ptr_) {
-        Deletor(Ptr_);
+        Dtor(Ptr_);
         Ptr_ = nullptr;
     }
 }
 
-template <class T, void(*Deletor)(T*)>
-TGrpcObjectPtr<T, Deletor>::TGrpcObjectPtr(T* obj)
+template <class T, void(*Dtor)(T*)>
+TGrpcObjectPtr<T, Dtor>::TGrpcObjectPtr(T* obj)
     : Ptr_(obj)
 { }
 
-template <class T, void(*Deletor)(T*)>
-TGrpcObjectPtr<T, Deletor>::TGrpcObjectPtr(TGrpcObjectPtr&& other)
+template <class T, void(*Dtor)(T*)>
+TGrpcObjectPtr<T, Dtor>::TGrpcObjectPtr(TGrpcObjectPtr&& other)
     : Ptr_(other.Ptr_)
 {
     other.Ptr_ = nullptr;
 }
 
-template <class T, void(*Deletor)(T*)>
-TGrpcObjectPtr<T, Deletor>& TGrpcObjectPtr<T, Deletor>::operator=(TGrpcObjectPtr&& other)
+template <class T, void(*Dtor)(T*)>
+TGrpcObjectPtr<T, Dtor>& TGrpcObjectPtr<T, Dtor>::operator=(TGrpcObjectPtr&& other)
 {
     if (this != &other) {
         Reset();
@@ -76,6 +76,32 @@ TGrpcObjectPtr<T, Deletor>& TGrpcObjectPtr<T, Deletor>::operator=(TGrpcObjectPtr
         other.Ptr_ = nullptr;
     }
     return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, void(*Ctor)(T*), void(*Dtor)(T*)>
+TGrpcObject<T, Ctor, Dtor>::TGrpcObject()
+{
+    Ctor(&Native_);
+}
+
+template <class T, void(*Ctor)(T*), void(*Dtor)(T*)>
+TGrpcObject<T, Ctor, Dtor>::~TGrpcObject()
+{
+    Dtor(&Native_);
+}
+
+template <class T, void(*Ctor)(T*), void(*Dtor)(T*)>
+T* TGrpcObject<T, Ctor, Dtor>::Unwrap()
+{
+    return &Native_;
+}
+
+template <class T, void(*Ctor)(T*), void(*Dtor)(T*)>
+T* TGrpcObject<T, Ctor, Dtor>::operator->()
+{
+    return &Native_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

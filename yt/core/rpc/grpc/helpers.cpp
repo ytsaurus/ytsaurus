@@ -51,21 +51,6 @@ TString ToString(const grpc_slice& slice)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGrpcMetadataArray::TGrpcMetadataArray()
-{
-    grpc_metadata_array_init(&Native_);
-}
-
-TGrpcMetadataArray::~TGrpcMetadataArray()
-{
-    grpc_metadata_array_destroy(&Native_);
-}
-
-grpc_metadata_array* TGrpcMetadataArray::Unwrap()
-{
-    return &Native_;
-}
-
 TStringBuf TGrpcMetadataArray::Find(const char* key) const
 {
     for (size_t index = 0; index < Native_.count; ++index) {
@@ -98,28 +83,6 @@ size_t TGrpcMetadataArrayBuilder::GetSize() const
 grpc_metadata* TGrpcMetadataArrayBuilder::Unwrap()
 {
     return NativeMetadata_.data();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TGrpcCallDetails::TGrpcCallDetails()
-{
-    grpc_call_details_init(&Native_);
-}
-
-TGrpcCallDetails::~TGrpcCallDetails()
-{
-    grpc_call_details_destroy(&Native_);
-}
-
-grpc_call_details* TGrpcCallDetails::Unwrap()
-{
-    return &Native_;
-}
-
-grpc_call_details* TGrpcCallDetails::operator->()
-{
-    return &Native_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
