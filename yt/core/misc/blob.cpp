@@ -3,8 +3,7 @@
 #include "align.h"
 
 // Support build without YTAlloc
-namespace NYT {
-namespace NYTAlloc {
+namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,9 +19,7 @@ Y_WEAK void Free(void* ptr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTAlloc
-} // namespace NYT
-
+} // namespace NYT::NYTAlloc
 
 namespace NYT {
 
