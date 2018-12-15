@@ -144,8 +144,7 @@ public:
 private:
     grpc_byte_buffer_reader Reader_;
 
-    grpc_slice Slice_;
-    bool Started_ = false;
+    grpc_slice CurrentSlice_;
     ui32 AvailableBytes_ = 0;
     ui32 RemainingBytes_;
 
