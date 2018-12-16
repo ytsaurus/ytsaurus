@@ -195,9 +195,7 @@ void TRequestTracker::OnFlush()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    if (UsersWithsEntry_.empty() ||
-        !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
-    {
+    if (UsersWithsEntry_.empty() || !hydraManager->IsActive()) {
         return;
     }
 
