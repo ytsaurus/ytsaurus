@@ -127,9 +127,7 @@ void TAccessTracker::OnFlush()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    if (NodesWithAccessStatisticsUpdate_.empty() ||
-        !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
-    {
+    if (NodesWithAccessStatisticsUpdate_.empty() || !hydraManager->IsActive()) {
         return;
     }
 
