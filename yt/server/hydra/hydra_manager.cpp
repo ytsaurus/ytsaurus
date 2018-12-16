@@ -45,7 +45,7 @@ void IHydraManager::ValidatePeer(EPeerKind kind)
             break;
 
         case EPeerKind::LeaderOrFollower:
-            if (!IsActiveLeader() && !IsActiveFollower()) {
+            if (!IsActive()) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Not an active peer");

@@ -345,7 +345,7 @@ public:
         YCHECK(!HasMutationContext());
 
         auto epochContext = AutomatonEpochContext_;
-        if (!epochContext || !IsActiveLeader() && !IsActiveFollower()) {
+        if (!epochContext || !IsActive()) {
             return MakeFuture(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Not an active peer"));
