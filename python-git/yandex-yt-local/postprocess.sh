@@ -130,10 +130,10 @@ EOF
 }
 
 YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-YANDEX_YT_PYTHON_VERSION="0.8.41-0"
+YANDEX_YT_PYTHON_VERSION="0.8.49-0"
 
 if [ "$UBUNTU_CODENAME" = "precise" ]; then
-    YANDEX_YT_VERSIONS="19.3.27158-stable~a0b972103b"
+    YANDEX_YT_VERSIONS="19.4.28743-prestable-ya~a2b81d409e"
 elif [ "$UBUNTU_CODENAME" = "trusty" ]; then
     YANDEX_YT_VERSIONS="19.3.27158-stable~a0b972103b"
 else
@@ -141,7 +141,7 @@ else
     exit 1
 fi
 
-YANDEX_YT_YSON_BINDINGS_VERSION="0.3.14-8"
+YANDEX_YT_YSON_BINDINGS_VERSION="0.3.22-1"
 
 create_and_upload_archive() {
     local yt_local_version="$1" && shift
@@ -188,6 +188,8 @@ create_and_upload_archive() {
           yandex-yt-local=\"$yt_local_version\";\
           yandex-yt-python=\"$yt_python_version\";\
           yandex-yt-python-yson=\"$yt_yson_bindings_version\"}"
+
+    $YT link "$archive_path" "//home/files/yt_local_archive.tar" --force
 
     rm -rf "$archive_local_name"
 
