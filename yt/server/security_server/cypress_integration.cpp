@@ -12,12 +12,14 @@
 
 #include <yt/server/security_server/security_manager.h>
 
+#include <yt/server/misc/interned_attributes.h>
 #include <yt/server/misc/object_helpers.h>
 
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/collection_helpers.h>
 
+#include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 
 namespace NYT::NSecurityServer {
@@ -39,6 +41,8 @@ public:
     { }
 
 private:
+    using TBase = TVirtualMapBase;
+
     TBootstrap* const Bootstrap_;
 
     virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
@@ -63,6 +67,59 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(account);
+    }
+
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    {
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back(EInternedAttributeKey::TotalResourceUsage);
+        descriptors->push_back(EInternedAttributeKey::TotalCommittedResourceUsage);
+        descriptors->push_back(EInternedAttributeKey::TotalResourceLimits);
+    }
+
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        switch (key) {
+            case EInternedAttributeKey::TotalResourceUsage: {
+                TClusterResources resources;
+                for (const auto& [accountId, account] : securityManager->Accounts()) {
+                    resources += account->ClusterStatistics().ResourceUsage;
+                }
+                auto serializer = New<TSerializableClusterResources>(chunkManager, resources);
+                BuildYsonFluently(consumer)
+                    .Value(serializer);
+                return true;
+            }
+
+            case EInternedAttributeKey::TotalCommittedResourceUsage: {
+                TClusterResources resources;
+                for (const auto& [accountId, account] : securityManager->Accounts()) {
+                    resources += account->ClusterStatistics().CommittedResourceUsage;
+                }
+                auto serializer = New<TSerializableClusterResources>(chunkManager, resources);
+                BuildYsonFluently(consumer)
+                    .Value(serializer);
+                return true;
+            }
+
+            case EInternedAttributeKey::TotalResourceLimits: {
+                TClusterResources resources;
+                for (const auto& [accountId, account] : securityManager->Accounts()) {
+                    resources += account->ClusterResourceLimits();
+                }
+                auto serializer = New<TSerializableClusterResources>(chunkManager, resources);
+                BuildYsonFluently(consumer)
+                    .Value(serializer);
+                return true;
+            }
+
+            default:
+                return TBase::GetBuiltinAttribute(key, consumer);
+        }
     }
 };
 
