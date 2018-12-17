@@ -130,9 +130,10 @@ private:
     //! A bucket is only present here iff it has at least one session.
     std::vector<TUserBucket*> BucketHeap_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionPtr> EnqueuedSessions_;
+    TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionPtr> ReadySessions_;
+    TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionPtr> FinishedSessions_;
 
-    std::atomic<bool> RunSessionsCallbackEnqueued_ = {false};
+    std::atomic<bool> ProcessSessionsCallbackEnqueued_ = {false};
 
 
     static IInvokerPtr GetRpcInvoker()
@@ -140,9 +141,12 @@ private:
         return NRpc::TDispatcher::Get()->GetHeavyInvoker();
     }
 
-    void EnqueueSession(TExecuteSessionPtr session);
-    void EnqueueRunSessionsCallback();
-    void RunSessions();
+    void EnqueueReadySession(TExecuteSessionPtr session);
+    void EnqueueFinishedSession(TExecuteSessionPtr session);
+
+    void EnqueueProcessSessionsCallback();
+    void ProcessSessions();
+
     TUserBucket* GetOrCreateBucket(const TString& userName);
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
@@ -184,17 +188,6 @@ public:
             UserName_))
     { }
 
-    ~TExecuteSession()
-    {
-        if (RequestQueueSizeIncreased_) {
-            // NB: DoDecreaseRequestQueueSize must be static since the session instance is dying.
-            EpochAutomatonInvoker_->Invoke(
-                BIND(&TExecuteSession::DoDecreaseRequestQueueSize,
-                SecurityManager_,
-                UserName_));
-        }
-    }
-
     const TString& GetUserName() const
     {
         return UserName_;
@@ -217,45 +210,49 @@ public:
 
         try {
             ParseSubrequests();
+            return true;
         } catch (const std::exception& ex) {
             Reply(ex);
             return false;
         }
-
-        return true;
     }
 
     bool RunFast()
     {
-        if (!NeedsUpstreamSync_) {
-            return true;
-        }
-        NeedsUpstreamSync_ = false;
-
-        auto result = HydraManager_->SyncWithUpstream();
-        auto optionalError = result.TryGet();
-        if (!optionalError) {
-            result.Subscribe(
-                BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
+        try {
+            return GuardedRunFast();
+        } catch (const std::exception& ex) {
+            Reply(ex);
             return false;
         }
-
-        const auto& error = *optionalError;
-        if (!error.IsOK()) {
-            Reply(error);
-            return false;
-        }
-
-        return true;
     }
 
     void RunSlow()
     {
         auto codicilGuard = MakeCodicilGuard();
         try {
-            GuardedRun();
+            GuardedRunSlow();
         } catch (const std::exception& ex) {
             Reply(ex);
+        }
+    }
+
+    void Finish()
+    {
+        if (!EpochCancelableContext_) {
+            return;
+        }
+
+        if (EpochCancelableContext_->IsCanceled()) {
+            return;
+        }
+
+        if (User_) {
+            ObjectManager_->EphemeralUnrefObject(User_);
+        }
+
+        if (RequestQueueSizeIncreased_ && IsObjectAlive(User_)) {
+            SecurityManager_->DecreaseRequestQueueSize(User_);
         }
     }
 
@@ -287,8 +284,10 @@ private:
     std::vector<TSubrequest> Subrequests_;
     int CurrentSubrequestIndex_ = 0;
     int ThrottledSubrequestIndex_ = -1;
+
     IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
+    TUser* User_ = nullptr;
     bool NeedsUpstreamSync_ = true;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
@@ -296,6 +295,8 @@ private:
     std::atomic<bool> Replied_ = {false};
     std::atomic<int> SubresponseCount_ = {0};
     int LastMutatingSubrequestIndex_ = -1;
+
+    std::atomic<bool> FinishScheduled_ = {false};
 
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = {false};
@@ -352,7 +353,7 @@ private:
             const auto& path = ypathExt->path();
             bool mutating = ypathExt->mutating();
 
-            // COMPAT(savrus) Support old mount/unmoun/etc interface.
+            // COMPAT(savrus) Support old mount/unmount/etc interface.
             if (mutating && (subrequestHeader.method() == "Mount" ||
                 subrequestHeader.method() == "Unmount" ||
                 subrequestHeader.method() == "Freeze" ||
@@ -396,7 +397,7 @@ private:
 
     void Reschedule()
     {
-        Owner_->EnqueueSession(this);
+        Owner_->EnqueueReadySession(this);
     }
 
     template <class T>
@@ -423,59 +424,95 @@ private:
         }
     }
 
-    void GuardedRun()
+    bool GuardedRunFast()
     {
-        auto batchStartTime = NProfiling::GetCpuInstant();
-        auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
+        HydraManager_->ValidatePeer(EPeerKind::LeaderOrFollower);
 
         if (!EpochAutomatonInvoker_) {
             EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
         }
+
         if (!EpochCancelableContext_) {
-            EpochCancelableContext_ = HydraFacade_->GetHydraManager()->GetAutomatonCancelableContext();
+            EpochCancelableContext_ = HydraManager_->GetAutomatonCancelableContext();
         }
 
-        if (RpcContext_->IsCanceled()) {
-            return;
-        }
-        if (EpochCancelableContext_->IsCanceled()) {
-            return;
+        if (NeedsUpstreamSync_) {
+            NeedsUpstreamSync_ = false;
+
+            auto result = HydraManager_->SyncWithUpstream();
+            auto optionalError = result.TryGet();
+            if (!optionalError) {
+                result.Subscribe(
+                    BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
+                return false;
+            }
+
+            optionalError->ThrowOnError();
         }
 
-        Owner_->ValidateClusterInitialized();
-        HydraManager_->ValidatePeer(EPeerKind::LeaderOrFollower);
-
-        auto* user = SecurityManager_->GetUserByNameOrThrow(UserName_);
+        if (!User_) {
+            User_ = SecurityManager_->GetUserByNameOrThrow(UserName_);
+            ObjectManager_->EphemeralRefObject(User_);
+        }
 
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
-            SecurityManager_->ValidateUserAccess(user);
+            SecurityManager_->ValidateUserAccess(User_);
         }
 
         if (!RequestQueueSizeIncreased_) {
-            if (!SecurityManager_->TryIncreaseRequestQueueSize(user)) {
+            if (!SecurityManager_->TryIncreaseRequestQueueSize(User_)) {
                 THROW_ERROR_EXCEPTION(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
                     "User %Qv has exceeded its request queue size limit",
-                    user->GetName())
-                    << TErrorAttribute("limit", user->GetRequestQueueSizeLimit());
+                    User_->GetName())
+                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit());
             }
             RequestQueueSizeIncreased_ = true;
         }
+
+        if (!ThrottleRequests()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool ThrottleRequests()
+    {
+        while (CurrentSubrequestIndex_ < static_cast<int>(Subrequests_.size()) &&
+               CurrentSubrequestIndex_ > ThrottledSubrequestIndex_)
+        {
+            auto workloadType = Subrequests_[CurrentSubrequestIndex_].Mutation
+                ? EUserWorkloadType::Write
+                : EUserWorkloadType::Read;
+            ++ThrottledSubrequestIndex_;
+            auto result = SecurityManager_->ThrottleUser(User_, 1, workloadType);
+            if (!WaitForAndContinue(result)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void GuardedRunSlow()
+    {
+        auto batchStartTime = NProfiling::GetCpuInstant();
+        auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
+
+        Owner_->ValidateClusterInitialized();
 
         while (CurrentSubrequestIndex_ < SubrequestCount_ &&
             !BackoffAlarmTriggered_ &&
             !Replied_)
         {
-            while (CurrentSubrequestIndex_ > ThrottledSubrequestIndex_) {
-                auto workloadType = Subrequests_[CurrentSubrequestIndex_].Mutation
-                    ? EUserWorkloadType::Write
-                    : EUserWorkloadType::Read;
-                ++ThrottledSubrequestIndex_;
-                auto result = SecurityManager_->ThrottleUser(user, 1, workloadType);
-                if (!WaitForAndContinue(result)) {
-                    return;
-                }
+            if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
+                ScheduleFinish();
+                break;
+            }
+
+            if (!ThrottleRequests()) {
+                break;
             }
 
             {
@@ -489,7 +526,7 @@ private:
                     break;
                 }
 
-                if (!ExecuteCurrentSubrequest(user)) {
+                if (!ExecuteCurrentSubrequest()) {
                     break;
                 }
             }
@@ -502,14 +539,14 @@ private:
         }
     }
 
-    bool ExecuteCurrentSubrequest(TUser* user)
+    bool ExecuteCurrentSubrequest()
     {
         // NB: CurrentSubrequestIndex_ must be incremented before OnSubresponse() is called.
 
         auto& subrequest = Subrequests_[CurrentSubrequestIndex_];
         if (!subrequest.Context) {
             ++CurrentSubrequestIndex_;
-            ExecuteEmptySubrequest(&subrequest, user);
+            ExecuteEmptySubrequest(&subrequest);
             return true;
         }
 
@@ -522,7 +559,7 @@ private:
         Revisions_[CurrentSubrequestIndex_] = HydraFacade_->GetHydraManager()->GetAutomatonVersion().ToRevision();
 
         if (subrequest.Mutation) {
-            ExecuteWriteSubrequest(&subrequest, user);
+            ExecuteWriteSubrequest(&subrequest);
             LastMutatingSubrequestIndex_ = CurrentSubrequestIndex_;
         } else {
             // Cannot serve new read requests before previous write ones are done.
@@ -534,7 +571,7 @@ private:
                     return false;
                 }
             }
-            ExecuteReadSubrequest(&subrequest, user);
+            ExecuteReadSubrequest(&subrequest);
         }
 
         ++CurrentSubrequestIndex_;
@@ -551,12 +588,12 @@ private:
         return true;
     }
 
-    void ExecuteEmptySubrequest(TSubrequest* subrequest, TUser* /*user*/)
+    void ExecuteEmptySubrequest(TSubrequest* subrequest)
     {
         OnSubresponse(subrequest, TError());
     }
 
-    void ExecuteWriteSubrequest(TSubrequest* subrequest, TUser* user)
+    void ExecuteWriteSubrequest(TSubrequest* subrequest)
     {
         Profiler.Increment(WriteRequestCounter);
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
@@ -565,12 +602,12 @@ private:
             BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
     }
 
-    void ExecuteReadSubrequest(TSubrequest* subrequest, TUser* user)
+    void ExecuteReadSubrequest(TSubrequest* subrequest)
     {
         Profiler.Increment(ReadRequestCounter);
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
 
-        TAuthenticatedUserGuard userGuard(SecurityManager_, user);
+        TAuthenticatedUserGuard userGuard(SecurityManager_, User_);
 
         NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
 
@@ -590,8 +627,8 @@ private:
         }
 
         // NB: Even if the user was just removed the instance is still valid but not alive.
-        if (IsObjectAlive(user)) {
-            SecurityManager_->ChargeUser(user, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
+        if (IsObjectAlive(User_)) {
+            SecurityManager_->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
     }
 
@@ -640,13 +677,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        bool expected = false;
-        if (!Replied_.compare_exchange_strong(expected, true)) {
-            return;
-        }
+        ScheduleFinish();
 
-        TObjectService::GetRpcInvoker()
-            ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
+        bool expected = false;
+        if (Replied_.compare_exchange_strong(expected, true)) {
+            TObjectService::GetRpcInvoker()
+                ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
+        }
     }
 
     void DoReply(const TError& error)
@@ -690,6 +727,18 @@ private:
 
         RpcContext_->Reply(error);
     }
+
+
+    void ScheduleFinish()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        bool expected = false;
+        if (!FinishScheduled_.compare_exchange_strong(expected, true)) {
+            Owner_->EnqueueFinishedSession(this);
+        }
+    }
+
 
     bool IsBackoffAllowed() const
     {
@@ -737,7 +786,7 @@ private:
                 {
                     YT_LOG_DEBUG("Backing off (RequestId: %v, SubresponseCount: %v, SubrequestCount: %v)",
                         RequestId_,
-                        static_cast<int>(SubresponseCount_),
+                        SubresponseCount_.load(),
                         SubrequestCount_);
                     Reply();
                 }
@@ -749,16 +798,6 @@ private:
             BIND(&TObjectService::TExecuteSession::CheckBackoffAlarmTriggered, MakeStrong(this)));
     }
 
-    static void DoDecreaseRequestQueueSize(
-        const TSecurityManagerPtr& securityManager,
-        const TString& userName)
-    {
-        auto* user = securityManager->FindUserByName(userName);
-        if (IsObjectAlive(user)) {
-            securityManager->DecreaseRequestQueueSize(user);
-        }
-    }
-
     TCodicilGuard MakeCodicilGuard()
     {
         return TCodicilGuard(CodicilData_);
@@ -767,28 +806,38 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TObjectService::EnqueueSession(TExecuteSessionPtr session)
+void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
 {
-    EnqueuedSessions_.Enqueue(std::move(session));
-    EnqueueRunSessionsCallback();
+    ReadySessions_.Enqueue(std::move(session));
+    EnqueueProcessSessionsCallback();
 }
 
-void TObjectService::EnqueueRunSessionsCallback()
+void TObjectService::EnqueueFinishedSession(TExecuteSessionPtr session)
+{
+    FinishedSessions_.Enqueue(std::move(session));
+    EnqueueProcessSessionsCallback();
+}
+
+void TObjectService::EnqueueProcessSessionsCallback()
 {
     bool expected = false;
-    if (RunSessionsCallbackEnqueued_.compare_exchange_strong(expected, true)) {
-        AutomatonInvoker_->Invoke(BIND(&TObjectService::RunSessions, MakeStrong(this)));
+    if (ProcessSessionsCallbackEnqueued_.compare_exchange_strong(expected, true)) {
+        AutomatonInvoker_->Invoke(BIND(&TObjectService::ProcessSessions, MakeStrong(this)));
     }
 }
 
-void TObjectService::RunSessions()
+void TObjectService::ProcessSessions()
 {
     auto startTime = NProfiling::GetCpuInstant();
     auto deadlineTime = startTime + NProfiling::DurationToCpuDuration(Config_->YieldTimeout);
 
-    RunSessionsCallbackEnqueued_.store(false);
+    ProcessSessionsCallbackEnqueued_.store(false);
     
-    EnqueuedSessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
+    FinishedSessions_.DequeueAll(false, [&] (const TExecuteSessionPtr& session) {
+        session->Finish();
+    });
+
+    ReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
         if (!session->RunFast()) {
             return;
         }
@@ -835,7 +884,7 @@ void TObjectService::RunSessions()
     }
 
     if (!BucketHeap_.empty()) {
-        EnqueueRunSessionsCallback();
+        EnqueueProcessSessionsCallback();
     }
 }
 
@@ -865,7 +914,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
         return;
     }
 
-    EnqueueSession(std::move(session));
+    EnqueueReadySession(std::move(session));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
