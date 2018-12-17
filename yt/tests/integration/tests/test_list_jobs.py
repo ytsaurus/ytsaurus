@@ -34,13 +34,20 @@ def get_stderr_from_table(operation_id, job_id):
     assert len(rows) == 1
     return remove_asan_warning(rows[0]["stderr"])
 
-def get_profile_from_table(operation_id, job_id):
+def try_get_profile_from_table(operation_id, job_id):
     operation_hash = uuid_hash_pair(operation_id)
     job_hash = uuid_hash_pair(job_id)
     rows = list(select_rows("profile_type, profile_blob from [//sys/operations_archive/job_profiles] where operation_id_lo={0}u and operation_id_hi={1}u and job_id_lo={2}u and job_id_hi={3}u"\
         .format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)))
-    assert len(rows) == 1
+    assert len(rows) <= 1
+    if len(rows) == 0:
+        return None
     return rows[0]["profile_type"], rows[0]["profile_blob"]
+
+def get_profile_from_table(operation_id, job_id):
+    result = try_get_profile_from_table(operation_id, job_id)
+    assert result, "No rows in job_profile table"
+    return result
 
 class TestListJobs(YTEnvSetup):
     DELTA_NODE_CONFIG = {
@@ -87,7 +94,6 @@ class TestListJobs(YTEnvSetup):
         remove("//sys/operations_archive")
 
     @add_failed_operation_stderrs_to_error_message
-    @pytest.mark.skip(reason="This test is too flaky")
     def test_list_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -172,7 +178,7 @@ class TestListJobs(YTEnvSetup):
             "error",
             "statistics",
             "size",
-            "uncompressed_data_size"
+            "uncompressed_data_size",
         ])
 
         completed_jobs = []
@@ -283,10 +289,14 @@ class TestListJobs(YTEnvSetup):
         res = get_stderr_from_table(op.id, job_id)
         assert res == "foo\n"
 
-        profile_type, profile_blob = get_profile_from_table(op.id, job_id)
-        assert profile_type == "test"
-        assert profile_blob == "foobar"
-        
+        def is_profile_correct():
+            profile = try_get_profile_from_table(op.id, job_id)
+            if profile is None:
+                return False
+            type, blob = profile
+            return type == "test" and blob == "foobar"
+        wait(is_profile_correct)
+
         res = list_jobs(op.id, with_stderr=False, **archive_options)["jobs"]
         assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
