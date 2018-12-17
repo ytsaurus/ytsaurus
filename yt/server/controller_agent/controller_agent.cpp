@@ -362,7 +362,10 @@ public:
 
         auto operation = FindOperation(operationId);
         if (!operation) {
-            THROW_ERROR_EXCEPTION("No such operation %v", operationId);
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchOperation,
+                "No such operation %v",
+                operationId);
         }
         return operation;
     }
@@ -371,11 +374,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operation = FindOperation(operationId);
-
-        if (!operation) {
-            return nullptr;
-        }
+        auto operation = GetOperationOrThrow(operationId);
 
         switch (accessType) {
             case EAccessType::Ownership:

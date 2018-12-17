@@ -4299,8 +4299,10 @@ private:
             ValidateJobSpecVersion(jobId, rsp->spec());
             return rsp->spec();
         } catch (const TErrorException& exception) {
-            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob);
-            if (!matchedError) {
+            auto isIgnorable =
+                exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
+                exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchOperation);
+            if (!isIgnorable) {
                 THROW_ERROR_EXCEPTION("Failed to get job spec from job node")
                     << TErrorAttribute("job_id", jobId)
                     << exception;
@@ -4620,10 +4622,12 @@ private:
                 .ValueOrThrow();
             return TSharedRef::FromString(rsp->stderr_data());
         } catch (const TErrorException& exception) {
-            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
-                exception.Error().FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning);
+            auto isIgnorable =
+                exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
+                exception.Error().FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning) ||
+                exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchOperation);
 
-            if (!matchedError) {
+            if (!isIgnorable) {
                 THROW_ERROR_EXCEPTION("Failed to get job stderr from job proxy")
                     << TErrorAttribute("operation_id", operationId)
                     << TErrorAttribute("job_id", jobId)

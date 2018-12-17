@@ -477,11 +477,7 @@ public:
         // IntermediateDate is not supported in the scheduler.
         YCHECK(accessType != EAccessType::IntermediateData);
 
-        auto operation = FindOperation(operationId);
-
-        if (!operation) {
-            return nullptr;
-        }
+        auto operation = GetOperationOrThrow(operationId);
 
         return BuildYsonNodeFluently()
             .BeginList()
