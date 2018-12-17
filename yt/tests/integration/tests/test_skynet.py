@@ -64,7 +64,7 @@ class TestSkynetIntegration(YTEnvSetup):
 
         write_table("//tmp/table", {"a": 1})
 
-        chunk = get("//tmp/table/@chunk_ids")[0]
+        chunk = get_singular_chunk_id("//tmp/table")
 
         info = locate_skynet_share("//tmp/table[#0:#1]")
 
@@ -98,7 +98,7 @@ class TestSkynetIntegration(YTEnvSetup):
         create("table", "//tmp/table")
 
         write_table("//tmp/table", [{"a": 1}, {"a": 2}])
-        chunk = get("//tmp/table/@chunk_ids")[0]
+        chunk = get_singular_chunk_id("//tmp/table")
 
         info = locate_skynet_share("//tmp/table[#0:#1,#1:#2]")
 

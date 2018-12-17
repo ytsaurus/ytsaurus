@@ -1024,10 +1024,9 @@ class TestSchedulerCommon(YTEnvSetup):
             out="//tmp/t_out",
             spec={"job_count": 1})
 
-        chunks = get("//tmp/t_out/@chunk_ids")
-        assert len(chunks) == 1
-        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
-        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+        chunk_id = get_singular_chunk_id("//tmp/t_out")
+        assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
     def test_invalid_schema_in_path(self):
         create("table", "//tmp/input")

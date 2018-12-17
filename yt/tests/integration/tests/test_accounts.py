@@ -1086,9 +1086,7 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
         self._replicator_sleep()
 
@@ -1251,9 +1249,7 @@ class TestAccountsMulticell(TestAccounts):
               in_=["//tmp/t1", "//tmp/t1"],
               out="//tmp/t2")
 
-        chunk_ids = get("//tmp/t1/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t1")
 
         self._replicator_sleep()
 

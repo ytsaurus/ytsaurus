@@ -1207,8 +1207,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         original_data = [{"index": "%05d" % i} for i in xrange(31)]
         for row in original_data:
             write_table("<append=true>//tmp/t_input", row, verbose=False)
-        chunk_ids = get("//tmp/t_input/@chunk_ids")
-        chunk_id = chunk_ids[0]
+        chunk_id = get_first_chunk_id("//tmp/t_input")
         chunk_size = get("#{0}/@data_weight".format(chunk_id))
         create("table", "//tmp/t_output")
 
@@ -1229,9 +1228,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         create("table", "//tmp/t_input", attributes={"replication_factor": 1})
         original_data = [{"index": "%05d" % i} for i in xrange(20)]
         write_table("<append=true>//tmp/t_input", original_data[0], verbose=False)
-        chunk_ids = get("//tmp/t_input/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t_input")
 
         chunk_size = get("#{0}/@uncompressed_data_size".format(chunk_id))
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
