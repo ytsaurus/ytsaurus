@@ -1292,6 +1292,11 @@ private:
     {
         return false;
     }
+
+    virtual TCpuResource GetCpuLimit() const
+    {
+        return Options_->CpuLimit;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);

@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/node_tracker_client/config.h>
 
+#include <yt/ytlib/scheduler/job_resources.h>
+
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -363,6 +365,15 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
 class TRemoteCopyOperationOptions
     : public TSimpleOperationOptions
 {
+public:
+    NScheduler::TCpuResource CpuLimit;
+
+    TRemoteCopyOperationOptions()
+    {
+        RegisterParameter("cpu_limit", CpuLimit)
+            .Default(0.1);
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationOptions, 0xf3893dc8);
 };
