@@ -255,6 +255,9 @@
     XX(TargetPath, target_path) \
     XX(Timeout, timeout) \
     XX(Title, title) \
+    XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
+    XX(TotalResourceLimits, total_resource_limits) \
+    XX(TotalResourceUsage, total_resource_usage) \
     XX(TotalStatistics, total_statistics) \
     XX(TransactionId, transaction_id) \
     XX(Transient, transient) \
