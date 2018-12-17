@@ -815,7 +815,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_merge_chunk_properties(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False})
         write_table("//tmp/t1", [{"a": 1}])
-        chunk_id = get("//tmp/t1/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t1")
 
         assert get_chunk_replication_factor(chunk_id) == 1
         assert not get("#" + chunk_id + "/@vital")
@@ -1107,10 +1107,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "force_transform": "true",
                 "job_count": 1})
 
-        chunks = get("//tmp/t_out/@chunk_ids")
-        assert len(chunks) == 1
-        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
-        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+        chunk_id = get_singular_chunk_id("//tmp/t_out")
+        assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])
     def test_merge_interrupt(self, mode):
@@ -1279,11 +1278,11 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     def test_multicell_merge_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
-        chunk_id1 = get("//tmp/t1/@chunk_ids/0")
+        chunk_id1 = get_singular_chunk_id("//tmp/t1")
 
         create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
         write_table("//tmp/t2", [{"a": 2}])
-        chunk_id2 = get("//tmp/t2/@chunk_ids/0")
+        chunk_id2 = get_singular_chunk_id("//tmp/t2")
 
         assert get("#" + chunk_id1 + "/@ref_counter") == 1
         assert get("#" + chunk_id2 + "/@ref_counter") == 1
@@ -1316,7 +1315,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     def test_multicell_merge_multi_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
-        chunk_id = get("//tmp/t1/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t1")
 
         assert get("#" + chunk_id + "/@ref_counter") == 1
         assert_items_equal(get("#" + chunk_id + "/@exports"), {})
@@ -1369,7 +1368,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     def test_multicell_merge_chunk_properties(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False, "external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
-        chunk_id = get("//tmp/t1/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t1")
 
         assert get_chunk_replication_factor(chunk_id) == 1
         assert not get("#" + chunk_id + "/@vital")
@@ -1414,7 +1413,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
 
         write_table("//tmp/t", [{"a": 1}])
-        chunk_id = get("//tmp/t/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
         merge(mode="ordered", in_=["//tmp/t"], out="//tmp/t1")
         merge(mode="ordered", in_=["//tmp/t"], out="//tmp/t2")
@@ -1429,7 +1428,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     def test_teleporting_chunks_dont_disappear(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
-        chunk_id = get("//tmp/t1/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t1")
 
         #external_requisition_indexes/2
 
@@ -1439,7 +1438,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         merge(mode="ordered", in_=["//tmp/t1"], out="//tmp/t2", tx=tx)
 
         assert get("//tmp/t2/@chunk_count", tx=tx) == 1
-        assert get("//tmp/t2/@chunk_ids/0", tx=tx) == chunk_id
+        assert get_singular_chunk_id("//tmp/t2", tx=tx) == chunk_id
 
         assert get("#{0}/@exports/2/ref_counter".format(chunk_id)) == 1
 
@@ -1465,5 +1464,5 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("//tmp/t2/@chunk_count") == 0
         assert exists("//tmp/t2_copy")
         assert get("//tmp/t2_copy/@chunk_count") == 1
-        assert get("//tmp/t2_copy/@chunk_ids/0") == chunk_id
+        assert get_singular_chunk_id("//tmp/t2_copy") == chunk_id
         assert exists("#{0}".format(chunk_id))

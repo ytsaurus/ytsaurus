@@ -164,10 +164,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def test_missing_input_chunks_alert(self):
         create_test_tables(attributes={"replication_factor": 1})
 
-        chunk_ids = get("//tmp/t_in/@chunk_ids")
-        assert len(chunk_ids) == 1
-
-        replicas = get("#{0}/@stored_replicas".format(chunk_ids[0]))
+        chunk_id = get_singular_chunk_id("//tmp/t_in")
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
         set_banned_flag(True, replicas)
 
         op = map(

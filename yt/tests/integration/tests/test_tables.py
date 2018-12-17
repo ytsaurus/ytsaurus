@@ -590,16 +590,14 @@ class TestTables(YTEnvSetup):
 
         assert read_table("//tmp/table") == [{"b":"hello"}]
 
-        chunk_id = get("//tmp/table/@chunk_ids/0")
+        chunk_id = get_first_chunk_id("//tmp/table")
         assert get("#%s/@compression_codec" % chunk_id) == "zlib_9"
 
     def test_copy(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#%s/@owning_nodes" % chunk_id) == ["//tmp/t"]
 
         assert read_table("//tmp/t") == [{"a" : "b"}]
@@ -629,9 +627,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#%s/@owning_nodes" % chunk_id) == ["//tmp/t"]
 
         tx = start_transaction()
@@ -718,19 +714,14 @@ class TestTables(YTEnvSetup):
 
         write_table("//tmp/t", {"foo" : "bar"})
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
         assert get_chunk_replication_factor(chunk_id) == 2
 
     def test_replication_factor_recalculated_on_remove(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
         write_table("//tmp/t1", {"foo" : "bar"})
 
-        chunk_ids = get("//tmp/t1/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t1")
 
         assert get_chunk_replication_factor(chunk_id) == 1
 
@@ -1078,10 +1069,9 @@ class TestTables(YTEnvSetup):
             })
 
         write_table("//tmp/t", [{"value": "A"*1024} for i in xrange(10)])
-        chunks = get("//tmp/t/@chunk_ids")
-        assert len(chunks) == 1
-        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
-        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
     def test_read_blob_table(self):
         create("table", "//tmp/ttt")
@@ -1143,7 +1133,7 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/t", [{"a": "b"}])
         chunk_format = "schemaless_horizontal" if optimize_for == "lookup" else "unversioned_columnar"
         assert get("//tmp/t/@table_chunk_format_statistics/{0}/chunk_count".format(chunk_format)) == 1
-        chunk = get("//tmp/t/@chunk_ids")[0]
+        chunk = get_singular_chunk_id("//tmp/t")
         assert get("#{0}/@table_chunk_format".format(chunk)) == chunk_format
 
     def test_get_start_row_index(self):

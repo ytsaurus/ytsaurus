@@ -254,9 +254,7 @@ class TestMedia(YTEnvSetup):
         tbl_media_1 = get("//tmp/t7/@media")
         tbl_vital_1 = get("//tmp/t7/@vital")
 
-        chunk_ids = get("//tmp/t7/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t7")
 
         chunk_media_1 = copy.deepcopy(tbl_media_1)
         chunk_vital_1 = tbl_vital_1
@@ -330,9 +328,7 @@ class TestMedia(YTEnvSetup):
         data = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
         write_journal("//tmp/j", data)
         wait_until_sealed("//tmp/j")
-        chunk_ids = get("//tmp/j/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/j")
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
 
@@ -340,9 +336,7 @@ class TestMedia(YTEnvSetup):
         create("file", "//tmp/f", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/f/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
         write_file("//tmp/f", "payload")
-        chunk_ids = get("//tmp/f/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/f")
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
 
@@ -350,9 +344,7 @@ class TestMedia(YTEnvSetup):
         create("table", "//tmp/t", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/t/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
         write_table("//tmp/t", [{"key": "value"}])
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
 
@@ -365,7 +357,7 @@ class TestMedia(YTEnvSetup):
         write_table("//tmp/t9", {"a" : "b"})
 
         assert get("//tmp/t9/@chunk_count") == 1
-        chunk_id = get("//tmp/t9/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t9")
 
         wait(lambda: self._check_chunk_ok(True, chunk_id, {"default"}) and \
                      len(get("#{0}/@stored_replicas".format(chunk_id))) == codec_replica_count and \
@@ -390,7 +382,7 @@ class TestMedia(YTEnvSetup):
         relevant_media = {"default", TestMedia.NON_DEFAULT_MEDIUM}
 
         assert get("//tmp/t9/@chunk_count") == 1
-        chunk_id = get("//tmp/t9/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t9")
 
         wait(lambda: self._check_chunk_ok(True, chunk_id, relevant_media) and \
                      len(get("#{0}/@stored_replicas".format(chunk_id))) == len(relevant_media) * codec_replica_count and \

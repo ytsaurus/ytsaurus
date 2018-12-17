@@ -144,9 +144,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#" + chunk_id + "/@row_count") == 100
 
     def test_insert_with_explicit_tablet_index(self):

@@ -152,9 +152,7 @@ class TestRacks(YTEnvSetup):
         create("file", "//tmp/file")
         write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
-        chunk_ids = get("//tmp/file/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/file")
 
         self._set_rack(nodes[0], "r2")
         wait(lambda: get("#" + chunk_id + "/@replication_status/default/unsafely_placed"))
@@ -166,9 +164,7 @@ class TestRacks(YTEnvSetup):
         create("file", "//tmp/file")
         write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
-        chunk_ids = get("//tmp/file/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/file")
         assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
 
         replicas = self._get_replica_nodes(chunk_id)
@@ -191,9 +187,7 @@ class TestRacks(YTEnvSetup):
         create("file", "//tmp/file", attributes={"erasure_codec": "lrc_12_2_2"})
         write_file("//tmp/file", self.FILE_DATA)
 
-        chunk_ids = get("//tmp/file/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/file")
         assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
 
         replicas = self._get_replica_nodes(chunk_id)
@@ -250,9 +244,7 @@ class TestRacks(YTEnvSetup):
         create("file", "//tmp/file")
         write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
-        chunk_ids = get("//tmp/file/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/file")
 
         replicas = get("#" + chunk_id + "/@stored_replicas")
 
@@ -271,9 +263,7 @@ class TestRacks(YTEnvSetup):
         write_journal("//tmp/j", self.JOURNAL_DATA)
         wait_until_sealed("//tmp/j")
 
-        chunk_ids = get("//tmp/j/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/j")
         assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
 
         replicas = self._get_replica_nodes(chunk_id)
@@ -316,9 +306,7 @@ class TestRacks(YTEnvSetup):
         create("file", "//tmp/file", attributes={"replication_factor": 10})
         write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 10})
 
-        chunk_ids = get("//tmp/file/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/file")
 
         replication_status = get("#{0}/@replication_status/default".format(chunk_id))
         assert replication_status["underreplicated"] or replication_status["unsafely_placed"]

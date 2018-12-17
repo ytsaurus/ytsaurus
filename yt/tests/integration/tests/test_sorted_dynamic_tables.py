@@ -1744,9 +1744,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
         assert get("#" + chunk_id + "/@erasure_codec") == "lrc_12_2_2"
 
@@ -2247,10 +2245,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": i, "value": "A"*1024} for i in xrange(10)])
         sync_unmount_table("//tmp/t")
 
-        chunks = get("//tmp/t/@chunk_ids")
-        assert len(chunks) == 1
-        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
-        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
     def test_reshard_with_uncovered_chunk_fails(self):
         sync_create_cells(1)
@@ -2261,7 +2258,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         sync_unmount_table("//tmp/t")
 
-        chunk_id = get("//tmp/t/@chunk_ids")[0]
+        chunk_id = get_first_chunk_id("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [1], [2]])
 
         def get_tablet_chunk_lists():
