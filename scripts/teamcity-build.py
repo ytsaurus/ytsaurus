@@ -374,6 +374,10 @@ def build(options, build_context):
                 "--yall-dist-cache-put",
                 "--yall-dist-cache-no-auto-token",
             ]
+        if options.use_asan:
+            args += [
+                "--yall-asan-build",
+            ]
         run(args, env=env, cwd=options.checkout_directory)
 
 
