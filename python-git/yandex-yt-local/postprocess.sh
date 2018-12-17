@@ -46,22 +46,8 @@ strip_debug_info() {
     for binary in $(find "$archive_path/bin" -name "ytserver*"); do
         strip "$binary" --strip-debug
     done
-    strip "$archive_path/node_modules/yt/lib/ytnode.node" --strip-debug
     strip "$archive_path/python/yt_driver_bindings/driver_lib.so" --strip-debug
     strip "$archive_path/python/yt_yson_bindings/yson_lib.so" --strip-debug
-}
-
-create_node_symlink() {
-    local archive_path="$1" && shift
-
-    if [ -f "$archive_path/node/bin/node" ]; then
-        return
-    fi
-
-    local current_path="$(pwd)"
-    cd "$archive_path/node/bin"
-    ln -s nodejs node
-    cd "$current_path"
 }
 
 upload_to_sandbox() {
@@ -174,8 +160,6 @@ create_and_upload_archive() {
 
     # Remove debug symbols from libraries and binaries.
     strip_debug_info "$archive_local_path"
-    # Create symlink node/bin/node -> node/bin/nodejs
-    create_node_symlink "$archive_local_path"
 
     # Pack directory to tar archive without compression.
     local archive_local_name="$(mktemp /tmp/${archive_name}.XXXXXX)"
