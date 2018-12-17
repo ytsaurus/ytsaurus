@@ -121,6 +121,9 @@ template <typename U, int P>
 void Serialize(const TFixedPointNumber<U, P>& number, NYson::IYsonConsumer* consumer);
 
 template <typename U, int P>
+void Deserialize(TFixedPointNumber<U, P>& number, NYTree::INodePtr node);
+
+template <typename U, int P>
 TString ToString(const TFixedPointNumber<U, P>& number);
 
 template <typename U, int P>
