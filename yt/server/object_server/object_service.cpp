@@ -188,6 +188,12 @@ public:
             UserName_))
     { }
 
+    ~TExecuteSession()
+    {
+        YT_LOG_DEBUG_UNLESS(Finished_, "Request is not finished (RequestId: %v)",
+            RequestId_);
+    }
+
     const TString& GetUserName() const
     {
         return UserName_;
@@ -239,6 +245,8 @@ public:
 
     void Finish()
     {
+        Finished_ = true;
+        
         if (!EpochCancelableContext_) {
             return;
         }
@@ -297,6 +305,7 @@ private:
     int LastMutatingSubrequestIndex_ = -1;
 
     std::atomic<bool> FinishScheduled_ = {false};
+    bool Finished_ = false;
 
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = {false};
@@ -734,7 +743,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         bool expected = false;
-        if (!FinishScheduled_.compare_exchange_strong(expected, true)) {
+        if (FinishScheduled_.compare_exchange_strong(expected, true)) {
             Owner_->EnqueueFinishedSession(this);
         }
     }
