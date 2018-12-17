@@ -73,7 +73,7 @@ MB = 1024 * KB
 GB = 1024 * MB
 TB = 1024 * GB
 
-INTEGRATION_TESTS_PARALLELISM = 4
+INTEGRATION_TESTS_PARALLELISM = {"debug": 4, "release": 10}
 PYTHON_TESTS_PARALLELISM = 6
 YP_TESTS_PARALLELISM = 6
 
@@ -892,7 +892,7 @@ def run_yt_integration_tests(options, build_context):
 
     pytest_args = []
     if options.enable_parallel_testing:
-        pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM)])
+        pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM[options.ya_build_type])])
 
     run_pytest(options, "integration", "{0}/yt/tests/integration".format(options.checkout_directory),
                pytest_args=pytest_args)
