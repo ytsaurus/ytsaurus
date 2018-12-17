@@ -160,7 +160,7 @@ TGrpcByteBufferStream::TGrpcByteBufferStream(grpc_byte_buffer* buffer)
     : CurrentSlice_(grpc_empty_slice())
     , RemainingBytes_(grpc_byte_buffer_length(buffer))
 {
-    grpc_byte_buffer_reader_init(&Reader_, buffer);
+    YCHECK(grpc_byte_buffer_reader_init(&Reader_, buffer) == 1);
 }
 
 TGrpcByteBufferStream::~TGrpcByteBufferStream()
