@@ -76,7 +76,7 @@ void TGetJobInputPathsCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
-    output->Write(TSharedRef::FromString(std::move(inputPaths.GetData())));
+    context->ProduceOutputValue(std::move(inputPaths));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
