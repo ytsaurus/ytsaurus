@@ -215,28 +215,27 @@ class YtParallelTestsRunnerPlugin(object):
         for index, tasks in enumerate(self.processes_tasks):
             self._log_to_terminal("Process (id {0}) will run {1} tests".format(index, len(tasks)))
 
-        if len(self.processes_tasks) != self.process_count:
-            raise RuntimeError("Expected exactly {} task batches after scheduling, got {}".format(
-                self.process_count,
-                len(self.processes_tasks)))
-
         self.finished_processes = []
 
         self.processes = []
-        for process_index in xrange(self.process_count):
-            self.processes.append(self._make_process(process_index))
-            self._initialize_process(process_index)
-
-        for process, tasks in izip(self.processes, self.processes_tasks):
-            process.channel.send(tasks)
 
         start_time = time.time()
         while True:
-            if len(self.finished_processes) >= self.process_count:
+            if len(self.finished_processes) >= len(self.processes_tasks):
                 break
 
             if time.time() - start_time >= self.timeout:
                 self._terminate_test_session("Test session takes longer than specified timeout of {} seconds".format(self.timeout))
+
+            while len(self.processes) - len(self.finished_processes) < self.process_count:
+                if len(self.processes) >= len(self.processes_tasks):
+                    break
+
+                process_index = len(self.processes)
+                self.processes.append(self._make_process(process_index))
+                self._initialize_process(process_index)
+
+                self.processes[process_index].channel.send(self.processes_tasks[process_index])
 
             # NB! For correctness here we need to have no more than one consumer (main loop thread in that particular case) and
             #     provided by CPython GIL atomicity of list append / pop / len function calls.
