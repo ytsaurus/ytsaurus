@@ -23,7 +23,7 @@ struct TTotalNodeStatistics
     TDiskSpaceStatistics TotalSpace;
     std::array<TDiskSpaceStatistics, NChunkClient::MaxMediumCount> SpacePerMedium = {};
 
-    int ChunkReplicaCount = 0;
+    i64 ChunkReplicaCount = 0;
 
     int OnlineNodeCount = 0;
     int OfflineNodeCount = 0;
