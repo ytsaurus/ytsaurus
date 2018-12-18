@@ -101,7 +101,7 @@ private:
     }
 
     std::vector<TErrorOrSecretSubresponse> OnVaultCallResult(
-        const TGuid& callId,
+        TGuid callId,
         const NProfiling::TWallTimer& timer,
         const TErrorOr<NHttp::IResponsePtr>& rspOrError)
     {

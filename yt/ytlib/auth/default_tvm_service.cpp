@@ -100,7 +100,7 @@ private:
     }
 
     TString OnTvmCallResult(
-        const TGuid& callId,
+        TGuid callId,
         const TString& serviceId,
         const NProfiling::TWallTimer& timer,
         const TErrorOr<IResponsePtr>& rspOrError)

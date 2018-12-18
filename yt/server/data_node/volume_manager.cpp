@@ -187,7 +187,7 @@ public:
         Enabled_ = true;
     }
 
-    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TGuid& tag)
+    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
     {
         return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, tag)
             .AsyncVia(LocationQueue_->GetInvoker())
@@ -464,7 +464,7 @@ private:
         return Config_->Quota.value_or(std::numeric_limits<i64>::max());
     }
 
-    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TGuid& tag)
+    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
     {
         ValidateEnabled();
 
@@ -858,7 +858,7 @@ public:
         }
     }
 
-    TFuture<TLayerPtr> PrepareLayer(const TArtifactKey& artifactKey, const TGuid& tag)
+    TFuture<TLayerPtr> PrepareLayer(const TArtifactKey& artifactKey, TGuid tag)
     {
         auto cookie = BeginInsert(artifactKey);
         auto value = cookie.GetValue();
@@ -1186,7 +1186,7 @@ private:
     void OnLayersPrepared(
         TPromise<TVolumeStatePtr> volumeStatePromise,
         const TVolumeKey& key,
-        const TGuid& tag,
+        TGuid tag,
         const TErrorOr<std::vector<TLayerPtr>>& errorOrLayers)
     {
         try {
