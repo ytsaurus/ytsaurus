@@ -190,7 +190,7 @@ void TBlob::Reallocate(size_t newCapacity)
         Allocate(newCapacity);
         return;
     }
-    char* newBuffer = new char[newCapacity + Alignment_ - 1];
+    char* newBuffer = static_cast<char*>(NYTAlloc::Allocate(newCapacity + Alignment_ - 1, Dumpable_));
     char* newBegin = AlignUp(newBuffer, Alignment_);
     memcpy(newBegin, Begin_, Size_);
     NYTAlloc::Free(Buffer_);
