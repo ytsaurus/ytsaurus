@@ -1232,9 +1232,7 @@ class TestAccounts(YTEnvSetup):
         assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
 
     def test_totals(self):
-        resource_usage = get("//sys/accounts/@total_resource_usage")
-        committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
-        resource_limits = get("//sys/accounts/@total_resource_limits")
+        self._set_account_zero_limits("chunk_wise_accounting_migration")
 
         def add_resources(*resources):
             result = {
@@ -1263,6 +1261,8 @@ class TestAccounts(YTEnvSetup):
                     a["tablet_count"] == b["tablet_count"] and
                     a["tablet_static_memory"] == b["tablet_static_memory"])
 
+        resource_limits = get("//sys/accounts/@total_resource_limits")
+
         create_account("a1")
         set("//sys/accounts/a1/@resource_limits", {
             "disk_space_per_medium": {"default": 1000},
@@ -1280,11 +1280,6 @@ class TestAccounts(YTEnvSetup):
             "tablet_static_memory": 0
         })
 
-        create("table", "//tmp/t1", attributes={"account": "a1"})
-        create("table", "//tmp/t2", attributes={"account": "a2"})
-        write_table("//tmp/t1", {"a" : "b"})
-        write_table("//tmp/t2", {"c" : "d"})
-
         total_resource_limits = add_resources(
             resource_limits,
             {
@@ -1296,19 +1291,30 @@ class TestAccounts(YTEnvSetup):
                 "tablet_static_memory": 0
             })
 
-        def totals_match():
-            resource_usage1 = get("//tmp/t1/@resource_usage")
-            committed_resource_usage1 = get("//tmp/t1/@resource_usage")
+        resource_usage = get("//sys/accounts/@total_resource_usage")
+        committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
 
-            resource_usage2 = get("//tmp/t2/@resource_usage")
-            committed_resource_usage2 = get("//tmp/t2/@resource_usage")
+        multicell_sleep()
+
+        resources_equal(get("//sys/accounts/@total_resource_limits"), total_resource_limits)
+
+        create("table", "//tmp/t1", attributes={"account": "a1"})
+        create("table", "//tmp/t2", attributes={"account": "a2"})
+        write_table("//tmp/t1", {"a" : "b"})
+        write_table("//tmp/t2", {"c" : "d"})
+
+        def totals_match():
+            resource_usage1 = get("//sys/accounts/a1/@resource_usage")
+            committed_resource_usage1 = get("//sys/accounts/a1/@committed_resource_usage")
+
+            resource_usage2 = get("//sys/accounts/a2/@resource_usage")
+            committed_resource_usage2 = get("//sys/accounts/a2/@committed_resource_usage")
 
             total_resource_usage = add_resources(resource_usage, resource_usage1, resource_usage2)
             total_committed_resource_usage = add_resources(committed_resource_usage, committed_resource_usage1, committed_resource_usage2)
 
             return (resources_equal(get("//sys/accounts/@total_resource_usage"), total_resource_usage) and
-                    resources_equal(get("//sys/accounts/@total_committed_resource_usage"), total_committed_resource_usage) and
-                    resources_equal(get("//sys/accounts/@total_resource_limits"), total_resource_limits))
+                    resources_equal(get("//sys/accounts/@total_committed_resource_usage"), total_committed_resource_usage))
 
         wait(totals_match)
 
