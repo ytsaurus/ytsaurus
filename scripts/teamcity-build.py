@@ -508,6 +508,10 @@ def share_packages(options, build_context):
 
 @build_step
 def package_common_packages(options, build_context):
+    if not options.package:
+        teamcity_message("Skipping packaging common packages")
+        return
+
     if options.build_system != "ya":
         return
 
