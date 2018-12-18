@@ -39,6 +39,13 @@ def prepare_yt_packages():
             shutil.rmtree(dst_path)
         shutil.copytree(src_path, dst_path)
 
+    # Simplejson
+    src_path = yatest.common.source_path("contrib/python/simplejson/simplejson")
+    dst_path = yatest.common.source_path("yt/python/simplejson")
+    if os.path.exists(dst_path):
+        shutil.rmtree(dst_path)
+    shutil.copytree(src_path, dst_path)
+
     # Six
     copy_file(
         os.path.join(contrib_path, "python-six", "six.py"),
