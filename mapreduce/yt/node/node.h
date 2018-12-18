@@ -391,4 +391,14 @@ inline const T& TNode::As() const {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NNodeCmp {
+    bool operator<(const TNode& lhs, const TNode& rhs);
+    bool operator<=(const TNode& lhs, const TNode& rhs);
+    bool operator>(const TNode& lhs, const TNode& rhs);
+    bool operator>=(const TNode& lhs, const TNode& rhs);
+    bool IsComparableType(const TNode::EType type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
