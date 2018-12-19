@@ -101,7 +101,7 @@ void FromProto(
 TOperation::TOperation(
     TOperationId id,
     EOperationType type,
-    const TMutationId& mutationId,
+    TMutationId mutationId,
     TTransactionId userTransactionId,
     IMapNodePtr spec,
     IMapNodePtr secureVault,

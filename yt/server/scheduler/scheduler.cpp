@@ -595,7 +595,7 @@ public:
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         TTransactionId transactionId,
-        const TMutationId& mutationId,
+        TMutationId mutationId,
         IMapNodePtr specNode,
         const TString& user)
     {
@@ -3461,7 +3461,7 @@ TOperationPtr TScheduler::GetOperationOrThrow(const TOperationIdOrAlias& idOrAli
 TFuture<TOperationPtr> TScheduler::StartOperation(
     EOperationType type,
     TTransactionId transactionId,
-    const TMutationId& mutationId,
+    TMutationId mutationId,
     IMapNodePtr spec,
     const TString& user)
 {

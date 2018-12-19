@@ -34,8 +34,6 @@ public:
         , Invoker_(std::move(invoker))
         , Logger(logger)
         , Profiler(profiler)
-        , CountCounter_("/kept_response_count")
-        , SpaceCounter_("/kept_response_space")
     {
         YCHECK(Config_);
         YCHECK(Invoker_);
@@ -89,7 +87,7 @@ public:
         YT_LOG_INFO("Response keeper stopped");
     }
 
-    TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id, bool isRetry)
+    TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry)
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
         Y_ASSERT(id);
@@ -131,7 +129,7 @@ public:
         return TFuture<TSharedRefArray>();
     }
 
-    void EndRequest(const TMutationId& id, TSharedRefArray response)
+    void EndRequest(TMutationId id, TSharedRefArray response)
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
         Y_ASSERT(id);
@@ -164,7 +162,7 @@ public:
         YT_LOG_TRACE("Response kept (MutationId: %v)", id);
     }
 
-    void CancelRequest(const TMutationId& id, const TError& error)
+    void CancelRequest(TMutationId id, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
         Y_ASSERT(id);
@@ -218,6 +216,8 @@ public:
 private:
     const TResponseKeeperConfigPtr Config_;
     const IInvokerPtr Invoker_;
+    const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler;
 
     TPeriodicExecutorPtr EvictionExecutor_;
     TPeriodicExecutorPtr ProfilingExecutor_;
@@ -239,11 +239,8 @@ private:
 
     THashMap<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
 
-    NLogging::TLogger Logger;
-
-    NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateGauge CountCounter_;
-    NProfiling::TAggregateGauge SpaceCounter_;
+    NProfiling::TAggregateGauge CountCounter_{"/kept_response_count"};
+    NProfiling::TAggregateGauge SpaceCounter_{"/kept_response_space"};
 
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 
@@ -318,17 +315,17 @@ void TResponseKeeper::Stop()
     Impl_->Stop();
 }
 
-TFuture<TSharedRefArray> TResponseKeeper::TryBeginRequest(const TMutationId& id, bool isRetry)
+TFuture<TSharedRefArray> TResponseKeeper::TryBeginRequest(TMutationId id, bool isRetry)
 {
     return Impl_->TryBeginRequest(id, isRetry);
 }
 
-void TResponseKeeper::EndRequest(const TMutationId& id, TSharedRefArray response)
+void TResponseKeeper::EndRequest(TMutationId id, TSharedRefArray response)
 {
     Impl_->EndRequest(id, std::move(response));
 }
 
-void TResponseKeeper::CancelRequest(const TMutationId& id, const TError& error)
+void TResponseKeeper::CancelRequest(TMutationId id, const TError& error)
 {
     Impl_->CancelRequest(id, error);
 }

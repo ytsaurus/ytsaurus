@@ -157,7 +157,7 @@ public:
     TRequestExecutor(
         ICommandContextPtr context,
         TRequestPtr request,
-        const NRpc::TMutationId& mutationId,
+        NRpc::TMutationId mutationId,
         bool retry)
         : Context_(std::move(context))
         , Request_(std::move(request))

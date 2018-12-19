@@ -40,7 +40,7 @@ public:
     virtual void SetRetry(bool value) override;
 
     virtual NRpc::TMutationId GetMutationId() const override;
-    virtual void SetMutationId(const NRpc::TMutationId& id) override;
+    virtual void SetMutationId(NRpc::TMutationId id) override;
 
     virtual size_t GetHash() const override;
 

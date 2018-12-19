@@ -18,7 +18,7 @@ TCommit::TCommit(TTransactionId transationId)
 
 TCommit::TCommit(
     TTransactionId transationId,
-    const TMutationId& mutationId,
+    TMutationId mutationId,
     const std::vector<TCellId>& participantCellIds,
     bool distributed,
     bool generatePrepareTimestamp,

@@ -65,7 +65,7 @@ void TMutation::SetAllowLeaderForwarding(bool value)
     Request_.AllowLeaderForwarding = value;
 }
 
-void TMutation::SetMutationId(const NRpc::TMutationId& mutationId, bool retry)
+void TMutation::SetMutationId(NRpc::TMutationId mutationId, bool retry)
 {
     Request_.MutationId = mutationId;
     Request_.Retry = retry;

@@ -708,7 +708,7 @@ private:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        const TMutationId& mutationId,
+        TMutationId mutationId,
         const TString& userName)
     {
         YCHECK(!HasMutationContext());
@@ -789,7 +789,7 @@ private:
 
     TFuture<TSharedRefArray> CoordinatorAbortTransaction(
         TTransactionId transactionId,
-        const TMutationId& mutationId,
+        TMutationId mutationId,
         bool force,
         const TString& userName)
     {
@@ -1240,7 +1240,7 @@ private:
 
     TCommit* CreateTransientCommit(
         TTransactionId transactionId,
-        const TMutationId& mutationId,
+        TMutationId mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
         bool generatePrepareTimestamp,
@@ -1262,7 +1262,7 @@ private:
 
     TCommit* GetOrCreatePersistentCommit(
         TTransactionId transactionId,
-        const TMutationId& mutationId,
+        TMutationId mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
         bool generatePrepareTimstamp,
@@ -1369,7 +1369,7 @@ private:
         return it == TransientAbortMap_.end() ? nullptr : &it->second;
     }
 
-    TAbort* CreateAbort(TTransactionId transactionId, const TMutationId& mutationId)
+    TAbort* CreateAbort(TTransactionId transactionId, TMutationId mutationId)
     {
         auto pair = TransientAbortMap_.emplace(transactionId, TAbort(transactionId, mutationId));
         YCHECK(pair.second);

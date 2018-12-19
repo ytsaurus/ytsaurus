@@ -65,7 +65,7 @@ public:
      *  The call throws if the keeper is not active or if #isRetry is |true| and
      *  the keeper is warming up.
      */
-    TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id, bool isRetry);
+    TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry);
 
     //! Called when a request with a given mutation #id is finished and a #response is ready.
     /*
@@ -73,10 +73,10 @@ public:
      *  previously returned by #TryBeginRequest. Additionally, the #response
      *  is remembered and returned by future calls to #TryBeginRequest.
      */
-    void EndRequest(const TMutationId& id, TSharedRefArray response);
+    void EndRequest(TMutationId id, TSharedRefArray response);
 
     //! Forgets the request, which was previously registered via #TryBeginRequest.
-    void CancelRequest(const TMutationId& id, const TError& error);
+    void CancelRequest(TMutationId id, const TError& error);
 
     //! Combines #TryBeginRequest and #EndBeginRequest.
     /*!

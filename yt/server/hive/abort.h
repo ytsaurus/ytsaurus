@@ -21,7 +21,7 @@ public:
 public:
     TAbort(
         TTransactionId transactionId,
-        const NRpc::TMutationId& mutationId);
+        NRpc::TMutationId mutationId);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);

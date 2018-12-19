@@ -65,9 +65,9 @@ void SetTraceContext(
 TMutationId GenerateMutationId();
 
 void GenerateMutationId(const IClientRequestPtr& request);
-void SetMutationId(NProto::TRequestHeader* header, const TMutationId& id, bool retry);
-void SetMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry);
-void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry);
+void SetMutationId(NProto::TRequestHeader* header, TMutationId id, bool retry);
+void SetMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);
+void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);
 
 ////////////////////////////////////////////////////////////////////////////////
 
