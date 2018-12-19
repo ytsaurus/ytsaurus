@@ -8,7 +8,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGroup::TGroup(const TGroupId& id)
+TGroup::TGroup(TGroupId id)
     : TSubject(id)
 { }
 

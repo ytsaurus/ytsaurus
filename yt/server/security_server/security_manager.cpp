@@ -1582,7 +1582,7 @@ private:
         return tagId;
     }
 
-    TGroup* DoCreateGroup(const TGroupId& id, const TString& name)
+    TGroup* DoCreateGroup(TGroupId id, const TString& name)
     {
         auto groupHolder = std::make_unique<TGroup>(id);
         groupHolder->SetName(name);
@@ -2173,7 +2173,7 @@ private:
             Bootstrap_->GetObjectManager());
     }
 
-    bool EnsureBuiltinGroupInitialized(TGroup*& group, const TGroupId& id, const TString& name)
+    bool EnsureBuiltinGroupInitialized(TGroup*& group, TGroupId id, const TString& name)
     {
         if (group) {
             return false;
