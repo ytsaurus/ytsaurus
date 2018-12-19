@@ -67,21 +67,21 @@ TYPath GetJobsPath(const TOperationId& operationId)
         "/jobs";
 }
 
-TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
+TYPath GetJobPath(const TOperationId& operationId, TJobId jobId)
 {
     return
         GetJobsPath(operationId) + "/" +
         ToYPathLiteral(ToString(jobId));
 }
 
-TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId)
+TYPath GetStderrPath(const TOperationId& operationId, TJobId jobId)
 {
     return
         GetJobPath(operationId, jobId)
         + "/stderr";
 }
 
-TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId)
+TYPath GetFailContextPath(const TOperationId& operationId, TJobId jobId)
 {
     return
         GetJobPath(operationId, jobId)
@@ -159,7 +159,7 @@ TYPath GetSecureVaultPath(const TOperationId& operationId)
 
 NYPath::TYPath GetJobPath(
     const TOperationId& operationId,
-    const TJobId& jobId,
+    TJobId jobId,
     const TString& resourceName)
 {
     TString suffix;

@@ -18,7 +18,7 @@ struct IJobSplitter
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
     virtual void OnJobStarted(
-        const TJobId& jobId,
+        TJobId jobId,
         const NChunkPools::TChunkStripeListPtr& inputStripeList) = 0;
     virtual void OnJobRunning(const TJobSummary& summary) = 0;
     virtual void OnJobFailed(const TFailedJobSummary& summary) = 0;
@@ -27,7 +27,7 @@ struct IJobSplitter
     virtual int EstimateJobCount(
         const TCompletedJobSummary& summary,
         i64 unreadRowCount) const = 0;
-    virtual bool IsJobSplittable(const TJobId& jobId) const = 0;
+    virtual bool IsJobSplittable(TJobId jobId) const = 0;
     virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const = 0;
 };
 

@@ -36,7 +36,7 @@ public:
         YCHECK(Config_);
     }
 
-    virtual bool IsJobSplittable(const TJobId& jobId) const override
+    virtual bool IsJobSplittable(TJobId jobId) const override
     {
         auto it = RunningJobs_.find(jobId);
         YCHECK(it != RunningJobs_.end());
@@ -52,7 +52,7 @@ public:
     }
 
     virtual void OnJobStarted(
-        const TJobId& jobId,
+        TJobId jobId,
         const TChunkStripeListPtr& inputStripeList) override
     {
         RunningJobs_.emplace(jobId, TRunningJob(inputStripeList, this));
@@ -185,12 +185,12 @@ private:
             : Config_(config)
         { }
 
-        void SetSample(TInstant completionTime, const TJobId& jobId)
+        void SetSample(TInstant completionTime, TJobId jobId)
         {
             JobIdToCompletionTime_[jobId] = completionTime;
         }
 
-        void RemoveSample(const TJobId& jobId)
+        void RemoveSample(TJobId jobId)
         {
             JobIdToCompletionTime_.erase(jobId);
         }
@@ -237,7 +237,7 @@ private:
             return MedianCompletionTime_;
         }
 
-        bool GetInterruptHint(const TJobId& jobId) const
+        bool GetInterruptHint(TJobId jobId) const
         {
             return InterruptCandidateSet_.find(jobId) != InterruptCandidateSet_.end();
         }

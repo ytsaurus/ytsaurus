@@ -21,11 +21,11 @@ namespace NYT::NScheduler {
 NYPath::TYPath GetOperationsPath();
 NYPath::TYPath GetOperationPath(const TOperationId& operationId);
 NYPath::TYPath GetJobsPath(const TOperationId& operationId);
-NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId);
+NYPath::TYPath GetJobPath(const TOperationId& operationId, TJobId jobId);
+NYPath::TYPath GetStderrPath(const TOperationId& operationId, TJobId jobId);
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
-NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
+NYPath::TYPath GetFailContextPath(const TOperationId& operationId, TJobId jobId);
 
 NYPath::TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId);
 NYPath::TYPath GetSchedulerOrchidAliasPath(const TString& alias);
@@ -38,7 +38,7 @@ std::optional<TString> GetControllerAgentAddressFromCypress(
 
 NYPath::TYPath GetJobPath(
     const TOperationId& operationId,
-    const TJobId& jobId,
+    TJobId jobId,
     const TString& resourceName);
 
 const NYPath::TYPath& GetPoolTreesPath();

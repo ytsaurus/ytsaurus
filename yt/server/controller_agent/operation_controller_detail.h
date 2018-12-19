@@ -234,7 +234,7 @@ public:
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
 
-    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override;
+    virtual TSharedRef ExtractJobSpec(TJobId jobId) const override;
 
     virtual NYson::TYsonString GetSuspiciousJobsYson() const override;
 
@@ -335,7 +335,7 @@ public:
 
     virtual TOperationInfo BuildOperationInfo() override;
 
-    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
+    virtual NYson::TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override;
 
     virtual NYTree::IYPathServicePtr GetOrchid() const override;
 
@@ -526,9 +526,9 @@ protected:
         TScheduleJobResult* scheduleJobResult);
 
 
-    TJobletPtr FindJoblet(const TJobId& jobId) const;
-    TJobletPtr GetJoblet(const TJobId& jobId) const;
-    TJobletPtr GetJobletOrThrow(const TJobId& jobId) const;
+    TJobletPtr FindJoblet(TJobId jobId) const;
+    TJobletPtr GetJoblet(TJobId jobId) const;
+    TJobletPtr GetJobletOrThrow(TJobId jobId) const;
 
     void UnregisterJoblet(const TJobletPtr& joblet);
 

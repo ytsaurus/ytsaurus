@@ -81,7 +81,7 @@ public:
         const NYPath::TYPath& path,
         NChunkClient::TChunkId chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TString& usrt);
 
     TFuture<void> FlushOperationRuntimeParameters(

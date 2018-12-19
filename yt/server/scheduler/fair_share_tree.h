@@ -12,8 +12,8 @@ struct IFairShareTreeSnapshot
     : public TIntrinsicRefCounted
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
-    virtual void ProcessUpdatedJob(const TOperationId& operationId, const TJobId& jobId, const TJobResources& delta) = 0;
-    virtual void ProcessFinishedJob(const TOperationId& operationId, const TJobId& jobId) = 0;
+    virtual void ProcessUpdatedJob(const TOperationId& operationId, TJobId jobId, const TJobResources& delta) = 0;
+    virtual void ProcessFinishedJob(const TOperationId& operationId, TJobId jobId) = 0;
     virtual bool HasOperation(const TOperationId& operationId) const = 0;
     virtual void ApplyJobMetricsDelta(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
@@ -268,7 +268,7 @@ private:
                 .Run();
         }
 
-        virtual void ProcessUpdatedJob(const TOperationId& operationId, const TJobId& jobId, const TJobResources& delta)
+        virtual void ProcessUpdatedJob(const TOperationId& operationId, TJobId jobId, const TJobResources& delta)
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
@@ -278,7 +278,7 @@ private:
             }
         }
 
-        virtual void ProcessFinishedJob(const TOperationId& operationId, const TJobId& jobId) override
+        virtual void ProcessFinishedJob(const TOperationId& operationId, TJobId jobId) override
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);

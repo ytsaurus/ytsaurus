@@ -150,7 +150,7 @@ public:
     TUserJob(
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
-        const TJobId& jobId,
+        TJobId jobId,
         const std::vector<int>& ports,
         std::unique_ptr<TUserJobWriteController> userJobWriteController)
         : TJob(host)
@@ -1426,7 +1426,7 @@ private:
 IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
-    const TJobId& jobId,
+    TJobId jobId,
     const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
@@ -1443,7 +1443,7 @@ IJobPtr CreateUserJob(
 IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& UserJobSpec_,
-    const TJobId& jobId,
+    TJobId jobId,
     const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {

@@ -952,7 +952,7 @@ public:
         return updateFuture;
     }
 
-    TFuture<TYsonString> Strace(const TJobId& jobId, const TString& user)
+    TFuture<TYsonString> Strace(TJobId jobId, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::StraceJob, nodeShard, jobId, user)
@@ -960,7 +960,7 @@ public:
             .Run();
     }
 
-    TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path, const TString& user)
+    TFuture<void> DumpInputContext(TJobId jobId, const TYPath& path, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::DumpJobInputContext, nodeShard, jobId, path, user)
@@ -968,7 +968,7 @@ public:
             .Run();
     }
 
-    TFuture<TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user)
+    TFuture<TNodeDescriptor> GetJobNode(TJobId jobId, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::GetJobNode, nodeShard, jobId, user)
@@ -976,7 +976,7 @@ public:
             .Run();
     }
 
-    TFuture<void> SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
+    TFuture<void> SignalJob(TJobId jobId, const TString& signalName, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::SignalJob, nodeShard, jobId, signalName, user)
@@ -984,7 +984,7 @@ public:
             .Run();
     }
 
-    TFuture<void> AbandonJob(const TJobId& jobId, const TString& user)
+    TFuture<void> AbandonJob(TJobId jobId, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::AbandonJob, nodeShard, jobId, user)
@@ -992,7 +992,7 @@ public:
             .Run();
     }
 
-    TFuture<void> AbortJob(const TJobId& jobId, std::optional<TDuration> interruptTimeout, const TString& user)
+    TFuture<void> AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return
@@ -1239,7 +1239,7 @@ public:
         const NYTree::TYPath& path,
         TChunkId chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TString& user) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1361,7 +1361,7 @@ private:
         const NYTree::TYPath& path,
         TChunkId chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1404,7 +1404,7 @@ private:
         return NodeShards_[GetNodeShardId(nodeId)];
     }
 
-    const TNodeShardPtr& GetNodeShardByJobId(const TJobId& jobId) const
+    const TNodeShardPtr& GetNodeShardByJobId(TJobId jobId) const
     {
         auto nodeId = NodeIdFromJobId(jobId);
         return GetNodeShard(nodeId);
@@ -3341,7 +3341,7 @@ private:
         }
 
     private:
-        void BuildControllerJobYson(const TJobId& jobId, IYsonConsumer* consumer) const
+        void BuildControllerJobYson(TJobId jobId, IYsonConsumer* consumer) const
         {
             const auto& nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
 
@@ -3542,32 +3542,32 @@ TFuture<void> TScheduler::UpdateOperationParameters(
     return Impl_->UpdateOperationParameters(operation, user, parameters);
 }
 
-TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user)
+TFuture<void> TScheduler::DumpInputContext(TJobId jobId, const NYPath::TYPath& path, const TString& user)
 {
     return Impl_->DumpInputContext(jobId, path, user);
 }
 
-TFuture<TNodeDescriptor> TScheduler::GetJobNode(const TJobId& jobId, const TString& user)
+TFuture<TNodeDescriptor> TScheduler::GetJobNode(TJobId jobId, const TString& user)
 {
     return Impl_->GetJobNode(jobId, user);
 }
 
-TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId, const TString& user)
+TFuture<TYsonString> TScheduler::Strace(TJobId jobId, const TString& user)
 {
     return Impl_->Strace(jobId, user);
 }
 
-TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
+TFuture<void> TScheduler::SignalJob(TJobId jobId, const TString& signalName, const TString& user)
 {
     return Impl_->SignalJob(jobId, signalName, user);
 }
 
-TFuture<void> TScheduler::AbandonJob(const TJobId& jobId, const TString& user)
+TFuture<void> TScheduler::AbandonJob(TJobId jobId, const TString& user)
 {
     return Impl_->AbandonJob(jobId, user);
 }
 
-TFuture<void> TScheduler::AbortJob(const TJobId& jobId, std::optional<TDuration> interruptTimeout, const TString& user)
+TFuture<void> TScheduler::AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
 {
     return Impl_->AbortJob(jobId, interruptTimeout, user);
 }

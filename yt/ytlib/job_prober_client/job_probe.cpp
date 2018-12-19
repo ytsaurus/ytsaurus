@@ -24,7 +24,7 @@ class TJobProberClient
     : public IJobProbe
 {
 public:
-    TJobProberClient(TTcpBusClientConfigPtr config, const TJobId& jobId)
+    TJobProberClient(TTcpBusClientConfigPtr config, TJobId jobId)
         : TcpBusClientConfig_(config)
         , JobId_(jobId)
     { }
@@ -132,7 +132,7 @@ private:
 
 IJobProbePtr CreateJobProbe(
     NBus::TTcpBusClientConfigPtr config,
-    const TJobId& jobId)
+    TJobId jobId)
 {
     return New<TJobProberClient>(config, jobId);
 }

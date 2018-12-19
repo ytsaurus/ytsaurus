@@ -25,7 +25,7 @@ public:
         : TSchedulingContextBase(schedulerConfig, node, runningJobs)
     { }
 
-    void SetDurationForStartedJob(const NScheduler::TJobId& jobId, const TDuration& duration)
+    void SetDurationForStartedJob(NScheduler::TJobId jobId, const TDuration& duration)
     {
         Durations_[jobId] = duration;
     }

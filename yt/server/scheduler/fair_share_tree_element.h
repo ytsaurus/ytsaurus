@@ -570,7 +570,7 @@ public:
     explicit TOperationElementSharedState(int updatePreemptableJobsListLoggingPeriod);
 
     TJobResources IncreaseJobResourceUsage(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobResources& resourcesDelta);
 
     void UpdatePreemptableJobsList(
@@ -580,9 +580,9 @@ public:
         double aggressivePreemptionSatisfactionThreshold,
         int* moveCount);
 
-    bool IsJobKnown(const TJobId& jobId) const;
+    bool IsJobKnown(TJobId jobId) const;
 
-    bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
+    bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
 
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
@@ -590,8 +590,8 @@ public:
 
     int GetScheduledJobCount() const;
 
-    std::optional<TJobResources> AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
-    std::optional<TJobResources> RemoveJob(const TJobId& jobId);
+    std::optional<TJobResources> AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force);
+    std::optional<TJobResources> RemoveJob(TJobId jobId);
 
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
@@ -739,8 +739,8 @@ private:
 
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
 
-    TJobProperties* GetJobProperties(const TJobId& jobId);
-    const TJobProperties* GetJobProperties(const TJobId& jobId) const;
+    TJobProperties* GetJobProperties(TJobId jobId);
+    const TJobProperties* GetJobProperties(TJobId jobId) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
@@ -805,11 +805,11 @@ public:
 
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
-    void IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta);
+    void IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta);
 
-    bool IsJobKnown(const TJobId& jobId) const;
+    bool IsJobKnown(TJobId jobId) const;
 
-    bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
+    bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
 
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
@@ -827,11 +827,11 @@ public:
     TString GetUserName() const;
 
     bool OnJobStarted(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobResources& resourceUsage,
         const TJobResources& precommittedResources,
         bool force = false);
-    void OnJobFinished(const TJobId& jobId);
+    void OnJobFinished(TJobId jobId);
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 

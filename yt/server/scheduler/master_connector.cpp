@@ -280,7 +280,7 @@ public:
         const TYPath& path,
         TChunkId chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1711,7 +1711,7 @@ void TMasterConnector::AttachJobContext(
     const TYPath& path,
     TChunkId chunkId,
     const TOperationId& operationId,
-    const TJobId& jobId,
+    TJobId jobId,
     const TString& user)
 {
     return Impl_->AttachJobContext(path, chunkId, operationId, jobId, user);

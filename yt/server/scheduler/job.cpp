@@ -11,7 +11,7 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJob::TJob(
-    const TJobId& id,
+    TJobId id,
     EJobType type,
     const TOperationId& operationId,
     TIncarnationId incarnationId,

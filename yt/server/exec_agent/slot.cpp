@@ -75,7 +75,7 @@ public:
 
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyConfigPtr config,
-        const TJobId& jobId,
+        TJobId jobId,
         const TOperationId& operationId) override
     {
         JobProberClient_ = CreateJobProbe(GetRpcClientConfig(), jobId);

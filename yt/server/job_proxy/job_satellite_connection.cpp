@@ -18,7 +18,7 @@ using namespace NBus;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobSatelliteConnection::TJobSatelliteConnection(
-    const TJobId& jobId,
+    TJobId jobId,
     TTcpBusServerConfigPtr jobProxyRpcServerConfig,
     EJobEnvironmentType environmentType,
     bool enableSecureVaultVariablesInJobShell)
@@ -42,7 +42,7 @@ TTcpBusClientConfigPtr TJobSatelliteConnection::GetRpcClientConfig() const
     return TTcpBusClientConfig::CreateUnixDomain(*ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName);
 }
 
-const NJobTrackerClient::TJobId& TJobSatelliteConnection::GetJobId() const
+NJobTrackerClient::TJobId TJobSatelliteConnection::GetJobId() const
 {
     return JobId_;
 }

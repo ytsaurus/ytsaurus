@@ -6290,20 +6290,20 @@ void TOperationControllerBase::RegisterJoblet(const TJobletPtr& joblet)
     YCHECK(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
 }
 
-TJobletPtr TOperationControllerBase::FindJoblet(const TJobId& jobId) const
+TJobletPtr TOperationControllerBase::FindJoblet(TJobId jobId) const
 {
     auto it = JobletMap.find(jobId);
     return it == JobletMap.end() ? nullptr : it->second;
 }
 
-TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId) const
+TJobletPtr TOperationControllerBase::GetJoblet(TJobId jobId) const
 {
     auto joblet = FindJoblet(jobId);
     YCHECK(joblet);
     return joblet;
 }
 
-TJobletPtr TOperationControllerBase::GetJobletOrThrow(const TJobId& jobId) const
+TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
 {
     auto joblet = FindJoblet(jobId);
     if (!joblet) {
@@ -6513,7 +6513,7 @@ TYsonString TOperationControllerBase::GetBriefProgress() const
     return BriefProgressString_;
 }
 
-TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool outputStatistics) const
+TYsonString TOperationControllerBase::BuildJobYson(TJobId id, bool outputStatistics) const
 {
     TCallback<void(TFluentMap)> attributesBuilder;
 
@@ -6591,7 +6591,7 @@ TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& job
     return joblet->Task->BuildJobSpecProto(joblet);
 }
 
-TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
+TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::GetJobSpec));
 

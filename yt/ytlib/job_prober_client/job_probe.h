@@ -24,7 +24,7 @@ DEFINE_REFCOUNTED_TYPE(IJobProbe)
 
 IJobProbePtr CreateJobProbe(
     NBus::TTcpBusClientConfigPtr config,
-    const NJobTrackerClient::TJobId& jobId);
+    NJobTrackerClient::TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

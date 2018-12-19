@@ -384,7 +384,7 @@ public:
     }
 
     virtual void OnNonscheduledJobAborted(
-        const TJobId& jobId,
+        TJobId jobId,
         EAbortReason abortReason) override
     {
         VERIFY_THREAD_AFFINITY_ANY();

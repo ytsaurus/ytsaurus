@@ -52,10 +52,10 @@ public:
         TJobFactory factory);
 
     //! Finds the job by its id, returns |nullptr| if no job is found.
-    IJobPtr FindJob(const TJobId& jobId) const;
+    IJobPtr FindJob(TJobId jobId) const;
 
     //! Finds the job by its id, throws if no job is found.
-    IJobPtr GetJobOrThrow(const TJobId& jobId) const;
+    IJobPtr GetJobOrThrow(TJobId jobId) const;
 
     //! Returns the list of all currently known jobs.
     std::vector<IJobPtr> GetJobs() const;
@@ -67,7 +67,7 @@ public:
     NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = false) const;
 
     //! Return ports allocated by job.
-    std::vector<int> GetJobPorts(const TJobId& jobId) const;
+    std::vector<int> GetJobPorts(TJobId jobId) const;
 
     //! Set resource limits overrides.
     void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);

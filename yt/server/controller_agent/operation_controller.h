@@ -139,7 +139,7 @@ struct TStartedJobSummary
 struct TJobSummary
 {
     TJobSummary() = default;
-    TJobSummary(const TJobId& id, EJobState state);
+    TJobSummary(TJobId id, EJobState state);
     explicit TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
     virtual ~TJobSummary() = default;
 
@@ -186,7 +186,7 @@ struct TCompletedJobSummary
 struct TAbortedJobSummary
     : public TJobSummary
 {
-    TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
+    TAbortedJobSummary(TJobId id, EAbortReason abortReason);
     TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
     explicit TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
 
@@ -210,9 +210,9 @@ struct TRunningJobSummary
 struct IOperationControllerHost
     : public virtual TRefCounted
 {
-    virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) = 0;
-    virtual void AbortJob(const TJobId& jobId, const TError& error) = 0;
-    virtual void FailJob(const TJobId& jobId) = 0;
+    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
+    virtual void AbortJob(TJobId jobId, const TError& error) = 0;
+    virtual void FailJob(TJobId jobId) = 0;
     virtual void ReleaseJobs(const std::vector<NScheduler::TJobToRelease>& jobsToRelease) = 0;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() = 0;
@@ -263,7 +263,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
 struct TJobStartDescriptor
 {
     TJobStartDescriptor(
-        const TJobId& id,
+        TJobId id,
         EJobType type,
         const TJobResources& resourceLimits,
         bool interruptible);
@@ -589,7 +589,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: cancelable Controller invoker with EOperationControllerQueue::GetJobSpec index.
      */
-    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
+    virtual TSharedRef ExtractJobSpec(TJobId jobId) const = 0;
 
     //! Builds operation alerts.
     /*!
@@ -620,7 +620,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker.
      */
-    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
+    virtual NYson::TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const = 0;
 
     //! Return a YPath service representing this controller in controller agent Orchid.
     /*!

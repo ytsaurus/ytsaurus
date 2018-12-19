@@ -34,7 +34,7 @@ TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId);
 
 TJobStatus JobStatusFromError(const TError& error);
 TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
-NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);
+NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

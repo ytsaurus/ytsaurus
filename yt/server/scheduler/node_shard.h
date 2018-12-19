@@ -51,7 +51,7 @@ struct INodeShardHost
         const NYTree::TYPath& path,
         NChunkClient::TChunkId chunkId,
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TString& user) = 0;
 
     virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TString& address) = 0;
@@ -122,23 +122,23 @@ public:
     void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
     void ResumeOperationJobs(const TOperationId& operationId);
 
-    NNodeTrackerClient::TNodeDescriptor GetJobNode(const TJobId& jobId, const TString& user);
+    NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId, const TString& user);
 
-    NYson::TYsonString StraceJob(const TJobId& jobId, const TString& user);
-    void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const TString& user);
-    void SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
-    void AbandonJob(const TJobId& jobId, const TString& user);
-    void AbortJobByUserRequest(const TJobId& jobId, std::optional<TDuration> interruptTimeout, const TString& user);
+    NYson::TYsonString StraceJob(TJobId jobId, const TString& user);
+    void DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user);
+    void SignalJob(TJobId jobId, const TString& signalName, const TString& user);
+    void AbandonJob(TJobId jobId, const TString& user);
+    void AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
-    void AbortJob(const TJobId& jobId, const TError& error);
+    void AbortJob(TJobId jobId, const TError& error);
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
-    void InterruptJob(const TJobId& jobId, EInterruptReason reason);
-    void FailJob(const TJobId& jobId);
-    void ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile);
+    void InterruptJob(TJobId jobId, EInterruptReason reason);
+    void FailJob(TJobId jobId);
+    void ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile);
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
-    TOperationId FindOperationIdByJobId(const TJobId& job);
+    TOperationId FindOperationIdByJobId(TJobId job);
 
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter);
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter);
@@ -157,7 +157,7 @@ public:
     TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(
         TIncarnationId incarnationId,
         const TOperationId& operationId,
-        const TJobId& jobId);
+        TJobId jobId);
     void EndScheduleJob(
         const NProto::TScheduleJobResponse& response);
 
@@ -268,7 +268,7 @@ private:
     void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     NLogging::TLogger CreateJobLogger(
-        const TJobId& jobId,
+        TJobId jobId,
         const TOperationId& operationId,
         EJobState state,
         const TString& address);
@@ -334,7 +334,7 @@ private:
     void ResetJobWaitingForConfirmation(const TJobPtr& job);
 
     void AddRecentlyFinishedJob(const TJobPtr& job);
-    void RemoveRecentlyFinishedJob(const TJobId& jobId);
+    void RemoveRecentlyFinishedJob(TJobId jobId);
 
     void SetOperationJobsReleaseDeadline(TOperationState* operationState);
 
@@ -346,11 +346,11 @@ private:
         NProfiling::TCpuDuration interruptTimeout = 0,
         const std::optional<TString>& interruptUser = std::nullopt);
 
-    TExecNodePtr FindNodeByJob(const TJobId& jobId);
+    TExecNodePtr FindNodeByJob(TJobId jobId);
 
-    TJobPtr FindJob(const TJobId& jobId, const TExecNodePtr& node);
-    TJobPtr FindJob(const TJobId& jobId);
-    TJobPtr GetJobOrThrow(const TJobId& jobId);
+    TJobPtr FindJob(TJobId jobId, const TExecNodePtr& node);
+    TJobPtr FindJob(TJobId jobId);
+    TJobPtr GetJobOrThrow(TJobId jobId);
 
     NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job);
 

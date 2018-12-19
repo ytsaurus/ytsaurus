@@ -453,7 +453,7 @@ void TBootstrap::DoRun()
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
     auto createExecJob = BIND([this] (
-            const NJobAgent::TJobId& jobId,
+            NJobAgent::TJobId jobId,
             const NJobAgent::TOperationId& operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
@@ -484,7 +484,7 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::Vanilla,           createExecJob);
 
     auto createChunkJob = BIND([this] (
-            const NJobAgent::TJobId& jobId,
+            NJobAgent::TJobId jobId,
             const NJobAgent::TOperationId& /*operationId*/,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->

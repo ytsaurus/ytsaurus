@@ -90,7 +90,7 @@ public:
     virtual TFuture<void> RunJobProxy(
         int slotIndex,
         const TString& workingDirectory,
-        const TJobId& jobId,
+        TJobId jobId,
         const TOperationId& operationId) override
     {
         ValidateEnabled();
@@ -230,7 +230,7 @@ protected:
     { }
 
 private:
-    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, const TJobId& /* jobId */)
+    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */)
     {
         return New<TSimpleProcess>(JobProxyProgramName);
     }
@@ -638,7 +638,7 @@ private:
 #endif
     }
 
-    void InitJobProxyInstance(int slotIndex, const TJobId& jobId)
+    void InitJobProxyInstance(int slotIndex, TJobId jobId)
     {
         if (!JobProxyInstances_[slotIndex]) {
             JobProxyInstances_[slotIndex] = CreatePortoInstance(
@@ -659,7 +659,7 @@ private:
         }
     }
 
-    virtual TProcessBasePtr CreateJobProxyProcess(int slotIndex, const TJobId& jobId) override
+    virtual TProcessBasePtr CreateJobProxyProcess(int slotIndex, TJobId jobId) override
     {
         InitJobProxyInstance(slotIndex, jobId);
         return New<TPortoProcess>(JobProxyProgramName, JobProxyInstances_.at(slotIndex));

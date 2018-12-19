@@ -624,7 +624,7 @@ TFuture<NYson::TYsonString> TClient::GetOperation(
 }
 
 TFuture<void> TClient::DumpJobContext(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NYPath::TYPath& path,
     const NApi::TDumpJobContextOptions& options)
 {
@@ -641,7 +641,7 @@ TFuture<void> TClient::DumpJobContext(
 
 TFuture<NYson::TYsonString> TClient::GetJob(
     const NJobTrackerClient::TOperationId& operationId,
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NApi::TGetJobOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -658,7 +658,7 @@ TFuture<NYson::TYsonString> TClient::GetJob(
 }
 
 TFuture<NYson::TYsonString> TClient::StraceJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NApi::TStraceJobOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -674,7 +674,7 @@ TFuture<NYson::TYsonString> TClient::StraceJob(
 }
 
 TFuture<void> TClient::SignalJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const TString& signalName,
     const NApi::TSignalJobOptions& options)
 {
@@ -690,7 +690,7 @@ TFuture<void> TClient::SignalJob(
 }
 
 TFuture<void> TClient::AbandonJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NApi::TAbandonJobOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -704,7 +704,7 @@ TFuture<void> TClient::AbandonJob(
 }
 
 TFuture<NYson::TYsonString> TClient::PollJobShell(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NYson::TYsonString& parameters,
     const NApi::TPollJobShellOptions& options)
 {
@@ -722,7 +722,7 @@ TFuture<NYson::TYsonString> TClient::PollJobShell(
 }
 
 TFuture<void> TClient::AbortJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NApi::TAbortJobOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());

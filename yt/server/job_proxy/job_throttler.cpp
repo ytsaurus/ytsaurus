@@ -27,7 +27,7 @@ public:
         Proxy_.SetDefaultTimeout(jobThrottlerConfig->RpcTimeout);
     }
 
-    TFuture<void> Throttle(i64 count, EJobThrottlerType throttleDirection, TWorkloadDescriptor descriptor, const TJobId& jobId)
+    TFuture<void> Throttle(i64 count, EJobThrottlerType throttleDirection, TWorkloadDescriptor descriptor, TJobId jobId)
     {
         auto request = Proxy_.ThrottleJob();
         request->set_throttler_type(static_cast<i32>(throttleDirection));

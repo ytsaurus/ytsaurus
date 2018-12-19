@@ -677,7 +677,7 @@ public:
 
     TFuture<TYsonString> BuildJobInfo(
         const TOperationId& operationId,
-        const TJobId& jobId)
+        TJobId jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -1294,7 +1294,7 @@ private:
     {
         auto outbox = ScheduleJobResposesOutbox_;
 
-        auto replyWithFailure = [=] (const TOperationId& operationId, const TJobId& jobId, EScheduleJobFailReason reason) {
+        auto replyWithFailure = [=] (const TOperationId& operationId, TJobId jobId, EScheduleJobFailReason reason) {
             TAgentToSchedulerScheduleJobResponse response;
             response.JobId = jobId;
             response.OperationId = operationId;
@@ -1657,7 +1657,7 @@ TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(const TOperationId&
 
 TFuture<TYsonString> TControllerAgent::BuildJobInfo(
     const TOperationId& operationId,
-    const TJobId& jobId)
+    TJobId jobId)
 {
     return Impl_->BuildJobInfo(operationId, jobId);
 }

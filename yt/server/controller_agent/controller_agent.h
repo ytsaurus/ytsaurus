@@ -132,7 +132,7 @@ public:
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);
 
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId);
-    TFuture<NYson::TYsonString> BuildJobInfo(const TOperationId& operationId, const TJobId& jobId);
+    TFuture<NYson::TYsonString> BuildJobInfo(const TOperationId& operationId, TJobId jobId);
 
     //! Returns the total number of online exec nodes.
     /*!
