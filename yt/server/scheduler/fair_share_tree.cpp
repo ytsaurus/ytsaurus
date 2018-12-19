@@ -692,6 +692,7 @@ TError TFairShareTree::OnFairShareUpdateAt(TInstant now)
 
         if (!alerts.empty()) {
             error = TError("Found pool configuration issues during fair share update in tree %Qv", TreeId)
+                << TErrorAttribute("pool_tree", TreeId)
                 << std::move(alerts);
         }
 

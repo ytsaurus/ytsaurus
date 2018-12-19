@@ -343,7 +343,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Alerts_[alertType] = alert;
+        auto savedAlert = alert;
+        savedAlert.Attributes().Set("alert_type", alertType);
+        Alerts_[alertType] = std::move(savedAlert);
     }
 
     void AddGlobalWatcherRequester(TWatcherRequester requester)
