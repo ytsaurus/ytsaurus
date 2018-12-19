@@ -72,7 +72,7 @@ public:
     TChunk* GetChunkOrThrow(TChunkId id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
-    TChunkList* GetChunkListOrThrow(const TChunkListId& id);
+    TChunkList* GetChunkListOrThrow(TChunkListId id);
 
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
 

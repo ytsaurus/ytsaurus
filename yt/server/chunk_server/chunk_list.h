@@ -66,7 +66,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
 
 public:
-    explicit TChunkList(const TChunkListId& id);
+    explicit TChunkList(TChunkListId id);
 
     TChunkListDynamicData* GetDynamicData() const;
 

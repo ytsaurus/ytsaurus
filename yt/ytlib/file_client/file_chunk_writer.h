@@ -62,7 +62,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId,
+    NChunkClient::TChunkListId parentChunkListId,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());

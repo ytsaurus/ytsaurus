@@ -73,7 +73,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     NNative::IClientPtr client,
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    const TChunkListId& chunkListId,
+    TChunkListId chunkListId,
     TTransactionId transactionId,
     const TTableSchema& tableSchema,
     const TChunkTimestamps& chunkTimestamps,
@@ -401,7 +401,7 @@ public:
         NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
-        const TChunkListId& chunkListId,
+        TChunkListId chunkListId,
         TTransactionId transactionId,
         const TTableSchema& tableSchema,
         const TChunkTimestamps& chunkTimestamps) override
@@ -561,7 +561,7 @@ NTableClient::ISchemalessMultiChunkWriterPtr TUserJobIOFactoryBase::CreateWriter
     NNative::IClientPtr client,
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    const TChunkListId& chunkListId,
+    TChunkListId chunkListId,
     TTransactionId transactionId,
     const TTableSchema& tableSchema,
     const TChunkTimestamps& chunkTimestamps)

@@ -62,7 +62,7 @@ public:
         TBlobTableWriterConfigPtr blobTableWriterConfig,
         TTableWriterOptionsPtr tableWriterOptions,
         NTransactionClient::TTransactionId transactionId,
-        const NChunkClient::TChunkListId& chunkListId,
+        NChunkClient::TChunkListId chunkListId,
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler);
 

@@ -22,7 +22,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     TMultiChunkWriterOptionsPtr options,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
-    const TChunkListId& parentChunkListId,
+    TChunkListId parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
     IBlockCachePtr blockCache = GetNullBlockCache(),

@@ -53,7 +53,7 @@ public:
         const TBlobTableWriterConfigPtr& blobTableWriterConfig,
         const TTableWriterOptionsPtr& tableWriterOptions,
         TTransactionId transaction,
-        const TChunkListId& chunkList,
+        TChunkListId chunkList,
         const IInvokerPtr& controlInvoker,
         TDuration readWriteTimeout,
         const TLogger& logger)
@@ -276,7 +276,7 @@ TCoreProcessorService::TCoreProcessorService(
     const TBlobTableWriterConfigPtr& blobTableWriterConfig,
     const TTableWriterOptionsPtr& tableWriterOptions,
     TTransactionId transaction,
-    const TChunkListId& chunkList,
+    TChunkListId chunkList,
     const IInvokerPtr& controlInvoker,
     TDuration readWriteTimeout)
     : TServiceBase(
