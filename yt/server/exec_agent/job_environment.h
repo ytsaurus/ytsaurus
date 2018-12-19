@@ -30,7 +30,7 @@ struct IJobEnvironment
         int slotIndex,
         const TString& workingDirectory,
         TJobId jobId,
-        const TOperationId& operationId) = 0;
+        TOperationId operationId) = 0;
 
     virtual void CleanProcesses(int slotIndex) = 0;
 

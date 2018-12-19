@@ -141,7 +141,7 @@ void TFairShareTree::ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost
     ValidateAllOperationsCountsOnPoolChange(operation->GetId(), newPoolName);
 }
 
-void TFairShareTree::ValidateAllOperationsCountsOnPoolChange(const TOperationId& operationId, const TPoolName& newPoolName)
+void TFairShareTree::ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName)
 {
     auto operationElement = GetOperationElement(operationId);
     std::vector<TString> oldPools;
@@ -502,7 +502,7 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
 }
 
 bool TFairShareTree::ChangeOperationPool(
-    const TOperationId& operationId,
+    TOperationId operationId,
     const TFairShareStrategyOperationStatePtr& state,
     const TPoolName& newPool)
 {
@@ -525,7 +525,7 @@ bool TFairShareTree::ChangeOperationPool(
 }
 
 TError TFairShareTree::CheckOperationUnschedulable(
-    const TOperationId& operationId,
+    TOperationId operationId,
     TDuration safeTimeout,
     int minScheduleJobCallAttempts,
     THashSet<EDeactivationReason> deactivationReasons)
@@ -575,7 +575,7 @@ TError TFairShareTree::CheckOperationUnschedulable(
 }
 
 void TFairShareTree::UpdateOperationRuntimeParameters(
-    const TOperationId& operationId,
+    TOperationId operationId,
     const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -606,7 +606,7 @@ void TFairShareTree::UpdateControllerConfig(const TFairShareStrategyOperationCon
     }
 }
 
-void TFairShareTree::BuildOperationAttributes(const TOperationId& operationId, TFluentMap fluent)
+void TFairShareTree::BuildOperationAttributes(TOperationId operationId, TFluentMap fluent)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -617,7 +617,7 @@ void TFairShareTree::BuildOperationAttributes(const TOperationId& operationId, T
         .Item("pool").Value(element->GetParent()->GetId());
 }
 
-void TFairShareTree::BuildOperationProgress(const TOperationId& operationId, TFluentMap fluent)
+void TFairShareTree::BuildOperationProgress(TOperationId operationId, TFluentMap fluent)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -638,7 +638,7 @@ void TFairShareTree::BuildOperationProgress(const TOperationId& operationId, TFl
         .Do(std::bind(&TFairShareTree::BuildElementYson, this, element, std::placeholders::_1));
 }
 
-void TFairShareTree::BuildBriefOperationProgress(const TOperationId& operationId, TFluentMap fluent)
+void TFairShareTree::BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -792,7 +792,7 @@ void TFairShareTree::OnFairShareEssentialLoggingAt(TInstant now)
     }
 }
 
-void TFairShareTree::RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
+void TFairShareTree::RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& jobs)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -924,7 +924,7 @@ TPoolName TFairShareTree::CreatePoolName(const std::optional<TString>& poolFromS
     return TPoolName(*poolFromSpec, std::nullopt);
 };
 
-bool TFairShareTree::HasOperation(const TOperationId& operationId)
+bool TFairShareTree::HasOperation(TOperationId operationId)
 {
     return static_cast<bool>(FindOperationElement(operationId));
 }
@@ -1311,7 +1311,7 @@ TCompositeSchedulerElementPtr TFairShareTree::FindPoolWithViolatedOperationCount
     return nullptr;
 }
 
-void TFairShareTree::AddOperationToPool(const TOperationId& operationId)
+void TFairShareTree::AddOperationToPool(TOperationId operationId)
 {
     TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -1473,7 +1473,7 @@ void TFairShareTree::TryActivateOperationsFromQueue(std::vector<TOperationId>* o
     }
 }
 
-void TFairShareTree::BuildEssentialOperationProgress(const TOperationId& operationId, TFluentMap fluent)
+void TFairShareTree::BuildEssentialOperationProgress(TOperationId operationId, TFluentMap fluent)
 {
     const auto& element = FindOperationElement(operationId);
     if (!element) {
@@ -1598,13 +1598,13 @@ NProfiling::TTagId TFairShareTree::GetPoolProfilingTag(const TString& id)
     return it->second;
 }
 
-TOperationElementPtr TFairShareTree::FindOperationElement(const TOperationId& operationId)
+TOperationElementPtr TFairShareTree::FindOperationElement(TOperationId operationId)
 {
     auto it = OperationIdToElement.find(operationId);
     return it == OperationIdToElement.end() ? nullptr : it->second;
 }
 
-TOperationElementPtr TFairShareTree::GetOperationElement(const TOperationId& operationId)
+TOperationElementPtr TFairShareTree::GetOperationElement(TOperationId operationId)
 {
     auto element = FindOperationElement(operationId);
     YCHECK(element);

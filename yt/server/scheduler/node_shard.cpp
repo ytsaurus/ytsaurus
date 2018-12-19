@@ -259,7 +259,7 @@ void TNodeShard::DoCleanup()
 }
 
 void TNodeShard::RegisterOperation(
-    const TOperationId& operationId,
+    TOperationId operationId,
     const IOperationControllerPtr& controller,
     bool jobsReady)
 {
@@ -276,7 +276,7 @@ void TNodeShard::RegisterOperation(
         jobsReady);
 }
 
-void TNodeShard::StartOperationRevival(const TOperationId& operationId)
+void TNodeShard::StartOperationRevival(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
@@ -313,7 +313,7 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
     YCHECK(operationState.Jobs.empty());
 }
 
-void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
+void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vector<TJobPtr>& jobs)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
@@ -347,7 +347,7 @@ void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const s
         Config_->JobRevivalAbortTimeout);
 }
 
-void TNodeShard::ResetOperationRevival(const TOperationId& operationId)
+void TNodeShard::ResetOperationRevival(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
@@ -363,7 +363,7 @@ void TNodeShard::ResetOperationRevival(const TOperationId& operationId)
         operationId);
 }
 
-void TNodeShard::UnregisterOperation(const TOperationId& operationId)
+void TNodeShard::UnregisterOperation(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
@@ -705,7 +705,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
     return errors;
 }
 
-void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated)
+void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool terminated)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -729,7 +729,7 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
     }
 }
 
-void TNodeShard::ResumeOperationJobs(const TOperationId& operationId)
+void TNodeShard::ResumeOperationJobs(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1182,7 +1182,7 @@ int TNodeShard::GetTotalNodeCount()
 
 TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     TIncarnationId incarnationId,
-    const TOperationId& operationId,
+    TOperationId operationId,
     TJobId jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -1351,7 +1351,7 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node)
 }
 
 void TNodeShard::AbortUnconfirmedJobs(
-    const TOperationId& operationId,
+    TOperationId operationId,
     TEpoch epoch,
     const std::vector<TJobPtr>& jobs)
 {
@@ -1547,7 +1547,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
 NLogging::TLogger TNodeShard::CreateJobLogger(
     TJobId jobId,
-    const TOperationId& operationId,
+    TOperationId operationId,
     EJobState state,
     const TString& address)
 {
@@ -2316,13 +2316,13 @@ TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
     return Host_->CreateJobProberProxy(address);
 }
 
-TNodeShard::TOperationState* TNodeShard::FindOperationState(const TOperationId& operationId)
+TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operationId)
 {
     auto it = IdToOpertionState_.find(operationId);
     return it != IdToOpertionState_.end() ? &it->second : nullptr;
 }
 
-TNodeShard::TOperationState& TNodeShard::GetOperationState(const TOperationId& operationId)
+TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId operationId)
 {
     auto it = IdToOpertionState_.find(operationId);
     YCHECK(it != IdToOpertionState_.end());

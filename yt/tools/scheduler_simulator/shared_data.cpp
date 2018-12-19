@@ -86,7 +86,7 @@ TSharedOperationStatistics::TSharedOperationStatistics(const std::vector<TOperat
     , OperationStorage_(CreateOperationsStorage(OperationDescriptionById_))
 { }
 
-void TSharedOperationStatistics::OnJobStarted(const TOperationId& operationId, TDuration duration)
+void TSharedOperationStatistics::OnJobStarted(TOperationId operationId, TDuration duration)
 {
     auto& stats = OperationStorage_.at(operationId);
     {
@@ -96,7 +96,7 @@ void TSharedOperationStatistics::OnJobStarted(const TOperationId& operationId, T
     }
 }
 
-void TSharedOperationStatistics::OnJobPreempted(const TOperationId& operationId, TDuration duration)
+void TSharedOperationStatistics::OnJobPreempted(TOperationId operationId, TDuration duration)
 {
     auto& stats = OperationStorage_.at(operationId);
     {
@@ -108,7 +108,7 @@ void TSharedOperationStatistics::OnJobPreempted(const TOperationId& operationId,
     }
 }
 
-void TSharedOperationStatistics::OnJobFinished(const TOperationId& operationId, TDuration duration)
+void TSharedOperationStatistics::OnJobFinished(TOperationId operationId, TDuration duration)
 {
     auto& stats = OperationStorage_.at(operationId);
     {
@@ -117,13 +117,13 @@ void TSharedOperationStatistics::OnJobFinished(const TOperationId& operationId, 
     }
 }
 
-void TSharedOperationStatistics::OnOperationStarted(const TOperationId& operationId)
+void TSharedOperationStatistics::OnOperationStarted(TOperationId operationId)
 {
     // Nothing to do.
 }
 
 TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
-    const TOperationId& operationId,
+    TOperationId operationId,
     TDuration startTime,
     TDuration finishTime)
 {
@@ -146,7 +146,7 @@ TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
     }
 }
 
-const TOperationDescription& TSharedOperationStatistics::GetOperationDescription(const TOperationId& operationId) const
+const TOperationDescription& TSharedOperationStatistics::GetOperationDescription(TOperationId operationId) const
 {
     // No synchronization needed.
     auto it = OperationDescriptionById_.find(operationId);
@@ -315,7 +315,7 @@ void TSharedOperationStatisticsOutput::PrintHeader()
         << std::endl;
 }
 
-void TSharedOperationStatisticsOutput::PrintEntry(const TOperationId& id, const TOperationStatistics& stats)
+void TSharedOperationStatisticsOutput::PrintEntry(TOperationId id, const TOperationStatistics& stats)
 {
     auto guard = Guard(Lock_);
     OutputStream_

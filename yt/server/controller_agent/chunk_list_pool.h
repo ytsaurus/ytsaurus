@@ -22,7 +22,7 @@ public:
         TControllerAgentConfigPtr config,
         NApi::NNative::IClientPtr clientPtr,
         IInvokerPtr controlInvoker,
-        const TOperationId& operationId,
+        TOperationId operationId,
         NTransactionClient::TTransactionId transactionId);
 
     bool HasEnough(NObjectClient::TCellTag cellTag, int requestedCount);

@@ -19,7 +19,7 @@ public:
     TSnapshotDownloader(
         TControllerAgentConfigPtr config,
         TBootstrap* bootstrap,
-        const TOperationId& operationId);
+        TOperationId operationId);
 
     std::vector<TSharedRef> Run();
 

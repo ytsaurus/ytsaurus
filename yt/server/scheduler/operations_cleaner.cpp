@@ -674,7 +674,7 @@ private:
             enqueuedForArchivationCount);
     }
 
-    void EnqueueForRemoval(const TOperationId& operationId)
+    void EnqueueForRemoval(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -683,7 +683,7 @@ private:
         RemoveBatcher_.Enqueue(operationId);
     }
 
-    void EnqueueForArchivation(const TOperationId& operationId)
+    void EnqueueForArchivation(TOperationId operationId)
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -692,7 +692,7 @@ private:
         ArchiveBatcher_.Enqueue(operationId);
     }
 
-    void CleanOperation(const TOperationId& operationId)
+    void CleanOperation(TOperationId operationId)
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1054,7 +1054,7 @@ private:
         YT_LOG_INFO("Fetched and processed all finished operations");
     }
 
-    const TArchiveOperationRequest& GetRequest(const TOperationId& operationId) const
+    const TArchiveOperationRequest& GetRequest(TOperationId operationId) const
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 

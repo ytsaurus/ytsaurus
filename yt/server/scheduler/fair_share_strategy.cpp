@@ -174,7 +174,7 @@ public:
         YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
     }
 
-    virtual void UnregisterOperationFromTree(const TOperationId& operationId, const TString& treeId) override
+    virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -310,7 +310,7 @@ public:
         }
     }
 
-    virtual void BuildOperationAttributes(const TOperationId& operationId, TFluentMap fluent) override
+    virtual void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -322,7 +322,7 @@ public:
         }
     }
 
-    virtual void BuildOperationProgress(const TOperationId& operationId, TFluentMap fluent) override
+    virtual void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -333,7 +333,7 @@ public:
         DoBuildOperationProgress(&TFairShareTree::BuildOperationProgress, operationId, fluent);
     }
 
-    virtual void BuildBriefOperationProgress(const TOperationId& operationId, TFluentMap fluent) override
+    virtual void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -344,7 +344,7 @@ public:
         DoBuildOperationProgress(&TFairShareTree::BuildBriefOperationProgress, operationId, fluent);
     }
 
-    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) override
+    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(TOperationId operationId) override
     {
         TPoolTreeToSchedulingTagFilter result;
         for (const auto& pair : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
@@ -755,7 +755,7 @@ public:
         }
     }
 
-    virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs) override
+    virtual void RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -931,7 +931,7 @@ private:
             .ThrowOnError();
     }
 
-    TFairShareStrategyOperationStatePtr FindOperationState(const TOperationId& operationId) const
+    TFairShareStrategyOperationStatePtr FindOperationState(TOperationId operationId) const
     {
         auto it = OperationIdToOperationState_.find(operationId);
         if (it == OperationIdToOperationState_.end()) {
@@ -940,7 +940,7 @@ private:
         return it->second;
     }
 
-    TFairShareStrategyOperationStatePtr GetOperationState(const TOperationId& operationId) const
+    TFairShareStrategyOperationStatePtr GetOperationState(TOperationId operationId) const
     {
         auto it = OperationIdToOperationState_.find(operationId);
         YCHECK(it != OperationIdToOperationState_.end());
@@ -978,8 +978,8 @@ private:
     }
 
     void DoBuildOperationProgress(
-        void (TFairShareTree::*method)(const TOperationId& operationId, TFluentMap fluent),
-        const TOperationId& operationId,
+        void (TFairShareTree::*method)(TOperationId operationId, TFluentMap fluent),
+        TOperationId operationId,
         TFluentMap fluent)
     {
         const auto& state = GetOperationState(operationId);

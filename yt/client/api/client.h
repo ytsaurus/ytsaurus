@@ -1234,12 +1234,12 @@ struct IClient
         const TGetJobInputPathsOptions& options = TGetJobInputPathsOptions()) = 0;
 
     virtual TFuture<TSharedRef> GetJobStderr(
-        const NJobTrackerClient::TOperationId& operationId,
+        NJobTrackerClient::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
 
     virtual TFuture<TSharedRef> GetJobFailContext(
-        const NJobTrackerClient::TOperationId& operationId,
+        NJobTrackerClient::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,
         const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) = 0;
 
@@ -1247,11 +1247,11 @@ struct IClient
         const TListOperationsOptions& options = TListOperationsOptions()) = 0;
 
     virtual TFuture<TListJobsResult> ListJobs(
-        const NJobTrackerClient::TOperationId& operationId,
+        NJobTrackerClient::TOperationId operationId,
         const TListJobsOptions& options = TListJobsOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> GetJob(
-        const NScheduler::TOperationId& operationId,
+        NScheduler::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,
         const TGetJobOptions& options = TGetJobOptions()) = 0;
 

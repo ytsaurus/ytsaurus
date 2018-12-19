@@ -54,7 +54,7 @@ namespace {
 template <class TResponse, class TRequest>
 TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
     TBootstrap* bootstrap,
-    const TOperationId& operationId,
+    TOperationId operationId,
     const TControllerAgentPtr& agent,
     const TIntrusivePtr<TRequest>& request)
 {

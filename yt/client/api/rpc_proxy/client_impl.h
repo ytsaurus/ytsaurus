@@ -172,7 +172,7 @@ public:
     }
 
     virtual TFuture<TSharedRef> GetJobStderr(
-        const NJobTrackerClient::TOperationId&,
+        NJobTrackerClient::TOperationId,
         NJobTrackerClient::TJobId,
         const NApi::TGetJobStderrOptions&) override
     {
@@ -180,7 +180,7 @@ public:
     }
 
     virtual TFuture<TSharedRef> GetJobFailContext(
-        const NJobTrackerClient::TOperationId&,
+        NJobTrackerClient::TOperationId,
         NJobTrackerClient::TJobId,
         const NApi::TGetJobFailContextOptions&) override
     {
@@ -194,14 +194,14 @@ public:
     }
 
     virtual TFuture<NApi::TListJobsResult> ListJobs(
-        const NJobTrackerClient::TOperationId&,
+        NJobTrackerClient::TOperationId,
         const NApi::TListJobsOptions&) override
     {
         ThrowUnimplemented("list_jobs");
     }
 
     virtual TFuture<NYson::TYsonString> GetJob(
-        const NJobTrackerClient::TOperationId& operationId,
+        NJobTrackerClient::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobOptions& options) override;
 

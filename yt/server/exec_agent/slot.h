@@ -40,7 +40,7 @@ struct ISlot
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyConfigPtr config,
         TJobId jobId,
-        const TOperationId& operationId) = 0;
+        TOperationId operationId) = 0;
 
     //! Returns tmpfs path if any.
     virtual TFuture<std::optional<TString>> CreateSandboxDirectories(TUserSandboxOptions options) = 0;

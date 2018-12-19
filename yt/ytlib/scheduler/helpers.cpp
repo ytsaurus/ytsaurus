@@ -50,7 +50,7 @@ TYPath GetOperationsPath()
     return "//sys/operations";
 }
 
-TYPath GetOperationPath(const TOperationId& operationId)
+TYPath GetOperationPath(TOperationId operationId)
 {
     int hashByte = operationId.Parts32[0] & 0xff;
     return
@@ -60,35 +60,35 @@ TYPath GetOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
-TYPath GetJobsPath(const TOperationId& operationId)
+TYPath GetJobsPath(TOperationId operationId)
 {
     return
         GetOperationPath(operationId) +
         "/jobs";
 }
 
-TYPath GetJobPath(const TOperationId& operationId, TJobId jobId)
+TYPath GetJobPath(TOperationId operationId, TJobId jobId)
 {
     return
         GetJobsPath(operationId) + "/" +
         ToYPathLiteral(ToString(jobId));
 }
 
-TYPath GetStderrPath(const TOperationId& operationId, TJobId jobId)
+TYPath GetStderrPath(TOperationId operationId, TJobId jobId)
 {
     return
         GetJobPath(operationId, jobId)
         + "/stderr";
 }
 
-TYPath GetFailContextPath(const TOperationId& operationId, TJobId jobId)
+TYPath GetFailContextPath(TOperationId operationId, TJobId jobId)
 {
     return
         GetJobPath(operationId, jobId)
         + "/fail_context";
 }
 
-TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId)
+TYPath GetSchedulerOrchidOperationPath(TOperationId operationId)
 {
     return
         "//sys/scheduler/orchid/scheduler/operations/" +
@@ -104,7 +104,7 @@ TYPath GetSchedulerOrchidAliasPath(const TString& alias)
 
 TYPath GetControllerAgentOrchidOperationPath(
     const TString& controllerAgentAddress,
-    const TOperationId& operationId)
+    TOperationId operationId)
 {
     return
         "//sys/controller_agents/instances/" +
@@ -114,7 +114,7 @@ TYPath GetControllerAgentOrchidOperationPath(
 }
 
 std::optional<TString> GetControllerAgentAddressFromCypress(
-    const TOperationId& operationId,
+    TOperationId operationId,
     const IChannelPtr& channel)
 {
     using NYT::ToProto;
@@ -143,14 +143,14 @@ std::optional<TString> GetControllerAgentAddressFromCypress(
     return ConvertTo<TString>(TYsonString(response->value()));
 }
 
-TYPath GetSnapshotPath(const TOperationId& operationId)
+TYPath GetSnapshotPath(TOperationId operationId)
 {
     return
         GetOperationPath(operationId)
         + "/snapshot";
 }
 
-TYPath GetSecureVaultPath(const TOperationId& operationId)
+TYPath GetSecureVaultPath(TOperationId operationId)
 {
     return
         GetOperationPath(operationId)
@@ -158,7 +158,7 @@ TYPath GetSecureVaultPath(const TOperationId& operationId)
 }
 
 NYPath::TYPath GetJobPath(
-    const TOperationId& operationId,
+    TOperationId operationId,
     TJobId jobId,
     const TString& resourceName)
 {
@@ -330,7 +330,7 @@ TError GetUserTransactionAbortedError(TTransactionId transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SaveJobFiles(NNative::IClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files)
+void SaveJobFiles(NNative::IClientPtr client, TOperationId operationId, const std::vector<TJobFile>& files)
 {
     using NYT::FromProto;
     using NYT::ToProto;
@@ -513,7 +513,7 @@ void SaveJobFiles(NNative::IClientPtr client, const TOperationId& operationId, c
 
 void ValidateOperationPermission(
     const TString& user,
-    const TOperationId& operationId,
+    TOperationId operationId,
     const IClientPtr& client,
     EPermission permission,
     const TLogger& logger,

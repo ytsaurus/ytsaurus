@@ -36,7 +36,7 @@ class TJobProxy
 public:
     TJobProxy(
         TJobProxyConfigPtr config,
-        const NJobTrackerClient::TOperationId& operationId,
+        NJobTrackerClient::TOperationId operationId,
         NJobTrackerClient::TJobId jobId);
 
     //! Runs the job. Blocks until the job is complete.
@@ -156,7 +156,7 @@ private:
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment() const override;
-    virtual const NJobAgent::TOperationId& GetOperationId() const override;
+    virtual NJobAgent::TOperationId GetOperationId() const override;
 
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;
 

@@ -99,7 +99,7 @@ void FromProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperation::TOperation(
-    const TOperationId& id,
+    TOperationId id,
     EOperationType type,
     const TMutationId& mutationId,
     TTransactionId userTransactionId,
@@ -139,7 +139,7 @@ TOperation::TOperation(
     }
 }
 
-const TOperationId& TOperation::GetId() const
+TOperationId TOperation::GetId() const
 {
     return Id_;
 }

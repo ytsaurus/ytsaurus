@@ -38,7 +38,7 @@ struct IJob
     virtual void Fail() = 0;
 
     virtual TJobId GetId() const = 0;
-    virtual const TOperationId& GetOperationId() const = 0;
+    virtual TOperationId GetOperationId() const = 0;
 
     virtual EJobType GetType() const = 0;
 
@@ -105,7 +105,7 @@ DEFINE_REFCOUNTED_TYPE(IJob)
 
 using TJobFactory = TCallback<IJobPtr(
     TJobId jobId,
-    const TOperationId& operationId,
+    TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
 

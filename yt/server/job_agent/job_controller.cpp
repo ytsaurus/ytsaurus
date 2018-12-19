@@ -142,7 +142,7 @@ private:
     //! Starts a new job.
     IJobPtr CreateJob(
         TJobId jobId,
-        const TOperationId& operationId,
+        TOperationId operationId,
         const TNodeResources& resourceLimits,
         TJobSpec&& jobSpec);
 
@@ -578,7 +578,7 @@ void TJobController::TImpl::StartWaitingJobs()
 
 IJobPtr TJobController::TImpl::CreateJob(
     TJobId jobId,
-    const TOperationId& operationId,
+    TOperationId operationId,
     const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec)
 {

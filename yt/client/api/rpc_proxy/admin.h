@@ -30,7 +30,7 @@ public:
         const TString& address,
         const NApi::TWriteCoreDumpOptions& options = {}) override;
 
-    virtual TFuture<TString> WriteOperationControllerCoreDump(const NJobTrackerClient::TOperationId& operationId) override;
+    virtual TFuture<TString> WriteOperationControllerCoreDump(NJobTrackerClient::TOperationId operationId) override;
 
 private:
     const NRpc::IChannelPtr Channel_;

@@ -26,7 +26,7 @@ public:
     //! Used only for persistence.
     TJobSplitter() = default;
 
-    TJobSplitter(const TJobSplitterConfigPtr& config, const TOperationId& operationId)
+    TJobSplitter(const TJobSplitterConfigPtr& config, TOperationId operationId)
         : Config_(config)
         , Statistics_(config)
         , OperationId_(operationId)
@@ -411,7 +411,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IJobSplitter> CreateJobSplitter(const TJobSplitterConfigPtr& config, const TOperationId& operationId)
+std::unique_ptr<IJobSplitter> CreateJobSplitter(const TJobSplitterConfigPtr& config, TOperationId operationId)
 {
     return std::unique_ptr<IJobSplitter>(new TJobSplitter(config, operationId));
 }

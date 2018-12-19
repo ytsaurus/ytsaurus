@@ -48,9 +48,9 @@ public:
         const TString& user,
         NYTree::EPermission permission) const override;
 
-    virtual void ActivateOperation(const NScheduler::TOperationId& operationId) override;
+    virtual void ActivateOperation(NScheduler::TOperationId operationId) override;
 
-    virtual void AbortOperation(const NScheduler::TOperationId& operationId, const TError& error) override;
+    virtual void AbortOperation(NScheduler::TOperationId operationId, const TError& error) override;
 
     void PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent);
 
@@ -61,7 +61,7 @@ public:
     virtual void SetSchedulerAlert(NScheduler::ESchedulerAlertType alertType, const TError& alert) override;
 
     virtual TFuture<void> SetOperationAlert(
-        const NScheduler::TOperationId& operationId,
+        NScheduler::TOperationId operationId,
         NScheduler::EOperationAlertType alertType,
         const TError& alert,
         std::optional<TDuration> timeout) override;

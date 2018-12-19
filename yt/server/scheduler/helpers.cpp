@@ -123,12 +123,12 @@ EAbortReason GetAbortReason(const TError& resultError)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeOperationCodicilString(const TOperationId& operationId)
+TString MakeOperationCodicilString(TOperationId operationId)
 {
     return Format("OperationId: %v", operationId);
 }
 
-TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
+TCodicilGuard MakeOperationCodicilGuard(TOperationId operationId)
 {
     return TCodicilGuard(MakeOperationCodicilString(operationId));
 }
@@ -266,7 +266,7 @@ EPermission GetPermission(EAccessType accessType)
 
 void ValidateOperationAccess(
     const TString& user,
-    const TOperationId& operationId,
+    TOperationId operationId,
     EAccessType accessType,
     const INodePtr& acl,
     const NNative::IClientPtr& client,

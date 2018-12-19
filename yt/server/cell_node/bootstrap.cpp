@@ -454,7 +454,7 @@ void TBootstrap::DoRun()
 
     auto createExecJob = BIND([this] (
             NJobAgent::TJobId jobId,
-            const NJobAgent::TOperationId& operationId,
+            NJobAgent::TOperationId operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
@@ -485,7 +485,7 @@ void TBootstrap::DoRun()
 
     auto createChunkJob = BIND([this] (
             NJobAgent::TJobId jobId,
-            const NJobAgent::TOperationId& /*operationId*/,
+            NJobAgent::TOperationId /*operationId*/,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr

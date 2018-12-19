@@ -110,14 +110,14 @@ public:
     const TControllerAgentConfigPtr& GetConfig() const;
     void UpdateConfig(const TControllerAgentConfigPtr& config);
 
-    TOperationPtr FindOperation(const TOperationId& operationId);
-    TOperationPtr GetOperation(const TOperationId& operationId);
-    TOperationPtr GetOperationOrThrow(const TOperationId& operationId);
+    TOperationPtr FindOperation(TOperationId operationId);
+    TOperationPtr GetOperation(TOperationId operationId);
+    TOperationPtr GetOperationOrThrow(TOperationId operationId);
     const TOperationIdToOperationMap& GetOperations();
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
-    TFuture<void> DisposeAndUnregisterOperation(const TOperationId& operationId);
-    TFuture<void> UpdateOperationRuntimeParameters(const TOperationId& operationId, NScheduler::TOperationRuntimeParametersPtr runtimeParameters);
+    TFuture<void> DisposeAndUnregisterOperation(TOperationId operationId);
+    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, NScheduler::TOperationRuntimeParametersPtr runtimeParameters);
     TFuture<TOperationControllerInitializeResult> InitializeOperation(
         const TOperationPtr& operation,
         const std::optional<TControllerTransactionIds>& transactions);
@@ -131,8 +131,8 @@ public:
     //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);
 
-    TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId);
-    TFuture<NYson::TYsonString> BuildJobInfo(const TOperationId& operationId, TJobId jobId);
+    TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId);
+    TFuture<NYson::TYsonString> BuildJobInfo(TOperationId operationId, TJobId jobId);
 
     //! Returns the total number of online exec nodes.
     /*!
@@ -156,7 +156,7 @@ public:
      */
     void ValidateOperationAccess(
         const TString& user,
-        const TOperationId& operationId,
+        TOperationId operationId,
         const NScheduler::EAccessType accessType);
 
     //! Raised when connection prcoess starts.

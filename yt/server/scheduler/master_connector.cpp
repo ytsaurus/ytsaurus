@@ -279,7 +279,7 @@ public:
     void AttachJobContext(
         const TYPath& path,
         TChunkId chunkId,
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TString& user)
     {
@@ -886,7 +886,7 @@ private:
         }
 
         TOperationPtr TryCreateOperationFromAttributes(
-            const TOperationId& operationId,
+            TOperationId operationId,
             const IAttributeDictionary& attributes,
             const IMapNodePtr& secureVault)
         {
@@ -1415,7 +1415,7 @@ private:
         }
     }
 
-    TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& /*operationId*/, TOperationNodeUpdate* update)
+    TCallback<TFuture<void>()> UpdateOperationNode(TOperationId /*operationId*/, TOperationNodeUpdate* update)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1710,7 +1710,7 @@ TFuture<TYsonString> TMasterConnector::GetOperationNodeProgressAttributes(const 
 void TMasterConnector::AttachJobContext(
     const TYPath& path,
     TChunkId chunkId,
-    const TOperationId& operationId,
+    TOperationId operationId,
     TJobId jobId,
     const TString& user)
 {

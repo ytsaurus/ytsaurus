@@ -93,7 +93,7 @@ public:
             Unretained(this)));
     }
 
-    void RegisterOperation(const TOperationId& operationId)
+    void RegisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -103,7 +103,7 @@ public:
             TOperationNodeUpdate(operationId));
     }
 
-    void UnregisterOperation(const TOperationId& operationId)
+    void UnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -111,7 +111,7 @@ public:
         OperationNodesUpdateExecutor_->RemoveUpdate(operationId);
     }
 
-    void CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
+    void CreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -123,7 +123,7 @@ public:
             request));
     }
 
-    TFuture<void> UpdateInitializedOperationNode(const TOperationId& operationId)
+    TFuture<void> UpdateInitializedOperationNode(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -132,7 +132,7 @@ public:
             .Run();
     }
 
-    TFuture<void> FlushOperationNode(const TOperationId& operationId)
+    TFuture<void> FlushOperationNode(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -144,7 +144,7 @@ public:
     }
 
     TFuture<void> AttachToLivePreview(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TTransactionId transactionId,
         TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
@@ -157,7 +157,7 @@ public:
             .Run(operationId, transactionId, tableId, childIds);
     }
 
-    TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId)
+    TFuture<TOperationSnapshot> DownloadSnapshot(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -171,7 +171,7 @@ public:
             .Run(operationId);
     }
 
-    TFuture<void> RemoveSnapshot(const TOperationId& operationId)
+    TFuture<void> RemoveSnapshot(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -216,7 +216,7 @@ private:
 
     struct TOperationNodeUpdate
     {
-        explicit TOperationNodeUpdate(const TOperationId& operationId)
+        explicit TOperationNodeUpdate(TOperationId operationId)
             : OperationId(operationId)
         { }
 
@@ -544,7 +544,7 @@ private:
         }
     }
 
-    void DoUpdateInitializedOperationNode(const TOperationId& operationId)
+    void DoUpdateInitializedOperationNode(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -677,7 +677,7 @@ private:
             operationId);
     }
 
-    TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& operationId, TOperationNodeUpdate* update)
+    TCallback<TFuture<void>()> UpdateOperationNode(TOperationId operationId, TOperationNodeUpdate* update)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -700,7 +700,7 @@ private:
             .AsyncVia(CancelableControlInvoker_);
     }
 
-    void UpdateOperationNodes(const TOperationId& operationId)
+    void UpdateOperationNodes(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -816,7 +816,7 @@ private:
     }
 
     void AttachLivePreviewChunks(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TTransactionId transactionId,
         const std::vector<TLivePreviewRequest>& requests)
     {
@@ -973,7 +973,7 @@ private:
     }
 
     void DoAttachToLivePreview(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TTransactionId transactionId,
         TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
@@ -1001,7 +1001,7 @@ private:
         }
     }
 
-    TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
+    TOperationSnapshot DoDownloadSnapshot(TOperationId operationId)
     {
         auto batchReq = StartObjectBatchRequest();
 
@@ -1050,7 +1050,7 @@ private:
         return snapshot;
     }
 
-    void DoCreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
+    void DoCreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1071,7 +1071,7 @@ private:
         update->JobRequests.emplace_back(request);
     }
 
-    void DoRemoveSnapshot(const TOperationId& operationId)
+    void DoRemoveSnapshot(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1089,7 +1089,7 @@ private:
         }
     }
 
-    void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
+    void SaveJobFiles(TOperationId operationId, const std::vector<TJobFile>& files)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1340,33 +1340,33 @@ void TMasterConnector::Initialize()
     Impl_->Initialize();
 }
 
-void TMasterConnector::RegisterOperation(const TOperationId& operationId)
+void TMasterConnector::RegisterOperation(TOperationId operationId)
 {
     Impl_->RegisterOperation(operationId);
 }
 
-void TMasterConnector::UnregisterOperation(const TOperationId& operationId)
+void TMasterConnector::UnregisterOperation(TOperationId operationId)
 {
     Impl_->UnregisterOperation(operationId);
 }
 
-void TMasterConnector::CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
+void TMasterConnector::CreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
 {
     Impl_->CreateJobNode(operationId, request);
 }
 
-TFuture<void> TMasterConnector::FlushOperationNode(const TOperationId& operationId)
+TFuture<void> TMasterConnector::FlushOperationNode(TOperationId operationId)
 {
     return Impl_->FlushOperationNode(operationId);
 }
 
-TFuture<void> TMasterConnector::UpdateInitializedOperationNode(const TOperationId& operationId)
+TFuture<void> TMasterConnector::UpdateInitializedOperationNode(TOperationId operationId)
 {
     return Impl_->UpdateInitializedOperationNode(operationId);
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(
-    const TOperationId& operationId,
+    TOperationId operationId,
     TTransactionId transactionId,
     TNodeId tableId,
     const std::vector<TChunkTreeId>& childIds)
@@ -1374,12 +1374,12 @@ TFuture<void> TMasterConnector::AttachToLivePreview(
     return Impl_->AttachToLivePreview(operationId, transactionId, tableId, childIds);
 }
 
-TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(const TOperationId& operationId)
+TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(TOperationId operationId)
 {
     return Impl_->DownloadSnapshot(operationId);
 }
 
-TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
+TFuture<void> TMasterConnector::RemoveSnapshot(TOperationId operationId)
 {
     return Impl_->RemoveSnapshot(operationId);
 }

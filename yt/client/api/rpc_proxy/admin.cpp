@@ -51,7 +51,7 @@ TFuture<TString> TAdmin::WriteCoreDump(const TString& /* address */, const TWrit
     Y_UNIMPLEMENTED();
 }
 
-TFuture<TString> TAdmin::WriteOperationControllerCoreDump(const TOperationId& /* operationId */)
+TFuture<TString> TAdmin::WriteOperationControllerCoreDump(TOperationId /* operationId */)
 {
     Y_UNIMPLEMENTED();
 }

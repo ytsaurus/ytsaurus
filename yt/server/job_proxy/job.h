@@ -38,7 +38,7 @@ struct IJobHost
 {
     virtual TJobProxyConfigPtr GetConfig() const = 0;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment() const = 0;
-    virtual const NJobTrackerClient::TOperationId& GetOperationId() const = 0;
+    virtual NJobTrackerClient::TOperationId GetOperationId() const = 0;
     virtual NJobTrackerClient::TJobId GetJobId() const = 0;
 
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const = 0;

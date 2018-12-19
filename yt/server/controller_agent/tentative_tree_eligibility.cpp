@@ -25,7 +25,7 @@ TTentativeTreeEligibility::TTentativeTreeEligibility()
 { }
 
 void TTentativeTreeEligibility::Initialize(
-    const TOperationId& operationId,
+    TOperationId operationId,
     const TString& taskTitle)
 {
     Logger.AddTag("OperationId: %v", operationId);

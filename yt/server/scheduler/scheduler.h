@@ -83,7 +83,7 @@ public:
 
     void Disconnect(const TError& error);
 
-    TOperationPtr FindOperation(const TOperationId& id) const;
+    TOperationPtr FindOperation(TOperationId id) const;
     TOperationPtr GetOperationOrThrow(const TOperationIdOrAlias& idOrAlias) const;
 
     TFuture<TOperationPtr> StartOperation(

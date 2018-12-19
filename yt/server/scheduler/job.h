@@ -99,7 +99,7 @@ public:
     TJob(
         TJobId id,
         EJobType type,
-        const TOperationId& operationId,
+        TOperationId operationId,
         TIncarnationId incarnationId,
         TExecNodePtr node,
         TInstant startTime,

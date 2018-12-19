@@ -38,19 +38,21 @@ struct INodeShardHost
         const TString& nodeAddress,
         const THashSet<TString>& tags) = 0;
 
-    virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId, const TString& nodeAddress) = 0;
+    virtual void UnregisterNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const TString& nodeAddress) = 0;
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
     virtual void ValidateOperationAccess(
         const TString& user,
-        const TOperationId& operationId,
+        TOperationId operationId,
         EAccessType accessType) = 0;
 
     virtual TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
         NChunkClient::TChunkId chunkId,
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TString& user) = 0;
 
@@ -104,13 +106,13 @@ public:
     void OnMasterDisconnected();
 
     void RegisterOperation(
-        const TOperationId& operationId,
+        TOperationId operationId,
         const IOperationControllerPtr& controller,
         bool jobsReady);
-    void StartOperationRevival(const TOperationId& operationId);
-    void FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
-    void ResetOperationRevival(const TOperationId& operationId);
-    void UnregisterOperation(const TOperationId& operationId);
+    void StartOperationRevival(TOperationId operationId);
+    void FinishOperationRevival(TOperationId operationId, const std::vector<TJobPtr>& jobs);
+    void ResetOperationRevival(TOperationId operationId);
+    void UnregisterOperation(TOperationId operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
@@ -119,8 +121,8 @@ public:
 
     std::vector<TError> HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
-    void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
-    void ResumeOperationJobs(const TOperationId& operationId);
+    void AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool terminated);
+    void ResumeOperationJobs(TOperationId operationId);
 
     NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId, const TString& user);
 
@@ -156,7 +158,7 @@ public:
 
     TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(
         TIncarnationId incarnationId,
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId);
     void EndScheduleJob(
         const NProto::TScheduleJobResponse& response);
@@ -269,7 +271,7 @@ private:
 
     NLogging::TLogger CreateJobLogger(
         TJobId jobId,
-        const TOperationId& operationId,
+        TOperationId operationId,
         EJobState state,
         const TString& address);
 
@@ -283,7 +285,7 @@ private:
 
     void AbortAllJobsAtNode(const TExecNodePtr& node);
     void AbortUnconfirmedJobs(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TEpoch epoch,
         const std::vector<TJobPtr>& jobs);
 
@@ -354,8 +356,8 @@ private:
 
     NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job);
 
-    TOperationState* FindOperationState(const TOperationId& operationId);
-    TOperationState& GetOperationState(const TOperationId& operationId);
+    TOperationState* FindOperationState(TOperationId operationId);
+    TOperationState& GetOperationState(TOperationId operationId);
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
