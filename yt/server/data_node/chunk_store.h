@@ -109,7 +109,7 @@ public:
      *  Throws exception if no suitable location could be found.
      */
     TStoreLocationPtr GetNewChunkLocation(
-        const TSessionId& sessionId,
+        TSessionId sessionId,
         const TSessionOptions& options);
 
     //! Storage locations.

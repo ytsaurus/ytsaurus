@@ -51,7 +51,7 @@ TSessionManager::TSessionManager(
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
-ISessionPtr TSessionManager::FindSession(const TSessionId& sessionId)
+ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -61,7 +61,7 @@ ISessionPtr TSessionManager::FindSession(const TSessionId& sessionId)
     return it == SessionMap_.end() ? nullptr : it->second;
 }
 
-ISessionPtr TSessionManager::GetSessionOrThrow(const TSessionId& sessionId)
+ISessionPtr TSessionManager::GetSessionOrThrow(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -99,7 +99,7 @@ TSessionManager::TSessionPtrList TSessionManager::GetSessionsOrThrow(TChunkId ch
 }
 
 ISessionPtr TSessionManager::StartSession(
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     const TSessionOptions& options)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -129,7 +129,7 @@ ISessionPtr TSessionManager::StartSession(
 }
 
 ISessionPtr TSessionManager::CreateSession(
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     const TSessionOptions& options)
 {
     auto chunkType = TypeFromId(DecodeChunkId(sessionId.ChunkId).Id);
@@ -173,7 +173,7 @@ ISessionPtr TSessionManager::CreateSession(
     return session;
 }
 
-void TSessionManager::OnSessionLeaseExpired(const TSessionId& sessionId)
+void TSessionManager::OnSessionLeaseExpired(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

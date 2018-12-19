@@ -101,7 +101,7 @@ struct TNode
         return Error.IsOK();
     }
 
-    void SendPing(const TDuration& rpcTimeout, const TSessionId& sessionId)
+    void SendPing(const TDuration& rpcTimeout, TSessionId sessionId)
     {
         YT_LOG_DEBUG("Sending ping (Address: %v)",
             Descriptor.GetDefaultAddress());
@@ -176,7 +176,7 @@ public:
     TReplicationWriter(
         TReplicationWriterConfigPtr config,
         TRemoteWriterOptionsPtr options,
-        const TSessionId& sessionId,
+        TSessionId sessionId,
         const TChunkReplicaList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
         NNative::IClientPtr client,
@@ -1131,7 +1131,7 @@ void TGroup::Process()
 IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
     NNative::IClientPtr client,

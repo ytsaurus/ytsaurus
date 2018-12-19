@@ -23,7 +23,7 @@ using namespace NConcurrency;
 TSessionBase::TSessionBase(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     const TSessionOptions& options,
     TStoreLocationPtr location,
     TLease lease)
@@ -51,7 +51,7 @@ TChunkId TSessionBase::GetChunkId() const&
     return SessionId_.ChunkId;
 }
 
-const TSessionId& TSessionBase::GetId() const&
+TSessionId TSessionBase::GetId() const&
 {
     return SessionId_;
 }

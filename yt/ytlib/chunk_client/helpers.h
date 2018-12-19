@@ -76,7 +76,7 @@ void FetchChunkSpecs(
 //! Throws if the server returns no replicas.
 TChunkReplicaList AllocateWriteTargets(
     NApi::NNative::IClientPtr client,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     int desiredTargetCount,
     int minTargetCount,
     std::optional<int> replicationFactorOverride,

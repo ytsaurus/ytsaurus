@@ -116,7 +116,7 @@ class TErasureWriter
 public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
-        const TSessionId& sessionId,
+        TSessionId sessionId,
         ECodec codecId,
         ICodec* codec,
         const std::vector<IChunkWriterPtr>& writers,
@@ -447,7 +447,7 @@ void TErasureWriter::OnWritten()
 
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     ECodec codecId,
     ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers,
@@ -467,7 +467,7 @@ IChunkWriterPtr CreateErasureWriter(
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
