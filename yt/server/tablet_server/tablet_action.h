@@ -54,7 +54,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepFinished);
 
 public:
-    explicit TTabletAction(const TTabletActionId& id);
+    explicit TTabletAction(TTabletActionId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
