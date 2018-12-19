@@ -498,7 +498,7 @@ IInMemoryManagerPtr CreateInMemoryManager(
 TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
-    const TReadSessionId& readSessionId,
+    TReadSessionId readSessionId,
     TNodeMemoryTracker* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
