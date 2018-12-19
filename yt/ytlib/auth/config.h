@@ -306,6 +306,13 @@ public:
     {
         RegisterParameter("cache", Cache)
             .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            Cache->RefreshTime = std::nullopt;
+            Cache->ExpireAfterAccessTime = TDuration::Seconds(60);
+            Cache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(60);
+            Cache->ExpireAfterFailedUpdateTime = TDuration::Seconds(60);
+        });
     }
 };
 
