@@ -38,7 +38,7 @@ Y_DECLARE_PODTYPE(NYT::NChunkClient::TSessionId);
 template <>
 struct THash<NYT::NChunkClient::TSessionId>
 {
-    inline size_t operator()(const NYT::NChunkClient::TSessionId& value) const
+    inline size_t operator()(NYT::NChunkClient::TSessionId value) const
     {
         return THash<NYT::NChunkClient::TChunkId>()(value.ChunkId) * 497 + value.MediumIndex;
     }
