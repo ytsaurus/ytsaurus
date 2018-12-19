@@ -134,7 +134,9 @@ TNode NodeFromJsonString(const TStringBuf input)
 
     TNodeBuilder builder(&result);
     TYson2JsonCallbacksAdapter callbacks(&builder, /*throwException*/ true);
-    NJson::ReadJson(&stream, &callbacks);
+    NJson::TJsonReaderConfig config;
+    config.DontValidateUtf8 = true;
+    NJson::ReadJson(&stream, &config, &callbacks);
     return result;
 }
 
