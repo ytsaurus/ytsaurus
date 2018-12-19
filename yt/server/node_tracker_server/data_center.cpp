@@ -6,7 +6,7 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataCenter::TDataCenter(const TDataCenterId& id)
+TDataCenter::TDataCenter(TDataCenterId id)
     : TObjectBase(id)
 { }
 
