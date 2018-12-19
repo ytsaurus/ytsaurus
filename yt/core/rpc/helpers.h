@@ -39,10 +39,10 @@ IChannelFactoryPtr CreateAuthenticatedChannelFactory(
 //! Returns a wrapper that sets realm id in every request.
 IChannelPtr CreateRealmChannel(
     IChannelPtr underlyingChannel,
-    const TRealmId& realmId);
+    TRealmId realmId);
 IChannelFactoryPtr CreateRealmChannelFactory(
     IChannelFactoryPtr underlyingFactory,
-    const TRealmId& realmId);
+    TRealmId realmId);
 
 //! Returns a wrapper that informs about channel failures.
 /*!

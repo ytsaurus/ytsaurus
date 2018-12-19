@@ -185,7 +185,7 @@ class TRealmChannel
     : public TChannelWrapper
 {
 public:
-    TRealmChannel(IChannelPtr underlyingChannel, const TRealmId& realmId)
+    TRealmChannel(IChannelPtr underlyingChannel, TRealmId realmId)
         : TChannelWrapper(std::move(underlyingChannel))
         , RealmId_(realmId)
     { }
@@ -207,7 +207,7 @@ private:
 
 };
 
-IChannelPtr CreateRealmChannel(IChannelPtr underlyingChannel, const TRealmId& realmId)
+IChannelPtr CreateRealmChannel(IChannelPtr underlyingChannel, TRealmId realmId)
 {
     YCHECK(underlyingChannel);
 
@@ -222,7 +222,7 @@ class TRealmChannelFactory
 public:
     TRealmChannelFactory(
         IChannelFactoryPtr underlyingFactory,
-        const TRealmId& realmId)
+        TRealmId realmId)
         : UnderlyingFactory_(underlyingFactory)
         , RealmId_(realmId)
     { }
@@ -241,7 +241,7 @@ private:
 
 IChannelFactoryPtr CreateRealmChannelFactory(
     IChannelFactoryPtr underlyingFactory,
-    const TRealmId& realmId)
+    TRealmId realmId)
 {
     YCHECK(underlyingFactory);
 

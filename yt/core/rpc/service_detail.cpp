@@ -469,7 +469,7 @@ TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceDescriptor& descriptor,
     const NLogging::TLogger& logger,
-    const TRealmId& realmId,
+    TRealmId realmId,
     IAuthenticatorPtr authenticator)
     : Logger(logger)
     , DefaultInvoker_(std::move(defaultInvoker))

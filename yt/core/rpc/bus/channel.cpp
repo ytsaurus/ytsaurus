@@ -768,7 +768,7 @@ private:
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
         }
 
-        const TRealmId& GetRealmId() const
+        TRealmId GetRealmId() const
         {
             return RealmId_;
         }

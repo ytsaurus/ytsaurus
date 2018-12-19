@@ -501,7 +501,7 @@ protected:
         IInvokerPtr defaultInvoker,
         const TServiceDescriptor& descriptor,
         const NLogging::TLogger& logger,
-        const TRealmId& realmId = NullRealmId,
+        TRealmId realmId = NullRealmId,
         IAuthenticatorPtr authenticator = nullptr);
 
     //! Registers a method.
