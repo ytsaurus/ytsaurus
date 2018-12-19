@@ -23,7 +23,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TDataCenter*, DataCenter);
 
 public:
-    explicit TRack(const TRackId& id);
+    explicit TRack(TRackId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

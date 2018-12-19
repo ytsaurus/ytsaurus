@@ -7,7 +7,7 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRack::TRack(const TRackId& id)
+TRack::TRack(TRackId id)
     : TObjectBase(id)
     , Index_(-1)
 { }
