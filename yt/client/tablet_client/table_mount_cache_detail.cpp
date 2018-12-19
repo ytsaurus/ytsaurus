@@ -14,7 +14,7 @@ static const TDuration TabletCacheExpireTimeout = TDuration::Seconds(1);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TTabletInfoPtr TTabletCache::Find(const TTabletId& tabletId)
+TTabletInfoPtr TTabletCache::Find(TTabletId tabletId)
 {
     TReaderGuard guard(SpinLock_);
     RemoveExpiredEntries();
@@ -120,7 +120,7 @@ TFuture<TTableMountInfoPtr> TTableMountCacheBase::GetTableInfo(const NYPath::TYP
     return TAsyncExpiringCache::Get(path);
 }
 
-TTabletInfoPtr TTableMountCacheBase::FindTablet(const TTabletId& tabletId)
+TTabletInfoPtr TTableMountCacheBase::FindTablet(TTabletId tabletId)
 {
     return TabletCache_.Find(tabletId);
 }

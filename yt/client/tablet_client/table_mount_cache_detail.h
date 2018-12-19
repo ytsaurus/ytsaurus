@@ -13,7 +13,7 @@ namespace NYT::NTabletClient {
 class TTabletCache
 {
 public:
-    TTabletInfoPtr Find(const TTabletId& tabletId);
+    TTabletInfoPtr Find(TTabletId tabletId);
     TTabletInfoPtr Insert(TTabletInfoPtr tabletInfo);
 
 private:
@@ -54,7 +54,7 @@ public:
     TTableMountCacheBase(TTableMountCacheConfigPtr config, const NLogging::TLogger& logger);
 
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) override;
-    virtual TTabletInfoPtr FindTablet(const TTabletId& tabletId) override;
+    virtual TTabletInfoPtr FindTablet(TTabletId tabletId) override;
     virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) override;
     virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) override;
     virtual void Clear();

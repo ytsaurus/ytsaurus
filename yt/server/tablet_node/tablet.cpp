@@ -309,7 +309,7 @@ void TTableReplicaInfo::MergeFromStatistics(const TTableReplicaStatistics& stati
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(
-    const TTabletId& tabletId,
+    TTabletId tabletId,
     ITabletContext* context)
     : TObjectBase(tabletId)
     , Config_(New<TTableMountConfig>())
@@ -335,7 +335,7 @@ TTablet::TTablet(
     TTabletChunkReaderConfigPtr readerConfig,
     TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions,
-    const TTabletId& tabletId,
+    TTabletId tabletId,
     i64 mountRevision,
     TObjectId tableId,
     const TYPath& path,

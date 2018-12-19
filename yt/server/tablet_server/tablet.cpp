@@ -401,7 +401,7 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablet::TTablet(const TTabletId& id)
+TTablet::TTablet(TTabletId id)
     : TNonversionedObjectBase(id)
     , Index_(-1)
     , InMemoryMode_(EInMemoryMode::None)

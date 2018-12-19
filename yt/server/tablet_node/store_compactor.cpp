@@ -665,19 +665,19 @@ private:
             &TStoreCompactor::CompactPartition);
     }
 
-    int LockedGetFutureEffect(TReaderGuard&, const TTabletId& tabletId)
+    int LockedGetFutureEffect(TReaderGuard&, TTabletId tabletId)
     {
         auto it = FutureEffect_.find(tabletId);
         return it != FutureEffect_.end() ? it->second : 0;
     }
 
-    int GetFutureEffect(const TTabletId& tabletId)
+    int GetFutureEffect(TTabletId tabletId)
     {
         TReaderGuard guard(FutureEffectLock_);
         return LockedGetFutureEffect(guard, tabletId);
     }
 
-    void ChangeFutureEffect(const TTabletId& tabletId, int delta)
+    void ChangeFutureEffect(TTabletId tabletId, int delta)
     {
         if (delta == 0) {
             return;

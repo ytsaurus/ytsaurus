@@ -25,7 +25,7 @@ struct TTransactionWriteRecord
 {
     TTransactionWriteRecord() = default;
     TTransactionWriteRecord(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         TSharedRef data,
         int rowCount,
         size_t byteSize,

@@ -262,7 +262,7 @@ public:
     std::vector<TError> GetErrors() const;
 
 public:
-    explicit TTablet(const TTabletId& id);
+    explicit TTablet(TTabletId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

@@ -2924,7 +2924,7 @@ public:
         return BundleNodeTracker_;
     }
 
-    TTablet* GetTabletOrThrow(const TTabletId& id)
+    TTablet* GetTabletOrThrow(TTabletId id)
     {
         auto* tablet = FindTablet(id);
         if (!IsObjectAlive(tablet)) {
@@ -6235,7 +6235,7 @@ const TBundleNodeTrackerPtr& TTabletManager::GetBundleNodeTracker()
     return Impl_->GetBundleNodeTracker();
 }
 
-TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
+TTablet* TTabletManager::GetTabletOrThrow(TTabletId id)
 {
     return Impl_->GetTabletOrThrow(id);
 }

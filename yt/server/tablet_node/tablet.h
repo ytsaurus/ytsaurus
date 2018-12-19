@@ -346,14 +346,14 @@ public:
 
 public:
     TTablet(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         ITabletContext* context);
     TTablet(
         TTableMountConfigPtr config,
         TTabletChunkReaderConfigPtr readerConfig,
         TTabletChunkWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions,
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         i64 mountRevision,
         NObjectClient::TObjectId tableId,
         const NYPath::TYPath& path,
