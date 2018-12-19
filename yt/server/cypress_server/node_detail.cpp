@@ -130,7 +130,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 
 TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     ICypressNodeFactory* factory,
-    const TNodeId& hintId,
+    TNodeId hintId,
     TCellTag externalCellTag)
 {
     auto type = GetObjectType();
