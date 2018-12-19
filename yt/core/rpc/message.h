@@ -40,7 +40,7 @@ TSharedRefArray CreateErrorResponseMessage(
     const NProto::TResponseHeader& header);
 
 TSharedRefArray CreateErrorResponseMessage(
-    const TRequestId& requestId,
+    TRequestId requestId,
     const TError& error);
 
 TSharedRefArray CreateErrorResponseMessage(

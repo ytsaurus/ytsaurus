@@ -207,7 +207,7 @@ private:
         : public IClientRequestControl
     {
     public:
-        TClientRequestControl(IServicePtr service, const TRequestId& requestId)
+        TClientRequestControl(IServicePtr service, TRequestId requestId)
             : Service_(std::move(service))
             , RequestId_(requestId)
         { }

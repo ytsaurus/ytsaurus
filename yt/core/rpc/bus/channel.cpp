@@ -648,7 +648,7 @@ private:
                 GetTotalMessageAttachmentSize(requestMessage));
         }
 
-        void OnAcknowledgement(bool requestAck, const TRequestId& requestId, const TError& error)
+        void OnAcknowledgement(bool requestAck, TRequestId requestId, const TError& error)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
@@ -719,7 +719,7 @@ private:
         }
 
         void NotifyAcknowledgement(
-            const TRequestId& requestId,
+            TRequestId requestId,
             const IClientResponseHandlerPtr& responseHandler)
         {
             YT_LOG_DEBUG("Request acknowledged (RequestId: %v)", requestId);
@@ -728,7 +728,7 @@ private:
         }
 
         void NotifyResponse(
-            const TRequestId& requestId,
+            TRequestId requestId,
             const TClientRequestControlPtr& requestControl,
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message)
@@ -783,7 +783,7 @@ private:
             return Method_;
         }
 
-        const TRequestId& GetRequestId() const
+        TRequestId GetRequestId() const
         {
             return RequestId_;
         }

@@ -271,7 +271,7 @@ public:
         requestControlThunk->SetUnderlying(std::move(requestControl));
     }
 
-    virtual void HandleRequestCancelation(const TRequestId& requestId) override
+    virtual void HandleRequestCancelation(TRequestId requestId) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
         auto it = ActiveRequestMap_.find(requestId);
@@ -312,7 +312,7 @@ private:
 
 
     void OnResponse(
-        const TRequestId& requestId,
+        TRequestId requestId,
         const IBusPtr& replyBus,
         TSharedRefArray message)
     {

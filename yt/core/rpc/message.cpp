@@ -116,7 +116,7 @@ TSharedRefArray CreateErrorResponseMessage(
 }
 
 TSharedRefArray CreateErrorResponseMessage(
-    const TRequestId& requestId,
+    TRequestId requestId,
     const TError& error)
 {
     TResponseHeader header;
