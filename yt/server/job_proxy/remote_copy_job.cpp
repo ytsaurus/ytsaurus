@@ -268,7 +268,7 @@ private:
             Logger);
     }
 
-    void CopyChunk(const TChunkSpec& inputChunkSpec, const NChunkClient::TSessionId& outputSessionId)
+    void CopyChunk(const TChunkSpec& inputChunkSpec, const TSessionId& outputSessionId)
     {
         auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
 
