@@ -17,7 +17,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellBundle::TTabletCellBundle(const TTabletCellBundleId& id)
+TTabletCellBundle::TTabletCellBundle(TTabletCellBundleId id)
     : TNonversionedObjectBase(id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
