@@ -28,10 +28,10 @@ public:
     void Initialize();
 
     TFuture<NHydra::IChangelogPtr> OpenChangelog(
-        const TChunkId& chunkId);
+        TChunkId chunkId);
 
     TFuture<NHydra::IChangelogPtr> CreateChangelog(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         bool enableMultiplexing,
         const TWorkloadDescriptor& workloadDescriptor);
 
@@ -40,12 +40,12 @@ public:
         bool enableMultiplexing);
 
     TFuture<void> AppendMultiplexedRecord(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         int recordId,
         const TSharedRef& recordData,
         TFuture<void> splitResult);
 
-    TFuture<bool> IsChangelogSealed(const TChunkId& chunkId);
+    TFuture<bool> IsChangelogSealed(TChunkId chunkId);
 
     TFuture<void> SealChangelog(const TJournalChunkPtr& chunk);
 

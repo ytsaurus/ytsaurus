@@ -29,7 +29,7 @@ public:
         TStoreLocationPtr location,
         NConcurrency::TLease lease);
 
-    virtual const TChunkId& GetChunkId() const& override;
+    virtual TChunkId GetChunkId() const& override;
     virtual const TSessionId& GetId() const& override;
     virtual ESessionType GetType() const override;
     virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const override;

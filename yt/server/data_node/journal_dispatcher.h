@@ -24,12 +24,12 @@ public:
     //! to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> OpenChangelog(
         const TStoreLocationPtr& location,
-        const TChunkId& chunkId);
+        TChunkId chunkId);
 
     //! Asynchronously creates a new changelog corresponding to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> CreateChangelog(
         const TStoreLocationPtr& location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         bool enableMultiplexing,
         const TWorkloadDescriptor& workloadDescriptor);
 
@@ -41,7 +41,7 @@ public:
     //! Asynchronously checks if a given journal chunk is sealed.
     TFuture<bool> IsChangelogSealed(
         const TStoreLocationPtr& location,
-        const TChunkId& chunkId);
+        TChunkId chunkId);
 
     //! Asynchronously marks a given journal chunk as sealed.
     TFuture<void> SealChangelog(TJournalChunkPtr chunk);

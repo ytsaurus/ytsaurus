@@ -25,7 +25,7 @@ public:
 
 public:
     TCachedChunkMeta(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         NChunkClient::TRefCountedChunkMetaPtr meta,
         NCellNode::TNodeMemoryTracker* memoryTracker);
 

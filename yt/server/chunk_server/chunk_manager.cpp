@@ -1051,7 +1051,7 @@ public:
     }
 
 
-    TChunk* GetChunkOrThrow(const TChunkId& id)
+    TChunk* GetChunkOrThrow(TChunkId id)
     {
         auto* chunk = FindChunk(id);
         if (!IsObjectAlive(chunk)) {
@@ -1384,7 +1384,7 @@ private:
         return DoCreateChunk(id);
     }
 
-    TChunk* DoCreateChunk(const TChunkId& chunkId)
+    TChunk* DoCreateChunk(TChunkId chunkId)
     {
         auto chunkHolder = std::make_unique<TChunk>(chunkId);
         auto* chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
@@ -3253,7 +3253,7 @@ void TChunkManager::Initialize()
     Impl_->Initialize();
 }
 
-TChunk* TChunkManager::GetChunkOrThrow(const TChunkId& id)
+TChunk* TChunkManager::GetChunkOrThrow(TChunkId id)
 {
     return Impl_->GetChunkOrThrow(id);
 }

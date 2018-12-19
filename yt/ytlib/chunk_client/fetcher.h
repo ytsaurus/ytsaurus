@@ -106,7 +106,7 @@ private:
     TPromise<void> Promise_ = NewPromise<void>();
 
     void OnFetchingRoundCompleted(const TError& error);
-    void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas);
+    void OnChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas);
 };
 
 DEFINE_REFCOUNTED_TYPE(IFetcherChunkScraper)

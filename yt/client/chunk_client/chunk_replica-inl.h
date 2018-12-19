@@ -60,7 +60,7 @@ Y_FORCE_INLINE TChunkIdWithIndex::TChunkIdWithIndex()
     : ReplicaIndex(GenericChunkReplicaIndex)
 { }
 
-Y_FORCE_INLINE TChunkIdWithIndex::TChunkIdWithIndex(const TChunkId& id, int replicaIndex)
+Y_FORCE_INLINE TChunkIdWithIndex::TChunkIdWithIndex(TChunkId id, int replicaIndex)
     : Id(id)
     , ReplicaIndex(replicaIndex)
 { }
@@ -87,7 +87,7 @@ Y_FORCE_INLINE TChunkIdWithIndexes::TChunkIdWithIndexes(const TChunkIdWithIndex&
     , MediumIndex(mediumIndex)
 { }
 
-Y_FORCE_INLINE TChunkIdWithIndexes::TChunkIdWithIndexes(const TChunkId& id, int replicaIndex, int mediumIndex)
+Y_FORCE_INLINE TChunkIdWithIndexes::TChunkIdWithIndexes(TChunkId id, int replicaIndex, int mediumIndex)
     : TChunkIdWithIndex(id, replicaIndex)
     , MediumIndex(mediumIndex)
 { }

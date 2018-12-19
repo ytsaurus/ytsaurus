@@ -190,13 +190,13 @@ public:
     int GetChunkCount() const;
 
     //! Returns a full path for a primary chunk file.
-    TString GetChunkPath(const TChunkId& chunkId) const;
+    TString GetChunkPath(TChunkId chunkId) const;
 
     //! Permanently removes the files comprising a given chunk.
-    void RemoveChunkFilesPermanently(const TChunkId& chunkId);
+    void RemoveChunkFilesPermanently(TChunkId chunkId);
 
     //! Removes a chunk permanently or moves it to the trash (if available).
-    virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
+    virtual void RemoveChunkFiles(TChunkId chunkId, bool force);
 
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
@@ -210,7 +210,7 @@ protected:
     NCellNode::TBootstrap* const Bootstrap_;
     NProfiling::TProfiler Profiler_;
 
-    static TString GetRelativeChunkPath(const TChunkId& chunkId);
+    static TString GetRelativeChunkPath(TChunkId chunkId);
     static void ForceHashDirectories(const TString& rootPath);
 
     virtual bool ShouldSkipFileName(const TString& fileName) const;
@@ -269,9 +269,9 @@ private:
 
     virtual i64 GetAdditionalSpace() const;
 
-    virtual std::optional<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) = 0;
+    virtual std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) = 0;
 
-    virtual std::vector<TString> GetChunkPartNames(const TChunkId& chunkId) const = 0;
+    virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const = 0;
 
 };
 
@@ -304,7 +304,7 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
 
     //! Removes a chunk permanently or moves it to the trash.
-    virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force) override;
+    virtual void RemoveChunkFiles(TChunkId chunkId, bool force) override;
 
 private:
     const TStoreLocationConfigPtr Config_;
@@ -334,21 +334,21 @@ private:
     NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
 
     TString GetTrashPath() const;
-    TString GetTrashChunkPath(const TChunkId& chunkId) const;
-    void RegisterTrashChunk(const TChunkId& chunkId);
+    TString GetTrashChunkPath(TChunkId chunkId) const;
+    void RegisterTrashChunk(TChunkId chunkId);
     void OnCheckTrash();
     void CheckTrashTtl();
     void CheckTrashWatermark();
     void RemoveTrashFiles(const TTrashChunkEntry& entry);
-    void MoveChunkFilesToTrash(const TChunkId& chunkId);
+    void MoveChunkFilesToTrash(TChunkId chunkId);
 
     virtual i64 GetAdditionalSpace() const override;
 
-    std::optional<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
-    std::optional<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
-    virtual std::optional<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
+    std::optional<TChunkDescriptor> RepairBlobChunk(TChunkId chunkId);
+    std::optional<TChunkDescriptor> RepairJournalChunk(TChunkId chunkId);
+    virtual std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
 
-    virtual std::vector<TString> GetChunkPartNames(const TChunkId& chunkId) const override;
+    virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
     virtual bool ShouldSkipFileName(const TString& fileName) const override;
 
     virtual void DoStart() override;
@@ -376,10 +376,10 @@ private:
 
     const NConcurrency::IThroughputThrottlerPtr InThrottler_;
 
-    std::optional<TChunkDescriptor> Repair(const TChunkId& chunkId, const TString& metaSuffix);
-    virtual std::optional<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
+    std::optional<TChunkDescriptor> Repair(TChunkId chunkId, const TString& metaSuffix);
+    virtual std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
 
-    virtual std::vector<TString> GetChunkPartNames(const TChunkId& chunkId) const override;
+    virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocation)

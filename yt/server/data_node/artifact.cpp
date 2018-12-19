@@ -14,7 +14,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TArtifactKey::TArtifactKey(const TChunkId& chunkId)
+TArtifactKey::TArtifactKey(TChunkId chunkId)
 {
     mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
     NChunkClient::NProto::TChunkSpec chunkSpec;

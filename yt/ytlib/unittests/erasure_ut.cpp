@@ -38,7 +38,7 @@ class TTestingFileReader
 public:
     TTestingFileReader(
         const IIOEnginePtr& ioEngine,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TString& fileName,
         bool validateBlocksChecksums = true)
         : TFileReader(ioEngine, chunkId, fileName, validateBlocksChecksums)
@@ -54,7 +54,7 @@ class TFailingFileReader
 public:
     TFailingFileReader(
         const IIOEnginePtr& ioEngine,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TString& fileName,
         int period = 5,
         bool validateBlocksChecksums = true)

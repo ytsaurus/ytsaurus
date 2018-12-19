@@ -30,7 +30,7 @@ public:
         const NLogging::TLogger& logger);
 
     void RegisterChunk(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         NObjectClient::TCellTag destinationCellTag);
 
     TFuture<void> Run();
@@ -46,7 +46,7 @@ private:
     struct TChunkEntry
     {
         TChunkEntry(
-            const NChunkClient::TChunkId& chunkId,
+            NChunkClient::TChunkId chunkId,
             NObjectClient::TCellTag destinationCellTag)
             : ChunkId(chunkId)
             , DestinationCellTag(destinationCellTag)

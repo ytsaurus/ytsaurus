@@ -39,7 +39,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    IChunkPtr FindChunk(const TChunkId& chunkId);
+    IChunkPtr FindChunk(TChunkId chunkId);
 
     //! Returns the list of all registered chunks.
     /*!

@@ -27,14 +27,14 @@ TString ToString(const TChunkReplicaDescriptor& replica);
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> AbortSessionsQuorum(
-    const NChunkClient::TChunkId& chunkId,
+    NChunkClient::TChunkId chunkId,
     const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
 TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
-    const NChunkClient::TChunkId& chunkId,
+    NChunkClient::TChunkId chunkId,
     const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,

@@ -67,7 +67,7 @@ class TCachedBlockMeta
     , public NTableClient::NProto::TBlockMetaExt
 {
 public:
-    TCachedBlockMeta(const NChunkClient::TChunkId& chunkId, NTableClient::NProto::TBlockMetaExt blockMetaExt);
+    TCachedBlockMeta(NChunkClient::TChunkId chunkId, NTableClient::NProto::TBlockMetaExt blockMetaExt);
     i64 GetWeight() const;
 
 private:

@@ -34,7 +34,7 @@ static constexpr i64 Alignment = 4096;
 
 TFileWriter::TFileWriter(
     const IIOEnginePtr& ioEngine,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TString& fileName,
     bool syncOnClose,
     bool enableWriteDirectIO)

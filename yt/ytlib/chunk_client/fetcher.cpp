@@ -109,7 +109,7 @@ private:
         return BatchLocatedPromise_;
     }
 
-    void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
+    void OnChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)
     {
         ++ChunkLocatedCallCount_;
         if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerRequest) {

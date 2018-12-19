@@ -25,7 +25,7 @@ Y_FORCE_INLINE TSessionId::TSessionId()
     : TSessionId(TChunkId(), DefaultStoreMediumIndex)
 { }
 
-Y_FORCE_INLINE TSessionId::TSessionId(const TChunkId& chunkId, int mediumIndex)
+Y_FORCE_INLINE TSessionId::TSessionId(TChunkId chunkId, int mediumIndex)
     : ChunkId(chunkId)
     , MediumIndex(mediumIndex)
 { }

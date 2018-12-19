@@ -396,7 +396,7 @@ protected:
         DoSetFinished(EJobState::Aborted, error);
     }
 
-    IChunkPtr GetLocalChunkOrThrow(const TChunkId& chunkId, int mediumIndex)
+    IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
     {
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
@@ -582,7 +582,7 @@ private:
             .ThrowOnError();
     }
 
-    static int GetBlockCount(const TChunkId& chunkId, const TChunkMeta& meta)
+    static int GetBlockCount(TChunkId chunkId, const TChunkMeta& meta)
     {
         switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
             case EObjectType::Chunk:

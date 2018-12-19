@@ -72,7 +72,7 @@ namespace {
 
 void FinalizeChunkData(
     const TInMemoryChunkDataPtr& data,
-    const TChunkId& id,
+    TChunkId id,
     const TRefCountedChunkMetaPtr& meta,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
@@ -431,7 +431,7 @@ private:
         bool Dropped_ = false;
     };
 
-    TInMemoryChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    TInMemoryChunkDataPtr GetChunkData(TChunkId chunkId, EInMemoryMode mode)
     {
         TReaderGuard guard(InterceptedDataSpinLock_);
 
@@ -444,7 +444,7 @@ private:
         return chunkData;
     }
 
-    TInMemoryChunkDataPtr CreateChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    TInMemoryChunkDataPtr CreateChunkData(TChunkId chunkId, EInMemoryMode mode)
     {
         TWriterGuard guard(InterceptedDataSpinLock_);
 
@@ -466,7 +466,7 @@ private:
         return chunkData;
     }
 
-    void DropChunkData(const TChunkId& chunkId)
+    void DropChunkData(TChunkId chunkId)
     {
         TWriterGuard guard(InterceptedDataSpinLock_);
 

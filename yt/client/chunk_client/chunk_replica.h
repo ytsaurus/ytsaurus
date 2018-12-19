@@ -47,7 +47,7 @@ TString ToString(TChunkReplica replica);
 struct TChunkIdWithIndex
 {
     TChunkIdWithIndex();
-    TChunkIdWithIndex(const TChunkId& id, int replicaIndex);
+    TChunkIdWithIndex(TChunkId id, int replicaIndex);
 
     TChunkId Id;
     int ReplicaIndex;
@@ -58,7 +58,7 @@ struct TChunkIdWithIndexes
 {
     TChunkIdWithIndexes();
     TChunkIdWithIndexes(const TChunkIdWithIndex& chunkIdWithIndex, int mediumIndex);
-    TChunkIdWithIndexes(const TChunkId& id, int replicaIndex, int mediumIndex);
+    TChunkIdWithIndexes(TChunkId id, int replicaIndex, int mediumIndex);
 
     int MediumIndex;
 };
@@ -76,25 +76,25 @@ bool operator!=(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs);
 TString ToString(const TChunkIdWithIndexes& id);
 
 //! Returns |true| iff this is an artifact chunk.
-bool IsArtifactChunkId(const TChunkId& id);
+bool IsArtifactChunkId(TChunkId id);
 
 //! Returns |true| iff this is a journal chunk.
-bool IsJournalChunkId(const TChunkId& id);
+bool IsJournalChunkId(TChunkId id);
 
 //! Returns |true| iff this is a erasure chunk.
-bool IsErasureChunkId(const TChunkId& id);
+bool IsErasureChunkId(TChunkId id);
 
 //! Returns |true| iff this is a erasure chunk part.
-bool IsErasureChunkPartId(const TChunkId& id);
+bool IsErasureChunkPartId(TChunkId id);
 
 //! Returns id for a part of a given erasure chunk.
-TChunkId ErasurePartIdFromChunkId(const TChunkId& id, int index);
+TChunkId ErasurePartIdFromChunkId(TChunkId id, int index);
 
 //! Returns the whole chunk id for a given erasure chunk part id.
-TChunkId ErasureChunkIdFromPartId(const TChunkId& id);
+TChunkId ErasureChunkIdFromPartId(TChunkId id);
 
 //! Returns part index for a given erasure chunk part id.
-int IndexFromErasurePartId(const TChunkId& id);
+int IndexFromErasurePartId(TChunkId id);
 
 //! For usual chunks, preserves the id.
 //! For erasure chunks, constructs the part id using the given replica index.
@@ -102,7 +102,7 @@ TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex);
 
 //! For regular chunks, preserves the id and returns #GenericChunkReplicaIndex.
 //! For erasure chunk parts, constructs the whole chunk id and extracts part index.
-TChunkIdWithIndex DecodeChunkId(const TChunkId& id);
+TChunkIdWithIndex DecodeChunkId(TChunkId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

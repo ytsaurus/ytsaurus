@@ -350,7 +350,7 @@ public:
         return false;
     }
 
-    IChunkPtr FindChunk(const TChunkId& chunkId)
+    IChunkPtr FindChunk(TChunkId chunkId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -611,7 +611,7 @@ private:
         TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
         TCacheLocationPtr location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         TNodeDirectoryPtr nodeDirectory,
         const TClientBlockReadOptions& blockReadOptions,
         TInsertCookie cookie,
@@ -730,7 +730,7 @@ private:
         TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
         TCacheLocationPtr location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         TNodeDirectoryPtr nodeDirectory,
         const TClientBlockReadOptions& blockReadOptions,
         TInsertCookie cookie,
@@ -787,7 +787,7 @@ private:
         TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
         TCacheLocationPtr location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         TNodeDirectoryPtr nodeDirectory,
         const TClientBlockReadOptions& blockReadOptions,
         TInsertCookie cookie,
@@ -891,7 +891,7 @@ private:
     TCachedBlobChunkPtr ProduceArtifactFile(
         const TArtifactKey& key,
         TCacheLocationPtr location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         std::function<void(IOutputStream*)> producer)
     {
         YT_LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
@@ -1031,7 +1031,7 @@ bool TChunkCache::IsEnabled() const
     return Impl_->IsEnabled();
 }
 
-IChunkPtr TChunkCache::FindChunk(const TChunkId& chunkId)
+IChunkPtr TChunkCache::FindChunk(TChunkId chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

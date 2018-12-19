@@ -2351,7 +2351,7 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
     return EventLogConsumer_.get();
 }
 
-void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
+void TOperationControllerBase::OnChunkFailed(TChunkId chunkId)
 {
     if (chunkId == NullChunkId) {
         YT_LOG_WARNING("Incompatible unavailable chunk found; deprecated node version");
@@ -2372,7 +2372,7 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
     }
 }
 
-void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
+void TOperationControllerBase::SafeOnIntermediateChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)
 {
     if (missing) {
         // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
@@ -2387,7 +2387,7 @@ void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& ch
     }
 }
 
-void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
+void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)
 {
     if (missing) {
         // We must have locked all the relevant input chunks, but when user transaction is aborted
@@ -2420,7 +2420,7 @@ void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, 
 }
 
 void TOperationControllerBase::OnInputChunkAvailable(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TChunkReplicaList& replicas,
     TInputChunkDescriptor* descriptor)
 {
@@ -2460,7 +2460,7 @@ void TOperationControllerBase::OnInputChunkAvailable(
     }
 }
 
-void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor* descriptor)
+void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescriptor* descriptor)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
@@ -2523,7 +2523,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
     }
 }
 
-bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& chunkId)
+bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 {
     auto it = ChunkOriginMap.find(chunkId);
     YCHECK(it != ChunkOriginMap.end());
@@ -2571,7 +2571,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     return true;
 }
 
-void TOperationControllerBase::OnIntermediateChunkAvailable(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, const TChunkReplicaList& replicas)
 {
     auto it = ChunkOriginMap.find(chunkId);
     YCHECK(it != ChunkOriginMap.end());
@@ -5882,7 +5882,7 @@ bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
     return false;
 }
 
-void TOperationControllerBase::AttachToIntermediateLivePreview(const TChunkId& chunkId)
+void TOperationControllerBase::AttachToIntermediateLivePreview(TChunkId chunkId)
 {
     if (IsIntermediateLivePreviewSupported()) {
         AttachToLivePreview(chunkId, IntermediateTable->LivePreviewTableId);

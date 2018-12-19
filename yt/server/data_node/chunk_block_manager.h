@@ -85,7 +85,7 @@ public:
      *  Journal chunks, however, will silently ignore it.
      */
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         int firstBlockIndex,
         int blockCount,
         const TBlockReadOptions& options);
@@ -98,7 +98,7 @@ public:
      *  If the whole chunk or some of its blocks does not exist then null block may be returned.
      */
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options);
 

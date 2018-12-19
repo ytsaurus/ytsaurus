@@ -46,7 +46,7 @@ TSessionBase::TSessionBase(
     VERIFY_THREAD_AFFINITY(ControlThread);
 }
 
-const TChunkId& TSessionBase::GetChunkId() const&
+TChunkId TSessionBase::GetChunkId() const&
 {
     return SessionId_.ChunkId;
 }

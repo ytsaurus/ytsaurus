@@ -465,12 +465,12 @@ int TLocation::GetChunkCount() const
     return ChunkCount_;
 }
 
-TString TLocation::GetChunkPath(const TChunkId& chunkId) const
+TString TLocation::GetChunkPath(TChunkId chunkId) const
 {
     return NFS::CombinePaths(GetPath(), GetRelativeChunkPath(chunkId));
 }
 
-void TLocation::RemoveChunkFilesPermanently(const TChunkId& chunkId)
+void TLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
 {
     try {
         YT_LOG_DEBUG("Started removing chunk files (ChunkId: %v)", chunkId);
@@ -497,7 +497,7 @@ void TLocation::RemoveChunkFilesPermanently(const TChunkId& chunkId)
     }
 }
 
-void TLocation::RemoveChunkFiles(const TChunkId& chunkId, bool force)
+void TLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
 {
     Y_UNUSED(force);
     RemoveChunkFilesPermanently(chunkId);
@@ -539,7 +539,7 @@ bool TLocation::IsWriteThrottling()
     return GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->ThrottleCounterInterval);
 }
 
-TString TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
+TString TLocation::GetRelativeChunkPath(TChunkId chunkId)
 {
     int hashByte = chunkId.Parts32[0] & 0xff;
     return NFS::CombinePaths(Format("%02x", hashByte), ToString(chunkId));
@@ -770,7 +770,7 @@ IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor
     }
 }
 
-void TStoreLocation::RemoveChunkFiles(const TChunkId& chunkId, bool force)
+void TStoreLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
 {
     if (force) {
         RemoveChunkFilesPermanently(chunkId);
@@ -784,12 +784,12 @@ TString TStoreLocation::GetTrashPath() const
     return NFS::CombinePaths(GetPath(), TrashDirectory);
 }
 
-TString TStoreLocation::GetTrashChunkPath(const TChunkId& chunkId) const
+TString TStoreLocation::GetTrashChunkPath(TChunkId chunkId) const
 {
     return NFS::CombinePaths(GetTrashPath(), GetRelativeChunkPath(chunkId));
 }
 
-void TStoreLocation::RegisterTrashChunk(const TChunkId& chunkId)
+void TStoreLocation::RegisterTrashChunk(TChunkId chunkId)
 {
     auto timestamp = TInstant::Zero();
     i64 diskSpace = 0;
@@ -906,7 +906,7 @@ void TStoreLocation::RemoveTrashFiles(const TTrashChunkEntry& entry)
         entry.DiskSpace);
 }
 
-void TStoreLocation::MoveChunkFilesToTrash(const TChunkId& chunkId)
+void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
 {
     try {
         YT_LOG_DEBUG("Started moving chunk files to trash (ChunkId: %v)", chunkId);
@@ -944,7 +944,7 @@ i64 TStoreLocation::GetAdditionalSpace() const
     return TrashDiskSpace_;
 }
 
-std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(const TChunkId& chunkId)
+std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(TChunkId chunkId)
 {
     auto fileName = GetChunkPath(chunkId);
     auto trashFileName = GetTrashChunkPath(chunkId);
@@ -987,7 +987,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(const TChunkId& 
     return std::nullopt;
 }
 
-std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkId& chunkId)
+std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chunkId)
 {
     auto fileName = GetChunkPath(chunkId);
     auto trashFileName = GetTrashChunkPath(chunkId);
@@ -1023,7 +1023,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkI
     return std::nullopt;
 }
 
-std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(const TChunkId& chunkId)
+std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(TChunkId chunkId)
 {
     std::optional<TChunkDescriptor> optionalDescriptor;
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
@@ -1046,7 +1046,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(const TChunkId& chun
     return optionalDescriptor;
 }
 
-std::vector<TString> TStoreLocation::GetChunkPartNames(const TChunkId& chunkId) const
+std::vector<TString> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
 {
     auto primaryName = ToString(chunkId);
     switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
@@ -1154,7 +1154,7 @@ IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
 }
 
 std::optional<TChunkDescriptor> TCacheLocation::Repair(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TString& metaSuffix)
 {
     auto fileName = GetChunkPath(chunkId);
@@ -1196,7 +1196,7 @@ std::optional<TChunkDescriptor> TCacheLocation::Repair(
     return std::nullopt;
 }
 
-std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(const TChunkId& chunkId)
+std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(TChunkId chunkId)
 {
     std::optional<TChunkDescriptor> optionalDescriptor;
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
@@ -1218,7 +1218,7 @@ std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(const TChunkId& chun
     return optionalDescriptor;
 }
 
-std::vector<TString> TCacheLocation::GetChunkPartNames(const TChunkId& chunkId) const
+std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
 {
     auto primaryName = ToString(chunkId);
     switch (TypeFromId(DecodeChunkId(chunkId).Id)) {

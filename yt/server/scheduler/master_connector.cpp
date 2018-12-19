@@ -278,7 +278,7 @@ public:
 
     void AttachJobContext(
         const TYPath& path,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TOperationId& operationId,
         const TJobId& jobId,
         const TString& user)
@@ -1709,7 +1709,7 @@ TFuture<TYsonString> TMasterConnector::GetOperationNodeProgressAttributes(const 
 
 void TMasterConnector::AttachJobContext(
     const TYPath& path,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TOperationId& operationId,
     const TJobId& jobId,
     const TString& user)

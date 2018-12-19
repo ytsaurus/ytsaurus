@@ -21,7 +21,7 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedChunkMeta::TCachedChunkMeta(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     TRefCountedChunkMetaPtr meta,
     TNodeMemoryTracker* memoryTracker)
     : TAsyncCacheValueBase(chunkId)

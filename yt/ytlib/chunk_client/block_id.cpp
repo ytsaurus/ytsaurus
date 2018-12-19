@@ -7,7 +7,7 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockId::TBlockId(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     int blockIndex)
     : ChunkId(chunkId)
     , BlockIndex(blockIndex)

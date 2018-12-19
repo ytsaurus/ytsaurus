@@ -17,7 +17,7 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TChunkLocatedHandler = TCallback<void(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TChunkReplicaList& replicas,
     bool missing)>;
 

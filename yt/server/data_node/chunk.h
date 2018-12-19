@@ -30,7 +30,7 @@ struct TBlockReadOptions
 struct IChunk
     : public virtual TRefCounted
 {
-    virtual const TChunkId& GetId() const = 0;
+    virtual TChunkId GetId() const = 0;
     virtual TLocationPtr GetLocation() const = 0;
     virtual NChunkClient::NProto::TChunkInfo GetInfo() const = 0;
 
