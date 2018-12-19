@@ -26,7 +26,7 @@ public:
         TChunkTeleporterConfigPtr config,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const NLogging::TLogger& logger);
 
     void RegisterChunk(

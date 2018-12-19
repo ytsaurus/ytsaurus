@@ -816,7 +816,7 @@ private:
             ->Via(Bootstrap_->GetControlInvoker());
     }
 
-    const TTransactionId& GetPrerequisiteTransactionId() const
+    TTransactionId GetPrerequisiteTransactionId() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

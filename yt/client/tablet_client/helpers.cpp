@@ -11,7 +11,7 @@ using namespace NObjectClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void ValidateTabletTransaction(const TTransactionId& transactionId)
+void ValidateTabletTransaction(TTransactionId transactionId)
 {
     if (TypeFromId(transactionId) == EObjectType::NestedTransaction) {
         THROW_ERROR_EXCEPTION("Nested master transactions cannot be used for updating dynamic tables");

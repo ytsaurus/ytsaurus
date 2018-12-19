@@ -6,7 +6,7 @@ namespace NYT::NHiveServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TAbort::TAbort(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const NRpc::TMutationId& mutationId)
     : TransactionId_(transactionId)
     , MutationId_(mutationId)

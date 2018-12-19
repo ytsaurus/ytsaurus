@@ -700,7 +700,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     const TFetchChunkSpecConfigPtr& config,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TLogger& logger)
 {
     const auto& Logger = logger;

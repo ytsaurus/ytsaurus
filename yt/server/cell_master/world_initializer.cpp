@@ -564,7 +564,7 @@ private:
         return FromProto<TTransactionId>(rsp->id());
     }
 
-    void CommitTransaction(const TTransactionId& transactionId)
+    void CommitTransaction(TTransactionId transactionId)
     {
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         WaitFor(transactionSupervisor->CommitTransaction(transactionId, RootUserName))
@@ -573,7 +573,7 @@ private:
 
     void ScheduleCreateNode(
         const TYPath& path,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         EObjectType type,
         const TYsonString& attributes = TYsonString("{}"))
     {

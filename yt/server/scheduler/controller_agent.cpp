@@ -40,7 +40,7 @@ const NRpc::IChannelPtr& TControllerAgent::GetChannel() const
     return Channel_;
 }
 
-const TIncarnationId& TControllerAgent::GetIncarnationId() const
+TIncarnationId TControllerAgent::GetIncarnationId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

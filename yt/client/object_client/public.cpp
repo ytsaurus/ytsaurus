@@ -22,7 +22,7 @@ TVersionedObjectId::TVersionedObjectId(TObjectId objectId)
 
 TVersionedObjectId::TVersionedObjectId(
     TObjectId objectId,
-    const TTransactionId& transactionId)
+    TTransactionId transactionId)
     : ObjectId(objectId)
     , TransactionId(transactionId)
 { }

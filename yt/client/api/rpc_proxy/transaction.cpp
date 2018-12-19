@@ -9,7 +9,7 @@ NApi::ITransactionPtr CreateTransaction(
     TConnectionPtr connection,
     TClientPtr client,
     NRpc::IChannelPtr channel,
-    const NTransactionClient::TTransactionId& id,
+    NTransactionClient::TTransactionId id,
     NTransactionClient::TTimestamp startTimestamp,
     NTransactionClient::ETransactionType type,
     NTransactionClient::EAtomicity atomicity,

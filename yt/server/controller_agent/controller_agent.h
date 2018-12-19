@@ -95,7 +95,7 @@ public:
     TMasterConnector* GetMasterConnector();
 
     bool IsConnected() const;
-    const TIncarnationId& GetIncarnationId() const;
+    TIncarnationId GetIncarnationId() const;
 
     /*!
      *  \note Thread affinity: any
@@ -103,7 +103,7 @@ public:
     TInstant GetConnectionTime() const;
 
     void ValidateConnected() const;
-    void ValidateIncarnation(const TIncarnationId& incarnationId) const;
+    void ValidateIncarnation(TIncarnationId incarnationId) const;
 
     void Disconnect(const TError& error);
 

@@ -34,7 +34,7 @@ public:
         NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
         NApi::NNative::IClientPtr client,
-        const NObjectClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
         i64 sizeLimit = std::numeric_limits<i64>::max());

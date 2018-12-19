@@ -135,7 +135,7 @@ public:
     }
 
     TFuture<void> CommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TString& userName,
         const std::vector<TCellId>& participantCellIds)
     {
@@ -152,7 +152,7 @@ public:
     }
 
     TFuture<void> AbortTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force)
     {
         return MessageToError(
@@ -702,7 +702,7 @@ private:
     // Coordinator implementation.
 
     TFuture<TSharedRefArray> CoordinatorCommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const std::vector<TCellId>& participantCellIds,
         bool force2PC,
         bool generatePrepareTimestamp,
@@ -788,7 +788,7 @@ private:
     }
 
     TFuture<TSharedRefArray> CoordinatorAbortTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TMutationId& mutationId,
         bool force,
         const TString& userName)
@@ -1217,17 +1217,17 @@ private:
     }
 
 
-    TCommit* FindTransientCommit(const TTransactionId& transactionId)
+    TCommit* FindTransientCommit(TTransactionId transactionId)
     {
         return TransientCommitMap_.Find(transactionId);
     }
 
-    TCommit* FindPersistentCommit(const TTransactionId& transactionId)
+    TCommit* FindPersistentCommit(TTransactionId transactionId)
     {
         return PersistentCommitMap_.Find(transactionId);
     }
 
-    TCommit* FindCommit(const TTransactionId& transactionId)
+    TCommit* FindCommit(TTransactionId transactionId)
     {
         if (auto* commit = FindTransientCommit(transactionId)) {
             return commit;
@@ -1239,7 +1239,7 @@ private:
     }
 
     TCommit* CreateTransientCommit(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
@@ -1261,7 +1261,7 @@ private:
     }
 
     TCommit* GetOrCreatePersistentCommit(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
@@ -1363,13 +1363,13 @@ private:
     }
 
 
-    TAbort* FindAbort(const TTransactionId& transactionId)
+    TAbort* FindAbort(TTransactionId transactionId)
     {
         auto it = TransientAbortMap_.find(transactionId);
         return it == TransientAbortMap_.end() ? nullptr : &it->second;
     }
 
-    TAbort* CreateAbort(const TTransactionId& transactionId, const TMutationId& mutationId)
+    TAbort* CreateAbort(TTransactionId transactionId, const TMutationId& mutationId)
     {
         auto pair = TransientAbortMap_.emplace(transactionId, TAbort(transactionId, mutationId));
         YCHECK(pair.second);
@@ -1464,7 +1464,7 @@ private:
     }
 
     void OnCommitTimestampsGenerated(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TErrorOr<std::vector<std::pair<TCellTag, TTimestamp>>>& timestampsOrError)
     {
         auto* commit = FindCommit(transactionId);
@@ -1685,7 +1685,7 @@ private:
     }
 
     void OnParticipantResponse(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         ECommitState state,
         const TWrappedParticipantPtr& participant,
         const TError& error)
@@ -1916,7 +1916,7 @@ std::vector<NRpc::IServicePtr> TTransactionSupervisor::GetRpcServices()
 }
 
 TFuture<void> TTransactionSupervisor::CommitTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TString& userName,
     const std::vector<TCellId>& participantCellIds)
 {
@@ -1927,7 +1927,7 @@ TFuture<void> TTransactionSupervisor::CommitTransaction(
 }
 
 TFuture<void> TTransactionSupervisor::AbortTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool force)
 {
     return Impl_->AbortTransaction(

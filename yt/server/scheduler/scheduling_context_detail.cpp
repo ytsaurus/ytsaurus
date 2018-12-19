@@ -65,7 +65,7 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
 void TSchedulingContextBase::StartJob(
     const TString& treeId,
     const TOperationId& operationId,
-    const TIncarnationId& incarnationId,
+    TIncarnationId incarnationId,
     const TJobStartDescriptor& startDescriptor)
 {
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());

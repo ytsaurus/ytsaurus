@@ -60,7 +60,7 @@ public:
         return ETransactionParticipantState::Valid;
     }
 
-    virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId, TTimestamp prepareTimestamp, const TString& user) override
+    virtual TFuture<void> PrepareTransaction(TTransactionId transactionId, TTimestamp prepareTimestamp, const TString& user) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
@@ -73,7 +73,7 @@ public:
             });
     }
 
-    virtual TFuture<void> CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp) override
+    virtual TFuture<void> CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
@@ -85,7 +85,7 @@ public:
             });
     }
 
-    virtual TFuture<void> AbortTransaction(const TTransactionId& transactionId) override
+    virtual TFuture<void> AbortTransaction(TTransactionId transactionId) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {

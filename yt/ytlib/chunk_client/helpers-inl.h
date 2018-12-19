@@ -51,7 +51,7 @@ template <class T, class U = NDetail::TDefaultUnwrapper<T>>
 void GetUserObjectBasicAttributes(
     NApi::NNative::IClientPtr client,
     TMutableRange<T> objects,
-    const NObjectClient::TTransactionId& defaultTransactionId,
+    NObjectClient::TTransactionId defaultTransactionId,
     const NLogging::TLogger& logger,
     NYTree::EPermission permission,
     bool suppressAccessTracking = false)

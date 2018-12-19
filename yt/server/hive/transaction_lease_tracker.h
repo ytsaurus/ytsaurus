@@ -16,7 +16,7 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTransactionLeaseExpirationHandler = TCallback<void(const TTransactionId&)>;
+using TTransactionLeaseExpirationHandler = TCallback<void(TTransactionId)>;
 
 //! Offloads the automaton thread by handling transaction pings and leases
 //! in a separate thread.
@@ -52,8 +52,8 @@ public:
      *  Thread affinity: any
      */
     void RegisterTransaction(
-        const TTransactionId& transactionId,
-        const TTransactionId& parentId,
+        TTransactionId transactionId,
+        TTransactionId parentId,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         TTransactionLeaseExpirationHandler expirationHandler);
@@ -64,7 +64,7 @@ public:
      *
      *  Thread affinity: any
      */
-    void UnregisterTransaction(const TTransactionId& transactionId);
+    void UnregisterTransaction(TTransactionId transactionId);
 
     //! Sets the transaction timeout. Current lease is not renewed.
     /*!
@@ -72,7 +72,7 @@ public:
      *
      *  Thread affinity: any
      */
-    void SetTimeout(const TTransactionId& transactionId, TDuration timeout);
+    void SetTimeout(TTransactionId transactionId, TDuration timeout);
 
     //! Pings a transaction, i.e. renews its lease.
     /*!
@@ -83,7 +83,7 @@ public:
      *
      *  Thread affinity: TrackerThread
      */
-    void PingTransaction(const TTransactionId& transactionId, bool pingAncestors = false);
+    void PingTransaction(TTransactionId transactionId, bool pingAncestors = false);
 
     //! Asynchronously returns the (approximate) moment when transaction with
     //! a given #transactionId was last pinged.
@@ -92,7 +92,7 @@ public:
      *
      *  Thread affinity: any
      */
-    TFuture<TInstant> GetLastPingTime(const TTransactionId& transactionId);
+    TFuture<TInstant> GetLastPingTime(TTransactionId transactionId);
 
 private:
     const IInvokerPtr TrackerInvoker_;
@@ -169,8 +169,8 @@ private:
     void ProcessSetTimeoutRequest(const TSetTimeoutRequest& request);
     void ProcessDeadlines();
 
-    TTransactionDescriptor* FindDescriptor(const TTransactionId& transactionId);
-    TTransactionDescriptor* GetDescriptorOrThrow(const TTransactionId& transactionId);
+    TTransactionDescriptor* FindDescriptor(TTransactionId transactionId);
+    TTransactionDescriptor* GetDescriptorOrThrow(TTransactionId transactionId);
 
     void RegisterDeadline(TTransactionDescriptor* descriptor);
     void UnregisterDeadline(TTransactionDescriptor* descriptor);

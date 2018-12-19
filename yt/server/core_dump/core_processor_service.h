@@ -38,7 +38,7 @@ public:
         const NJobProxy::IJobHostPtr& jobHost,
         const NTableClient::TBlobTableWriterConfigPtr& blobTableWriterConfig,
         const NTableClient::TTableWriterOptionsPtr& tableWriterOptions,
-        const NObjectClient::TTransactionId& transaction,
+        NObjectClient::TTransactionId transaction,
         const NChunkClient::TChunkListId& chunkList,
         const IInvokerPtr& controlInvoker,
         TDuration readTimeout);

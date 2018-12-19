@@ -36,7 +36,7 @@ struct IUserJobIOFactory
         NTableClient::TTableWriterConfigPtr config,
         NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const NTableClient::TTableSchema& tableSchema,
         const NTableClient::TChunkTimestamps& chunkTimestamps) = 0;
 };
@@ -59,7 +59,7 @@ struct TUserJobIOFactoryBase
         NTableClient::TTableWriterConfigPtr config,
         NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const NTableClient::TTableSchema& tableSchema,
         const NTableClient::TChunkTimestamps& chunkTimestamps) override;
 

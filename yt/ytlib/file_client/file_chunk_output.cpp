@@ -46,7 +46,7 @@ TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     NNative::IClientPtr client,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     i64 sizeLimit)

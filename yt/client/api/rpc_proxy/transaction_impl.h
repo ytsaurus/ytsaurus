@@ -26,7 +26,7 @@ public:
         TConnectionPtr connection,
         TClientPtr client,
         NRpc::IChannelPtr channel,
-        const NTransactionClient::TTransactionId& id,
+        NTransactionClient::TTransactionId id,
         NTransactionClient::TTimestamp startTimestamp,
         NTransactionClient::ETransactionType type,
         NTransactionClient::EAtomicity atomicity,
@@ -40,7 +40,7 @@ public:
     virtual NApi::IClientPtr GetClient() const override;
 
     virtual NTransactionClient::ETransactionType GetType() const override;
-    virtual const NTransactionClient::TTransactionId& GetId() const override;
+    virtual NTransactionClient::TTransactionId GetId() const override;
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const override;
     virtual NTransactionClient::EAtomicity GetAtomicity() const override;
     virtual NTransactionClient::EDurability GetDurability() const override;

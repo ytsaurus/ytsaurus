@@ -543,7 +543,7 @@ private:
     ITransactionPtr GetTransactionOrAbortContext(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TTransactionAttachOptions& options)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
@@ -566,7 +566,7 @@ private:
         return transaction;
     }
 
-    void OnStickyTransactionFinished(const TTransactionId& transactionId)
+    void OnStickyTransactionFinished(TTransactionId transactionId)
     {
         auto guard = Guard(SpinLock_);
         TransactionToModifyRowsSlidingWindow_.erase(transactionId);

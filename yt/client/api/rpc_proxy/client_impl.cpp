@@ -136,7 +136,7 @@ IChannelPtr TClient::GetStickyChannel()
 }
 
 ITransactionPtr TClient::AttachTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TTransactionAttachOptions& options)
 {
     if (options.Sticky) {

@@ -187,7 +187,7 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
         const IAttributeDictionary& attributes,
-        const TTransactionId& hintId)
+        TTransactionId hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -440,7 +440,7 @@ public:
             force);
     }
 
-    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -555,7 +555,7 @@ public:
 
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp)
     {
@@ -604,7 +604,7 @@ public:
         }
     }
 
-    void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+    void PrepareTransactionAbort(TTransactionId transactionId, bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -623,7 +623,7 @@ public:
     }
 
     void CommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -633,7 +633,7 @@ public:
     }
 
     void AbortTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -643,7 +643,7 @@ public:
     }
 
     void PingTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool pingAncestors)
     {
         VERIFY_THREAD_AFFINITY(TrackerThread);
@@ -958,7 +958,7 @@ private:
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
     }
 
-    void OnTransactionExpired(const TTransactionId& transactionId)
+    void OnTransactionExpired(TTransactionId transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1022,7 +1022,7 @@ TTransaction* TTransactionManager::StartTransaction(
     std::optional<TInstant> deadline,
     const std::optional<TString>& title,
     const IAttributeDictionary& attributes,
-    const TTransactionId& hintId)
+    TTransactionId hintId)
 {
     return Impl_->StartTransaction(
         parent,
@@ -1050,7 +1050,7 @@ void TTransactionManager::AbortTransaction(
     Impl_->AbortTransaction(transaction, force);
 }
 
-TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& transactionId)
+TTransaction* TTransactionManager::GetTransactionOrThrow(TTransactionId transactionId)
 {
     return Impl_->GetTransactionOrThrow(transactionId);
 }
@@ -1128,7 +1128,7 @@ std::unique_ptr<TMutation> TTransactionManager::CreateRegisterTransactionActions
 }
 
 void TTransactionManager::PrepareTransactionCommit(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool persistent,
     TTimestamp prepareTimestamp)
 {
@@ -1136,28 +1136,28 @@ void TTransactionManager::PrepareTransactionCommit(
 }
 
 void TTransactionManager::PrepareTransactionAbort(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool force)
 {
     Impl_->PrepareTransactionAbort(transactionId, force);
 }
 
 void TTransactionManager::CommitTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TTimestamp commitTimestamp)
 {
     Impl_->CommitTransaction(transactionId, commitTimestamp);
 }
 
 void TTransactionManager::AbortTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool force)
 {
     Impl_->AbortTransaction(transactionId, force);
 }
 
 void TTransactionManager::PingTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);

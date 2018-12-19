@@ -14,7 +14,7 @@ TJob::TJob(
     const TJobId& id,
     EJobType type,
     const TOperationId& operationId,
-    const TIncarnationId& incarnationId,
+    TIncarnationId incarnationId,
     TExecNodePtr node,
     TInstant startTime,
     const TJobResources& resourceLimits,

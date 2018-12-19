@@ -197,7 +197,7 @@ public:
         return ConnectionTime_.load();
     }
 
-    const TIncarnationId& GetIncarnationId() const
+    TIncarnationId GetIncarnationId() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -215,7 +215,7 @@ public:
         }
     }
 
-    void ValidateIncarnation(const TIncarnationId& incarnationId) const
+    void ValidateIncarnation(TIncarnationId incarnationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1510,7 +1510,7 @@ bool TControllerAgent::IsConnected() const
     return Impl_->IsConnected();
 }
 
-const TIncarnationId& TControllerAgent::GetIncarnationId() const
+TIncarnationId TControllerAgent::GetIncarnationId() const
 {
     return Impl_->GetIncarnationId();
 }
@@ -1525,7 +1525,7 @@ void TControllerAgent::ValidateConnected() const
     Impl_->ValidateConnected();
 }
 
-void TControllerAgent::ValidateIncarnation(const TIncarnationId& incarnationId) const
+void TControllerAgent::ValidateIncarnation(TIncarnationId incarnationId) const
 {
     Impl_->ValidateIncarnation(incarnationId);
 }

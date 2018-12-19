@@ -73,12 +73,12 @@ TTransactionId MakeTabletTransactionId(
         hash);
 }
 
-TTimestamp TimestampFromTransactionId(const TTransactionId& id)
+TTimestamp TimestampFromTransactionId(TTransactionId id)
 {
     return TTimestamp(CounterFromId(id));
 }
 
-EAtomicity AtomicityFromTransactionId(const TTransactionId& id)
+EAtomicity AtomicityFromTransactionId(TTransactionId id)
 {
     switch (TypeFromId(id)) {
         case EObjectType::Transaction:
@@ -93,7 +93,7 @@ EAtomicity AtomicityFromTransactionId(const TTransactionId& id)
     }
 }
 
-void ValidateTabletTransactionId(const TTransactionId& id)
+void ValidateTabletTransactionId(TTransactionId id)
 {
     auto type = TypeFromId(id);
     if (type != EObjectType::Transaction &&
@@ -105,7 +105,7 @@ void ValidateTabletTransactionId(const TTransactionId& id)
     }
 }
 
-void ValidateMasterTransactionId(const TTransactionId& id)
+void ValidateMasterTransactionId(TTransactionId id)
 {
     auto type = TypeFromId(id);
     if (type != EObjectType::Transaction &&

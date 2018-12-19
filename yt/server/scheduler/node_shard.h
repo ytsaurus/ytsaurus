@@ -155,7 +155,7 @@ public:
     int GetTotalNodeCount();
 
     TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(
-        const TIncarnationId& incarnationId,
+        TIncarnationId incarnationId,
         const TOperationId& operationId,
         const TJobId& jobId);
     void EndScheduleJob(

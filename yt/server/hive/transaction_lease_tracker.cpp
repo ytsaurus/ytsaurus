@@ -56,8 +56,8 @@ void TTransactionLeaseTracker::Stop()
 }
 
 void TTransactionLeaseTracker::RegisterTransaction(
-    const TTransactionId& transactionId,
-    const TTransactionId& parentId,
+    TTransactionId transactionId,
+    TTransactionId parentId,
     std::optional<TDuration> timeout,
     std::optional<TInstant> deadline,
     TTransactionLeaseExpirationHandler expirationHandler)
@@ -73,7 +73,7 @@ void TTransactionLeaseTracker::RegisterTransaction(
     });
 }
 
-void TTransactionLeaseTracker::UnregisterTransaction(const TTransactionId& transactionId)
+void TTransactionLeaseTracker::UnregisterTransaction(TTransactionId transactionId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -83,7 +83,7 @@ void TTransactionLeaseTracker::UnregisterTransaction(const TTransactionId& trans
 }
 
 void TTransactionLeaseTracker::SetTimeout(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TDuration timeout)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -95,7 +95,7 @@ void TTransactionLeaseTracker::SetTimeout(
 }
 
 void TTransactionLeaseTracker::PingTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool pingAncestors)
 {
     VERIFY_THREAD_AFFINITY(TrackerThread);
@@ -129,7 +129,7 @@ void TTransactionLeaseTracker::PingTransaction(
     }
 }
 
-TFuture<TInstant> TTransactionLeaseTracker::GetLastPingTime(const TTransactionId& transactionId)
+TFuture<TInstant> TTransactionLeaseTracker::GetLastPingTime(TTransactionId transactionId)
 {
     return
         BIND([=, this_ = MakeStrong(this)] () {
@@ -259,7 +259,7 @@ void TTransactionLeaseTracker::ProcessDeadlines()
     }
 }
 
-TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::FindDescriptor(const TTransactionId& transactionId)
+TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::FindDescriptor(TTransactionId transactionId)
 {
     VERIFY_THREAD_AFFINITY(TrackerThread);
 
@@ -267,7 +267,7 @@ TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::Find
     return it == IdMap_.end() ? nullptr : &it->second;
 }
 
-TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::GetDescriptorOrThrow(const TTransactionId& transactionId)
+TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::GetDescriptorOrThrow(TTransactionId transactionId)
 {
     VERIFY_THREAD_AFFINITY(TrackerThread);
 

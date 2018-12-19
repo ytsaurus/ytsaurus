@@ -11,13 +11,13 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommit::TCommit(const TTransactionId& transationId)
+TCommit::TCommit(TTransactionId transationId)
     : TransactionId_(transationId)
     , Persistent_(false)
 { }
 
 TCommit::TCommit(
-    const TTransactionId& transationId,
+    TTransactionId transationId,
     const TMutationId& mutationId,
     const std::vector<TCellId>& participantCellIds,
     bool distributed,

@@ -61,7 +61,7 @@ public:
         NApi::NNative::IClientPtr client,
         TBlobTableWriterConfigPtr blobTableWriterConfig,
         TTableWriterOptionsPtr tableWriterOptions,
-        const NCypressClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const NChunkClient::TChunkListId& chunkListId,
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler);

@@ -71,7 +71,7 @@ public:
         const TTransactionStartOptions& options);
 
     TTransactionPtr Attach(
-        const TTransactionId& id,
+        TTransactionId id,
         const TTransactionAttachOptions& options);
 
     void AbortAll();
@@ -179,7 +179,7 @@ public:
     }
 
     void Attach(
-        const TTransactionId& id,
+        TTransactionId id,
         const TTransactionAttachOptions& options)
     {
         ValidateAttachOptions(id, options);
@@ -305,7 +305,7 @@ public:
         return Type_;
     }
 
-    const TTransactionId& GetId() const
+    TTransactionId GetId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -534,7 +534,7 @@ private:
     }
 
     static void ValidateAttachOptions(
-        const TTransactionId& id,
+        TTransactionId id,
         const TTransactionAttachOptions& options)
     {
         ValidateMasterTransactionId(id);
@@ -1127,7 +1127,7 @@ TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
 }
 
 TTransactionPtr TTransactionManager::TImpl::Attach(
-    const TTransactionId& id,
+    TTransactionId id,
     const TTransactionAttachOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -1195,7 +1195,7 @@ ETransactionType TTransaction::GetType() const
     return Impl_->GetType();
 }
 
-const TTransactionId& TTransaction::GetId() const
+TTransactionId TTransaction::GetId() const
 {
     return Impl_->GetId();
 }
@@ -1273,7 +1273,7 @@ TFuture<TTransactionPtr> TTransactionManager::Start(
 }
 
 TTransactionPtr TTransactionManager::Attach(
-    const TTransactionId& id,
+    TTransactionId id,
     const TTransactionAttachOptions& options)
 {
     return Impl_->Attach(id, options);

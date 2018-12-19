@@ -79,7 +79,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, User);
 
 public:
-    explicit TTransaction(const TTransactionId& id);
+    explicit TTransaction(TTransactionId id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);

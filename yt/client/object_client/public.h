@@ -226,7 +226,7 @@ struct TVersionedObjectId
     explicit TVersionedObjectId(TObjectId objectId);
 
     //! Initializes an instance by given node and transaction ids.
-    TVersionedObjectId(TObjectId objectId, const TTransactionId& transactionId);
+    TVersionedObjectId(TObjectId objectId, TTransactionId transactionId);
 
     //! Checks that the id is branched, i.e. #TransactionId is not #NullTransactionId.
     bool IsBranched() const;

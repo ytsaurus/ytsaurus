@@ -320,7 +320,7 @@ TError GetSchedulerTransactionsAbortedError(const std::vector<TTransactionId>& t
         transactionIds);
 }
 
-TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
+TError GetUserTransactionAbortedError(TTransactionId transactionId)
 {
     return TError(
         NTransactionClient::EErrorCode::NoSuchTransaction,

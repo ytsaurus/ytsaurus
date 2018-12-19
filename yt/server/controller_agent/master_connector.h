@@ -43,7 +43,7 @@ public:
 
     TFuture<void> AttachToLivePreview(
         const TOperationId& operationId,
-        const NObjectClient::TTransactionId& transactionId,
+        NObjectClient::TTransactionId transactionId,
         NCypressClient::TNodeId tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds);
 
