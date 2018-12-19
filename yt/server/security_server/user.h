@@ -55,7 +55,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex);
     
 public:
-    explicit TUser(const TUserId& id);
+    explicit TUser(TUserId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

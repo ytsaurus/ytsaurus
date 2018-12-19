@@ -627,7 +627,7 @@ public:
         return user;
     }
 
-    TUser* GetUserOrThrow(const TUserId& id)
+    TUser* GetUserOrThrow(TUserId id)
     {
         auto* user = FindUser(id);
         if (!IsObjectAlive(user)) {
@@ -1550,7 +1550,7 @@ private:
         }
     }
 
-    TUser* DoCreateUser(const TUserId& id, const TString& name)
+    TUser* DoCreateUser(TUserId id, const TString& name)
     {
         auto userHolder = std::make_unique<TUser>(id);
         userHolder->SetName(name);
@@ -2186,7 +2186,7 @@ private:
         return true;
     }
 
-    bool EnsureBuiltinUserInitialized(TUser*& user, const TUserId& id, const TString& name)
+    bool EnsureBuiltinUserInitialized(TUser*& user, TUserId id, const TString& name)
     {
         if (user) {
             return false;
@@ -2707,7 +2707,7 @@ TUser* TSecurityManager::GetUserByNameOrThrow(const TString& name)
     return Impl_->GetUserByNameOrThrow(name);
 }
 
-TUser* TSecurityManager::GetUserOrThrow(const TUserId& id)
+TUser* TSecurityManager::GetUserOrThrow(TUserId id)
 {
     return Impl_->GetUserOrThrow(id);
 }
