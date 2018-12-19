@@ -30,7 +30,7 @@ TChunkTeleporter::TChunkTeleporter(
     TChunkTeleporterConfigPtr config,
     NNative::IClientPtr client,
     IInvokerPtr invoker,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const NLogging::TLogger& logger)
     : Config_(config)
     , Client_(client)

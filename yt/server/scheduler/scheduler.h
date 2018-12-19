@@ -88,7 +88,7 @@ public:
 
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const NRpc::TMutationId& mutationId,
         NYTree::IMapNodePtr spec,
         const TString& user);

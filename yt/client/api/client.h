@@ -1088,7 +1088,7 @@ struct IClient
 
     // Transactions
     virtual ITransactionPtr AttachTransaction(
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
 
     // Tables

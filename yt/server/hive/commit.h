@@ -50,9 +50,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, UserName);
 
 public:
-    explicit TCommit(const TTransactionId& transactionId);
+    explicit TCommit(TTransactionId transactionId);
     TCommit(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const NRpc::TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,

@@ -137,7 +137,7 @@ void TOperationControllerHost::CreateJobNode(const TCreateJobNodeRequest& reques
 }
 
 TFuture<void> TOperationControllerHost::AttachChunkTreesToLivePreview(
-    const NTransactionClient::TTransactionId& transactionId,
+    NTransactionClient::TTransactionId transactionId,
     NCypressClient::TNodeId tableId,
     const std::vector<TChunkTreeId>& childIds)
 {
@@ -214,7 +214,7 @@ TInstant TOperationControllerHost::GetConnectionTime()
     return Bootstrap_->GetControllerAgent()->GetConnectionTime();
 }
 
-const TIncarnationId& TOperationControllerHost::GetIncarnationId()
+TIncarnationId TOperationControllerHost::GetIncarnationId()
 {
     return IncarnationId_;
 }

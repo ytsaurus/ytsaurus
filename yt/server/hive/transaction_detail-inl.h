@@ -10,7 +10,7 @@ namespace NYT::NHiveServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBase>
-TTransactionBase<TBase>::TTransactionBase(const TTransactionId& id)
+TTransactionBase<TBase>::TTransactionBase(TTransactionId id)
     : TBase(id)
     , State_(ETransactionState::Active)
 { }

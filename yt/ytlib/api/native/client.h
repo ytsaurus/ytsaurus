@@ -39,7 +39,7 @@ struct IClient
     virtual const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual ITransactionPtr AttachNativeTransaction(
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
 };
 

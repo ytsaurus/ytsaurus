@@ -223,7 +223,7 @@ struct IOperationControllerHost
     virtual void CreateJobNode(const TCreateJobNodeRequest& request) = 0;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         NCypressClient::TNodeId tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds) = 0;
     virtual void AddChunkTreesToUnstageList(
@@ -243,7 +243,7 @@ struct IOperationControllerHost
     virtual int GetExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
-    virtual const NScheduler::TIncarnationId& GetIncarnationId() = 0;
+    virtual NScheduler::TIncarnationId GetIncarnationId() = 0;
 
     virtual void OnOperationCompleted() = 0;
     virtual void OnOperationAborted(const TError& error) = 0;

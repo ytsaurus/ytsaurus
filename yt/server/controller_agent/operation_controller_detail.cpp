@@ -304,7 +304,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
 
     InitializeClients();
 
-    auto attachTransaction = [&] (const TTransactionId& transactionId, const NNative::IClientPtr& client, bool ping) -> ITransactionPtr {
+    auto attachTransaction = [&] (TTransactionId transactionId, const NNative::IClientPtr& client, bool ping) -> ITransactionPtr {
         if (!transactionId) {
             return nullptr;
         }
@@ -336,7 +336,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         auto checkTransaction = [&] (
             const ITransactionPtr& transaction,
             ETransactionType transactionType,
-            const TTransactionId& transactionId)
+            TTransactionId transactionId)
         {
             if (cleanStart) {
                 return;
@@ -994,7 +994,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
 }
 
 ITransactionPtr TOperationControllerBase::AttachTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const NNative::IClientPtr& client,
     bool ping)
 {
@@ -1081,8 +1081,8 @@ TAutoMergeDirector* TOperationControllerBase::GetAutoMergeDirector()
 TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     ETransactionType type,
     NNative::IClientPtr client,
-    const TTransactionId& parentTransactionId,
-    const TTransactionId& prerequisiteTransactionId)
+    TTransactionId parentTransactionId,
+    TTransactionId prerequisiteTransactionId)
 {
     if (!IsTransactionNeeded(type)) {
         YT_LOG_INFO("Skipping transaction as it is not needed (Type: %v)", type);

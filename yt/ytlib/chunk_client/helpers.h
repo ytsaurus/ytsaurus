@@ -36,7 +36,7 @@ TSessionId CreateChunk(
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
-    const NObjectClient::TTransactionId& transactionId,
+    NObjectClient::TTransactionId transactionId,
     const TChunkListId& chunkListId,
     const NLogging::TLogger& logger);
 

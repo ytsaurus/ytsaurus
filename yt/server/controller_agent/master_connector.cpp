@@ -145,7 +145,7 @@ public:
 
     TFuture<void> AttachToLivePreview(
         const TOperationId& operationId,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
@@ -817,7 +817,7 @@ private:
 
     void AttachLivePreviewChunks(
         const TOperationId& operationId,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const std::vector<TLivePreviewRequest>& requests)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -974,7 +974,7 @@ private:
 
     void DoAttachToLivePreview(
         const TOperationId& operationId,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
@@ -1367,7 +1367,7 @@ TFuture<void> TMasterConnector::UpdateInitializedOperationNode(const TOperationI
 
 TFuture<void> TMasterConnector::AttachToLivePreview(
     const TOperationId& operationId,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TNodeId tableId,
     const std::vector<TChunkTreeId>& childIds)
 {

@@ -59,7 +59,7 @@ public:
     virtual void CreateJobNode(const TCreateJobNodeRequest& request) override;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         NCypressClient::TNodeId tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds) override;
     virtual void AddChunkTreesToUnstageList(
@@ -80,7 +80,7 @@ public:
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override;
 
     virtual TInstant GetConnectionTime() override;
-    virtual const TIncarnationId& GetIncarnationId() override;
+    virtual TIncarnationId GetIncarnationId() override;
 
     virtual void OnOperationCompleted() override;
     virtual void OnOperationAborted(const TError& error) override;

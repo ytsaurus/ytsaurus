@@ -52,7 +52,7 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
         const NYTree::IAttributeDictionary& attributes,
-        const TTransactionId& hintId = NullTransactionId);
+        TTransactionId hintId = NullTransactionId);
     void CommitTransaction(
         TTransaction* transaction,
         TTimestamp commitTimestamp);
@@ -63,7 +63,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
     //! Finds transaction by id, throws if nothing is found.
-    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId);
+    TTransaction* GetTransactionOrThrow(TTransactionId transactionId);
 
     //! Asynchronously returns the (approximate) moment when transaction with
     //! a given #transactionId was last pinged.
@@ -140,20 +140,20 @@ private:
 
     // ITransactionManager overrides
     virtual void PrepareTransactionCommit(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp) override;
     virtual void PrepareTransactionAbort(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force) override;
     virtual void CommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TTimestamp commitTimestamp) override;
     virtual void AbortTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force) override;
     virtual void PingTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool pingAncestors) override;
 };
 

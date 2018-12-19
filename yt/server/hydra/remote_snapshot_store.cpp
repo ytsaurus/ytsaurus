@@ -52,7 +52,7 @@ public:
         TRemoteSnapshotStoreOptionsPtr options,
         const TYPath& path,
         IClientPtr client,
-        const TTransactionId& prerequisiteTransactionId)
+        TTransactionId prerequisiteTransactionId)
         : Config_(config)
         , Options_(options)
         , Path_(path)
@@ -395,7 +395,7 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreOptionsPtr options,
     const TYPath& path,
     IClientPtr client,
-    const TTransactionId& prerequisiteTransactionId)
+    TTransactionId prerequisiteTransactionId)
 {
     return New<TRemoteSnapshotStore>(
         config,

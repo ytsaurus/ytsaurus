@@ -23,7 +23,7 @@ public:
         NApi::NNative::IClientPtr clientPtr,
         IInvokerPtr controlInvoker,
         const TOperationId& operationId,
-        const NTransactionClient::TTransactionId& transactionId);
+        NTransactionClient::TTransactionId transactionId);
 
     bool HasEnough(NObjectClient::TCellTag cellTag, int requestedCount);
     NChunkClient::TChunkListId Extract(NObjectClient::TCellTag cellTag);

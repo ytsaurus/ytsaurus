@@ -146,7 +146,7 @@ void TStderrWriter::Upload(
     NApi::TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
     NApi::NNative::IClientPtr client,
-    const NObjectClient::TTransactionId& transactionId,
+    NObjectClient::TTransactionId transactionId,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {

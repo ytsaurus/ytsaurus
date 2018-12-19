@@ -42,7 +42,7 @@ public:
     }
 
     virtual ITransactionPtr GetTransactionAndRenewLease(
-        const NTransactionClient::TTransactionId& transactionId) override
+        NTransactionClient::TTransactionId transactionId) override
     {
         ITransactionPtr transaction;
         NConcurrency::TLease lease;
@@ -77,7 +77,7 @@ private:
 
     const NLogging::TLogger& Logger;
 
-    void OnStickyTransactionLeaseExpired(const NTransactionClient::TTransactionId& transactionId)
+    void OnStickyTransactionLeaseExpired(NTransactionClient::TTransactionId transactionId)
     {
         ITransactionPtr transaction;
         {
@@ -95,7 +95,7 @@ private:
 
         transaction->Abort();
     }
-    void OnStickyTransactionFinished(const NTransactionClient::TTransactionId& transactionId)
+    void OnStickyTransactionFinished(NTransactionClient::TTransactionId transactionId)
     {
         NConcurrency::TLease lease;
         {

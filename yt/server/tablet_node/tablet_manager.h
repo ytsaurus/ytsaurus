@@ -50,7 +50,7 @@ public:
 
     void Write(
         TTabletSnapshotPtr tabletSnapshot,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         NTransactionClient::TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature signature,

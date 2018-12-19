@@ -54,7 +54,7 @@ TBlobTableWriter::TBlobTableWriter(
     NApi::NNative::IClientPtr client,
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TChunkListId& chunkListId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)

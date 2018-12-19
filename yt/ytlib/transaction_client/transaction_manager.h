@@ -62,7 +62,7 @@ public:
     ETransactionType GetType() const;
 
     //! Returns the transaction id.
-    const TTransactionId& GetId() const;
+    TTransactionId GetId() const;
 
     //! Returns the transaction start timestamp.
     /*!
@@ -166,7 +166,7 @@ public:
      *  This call does not block.
      */
     TTransactionPtr Attach(
-        const TTransactionId& id,
+        TTransactionId id,
         const TTransactionAttachOptions& options = TTransactionAttachOptions());
 
     //! Asynchronously aborts all active transactions.

@@ -69,7 +69,7 @@ i64 TTransactionWriteRecord::GetByteSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(const TTransactionId& id)
+TTransaction::TTransaction(TTransactionId id)
     : TTransactionBase(id)
 { }
 

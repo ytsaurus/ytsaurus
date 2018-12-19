@@ -154,7 +154,7 @@ std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
     const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NChunkClient::TFetchChunkSpecConfigPtr& config,
-    const NObjectClient::TTransactionId& transactionId,
+    NObjectClient::TTransactionId transactionId,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

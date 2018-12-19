@@ -74,7 +74,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TChunkListId& chunkListId,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TTableSchema& tableSchema,
     const TChunkTimestamps& chunkTimestamps,
     TTrafficMeterPtr trafficMeter,
@@ -402,7 +402,7 @@ public:
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TTableSchema& tableSchema,
         const TChunkTimestamps& chunkTimestamps) override
     {
@@ -562,7 +562,7 @@ NTableClient::ISchemalessMultiChunkWriterPtr TUserJobIOFactoryBase::CreateWriter
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TChunkListId& chunkListId,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TTableSchema& tableSchema,
     const TChunkTimestamps& chunkTimestamps)
 {

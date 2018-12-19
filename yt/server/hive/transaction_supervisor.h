@@ -36,12 +36,12 @@ public:
     std::vector<NRpc::IServicePtr> GetRpcServices();
 
     TFuture<void> CommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TString& userName,
         const std::vector<NHydra::TCellId>& participantCellIds = std::vector<NHydra::TCellId>());
 
     TFuture<void> AbortTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force = false);
 
 private:

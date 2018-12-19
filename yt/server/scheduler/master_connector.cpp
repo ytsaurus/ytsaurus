@@ -1033,7 +1033,7 @@ private:
 
                 auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
 
-                auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
+                auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
                     if (!transactionId) {
                         if (name) {
                             YT_LOG_DEBUG("Missing %v transaction (OperationId: %v, TransactionId: %v)",

@@ -57,7 +57,7 @@ void TTransactionListener::ValidateAborted() const
     }
 }
 
-void TTransactionListener::OnTransactionAborted(const TTransactionId& id)
+void TTransactionListener::OnTransactionAborted(TTransactionId id)
 {
     auto guard = Guard(SpinLock_);
     if (std::find(IgnoredTransactionIds_.begin(), IgnoredTransactionIds_.end(), id) != IgnoredTransactionIds_.end()) {

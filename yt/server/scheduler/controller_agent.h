@@ -109,7 +109,7 @@ public:
     /*
      * \note Thread affinity: any
      */
-    const TIncarnationId& GetIncarnationId() const;
+    TIncarnationId GetIncarnationId() const;
 
     const NApi::ITransactionPtr& GetIncarnationTransaction() const;
     void SetIncarnationTransaction(NApi::ITransactionPtr transaction);

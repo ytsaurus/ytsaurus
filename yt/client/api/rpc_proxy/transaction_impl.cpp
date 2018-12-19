@@ -30,7 +30,7 @@ TTransaction::TTransaction(
     TConnectionPtr connection,
     TClientPtr client,
     NRpc::IChannelPtr channel,
-    const TTransactionId& id,
+    TTransactionId id,
     TTimestamp startTimestamp,
     ETransactionType type,
     EAtomicity atomicity,
@@ -77,7 +77,7 @@ IClientPtr TTransaction::GetClient() const
     return Client_;
 }
 
-const TTransactionId& TTransaction::GetId() const
+TTransactionId TTransaction::GetId() const
 {
     return Id_;
 }

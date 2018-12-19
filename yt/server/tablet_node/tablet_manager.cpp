@@ -276,7 +276,7 @@ public:
 
     void Write(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature signature,
@@ -1209,7 +1209,7 @@ private:
 
 
     void HydraLeaderExecuteWrite(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         i64 mountRevision,
         TTransactionSignature signature,
         bool lockless,
@@ -3005,7 +3005,7 @@ private:
         }
     }
 
-    void ValidateClientTimestamp(const TTransactionId& transactionId)
+    void ValidateClientTimestamp(TTransactionId transactionId)
     {
         auto clientTimestamp = TimestampFromTransactionId(transactionId);
         auto serverTimestamp = Bootstrap_->GetLatestTimestamp();
@@ -3508,7 +3508,7 @@ void TTabletManager::Read(
 
 void TTabletManager::Write(
     TTabletSnapshotPtr tabletSnapshot,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TTimestamp transactionStartTimestamp,
     TDuration transactionTimeout,
     TTransactionSignature signature,

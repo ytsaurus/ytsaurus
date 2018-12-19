@@ -69,7 +69,7 @@ public:
         : MaxSize_(maxSize)
     { }
 
-    void Register(const TTransactionId& id)
+    void Register(TTransactionId id)
     {
         if (IdSet_.insert(id).second) {
             IdQueue_.push(id);
@@ -82,7 +82,7 @@ public:
         }
     }
 
-    bool IsRegistered(const TTransactionId& id) const
+    bool IsRegistered(TTransactionId id) const
     {
         return IdSet_.find(id) != IdSet_.end();
     }
@@ -166,17 +166,17 @@ public:
         return CreateMutation(HydraManager_, std::move(context));
     }
 
-    TTransaction* FindPersistentTransaction(const TTransactionId& transactionId)
+    TTransaction* FindPersistentTransaction(TTransactionId transactionId)
     {
         return PersistentTransactionMap_.Find(transactionId);
     }
 
-    TTransaction* GetPersistentTransaction(const TTransactionId& transactionId)
+    TTransaction* GetPersistentTransaction(TTransactionId transactionId)
     {
         return PersistentTransactionMap_.Get(transactionId);
     }
 
-    TTransaction* GetPersistentTransactionOrThrow(const TTransactionId& transactionId)
+    TTransaction* GetPersistentTransactionOrThrow(TTransactionId transactionId)
     {
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
             return transaction;
@@ -187,7 +187,7 @@ public:
             transactionId);
     }
 
-    TTransaction* FindTransaction(const TTransactionId& transactionId)
+    TTransaction* FindTransaction(TTransactionId transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             return transaction;
@@ -198,7 +198,7 @@ public:
         return nullptr;
     }
 
-    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
     {
         auto* transaction = FindTransaction(transactionId);
         if (!transaction) {
@@ -211,7 +211,7 @@ public:
     }
 
     TTransaction* GetOrCreateTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
@@ -264,7 +264,7 @@ public:
         return transaction;
     }
 
-    TTransaction* MakeTransactionPersistent(const TTransactionId& transactionId)
+    TTransaction* MakeTransactionPersistent(TTransactionId transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             transaction->SetTransient(false);
@@ -321,7 +321,7 @@ public:
 
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp)
     {
@@ -373,7 +373,7 @@ public:
         }
     }
 
-    void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+    void PrepareTransactionAbort(TTransactionId transactionId, bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -393,7 +393,7 @@ public:
         }
     }
 
-    void CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
+    void CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -440,7 +440,7 @@ public:
         }
     }
 
-    void AbortTransaction(const TTransactionId& transactionId, bool force)
+    void AbortTransaction(TTransactionId transactionId, bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -468,7 +468,7 @@ public:
         PersistentTransactionMap_.Remove(transactionId);
     }
 
-    void PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
+    void PingTransaction(TTransactionId transactionId, bool pingAncestors)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -577,7 +577,7 @@ private:
     }
 
 
-    void OnTransactionExpired(const TTransactionId& id)
+    void OnTransactionExpired(TTransactionId id)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -599,7 +599,7 @@ private:
         }));
     }
 
-    void OnTransactionTimedOut(const TTransactionId& id)
+    void OnTransactionTimedOut(TTransactionId id)
     {
         auto* transaction = FindTransaction(id);
         if (!transaction) {
@@ -1046,7 +1046,7 @@ IYPathServicePtr TTransactionManager::GetOrchidService()
 }
 
 TTransaction* TTransactionManager::GetOrCreateTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TTimestamp startTimestamp,
     TDuration timeout,
     bool transient,
@@ -1062,7 +1062,7 @@ TTransaction* TTransactionManager::GetOrCreateTransaction(
         fresh);
 }
 
-TTransaction* TTransactionManager::MakeTransactionPersistent(const TTransactionId& transactionId)
+TTransaction* TTransactionManager::MakeTransactionPersistent(TTransactionId transactionId)
 {
     return Impl_->MakeTransactionPersistent(transactionId);
 }
@@ -1089,29 +1089,29 @@ void TTransactionManager::RegisterTransactionActionHandlers(
 }
 
 void TTransactionManager::PrepareTransactionCommit(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool persistent,
     TTimestamp prepareTimestamp)
 {
     Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
 }
 
-void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+void TTransactionManager::PrepareTransactionAbort(TTransactionId transactionId, bool force)
 {
     Impl_->PrepareTransactionAbort(transactionId, force);
 }
 
-void TTransactionManager::CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
+void TTransactionManager::CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp)
 {
     Impl_->CommitTransaction(transactionId, commitTimestamp);
 }
 
-void TTransactionManager::AbortTransaction(const TTransactionId& transactionId, bool force)
+void TTransactionManager::AbortTransaction(TTransactionId transactionId, bool force)
 {
     Impl_->AbortTransaction(transactionId, force);
 }
 
-void TTransactionManager::PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
+void TTransactionManager::PingTransaction(TTransactionId transactionId, bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
 }

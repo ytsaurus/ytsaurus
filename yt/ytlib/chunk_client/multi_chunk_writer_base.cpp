@@ -44,7 +44,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TMultiChunkWriterOptionsPtr options,
     NNative::IClientPtr client,
     TCellTag cellTag,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TChunkListId& parentChunkListId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,

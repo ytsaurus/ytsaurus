@@ -348,7 +348,7 @@ public:
         TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
         IClientPtr client,
-        const TTransactionId& prerequisiteTransactionId,
+        TTransactionId prerequisiteTransactionId,
         const NProfiling::TTagIdList& profilerTags)
         : Config_(config)
         , Options_(options)
@@ -514,7 +514,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreOptionsPtr options,
     const TYPath& path,
     IClientPtr client,
-    const TTransactionId& prerequisiteTransactionId,
+    TTransactionId prerequisiteTransactionId,
     const NProfiling::TTagIdList& profilerTags)
 {
     return New<TRemoteChangelogStoreFactory>(

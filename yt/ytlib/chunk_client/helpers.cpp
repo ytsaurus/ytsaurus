@@ -61,7 +61,7 @@ TSessionId CreateChunk(
     NNative::IClientPtr client,
     TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TChunkListId& chunkListId,
     const NLogging::TLogger& logger)
 {

@@ -37,7 +37,7 @@ private:
     std::vector<TTransactionId> AbortedTransactionIds_;
 
 private:
-    void OnTransactionAborted(const TTransactionId& id);
+    void OnTransactionAborted(TTransactionId id);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

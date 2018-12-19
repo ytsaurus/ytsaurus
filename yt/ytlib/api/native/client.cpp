@@ -524,7 +524,7 @@ public:
     }
 
     virtual ITransactionPtr AttachNativeTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TTransactionAttachOptions& options) override
     {
         auto wrappedTransaction = TransactionManager_->Attach(transactionId, options);
@@ -539,7 +539,7 @@ public:
     }
 
     virtual NApi::ITransactionPtr AttachTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TTransactionAttachOptions& options) override
     {
         return AttachNativeTransaction(transactionId, options);
@@ -3438,7 +3438,7 @@ private:
     void SetTouchedAttribute(
         const TString& destination,
         const TPrerequisiteOptions& options = TPrerequisiteOptions(),
-        const TTransactionId& transactionId = NullTransactionId)
+        TTransactionId transactionId = NullTransactionId)
     {
         auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
 

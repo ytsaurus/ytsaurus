@@ -17,7 +17,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTransactionActionData>, Actions);
 
 public:
-    explicit TTransactionBase(const TTransactionId& id);
+    explicit TTransactionBase(TTransactionId id);
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);

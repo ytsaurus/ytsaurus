@@ -12,7 +12,7 @@ struct IStickyTransactionPool
     : public virtual TRefCounted
 {
     virtual ITransactionPtr RegisterTransaction(ITransactionPtr transaction) = 0;
-    virtual ITransactionPtr GetTransactionAndRenewLease(const NTransactionClient::TTransactionId& transactionId) = 0;
+    virtual ITransactionPtr GetTransactionAndRenewLease(NTransactionClient::TTransactionId transactionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStickyTransactionPool)

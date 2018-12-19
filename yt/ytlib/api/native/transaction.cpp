@@ -91,7 +91,7 @@ public:
         return Transaction_->GetType();
     }
 
-    virtual const TTransactionId& GetId() const override
+    virtual TTransactionId GetId() const override
     {
         return Transaction_->GetId();
     }

@@ -26,7 +26,7 @@ public:
 
     // Transactions
     virtual NApi::ITransactionPtr AttachTransaction(
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const NApi::TTransactionAttachOptions& options) override;
 
     // Tables

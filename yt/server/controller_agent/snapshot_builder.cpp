@@ -57,7 +57,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     TControllerAgentConfigPtr config,
     IClientPtr client,
     IInvokerPtr ioInvoker,
-    const TIncarnationId& incarnationId)
+    TIncarnationId incarnationId)
     : Config_(config)
     , Client_(client)
     , IOInvoker_(ioInvoker)

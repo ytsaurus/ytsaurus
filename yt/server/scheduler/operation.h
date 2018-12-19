@@ -310,7 +310,7 @@ public:
         const TOperationId& operationId,
         EOperationType type,
         const NRpc::TMutationId& mutationId,
-        const NTransactionClient::TTransactionId& userTransactionId,
+        NTransactionClient::TTransactionId userTransactionId,
         NYTree::IMapNodePtr spec,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParams,

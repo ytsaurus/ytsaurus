@@ -35,7 +35,7 @@ TChunkListPool::TChunkListPool(
     NNative::IClientPtr client,
     IInvokerPtr controllerInvoker,
     const TOperationId& operationId,
-    const TTransactionId& transactionId)
+    TTransactionId transactionId)
     : Config_(config)
     , Client_(client)
     , ControllerInvoker_(controllerInvoker)

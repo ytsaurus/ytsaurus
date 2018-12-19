@@ -1002,7 +1002,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-    auto getPrerequisiteTransaction = [&] (const TTransactionId& transactionId) {
+    auto getPrerequisiteTransaction = [&] (TTransactionId transactionId) {
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
             THROW_ERROR_EXCEPTION(

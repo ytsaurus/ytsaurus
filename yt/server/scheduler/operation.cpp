@@ -72,7 +72,7 @@ void FromProto(
     std::function<NNative::IClientPtr(const TCellTag&)> getClient,
     TDuration pingPeriod)
 {
-    auto attachTransaction = [&] (const TTransactionId& transactionId) -> ITransactionPtr {
+    auto attachTransaction = [&] (TTransactionId transactionId) -> ITransactionPtr {
         if (!transactionId) {
             return nullptr;
         }
@@ -102,7 +102,7 @@ TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
     const TMutationId& mutationId,
-    const TTransactionId& userTransactionId,
+    TTransactionId userTransactionId,
     IMapNodePtr spec,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParams,

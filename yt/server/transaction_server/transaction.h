@@ -69,7 +69,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
 public:
-    explicit TTransaction(const TTransactionId& id);
+    explicit TTransaction(TTransactionId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

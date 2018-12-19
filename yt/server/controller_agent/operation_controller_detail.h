@@ -466,8 +466,8 @@ protected:
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::NNative::IClientPtr client,
-        const NTransactionClient::TTransactionId& parentTransactionId = {},
-        const NTransactionClient::TTransactionId& prerequisiteTransactionId = {});
+        NTransactionClient::TTransactionId parentTransactionId = {},
+        NTransactionClient::TTransactionId prerequisiteTransactionId = {});
 
     void RegisterTask(TTaskPtr task);
     void RegisterTaskGroup(TTaskGroupPtr group);
@@ -776,7 +776,7 @@ protected:
         const NTableClient::TKeyColumns& prefixColumns);
 
     NApi::ITransactionPtr AttachTransaction(
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const NApi::NNative::IClientPtr& client,
         bool ping = false);
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTablePtr& table) const;

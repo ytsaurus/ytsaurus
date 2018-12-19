@@ -31,7 +31,7 @@ void TTransaction::TExportEntry::Persist(NCellMaster::TPersistenceContext& conte
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(const TTransactionId& id)
+TTransaction::TTransaction(TTransactionId id)
     : TTransactionBase(id)
     , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
