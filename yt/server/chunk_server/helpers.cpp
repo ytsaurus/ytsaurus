@@ -300,7 +300,7 @@ namespace {
 
 TYsonString DoGetMulticellOwningNodes(
     NCellMaster::TBootstrap* bootstrap,
-    const TChunkTreeId& chunkTreeId)
+    TChunkTreeId chunkTreeId)
 {
     std::vector<TVersionedObjectId> nodeIds;
 

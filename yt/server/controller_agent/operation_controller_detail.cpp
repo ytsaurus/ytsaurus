@@ -1648,7 +1648,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
             batchReq.Reset();
         };
 
-        auto addChunkTree = [&] (const TChunkTreeId& chunkTreeId) {
+        auto addChunkTree = [&] (TChunkTreeId chunkTreeId) {
             if (req && req->child_ids_size() >= Config->MaxChildrenPerAttachRequest) {
                 // NB: No need for a statistics for an intermediate request.
                 flushCurrentReq(false);

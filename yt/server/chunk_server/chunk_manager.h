@@ -76,9 +76,9 @@ public:
 
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
 
-    TChunkTree* FindChunkTree(const TChunkTreeId& id);
-    TChunkTree* GetChunkTree(const TChunkTreeId& id);
-    TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id);
+    TChunkTree* FindChunkTree(TChunkTreeId id);
+    TChunkTree* GetChunkTree(TChunkTreeId id);
+    TChunkTree* GetChunkTreeOrThrow(TChunkTreeId id);
 
     TNodeList AllocateWriteTargets(
         TMedium* medium,

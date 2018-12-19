@@ -8,7 +8,7 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkTree::TChunkTree(const TChunkTreeId& id)
+TChunkTree::TChunkTree(TChunkTreeId id)
     : TStagedObject(id)
 { }
 

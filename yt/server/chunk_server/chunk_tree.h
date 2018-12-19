@@ -14,7 +14,7 @@ class TChunkTree
     : public NObjectServer::TStagedObject
 {
 public:
-    explicit TChunkTree(const TChunkTreeId& id);
+    explicit TChunkTree(TChunkTreeId id);
 
     TChunkList* AsChunkList();
     const TChunkList* AsChunkList() const;
