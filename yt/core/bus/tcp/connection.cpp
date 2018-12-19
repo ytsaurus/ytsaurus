@@ -53,7 +53,7 @@ TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
     EConnectionType connectionType,
     const TString& networkName,
-    const TConnectionId& id,
+    TConnectionId id,
     int socket,
     const TString& endpointDescription,
     const IAttributeDictionary& endpointAttributes,
@@ -212,7 +212,7 @@ void TTcpConnection::UpdatePendingOut(int countDelta, i64 sizeDelta)
     Counters_->PendingOutBytes.fetch_add(sizeDelta, std::memory_order_relaxed);
 }
 
-const TConnectionId& TTcpConnection::GetId() const
+TConnectionId TTcpConnection::GetId() const
 {
     return Id_;
 }
