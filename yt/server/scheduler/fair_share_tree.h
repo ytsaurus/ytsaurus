@@ -318,18 +318,18 @@ private:
 
     struct TScheduleJobsProfilingCounters
     {
-        TScheduleJobsProfilingCounters(const TString& prefix, const NProfiling::TTagId& treeIdProfilingTag)
-            : PrescheduleJobTime(prefix + "/preschedule_job_time", {treeIdProfilingTag})
-            , TotalControllerScheduleJobTime(prefix + "/controller_schedule_job_time/total", {treeIdProfilingTag})
-            , ExecControllerScheduleJobTime(prefix + "/controller_schedule_job_time/exec", {treeIdProfilingTag})
-            , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", {treeIdProfilingTag})
-            , ScheduleJobCount(prefix + "/schedule_job_count", {treeIdProfilingTag})
-            , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", {treeIdProfilingTag})
+        TScheduleJobsProfilingCounters(const TString& prefix, const NProfiling::TTagIdList& treeIdProfilingTags)
+            : PrescheduleJobTime(prefix + "/preschedule_job_time", treeIdProfilingTags)
+            , TotalControllerScheduleJobTime(prefix + "/controller_schedule_job_time/total", treeIdProfilingTags)
+            , ExecControllerScheduleJobTime(prefix + "/controller_schedule_job_time/exec", treeIdProfilingTags)
+            , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", treeIdProfilingTags)
+            , ScheduleJobCount(prefix + "/schedule_job_count", treeIdProfilingTags)
+            , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", treeIdProfilingTags)
         {
             for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues())
             {
                 auto tags = GetFailReasonProfilingTags(reason);
-                tags.push_back(treeIdProfilingTag);
+                tags.insert(tags.end(), treeIdProfilingTags.begin(), treeIdProfilingTags.end());
 
                 ControllerScheduleJobFail[reason] = NProfiling::TMonotonicCounter(
                     prefix + "/controller_schedule_job_fail",
