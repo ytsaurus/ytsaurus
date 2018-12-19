@@ -108,7 +108,7 @@ public:
     bool IsInProgress() const;
     EPacketType GetPacketType() const;
     EPacketFlags GetPacketFlags() const;
-    const TPacketId& GetPacketId() const;
+    TPacketId GetPacketId() const;
     TSharedRefArray GrabMessage() const;
     size_t GetPacketSize() const;
 
@@ -149,7 +149,7 @@ public:
         EPacketFlags flags,
         bool generateChecksums,
         int checksummedPartCount,
-        const TPacketId& packetId,
+        TPacketId packetId,
         TSharedRefArray message);
 
     bool IsFragmentOwned() const;

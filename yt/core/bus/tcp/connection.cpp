@@ -754,7 +754,7 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     EPacketType type,
     EPacketFlags flags,
     int checksummedPartCount,
-    const TPacketId& packetId,
+    TPacketId packetId,
     TSharedRefArray message,
     size_t payloadSize)
 {

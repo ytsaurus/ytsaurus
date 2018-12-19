@@ -64,7 +64,7 @@ EPacketFlags TPacketDecoder::GetPacketFlags() const
     return EPacketFlags(FixedHeader_.Flags);
 }
 
-const TPacketId& TPacketDecoder::GetPacketId() const
+TPacketId TPacketDecoder::GetPacketId() const
 {
     return FixedHeader_.PacketId;
 }
@@ -226,7 +226,7 @@ bool TPacketEncoder::Start(
     EPacketFlags flags,
     bool generateChecksums,
     int checksummedPartCount,
-    const TPacketId& packetId,
+    TPacketId packetId,
     TSharedRefArray message)
 {
     PartIndex_ = -1;

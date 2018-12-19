@@ -107,7 +107,7 @@ private:
             EPacketType type,
             EPacketFlags flags,
             int checksummedPartCount,
-            const TPacketId& packetId,
+            TPacketId packetId,
             TSharedRefArray message,
             size_t payloadSize,
             size_t packetSize)
@@ -133,7 +133,7 @@ private:
     {
         TUnackedMessage() = default;
 
-        TUnackedMessage(const TPacketId& packetId, TPromise<void> promise)
+        TUnackedMessage(TPacketId packetId, TPromise<void> promise)
             : PacketId(packetId)
             , Promise(std::move(promise))
         { }
@@ -244,7 +244,7 @@ private:
         EPacketType type,
         EPacketFlags flags,
         int checksummedPartCount,
-        const TPacketId& packetId,
+        TPacketId packetId,
         TSharedRefArray message = TSharedRefArray(),
         size_t payloadSize = 0);
     void OnSocketWrite();
