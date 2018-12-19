@@ -335,6 +335,7 @@ b"""
             flush_backoff_time = 100;
             replicator_soft_backoff_time = 100;
             replicator_hard_backoff_time = 100;
+            tablet_cell_decommission_check_period = 100;
         };
 
         hive_manager = {
