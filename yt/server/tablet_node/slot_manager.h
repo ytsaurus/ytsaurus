@@ -43,7 +43,7 @@ public:
     double GetUsedCpu(double cpuPerTabletSlot) const;
 
     const std::vector<TTabletSlotPtr>& Slots() const;
-    TTabletSlotPtr FindSlot(const NHydra::TCellId& id);
+    TTabletSlotPtr FindSlot(NHydra::TCellId id);
     void CreateSlot(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo);
     void ConfigureSlot(TTabletSlotPtr slot, const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     void RemoveSlot(TTabletSlotPtr slot);

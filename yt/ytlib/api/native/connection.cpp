@@ -228,7 +228,7 @@ public:
         return Config_->Networks ? *Config_->Networks : DefaultNetworkPreferences;
     }
 
-    virtual const TCellId& GetPrimaryMasterCellId() const override
+    virtual TCellId GetPrimaryMasterCellId() const override
     {
         return PrimaryMasterCellId_;
     }
@@ -258,7 +258,7 @@ public:
 
     virtual IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
-        const TCellId& cellId) override
+        TCellId cellId) override
     {
         if (ReplaceCellTagInId(cellId, 0) != ReplaceCellTagInId(PrimaryMasterCellId_, 0)) {
             THROW_ERROR_EXCEPTION("Unknown master cell id %v",
@@ -325,7 +325,7 @@ public:
     }
 
     virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
-        const TCellId& cellId,
+        TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {
         // For tablet writes, manual sync is not needed since Table Mount Cache

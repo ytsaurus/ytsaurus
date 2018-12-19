@@ -805,7 +805,7 @@ const NQueryClient::ISubexecutorPtr& TBootstrap::GetQueryExecutor() const
     return QueryExecutor;
 }
 
-const TCellId& TBootstrap::GetCellId() const
+TCellId TBootstrap::GetCellId() const
 {
     return Config->ClusterConnection->PrimaryMaster->CellId;
 }

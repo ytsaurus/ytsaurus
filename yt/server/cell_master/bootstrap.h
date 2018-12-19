@@ -58,11 +58,11 @@ public:
     bool IsSecondaryMaster() const;
     bool IsMulticell() const;
 
-    const NObjectClient::TCellId& GetCellId() const;
+    NObjectClient::TCellId GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NObjectClient::TCellTag GetCellTag() const;
 
-    const NObjectClient::TCellId& GetPrimaryCellId() const;
+    NObjectClient::TCellId GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
     const NObjectClient::TCellTagList& GetSecondaryCellTags() const;

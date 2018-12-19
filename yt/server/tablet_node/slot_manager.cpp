@@ -115,7 +115,7 @@ public:
         return Slots_;
     }
 
-    TTabletSlotPtr FindSlot(const TCellId& id)
+    TTabletSlotPtr FindSlot(TCellId id)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -503,7 +503,7 @@ const std::vector<TTabletSlotPtr>& TSlotManager::Slots() const
     return Impl_->Slots();
 }
 
-TTabletSlotPtr TSlotManager::FindSlot(const TCellId& id)
+TTabletSlotPtr TSlotManager::FindSlot(TCellId id)
 {
     return Impl_->FindSlot(id);
 }

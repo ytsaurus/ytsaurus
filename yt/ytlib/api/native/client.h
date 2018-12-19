@@ -33,7 +33,7 @@ struct IClient
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual NRpc::IChannelPtr GetCellChannelOrThrow(
-        const NElection::TCellId& cellId) = 0;
+        NElection::TCellId cellId) = 0;
 
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() = 0;

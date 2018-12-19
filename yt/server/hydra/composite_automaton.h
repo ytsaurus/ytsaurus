@@ -228,7 +228,7 @@ protected:
 protected:
     explicit TCompositeAutomaton(
         IInvokerPtr asyncSnapshotInvoker,
-        const TCellId& cellId,
+        TCellId cellId,
         const NProfiling::TTagIdList& profilingTagIds = {});
 
     void RegisterPart(TCompositeAutomatonPartPtr part);

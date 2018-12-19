@@ -59,7 +59,7 @@ class TTransactionManager::TImpl
 public:
     TImpl(
         TTransactionManagerConfigPtr config,
-        const TCellId& primaryCellId,
+        TCellId primaryCellId,
         IConnectionPtr connection,
         const TString& user,
         ITimestampProviderPtr timestampProvider,
@@ -341,7 +341,7 @@ public:
     }
 
 
-    void RegisterParticipant(const TCellId& cellId)
+    void RegisterParticipant(TCellId cellId)
     {
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell ||
                TypeFromId(cellId) == EObjectType::ClusterCell);
@@ -366,7 +366,7 @@ public:
         }
     }
 
-    void ConfirmParticipant(const TCellId& cellId)
+    void ConfirmParticipant(TCellId cellId)
     {
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
 
@@ -868,7 +868,7 @@ private:
 
 
     TErrorOr<TTransactionCommitResult> OnAtomicTransactionCommitted(
-        const TCellId& cellId,
+        TCellId cellId,
         const TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
@@ -1083,7 +1083,7 @@ private:
         return std::vector<TCellId>(ConfirmedParticipantIds_.begin(), ConfirmedParticipantIds_.end());
     }
 
-    bool IsParticipantRegistered(const TCellId& cellId)
+    bool IsParticipantRegistered(TCellId cellId)
     {
         auto guard = Guard(SpinLock_);
         return RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end();
@@ -1095,7 +1095,7 @@ private:
 
 TTransactionManager::TImpl::TImpl(
     TTransactionManagerConfigPtr config,
-    const TCellId& primaryCellId,
+    TCellId primaryCellId,
     IConnectionPtr connection,
     const TString& user,
     ITimestampProviderPtr timestampProvider,
@@ -1220,12 +1220,12 @@ TDuration TTransaction::GetTimeout() const
     return Impl_->GetTimeout();
 }
 
-void TTransaction::RegisterParticipant(const TCellId& cellId)
+void TTransaction::RegisterParticipant(TCellId cellId)
 {
     Impl_->RegisterParticipant(cellId);
 }
 
-void TTransaction::ConfirmParticipant(const TCellId& cellId)
+void TTransaction::ConfirmParticipant(TCellId cellId)
 {
     Impl_->ConfirmParticipant(cellId);
 }
@@ -1247,7 +1247,7 @@ DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
 
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
-    const TCellId& primaryCellId,
+    TCellId primaryCellId,
     IConnectionPtr connection,
     const TString& user,
     ITimestampProviderPtr timestampProvider,

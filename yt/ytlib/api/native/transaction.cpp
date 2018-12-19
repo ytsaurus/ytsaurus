@@ -198,7 +198,7 @@ public:
             .Run();
     }
 
-    virtual void AddAction(const TCellId& cellId, const TTransactionActionData& data) override
+    virtual void AddAction(TCellId cellId, const TTransactionActionData& data) override
     {
         auto guard = Guard(SpinLock_);
 
@@ -922,7 +922,7 @@ private:
             return InvokePromise_;
         }
 
-        const TCellId& GetCellId() const
+        TCellId GetCellId() const
         {
             return TabletInfo_->CellId;
         }
@@ -1630,7 +1630,7 @@ private:
     }
 
 
-    TCellCommitSessionPtr GetOrCreateCellCommitSession(const TCellId& cellId)
+    TCellCommitSessionPtr GetOrCreateCellCommitSession(TCellId cellId)
     {
         auto it = CellIdToSession_.find(cellId);
         if (it == CellIdToSession_.end()) {
@@ -1639,7 +1639,7 @@ private:
         return it->second;
     }
 
-    TCellCommitSessionPtr GetCommitSession(const TCellId& cellId)
+    TCellCommitSessionPtr GetCommitSession(TCellId cellId)
     {
         auto it = CellIdToSession_.find(cellId);
         YCHECK(it != CellIdToSession_.end());

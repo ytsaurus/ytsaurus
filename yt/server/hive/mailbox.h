@@ -63,7 +63,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, PostBatchingCookie);
 
 public:
-    explicit TMailbox(const TCellId& cellId);
+    explicit TMailbox(TCellId cellId);
 
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);

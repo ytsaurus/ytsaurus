@@ -181,7 +181,7 @@ bool TBootstrap::IsMulticell() const
     return Multicell_;
 }
 
-const TCellId& TBootstrap::GetCellId() const
+TCellId TBootstrap::GetCellId() const
 {
     return CellId_;
 }
@@ -198,7 +198,7 @@ TCellTag TBootstrap::GetCellTag() const
     return CellTag_;
 }
 
-const TCellId& TBootstrap::GetPrimaryCellId() const
+TCellId TBootstrap::GetPrimaryCellId() const
 {
     return PrimaryCellId_;
 }

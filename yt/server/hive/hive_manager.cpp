@@ -90,7 +90,7 @@ public:
     TImpl(
         THiveManagerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        const TCellId& selfCellId,
+        TCellId selfCellId,
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
@@ -143,12 +143,12 @@ public:
         return this;
     }
 
-    const TCellId& GetSelfCellId() const
+    TCellId GetSelfCellId() const
     {
         return SelfCellId_;
     }
 
-    TMailbox* CreateMailbox(const TCellId& cellId)
+    TMailbox* CreateMailbox(TCellId cellId)
     {
         auto mailboxHolder = std::make_unique<TMailbox>(cellId);
         auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
@@ -163,7 +163,7 @@ public:
         return mailbox;
     }
 
-    TMailbox* GetOrCreateMailbox(const TCellId& cellId)
+    TMailbox* GetOrCreateMailbox(TCellId cellId)
     {
         auto* mailbox = MailboxMap_.Find(cellId);
         if (!mailbox) {
@@ -172,7 +172,7 @@ public:
         return mailbox;
     }
 
-    TMailbox* GetMailboxOrThrow(const TCellId& cellId)
+    TMailbox* GetMailboxOrThrow(TCellId cellId)
     {
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -322,7 +322,7 @@ private:
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
         };
 
-        auto requestUnregister = [&] (const TCellId& cellId) {
+        auto requestUnregister = [&] (TCellId cellId) {
             YT_LOG_DEBUG("Requesting cell unregistration (CellId: %v)",
                 cellId);
             auto* unregisterInfo = response->add_cells_to_unregister();
@@ -525,7 +525,7 @@ private:
         return channel;
     }
 
-    std::unique_ptr<THiveServiceProxy> FindHiveProxy(const TCellId& cellId)
+    std::unique_ptr<THiveServiceProxy> FindHiveProxy(TCellId cellId)
     {
         auto channel = CellDirectory_->FindChannel(cellId);
         if (!channel) {
@@ -659,7 +659,7 @@ private:
     }
 
 
-    TMessageId* GetNextTransientIncomingMessageIdPtr(const TCellId& cellId)
+    TMessageId* GetNextTransientIncomingMessageIdPtr(TCellId cellId)
     {
         auto it = CellIdToNextTransientIncomingMessageId_.find(cellId);
         if (it != CellIdToNextTransientIncomingMessageId_.end()) {
@@ -679,7 +679,7 @@ private:
             : it->second;
     }
 
-    std::optional<TMessageId> GetNextPersistentIncomingMessageId(const TCellId& cellId)
+    std::optional<TMessageId> GetNextPersistentIncomingMessageId(TCellId cellId)
     {
         auto* mailbox = FindMailbox(cellId);
         return mailbox ? std::make_optional(mailbox->GetNextIncomingMessageId()) : std::nullopt;
@@ -703,7 +703,7 @@ private:
         }
     }
 
-    void OnPeriodicPingTick(const TCellId& cellId)
+    void OnPeriodicPingTick(TCellId cellId)
     {
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -752,7 +752,7 @@ private:
                 .Via(EpochAutomatonInvoker_));
     }
 
-    void OnPeriodicPingResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
+    void OnPeriodicPingResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -782,7 +782,7 @@ private:
     }
 
 
-    TFuture<void> OnSyncPingResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
+    TFuture<void> OnSyncPingResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION(
@@ -865,7 +865,7 @@ private:
         }
     }
 
-    void OnIdlePostOutcomingMessages(const TCellId& cellId)
+    void OnIdlePostOutcomingMessages(TCellId cellId)
     {
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
 
@@ -969,7 +969,7 @@ private:
                 .Via(EpochAutomatonInvoker_));
     }
 
-        void OnPostMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
+        void OnPostMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
 
@@ -1016,7 +1016,7 @@ private:
         SchedulePostOutcomingMessages(mailbox);
     }
 
-    void OnSendMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspSendMessagesPtr& rspOrError)
+    void OnSendMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspSendMessagesPtr& rspOrError)
     {
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
 
@@ -1379,7 +1379,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, MailboxMap_)
 THiveManager::THiveManager(
     THiveManagerConfigPtr config,
     TCellDirectoryPtr cellDirectory,
-    const TCellId& selfCellId,
+    TCellId selfCellId,
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton)
@@ -1399,22 +1399,22 @@ IServicePtr THiveManager::GetRpcService()
     return Impl_->GetRpcService();
 }
 
-const TCellId& THiveManager::GetSelfCellId() const
+TCellId THiveManager::GetSelfCellId() const
 {
     return Impl_->GetSelfCellId();
 }
 
-TMailbox* THiveManager::CreateMailbox(const TCellId& cellId)
+TMailbox* THiveManager::CreateMailbox(TCellId cellId)
 {
     return Impl_->CreateMailbox(cellId);
 }
 
-TMailbox* THiveManager::GetOrCreateMailbox(const TCellId& cellId)
+TMailbox* THiveManager::GetOrCreateMailbox(TCellId cellId)
 {
     return Impl_->GetOrCreateMailbox(cellId);
 }
 
-TMailbox* THiveManager::GetMailboxOrThrow(const TCellId& cellId)
+TMailbox* THiveManager::GetMailboxOrThrow(TCellId cellId)
 {
     return Impl_->GetMailboxOrThrow(cellId);
 }

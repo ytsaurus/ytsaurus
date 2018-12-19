@@ -161,7 +161,7 @@ TTableReplicaSnapshotPtr TTabletSnapshot::FindReplicaSnapshot(const TTableReplic
     return it == Replicas.end() ? nullptr : it->second;
 }
 
-void TTabletSnapshot::ValidateCellId(const TCellId& cellId)
+void TTabletSnapshot::ValidateCellId(TCellId cellId)
 {
     if (CellId != cellId) {
         THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, got %v",
@@ -1197,7 +1197,7 @@ void TTablet::Initialize()
     StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
 }
 
-void TTablet::FillProfilerTags(const TCellId& cellId)
+void TTablet::FillProfilerTags(TCellId cellId)
 {
     ProfilerTags_.clear();
 

@@ -476,7 +476,7 @@ public:
         return it->second;
     }
 
-    virtual IChannelPtr GetCellChannelOrThrow(const TTabletCellId& cellId) override
+    virtual IChannelPtr GetCellChannelOrThrow(TCellId cellId) override
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
@@ -1105,7 +1105,7 @@ private:
         TTabletCellLookupSession(
             TConnectionConfigPtr config,
             const TNetworkPreferenceList& networks,
-            const TCellId& cellId,
+            TCellId cellId,
             const TLookupRowsOptionsBase& options,
             TTableMountInfoPtr tableInfo,
             const std::optional<TString>& retentionConfig,

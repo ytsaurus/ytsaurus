@@ -216,7 +216,7 @@ void TCompositeAutomatonPart::LogHandlerError(const TError& error)
 
 TCompositeAutomaton::TCompositeAutomaton(
     IInvokerPtr asyncSnapshotInvoker,
-    const TCellId& cellId,
+    TCellId cellId,
     const NProfiling::TTagIdList& profilingTagIds)
     : Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", cellId))
