@@ -98,7 +98,7 @@ TEST(TAsyncExpiringCacheTest, TestBackgroundUpdate)
     auto end = Now();
 
     int duration = (end - start).MilliSeconds();
-    int expected = duration / config->RefreshTime.MilliSeconds();
+    int expected = duration / config->RefreshTime->MilliSeconds();
 
     EXPECT_LE(std::abs(expected - actual), 1);
 }
