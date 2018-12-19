@@ -230,7 +230,7 @@ public:
     }
 
 
-    TTablet* GetTabletOrThrow(const TTabletId& id)
+    TTablet* GetTabletOrThrow(TTabletId id)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -630,7 +630,7 @@ private:
             : Owner_(owner)
         { }
 
-        std::unique_ptr<TTablet> Create(const TTabletId& id) const
+        std::unique_ptr<TTablet> Create(TTabletId id) const
         {
             return std::make_unique<TTablet>(id, &Owner_->TabletContext_);
         }
@@ -3089,7 +3089,7 @@ private:
     }
 
 
-    TTableMountConfigPtr DeserializeTableMountConfig(const TYsonString& str, const TTabletId& tabletId)
+    TTableMountConfigPtr DeserializeTableMountConfig(const TYsonString& str, TTabletId tabletId)
     {
         try {
             return ConvertTo<TTableMountConfigPtr>(str);
@@ -3100,7 +3100,7 @@ private:
         }
     }
 
-    TTabletChunkReaderConfigPtr DeserializeTabletChunkReaderConfig(const TYsonString& str, const TTabletId& tabletId)
+    TTabletChunkReaderConfigPtr DeserializeTabletChunkReaderConfig(const TYsonString& str, TTabletId tabletId)
     {
         try {
             return ConvertTo<TTabletChunkReaderConfigPtr>(str);
@@ -3111,7 +3111,7 @@ private:
         }
     }
 
-    TTabletChunkWriterConfigPtr DeserializeTabletChunkWriterConfig(const TYsonString& str, const TTabletId& tabletId)
+    TTabletChunkWriterConfigPtr DeserializeTabletChunkWriterConfig(const TYsonString& str, TTabletId tabletId)
     {
         try {
             return ConvertTo<TTabletChunkWriterConfigPtr>(str);
@@ -3122,7 +3122,7 @@ private:
         }
     }
 
-    TTabletWriterOptionsPtr DeserializeTabletWriterOptions(const TYsonString& str, const TTabletId& tabletId)
+    TTabletWriterOptionsPtr DeserializeTabletWriterOptions(const TYsonString& str, TTabletId tabletId)
     {
         try {
             return ConvertTo<TTabletWriterOptionsPtr>(str);
@@ -3482,7 +3482,7 @@ void TTabletManager::Initialize()
     Impl_->Initialize();
 }
 
-TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
+TTablet* TTabletManager::GetTabletOrThrow(TTabletId id)
 {
     return Impl_->GetTabletOrThrow(id);
 }

@@ -80,7 +80,7 @@ public:
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
-    TTablet* GetTabletOrThrow(const TTabletId& id);
+    TTablet* GetTabletOrThrow(TTabletId id);
 
 private:
     class TImpl;

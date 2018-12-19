@@ -214,7 +214,7 @@ public:
     { }
 
     void ValidateAndRegisterTabletSnapshot(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         const i64 mountRevision,
         const TTimestamp timestamp)
     {
@@ -249,7 +249,7 @@ public:
         return MultipleTables_ ? NProfiling::TTagIdList() : ProfilerTags_;
     }
 
-    TTabletSnapshotPtr GetCachedTabletSnapshot(const TTabletId& tabletId)
+    TTabletSnapshotPtr GetCachedTabletSnapshot(TTabletId tabletId)
     {
         auto it = Map_.find(tabletId);
         YCHECK(it != Map_.end());
@@ -1201,7 +1201,7 @@ private:
     }
 
     ISchemafulReaderPtr GetTabletReader(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         const TSharedRange<TRow>& keys)
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);

@@ -161,7 +161,7 @@ public:
     void DecomissionTabletCell(TTabletCell* cell);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
-    TTablet* GetTabletOrThrow(const TTabletId&);
+    TTablet* GetTabletOrThrow(TTabletId);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);

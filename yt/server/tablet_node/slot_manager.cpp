@@ -175,7 +175,7 @@ public:
         return snapshots;
     }
 
-    TTabletSnapshotPtr FindTabletSnapshot(const TTabletId& tabletId)
+    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -191,7 +191,7 @@ public:
         return nullptr;
     }
 
-    TTabletSnapshotPtr GetTabletSnapshotOrThrow(const TTabletId& tabletId)
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -528,12 +528,12 @@ std::vector<TTabletSnapshotPtr> TSlotManager::GetTabletSnapshots()
     return Impl_->GetTabletSnapshots();
 }
 
-TTabletSnapshotPtr TSlotManager::FindTabletSnapshot(const TTabletId& tabletId)
+TTabletSnapshotPtr TSlotManager::FindTabletSnapshot(TTabletId tabletId)
 {
     return Impl_->FindTabletSnapshot(tabletId);
 }
 
-TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(const TTabletId& tabletId)
+TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(TTabletId tabletId)
 {
     return Impl_->GetTabletSnapshotOrThrow(tabletId);
 }

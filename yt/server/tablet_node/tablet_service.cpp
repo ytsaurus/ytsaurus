@@ -235,7 +235,7 @@ private:
 
 
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         i64 mountRevision)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();

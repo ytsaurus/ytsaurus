@@ -55,10 +55,10 @@ public:
     std::vector<TTabletSnapshotPtr> GetTabletSnapshots();
 
     //! Returns the snapshot for a given tablet or |nullptr| if none.
-    TTabletSnapshotPtr FindTabletSnapshot(const TTabletId& tabletId);
+    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId);
 
     //! Returns the snapshot for a given tablet or throws if no such tablet is known.
-    TTabletSnapshotPtr GetTabletSnapshotOrThrow(const TTabletId& tabletId);
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId);
 
     //! Checks that the current user is granted #permission access.
     //! If #timestamp is other than #AsyncLastCommitted then checks
