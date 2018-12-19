@@ -11,6 +11,8 @@ from time import sleep
 from collections import defaultdict
 from datetime import datetime
 
+import pytest
+
 def validate_address_filter(op, include_archive, include_cypress, include_runtime, ignore_states=None):
     job_dict = defaultdict(list)
     res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual")["jobs"]
@@ -85,6 +87,7 @@ class TestListJobs(YTEnvSetup):
         remove("//sys/operations_archive")
 
     @add_failed_operation_stderrs_to_error_message
+    @pytest.mark.skip(reason="This test is too flaky")
     def test_list_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
