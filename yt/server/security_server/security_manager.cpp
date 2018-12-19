@@ -386,7 +386,7 @@ public:
     {
         YCHECK(!chunk->IsForeign());
 
-        auto doCharge = [] (TClusterResources* usage, int mediumIndex, int chunkCount, i64 diskSpace) {
+        auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
             usage->DiskSpace[mediumIndex] += diskSpace;
             usage->ChunkCount += chunkCount;
         };
@@ -395,7 +395,7 @@ public:
             chunk,
             requisition,
             delta,
-            [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool committed) {
+            [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool committed) {
                 doCharge(&account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 doCharge(&account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 if (committed) {
@@ -416,7 +416,7 @@ public:
         auto* stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->GetStagingAccount();
 
-        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool /*committed*/) {
+        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool /*committed*/) {
             // If a chunk has been created before the migration but is being confirmed after it,
             // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
             // isn't really delta-based, and it's nicer from the user's point of view.
@@ -1758,63 +1758,6 @@ private:
         RecomputeAccountResourceUsage();
     }
 
-    // COMPAT(shakurov)
-    #ifdef DUMP_ACCOUNT_RESOURCE_USAGE
-    void DumpAccountResourceUsage(bool afterRecomputing)
-    {
-        auto localCellTag = Bootstrap_->GetCellTag();
-        auto dumpResourceUsageInCellImpl = [&] (const TCellTag& cellTag, bool committed) {
-            Cerr << "On " << (Bootstrap_->IsPrimaryMaster() ? "primary" : "secondary") << ", "
-                 << cellTag << (cellTag == localCellTag ? "(local)" : "") << ", "
-                 << (committed ? "committed" : "total") << "\n";
-
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
-
-                if (!IsObjectAlive(account)) {
-                    continue;
-                }
-
-                const auto* cellStatistics = account->GetCellStatistics(cellTag);
-                const auto& resourceUsage = committed ? cellStatistics->CommittedResourceUsage : cellStatistics->ResourceUsage;
-                Cerr << account->GetName() << ";"
-                     << resourceUsage.DiskSpace[DefaultStoreMediumIndex] << ";"
-                     << resourceUsage.NodeCount << ";"
-                     << resourceUsage.ChunkCount << ";"
-                     << resourceUsage.TabletCount << ";"
-                     << resourceUsage.TabletStaticMemory << "\n";
-            }
-        };
-
-        auto dumpResourceUsageInCell = [&] (const TCellTag& cellTag) {
-            dumpResourceUsageInCellImpl(cellTag, true);
-            dumpResourceUsageInCellImpl(cellTag, false);
-        };
-
-        if (!afterRecomputing) {
-            Cerr << "Account;DiskSpace_DefaultMedium;NodeCount;ChunkCount;TabletCount;TabletStaticMemory\n";
-        }
-        Cerr << "ACCOUNT RESOURCE USAGE " << (afterRecomputing ? "AFTER" : "BEFORE") << " RECOMPUTING\n";
-
-        dumpResourceUsageInCell(localCellTag);
-
-        // Also dump usage for secondary cells - but only before recomputing (we
-        // can't recompute usage for secondary cells, so there's no point in
-        // dumping same stats twice).
-        if (Bootstrap_->IsPrimaryMaster() && !afterRecomputing) {
-            const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
-            for (const auto& cellTag : secondaryCellTags) {
-                dumpResourceUsageInCell(cellTag);
-            }
-        }
-
-        Cerr << Endl;
-    }
-    #else
-    void DumpAccountResourceUsage(bool)
-    { }
-    #endif
-
     void RecomputeAccountResourceUsage()
     {
         if (!ValidateAccountResourceUsage_ && !RecomputeAccountResourceUsage_) {
@@ -1823,8 +1766,6 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->MaybeRecomputeChunkRequisitions();
-
-        DumpAccountResourceUsage(false);
 
         // NB: transaction resource usage isn't recomputed.
 
@@ -1883,7 +1824,7 @@ private:
             }
         }
 
-        auto chargeStatMap = [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool committed) {
+        auto chargeStatMap = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool committed) {
             auto& stat = statMap[account];
             stat.NodeUsage.DiskSpace[mediumIndex] += diskSpace;
             stat.NodeUsage.ChunkCount += chunkCount;
@@ -1959,8 +1900,6 @@ private:
                 }
             }
         }
-
-        DumpAccountResourceUsage(true);
     }
 
     virtual void Clear() override
