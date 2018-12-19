@@ -13,7 +13,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReplica::TTableReplica(const TTableReplicaId& id)
+TTableReplica::TTableReplica(TTableReplicaId id)
     : TObjectBase(id)
 { }
 

@@ -1133,7 +1133,7 @@ struct IClient
         const TAlterTableOptions& options = TAlterTableOptions()) = 0;
 
     virtual TFuture<void> AlterTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
+        NTabletClient::TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;
 
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
