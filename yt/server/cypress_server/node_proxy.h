@@ -37,7 +37,7 @@ struct ICypressNodeFactory
         NYTree::IAttributeDictionary* explicitAttributes) = 0;
 
     virtual TCypressNodeBase* InstantiateNode(
-        const TNodeId& id,
+        TNodeId id,
         NObjectClient::TCellTag externalCellTag) = 0;
 
     virtual TCypressNodeBase* CloneNode(

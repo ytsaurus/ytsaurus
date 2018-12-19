@@ -1092,7 +1092,7 @@ private:
         CompleteCallWith(
             context,
             client->CreateNode(path, type, options),
-            [] (const auto& context, const NCypressClient::TNodeId& nodeId) {
+            [] (const auto& context, NCypressClient::TNodeId nodeId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
 
@@ -1291,7 +1291,7 @@ private:
         CompleteCallWith(
             context,
             client->CopyNode(srcPath, dstPath, options),
-            [] (const auto& context, const NCypressClient::TNodeId& nodeId) {
+            [] (const auto& context, NCypressClient::TNodeId nodeId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
 

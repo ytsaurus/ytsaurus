@@ -69,7 +69,7 @@ public:
 
     //! Creates a new node and registers it.
     TCypressNodeBase* CreateNode(
-        const TNodeId& hintId,
+        TNodeId hintId,
         NObjectClient::TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         NSecurityServer::TAccount* account,
@@ -79,7 +79,7 @@ public:
 
     //! Creates a new node and registers it.
     TCypressNodeBase* InstantiateNode(
-        const TNodeId& id,
+        TNodeId id,
         NObjectClient::TCellTag externalCellTag);
 
     //! Clones a node and registers its clone.

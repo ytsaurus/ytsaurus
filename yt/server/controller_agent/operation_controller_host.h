@@ -60,7 +60,7 @@ public:
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
         const NTransactionClient::TTransactionId& transactionId,
-        const NCypressClient::TNodeId& tableId,
+        NCypressClient::TNodeId tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds) override;
     virtual void AddChunkTreesToUnstageList(
         const std::vector<NChunkClient::TChunkId>& chunkTreeIds,

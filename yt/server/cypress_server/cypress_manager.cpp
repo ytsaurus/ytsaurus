@@ -284,7 +284,7 @@ public:
     }
 
     virtual TCypressNodeBase* InstantiateNode(
-        const TNodeId& id,
+        TNodeId id,
         TCellTag externalCellTag) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -605,7 +605,7 @@ public:
     }
 
     TCypressNodeBase* CreateNode(
-        const TNodeId& hintId,
+        TNodeId hintId,
         TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         TAccount* account,
@@ -643,7 +643,7 @@ public:
 
 
     TCypressNodeBase* InstantiateNode(
-        const TNodeId& id,
+        TNodeId id,
         TCellTag externalCellTag)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -2528,7 +2528,7 @@ private:
     TCypressNodeBase* DoCloneNode(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactory* factory,
-        const TNodeId& hintId,
+        TNodeId hintId,
         ENodeCloneMode mode)
     {
         // Prepare account.
@@ -2909,7 +2909,7 @@ std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
 }
 
 TCypressNodeBase* TCypressManager::CreateNode(
-    const TNodeId& hintId,
+    TNodeId hintId,
     TCellTag externalCellTag,
     INodeTypeHandlerPtr handler,
     TAccount* account,
@@ -2928,7 +2928,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
 }
 
 TCypressNodeBase* TCypressManager::InstantiateNode(
-    const TNodeId& id,
+    TNodeId id,
     TCellTag externalCellTag)
 {
     return Impl_->InstantiateNode(id, externalCellTag);

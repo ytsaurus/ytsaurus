@@ -40,7 +40,7 @@ struct INodeTypeHandler
      *  This is called during |Create| verb.
      */
     virtual std::unique_ptr<TCypressNodeBase> Create(
-        const TNodeId& hintId,
+        TNodeId hintId,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* inheritedAttributes,
@@ -98,7 +98,7 @@ struct INodeTypeHandler
     virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactory* factory,
-        const TNodeId& hintId,
+        TNodeId hintId,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) = 0;
 
