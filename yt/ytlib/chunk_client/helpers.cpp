@@ -62,7 +62,7 @@ TSessionId CreateChunk(
     TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
     TTransactionId transactionId,
-    const TChunkListId& chunkListId,
+    TChunkListId chunkListId,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;

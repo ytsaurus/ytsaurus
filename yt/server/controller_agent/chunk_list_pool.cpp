@@ -83,7 +83,7 @@ TChunkListId TChunkListPool::Extract(TCellTag cellTag)
     return id;
 }
 
-void TChunkListPool::Reinstall(const TChunkListId& id)
+void TChunkListPool::Reinstall(TChunkListId id)
 {
     auto cellTag = CellTagFromId(id);
     auto& data = CellMap_[cellTag];
@@ -91,7 +91,7 @@ void TChunkListPool::Reinstall(const TChunkListId& id)
     YT_LOG_DEBUG("Reinstalled chunk list into the pool (ChunkListId: %v, CellTag: %v, RemainingCount: %v)",
         id,
         cellTag,
-        static_cast<int>(data.Ids.size()));
+        data.Ids.size());
 }
 
 void TChunkListPool::AllocateMore(TCellTag cellTag)

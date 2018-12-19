@@ -687,7 +687,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     NNative::IClientPtr client,
     TCellTag cellTag,
     TTransactionId transactionId,
-    const TChunkListId& parentChunkListId,
+    TChunkListId parentChunkListId,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {

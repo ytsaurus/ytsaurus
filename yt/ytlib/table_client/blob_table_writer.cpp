@@ -55,7 +55,7 @@ TBlobTableWriter::TBlobTableWriter(
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,
     TTransactionId transactionId,
-    const TChunkListId& chunkListId,
+    TChunkListId chunkListId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
     : PartSize_(blobTableWriterConfig->MaxPartSize)

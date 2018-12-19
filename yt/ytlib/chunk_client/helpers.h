@@ -37,7 +37,7 @@ TSessionId CreateChunk(
     NObjectClient::TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
     NObjectClient::TTransactionId transactionId,
-    const TChunkListId& chunkListId,
+    TChunkListId chunkListId,
     const NLogging::TLogger& logger);
 
 //! Synchronously parses #fetchResponse, populates #nodeDirectory,

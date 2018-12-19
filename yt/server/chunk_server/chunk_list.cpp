@@ -21,7 +21,7 @@ void TChunkList::TCumulativeStatisticsEntry::Persist(NCellMaster::TPersistenceCo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkList::TChunkList(const TChunkListId& id)
+TChunkList::TChunkList(TChunkListId id)
     : TChunkTree(id)
 {
     ResetChunkListStatistics(this);

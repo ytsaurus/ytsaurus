@@ -28,7 +28,7 @@ public:
     bool HasEnough(NObjectClient::TCellTag cellTag, int requestedCount);
     NChunkClient::TChunkListId Extract(NObjectClient::TCellTag cellTag);
 
-    void Reinstall(const NChunkClient::TChunkListId& id);
+    void Reinstall(NChunkClient::TChunkListId id);
 
 private:
     const TControllerAgentConfigPtr Config_;

@@ -39,7 +39,7 @@ public:
         const NTableClient::TBlobTableWriterConfigPtr& blobTableWriterConfig,
         const NTableClient::TTableWriterOptionsPtr& tableWriterOptions,
         NObjectClient::TTransactionId transaction,
-        const NChunkClient::TChunkListId& chunkList,
+        NChunkClient::TChunkListId chunkList,
         const IInvokerPtr& controlInvoker,
         TDuration readTimeout);
 

@@ -1063,7 +1063,7 @@ public:
         return chunk;
     }
 
-    TChunkList* GetChunkListOrThrow(const TChunkListId& id)
+    TChunkList* GetChunkListOrThrow(TChunkListId id)
     {
         auto* chunkList = FindChunkList(id);
         if (!IsObjectAlive(chunkList)) {
@@ -3258,7 +3258,7 @@ TChunk* TChunkManager::GetChunkOrThrow(TChunkId id)
     return Impl_->GetChunkOrThrow(id);
 }
 
-TChunkList* TChunkManager::GetChunkListOrThrow(const TChunkListId& id)
+TChunkList* TChunkManager::GetChunkListOrThrow(TChunkListId id)
 {
     return Impl_->GetChunkListOrThrow(id);
 }

@@ -28,7 +28,7 @@ public:
         NApi::NNative::IClientPtr client,
         NObjectClient::TCellTag cellTag,
         NTransactionClient::TTransactionId transactionId,
-        const TChunkListId& parentChunkListId,
+        TChunkListId parentChunkListId,
         TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
@@ -125,7 +125,7 @@ public:
         NApi::NNative::IClientPtr client,
         NObjectClient::TCellTag cellTag,
         NTransactionClient::TTransactionId transactionId,
-        const TChunkListId& parentChunkListId,
+        TChunkListId parentChunkListId,
         std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
