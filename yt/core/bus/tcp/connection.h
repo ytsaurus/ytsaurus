@@ -46,7 +46,7 @@ public:
         TTcpBusConfigPtr config,
         EConnectionType connectionType,
         const TString& networkName,
-        const TConnectionId& id,
+        TConnectionId id,
         SOCKET socket,
         const TString& endpointDescription,
         const NYTree::IAttributeDictionary& endpointAttributes,
@@ -61,7 +61,7 @@ public:
     void Start();
     void Check();
 
-    const TConnectionId& GetId() const;
+    TConnectionId GetId() const;
 
     // IPollable implementation.
     virtual const TString& GetLoggingId() const override;
