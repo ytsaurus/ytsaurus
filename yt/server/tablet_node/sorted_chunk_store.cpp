@@ -63,7 +63,7 @@ using NChunkClient::TReadLimit;
 
 TSortedChunkStore::TSortedChunkStore(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,

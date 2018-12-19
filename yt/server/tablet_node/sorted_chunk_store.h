@@ -21,7 +21,7 @@ class TSortedChunkStore
 public:
     TSortedChunkStore(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,

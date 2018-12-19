@@ -131,7 +131,7 @@ private:
 
 TOrderedChunkStore::TOrderedChunkStore(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,

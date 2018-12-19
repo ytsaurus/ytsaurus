@@ -20,7 +20,7 @@ class TOrderedDynamicStore
 public:
     TOrderedDynamicStore(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet);
     virtual ~TOrderedDynamicStore();
 

@@ -602,7 +602,7 @@ private:
         virtual IStorePtr CreateStore(
             TTablet* tablet,
             EStoreType type,
-            const TStoreId& storeId,
+            TStoreId storeId,
             const TAddStoreDescriptor* descriptor) override
         {
             return Owner_->CreateStore(tablet, type, storeId, descriptor);
@@ -1593,7 +1593,7 @@ private:
         auto registerBackingStore = [&] (const IStorePtr& store) {
             YCHECK(idToBackingStore.insert(std::make_pair(store->GetId(), store->AsDynamic())).second);
         };
-        auto getBackingStore = [&] (const TStoreId& id) {
+        auto getBackingStore = [&] (TStoreId id) {
             auto it = idToBackingStore.find(id);
             YCHECK(it != idToBackingStore.end());
             return it->second;
@@ -3163,7 +3163,7 @@ private:
     IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
-        const TStoreId& storeId,
+        TStoreId storeId,
         const TAddStoreDescriptor* descriptor)
     {
         auto store = DoCreateStore(tablet, type, storeId, descriptor);
@@ -3174,7 +3174,7 @@ private:
     IStorePtr DoCreateStore(
         TTablet* tablet,
         EStoreType type,
-        const TStoreId& storeId,
+        TStoreId storeId,
         const TAddStoreDescriptor* descriptor)
     {
         switch (type) {

@@ -64,7 +64,7 @@ static const auto LocalChunkRecheckPeriod = TDuration::Seconds(15);
 
 TStoreBase::TStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : Config_(std::move(config))
     , ReaderConfig_(tablet->GetReaderConfig())
@@ -241,7 +241,7 @@ struct TDynamicStoreBufferTag
 
 TDynamicStoreBase::TDynamicStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : TStoreBase(std::move(config), id, tablet)
     , Atomicity_(Tablet_->GetAtomicity())
@@ -494,7 +494,7 @@ DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 
 TChunkStoreBase::TChunkStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
@@ -901,7 +901,7 @@ TInstant TChunkStoreBase::GetCreationTime() const
 
 TSortedStoreBase::TSortedStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : TStoreBase(std::move(config), id, tablet)
 { }
@@ -930,7 +930,7 @@ ISortedStorePtr TSortedStoreBase::AsSorted()
 
 TOrderedStoreBase::TOrderedStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : TStoreBase(std::move(config), id, tablet)
 { }

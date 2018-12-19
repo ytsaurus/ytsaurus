@@ -230,7 +230,7 @@ struct ITabletContext
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
-        const TStoreId& storeId,
+        TStoreId storeId,
         const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
     virtual TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NRpc::IServerPtr GetLocalRpcServer() = 0;
@@ -398,9 +398,9 @@ public:
     const std::map<i64, IOrderedStorePtr>& StoreRowIndexMap() const;
     void AddStore(IStorePtr store);
     void RemoveStore(IStorePtr store);
-    IStorePtr FindStore(const TStoreId& id);
-    IStorePtr GetStore(const TStoreId& id);
-    IStorePtr GetStoreOrThrow(const TStoreId& id);
+    IStorePtr FindStore(TStoreId id);
+    IStorePtr GetStore(TStoreId id);
+    IStorePtr GetStoreOrThrow(TStoreId id);
 
     TTableReplicaInfo* FindReplicaInfo(TTableReplicaId id);
     TTableReplicaInfo* GetReplicaInfoOrThrow(TTableReplicaId id);

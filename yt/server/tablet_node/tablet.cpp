@@ -893,20 +893,20 @@ void TTablet::RemoveStore(IStorePtr store)
     }
 }
 
-IStorePtr TTablet::FindStore(const TStoreId& id)
+IStorePtr TTablet::FindStore(TStoreId id)
 {
     auto it = StoreIdMap_.find(id);
     return it == StoreIdMap_.end() ? nullptr : it->second;
 }
 
-IStorePtr TTablet::GetStore(const TStoreId& id)
+IStorePtr TTablet::GetStore(TStoreId id)
 {
     auto store = FindStore(id);
     YCHECK(store);
     return store;
 }
 
-IStorePtr TTablet::GetStoreOrThrow(const TStoreId& id)
+IStorePtr TTablet::GetStoreOrThrow(TStoreId id)
 {
     auto store = FindStore(id);
     if (!store) {
