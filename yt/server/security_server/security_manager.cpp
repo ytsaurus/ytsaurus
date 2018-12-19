@@ -122,10 +122,10 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual std::unique_ptr<TObjectBase> InstantiateObject(const TObjectId& id) override;
+    virtual std::unique_ptr<TObjectBase> InstantiateObject(TObjectId id) override;
 
 private:
     TImpl* const Owner_;
@@ -178,7 +178,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -221,7 +221,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -322,7 +322,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
 
 
-    TAccount* CreateAccount(const TString& name, const TObjectId& hintId)
+    TAccount* CreateAccount(const TString& name, TObjectId hintId)
     {
         ValidateAccountName(name);
 
@@ -569,7 +569,7 @@ public:
         subject->LinkedObjects().clear();
     }
 
-    TUser* CreateUser(const TString& name, const TObjectId& hintId)
+    TUser* CreateUser(const TString& name, TObjectId hintId)
     {
         ValidateSubjectName(name);
 
@@ -656,7 +656,7 @@ public:
     }
 
 
-    TGroup* CreateGroup(const TString& name, const TObjectId& hintId)
+    TGroup* CreateGroup(const TString& name, TObjectId hintId)
     {
         ValidateSubjectName(name);
 
@@ -2535,7 +2535,7 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
@@ -2546,7 +2546,7 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     return account;
 }
 
-std::unique_ptr<TObjectBase> TSecurityManager::TAccountTypeHandler::InstantiateObject(const TObjectId& id)
+std::unique_ptr<TObjectBase> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)
 {
     return std::make_unique<TAccount>(id);
 }
@@ -2572,7 +2572,7 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
@@ -2601,7 +2601,7 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");

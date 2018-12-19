@@ -24,7 +24,7 @@ TTimestamp GetTimestampFromDataSplit(const TDataSplit& dataSplit);
 
 bool IsSorted(const TDataSplit& dataSplit);
 
-void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId);
+void SetObjectId(TDataSplit* dataSplit, NObjectClient::TObjectId objectId);
 
 void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema);
 

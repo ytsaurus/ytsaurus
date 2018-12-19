@@ -85,7 +85,7 @@ TObjectProxyBase::TObjectProxyBase(
     Y_ASSERT(Object_);
 }
 
-const TObjectId& TObjectProxyBase::GetId() const
+TObjectId TObjectProxyBase::GetId() const
 {
     return Object_->GetId();
 }

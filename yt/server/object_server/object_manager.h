@@ -63,7 +63,7 @@ public:
 
     //! If |hintId| is |NullObjectId| then creates a new unique object id.
     //! Otherwise returns |hintId| (but checks its type).
-    TObjectId GenerateId(EObjectType type, const TObjectId& hintId);
+    TObjectId GenerateId(EObjectType type, TObjectId hintId);
 
     //! Adds a reference.
     //! Returns the strong reference counter.
@@ -99,19 +99,19 @@ public:
     int GetObjectWeakRefCounter(TObjectBase* object);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
-    TObjectBase* FindObject(const TObjectId& id);
+    TObjectBase* FindObject(TObjectId id);
 
     //! Finds object by id, fails if nothing is found.
-    TObjectBase* GetObject(const TObjectId& id);
+    TObjectBase* GetObject(TObjectId id);
 
     //! Finds object by id, throws if nothing is found.
-    TObjectBase* GetObjectOrThrow(const TObjectId& id);
+    TObjectBase* GetObjectOrThrow(TObjectId id);
 
     //! Find weak ghost object by id, fails if nothing is found.
-    TObjectBase* GetWeakGhostObject(const TObjectId& id);
+    TObjectBase* GetWeakGhostObject(TObjectId id);
 
     //! Creates a cross-cell read-only proxy for the object with the given #id.
-    NYTree::IYPathServicePtr CreateRemoteProxy(const TObjectId& id);
+    NYTree::IYPathServicePtr CreateRemoteProxy(TObjectId id);
 
     //! Returns a proxy for the object with the given versioned id.
     IObjectProxyPtr GetProxy(
@@ -176,7 +176,7 @@ public:
     TFuture<void> GCCollect();
 
     TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         EObjectType type,
         NYTree::IAttributeDictionary* attributes);
 

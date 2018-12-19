@@ -132,7 +132,7 @@ void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNode::TNode(const TObjectId& objectId)
+TNode::TNode(TObjectId objectId)
     : TObjectBase(objectId)
 {
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);

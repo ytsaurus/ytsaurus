@@ -6,12 +6,12 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TObjectId& TObjectBase::GetId() const
+TObjectId TObjectBase::GetId() const
 {
     return Id_;
 }
 
-TObjectBase::TObjectBase(const TObjectId& id)
+TObjectBase::TObjectBase(TObjectId id)
     : Id_(id)
 { }
 

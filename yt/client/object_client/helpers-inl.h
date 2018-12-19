@@ -11,7 +11,7 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline NYPath::TYPath FromObjectId(const TObjectId& id)
+inline NYPath::TYPath FromObjectId(TObjectId id)
 {
     return TString(ObjectIdPathPrefix) + ToString(id);
 }
@@ -89,17 +89,17 @@ inline bool IsUserType(EObjectType type)
         type == EObjectType::Document;
 }
 
-inline EObjectType TypeFromId(const TObjectId& id)
+inline EObjectType TypeFromId(TObjectId id)
 {
     return EObjectType(id.Parts32[1] & 0xffff);
 }
 
-inline TCellTag CellTagFromId(const TObjectId& id)
+inline TCellTag CellTagFromId(TObjectId id)
 {
     return id.Parts32[1] >> 16;
 }
 
-inline ui64 CounterFromId(const TObjectId& id)
+inline ui64 CounterFromId(TObjectId id)
 {
     ui64 result;
     result   = id.Parts32[3];
@@ -155,7 +155,7 @@ inline TObjectId MakeRandomId(
         RandomNumber<ui32>());
 }
 
-inline bool IsWellKnownId(const TObjectId& id)
+inline bool IsWellKnownId(TObjectId id)
 {
     return CounterFromId(id) & WellKnownCounterMask;
 }
@@ -194,7 +194,7 @@ inline TObjectId MakeSchemaObjectId(
 }
 
 inline TObjectId ReplaceTypeInId(
-    const TObjectId& id,
+    TObjectId id,
     EObjectType type)
 {
     auto result = id;
@@ -204,7 +204,7 @@ inline TObjectId ReplaceTypeInId(
 }
 
 inline TObjectId ReplaceCellTagInId(
-    const TObjectId& id,
+    TObjectId id,
     TCellTag cellTag)
 {
     auto result = id;
@@ -215,7 +215,7 @@ inline TObjectId ReplaceCellTagInId(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE size_t TDirectObjectIdHash::operator()(const TObjectId& id) const
+Y_FORCE_INLINE size_t TDirectObjectIdHash::operator()(TObjectId id) const
 {
     return id.Parts32[0];
 }

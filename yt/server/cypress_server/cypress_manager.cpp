@@ -404,14 +404,14 @@ public:
         return UnderlyingHandler_->GetObjectType();
     }
 
-    virtual TObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(TObjectId id) override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& /*hintId*/,
+        TObjectId /*hintId*/,
         IAttributeDictionary* /*attributes*/) override
     {
         THROW_ERROR_EXCEPTION("Cypress nodes cannot be created via this call");

@@ -355,7 +355,7 @@ public:
         TTabletWriterOptionsPtr writerOptions,
         const TTabletId& tabletId,
         i64 mountRevision,
-        const NObjectClient::TObjectId& tableId,
+        NObjectClient::TObjectId tableId,
         const NYPath::TYPath& path,
         ITabletContext* context,
         const NTableClient::TTableSchema& schema,

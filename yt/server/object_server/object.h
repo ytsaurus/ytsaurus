@@ -40,7 +40,7 @@ class TObjectBase
     : public NHydra::TEntityBase
 {
 public:
-    explicit TObjectBase(const TObjectId& id);
+    explicit TObjectBase(TObjectId id);
     virtual ~TObjectBase();
 
     TObjectDynamicData* GetDynamicData() const;
@@ -52,7 +52,7 @@ public:
     void SetForeign();
 
     //! Returns the object id.
-    const TObjectId& GetId() const;
+    TObjectId GetId() const;
 
     //! Returns the object type.
     EObjectType GetType() const;
@@ -239,7 +239,7 @@ class TNonversionedObjectBase
     : public TObjectBase
 {
 public:
-    explicit TNonversionedObjectBase(const TObjectId& id);
+    explicit TNonversionedObjectBase(TObjectId id);
 
 };
 

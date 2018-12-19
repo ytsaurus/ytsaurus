@@ -3094,7 +3094,7 @@ private:
 
                 // Check table schemas.
                 if (*commonType == EObjectType::Table) {
-                    auto createGetSchemaRequest = [&] (const TObjectId& objectId) {
+                    auto createGetSchemaRequest = [&] (TObjectId objectId) {
                         auto req = TYPathProxy::Get(FromObjectId(objectId) + "/@");
                         SetTransactionId(req, options, true);
                         req->mutable_attributes()->add_keys("schema");

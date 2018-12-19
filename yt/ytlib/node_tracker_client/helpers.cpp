@@ -158,7 +158,7 @@ TObjectId ObjectIdFromNodeId(TNodeId nodeId, TCellTag cellTag)
     return MakeId(EObjectType::ClusterNode, cellTag, nodeId, 0);
 }
 
-TNodeId NodeIdFromObjectId(const TObjectId& objectId)
+TNodeId NodeIdFromObjectId(TObjectId objectId)
 {
     return CounterFromId(objectId);
 }

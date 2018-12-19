@@ -237,7 +237,7 @@ public:
 
     TTabletCellBundle* CreateTabletCellBundle(
         const TString& name,
-        const TObjectId& hintId,
+        TObjectId hintId,
         TTabletCellOptionsPtr options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -286,7 +286,7 @@ public:
         TabletCellBundleDestroyed_.Fire(cellBundle);
     }
 
-    TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, const TObjectId& hintId)
+    TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, TObjectId hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -715,7 +715,7 @@ public:
 
 
     TTabletAction* CreateTabletAction(
-        const TObjectId& hintId,
+        TObjectId hintId,
         ETabletActionKind kind,
         const std::vector<TTablet*>& tablets,
         const std::vector<TTabletCell*>& cells,
@@ -827,7 +827,7 @@ public:
     }
 
     TTabletAction* DoCreateTabletAction(
-        const TObjectId& hintId,
+        TObjectId hintId,
         ETabletActionKind kind,
         ETabletActionState state,
         const std::vector<TTablet*>& tablets,
@@ -6285,7 +6285,7 @@ void TTabletManager::DestroyTablet(TTablet* tablet)
     Impl_->DestroyTablet(tablet);
 }
 
-TTabletCell* TTabletManager::CreateTabletCell(TTabletCellBundle* cellBundle, const TObjectId& hintId)
+TTabletCell* TTabletManager::CreateTabletCell(TTabletCellBundle* cellBundle, TObjectId hintId)
 {
     return Impl_->CreateTabletCell(cellBundle, hintId);
 }
@@ -6297,7 +6297,7 @@ void TTabletManager::DestroyTabletCell(TTabletCell* cell)
 
 TTabletCellBundle* TTabletManager::CreateTabletCellBundle(
     const TString& name,
-    const TObjectId& hintId,
+    TObjectId hintId,
     TTabletCellOptionsPtr options)
 {
     return Impl_->CreateTabletCellBundle(name, hintId, std::move(options));
@@ -6350,7 +6350,7 @@ void TTabletManager::AlterTableReplica(
 }
 
 TTabletAction* TTabletManager::CreateTabletAction(
-    const NObjectClient::TObjectId& hintId,
+    NObjectClient::TObjectId hintId,
     ETabletActionKind kind,
     const std::vector<TTablet*>& tabletIds,
     const std::vector<TTabletCell*>& cellIds,

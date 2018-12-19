@@ -4,7 +4,7 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectBase* IObjectTypeHandler::GetObject(const TObjectId& id)
+TObjectBase* IObjectTypeHandler::GetObject(TObjectId id)
 {
     auto* object = FindObject(id);
     YCHECK(object);
