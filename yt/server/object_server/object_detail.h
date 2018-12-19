@@ -38,7 +38,7 @@ public:
     virtual bool ShouldHideAttributes() override;
 
     // IObjectProxy members
-    virtual const TObjectId& GetId() const override;
+    virtual TObjectId GetId() const override;
     virtual TObjectBase* GetObject() const override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;

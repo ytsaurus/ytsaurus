@@ -48,7 +48,7 @@ public:
     void UnregisterZombie(TObjectBase* object);
     void DestroyZombie(TObjectBase* object);
 
-    TObjectBase* GetWeakGhostObject(const TObjectId& id);
+    TObjectBase* GetWeakGhostObject(TObjectId id);
 
     void Reset();
 

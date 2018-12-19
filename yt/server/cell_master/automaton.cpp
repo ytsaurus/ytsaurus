@@ -59,7 +59,7 @@ int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectBase* TLoadContext::GetWeakGhostObject(const TObjectId& id) const
+TObjectBase* TLoadContext::GetWeakGhostObject(TObjectId id) const
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
     return objectManager->GetWeakGhostObject(id);

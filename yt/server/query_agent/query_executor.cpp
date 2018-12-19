@@ -1151,7 +1151,7 @@ private:
     }
 
     ISchemafulReaderPtr GetMultipleRangesReader(
-        const TObjectId& tabletId,
+        TObjectId tabletId,
         const TSharedRange<TRowRange>& bounds)
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);

@@ -22,7 +22,7 @@ public:
         return EObjectType::Master;
     }
 
-    virtual TObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(TObjectId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetMasterObject();

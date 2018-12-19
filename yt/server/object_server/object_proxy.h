@@ -17,7 +17,7 @@ struct IObjectProxy
     , public virtual NYTree::ISystemAttributeProvider
 {
     //! Returns object id.
-    virtual const TObjectId& GetId() const = 0;
+    virtual TObjectId GetId() const = 0;
 
     //! Returns the corresponding object.
     virtual TObjectBase* GetObject() const = 0;

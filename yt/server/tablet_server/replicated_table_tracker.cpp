@@ -96,7 +96,7 @@ private:
     {
     public:
         TReplica(
-            const TObjectId& id,
+            TObjectId id,
             ETableReplicaMode mode,
             const TString& clusterName,
             const TYPath& path,
@@ -206,7 +206,7 @@ private:
             , Config_(std::move(config))
         { }
 
-        const TObjectId& GetId() const
+        TObjectId GetId() const
         {
             return Id_;
         }

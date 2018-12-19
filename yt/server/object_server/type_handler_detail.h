@@ -58,13 +58,13 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& /*hintId*/,
+        TObjectId /*hintId*/,
         NYTree::IAttributeDictionary* /*attributes*/) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual std::unique_ptr<TObjectBase> InstantiateObject(const TObjectId& /*id*/) override
+    virtual std::unique_ptr<TObjectBase> InstantiateObject(TObjectId /*id*/) override
     {
         Y_UNREACHABLE();
     }
@@ -186,7 +186,7 @@ public:
         Map_->Release(object->GetId()).release();
     }
 
-    virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
+    virtual NObjectServer::TObjectBase* FindObject(TObjectId id) override
     {
         return Map_->Find(id);
     }

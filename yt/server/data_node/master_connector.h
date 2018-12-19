@@ -279,7 +279,7 @@ private:
     void UpdateTags(std::vector<TString> tags);
 
     TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
-    TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);
+    TChunksDelta* GetChunksDelta(NObjectClient::TObjectId id);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

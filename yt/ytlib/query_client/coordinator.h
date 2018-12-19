@@ -22,7 +22,7 @@ TRowRanges GetPrunedRanges(
     const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
-    const NObjectClient::TObjectId& tableId,
+    NObjectClient::TObjectId tableId,
     const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
@@ -32,7 +32,7 @@ TRowRanges GetPrunedRanges(
 
 TRowRanges GetPrunedRanges(
     const TConstQueryPtr& query,
-    const NObjectClient::TObjectId& tableId,
+    NObjectClient::TObjectId tableId,
     const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,

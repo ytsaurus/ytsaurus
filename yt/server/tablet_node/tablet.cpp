@@ -337,7 +337,7 @@ TTablet::TTablet(
     TTabletWriterOptionsPtr writerOptions,
     const TTabletId& tabletId,
     i64 mountRevision,
-    const TObjectId& tableId,
+    TObjectId tableId,
     const TYPath& path,
     ITabletContext* context,
     const TTableSchema& schema,

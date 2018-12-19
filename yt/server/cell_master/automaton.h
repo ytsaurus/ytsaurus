@@ -43,7 +43,7 @@ public:
 public:
     explicit TLoadContext(TBootstrap* bootstrap);
 
-    NObjectServer::TObjectBase* GetWeakGhostObject(const NObjectServer::TObjectId& id) const;
+    NObjectServer::TObjectBase* GetWeakGhostObject(NObjectServer::TObjectId id) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

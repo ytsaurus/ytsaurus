@@ -77,7 +77,7 @@ bool IsSorted(const TDataSplit& dataSplit)
     return miscProto ? miscProto->sorted(): false;
 }
 
-void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId)
+void SetObjectId(TDataSplit* dataSplit, NObjectClient::TObjectId objectId)
 {
     ToProto(dataSplit->mutable_chunk_id(), objectId);
 }

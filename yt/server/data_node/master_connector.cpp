@@ -1144,7 +1144,7 @@ TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTa
     return &it->second;
 }
 
-TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(const TObjectId& id)
+TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TObjectId id)
 {
     return GetChunksDelta(CellTagFromId(id));
 }

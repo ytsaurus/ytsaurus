@@ -23,7 +23,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemaObject::TSchemaObject(const TObjectId& id)
+TSchemaObject::TSchemaObject(TObjectId id)
     : TNonversionedObjectBase(id)
     , Acd_(this)
 { }
@@ -67,7 +67,7 @@ public:
         return SchemaTypeFromType(Type_);
     }
 
-    virtual TObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(TObjectId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetSchema(Type_);

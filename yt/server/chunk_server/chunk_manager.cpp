@@ -191,7 +191,7 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual TObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(TObjectId id) override
     {
         return Map_->Find(DecodeChunkId(id).Id);
     }
@@ -306,7 +306,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -1080,7 +1080,7 @@ public:
         std::optional<bool> transient,
         std::optional<bool> cache,
         std::optional<int> priority,
-        const TObjectId& hintId)
+        TObjectId hintId)
     {
         ValidateMediumName(name);
 
@@ -3215,7 +3215,7 @@ IObjectProxyPtr TChunkManager::TMediumTypeHandler::DoGetProxy(
 }
 
 TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");

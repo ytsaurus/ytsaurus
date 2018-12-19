@@ -848,7 +848,7 @@ private:
         CompleteCallWith(
             context,
             client->CreateObject(type, options),
-            [] (const auto& context, const NObjectClient::TObjectId& objectId) {
+            [] (const auto& context, NObjectClient::TObjectId objectId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_object_id(), objectId);
 

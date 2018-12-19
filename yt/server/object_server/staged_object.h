@@ -24,7 +24,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, StagingAccount);
 
 public:
-    explicit TStagedObject(const TObjectId& id);
+    explicit TStagedObject(TObjectId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

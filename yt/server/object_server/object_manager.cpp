@@ -81,7 +81,7 @@ class TObjectManager::TRemoteProxy
     : public IYPathService
 {
 public:
-    TRemoteProxy(TBootstrap* bootstrap, const TObjectId& objectId)
+    TRemoteProxy(TBootstrap* bootstrap, TObjectId objectId)
         : Bootstrap_(bootstrap)
         , ObjectId_(objectId)
     { }
@@ -449,7 +449,7 @@ const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
     return RegisteredTypes_;
 }
 
-TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
+TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -672,7 +672,7 @@ void TObjectManager::OnStopLeading()
     GarbageCollector_->Stop();
 }
 
-TObjectBase* TObjectManager::FindObject(const TObjectId& id)
+TObjectBase* TObjectManager::FindObject(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -684,7 +684,7 @@ TObjectBase* TObjectManager::FindObject(const TObjectId& id)
     return handler->FindObject(id);
 }
 
-TObjectBase* TObjectManager::GetObject(const TObjectId& id)
+TObjectBase* TObjectManager::GetObject(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -693,7 +693,7 @@ TObjectBase* TObjectManager::GetObject(const TObjectId& id)
     return object;
 }
 
-TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
+TObjectBase* TObjectManager::GetObjectOrThrow(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -708,13 +708,13 @@ TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
     return object;
 }
 
-TObjectBase* TObjectManager::GetWeakGhostObject(const TObjectId& id)
+TObjectBase* TObjectManager::GetWeakGhostObject(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     return GarbageCollector_->GetWeakGhostObject(id);
 }
 
-IYPathServicePtr TObjectManager::CreateRemoteProxy(const TObjectId& id)
+IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id)
 {
     return New<TRemoteProxy>(Bootstrap_, id);
 }
@@ -824,7 +824,7 @@ TFuture<void> TObjectManager::GCCollect()
 }
 
 TObjectBase* TObjectManager::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     EObjectType type,
     IAttributeDictionary* attributes)
 {
@@ -1201,7 +1201,7 @@ void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
 {
     // NB: Ordered map is a must to make the behavior deterministic.
     std::map<TCellTag, NProto::TReqUnrefExportedObjects> crossCellRequestMap;
-    auto getCrossCellRequest = [&] (const TObjectId& id) -> NProto::TReqUnrefExportedObjects& {
+    auto getCrossCellRequest = [&] (TObjectId id) -> NProto::TReqUnrefExportedObjects& {
         return crossCellRequestMap[CellTagFromId(id)];
     };
 

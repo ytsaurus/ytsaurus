@@ -6,7 +6,7 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 
-TMasterObject::TMasterObject(const TObjectId& id)
+TMasterObject::TMasterObject(TObjectId id)
     : TNonversionedObjectBase(id)
 { }
 

@@ -46,7 +46,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
         auto name = attributes->GetAndRemove<TString>("name");

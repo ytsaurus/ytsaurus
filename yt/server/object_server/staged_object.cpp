@@ -10,7 +10,7 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStagedObject::TStagedObject(const TObjectId& id)
+TStagedObject::TStagedObject(TObjectId id)
     : TNonversionedObjectBase(id)
     , StagingTransaction_(nullptr)
     , StagingAccount_(nullptr)

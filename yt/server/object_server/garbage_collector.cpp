@@ -305,7 +305,7 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
     }
 }
 
-TObjectBase* TGarbageCollector::GetWeakGhostObject(const TObjectId& id)
+TObjectBase* TGarbageCollector::GetWeakGhostObject(TObjectId id)
 {
     auto it = WeakGhosts_.find(id);
     YCHECK(it != WeakGhosts_.end());

@@ -185,12 +185,12 @@ private:
 
     void DestroyTablet(TTablet* tablet);
 
-    TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, const NObjectClient::TObjectId& hintId);
+    TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, NObjectClient::TObjectId hintId);
     void DestroyTabletCell(TTabletCell* cell);
 
     TTabletCellBundle* CreateTabletCellBundle(
         const TString& name,
-        const NObjectClient::TObjectId& hintId,
+        NObjectClient::TObjectId hintId,
         TTabletCellOptionsPtr options);
     void DestroyTabletCellBundle(TTabletCellBundle* cellBundle);
 
@@ -206,7 +206,7 @@ private:
     void DestroyTableReplica(TTableReplica* replica);
 
     TTabletAction* CreateTabletAction(
-        const NObjectClient::TObjectId& hintId,
+        NObjectClient::TObjectId hintId,
         ETabletActionKind kind,
         const std::vector<TTablet*>& tabletIds,
         const std::vector<TTabletCell*>& cellIds,

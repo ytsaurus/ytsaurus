@@ -34,7 +34,7 @@ struct TCrossCellMessage
         : Payload(TProtoMessage{&message})
     { }
 
-    TCrossCellMessage(const NObjectClient::TObjectId& objectId, NRpc::IServiceContextPtr context)
+    TCrossCellMessage(NObjectClient::TObjectId objectId, NRpc::IServiceContextPtr context)
         : Payload(TServiceMessage{objectId, std::move(context)})
     { }
 

@@ -195,7 +195,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
 public:
-    explicit TNode(const NObjectServer::TObjectId& objectId);
+    explicit TNode(NObjectServer::TObjectId objectId);
 
     TNodeId GetId() const;
 

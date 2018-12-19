@@ -214,7 +214,7 @@ private:
                         YCHECK(false);
                 }
                 BuildYsonFluently(consumer)
-                    .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<const TObjectId&, TNode*>& pair) {
+                    .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<TObjectId, TNode*>& pair) {
                         auto* node = pair.second;
                         if (node->GetAggregatedState() == state) {
                             fluent.Item().Value(node->GetDefaultAddress());

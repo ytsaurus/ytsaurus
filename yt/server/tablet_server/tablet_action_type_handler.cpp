@@ -40,7 +40,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
         auto kind = attributes->GetAndRemove<ETabletActionKind>("kind");

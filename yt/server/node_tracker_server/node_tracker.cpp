@@ -147,7 +147,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -192,7 +192,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -585,7 +585,7 @@ public:
             this);
     }
 
-    TRack* CreateRack(const TString& name, const TObjectId& hintId)
+    TRack* CreateRack(const TString& name, TObjectId hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Rack name cannot be empty");
@@ -701,7 +701,7 @@ public:
     }
 
 
-    TDataCenter* CreateDataCenter(const TString& name, const TObjectId& hintId)
+    TDataCenter* CreateDataCenter(const TString& name, TObjectId hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Data center name cannot be empty");
@@ -2098,7 +2098,7 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
@@ -2127,7 +2127,7 @@ TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<TString>("name");

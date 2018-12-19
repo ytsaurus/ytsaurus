@@ -45,7 +45,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
         auto tablePath = attributes->GetAndRemove<TString>("table_path");

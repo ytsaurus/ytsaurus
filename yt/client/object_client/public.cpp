@@ -16,12 +16,12 @@ const TTransactionId NullTransactionId;
 TVersionedObjectId::TVersionedObjectId()
 { }
 
-TVersionedObjectId::TVersionedObjectId(const TObjectId& objectId)
+TVersionedObjectId::TVersionedObjectId(TObjectId objectId)
     : ObjectId(objectId)
 { }
 
 TVersionedObjectId::TVersionedObjectId(
-    const TObjectId& objectId,
+    TObjectId objectId,
     const TTransactionId& transactionId)
     : ObjectId(objectId)
     , TransactionId(transactionId)
