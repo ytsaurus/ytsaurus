@@ -257,7 +257,7 @@ public:
     }
 
     TTabletCellBundle* DoCreateTabletCellBundle(
-        const TTabletCellBundleId& id,
+        TTabletCellBundleId id,
         const TString& name,
         TTabletCellOptionsPtr options)
     {
@@ -3471,7 +3471,7 @@ private:
         }
     }
 
-    bool EnsureBuiltinCellBundleInitialized(TTabletCellBundle*& cellBundle, const TTabletCellBundleId& id, const TString& name)
+    bool EnsureBuiltinCellBundleInitialized(TTabletCellBundle*& cellBundle, TTabletCellBundleId id, const TString& name)
     {
         if (cellBundle) {
             return false;
