@@ -21,7 +21,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
 public:
-    explicit TDataCenter(const TDataCenterId& id);
+    explicit TDataCenter(TDataCenterId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
