@@ -6,6 +6,12 @@
 namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
+    #define YT_ALLOC_ENABLED
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
 // Allocation API
 
 //! Allocates a chunk of memory of (at least) #size bytes.

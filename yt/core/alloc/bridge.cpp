@@ -7,7 +7,7 @@ namespace NYT::NYTAlloc {
 ////////////////////////////////////////////////////////////////////////////////
 // YTAlloc public API
 
-#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
+#ifdef YT_ALLOC_ENABLED
 
 void* Allocate(size_t size, bool dumpable)
 {
@@ -86,7 +86,7 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 ////////////////////////////////////////////////////////////////////////////////
 // Malloc bridge
 
-#if !defined(_darwin_) and !defined(_asan_enabled_) and !defined(_msan_enabled_) and !defined(_tsan_enabled_)
+#ifdef YT_ALLOC_ENABLED
 
 using namespace NYT::NYTAlloc;
 
