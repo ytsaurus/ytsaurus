@@ -502,7 +502,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     TNodeMemoryTracker* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
-    const NProfiling::TTagId& preloadTag)
+    NProfiling::TTagId preloadTag)
 {
     auto mode = tabletSnapshot->Config->InMemoryMode;
 
