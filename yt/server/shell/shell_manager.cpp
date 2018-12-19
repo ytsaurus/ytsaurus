@@ -222,13 +222,13 @@ private:
             shell->GetId());
     }
 
-    IShellPtr Find(const TShellId& shellId)
+    IShellPtr Find(TShellId shellId)
     {
         auto it = IdToShell_.find(shellId);
         return it == IdToShell_.end() ? nullptr : it->second;
     }
 
-    IShellPtr GetShellOrThrow(const TShellId& shellId)
+    IShellPtr GetShellOrThrow(TShellId shellId)
     {
         auto shell = Find(shellId);
         if (!shell) {

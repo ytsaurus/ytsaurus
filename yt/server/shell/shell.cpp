@@ -233,7 +233,7 @@ public:
         return TerminatedPromise_;
     }
 
-    virtual const TShellId& GetId() override
+    virtual TShellId GetId() override
     {
         return Id_;
     }
