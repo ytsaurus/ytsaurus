@@ -1048,7 +1048,7 @@ public:
             // chosen to be originators of snapshot locks.
             TCypressNodeBase* newOriginator = nullptr;
             for (auto* current = transaction->GetParent(); current; current = current->GetParent()) {
-                if (current->LockedNodes().has(trunkNode)) {
+                if (current->LockedNodes().contains(trunkNode)) {
                     newOriginator = GetNode(TVersionedNodeId{trunkNode->GetId(), current->GetId()});
                     break;
                 }
@@ -1082,7 +1082,7 @@ public:
         if (mustUnbranchAboveNodes || mustUpdateAboveNodes) {
             // Process nodes above until another lock is met.
             for (auto* t = transaction->GetParent(); t; t = t->GetParent()) {
-                if (t->LockedNodes().has(trunkNode)) {
+                if (t->LockedNodes().contains(trunkNode)) {
                     break;
                 }
 
