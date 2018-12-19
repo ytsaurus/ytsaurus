@@ -112,7 +112,7 @@ struct IOperationStrategyHost
 
     virtual TString GetAuthenticatedUser() const = 0;
 
-    virtual const TOperationId& GetId() const = 0;
+    virtual TOperationId GetId() const = 0;
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
@@ -232,7 +232,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Alias);
 
     //! Returns operation id.
-    const TOperationId& GetId() const override;
+    TOperationId GetId() const override;
 
     //! Returns operation start time.
     TInstant GetStartTime() const override;
@@ -307,7 +307,7 @@ public:
     TControllerAgentPtr GetAgentOrThrow();
 
     TOperation(
-        const TOperationId& operationId,
+        TOperationId operationId,
         EOperationType type,
         const NRpc::TMutationId& mutationId,
         NTransactionClient::TTransactionId userTransactionId,

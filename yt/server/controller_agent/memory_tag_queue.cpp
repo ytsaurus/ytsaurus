@@ -25,7 +25,7 @@ TMemoryTagQueue::TMemoryTagQueue(TControllerAgentConfigPtr config)
     }
 }
 
-TMemoryTag TMemoryTagQueue::AssignTagToOperation(const TOperationId& operationId)
+TMemoryTag TMemoryTagQueue::AssignTagToOperation(TOperationId operationId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

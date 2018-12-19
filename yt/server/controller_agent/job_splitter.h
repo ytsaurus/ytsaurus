@@ -35,7 +35,7 @@ struct IJobSplitter
 
 std::unique_ptr<IJobSplitter> CreateJobSplitter(
     const TJobSplitterConfigPtr& config,
-    const TOperationId& operationId);
+    TOperationId operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

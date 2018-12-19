@@ -700,7 +700,7 @@ void TSchedulerElement::CheckForStarvationImpl(
 }
 
 void TSchedulerElement::SetOperationAlert(
-    const TOperationId& operationId,
+    TOperationId operationId,
     EOperationAlertType alertType,
     const TError& alert,
     std::optional<TDuration> timeout)

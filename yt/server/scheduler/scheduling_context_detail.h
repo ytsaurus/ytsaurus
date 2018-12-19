@@ -38,7 +38,7 @@ public:
 
     virtual void StartJob(
         const TString& treeId,
-        const TOperationId& operationId,
+        TOperationId operationId,
         TIncarnationId incarnationId,
         const NControllerAgent::TJobStartDescriptor& startDescriptor) override;
 

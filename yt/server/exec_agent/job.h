@@ -14,7 +14,7 @@ namespace NYT::NExecAgent {
 
 NJobAgent::IJobPtr CreateUserJob(
     NJobTrackerClient::TJobId jobId,
-    const NJobTrackerClient::TOperationId& operationId,
+    NJobTrackerClient::TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     NCellNode::TBootstrap* bootstrap);

@@ -640,7 +640,7 @@ TFuture<void> TClient::DumpJobContext(
 }
 
 TFuture<NYson::TYsonString> TClient::GetJob(
-    const NJobTrackerClient::TOperationId& operationId,
+    NJobTrackerClient::TOperationId operationId,
     NJobTrackerClient::TJobId jobId,
     const NApi::TGetJobOptions& options)
 {

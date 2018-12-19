@@ -110,12 +110,12 @@ void TSchedulerStrategyHost::ValidatePoolPermission(
     NYTree::EPermission permission) const
 { }
 
-void TSchedulerStrategyHost::ActivateOperation(const TOperationId& operationId)
+void TSchedulerStrategyHost::ActivateOperation(TOperationId operationId)
 {
     // Nothing to do.
 }
 
-void TSchedulerStrategyHost::AbortOperation(const TOperationId& operationId, const TError& error)
+void TSchedulerStrategyHost::AbortOperation(TOperationId operationId, const TError& error)
 {
     YCHECK(false);
 }
@@ -154,7 +154,7 @@ void TSchedulerStrategyHost::SetSchedulerAlert(ESchedulerAlertType alertType, co
 }
 
 TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
-    const TOperationId& operationId,
+    TOperationId operationId,
     EOperationAlertType alertType,
     const TError& alert,
     std::optional<TDuration> timeout)

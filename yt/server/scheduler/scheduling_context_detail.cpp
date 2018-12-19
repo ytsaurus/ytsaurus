@@ -64,7 +64,7 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
 
 void TSchedulingContextBase::StartJob(
     const TString& treeId,
-    const TOperationId& operationId,
+    TOperationId operationId,
     TIncarnationId incarnationId,
     const TJobStartDescriptor& startDescriptor)
 {

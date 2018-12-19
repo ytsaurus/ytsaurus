@@ -30,8 +30,8 @@ struct ISchedulerStrategyHost
 
     virtual TInstant GetConnectionTime() const = 0;
 
-    virtual void ActivateOperation(const TOperationId& operationId) = 0;
-    virtual void AbortOperation(const TOperationId& operationId, const TError& error) = 0;
+    virtual void ActivateOperation(TOperationId operationId) = 0;
+    virtual void AbortOperation(TOperationId operationId, const TError& error) = 0;
 
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const = 0;
 
@@ -45,7 +45,7 @@ struct ISchedulerStrategyHost
         const TError& alert) = 0;
 
     virtual TFuture<void> SetOperationAlert(
-        const TOperationId& operationId,
+        TOperationId operationId,
         EOperationAlertType alertType,
         const TError& alert,
         std::optional<TDuration> timeout = std::nullopt) = 0;
@@ -132,10 +132,10 @@ struct ISchedulerStrategy
      */
     virtual void UnregisterOperation(IOperationStrategyHost* operation) = 0;
 
-    virtual void UnregisterOperationFromTree(const TOperationId& operationId, const TString& treeId) = 0;
+    virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) = 0;
 
     //! Register jobs that are already created somewhere outside strategy.
-    virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
+    virtual void RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& job) = 0;
 
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
@@ -167,7 +167,7 @@ struct ISchedulerStrategy
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.
     virtual void BuildOperationAttributes(
-        const TOperationId& operationId,
+        TOperationId operationId,
         NYTree::TFluentMap fluent) = 0;
 
     //! Builds a YSON map fragment with strategy specific information about operation
@@ -179,18 +179,18 @@ struct ISchedulerStrategy
     //! Builds a YSON structure reflecting operation's progress.
     //! This progress is periodically pushed into Cypress and is also displayed via Orchid.
     virtual void BuildOperationProgress(
-        const TOperationId& operationId,
+        TOperationId operationId,
         NYTree::TFluentMap fluent) = 0;
 
     //! Similar to #BuildOperationProgress but constructs a reduced version to be used by UI.
     virtual void BuildBriefOperationProgress(
-        const TOperationId& operationId,
+        TOperationId operationId,
         NYTree::TFluentMap fluent) = 0;
 
     //! Builds a YSON structure reflecting the state of the scheduler to be displayed in Orchid.
     virtual void BuildOrchid(NYTree::TFluentMap fluent) = 0;
 
-    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) = 0;
+    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(TOperationId operationId) = 0;
 
     virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() = 0;
 };

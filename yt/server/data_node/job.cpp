@@ -128,7 +128,7 @@ public:
         return JobId_;
     }
 
-    virtual const TOperationId& GetOperationId() const override
+    virtual TOperationId GetOperationId() const override
     {
         return NullOperationId;
     }

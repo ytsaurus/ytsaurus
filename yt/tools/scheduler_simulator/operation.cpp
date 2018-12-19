@@ -17,7 +17,7 @@ TOperation::TOperation(
     , RuntimeParams_(runtimeParameters)
 { }
 
-const NScheduler::TOperationId& TOperation::GetId() const
+NScheduler::TOperationId TOperation::GetId() const
 {
     return Id_;
 }

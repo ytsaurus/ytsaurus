@@ -37,7 +37,7 @@ public:
     // For persistence only.
     TTentativeTreeEligibility();
 
-    void Initialize(const TOperationId& operationId, const TString& taskTitle);
+    void Initialize(TOperationId operationId, const TString& taskTitle);
 
     void Persist(const TPersistenceContext& context);
 

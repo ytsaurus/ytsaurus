@@ -85,7 +85,7 @@ public:
         const TWriteCoreDumpOptions& options),
         (address, options))
     IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
-        const TOperationId& operationId),
+        TOperationId operationId),
         (operationId))
 
 private:
@@ -168,7 +168,7 @@ private:
         return rsp->path();
     }
 
-    TString DoWriteOperationControllerCoreDump(const TOperationId& operationId) {
+    TString DoWriteOperationControllerCoreDump(TOperationId operationId) {
         auto address = GetControllerAgentAddressFromCypress(
             operationId,
             Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Follower));

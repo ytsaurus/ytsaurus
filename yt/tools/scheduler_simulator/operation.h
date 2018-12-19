@@ -23,7 +23,7 @@ public:
         const TOperationDescription& description,
         const NScheduler::TOperationRuntimeParametersPtr& runtimeParameters);
 
-    virtual const NScheduler::TOperationId& GetId() const override;
+    virtual NScheduler::TOperationId GetId() const override;
     virtual NScheduler::EOperationType GetType() const override;
     virtual bool IsSchedulable() const override;
     virtual TInstant GetStartTime() const override;

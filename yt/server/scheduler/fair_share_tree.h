@@ -12,10 +12,10 @@ struct IFairShareTreeSnapshot
     : public TIntrinsicRefCounted
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
-    virtual void ProcessUpdatedJob(const TOperationId& operationId, TJobId jobId, const TJobResources& delta) = 0;
-    virtual void ProcessFinishedJob(const TOperationId& operationId, TJobId jobId) = 0;
-    virtual bool HasOperation(const TOperationId& operationId) const = 0;
-    virtual void ApplyJobMetricsDelta(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) = 0;
+    virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) = 0;
+    virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
+    virtual bool HasOperation(TOperationId operationId) const = 0;
+    virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
 };
 
@@ -92,7 +92,7 @@ public:
     void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName);
 
     void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName);
-    void ValidateAllOperationsCountsOnPoolChange(const TOperationId& operationId, const TPoolName& newPoolName);
+    void ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName);
     bool RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
@@ -118,29 +118,29 @@ public:
     TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode);
 
     bool ChangeOperationPool(
-        const TOperationId& operationId,
+        TOperationId operationId,
         const TFairShareStrategyOperationStatePtr& state,
         const TPoolName& newPool);
 
     TError CheckOperationUnschedulable(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,
         THashSet<EDeactivationReason> deactivationReasons);
 
     void UpdateOperationRuntimeParameters(
-        const TOperationId& operationId,
+        TOperationId operationId,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams);
 
     void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config);
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
-    void BuildOperationAttributes(const TOperationId& operationId, NYTree::TFluentMap fluent);
+    void BuildOperationAttributes(TOperationId operationId, NYTree::TFluentMap fluent);
 
-    void BuildOperationProgress(const TOperationId& operationId, NYTree::TFluentMap fluent);
+    void BuildOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent);
 
-    void BuildBriefOperationProgress(const TOperationId& operationId, NYTree::TFluentMap fluent);
+    void BuildBriefOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent);
 
     void BuildUserToEphemeralPools(NYTree::TFluentAny fluent);
 
@@ -161,7 +161,7 @@ public:
     // NB: This function is public for testing purposes.
     void OnFairShareEssentialLoggingAt(TInstant now);
 
-    void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
+    void RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& jobs);
 
     void BuildPoolsInformation(NYTree::TFluentMap fluent);
 
@@ -179,7 +179,7 @@ public:
 
     TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user);
 
-    bool HasOperation(const TOperationId& operationId);
+    bool HasOperation(TOperationId operationId);
 
     virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override;
 
@@ -237,7 +237,7 @@ private:
         TFairShareStrategyTreeConfigPtr Config;
         std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
 
-        TOperationElement* FindOperationElement(const TOperationId& operationId) const
+        TOperationElement* FindOperationElement(TOperationId operationId) const
         {
             auto it = OperationIdToElement.find(operationId);
             return it != OperationIdToElement.end() ? it->second : nullptr;
@@ -268,7 +268,7 @@ private:
                 .Run();
         }
 
-        virtual void ProcessUpdatedJob(const TOperationId& operationId, TJobId jobId, const TJobResources& delta)
+        virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta)
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
@@ -278,7 +278,7 @@ private:
             }
         }
 
-        virtual void ProcessFinishedJob(const TOperationId& operationId, TJobId jobId) override
+        virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) override
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
@@ -288,7 +288,7 @@ private:
             }
         }
 
-        virtual void ApplyJobMetricsDelta(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) override
+        virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) override
         {
             auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             if (operationElement) {
@@ -296,7 +296,7 @@ private:
             }
         }
 
-        virtual bool HasOperation(const TOperationId& operationId) const override
+        virtual bool HasOperation(TOperationId operationId) const override
         {
             auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             return operationElement != nullptr;
@@ -396,7 +396,7 @@ private:
 
     TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element);
 
-    void AddOperationToPool(const TOperationId& operationId);
+    void AddOperationToPool(TOperationId operationId);
 
     void DoRegisterPool(const TPoolPtr& pool);
 
@@ -416,7 +416,7 @@ private:
 
     void TryActivateOperationsFromQueue(std::vector<TOperationId>* operationsToActivate);
 
-    void BuildEssentialOperationProgress(const TOperationId& operationId, NYTree::TFluentMap fluent);
+    void BuildEssentialOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent);
 
     int RegisterSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
@@ -434,9 +434,9 @@ private:
 
     NProfiling::TTagId GetPoolProfilingTag(const TString& id);
 
-    TOperationElementPtr FindOperationElement(const TOperationId& operationId);
+    TOperationElementPtr FindOperationElement(TOperationId operationId);
 
-    TOperationElementPtr GetOperationElement(const TOperationId& operationId);
+    TOperationElementPtr GetOperationElement(TOperationId operationId);
 
     TRootElementSnapshotPtr CreateRootElementSnapshot();
 

@@ -95,7 +95,7 @@ using NJobTrackerClient::TStatistics;
 
 TJobProxy::TJobProxy(
     TJobProxyConfigPtr config,
-    const TOperationId& operationId,
+    TOperationId operationId,
     TJobId jobId)
     : Config_(std::move(config))
     , OperationId_(operationId)
@@ -662,7 +662,7 @@ TJobProxyConfigPtr TJobProxy::GetConfig() const
     return Config_;
 }
 
-const TOperationId& TJobProxy::GetOperationId() const
+TOperationId TJobProxy::GetOperationId() const
 {
     return OperationId_;
 }

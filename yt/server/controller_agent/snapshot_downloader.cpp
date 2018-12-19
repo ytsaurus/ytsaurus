@@ -20,7 +20,7 @@ using namespace NScheduler;
 TSnapshotDownloader::TSnapshotDownloader(
     TControllerAgentConfigPtr config,
     TBootstrap* bootstrap,
-    const TOperationId& operationId)
+    TOperationId operationId)
     : Config_(config)
     , Bootstrap_(bootstrap)
     , OperationId_(operationId)

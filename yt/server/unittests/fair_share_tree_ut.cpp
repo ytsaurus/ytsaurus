@@ -49,10 +49,10 @@ struct TSchedulerStrategyHostMock
         return TInstant();
     }
 
-    virtual void ActivateOperation(const TOperationId& operationId) override
+    virtual void ActivateOperation(TOperationId operationId) override
     { }
 
-    virtual void AbortOperation(const TOperationId& /* operationId */, const TError& /* error */) override
+    virtual void AbortOperation(TOperationId /* operationId */, const TError& /* error */) override
     { }
 
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
@@ -91,7 +91,7 @@ struct TSchedulerStrategyHostMock
     { }
 
     virtual TFuture<void> SetOperationAlert(
-        const TOperationId& operationId,
+        TOperationId operationId,
         EOperationAlertType alertType,
         const TError& alert,
         std::optional<TDuration> timeout) override
@@ -211,7 +211,7 @@ public:
         return "root";
     }
 
-    virtual const TOperationId& GetId() const
+    virtual TOperationId GetId() const
     {
         return Id_;
     }

@@ -22,7 +22,7 @@ class TMemoryTagQueue
 public:
     explicit TMemoryTagQueue(TControllerAgentConfigPtr config);
 
-    TMemoryTag AssignTagToOperation(const TOperationId& operationId);
+    TMemoryTag AssignTagToOperation(TOperationId operationId);
     void ReclaimTag(TMemoryTag tag);
 
     void BuildTaggedMemoryStatistics(NYTree::TFluentList fluent);

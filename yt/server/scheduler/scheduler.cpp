@@ -470,7 +470,7 @@ public:
         return operation;
     }
 
-    INodePtr FindOperationAcl(const TOperationId& operationId, EAccessType accessType) const
+    INodePtr FindOperationAcl(TOperationId operationId, EAccessType accessType) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -492,7 +492,7 @@ public:
             .EndList();
     }
 
-    INodePtr GetOperationAclFromCypress(const TOperationId& operationId, EAccessType accessType) const
+    INodePtr GetOperationAclFromCypress(TOperationId operationId, EAccessType accessType) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -524,7 +524,7 @@ public:
     }
 
     virtual TFuture<void> SetOperationAlert(
-        const TOperationId& operationId,
+        TOperationId operationId,
         EOperationAlertType alertType,
         const TError& alert,
         std::optional<TDuration> timeout = std::nullopt) override
@@ -565,7 +565,7 @@ public:
 
     void ValidateOperationAccess(
         const TString& user,
-        const TOperationId& operationId,
+        TOperationId operationId,
         EAccessType accessType) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1043,7 +1043,7 @@ public:
         return resourceLimits;
     }
 
-    virtual void ActivateOperation(const TOperationId& operationId) override
+    virtual void ActivateOperation(TOperationId operationId) override
     {
         auto operation = GetOperation(operationId);
 
@@ -1057,7 +1057,7 @@ public:
         }
     }
 
-    virtual void AbortOperation(const TOperationId& operationId, const TError& error) override
+    virtual void AbortOperation(TOperationId operationId, const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1238,7 +1238,7 @@ public:
     TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
         TChunkId chunkId,
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TString& user) override
     {
@@ -1360,7 +1360,7 @@ private:
     void DoAttachJobContext(
         const NYTree::TYPath& path,
         TChunkId chunkId,
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TString& user)
     {
@@ -1371,7 +1371,7 @@ private:
 
 
     void DoSetOperationAlert(
-        const TOperationId& operationId,
+        TOperationId operationId,
         EOperationAlertType alertType,
         const TError& alert,
         std::optional<TDuration> timeout = std::nullopt)
@@ -2333,7 +2333,7 @@ private:
 
     IYPathServicePtr CreateOperationOrchidService(const TOperationPtr& operation)
     {
-        auto createProducer = [&] (void (ISchedulerStrategy::*method)(const TOperationId& operationId, TFluentMap fluent)) {
+        auto createProducer = [&] (void (ISchedulerStrategy::*method)(TOperationId operationId, TFluentMap fluent)) {
             return IYPathService::FromProducer(BIND([this, operation, method] (IYsonConsumer* consumer) {
                 BuildYsonFluently(consumer)
                     .BeginMap()
@@ -3448,7 +3448,7 @@ void TScheduler::Disconnect(const TError& error)
     Impl_->Disconnect(error);
 }
 
-TOperationPtr TScheduler::FindOperation(const TOperationId& id) const
+TOperationPtr TScheduler::FindOperation(TOperationId id) const
 {
     return Impl_->FindOperation(id);
 }

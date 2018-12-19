@@ -55,7 +55,7 @@ struct IAdmin
         const TWriteCoreDumpOptions& options = TWriteCoreDumpOptions()) = 0;
 
     virtual TFuture<TString> WriteOperationControllerCoreDump(
-        const NJobTrackerClient::TOperationId& operationId) = 0;
+        NJobTrackerClient::TOperationId operationId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAdmin)

@@ -830,12 +830,12 @@ public:
         const TGetJobInputPathsOptions& options),
         (jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TGetJobStderrOptions& options),
         (operationId, jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobFailContext, (
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TGetJobFailContextOptions& options),
         (operationId, jobId, options))
@@ -843,11 +843,11 @@ public:
         const TListOperationsOptions& options),
         (options))
     IMPLEMENT_METHOD(TListJobsResult, ListJobs, (
-        const TOperationId& operationId,
+        TOperationId operationId,
         const TListJobsOptions& options),
         (operationId, options))
     IMPLEMENT_METHOD(TYsonString, GetJob, (
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TGetJobOptions& options),
         (operationId, jobId, options))
@@ -3899,7 +3899,7 @@ private:
     };
 
     TYsonString DoGetOperationFromCypress(
-        const NScheduler::TOperationId& operationId,
+        NScheduler::TOperationId operationId,
         TInstant deadline,
         const TGetOperationOptions& options)
     {
@@ -4060,7 +4060,7 @@ private:
     }
 
     TYsonString DoGetOperationFromArchive(
-        const NScheduler::TOperationId& operationId,
+        NScheduler::TOperationId operationId,
         TInstant deadline,
         const TGetOperationOptions& options)
     {
@@ -4629,7 +4629,7 @@ private:
     }
 
     TSharedRef DoGetJobStderrFromNode(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId)
     {
         try {
@@ -4662,7 +4662,7 @@ private:
     }
 
     TSharedRef DoGetJobStderrFromCypress(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId)
     {
         auto createFileReader = [&] (const NYPath::TYPath& path) {
@@ -4710,7 +4710,7 @@ private:
     }
 
     TSharedRef DoGetJobStderrFromArchive(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId)
     {
         try {
@@ -4761,7 +4761,7 @@ private:
     }
 
     TSharedRef DoGetJobStderr(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TGetJobStderrOptions& /*options*/)
     {
@@ -4788,7 +4788,7 @@ private:
     }
 
     TSharedRef DoGetJobFailContextFromArchive(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId)
     {
         try {
@@ -4839,7 +4839,7 @@ private:
     }
 
     TSharedRef DoGetJobFailContextFromCypress(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId)
     {
         auto createFileReader = [&] (const NYPath::TYPath& path) {
@@ -4887,7 +4887,7 @@ private:
     }
 
     TSharedRef DoGetJobFailContext(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TGetJobFailContextOptions& /*options*/)
     {
@@ -5710,7 +5710,7 @@ private:
     }
 
     TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> DoListJobsFromArchive(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options)
     {
@@ -5992,7 +5992,7 @@ private:
     }
 
     TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromCypress(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options)
     {
@@ -6099,7 +6099,7 @@ private:
     }
 
     TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromControllerAgent(
-        const TOperationId& operationId,
+        TOperationId operationId,
         const std::optional<TString>& controllerAgentAddress,
         TInstant deadline,
         const TListJobsOptions& options)
@@ -6325,7 +6325,7 @@ private:
     }
 
     TListJobsResult DoListJobs(
-        const TOperationId& operationId,
+        TOperationId operationId,
         const TListJobsOptions& options)
     {
         auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListJobsTimeout);
@@ -6537,7 +6537,7 @@ private:
     }
 
     TYsonString DoGetJob(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId,
         const TGetJobOptions& options)
     {

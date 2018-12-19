@@ -184,7 +184,7 @@ class TOperationControllerWrapper
 {
 public:
     TOperationControllerWrapper(
-        const TOperationId& id,
+        TOperationId id,
         IOperationControllerPtr underlying,
         IInvokerPtr dtorInvoker,
         TMemoryTag memoryTag,

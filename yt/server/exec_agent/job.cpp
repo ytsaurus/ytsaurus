@@ -86,7 +86,7 @@ public:
 public:
     TJob(
         TJobId jobId,
-        const TOperationId& operationId,
+        TOperationId operationId,
         const TNodeResources& resourceUsage,
         TJobSpec&& jobSpec,
         NCellNode::TBootstrap* bootstrap)
@@ -238,7 +238,7 @@ public:
         return Id_;
     }
 
-    virtual const TOperationId& GetOperationId() const override
+    virtual TOperationId GetOperationId() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
@@ -1427,7 +1427,7 @@ private:
 
 NJobAgent::IJobPtr CreateUserJob(
     TJobId jobId,
-    const TOperationId& operationId,
+    TOperationId operationId,
     const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,
     NCellNode::TBootstrap* bootstrap)

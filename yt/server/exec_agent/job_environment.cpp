@@ -91,7 +91,7 @@ public:
         int slotIndex,
         const TString& workingDirectory,
         TJobId jobId,
-        const TOperationId& operationId) override
+        TOperationId operationId) override
     {
         ValidateEnabled();
 

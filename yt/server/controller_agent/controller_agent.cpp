@@ -335,7 +335,7 @@ public:
         return EventLogWriter_;
     }
 
-    TOperationPtr FindOperation(const TOperationId& operationId) const
+    TOperationPtr FindOperation(TOperationId operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -344,7 +344,7 @@ public:
         return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
-    TOperationPtr GetOperation(const TOperationId& operationId) const
+    TOperationPtr GetOperation(TOperationId operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -355,7 +355,7 @@ public:
         return operation;
     }
 
-    TOperationPtr GetOperationOrThrow(const TOperationId& operationId) const
+    TOperationPtr GetOperationOrThrow(TOperationId operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -370,7 +370,7 @@ public:
         return operation;
     }
 
-    INodePtr FindOperationAcl(const TOperationId& operationId, EAccessType accessType) const
+    INodePtr FindOperationAcl(TOperationId operationId, EAccessType accessType) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -405,7 +405,7 @@ public:
         }
     }
 
-    INodePtr GetOperationAclFromCypress(const TOperationId& operationId, EAccessType accessType) const
+    INodePtr GetOperationAclFromCypress(TOperationId operationId, EAccessType accessType) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -459,7 +459,7 @@ public:
         YT_LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    void DoDisposeAndUnregisterOperation(const TOperationId& operationId)
+    void DoDisposeAndUnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -478,14 +478,14 @@ public:
         UnregisterOperation(operationId);
     }
 
-    TFuture<void> DisposeAndUnregisterOperation(const TOperationId& operationId)
+    TFuture<void> DisposeAndUnregisterOperation(TOperationId operationId)
     {
         return BIND(&TImpl::DoDisposeAndUnregisterOperation, MakeStrong(this), operationId)
             .AsyncVia(CancelableControlInvoker_)
             .Run();
     }
 
-    void UnregisterOperation(const TOperationId& operationId)
+    void UnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -503,7 +503,7 @@ public:
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
-    TFuture<void> UpdateOperationRuntimeParameters(const TOperationId& operationId, TOperationRuntimeParametersPtr runtimeParameters)
+    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersPtr runtimeParameters)
     {
         auto operation = GetOperationOrThrow(operationId);
         if (runtimeParameters->Owners) {
@@ -663,7 +663,7 @@ public:
         return CombineAll(asyncJobSpecs);
     }
 
-    TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId)
+    TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -676,7 +676,7 @@ public:
     }
 
     TFuture<TYsonString> BuildJobInfo(
-        const TOperationId& operationId,
+        TOperationId operationId,
         TJobId jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -718,7 +718,7 @@ public:
 
     void ValidateOperationAccess(
         const TString& user,
-        const TOperationId& operationId,
+        TOperationId operationId,
         EAccessType accessType)
     {
 
@@ -1294,7 +1294,7 @@ private:
     {
         auto outbox = ScheduleJobResposesOutbox_;
 
-        auto replyWithFailure = [=] (const TOperationId& operationId, TJobId jobId, EScheduleJobFailReason reason) {
+        auto replyWithFailure = [=] (TOperationId operationId, TJobId jobId, EScheduleJobFailReason reason) {
             TAgentToSchedulerScheduleJobResponse response;
             response.JobId = jobId;
             response.OperationId = operationId;
@@ -1570,17 +1570,17 @@ TMemoryTagQueue* TControllerAgent::GetMemoryTagQueue()
     return Impl_->GetMemoryTagQueue();
 }
 
-TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)
+TOperationPtr TControllerAgent::FindOperation(TOperationId operationId)
 {
     return Impl_->FindOperation(operationId);
 }
 
-TOperationPtr TControllerAgent::GetOperation(const TOperationId& operationId)
+TOperationPtr TControllerAgent::GetOperation(TOperationId operationId)
 {
     return Impl_->GetOperation(operationId);
 }
 
-TOperationPtr TControllerAgent::GetOperationOrThrow(const TOperationId& operationId)
+TOperationPtr TControllerAgent::GetOperationOrThrow(TOperationId operationId)
 {
     return Impl_->GetOperationOrThrow(operationId);
 }
@@ -1595,12 +1595,12 @@ void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& des
     Impl_->RegisterOperation(descriptor);
 }
 
-TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(const TOperationId& operationId)
+TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(TOperationId operationId)
 {
     return Impl_->DisposeAndUnregisterOperation(operationId);
 }
 
-TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(const TOperationId& operationId, TOperationRuntimeParametersPtr runtimeParameters)
+TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersPtr runtimeParameters)
 {
     return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(runtimeParameters));
 }
@@ -1650,13 +1650,13 @@ TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(
     return Impl_->ExtractJobSpecs(requests);
 }
 
-TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(const TOperationId& operationId)
+TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(TOperationId operationId)
 {
     return Impl_->BuildOperationInfo(operationId);
 }
 
 TFuture<TYsonString> TControllerAgent::BuildJobInfo(
-    const TOperationId& operationId,
+    TOperationId operationId,
     TJobId jobId)
 {
     return Impl_->BuildJobInfo(operationId, jobId);
@@ -1679,7 +1679,7 @@ const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() cons
 
 void TControllerAgent::ValidateOperationAccess(
     const TString& user,
-    const TOperationId& operationId,
+    TOperationId operationId,
     EAccessType accessType)
 {
     return Impl_->ValidateOperationAccess(user, operationId, accessType);

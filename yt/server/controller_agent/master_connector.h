@@ -30,25 +30,25 @@ public:
 
     void Initialize();
 
-    void RegisterOperation(const TOperationId& operationId);
-    void UnregisterOperation(const TOperationId& operationId);
+    void RegisterOperation(TOperationId operationId);
+    void UnregisterOperation(TOperationId operationId);
 
     void CreateJobNode(
-        const TOperationId& operationId,
+        TOperationId operationId,
         const TCreateJobNodeRequest& request);
 
-    TFuture<void> FlushOperationNode(const TOperationId& operationId);
+    TFuture<void> FlushOperationNode(TOperationId operationId);
 
-    TFuture<void> UpdateInitializedOperationNode(const TOperationId& operationId);
+    TFuture<void> UpdateInitializedOperationNode(TOperationId operationId);
 
     TFuture<void> AttachToLivePreview(
-        const TOperationId& operationId,
+        TOperationId operationId,
         NObjectClient::TTransactionId transactionId,
         NCypressClient::TNodeId tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds);
 
-    TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId);
-    TFuture<void> RemoveSnapshot(const TOperationId& operationId);
+    TFuture<TOperationSnapshot> DownloadSnapshot(TOperationId operationId);
+    TFuture<void> RemoveSnapshot(TOperationId operationId);
 
     void AddChunkTreesToUnstageList(
         std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,

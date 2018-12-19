@@ -27,8 +27,8 @@ EAbortReason GetAbortReason(const TError& resultError);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeOperationCodicilString(const TOperationId& operationId);
-TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId);
+TString MakeOperationCodicilString(TOperationId operationId);
+TCodicilGuard MakeOperationCodicilGuard(TOperationId operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +53,7 @@ TListOperationsResult ListOperations(
 
 void ValidateOperationAccess(
     const TString& user,
-    const TOperationId& operationId,
+    TOperationId operationId,
     EAccessType accessType,
     const NYTree::INodePtr& acl,
     const NApi::NNative::IClientPtr& client,
