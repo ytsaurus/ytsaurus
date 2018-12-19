@@ -72,7 +72,7 @@ TUserStatistics operator + (const TUserStatistics& lhs, const TUserStatistics& r
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUser::TUser(const TUserId& id)
+TUser::TUser(TUserId id)
     : TSubject(id)
     , Banned_(false)
     , RequestQueueSizeLimit_(100)

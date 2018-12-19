@@ -140,7 +140,7 @@ public:
     TUser* GetUserByNameOrThrow(const TString& name);
 
     //! Finds user by id, throws if nothing is found.
-    TUser* GetUserOrThrow(const TUserId& id);
+    TUser* GetUserOrThrow(TUserId id);
 
     //! Returns "root" built-in user.
     TUser* GetRootUser();
