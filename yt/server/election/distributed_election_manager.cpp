@@ -91,16 +91,16 @@ private:
     bool IsVotingPeer();
 
     void StartVotingRound();
-    void ContinueVoting(TPeerId voteId, const TEpochId& voteEpochId);
+    void ContinueVoting(TPeerId voteId, TEpochId voteEpochId);
     void StartVoting();
 
     void StartLeading();
-    void StartFollowing(TPeerId leaderId, const TEpochId& epoch);
+    void StartFollowing(TPeerId leaderId, TEpochId epoch);
 
     void StopLeading();
     void StopFollowing();
 
-    void InitEpochContext(TPeerId leaderId, const TEpochId& epoch);
+    void InitEpochContext(TPeerId leaderId, TEpochId epoch);
     void SetState(EPeerState newState);
 
     void OnPeerReconfigured(TPeerId peerId);
@@ -319,7 +319,7 @@ private:
             EPeerState state = EPeerState::Stopped,
             TPeerId vote = InvalidPeerId,
             TPeerPriority priority = -1,
-            const TEpochId& voteEpochId = TEpochId())
+            TEpochId voteEpochId = TEpochId())
             : State(state)
             , VoteId(vote)
             , Priority(priority)
@@ -421,7 +421,7 @@ private:
         return true;
     }
 
-    int CountVotesFor(TPeerId candidateId, const TEpochId& epochId) const
+    int CountVotesFor(TPeerId candidateId, TEpochId epochId) const
     {
         int result = 0;
         for (const auto& pair : StatusTable) {
@@ -677,7 +677,7 @@ bool TDistributedElectionManager::IsVotingPeer()
     return config.Voting;
 }
 
-void TDistributedElectionManager::ContinueVoting(TPeerId voteId, const TEpochId& voteEpoch)
+void TDistributedElectionManager::ContinueVoting(TPeerId voteId, TEpochId voteEpoch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -764,7 +764,7 @@ void TDistributedElectionManager::StartLeading()
 
 void TDistributedElectionManager::StartFollowing(
     TPeerId leaderId,
-    const TEpochId& epochId)
+    TEpochId epochId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -816,7 +816,7 @@ void TDistributedElectionManager::StopFollowing()
     Reset();
 }
 
-void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, const TEpochId& epochId)
+void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, TEpochId epochId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

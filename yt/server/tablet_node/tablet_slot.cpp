@@ -147,7 +147,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    void SetEpochId(const TEpochId& epochId)
+    void SetEpochId(TEpochId epochId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

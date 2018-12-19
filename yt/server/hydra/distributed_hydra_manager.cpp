@@ -922,7 +922,7 @@ private:
         Profiler.Increment(it->second);
     }
 
-    void Restart(const TEpochId& epochId, const TError& error)
+    void Restart(TEpochId epochId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -942,7 +942,7 @@ private:
         Restart(epochContext->EpochId, error);
     }
 
-    void DoRestart(const TEpochId& epochId, const TError& error)
+    void DoRestart(TEpochId epochId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1067,7 +1067,7 @@ private:
         Restart(AutomatonEpochContext_, wrappedError);
     }
 
-    void OnLeaderLeaseLost(const TEpochId& epochId, const TError& error)
+    void OnLeaderLeaseLost(TEpochId epochId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1106,7 +1106,7 @@ private:
             AutomatonEpochContext_->EpochId));
     }
 
-    void OnChangelogRotated(const TEpochId& epochId, const TError& error)
+    void OnChangelogRotated(TEpochId epochId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1469,7 +1469,7 @@ private:
         ReachableVersion_.reset();
     }
 
-    TEpochContextPtr GetControlEpochContext(const TEpochId& epochId)
+    TEpochContextPtr GetControlEpochContext(TEpochId epochId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
