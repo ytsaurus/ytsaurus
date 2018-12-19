@@ -2468,7 +2468,7 @@ private:
 
     bool EnsureBuiltinMediumInitialized(
         TMedium*& medium,
-        const TMediumId& id,
+        TMediumId id,
         int mediumIndex,
         const TString& name,
         bool cache)
@@ -3016,7 +3016,7 @@ private:
     }
 
     TMedium* DoCreateMedium(
-        const TMediumId& id,
+        TMediumId id,
         int mediumIndex,
         const TString& name,
         std::optional<bool> transient,

@@ -7,7 +7,7 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMedium::TMedium(const TMediumId& id)
+TMedium::TMedium(TMediumId id)
     : TObjectBase(id)
     , Index_(-1)
     , Config_(New<TMediumConfig>())

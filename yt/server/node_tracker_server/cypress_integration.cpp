@@ -236,7 +236,7 @@ private:
             case EInternedAttributeKey::AvailableSpacePerMedium:
                 BuildYsonFluently(consumer)
                     .DoMapFor(chunkManager->Media(),
-                        [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                        [&] (TFluentMap fluent, const std::pair<TMediumId, TMedium*>& pair) {
                             const auto* medium = pair.second;
                             if (medium->GetCache()) {
                                 return;
@@ -249,7 +249,7 @@ private:
             case EInternedAttributeKey::UsedSpacePerMedium:
                 BuildYsonFluently(consumer)
                     .DoMapFor(chunkManager->Media(),
-                        [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                        [&] (TFluentMap fluent, const std::pair<TMediumId, TMedium*>& pair) {
                             const auto* medium = pair.second;
                             fluent
                                 .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Used);
