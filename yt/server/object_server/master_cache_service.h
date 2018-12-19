@@ -11,7 +11,7 @@ namespace NYT::NObjectServer {
 NRpc::IServicePtr CreateMasterCacheService(
     TMasterCacheServiceConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    const NRpc::TRealmId& masterCellId);
+    NRpc::TRealmId masterCellId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

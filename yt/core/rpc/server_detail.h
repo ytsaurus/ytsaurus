@@ -31,7 +31,7 @@ public:
 
     virtual const TString& GetService() const override;
     virtual const TString& GetMethod() const override;
-    virtual const TRealmId& GetRealmId() const override;
+    virtual TRealmId GetRealmId() const override;
     virtual const TString& GetUser() const override;
 
     virtual bool IsReplied() const override;
@@ -141,7 +141,7 @@ public:
 
     virtual const TString& GetService() const override;
     virtual const TString& GetMethod() const override;
-    virtual const TRealmId& GetRealmId() const override;
+    virtual TRealmId GetRealmId() const override;
     virtual const TString& GetUser() const override;
 
     virtual bool IsReplied() const override;

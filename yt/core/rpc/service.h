@@ -71,7 +71,7 @@ struct IServiceContext
     virtual const TString& GetMethod() const = 0;
 
     //! Returns request realm id.
-    virtual const TRealmId& GetRealmId() const = 0;
+    virtual TRealmId GetRealmId() const = 0;
 
     //! Returns the name of the user issuing the request.
     virtual const TString& GetUser() const = 0;
@@ -189,7 +189,7 @@ DEFINE_REFCOUNTED_TYPE(IServiceContext)
 struct TServiceId
 {
     TServiceId();
-    TServiceId(const TString& serviceName, const TRealmId& realmId = NullRealmId);
+    TServiceId(const TString& serviceName, TRealmId realmId = NullRealmId);
 
     TString ServiceName;
     TRealmId RealmId;

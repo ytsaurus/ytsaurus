@@ -16,7 +16,7 @@ protected:
         IInvokerPtr invoker,
         const NRpc::TServiceDescriptor& descriptor,
         const NLogging::TLogger& logger,
-        const NRpc::TRealmId& realmId);
+        NRpc::TRealmId realmId);
 
     void ValidatePeer(EPeerKind kind);
     void SyncWithUpstream();

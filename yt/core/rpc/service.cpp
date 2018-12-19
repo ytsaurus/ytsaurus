@@ -42,7 +42,7 @@ void IServiceContext::ReplyFrom(TFuture<void> asyncError)
 
 TServiceId::TServiceId() = default;
 
-TServiceId::TServiceId(const TString& serviceName, const TRealmId& realmId)
+TServiceId::TServiceId(const TString& serviceName, TRealmId realmId)
     : ServiceName(serviceName)
     , RealmId(realmId)
 { }

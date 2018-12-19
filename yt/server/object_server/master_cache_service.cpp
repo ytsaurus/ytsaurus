@@ -41,7 +41,7 @@ public:
     TMasterCacheService(
         TMasterCacheServiceConfigPtr config,
         IChannelPtr masterChannel,
-        const TRealmId& masterCellId)
+        TRealmId masterCellId)
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             TObjectServiceProxy::GetDescriptor(),
@@ -552,7 +552,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 IServicePtr CreateMasterCacheService(
     TMasterCacheServiceConfigPtr config,
     IChannelPtr masterChannel,
-    const TRealmId& masterCellId)
+    TRealmId masterCellId)
 {
     return New<TMasterCacheService>(
         std::move(config),

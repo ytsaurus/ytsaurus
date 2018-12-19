@@ -261,7 +261,7 @@ const TString& TServiceContextBase::GetMethod() const
     return RequestHeader_->method();
 }
 
-const TRealmId& TServiceContextBase::GetRealmId() const
+TRealmId TServiceContextBase::GetRealmId() const
 {
     return RealmId_;
 }
@@ -372,7 +372,7 @@ const TString& TServiceContextWrapper::GetMethod() const
     return UnderlyingContext_->GetMethod();
 }
 
-const TRealmId& TServiceContextWrapper::GetRealmId() const
+TRealmId TServiceContextWrapper::GetRealmId() const
 {
     return UnderlyingContext_->GetRealmId();
 }

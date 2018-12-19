@@ -18,7 +18,7 @@ THydraServiceBase::THydraServiceBase(
     IInvokerPtr invoker,
     const TServiceDescriptor& descriptor,
     const NLogging::TLogger& logger,
-    const TRealmId& realmId)
+    TRealmId realmId)
     : TServiceBase(
         invoker,
         descriptor,
