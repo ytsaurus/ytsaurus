@@ -1192,7 +1192,7 @@ public:
         return medium;
     }
 
-    TChunkTree* FindChunkTree(const TChunkTreeId& id)
+    TChunkTree* FindChunkTree(TChunkTreeId id)
     {
         auto type = TypeFromId(id);
         switch (type) {
@@ -1207,14 +1207,14 @@ public:
         }
     }
 
-    TChunkTree* GetChunkTree(const TChunkTreeId& id)
+    TChunkTree* GetChunkTree(TChunkTreeId id)
     {
         auto* chunkTree = FindChunkTree(id);
         YCHECK(chunkTree);
         return chunkTree;
     }
 
-    TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id)
+    TChunkTree* GetChunkTreeOrThrow(TChunkTreeId id)
     {
         auto* chunkTree = FindChunkTree(id);
         if (!IsObjectAlive(chunkTree)) {
@@ -3263,17 +3263,17 @@ TChunkList* TChunkManager::GetChunkListOrThrow(TChunkListId id)
     return Impl_->GetChunkListOrThrow(id);
 }
 
-TChunkTree* TChunkManager::FindChunkTree(const TChunkTreeId& id)
+TChunkTree* TChunkManager::FindChunkTree(TChunkTreeId id)
 {
     return Impl_->FindChunkTree(id);
 }
 
-TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
+TChunkTree* TChunkManager::GetChunkTree(TChunkTreeId id)
 {
     return Impl_->GetChunkTree(id);
 }
 
-TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
+TChunkTree* TChunkManager::GetChunkTreeOrThrow(TChunkTreeId id)
 {
     return Impl_->GetChunkTreeOrThrow(id);
 }
