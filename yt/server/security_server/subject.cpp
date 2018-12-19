@@ -11,7 +11,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSubject::TSubject(const TSubjectId& id)
+TSubject::TSubject(TSubjectId id)
     : TNonversionedObjectBase(id)
     , Acd_(this)
 { }
