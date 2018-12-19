@@ -34,7 +34,7 @@ public:
     { }
 
     virtual ITransactionParticipantPtr TryCreate(
-        const TCellId& cellId,
+        TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {
         if (std::find(CellTags_.begin(), CellTags_.end(), CellTagFromId(cellId)) == CellTags_.end()) {
@@ -90,7 +90,7 @@ public:
     { }
 
     virtual ITransactionParticipantPtr TryCreate(
-        const TCellId& cellId,
+        TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {
         auto connection = ClusterDirectory_->FindConnection(CellTagFromId(cellId));

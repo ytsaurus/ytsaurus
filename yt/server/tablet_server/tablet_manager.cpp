@@ -5740,7 +5740,7 @@ private:
         return cypressManager->ResolvePathToNodeProxy("//sys/tablet_cells")->AsMap();
     }
 
-    INodePtr FindCellNode(const TCellId& cellId)
+    INodePtr FindCellNode(TCellId cellId)
     {
         auto cellMapNodeProxy = GetCellMapNode();
         return cellMapNodeProxy->FindChild(ToString(cellId));

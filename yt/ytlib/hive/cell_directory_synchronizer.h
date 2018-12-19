@@ -17,7 +17,7 @@ public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        const TCellId& primaryCellId,
+        TCellId primaryCellId,
         const NLogging::TLogger& logger);
     ~TCellDirectorySynchronizer();
 

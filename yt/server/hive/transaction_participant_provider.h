@@ -18,7 +18,7 @@ struct ITransactionParticipantProvider
     : public virtual TRefCounted
 {
     virtual NHiveClient::ITransactionParticipantPtr TryCreate(
-        const TCellId& cellId,
+        TCellId cellId,
         const NApi::TTransactionParticipantOptions& options) = 0;
 };
 

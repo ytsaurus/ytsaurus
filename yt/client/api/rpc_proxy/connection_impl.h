@@ -40,7 +40,7 @@ public:
     virtual NApi::IAdminPtr CreateAdmin(const NApi::TAdminOptions& options) override;
     virtual NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override;
     virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
-        const NHiveClient::TCellId& cellId,
+        NHiveClient::TCellId cellId,
         const NApi::TTransactionParticipantOptions& options) override;
 
     virtual void ClearMetadataCaches() override;

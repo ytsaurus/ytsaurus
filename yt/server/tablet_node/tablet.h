@@ -175,7 +175,7 @@ struct TTabletSnapshot
 
     TTableReplicaSnapshotPtr FindReplicaSnapshot(const TTableReplicaId& replicaId);
 
-    void ValidateCellId(const NElection::TCellId& cellId);
+    void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(i64 mountRevision);
     bool IsProfilingEnabled() const;
 };
@@ -449,7 +449,7 @@ public:
     i64 Unlock();
     i64 GetTabletLockCount() const;
 
-    void FillProfilerTags(const TCellId& cellId);
+    void FillProfilerTags(TCellId cellId);
     void UpdateReplicaCounters();
     bool IsProfilingEnabled() const;
 

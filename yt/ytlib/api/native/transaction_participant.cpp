@@ -26,7 +26,7 @@ public:
         TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
         ITimestampProviderPtr timestampProvider,
         IConnectionPtr connection,
-        const TCellId& cellId,
+        TCellId cellId,
         const TTransactionParticipantOptions& options)
         : CellDirectory_(std::move(cellDirectory))
         , CellDirectorySynchronizer_(std::move(cellDirectorySynchronizer))
@@ -36,7 +36,7 @@ public:
         , Options_(options)
     { }
 
-    virtual const TCellId& GetCellId() const override
+    virtual TCellId GetCellId() const override
     {
         return CellId_;
     }
@@ -153,7 +153,7 @@ ITransactionParticipantPtr CreateTransactionParticipant(
     TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
     ITimestampProviderPtr timestampProvider,
     IConnectionPtr connection,
-    const TCellId& cellId,
+    TCellId cellId,
     const TTransactionParticipantOptions& options)
 {
     return New<TTransactionParticipant>(

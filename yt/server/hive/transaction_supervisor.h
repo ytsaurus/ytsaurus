@@ -27,7 +27,7 @@ public:
         NRpc::TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
         NSecurityServer::ISecurityManagerPtr securityManager,
-        const TCellId& selfCellId,
+        TCellId selfCellId,
         NTransactionClient::ITimestampProviderPtr timestampProvider,
         const std::vector<ITransactionParticipantProviderPtr>& participantProviders);
 

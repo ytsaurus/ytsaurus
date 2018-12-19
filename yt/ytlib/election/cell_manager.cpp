@@ -69,7 +69,7 @@ void TCellManager::BuildTags()
     CellIdTag_ = profilingManager->RegisterTag("cell_id", Config_->CellId);
 }
 
-const TCellId& TCellManager::GetCellId() const
+TCellId TCellManager::GetCellId() const
 {
     return Config_->CellId;
 }

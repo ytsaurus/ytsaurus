@@ -19,7 +19,7 @@ class TLocalSnapshotService
 {
 public:
     TLocalSnapshotService(
-        const NElection::TCellId& cellId,
+        TCellId cellId,
         TFileSnapshotStorePtr fileStore)
         : TServiceBase(
             GetHydraIOInvoker(),
@@ -108,7 +108,7 @@ private:
 };
 
 IServicePtr CreateLocalSnapshotService(
-    const NElection::TCellId& cellId,
+    TCellId cellId,
     TFileSnapshotStorePtr fileStore)
 {
     return New<TLocalSnapshotService>(

@@ -27,7 +27,7 @@ public:
     TImpl(
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        const TCellId& primaryCellId,
+        TCellId primaryCellId,
         const NLogging::TLogger& logger)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
@@ -149,7 +149,7 @@ private:
 TCellDirectorySynchronizer::TCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     TCellDirectoryPtr cellDirectory,
-    const TCellId& primaryCellId,
+    TCellId primaryCellId,
     const NLogging::TLogger& logger)
     : Impl_(New<TImpl>(
         std::move(config),

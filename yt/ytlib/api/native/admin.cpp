@@ -187,7 +187,7 @@ private:
         return rsp->path();
     }
 
-    IChannelPtr GetCellChannelOrThrow(const TCellId& cellId)
+    IChannelPtr GetCellChannelOrThrow(TCellId cellId)
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->FindChannel(cellId);

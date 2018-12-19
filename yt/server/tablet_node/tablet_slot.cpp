@@ -300,7 +300,7 @@ public:
         return SlotIndex_;
     }
 
-    const TCellId& GetCellId() const
+    TCellId GetCellId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -982,7 +982,7 @@ int TTabletSlot::GetIndex() const
     return Impl_->GetIndex();
 }
 
-const TCellId& TTabletSlot::GetCellId() const
+TCellId TTabletSlot::GetCellId() const
 {
     return Impl_->GetCellId();
 }

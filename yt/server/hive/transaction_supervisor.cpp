@@ -72,7 +72,7 @@ public:
         TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
         ISecurityManagerPtr securityManager,
-        const TCellId& selfCellId,
+        TCellId selfCellId,
         ITimestampProviderPtr timestampProvider,
         const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
         : TCompositeAutomatonPart(
@@ -187,7 +187,7 @@ private:
     {
     public:
         TWrappedParticipant(
-            const TCellId& cellId,
+            TCellId cellId,
             TTransactionSupervisorConfigPtr config,
             ITimestampProviderPtr coordinatorTimestampProvider,
             const std::vector<ITransactionParticipantProviderPtr>& providers,
@@ -206,7 +206,7 @@ private:
             ProbationExecutor_->Start();
         }
 
-        const TCellId& GetCellId() const
+        TCellId GetCellId() const
         {
             return CellId_;
         }
@@ -1419,7 +1419,7 @@ private:
         TFuture<TTimestamp> asyncCoordinatorTimestamp;
         std::vector<TFuture<std::pair<TCellTag, TTimestamp>>> asyncTimestamps;
         THashSet<TCellTag> timestampProviderCellTags;
-        auto generateFor = [&] (const TCellId& cellId) {
+        auto generateFor = [&] (TCellId cellId) {
             try {
                 auto cellTag = CellTagFromId(cellId);
                 if (!timestampProviderCellTags.insert(cellTag).second) {
@@ -1510,7 +1510,7 @@ private:
     }
 
 
-    TWrappedParticipantPtr GetParticipant(const TCellId& cellId)
+    TWrappedParticipantPtr GetParticipant(TCellId cellId)
     {
         auto it = WeakParticipantMap_.find(cellId);
         if (it != WeakParticipantMap_.end()) {
@@ -1629,7 +1629,7 @@ private:
         CheckAllParticipantsResponded(commit);
     }
 
-    void SendParticipantRequest(TCommit* commit, const TCellId& cellId)
+    void SendParticipantRequest(TCommit* commit, TCellId cellId)
     {
         auto participant = GetParticipant(cellId);
 
@@ -1891,7 +1891,7 @@ TTransactionSupervisor::TTransactionSupervisor(
     TResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
     ISecurityManagerPtr securityManager,
-    const TCellId& selfCellId,
+    TCellId selfCellId,
     ITimestampProviderPtr timestampProvider,
     const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
     : Impl_(New<TImpl>(

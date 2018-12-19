@@ -49,7 +49,7 @@ class TBatchingChunkService
 {
 public:
     TBatchingChunkService(
-        const TCellId& cellId,
+        TCellId cellId,
         TBatchingChunkServiceConfigPtr serviceConfig,
         TMasterConnectionConfigPtr connectionConfig,
         IChannelFactoryPtr channelFactory)
@@ -463,7 +463,7 @@ private:
 };
 
 IServicePtr CreateBatchingChunkService(
-    const TCellId& cellId,
+    TCellId cellId,
     TBatchingChunkServiceConfigPtr serviceConfig,
     TMasterConnectionConfigPtr connectionConfig,
     IChannelFactoryPtr channelFactory)

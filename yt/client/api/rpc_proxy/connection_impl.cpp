@@ -160,7 +160,7 @@ NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
 }
 
 NHiveClient::ITransactionParticipantPtr TConnection::CreateTransactionParticipant(
-    const NHiveClient::TCellId&,
+    NHiveClient::TCellId,
     const TTransactionParticipantOptions&)
 {
     Y_UNIMPLEMENTED();

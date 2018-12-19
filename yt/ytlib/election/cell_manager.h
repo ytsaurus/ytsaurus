@@ -26,7 +26,7 @@ public:
         NRpc::IChannelFactoryPtr channelFactory,
         TPeerId selfId);
 
-    const TCellId& GetCellId() const;
+    TCellId GetCellId() const;
     TPeerId GetSelfPeerId() const;
     const TCellPeerConfig& GetSelfConfig() const;
 

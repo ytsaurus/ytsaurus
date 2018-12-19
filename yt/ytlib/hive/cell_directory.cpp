@@ -72,7 +72,7 @@ TCellPeerConfig TCellPeerDescriptor::ToConfig(const TNetworkPreferenceList& netw
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellDescriptor::TCellDescriptor(const TCellId& cellId)
+TCellDescriptor::TCellDescriptor(TCellId cellId)
     : CellId(cellId)
 { }
 
@@ -152,14 +152,14 @@ public:
         , Logger(logger)
     { }
 
-    IChannelPtr FindChannel(const TCellId& cellId, EPeerKind peerKind)
+    IChannelPtr FindChannel(TCellId cellId, EPeerKind peerKind)
     {
         TReaderGuard guard(SpinLock_);
         auto it = RegisteredCellMap_.find(cellId);
         return it == RegisteredCellMap_.end() ? nullptr : it->second.Channels[peerKind];
     }
 
-    IChannelPtr GetChannelOrThrow(const TCellId& cellId, EPeerKind peerKind)
+    IChannelPtr GetChannelOrThrow(TCellId cellId, EPeerKind peerKind)
     {
         auto channel = FindChannel(cellId, peerKind);
         if (!channel) {
@@ -169,7 +169,7 @@ public:
         return channel;
     }
 
-    IChannelPtr GetChannel(const TCellId& cellId, EPeerKind peerKind)
+    IChannelPtr GetChannel(TCellId cellId, EPeerKind peerKind)
     {
         auto channel = FindChannel(cellId, peerKind);
         YCHECK(channel);
@@ -190,20 +190,20 @@ public:
         return result;
     }
 
-    bool IsCellUnregistered(const TCellId& cellId)
+    bool IsCellUnregistered(TCellId cellId)
     {
         TReaderGuard guard(SpinLock_);
         return UnregisteredCellIds_.find(cellId) != UnregisteredCellIds_.end();
     }
 
-    std::optional<TCellDescriptor> FindDescriptor(const TCellId& cellId)
+    std::optional<TCellDescriptor> FindDescriptor(TCellId cellId)
     {
         TReaderGuard guard(SpinLock_);
         auto it = RegisteredCellMap_.find(cellId);
         return it == RegisteredCellMap_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
     }
 
-    TCellDescriptor GetDescriptorOrThrow(const TCellId& cellId)
+    TCellDescriptor GetDescriptorOrThrow(TCellId cellId)
     {
         auto result = FindDescriptor(cellId);
         if (!result) {
@@ -262,14 +262,14 @@ public:
         return false;
     }
 
-    void RegisterCell(const TCellId& cellId)
+    void RegisterCell(TCellId cellId)
     {
         TCellDescriptor descriptor;
         descriptor.CellId = cellId;
         ReconfigureCell(descriptor);
     }
 
-    bool UnregisterCell(const TCellId& cellId)
+    bool UnregisterCell(TCellId cellId)
     {
         TWriterGuard guard(SpinLock_);
         UnregisteredCellIds_.insert(cellId);
@@ -344,27 +344,27 @@ TCellDirectory::TCellDirectory(
 TCellDirectory::~TCellDirectory()
 { }
 
-IChannelPtr TCellDirectory::FindChannel(const TCellId& cellId, EPeerKind peerKind)
+IChannelPtr TCellDirectory::FindChannel(TCellId cellId, EPeerKind peerKind)
 {
     return Impl_->FindChannel(cellId, peerKind);
 }
 
-IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellId& cellId, EPeerKind peerKind)
+IChannelPtr TCellDirectory::GetChannelOrThrow(TCellId cellId, EPeerKind peerKind)
 {
     return Impl_->GetChannelOrThrow(cellId, peerKind);
 }
 
-IChannelPtr TCellDirectory::GetChannel(const TCellId& cellId, EPeerKind peerKind)
+IChannelPtr TCellDirectory::GetChannel(TCellId cellId, EPeerKind peerKind)
 {
     return Impl_->GetChannel(cellId, peerKind);
 }
 
-std::optional<TCellDescriptor> TCellDirectory::FindDescriptor(const TCellId& cellId)
+std::optional<TCellDescriptor> TCellDirectory::FindDescriptor(TCellId cellId)
 {
     return Impl_->FindDescriptor(cellId);
 }
 
-TCellDescriptor TCellDirectory::GetDescriptorOrThrow(const TCellId& cellId)
+TCellDescriptor TCellDirectory::GetDescriptorOrThrow(TCellId cellId)
 {
     return Impl_->GetDescriptorOrThrow(cellId);
 }
@@ -374,7 +374,7 @@ std::vector<TCellInfo> TCellDirectory::GetRegisteredCells()
     return Impl_->GetRegisteredCells();
 }
 
-bool TCellDirectory::IsCellUnregistered(const TCellId& cellId)
+bool TCellDirectory::IsCellUnregistered(TCellId cellId)
 {
     return Impl_->IsCellUnregistered(cellId);
 }
@@ -394,12 +394,12 @@ bool TCellDirectory::ReconfigureCell(const TCellDescriptor& descriptor)
     return Impl_->ReconfigureCell(descriptor);
 }
 
-void TCellDirectory::RegisterCell(const TCellId& cellId)
+void TCellDirectory::RegisterCell(TCellId cellId)
 {
     Impl_->RegisterCell(cellId);
 }
 
-bool TCellDirectory::UnregisterCell(const TCellId& cellId)
+bool TCellDirectory::UnregisterCell(TCellId cellId)
 {
     return Impl_->UnregisterCell(cellId);
 }

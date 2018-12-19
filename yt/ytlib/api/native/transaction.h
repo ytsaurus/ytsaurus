@@ -24,7 +24,7 @@ struct ITransaction
     , public NApi::ITransaction
 {
     virtual void AddAction(
-        const NElection::TCellId& cellId,
+        NElection::TCellId cellId,
         const NTransactionClient::TTransactionActionData& data) = 0;
 
     virtual TFuture<NApi::ITransactionPtr> StartForeignTransaction(

@@ -35,7 +35,7 @@ struct TEncapsulatedMessageSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMailbox::TMailbox(const TCellId& cellId)
+TMailbox::TMailbox(TCellId cellId)
     : CellId_(cellId)
 { }
 

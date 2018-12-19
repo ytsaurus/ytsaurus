@@ -17,7 +17,7 @@ DEFINE_ENUM(ETransactionParticipantState,
 struct ITransactionParticipant
     : public virtual TRefCounted
 {
-    virtual const TCellId& GetCellId() const = 0;
+    virtual TCellId GetCellId() const = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;
 
     virtual ETransactionParticipantState GetState() const = 0;

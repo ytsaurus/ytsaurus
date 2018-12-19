@@ -102,7 +102,7 @@ public:
 
     const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const;
 
-    const NObjectClient::TCellId& GetCellId() const;
+    NObjectClient::TCellId GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
     std::optional<TString> GetDefaultNetworkName();
