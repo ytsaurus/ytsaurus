@@ -1297,7 +1297,7 @@ private:
         }
     }
 
-    void ValidateNoSession(const TSessionId& sessionId)
+    void ValidateNoSession(TSessionId sessionId)
     {
         if (Bootstrap_->GetSessionManager()->FindSession(sessionId)) {
             THROW_ERROR_EXCEPTION(
@@ -1307,7 +1307,7 @@ private:
         }
     }
 
-    void ValidateNoChunk(const TSessionId& sessionId)
+    void ValidateNoChunk(TSessionId sessionId)
     {
         if (Bootstrap_->GetChunkStore()->FindChunk(sessionId.ChunkId, sessionId.MediumIndex)) {
             THROW_ERROR_EXCEPTION(

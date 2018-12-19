@@ -15,7 +15,7 @@ inline void FromProto(TSessionId* sessionId, const NProto::TSessionId& protoSess
     sessionId->MediumIndex = protoSessionId.medium_index();
 }
 
-inline void ToProto(NProto::TSessionId* protoSessionId, const TSessionId& sessionId)
+inline void ToProto(NProto::TSessionId* protoSessionId, TSessionId sessionId)
 {
     ToProto(protoSessionId->mutable_chunk_id(), sessionId.ChunkId);
     protoSessionId->set_medium_index(sessionId.MediumIndex);
@@ -30,12 +30,12 @@ Y_FORCE_INLINE TSessionId::TSessionId(TChunkId chunkId, int mediumIndex)
     , MediumIndex(mediumIndex)
 { }
 
-Y_FORCE_INLINE bool operator==(const TSessionId& lhs, const TSessionId& rhs)
+Y_FORCE_INLINE bool operator==(TSessionId lhs, TSessionId rhs)
 {
     return lhs.ChunkId == rhs.ChunkId && lhs.MediumIndex == rhs.MediumIndex;
 }
 
-Y_FORCE_INLINE bool operator!=(const TSessionId& lhs, const TSessionId& rhs)
+Y_FORCE_INLINE bool operator!=(TSessionId lhs, TSessionId rhs)
 {
     return !(lhs == rhs);
 }

@@ -24,13 +24,13 @@ public:
     TSessionBase(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap,
-        const TSessionId& sessionId,
+        TSessionId sessionId,
         const TSessionOptions& options,
         TStoreLocationPtr location,
         NConcurrency::TLease lease);
 
     virtual TChunkId GetChunkId() const& override;
-    virtual const TSessionId& GetId() const& override;
+    virtual TSessionId GetId() const& override;
     virtual ESessionType GetType() const override;
     virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const override;
     TStoreLocationPtr GetStoreLocation() const override;

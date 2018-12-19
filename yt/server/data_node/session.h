@@ -40,7 +40,7 @@ struct ISession
     virtual TChunkId GetChunkId() const& = 0;
 
     //! Returns the session ID.
-    virtual const TSessionId& GetId() const& = 0;
+    virtual TSessionId GetId() const& = 0;
 
     //! Returns the session type.
     virtual ESessionType GetType() const = 0;

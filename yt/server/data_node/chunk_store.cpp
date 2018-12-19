@@ -467,7 +467,7 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 }
 
 TStoreLocationPtr TChunkStore::GetNewChunkLocation(
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     const TSessionOptions& options)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
