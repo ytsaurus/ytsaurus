@@ -362,7 +362,7 @@ void GenerateMutationId(const IClientRequestPtr& request)
     SetMutationId(request, GenerateMutationId(), false);
 }
 
-void SetMutationId(TRequestHeader* header, const TMutationId& id, bool retry)
+void SetMutationId(TRequestHeader* header, TMutationId id, bool retry)
 {
     if (id) {
         ToProto(header->mutable_mutation_id(), id);
@@ -372,12 +372,12 @@ void SetMutationId(TRequestHeader* header, const TMutationId& id, bool retry)
     }
 }
 
-void SetMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry)
+void SetMutationId(const IClientRequestPtr& request, TMutationId id, bool retry)
 {
     SetMutationId(&request->Header(), id, retry);
 }
 
-void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry)
+void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, bool retry)
 {
     SetMutationId(request, id ? id : TMutationId::Create(), retry);
 }

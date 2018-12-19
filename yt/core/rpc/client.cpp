@@ -164,7 +164,7 @@ TMutationId TClientRequest::GetMutationId() const
     return FromProto<TMutationId>(Header_.mutation_id());
 }
 
-void TClientRequest::SetMutationId(const TMutationId& id)
+void TClientRequest::SetMutationId(TMutationId id)
 {
     if (id) {
         ToProto(Header_.mutable_mutation_id(), id);

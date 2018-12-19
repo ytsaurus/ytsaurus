@@ -48,7 +48,7 @@ struct IClientRequest
     virtual void SetRetry(bool value) = 0;
 
     virtual TMutationId GetMutationId() const = 0;
-    virtual void SetMutationId(const TMutationId& id) = 0;
+    virtual void SetMutationId(TMutationId id) = 0;
 
     virtual EMultiplexingBand GetMultiplexingBand() const = 0;
     virtual void SetMultiplexingBand(EMultiplexingBand band) = 0;
@@ -114,7 +114,7 @@ public:
     virtual void SetRetry(bool value) override;
 
     virtual TMutationId GetMutationId() const override;
-    virtual void SetMutationId(const TMutationId& id) override;
+    virtual void SetMutationId(TMutationId id) override;
 
     virtual size_t GetHash() const override;
 

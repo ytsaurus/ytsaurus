@@ -53,7 +53,7 @@ public:
     explicit TCommit(TTransactionId transactionId);
     TCommit(
         TTransactionId transactionId,
-        const NRpc::TMutationId& mutationId,
+        NRpc::TMutationId mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
         bool generatePrepareTimestamp,

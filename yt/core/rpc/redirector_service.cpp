@@ -118,7 +118,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual void SetMutationId(const TMutationId& /*id*/) override
+    virtual void SetMutationId(TMutationId /*id*/) override
     {
         Y_UNREACHABLE();
     }
