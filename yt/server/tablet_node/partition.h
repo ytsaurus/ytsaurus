@@ -66,7 +66,7 @@ public:
 public:
     TPartition(
         TTablet* tablet,
-        const TPartitionId& id,
+        TPartitionId id,
         int index,
         TOwningKey pivotKey = TOwningKey(),
         TOwningKey nextPivotKey = TOwningKey());

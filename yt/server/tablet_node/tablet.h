@@ -386,8 +386,8 @@ public:
     const TPartitionList& PartitionList() const;
     TPartition* GetEden() const;
     void CreateInitialPartition();
-    TPartition* FindPartition(const TPartitionId& partitionId);
-    TPartition* GetPartition(const TPartitionId& partitionId);
+    TPartition* FindPartition(TPartitionId partitionId);
+    TPartition* GetPartition(TPartitionId partitionId);
     void MergePartitions(int firstIndex, int lastIndex);
     void SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys);
     //! Finds a partition fully containing the range |[minKey, maxKey]|.
