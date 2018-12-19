@@ -11,7 +11,7 @@ using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletAction::TTabletAction(const TTabletActionId& id)
+TTabletAction::TTabletAction(TTabletActionId id)
     : TNonversionedObjectBase(id)
 { }
 
