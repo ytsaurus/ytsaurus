@@ -33,7 +33,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TAccessControlDescriptor, Acd);
 
 public:
-    explicit TSubject(const TSubjectId& id);
+    explicit TSubject(TSubjectId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
