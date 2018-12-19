@@ -35,7 +35,7 @@ public:
         const TString& treeId);
 
     void AbortJob(
-        const TJobId& jobId,
+        TJobId jobId,
         EAbortReason abortReason);
 
     int GetPendingJobCount() const;

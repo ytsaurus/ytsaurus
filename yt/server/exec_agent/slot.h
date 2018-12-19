@@ -39,7 +39,7 @@ struct ISlot
 
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyConfigPtr config,
-        const TJobId& jobId,
+        TJobId jobId,
         const TOperationId& operationId) = 0;
 
     //! Returns tmpfs path if any.

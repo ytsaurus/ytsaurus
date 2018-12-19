@@ -79,7 +79,7 @@ bool TFairShareStrategyOperationController::IsBlocked(
     return false;
 }
 
-void TFairShareStrategyOperationController::AbortJob(const TJobId& jobId, EAbortReason abortReason)
+void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason)
 {
     Controller_->OnNonscheduledJobAborted(jobId, abortReason);
 }

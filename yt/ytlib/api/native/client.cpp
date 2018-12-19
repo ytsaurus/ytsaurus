@@ -177,7 +177,7 @@ DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 namespace {
 
-TUnversionedOwningRow CreateJobKey(const TJobId& jobId, const TNameTablePtr& nameTable)
+TUnversionedOwningRow CreateJobKey(TJobId jobId, const TNameTablePtr& nameTable)
 {
     TOwningRowBuilder keyBuilder(2);
 
@@ -817,26 +817,26 @@ public:
         const TGetOperationOptions& options),
         (operationIdOrAlias, options))
     IMPLEMENT_METHOD(void, DumpJobContext, (
-        const TJobId& jobId,
+        TJobId jobId,
         const TYPath& path,
         const TDumpJobContextOptions& options),
         (jobId, path, options))
     IMPLEMENT_METHOD(IAsyncZeroCopyInputStreamPtr, GetJobInput, (
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobInputOptions& options),
         (jobId, options))
     IMPLEMENT_METHOD(TYsonString, GetJobInputPaths, (
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobInputPathsOptions& options),
         (jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobStderrOptions& options),
         (operationId, jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobFailContext, (
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobFailContextOptions& options),
         (operationId, jobId, options))
     IMPLEMENT_METHOD(TListOperationsResult, ListOperations, (
@@ -848,29 +848,29 @@ public:
         (operationId, options))
     IMPLEMENT_METHOD(TYsonString, GetJob, (
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobOptions& options),
         (operationId, jobId, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
-        const TJobId& jobId,
+        TJobId jobId,
         const TStraceJobOptions& options),
         (jobId, options))
     IMPLEMENT_METHOD(void, SignalJob, (
-        const TJobId& jobId,
+        TJobId jobId,
         const TString& signalName,
         const TSignalJobOptions& options),
         (jobId, signalName, options))
     IMPLEMENT_METHOD(void, AbandonJob, (
-        const TJobId& jobId,
+        TJobId jobId,
         const TAbandonJobOptions& options),
         (jobId, options))
     IMPLEMENT_METHOD(TYsonString, PollJobShell, (
-        const TJobId& jobId,
+        TJobId jobId,
         const TYsonString& parameters,
         const TPollJobShellOptions& options),
         (jobId, parameters, options))
     IMPLEMENT_METHOD(void, AbortJob, (
-        const TJobId& jobId,
+        TJobId jobId,
         const TAbortJobOptions& options),
         (jobId, options))
 
@@ -4251,7 +4251,7 @@ private:
     }
 
     void ValidateJobAcl(
-        const TJobId& jobId,
+        TJobId jobId,
         std::optional<NJobTrackerClient::NProto::TJobSpec> jobSpec = std::nullopt)
     {
         if (!jobSpec) {
@@ -4273,7 +4273,7 @@ private:
     }
 
     void DoDumpJobContext(
-        const TJobId& jobId,
+        TJobId jobId,
         const TYPath& path,
         const TDumpJobContextOptions& /*options*/)
     {
@@ -4285,7 +4285,7 @@ private:
             .ThrowOnError();
     }
 
-    void ValidateJobSpecVersion(const TJobId& jobId, const NYT::NJobTrackerClient::NProto::TJobSpec& jobSpec)
+    void ValidateJobSpecVersion(TJobId jobId, const NYT::NJobTrackerClient::NProto::TJobSpec& jobSpec)
     {
         if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
             THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
@@ -4295,7 +4295,7 @@ private:
         }
     }
 
-    TNodeDescriptor GetJobNodeDescriptor(const TJobId& jobId)
+    TNodeDescriptor GetJobNodeDescriptor(TJobId jobId)
     {
         TNodeDescriptor jobNodeDescriptor;
         auto req = JobProberProxy_->GetJobNode();
@@ -4306,7 +4306,7 @@ private:
         return jobNodeDescriptor;
     }
 
-    std::optional<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(const TJobId& jobId)
+    std::optional<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(TJobId jobId)
     {
         try {
             TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
@@ -4334,7 +4334,7 @@ private:
         return std::nullopt;
     }
 
-    NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(const TJobId& jobId)
+    NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(TJobId jobId)
     {
         auto nameTable = New<TNameTable>();
 
@@ -4387,7 +4387,7 @@ private:
     }
 
     IAsyncZeroCopyInputStreamPtr DoGetJobInput(
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobInputOptions& /*options*/)
     {
         NJobTrackerClient::NProto::TJobSpec jobSpec;
@@ -4457,7 +4457,7 @@ private:
     }
 
     TYsonString DoGetJobInputPaths(
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobInputPathsOptions& /*options*/)
     {
         NJobTrackerClient::NProto::TJobSpec jobSpec;
@@ -4630,7 +4630,7 @@ private:
 
     TSharedRef DoGetJobStderrFromNode(
         const TOperationId& operationId,
-        const TJobId& jobId)
+        TJobId jobId)
     {
         try {
             TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
@@ -4663,7 +4663,7 @@ private:
 
     TSharedRef DoGetJobStderrFromCypress(
         const TOperationId& operationId,
-        const TJobId& jobId)
+        TJobId jobId)
     {
         auto createFileReader = [&] (const NYPath::TYPath& path) {
             return WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path));
@@ -4711,7 +4711,7 @@ private:
 
     TSharedRef DoGetJobStderrFromArchive(
         const TOperationId& operationId,
-        const TJobId& jobId)
+        TJobId jobId)
     {
         try {
             TJobStderrTableDescriptor tableDescriptor;
@@ -4762,7 +4762,7 @@ private:
 
     TSharedRef DoGetJobStderr(
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobStderrOptions& /*options*/)
     {
         auto stderrRef = DoGetJobStderrFromNode(operationId, jobId);
@@ -4789,7 +4789,7 @@ private:
 
     TSharedRef DoGetJobFailContextFromArchive(
         const TOperationId& operationId,
-        const TJobId& jobId)
+        TJobId jobId)
     {
         try {
             TJobFailContextTableDescriptor tableDescriptor;
@@ -4840,7 +4840,7 @@ private:
 
     TSharedRef DoGetJobFailContextFromCypress(
         const TOperationId& operationId,
-        const TJobId& jobId)
+        TJobId jobId)
     {
         auto createFileReader = [&] (const NYPath::TYPath& path) {
             return WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path));
@@ -4888,7 +4888,7 @@ private:
 
     TSharedRef DoGetJobFailContext(
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobFailContextOptions& /*options*/)
     {
         {
@@ -5849,7 +5849,7 @@ private:
         selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
         selectRowsOptions.Timeout = deadline - Now();
 
-        auto checkIsNotNull = [&] (const TUnversionedValue& value, TStringBuf name, const TJobId& jobId = TJobId()) {
+        auto checkIsNotNull = [&] (const TUnversionedValue& value, TStringBuf name, TJobId jobId = TJobId()) {
             if (value.Type == EValueType::Null) {
                 auto error = TError("Unexpected null value in column %Qv in job archive", name)
                     << TErrorAttribute("operation_id", operationId);
@@ -6538,7 +6538,7 @@ private:
 
     TYsonString DoGetJob(
         const TOperationId& operationId,
-        const TJobId& jobId,
+        TJobId jobId,
         const TGetJobOptions& options)
     {
         auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetJobTimeout);
@@ -6644,7 +6644,7 @@ private:
     }
 
     TYsonString DoStraceJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TStraceJobOptions& /*options*/)
     {
         auto req = JobProberProxy_->Strace();
@@ -6657,7 +6657,7 @@ private:
     }
 
     void DoSignalJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TString& signalName,
         const TSignalJobOptions& /*options*/)
     {
@@ -6670,7 +6670,7 @@ private:
     }
 
     void DoAbandonJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TAbandonJobOptions& /*options*/)
     {
         auto req = JobProberProxy_->AbandonJob();
@@ -6681,7 +6681,7 @@ private:
     }
 
     TYsonString DoPollJobShell(
-        const TJobId& jobId,
+        TJobId jobId,
         const TYsonString& parameters,
         const TPollJobShellOptions& options)
     {
@@ -6707,7 +6707,7 @@ private:
     }
 
     void DoAbortJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TAbortJobOptions& options)
     {
         auto req = JobProberProxy_->AbortJob();

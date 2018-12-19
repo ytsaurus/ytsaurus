@@ -29,7 +29,7 @@ struct IJobEnvironment
     virtual TFuture<void> RunJobProxy(
         int slotIndex,
         const TString& workingDirectory,
-        const TJobId& jobId,
+        TJobId jobId,
         const TOperationId& operationId) = 0;
 
     virtual void CleanProcesses(int slotIndex) = 0;

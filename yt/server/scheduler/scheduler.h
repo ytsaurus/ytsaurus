@@ -113,12 +113,12 @@ public:
     void OnOperationAgentUnregistered(const TOperationPtr& operation);
     void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds);
 
-    TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
-    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);
-    TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user);
-    TFuture<void> SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
-    TFuture<void> AbandonJob(const TJobId& jobId, const TString& user);
-    TFuture<void> AbortJob(const TJobId& jobId, std::optional<TDuration> interruptTimeout, const TString& user);
+    TFuture<NYson::TYsonString> Strace(TJobId jobId, const TString& user);
+    TFuture<void> DumpInputContext(TJobId jobId, const NYPath::TYPath& path, const TString& user);
+    TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(TJobId jobId, const TString& user);
+    TFuture<void> SignalJob(TJobId jobId, const TString& signalName, const TString& user);
+    TFuture<void> AbandonJob(TJobId jobId, const TString& user);
+    TFuture<void> AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
     using TCtxNodeHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,

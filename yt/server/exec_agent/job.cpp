@@ -85,7 +85,7 @@ public:
 
 public:
     TJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TOperationId& operationId,
         const TNodeResources& resourceUsage,
         TJobSpec&& jobSpec,
@@ -231,14 +231,14 @@ public:
         });
     }
 
-    virtual const TJobId& GetId() const override
+    virtual TJobId GetId() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         return Id_;
     }
 
-    virtual const TJobId& GetOperationId() const override
+    virtual const TOperationId& GetOperationId() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
@@ -1426,7 +1426,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 NJobAgent::IJobPtr CreateUserJob(
-    const TJobId& jobId,
+    TJobId jobId,
     const TOperationId& operationId,
     const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,

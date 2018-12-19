@@ -123,7 +123,7 @@ public:
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId));
 
-    MOCK_METHOD2(OnNonscheduledJobAborted, void(const TJobId&, EAbortReason));
+    MOCK_METHOD2(OnNonscheduledJobAborted, void(TJobId, EAbortReason));
 
     virtual TJobResources GetNeededResources() const override
     {

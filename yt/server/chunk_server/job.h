@@ -39,18 +39,18 @@ public:
 
 public:
     static TJobPtr CreateReplicate(
-        const TJobId& jobId,
+        TJobId jobId,
         TChunkPtrWithIndexes chunkWithIndexes,
         NNodeTrackerServer::TNode* node,
         const TNodePtrWithIndexesList& targetReplicas);
 
     static TJobPtr CreateRemove(
-        const TJobId& jobId,
+        TJobId jobId,
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
         NNodeTrackerServer::TNode* node);
 
     static TJobPtr CreateRepair(
-        const TJobId& jobId,
+        TJobId jobId,
         TChunk* chunk,
         NNodeTrackerServer::TNode* node,
         const   TNodePtrWithIndexesList& targetReplicas,
@@ -58,14 +58,14 @@ public:
         bool decommission);
 
     static TJobPtr CreateSeal(
-        const TJobId& jobId,
+        TJobId jobId,
         TChunkPtrWithIndexes chunkWithIndexes,
         NNodeTrackerServer::TNode* node);
 
 private:
     TJob(
         EJobType type,
-        const TJobId& jobId,
+        TJobId jobId,
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
         NNodeTrackerServer::TNode* node,
         const TNodePtrWithIndexesList& targetReplicas,

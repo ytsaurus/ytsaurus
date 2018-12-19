@@ -1689,7 +1689,7 @@ void TOperationElementSharedState::Enable()
 }
 
 TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
-    const TJobId& jobId,
+    TJobId jobId,
     const TJobResources& resourcesDelta)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
@@ -1821,14 +1821,14 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         FormatResources(AggressivelyPreemptableResourceUsage_));
 }
 
-bool TOperationElementSharedState::IsJobKnown(const TJobId& jobId) const
+bool TOperationElementSharedState::IsJobKnown(TJobId jobId) const
 {
     TReaderGuard guard(JobPropertiesMapLock_);
 
     return JobPropertiesMap_.find(jobId) != JobPropertiesMap_.end();
 }
 
-bool TOperationElementSharedState::IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const
+bool TOperationElementSharedState::IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const
 {
     TReaderGuard guard(JobPropertiesMapLock_);
 
@@ -1864,7 +1864,7 @@ int TOperationElementSharedState::GetScheduledJobCount() const
     return ScheduledJobCount_;
 }
 
-std::optional<TJobResources> TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
+std::optional<TJobResources> TOperationElementSharedState::AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
@@ -2004,7 +2004,7 @@ void TOperationElement::Enable()
     return SharedState_->Enable();
 }
 
-std::optional<TJobResources> TOperationElementSharedState::RemoveJob(const TJobId& jobId)
+std::optional<TJobResources> TOperationElementSharedState::RemoveJob(TJobId jobId)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
@@ -2102,14 +2102,14 @@ void TOperationElementSharedState::IncreaseJobResourceUsage(
     }
 }
 
-TOperationElementSharedState::TJobProperties* TOperationElementSharedState::GetJobProperties(const TJobId& jobId)
+TOperationElementSharedState::TJobProperties* TOperationElementSharedState::GetJobProperties(TJobId jobId)
 {
     auto it = JobPropertiesMap_.find(jobId);
     Y_ASSERT(it != JobPropertiesMap_.end());
     return &it->second;
 }
 
-const TOperationElementSharedState::TJobProperties* TOperationElementSharedState::GetJobProperties(const TJobId& jobId) const
+const TOperationElementSharedState::TJobProperties* TOperationElementSharedState::GetJobProperties(TJobId jobId) const
 {
     auto it = JobPropertiesMap_.find(jobId);
     Y_ASSERT(it != JobPropertiesMap_.end());
@@ -2545,7 +2545,7 @@ void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
     GetParent()->ApplyJobMetricsDelta(delta);
 }
 
-void TOperationElement::IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta)
+void TOperationElement::IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta)
 {
     auto delta = SharedState_->IncreaseJobResourceUsage(jobId, resourcesDelta);
     IncreaseHierarchicalResourceUsage(delta);
@@ -2553,12 +2553,12 @@ void TOperationElement::IncreaseJobResourceUsage(const TJobId& jobId, const TJob
     UpdatePreemptableJobsList();
 }
 
-bool TOperationElement::IsJobKnown(const TJobId& jobId) const
+bool TOperationElement::IsJobKnown(TJobId jobId) const
 {
     return SharedState_->IsJobKnown(jobId);
 }
 
-bool TOperationElement::IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const
+bool TOperationElement::IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const
 {
     return SharedState_->IsJobPreemptable(jobId, aggressivePreemptionEnabled);
 }
@@ -2611,7 +2611,7 @@ TString TOperationElement::GetUserName() const
 }
 
 bool TOperationElement::OnJobStarted(
-    const TJobId& jobId,
+    TJobId jobId,
     const TJobResources& resourceUsage,
     const TJobResources& precommittedResources,
     bool force)
@@ -2629,7 +2629,7 @@ bool TOperationElement::OnJobStarted(
     }
 }
 
-void TOperationElement::OnJobFinished(const TJobId& jobId)
+void TOperationElement::OnJobFinished(TJobId jobId)
 {
     // XXX(ignat): remove before deploy on production clusters.
     YT_LOG_DEBUG("Removing job from strategy (JobId: %v)", jobId);

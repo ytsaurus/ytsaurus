@@ -145,7 +145,7 @@ class TJobProbeTools
 public:
     ~TJobProbeTools();
     static TJobProbeToolsPtr Create(
-        const TJobId& jobId,
+        TJobId jobId,
         pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
@@ -175,7 +175,7 @@ private:
         const std::vector<TString>& env,
         EJobEnvironmentType environmentType,
         bool enableSecureVaultVariablesInJobShell);
-    void Init(const TJobId& jobId);
+    void Init(TJobId jobId);
 
     DECLARE_NEW_FRIEND();
 };
@@ -199,7 +199,7 @@ TJobProbeTools::TJobProbeTools(
 { }
 
 TJobProbeToolsPtr TJobProbeTools::Create(
-    const TJobId& jobId,
+    TJobId jobId,
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
@@ -217,7 +217,7 @@ TJobProbeToolsPtr TJobProbeTools::Create(
     return tools;
 }
 
-void TJobProbeTools::Init(const TJobId& jobId)
+void TJobProbeTools::Init(TJobId jobId)
 {
     switch (EnvironmentType_) {
         case EJobEnvironmentType::Cgroups:
@@ -352,7 +352,7 @@ public:
         pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
-        const TJobId& jobId,
+        TJobId jobId,
         EJobEnvironmentType environmentType,
         bool enableSecureVaultVariablesInJobShell);
     void GracefulShutdown(const TError& error);
@@ -384,7 +384,7 @@ TJobSatelliteWorker::TJobSatelliteWorker(
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
-    const TJobId& jobId,
+    TJobId jobId,
     EJobEnvironmentType environmentType,
     bool enableSecureVaultVariablesInJobShell)
     : RootPid_(rootPid)
@@ -464,7 +464,7 @@ public:
         pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
-        const TJobId& jobId);
+        TJobId jobId);
     void Run();
     void Stop(const TError& error);
 
@@ -484,7 +484,7 @@ TJobSatellite::TJobSatellite(TJobSatelliteConnectionConfigPtr config,
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
-    const TJobId& jobId)
+    TJobId jobId)
     : SatelliteConnectionConfig_(config)
     , RootPid_(rootPid)
     , Uid_(uid)

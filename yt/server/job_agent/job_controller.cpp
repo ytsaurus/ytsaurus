@@ -79,8 +79,8 @@ public:
         EJobType type,
         TJobFactory factory);
 
-    IJobPtr FindJob(const TJobId& jobId) const;
-    IJobPtr GetJobOrThrow(const TJobId& jobId) const;
+    IJobPtr FindJob(TJobId jobId) const;
+    IJobPtr GetJobOrThrow(TJobId jobId) const;
     std::vector<IJobPtr> GetJobs() const;
 
     TNodeResources GetResourceLimits() const;
@@ -141,7 +141,7 @@ private:
 
     //! Starts a new job.
     IJobPtr CreateJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TOperationId& operationId,
         const TNodeResources& resourceLimits,
         TJobSpec&& jobSpec);
@@ -271,13 +271,13 @@ TJobFactory TJobController::TImpl::GetFactory(EJobType type) const
     return it->second;
 }
 
-IJobPtr TJobController::TImpl::FindJob(const TJobId& jobId) const
+IJobPtr TJobController::TImpl::FindJob(TJobId jobId) const
 {
     auto it = Jobs_.find(jobId);
     return it == Jobs_.end() ? nullptr : it->second;
 }
 
-IJobPtr TJobController::TImpl::GetJobOrThrow(const TJobId& jobId) const
+IJobPtr TJobController::TImpl::GetJobOrThrow(TJobId jobId) const
 {
     auto job = FindJob(jobId);
     if (!job) {
@@ -577,7 +577,7 @@ void TJobController::TImpl::StartWaitingJobs()
 }
 
 IJobPtr TJobController::TImpl::CreateJob(
-    const TJobId& jobId,
+    TJobId jobId,
     const TOperationId& operationId,
     const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec)
@@ -1222,12 +1222,12 @@ void TJobController::RegisterFactory(
     Impl_->RegisterFactory(type, std::move(factory));
 }
 
-IJobPtr TJobController::FindJob(const TJobId& jobId) const
+IJobPtr TJobController::FindJob(TJobId jobId) const
 {
     return Impl_->FindJob(jobId);
 }
 
-IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId) const
+IJobPtr TJobController::GetJobOrThrow(TJobId jobId) const
 {
     return Impl_->GetJobOrThrow(jobId);
 }

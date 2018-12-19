@@ -96,7 +96,7 @@ using NJobTrackerClient::TStatistics;
 TJobProxy::TJobProxy(
     TJobProxyConfigPtr config,
     const TOperationId& operationId,
-    const TJobId& jobId)
+    TJobId jobId)
     : Config_(std::move(config))
     , OperationId_(operationId)
     , JobId_(jobId)
@@ -179,7 +179,7 @@ IThroughputThrottlerPtr TJobProxy::GetOutRpsThrottler() const
     return OutRpsThrottler_;
 }
 
-void TJobProxy::ValidateJobId(const TJobId& jobId)
+void TJobProxy::ValidateJobId(TJobId jobId)
 {
     if (JobId_ != jobId) {
         THROW_ERROR_EXCEPTION("Job id mismatch: expected %v, got %v",
@@ -667,7 +667,7 @@ const TOperationId& TJobProxy::GetOperationId() const
     return OperationId_;
 }
 
-const TJobId& TJobProxy::GetJobId() const
+TJobId TJobProxy::GetJobId() const
 {
     return JobId_;
 }

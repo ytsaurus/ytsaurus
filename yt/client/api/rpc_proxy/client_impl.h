@@ -153,19 +153,19 @@ public:
         const NApi::TGetOperationOptions& options) override;
 
     virtual TFuture<void> DumpJobContext(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const NYPath::TYPath& path,
         const NApi::TDumpJobContextOptions& options) override;
 
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
-        const NJobTrackerClient::TJobId&,
+        NJobTrackerClient::TJobId,
         const NApi::TGetJobInputOptions&) override
     {
         ThrowUnimplemented("get_job_input");
     }
 
     virtual TFuture<NYson::TYsonString> GetJobInputPaths(
-        const NJobTrackerClient::TJobId&,
+        NJobTrackerClient::TJobId,
         const NApi::TGetJobInputPathsOptions&) override
     {
         ThrowUnimplemented("get_job_input_paths");
@@ -173,7 +173,7 @@ public:
 
     virtual TFuture<TSharedRef> GetJobStderr(
         const NJobTrackerClient::TOperationId&,
-        const NJobTrackerClient::TJobId&,
+        NJobTrackerClient::TJobId,
         const NApi::TGetJobStderrOptions&) override
     {
         ThrowUnimplemented("get_job_stderr");
@@ -181,7 +181,7 @@ public:
 
     virtual TFuture<TSharedRef> GetJobFailContext(
         const NJobTrackerClient::TOperationId&,
-        const NJobTrackerClient::TJobId&,
+        NJobTrackerClient::TJobId,
         const NApi::TGetJobFailContextOptions&) override
     {
         ThrowUnimplemented("get_job_fail_context");
@@ -202,29 +202,29 @@ public:
 
     virtual TFuture<NYson::TYsonString> GetJob(
         const NJobTrackerClient::TOperationId& operationId,
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobOptions& options) override;
 
     virtual TFuture<NYson::TYsonString> StraceJob(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const NApi::TStraceJobOptions& options) override;
 
     virtual TFuture<void> SignalJob(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TString& signalName,
         const NApi::TSignalJobOptions& options) override;
 
     virtual TFuture<void> AbandonJob(
-        const NJobTrackerClient::TJobId& job_id,
+        NJobTrackerClient::TJobId job_id,
         const NApi::TAbandonJobOptions& options) override;
 
     virtual TFuture<NYson::TYsonString> PollJobShell(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const NYson::TYsonString& parameters,
         const NApi::TPollJobShellOptions& options) override;
 
     virtual TFuture<void> AbortJob(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const NApi::TAbortJobOptions& options) override;
 
     // Metadata

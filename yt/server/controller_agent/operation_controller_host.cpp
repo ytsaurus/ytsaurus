@@ -32,7 +32,7 @@ TOperationControllerHost::TOperationControllerHost(
     , IncarnationId_(Bootstrap_->GetControllerAgent()->GetIncarnationId())
 { }
 
-void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReason reason)
+void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Interrupted,
@@ -47,7 +47,7 @@ void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReaso
         jobId);
 }
 
-void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error)
+void TOperationControllerHost::AbortJob(TJobId jobId, const TError& error)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Aborted,
@@ -62,7 +62,7 @@ void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error
         jobId);
 }
 
-void TOperationControllerHost::FailJob(const TJobId& jobId)
+void TOperationControllerHost::FailJob(TJobId jobId)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Failed,

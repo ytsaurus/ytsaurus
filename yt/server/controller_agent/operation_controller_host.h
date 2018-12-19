@@ -46,9 +46,9 @@ public:
         TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
         TBootstrap* bootstrap);
 
-    virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override;
-    virtual void AbortJob(const TJobId& jobId, const TError& error) override;
-    virtual void FailJob(const TJobId& jobId) override;
+    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) override;
+    virtual void AbortJob(TJobId jobId, const TError& error) override;
+    virtual void FailJob(TJobId jobId) override;
     virtual void ReleaseJobs(const std::vector<NScheduler::TJobToRelease>& TJobToRelease) override;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() override;

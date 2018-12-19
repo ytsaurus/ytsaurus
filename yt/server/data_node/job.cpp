@@ -75,7 +75,7 @@ public:
 
 public:
     TChunkJobBase(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -123,7 +123,7 @@ public:
         THROW_ERROR_EXCEPTION("Fail not implemented");
     }
 
-    virtual const TJobId& GetId() const override
+    virtual TJobId GetId() const override
     {
         return JobId_;
     }
@@ -425,7 +425,7 @@ class TChunkRemovalJob
 {
 public:
     TChunkRemovalJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -475,7 +475,7 @@ class TChunkReplicationJob
 {
 public:
     TChunkReplicationJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -614,7 +614,7 @@ class TChunkRepairJob
 {
 public:
     TChunkRepairJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -747,7 +747,7 @@ class TSealChunkJob
 {
 public:
     TSealChunkJob(
-        const TJobId& jobId,
+        TJobId jobId,
         TJobSpec&& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -888,7 +888,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobPtr CreateChunkJob(
-    const TJobId& jobId,
+    TJobId jobId,
     TJobSpec&& jobSpec,
     const TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,

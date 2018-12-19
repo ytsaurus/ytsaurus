@@ -50,13 +50,13 @@ class TJobSatelliteConnection
 {
 public:
     TJobSatelliteConnection(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         NBus::TTcpBusServerConfigPtr jobProxyRpcServerConfig,
         NExecAgent::EJobEnvironmentType environmentType,
         bool enableSecureVaultVariablesInJobShell);
     TString GetConfigPath() const;
     NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
-    const NJobTrackerClient::TJobId& GetJobId() const;
+    NJobTrackerClient::TJobId GetJobId() const;
 
     void MakeConfig();
 

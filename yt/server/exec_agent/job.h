@@ -13,7 +13,7 @@ namespace NYT::NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 NJobAgent::IJobPtr CreateUserJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NJobTrackerClient::TOperationId& operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,

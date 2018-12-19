@@ -743,7 +743,7 @@ void TNodeShard::ResumeOperationJobs(const TOperationId& operationId)
     operationState->ForbidNewJobs = false;
 }
 
-TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
+TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -780,7 +780,7 @@ TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
     return node->NodeDescriptor();
 }
 
-TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
+TYsonString TNodeShard::StraceJob(TJobId jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -811,7 +811,7 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
     return TYsonString(rsp->trace());
 }
 
-void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, const TString& user)
+void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -852,7 +852,7 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
         job->GetOperationId());
 }
 
-void TNodeShard::SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
+void TNodeShard::SignalJob(TJobId jobId, const TString& signalName, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -882,7 +882,7 @@ void TNodeShard::SignalJob(const TJobId& jobId, const TString& signalName, const
         job->GetOperationId());
 }
 
-void TNodeShard::AbandonJob(const TJobId& jobId, const TString& user)
+void TNodeShard::AbandonJob(TJobId jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -925,7 +925,7 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const TString& user)
     OnJobCompleted(job, nullptr /* jobStatus */, true /* abandoned */);
 }
 
-void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, std::optional<TDuration> interruptTimeout, const TString& user)
+void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -990,7 +990,7 @@ void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, std::optional<TDurat
     }
 }
 
-void TNodeShard::AbortJob(const TJobId& jobId, const TError& error)
+void TNodeShard::AbortJob(TJobId jobId, const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
@@ -1019,7 +1019,7 @@ void TNodeShard::AbortJobs(const std::vector<TJobId>& jobIds, const TError& erro
     }
 }
 
-void TNodeShard::FailJob(const TJobId& jobId)
+void TNodeShard::FailJob(TJobId jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
@@ -1037,7 +1037,7 @@ void TNodeShard::FailJob(const TJobId& jobId)
     job->SetFailRequested(true);
 }
 
-void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile)
+void TNodeShard::ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
@@ -1077,7 +1077,7 @@ void TNodeShard::BuildNodesYson(TFluentMap fluent)
     }
 }
 
-TOperationId TNodeShard::FindOperationIdByJobId(const TJobId& jobId)
+TOperationId TNodeShard::FindOperationIdByJobId(TJobId jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1183,7 +1183,7 @@ int TNodeShard::GetTotalNodeCount()
 TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     TIncarnationId incarnationId,
     const TOperationId& operationId,
-    const TJobId& jobId)
+    TJobId jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1546,7 +1546,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 }
 
 NLogging::TLogger TNodeShard::CreateJobLogger(
-    const TJobId& jobId,
+    TJobId jobId,
     const TOperationId& operationId,
     EJobState state,
     const TString& address)
@@ -2193,7 +2193,7 @@ void TNodeShard::AddRecentlyFinishedJob(const TJobPtr& job)
     }
 }
 
-void TNodeShard::RemoveRecentlyFinishedJob(const TJobId& jobId)
+void TNodeShard::RemoveRecentlyFinishedJob(TJobId jobId)
 {
     auto node = FindNodeByJob(jobId);
     YCHECK(node);
@@ -2265,7 +2265,7 @@ void TNodeShard::DoInterruptJob(
     }
 }
 
-void TNodeShard::InterruptJob(const TJobId& jobId, EInterruptReason reason)
+void TNodeShard::InterruptJob(TJobId jobId, EInterruptReason reason)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -2275,21 +2275,21 @@ void TNodeShard::InterruptJob(const TJobId& jobId, EInterruptReason reason)
     }
 }
 
-TExecNodePtr TNodeShard::FindNodeByJob(const TJobId& jobId)
+TExecNodePtr TNodeShard::FindNodeByJob(TJobId jobId)
 {
     auto nodeId = NodeIdFromJobId(jobId);
     auto it = IdToNode_.find(nodeId);
     return it == IdToNode_.end() ? nullptr : it->second;
 }
 
-TJobPtr TNodeShard::FindJob(const TJobId& jobId, const TExecNodePtr& node)
+TJobPtr TNodeShard::FindJob(TJobId jobId, const TExecNodePtr& node)
 {
     const auto& idToJob = node->IdToJob();
     auto it = idToJob.find(jobId);
     return it == idToJob.end() ? nullptr : it->second;
 }
 
-TJobPtr TNodeShard::FindJob(const TJobId& jobId)
+TJobPtr TNodeShard::FindJob(TJobId jobId)
 {
     auto node = FindNodeByJob(jobId);
     if (!node) {
@@ -2298,7 +2298,7 @@ TJobPtr TNodeShard::FindJob(const TJobId& jobId)
     return FindJob(jobId, node);
 }
 
-TJobPtr TNodeShard::GetJobOrThrow(const TJobId& jobId)
+TJobPtr TNodeShard::GetJobOrThrow(TJobId jobId)
 {
     auto job = FindJob(jobId);
     if (!job) {

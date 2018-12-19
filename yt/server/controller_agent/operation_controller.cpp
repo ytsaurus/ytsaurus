@@ -69,7 +69,7 @@ TStartedJobSummary::TStartedJobSummary(NScheduler::NProto::TSchedulerToAgentJobE
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobSummary::TJobSummary(const TJobId& id, EJobState state)
+TJobSummary::TJobSummary(TJobId id, EJobState state)
     : Result()
     , Id(id)
     , State(state)
@@ -152,7 +152,7 @@ void TCompletedJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReason)
+TAbortedJobSummary::TAbortedJobSummary(TJobId id, EAbortReason abortReason)
     : TJobSummary(id, EJobState::Aborted)
     , AbortReason(abortReason)
 { }
@@ -392,12 +392,12 @@ public:
         return Underlying_->GetBriefProgress();
     }
 
-    virtual TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override
+    virtual TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override
     {
         return Underlying_->BuildJobYson(jobId, outputStatistics);
     }
 
-    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override
+    virtual TSharedRef ExtractJobSpec(TJobId jobId) const override
     {
         return Underlying_->ExtractJobSpec(jobId);
     }
@@ -463,7 +463,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobStartDescriptor::TJobStartDescriptor(
-    const TJobId& id,
+    TJobId id,
     EJobType type,
     const TJobResources& resourceLimits,
     bool interruptible)

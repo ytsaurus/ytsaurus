@@ -237,7 +237,7 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    TJobPtr FindJob(const TJobId& jobId);
+    TJobPtr FindJob(TJobId jobId);
     void RegisterJob(const TJobPtr& job);
     void UnregisterJob(const TJobPtr& job);
 

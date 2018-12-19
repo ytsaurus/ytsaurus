@@ -1221,26 +1221,26 @@ struct IClient
         const TGetOperationOptions& options = TGetOperationOptions()) = 0;
 
     virtual TFuture<void> DumpJobContext(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const NYPath::TYPath& path,
         const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
 
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> GetJobInputPaths(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TGetJobInputPathsOptions& options = TGetJobInputPathsOptions()) = 0;
 
     virtual TFuture<TSharedRef> GetJobStderr(
         const NJobTrackerClient::TOperationId& operationId,
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
 
     virtual TFuture<TSharedRef> GetJobFailContext(
         const NJobTrackerClient::TOperationId& operationId,
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) = 0;
 
     virtual TFuture<TListOperationsResult> ListOperations(
@@ -1252,29 +1252,29 @@ struct IClient
 
     virtual TFuture<NYson::TYsonString> GetJob(
         const NScheduler::TOperationId& operationId,
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TGetJobOptions& options = TGetJobOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> StraceJob(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TStraceJobOptions& options = TStraceJobOptions()) = 0;
 
     virtual TFuture<void> SignalJob(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TString& signalName,
         const TSignalJobOptions& options = TSignalJobOptions()) = 0;
 
     virtual TFuture<void> AbandonJob(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TAbandonJobOptions& options = TAbandonJobOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> PollJobShell(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const NYson::TYsonString& parameters,
         const TPollJobShellOptions& options = TPollJobShellOptions()) = 0;
 
     virtual TFuture<void> AbortJob(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         const TAbortJobOptions& options = TAbortJobOptions()) = 0;
 
     // Metadata

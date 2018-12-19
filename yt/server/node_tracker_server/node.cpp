@@ -447,7 +447,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     ComputeDefaultAddress();
 }
 
-TJobPtr TNode::FindJob(const TJobId& jobId)
+TJobPtr TNode::FindJob(TJobId jobId)
 {
     auto it = IdToJob_.find(jobId);
     return it == IdToJob_.end() ? nullptr : it->second;

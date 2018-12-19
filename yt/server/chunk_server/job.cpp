@@ -17,7 +17,7 @@ using namespace NChunkClient;
 
 TJob::TJob(
     EJobType type,
-    const TJobId& jobId,
+    TJobId jobId,
     const TChunkIdWithIndexes& chunkIdWithIndexes,
     TNode* node,
     const TNodePtrWithIndexesList& targetReplicas,
@@ -36,7 +36,7 @@ TJob::TJob(
 { }
 
 TJobPtr TJob::CreateReplicate(
-    const TJobId& jobId,
+    TJobId jobId,
     TChunkPtrWithIndexes chunkWithIndexes,
     TNode* node,
     const TNodePtrWithIndexesList& targetReplicas)
@@ -59,7 +59,7 @@ TJobPtr TJob::CreateReplicate(
 }
 
 TJobPtr TJob::CreateRemove(
-    const TJobId& jobId,
+    TJobId jobId,
     const TChunkIdWithIndexes& chunkIdWithIndexes,
     TNode* node)
 {
@@ -77,7 +77,7 @@ TJobPtr TJob::CreateRemove(
 }
 
 TJobPtr TJob::CreateRepair(
-    const TJobId& jobId,
+    TJobId jobId,
     TChunk* chunk,
     TNode* node,
     const TNodePtrWithIndexesList& targetReplicas,
@@ -103,7 +103,7 @@ TJobPtr TJob::CreateRepair(
 }
 
 TJobPtr TJob::CreateSeal(
-    const TJobId& jobId,
+    TJobId jobId,
     TChunkPtrWithIndexes chunkWithIndexes,
     TNode* node)
 {

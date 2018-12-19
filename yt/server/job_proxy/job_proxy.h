@@ -37,7 +37,7 @@ public:
     TJobProxy(
         TJobProxyConfigPtr config,
         const NJobTrackerClient::TOperationId& operationId,
-        const NJobTrackerClient::TJobId& jobId);
+        NJobTrackerClient::TJobId jobId);
 
     //! Runs the job. Blocks until the job is complete.
     void Run();
@@ -52,7 +52,7 @@ public:
     virtual void Interrupt() override;
     virtual void Fail() override;
 
-    virtual const NJobAgent::TJobId& GetJobId() const override;
+    virtual NJobAgent::TJobId GetJobId() const override;
 
     virtual NRpc::IServerPtr GetRpcServer() const override;
 
@@ -134,7 +134,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
 
-    void ValidateJobId(const NJobTrackerClient::TJobId& jobId);
+    void ValidateJobId(NJobTrackerClient::TJobId jobId);
 
     NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();
