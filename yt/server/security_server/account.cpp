@@ -61,7 +61,7 @@ TAccountStatistics operator + (const TAccountStatistics& lhs, const TAccountStat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccount::TAccount(const TAccountId& id)
+TAccount::TAccount(TAccountId id)
     : TNonversionedObjectBase(id)
     , LocalStatisticsPtr_(nullptr)
     , Acd_(this)
