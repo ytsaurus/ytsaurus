@@ -1507,7 +1507,7 @@ private:
     }
 
 
-    TAccount* DoCreateAccount(const TAccountId& id, const TString& name)
+    TAccount* DoCreateAccount(TAccountId id, const TString& name)
     {
         auto accountHolder = std::make_unique<TAccount>(id);
         accountHolder->SetName(name);
@@ -2199,7 +2199,7 @@ private:
         return true;
     }
 
-    bool EnsureBuiltinAccountInitialized(TAccount*& account, const TAccountId& id, const TString& name)
+    bool EnsureBuiltinAccountInitialized(TAccount*& account, TAccountId id, const TString& name)
     {
         if (account) {
             return false;
