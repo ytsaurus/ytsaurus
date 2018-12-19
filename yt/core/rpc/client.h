@@ -72,7 +72,7 @@ public:
 
 public:
     TClientContext(
-        const TRequestId& requestId,
+        TRequestId requestId,
         const NTracing::TTraceContext& traceContext,
         const TString& service,
         const TString& method,

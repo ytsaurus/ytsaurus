@@ -229,7 +229,7 @@ struct IService
 
     //! Handles request cancelation.
     virtual void HandleRequestCancelation(
-        const TRequestId& requestId) = 0;
+        TRequestId requestId) = 0;
 
 };
 

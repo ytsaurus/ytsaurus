@@ -699,7 +699,7 @@ void TServiceBase::HandleAuthenticatedRequest(
     ScheduleRequests(runtimeInfo);
 }
 
-void TServiceBase::HandleRequestCancelation(const TRequestId& requestId)
+void TServiceBase::HandleRequestCancelation(TRequestId requestId)
 {
     auto context = FindCancelableRequest(requestId);
     if (!context) {
@@ -711,7 +711,7 @@ void TServiceBase::HandleRequestCancelation(const TRequestId& requestId)
     context->Cancel();
 }
 
-void TServiceBase::OnRequestTimeout(const TRequestId& requestId, bool /*aborted*/)
+void TServiceBase::OnRequestTimeout(TRequestId requestId, bool /*aborted*/)
 {
     auto context = FindCancelableRequest(requestId);
     if (!context) {
@@ -856,7 +856,7 @@ void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
     }
 }
 
-TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(const TRequestId& requestId)
+TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(TRequestId requestId)
 {
     TGuard<TSpinLock> guard(CancelableRequestLock_);
     auto it = IdToContext_.find(requestId);

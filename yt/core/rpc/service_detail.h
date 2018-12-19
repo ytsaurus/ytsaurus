@@ -291,7 +291,7 @@ public:
         TSharedRefArray message,
         NYT::NBus::IBusPtr replyBus) override;
 
-    virtual void HandleRequestCancelation(const TRequestId& requestId) override;
+    virtual void HandleRequestCancelation(TRequestId requestId) override;
 
 protected:
     using TLiteHandler = TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)>;
@@ -573,7 +573,7 @@ private:
         TSharedRefArray Message;
     };
 
-    void OnRequestTimeout(const TRequestId& requestId, bool aborted);
+    void OnRequestTimeout(TRequestId requestId, bool aborted);
     void OnReplyBusTerminated(NYT::NBus::IBusPtr bus, const TError& error);
 
     void ReplyError(
@@ -593,7 +593,7 @@ private:
 
     void RegisterCancelableRequest(TServiceContext* context);
     void UnregisterCancelableRequest(TServiceContext* context);
-    TServiceContextPtr FindCancelableRequest(const TRequestId& requestId);
+    TServiceContextPtr FindCancelableRequest(TRequestId requestId);
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,

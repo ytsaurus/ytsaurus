@@ -22,7 +22,7 @@ static const auto RequestIdAnnotation = TString("request_id");
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientContext::TClientContext(
-    const TRequestId& requestId,
+    TRequestId requestId,
     const NTracing::TTraceContext& traceContext,
     const TString& service,
     const TString& method,
