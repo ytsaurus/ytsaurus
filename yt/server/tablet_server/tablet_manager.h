@@ -157,7 +157,7 @@ public:
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
-    TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);
+    TTabletCell* GetTabletCellOrThrow(TTabletCellId id);
     void DecomissionTabletCell(TTabletCell* cell);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);

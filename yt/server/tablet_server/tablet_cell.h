@@ -64,7 +64,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned);
 
 public:
-    explicit TTabletCell(const TTabletCellId& id);
+    explicit TTabletCell(TTabletCellId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

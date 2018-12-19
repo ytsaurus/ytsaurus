@@ -31,7 +31,7 @@ void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCell::TTabletCell(const TTabletCellId& id)
+TTabletCell::TTabletCell(TTabletCellId id)
     : TNonversionedObjectBase(id)
     , LeadingPeerId_(0)
     , ConfigVersion_(0)
