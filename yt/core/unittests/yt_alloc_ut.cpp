@@ -9,6 +9,8 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef YT_ALLOC_ENABLED
+
 template <class T, size_t N>
 TEnumIndexedVector<ssize_t, T> AggregateArenaCounters(const std::array<TEnumIndexedVector<ssize_t, T>, N>& counters)
 {
@@ -127,6 +129,8 @@ TEST(TYTAllocTest, PerThreadCacheReclaim)
     EXPECT_GE(bytesAfter, bytesBefore);
     EXPECT_LE(bytesAfter, bytesBefore + 4_MB);
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
