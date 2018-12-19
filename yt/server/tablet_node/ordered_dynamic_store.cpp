@@ -174,7 +174,7 @@ std::optional<int> GetTimestampColumnId(const TTableSchema& schema)
 
 TOrderedDynamicStore::TOrderedDynamicStore(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : TStoreBase(config, id, tablet)
     , TDynamicStoreBase(config, id, tablet)

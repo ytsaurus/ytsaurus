@@ -795,7 +795,7 @@ private:
 
 TSortedDynamicStore::TSortedDynamicStore(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet,
     TNodeMemoryTracker* memoryTracker)
     : TStoreBase(config, id, tablet)

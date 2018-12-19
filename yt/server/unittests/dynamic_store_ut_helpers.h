@@ -82,7 +82,7 @@ protected:
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
-        const TStoreId& storeId,
+        TStoreId storeId,
         const NTabletNode::NProto::TAddStoreDescriptor* /*descriptor*/) override
     {
         switch (type) {

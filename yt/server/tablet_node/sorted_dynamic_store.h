@@ -34,7 +34,7 @@ class TSortedDynamicStore
 public:
     TSortedDynamicStore(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet,
         NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
     virtual ~TSortedDynamicStore();
