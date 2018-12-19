@@ -105,7 +105,7 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
             yt_commands.make_batch_request("list", path="//sys/" + type,
                 attributes=["id", "builtin"]) for type in TYPES],
                 driver=driver)
-        
+
         object_ids_to_remove = []
         for index, type in enumerate(TYPES):
             objects = yt_commands.get_batch_output(list_objects_results[index])
@@ -113,7 +113,7 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
                 if object.attributes["builtin"]:
                     continue
                 if type == "users" and str(object) == "application_operations":
-                    continue 
+                    continue
                 object_ids_to_remove.append(object.attributes["id"])
 
         for result in yt_commands.execute_batch([
@@ -681,13 +681,13 @@ class YTEnvSetup(object):
                 continue
 
             _reset_nodes(driver=driver)
-            
+
             if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 _remove_operations(driver=driver)
                 _wait_for_jobs_to_vanish(driver=driver)
-            
+
             _abort_transactions(driver=driver)
-            
+
             yt_commands.create("map_node", "//tmp",
                 attributes={
                     "account": "tmp",

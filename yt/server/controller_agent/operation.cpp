@@ -1,5 +1,7 @@
 #include "operation.h"
 
+#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
@@ -7,6 +9,8 @@
 namespace NYT::NControllerAgent {
 
 using namespace NYTree;
+using namespace NYson;
+using namespace NSecurityClient;
 using namespace NScheduler;
 
 using NYT::FromProto;
@@ -16,13 +20,13 @@ using NYT::FromProto;
 TOperation::TOperation(const NProto::TOperationDescriptor& descriptor)
     : Id_(FromProto<TOperationId>(descriptor.operation_id()))
     , Type_(static_cast<EOperationType>(descriptor.operation_type()))
-    , Spec_(ConvertToNode(NYson::TYsonString(descriptor.spec(), NYson::EYsonType::Node))->AsMap())
+    , Spec_(ConvertToNode(TYsonString(descriptor.spec(), EYsonType::Node))->AsMap())
     , StartTime_(FromProto<TInstant>(descriptor.start_time()))
     , AuthenticatedUser_(descriptor.authenticated_user())
     , SecureVault_(descriptor.has_secure_vault()
-        ? ConvertToNode(NYson::TYsonString(descriptor.secure_vault(), NYson::EYsonType::Node))->AsMap()
+        ? ConvertToNode(TYsonString(descriptor.secure_vault(), EYsonType::Node))->AsMap()
         : NYTree::IMapNodePtr())
-    , Owners_(FromProto<std::vector<TString>>(descriptor.owners()))
+    , Acl_(ConvertTo<TSerializableAccessControlList>(TYsonString(descriptor.acl())))
     , UserTransactionId_(FromProto<NTransactionClient::TTransactionId>(descriptor.user_transaction_id()))
     , PoolTreeToSchedulingTagFilter_(FromProto<TPoolTreeToSchedulingTagFilter>(descriptor.pool_tree_scheduling_tag_filters()))
 { }

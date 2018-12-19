@@ -33,6 +33,9 @@ DEFINE_BIT_ENUM(EPermission,
 
     //! Applies to: tables.
     ((Mount)      (0x0400))
+
+    //! Applies to: operations
+    ((Manage)     (0x0800))
 );
 
 //! An alias for EPermission denoting bitwise-or of atomic EPermission values.

@@ -10,6 +10,7 @@ from yt.test_helpers.job_events import JobEvents, TimeoutError
 
 import __builtin__
 import copy as pycopy
+import contextlib
 import os
 import re
 import stat
@@ -27,10 +28,25 @@ path_to_run_tests = None
 _zombie_responses = []
 _events_on_fs = None
 
+# TODO(levysotsky): Move error codes to separate file in python repo.
+AuthorizationErrorCode = 901
+
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
 AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 MinTimestamp                 = 0x0000000000000001
+
+@contextlib.contextmanager
+def raises_with_codes(*codes):
+    try:
+        yield
+    except YtError as e:
+        not_contained = [c for c in codes if not e.contains_code(c)]
+        if not_contained:
+            raise AssertionError("Error codes {} are not found in error {}".format(
+                not_contained,
+                e,
+            ))
 
 def is_debug():
     try:

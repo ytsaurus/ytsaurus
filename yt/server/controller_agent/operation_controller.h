@@ -28,6 +28,8 @@
 
 #include <yt/core/yson/public.h>
 
+#include <yt/core/ytree/public.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,7 +164,7 @@ struct IOperationControllerHost
 
     virtual void ValidateOperationAccess(
         const TString& user,
-        NScheduler::EAccessType accessType) = 0;
+        NYTree::EPermission permission) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)

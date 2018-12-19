@@ -1547,8 +1547,7 @@ message TOperation
     optional uint64 finish_time = 5; // TInstant
 
     optional string authenticated_user = 6;
-    optional TStrings owners = 7;
-
+    reserved 7; // deprecated
     optional TStrings pools = 8;
 
     optional bytes brief_spec = 9; // YSON

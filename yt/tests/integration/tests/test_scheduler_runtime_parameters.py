@@ -18,34 +18,6 @@ class TestRuntimeParameters(YTEnvSetup):
         }
     }
 
-    def test_update_owners(self):
-        create_user("u")
-        create_test_tables()
-        op = map(
-            command="sleep 100",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"weight": 5},
-            dont_track=True)
-        wait(lambda: op.get_state() == "running", iter=10)
-
-        assert check_permission("u", "write", op.get_path())["action"] == "deny"
-        update_op_parameters(op.id, parameters={"owners": ["u"]})
-        assert check_permission("u", "write", op.get_path())["action"] == "allow"
-
-        update_op_parameters(op.id, parameters={"owners": ["missing_user"]})
-        wait(lambda: op.get_alerts())
-        assert op.get_alerts().keys() == ["invalid_acl"]
-
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
-        time.sleep(0.1)
-
-        assert op.get_alerts().keys() == ["invalid_acl"]
-
-        update_op_parameters(op.id, parameters={"owners": []})
-        wait(lambda: not op.get_alerts())
-
     def test_update_runtime_parameters(self):
         create_test_tables()
 

@@ -102,6 +102,7 @@ TOperation::TOperation(
     IMapNodePtr annotations,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParams,
+    NSecurityClient::TSerializableAccessControlList baseAcl,
     const TString& authenticatedUser,
     TInstant startTime,
     IInvokerPtr controlInvoker,
@@ -119,6 +120,7 @@ TOperation::TOperation(
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
     , Annotations_(std::move(annotations))
+    , BaseAcl_(std::move(baseAcl))
     , Id_(id)
     , Type_(type)
     , StartTime_(startTime)
@@ -249,6 +251,11 @@ const std::vector<TString>& TOperation::GetOwners() const
     return RuntimeParameters_->Owners;
 }
 
+const NSecurityClient::TSerializableAccessControlList& TOperation::GetAcl() const
+{
+    return RuntimeParameters_->Acl;
+}
+
 TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 {
     return RuntimeParameters_;
@@ -256,7 +263,7 @@ TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 
 void TOperation::SetRuntimeParameters(TOperationRuntimeParametersPtr parameters)
 {
-    if (parameters->Owners != RuntimeParameters_->Owners) {
+    if (parameters->Acl != RuntimeParameters_->Acl) {
         SetShouldFlushAcl(true);
     }
     SetShouldFlush(true);

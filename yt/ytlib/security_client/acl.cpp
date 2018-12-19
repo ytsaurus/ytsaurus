@@ -9,6 +9,33 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSerializableAccessControlEntry::TSerializableAccessControlEntry() = default;
+
+TSerializableAccessControlEntry::TSerializableAccessControlEntry(
+    ESecurityAction action,
+    std::vector<TString> subjects,
+    EPermissionSet permissions,
+    EAceInheritanceMode inheritanceMode)
+    : Action(action)
+    , Subjects(std::move(subjects))
+    , Permissions(permissions)
+    , InheritanceMode(inheritanceMode)
+{ }
+
+bool operator == (const TSerializableAccessControlEntry& lhs, const TSerializableAccessControlEntry& rhs)
+{
+    return
+        lhs.Action == rhs.Action &&
+        lhs.Subjects == rhs.Subjects &&
+        lhs.Permissions == rhs.Permissions &&
+        lhs.InheritanceMode == rhs.InheritanceMode;
+}
+
+bool operator != (const TSerializableAccessControlEntry& lhs, const TSerializableAccessControlEntry& rhs)
+{
+    return !(lhs == rhs);
+}
+
 // NB(levysotsky): We don't use TYsonSerializable here
 // because we want to mirror the TAccessControlList structure,
 // and a vector of TYsonSerializable-s cannot be declared (as it has no move constructor).
@@ -35,6 +62,16 @@ void Deserialize(TSerializableAccessControlEntry& acl, NYTree::INodePtr node)
     if (const auto inheritanceModeNode = mapNode->FindChild("inheritance_mode")) {
         Deserialize(acl.InheritanceMode, inheritanceModeNode);
     }
+}
+
+bool operator == (const TSerializableAccessControlList& lhs, const TSerializableAccessControlList& rhs)
+{
+    return lhs.Entries == rhs.Entries;
+}
+
+bool operator != (const TSerializableAccessControlList& lhs, const TSerializableAccessControlList& rhs)
+{
+    return !(lhs == rhs);
 }
 
 void Serialize(const TSerializableAccessControlList& acl, NYson::IYsonConsumer* consumer)

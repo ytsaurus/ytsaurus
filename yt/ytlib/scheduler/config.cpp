@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/ytlib/security_client/acl.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/fs.h>
@@ -12,6 +14,38 @@
 namespace NYT::NScheduler {
 
 using namespace NYson;
+using namespace NYTree;
+using namespace NSecurityClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
+{
+    for (const auto& ace : acl.Entries) {
+        if (ace.Action != ESecurityAction::Allow) {
+            THROW_ERROR_EXCEPTION("Action %Qlv is forbidden to specify in operation ACE",
+                ace.Action)
+                << TErrorAttribute("ace", ace);
+        }
+        if (Any(ace.Permissions & ~(EPermission::Read | EPermission::Manage))) {
+            THROW_ERROR_EXCEPTION("Only \"read\" and \"manage\" permissions are allowed in operation ACL, got %v",
+                ConvertToYsonString(ace.Permissions))
+                << TErrorAttribute("ace", ace);
+        }
+    }
+}
+
+void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<TString>* owners)
+{
+    if (!acl->Entries.empty() && !owners->empty()) {
+        THROW_ERROR_EXCEPTION(
+            "\"owners\" is a deprecated field and should not be specified simultaneously with \"acl\"");
+    }
+    if (!owners->empty()) {
+        acl->Entries.emplace_back(ESecurityAction::Allow, *owners, EPermission::Read | EPermission::Manage);
+    }
+    owners->clear();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,19 +253,6 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(1);
     RegisterParameter("intermediate_data_medium", IntermediateDataMediumName)
         .Default(NChunkClient::DefaultStoreMediumName);
-    RegisterParameter("intermediate_data_acl", IntermediateDataAcl)
-        .Default(NYTree::BuildYsonNodeFluently()
-            .BeginList()
-                .Item().BeginMap()
-                    .Item("action").Value("allow")
-                    .Item("subjects").BeginList()
-                        .Item().Value("everyone")
-                    .EndList()
-                    .Item("permissions").BeginList()
-                        .Item().Value("read")
-                    .EndList()
-                .EndMap()
-            .EndList()->AsList());
 
     RegisterParameter("job_node_account", JobNodeAccount)
         .Default(NSecurityClient::TmpAccountName);
@@ -276,6 +297,12 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("owners", Owners)
         .Default();
+
+    RegisterParameter("acl", Acl)
+        .Default();
+
+    RegisterParameter("add_authenticated_user_to_acl", AddAuthenticatedUserToAcl)
+        .Default(true);
 
     RegisterParameter("secure_vault", SecureVault)
         .Default();
@@ -362,6 +389,9 @@ TOperationSpecBase::TOperationSpecBase()
         if (ConvertToYsonString(Annotations, EYsonFormat::Text).GetData().size() > MaxAnnotationsYsonTextLength) {
             THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v", MaxAnnotationsYsonTextLength);
         }
+
+        ValidateOperationAcl(Acl);
+        ProcessAclAndOwnersParameters(&Acl, &Owners);
     });
 }
 
@@ -1197,8 +1227,17 @@ TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParamete
 
 TOperationRuntimeParameters::TOperationRuntimeParameters()
 {
-    RegisterParameter("owners", Owners);
+    RegisterParameter("owners", Owners)
+        .Optional();
+    RegisterParameter("acl", Acl)
+        .Optional();
+
     RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree);
+
+    RegisterPostprocessor([&] {
+        ValidateOperationAcl(Acl);
+        ProcessAclAndOwnersParameters(&Acl, &Owners);
+    });
 }
 
 TOperationFairShareTreeRuntimeParametersUpdate::TOperationFairShareTreeRuntimeParametersUpdate()
@@ -1219,10 +1258,16 @@ TOperationRuntimeParametersUpdate::TOperationRuntimeParametersUpdate()
     RegisterParameter("weight", Weight)
         .Optional()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
-    RegisterParameter("owners", Owners)
+    RegisterParameter("acl", Acl)
         .Optional();
     RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
         .Default();
+
+    RegisterPostprocessor([&] {
+        if (Acl.has_value()) {
+            ValidateOperationAcl(*Acl);
+        }
+    });
 }
 
 TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters(
@@ -1246,8 +1291,8 @@ TOperationRuntimeParametersPtr UpdateRuntimeParameters(
 {
     YCHECK(origin);
     auto result = CloneYsonSerializable(origin);
-    if (update->Owners) {
-        result->Owners = *update->Owners;
+    if (update->Acl) {
+        result->Acl = *update->Acl;
     }
     for (const auto& [poolTree, treeUpdate] : update->SchedulingOptionsPerPoolTree) {
         auto& treeParams = result->SchedulingOptionsPerPoolTree[poolTree];

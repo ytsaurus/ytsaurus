@@ -309,69 +309,80 @@ print "x={0}\ty={1}".format(x, y)
         assert len(read_table("//tmp/t_out")) == 1
 
     def test_intermediate_live_preview(self):
-        create_user("u")
-        acl = [make_ace("allow", "u", "write")]
+        create_user("admin")
+        set("//sys/operations/@acl/end", make_ace("allow", "admin", ["read", "write", "manage"]))
+        try:
+            create_user("u")
+            create("table", "//tmp/t1")
+            write_table("//tmp/t1", {"foo": "bar"})
+            create("table", "//tmp/t2")
 
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", {"foo": "bar"})
-        create("table", "//tmp/t2")
+            op = map_reduce(
+                dont_track=True,
+                mapper_command="cat",
+                reducer_command="cat; sleep 3",
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                sort_by=["foo"],
+                spec={
+                    "acl": [make_ace("allow", "u", ["read", "manage"])],
+                },
+            )
 
-        op = map_reduce(dont_track=True, mapper_command="cat", reducer_command="cat; sleep 3",
-                        in_="//tmp/t1", out="//tmp/t2",
-                        sort_by=["foo"], spec={"intermediate_data_acl": acl})
+            time.sleep(2)
 
-        time.sleep(2)
+            operation_path = op.get_path()
+            scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+            assert exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
 
-        operation_path = op.get_path()
-        scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
-        assert exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
+            intermediate_acl = get(operation_path + "/intermediate/@acl", tx=scheduler_transaction_id)
+            assert sorted(intermediate_acl) == sorted([
+                # "authenticated_user" of operation.
+                make_ace("allow", "root", "read"),
+                # User from operation ACL.
+                make_ace("allow", "u", "read"),
+                # User from operation base ACL (from "//sys/operations/@acl").
+                make_ace("allow", "admin", "read"),
+            ])
 
-        intermediate_acl = get(operation_path + "/intermediate/@acl", tx=scheduler_transaction_id)
-        assert [make_ace("allow", "root", "read")] + acl == intermediate_acl
-
-        op.track()
-        assert read_table("//tmp/t2") == [{"foo": "bar"}]
+            op.track()
+            assert read_table("//tmp/t2") == [{"foo": "bar"}]
+        finally:
+            remove("//sys/operations/@acl/-1")
 
     def test_intermediate_new_live_preview(self):
-        create_user("u")
-        acl = [make_ace("allow", "u", "write")]
+        create_user("admin")
+        set("//sys/operations/@acl/end", make_ace("allow", "admin", ["read", "write", "manage"]))
+        try:
+            create_user("u")
+            create("table", "//tmp/t1")
+            write_table("//tmp/t1", {"foo": "bar"})
+            create("table", "//tmp/t2")
 
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", {"foo": "bar"})
-        create("table", "//tmp/t2")
+            op = map_reduce(
+                dont_track=True,
+                mapper_command="cat",
+                reducer_command=with_breakpoint("cat; BREAKPOINT"),
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                sort_by=["foo"],
+                spec={
+                    "acl": [make_ace("allow", "u", ["read"])],
+                },
+            )
 
-        op = map_reduce(dont_track=True, mapper_command="cat", reducer_command=with_breakpoint("cat; BREAKPOINT"),
-                        in_="//tmp/t1", out="//tmp/t2",
-                        sort_by=["foo"], spec={"intermediate_data_acl": acl})
+            wait(lambda: op.get_job_count("completed") == 1)
 
-        wait(lambda: op.get_job_count("completed") == 1)
+            operation_path = op.get_path()
+            get(operation_path + "/controller_orchid/data_flow_graph/vertices")
+            intermediate_live_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0")
 
-        operation_path = op.get_path()
-        get(operation_path + "/controller_orchid/data_flow_graph/vertices")
-        intermediate_live_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0")
-
-        intermediate_acl = get(operation_path + "/intermediate_data_access/@acl")
-        assert acl == intermediate_acl
-
-        release_breakpoint()
-
-        op.track()
-        assert intermediate_live_data == [{"foo": "bar"}]
-        assert read_table("//tmp/t2") == [{"foo": "bar"}]
-
-
-    def test_incorrect_intermediate_data_acl(self):
-        create_user("u")
-        acl = [make_ace("u", "blabla", "allow")]
-
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", {"foo": "bar"})
-        create("table", "//tmp/t2")
-
-        with pytest.raises(YtError):
-            map_reduce(mapper_command="cat", reducer_command="cat",
-                       in_="//tmp/t1", out="//tmp/t2",
-                       sort_by=["foo"], spec={"intermediate_data_acl": acl})
+            release_breakpoint()
+            op.track()
+            assert intermediate_live_data == [{"foo": "bar"}]
+            assert read_table("//tmp/t2") == [{"foo": "bar"}]
+        finally:
+            remove("//sys/operations/@acl/-1")
 
     def test_intermediate_compression_codec(self):
         create("table", "//tmp/t1")

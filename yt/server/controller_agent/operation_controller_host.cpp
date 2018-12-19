@@ -285,14 +285,14 @@ void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& t
 
 void TOperationControllerHost::ValidateOperationAccess(
     const TString& user,
-    EAccessType accessType)
+    EPermission permission)
 {
     WaitFor(BIND(&TControllerAgent::ValidateOperationAccess, Bootstrap_->GetControllerAgent())
         .AsyncVia(CancelableControlInvoker_)
         .Run(
             user,
             OperationId_,
-            accessType))
+            permission))
         .ThrowOnError();
 }
 

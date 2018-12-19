@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/yson/public.h>
@@ -159,6 +161,7 @@ struct ISchedulerStrategy
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
+        const NSecurityClient::TSerializableAccessControlList& baseAcl,
         const TString& user,
         EOperationType operationType) = 0;
 

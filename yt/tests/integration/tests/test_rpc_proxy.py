@@ -214,8 +214,9 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         create_user("u")
 
-        update_op_parameters(op.id, parameters={"owners": ["u"]})
-        wait(lambda: check_permission("u", "write", op.get_path())["action"] == "allow")
+        update_op_parameters(op.id, parameters={"acl": [make_ace("allow", "u", ["read", "manage"])]})
+        # No exception.
+        op.complete(authenticated_user="u")
 
         events_on_fs().release_breakpoint()
         op.track()
