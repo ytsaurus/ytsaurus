@@ -2937,7 +2937,7 @@ public:
     }
 
 
-    TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id)
+    TTabletCell* GetTabletCellOrThrow(TTabletCellId id)
     {
         auto* cell = FindTabletCell(id);
         if (!IsObjectAlive(cell)) {
@@ -3833,7 +3833,7 @@ private:
                 cellBundle->GetDynamicConfigVersion());
         };
 
-        auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
+        auto requestRemoveSlot = [&] (TTabletCellId cellId) {
             if (!response)
                 return;
 
@@ -6240,7 +6240,7 @@ TTablet* TTabletManager::GetTabletOrThrow(TTabletId id)
     return Impl_->GetTabletOrThrow(id);
 }
 
-TTabletCell* TTabletManager::GetTabletCellOrThrow(const TTabletCellId& id)
+TTabletCell* TTabletManager::GetTabletCellOrThrow(TTabletCellId id)
 {
     return Impl_->GetTabletCellOrThrow(id);
 }

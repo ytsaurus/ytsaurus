@@ -1086,7 +1086,7 @@ private:
         return std::make_unique<TProxy>(channel);
     }
 
-    IChannelPtr GetReadCellChannelOrThrow(const TTabletCellId& cellId)
+    IChannelPtr GetReadCellChannelOrThrow(TTabletCellId cellId)
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
