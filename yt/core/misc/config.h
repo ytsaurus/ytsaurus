@@ -80,7 +80,7 @@ public:
     TDuration ExpireAfterFailedUpdateTime;
 
     //! Time before next (background) update.
-    TDuration RefreshTime;
+    std::optional<TDuration> RefreshTime;
 
     TAsyncExpiringCacheConfig()
     {
@@ -97,7 +97,7 @@ public:
             .Default(TDuration::Seconds(10));
 
         RegisterPostprocessor([&] () {
-            if (RefreshTime > ExpireAfterSuccessfulUpdateTime) {
+            if (RefreshTime && *RefreshTime > ExpireAfterSuccessfulUpdateTime) {
                 THROW_ERROR_EXCEPTION("\"refresh_time\" must be less than \"expire_after_successful_update_time\"");
             }
         });
