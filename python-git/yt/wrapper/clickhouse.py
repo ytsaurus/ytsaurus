@@ -39,8 +39,6 @@ def get_clickhouse_clique_spec_builder(instance_count,
     .. seealso::  :ref:`operation_parameters`. 
     """ 
 
-    print cpu_limit, memory_limit
-
     if cpu_limit is None:
         cpu_limit = DEFAULT_CPU_LIMIT
     
