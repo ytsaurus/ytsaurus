@@ -445,7 +445,7 @@ public:
     TPreloadedBlockCache(
         TIntrusivePtr<TChunkStoreBase> owner,
         TInMemoryChunkDataPtr chunkData,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         IBlockCachePtr underlyingCache)
         : Owner_(owner)
         , ChunkData_(chunkData)

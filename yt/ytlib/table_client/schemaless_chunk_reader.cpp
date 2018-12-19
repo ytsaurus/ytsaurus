@@ -102,7 +102,7 @@ public:
         const TChunkStatePtr& chunkState,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,

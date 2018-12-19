@@ -15,7 +15,7 @@ struct TChunkDescriptor
     TChunkDescriptor()
     { }
 
-    explicit TChunkDescriptor(const TChunkId& id)
+    explicit TChunkDescriptor(TChunkId id)
         : Id(id)
     { }
 
@@ -34,7 +34,7 @@ class TChunkBase
     : public IChunk
 {
 public:
-    virtual const TChunkId& GetId() const override;
+    virtual TChunkId GetId() const override;
     virtual TLocationPtr GetLocation() const override;
     virtual TString GetFileName() const override;
 
@@ -70,7 +70,7 @@ protected:
     TChunkBase(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& id);
+        TChunkId id);
 
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;

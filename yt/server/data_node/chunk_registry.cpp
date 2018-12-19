@@ -19,7 +19,7 @@ TChunkRegistry::TChunkRegistry(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 { }
 
-IChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId, int mediumIndex)
+IChunkPtr TChunkRegistry::FindChunk(TChunkId chunkId, int mediumIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -41,7 +41,7 @@ IChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId, int mediumIndex)
     return nullptr;
 }
 
-IChunkPtr TChunkRegistry::GetChunkOrThrow(const TChunkId& chunkId, int mediumIndex)
+IChunkPtr TChunkRegistry::GetChunkOrThrow(TChunkId chunkId, int mediumIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

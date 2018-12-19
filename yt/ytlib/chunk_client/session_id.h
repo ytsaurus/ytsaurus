@@ -13,7 +13,7 @@ namespace NYT::NChunkClient {
 struct TSessionId
 {
     TSessionId();
-    TSessionId(const TChunkId& chunkId, int mediumIndex);
+    TSessionId(TChunkId chunkId, int mediumIndex);
 
     TChunkId ChunkId;
     int MediumIndex;

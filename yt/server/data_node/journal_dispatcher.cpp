@@ -65,11 +65,11 @@ public:
 
     TFuture<IChangelogPtr> OpenChangelog(
         const TStoreLocationPtr& location,
-        const TChunkId& chunkId);
+        TChunkId chunkId);
 
     TFuture<IChangelogPtr> CreateChangelog(
         const TStoreLocationPtr& location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         bool enableMultiplexing,
         const TWorkloadDescriptor& workloadDescriptor);
 
@@ -79,7 +79,7 @@ public:
 
     TFuture<bool> IsChangelogSealed(
         const TStoreLocationPtr& location,
-        const TChunkId& chunkId);
+        TChunkId chunkId);
 
     TFuture<void> SealChangelog(TJournalChunkPtr chunk);
 
@@ -91,7 +91,7 @@ private:
 
     IChangelogPtr OnChangelogOpenedOrCreated(
         TStoreLocationPtr location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         bool enableMultiplexing,
         TInsertCookie cookie,
         const TErrorOr<IChangelogPtr>& changelogOrError);
@@ -111,7 +111,7 @@ public:
     TCachedChangelog(
         TImplPtr owner,
         TStoreLocationPtr location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         IChangelogPtr underlyingChangelog,
         bool enableMultiplexing)
         : TAsyncCacheValueBase({location, chunkId})
@@ -202,7 +202,7 @@ private:
 
 TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId)
+    TChunkId chunkId)
 {
     auto cookie = BeginInsert({location, chunkId});
     if (!cookie.IsActive()) {
@@ -221,7 +221,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
 
 IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
     TStoreLocationPtr location,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     bool enableMultiplexing,
     TInsertCookie cookie,
     const TErrorOr<IChangelogPtr>& changelogOrError)
@@ -243,7 +243,7 @@ IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
 
 TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     bool enableMultiplexing,
     const TWorkloadDescriptor& workloadDescriptor)
 {
@@ -285,7 +285,7 @@ TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
 
 TFuture<bool> TJournalDispatcher::TImpl::IsChangelogSealed(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId)
+    TChunkId chunkId)
 {
     const auto& journalManager = location->GetJournalManager();
     return journalManager->IsChangelogSealed(chunkId);
@@ -332,14 +332,14 @@ TJournalDispatcher::~TJournalDispatcher() = default;
 
 TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId)
+    TChunkId chunkId)
 {
     return Impl_->OpenChangelog(location, chunkId);
 }
 
 TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     bool enableMultiplexing,
     const TWorkloadDescriptor& workloadDescriptor)
 {
@@ -355,7 +355,7 @@ TFuture<void> TJournalDispatcher::RemoveChangelog(
 
 TFuture<bool> TJournalDispatcher::IsChangelogSealed(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId)
+    TChunkId chunkId)
 {
     return Impl_->IsChangelogSealed(location, chunkId);
 }

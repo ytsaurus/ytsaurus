@@ -37,7 +37,7 @@ struct ISession
     : public virtual TRefCounted
 {
     //! Returns the TChunkId being uploaded.
-    virtual const TChunkId& GetChunkId() const& = 0;
+    virtual TChunkId GetChunkId() const& = 0;
 
     //! Returns the session ID.
     virtual const TSessionId& GetId() const& = 0;

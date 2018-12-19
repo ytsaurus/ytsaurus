@@ -340,7 +340,7 @@ bool operator < (const TRowRangeLocation& rhs, const TRowRangeLocation& lhs)
 
 TString MakeFileUrl(
     const TString& node,
-    const NChunkClient::TChunkId& chunkId,
+    NChunkClient::TChunkId chunkId,
     i64 lowerRowIndex,
     i64 upperRowIndex,
     i64 partIndex)

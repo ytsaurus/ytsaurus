@@ -75,7 +75,7 @@ ISessionPtr TSessionManager::GetSessionOrThrow(const TSessionId& sessionId)
     return session;
 }
 
-TSessionManager::TSessionPtrList TSessionManager::GetSessionsOrThrow(const TChunkId& chunkId)
+TSessionManager::TSessionPtrList TSessionManager::GetSessionsOrThrow(TChunkId chunkId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

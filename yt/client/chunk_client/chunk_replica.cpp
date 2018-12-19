@@ -82,22 +82,22 @@ void TChunkReplicaAddressFormatter::operator()(TStringBuilder* builder, TChunkRe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsArtifactChunkId(const TChunkId& id)
+bool IsArtifactChunkId(TChunkId id)
 {
     return TypeFromId(id) == EObjectType::Artifact;
 }
 
-bool IsJournalChunkId(const TChunkId& id)
+bool IsJournalChunkId(TChunkId id)
 {
     return TypeFromId(id) == EObjectType::JournalChunk;
 }
 
-bool IsErasureChunkId(const TChunkId& id)
+bool IsErasureChunkId(TChunkId id)
 {
     return TypeFromId(id) == EObjectType::ErasureChunk;
 }
 
-bool IsErasureChunkPartId(const TChunkId& id)
+bool IsErasureChunkPartId(TChunkId id)
 {
     auto type = TypeFromId(id);
     return
@@ -105,17 +105,17 @@ bool IsErasureChunkPartId(const TChunkId& id)
         type <= EObjectType::ErasureChunkPart_15;
 }
 
-TChunkId ErasurePartIdFromChunkId(const TChunkId& id, int index)
+TChunkId ErasurePartIdFromChunkId(TChunkId id, int index)
 {
     return ReplaceTypeInId(id, EObjectType(static_cast<int>(EObjectType::ErasureChunkPart_0) + index));
 }
 
-TChunkId ErasureChunkIdFromPartId(const TChunkId& id)
+TChunkId ErasureChunkIdFromPartId(TChunkId id)
 {
     return ReplaceTypeInId(id, EObjectType::ErasureChunk);
 }
 
-int IndexFromErasurePartId(const TChunkId& id)
+int IndexFromErasurePartId(TChunkId id)
 {
     int index = static_cast<int>(TypeFromId(id)) - static_cast<int>(EObjectType::ErasureChunkPart_0);
     YCHECK(index >= 0 && index <= 15);
@@ -129,7 +129,7 @@ TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex)
         : idWithIndex.Id;
 }
 
-TChunkIdWithIndex DecodeChunkId(const TChunkId& id)
+TChunkIdWithIndex DecodeChunkId(TChunkId id)
 {
     return IsErasureChunkPartId(id)
         ? TChunkIdWithIndex(ErasureChunkIdFromPartId(id), IndexFromErasurePartId(id))

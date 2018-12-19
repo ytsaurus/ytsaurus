@@ -40,7 +40,7 @@ TChunkTeleporter::TChunkTeleporter(
 { }
 
 void TChunkTeleporter::RegisterChunk(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     TCellTag destinationCellTag)
 {
     if (CellTagFromId(chunkId) != destinationCellTag) {

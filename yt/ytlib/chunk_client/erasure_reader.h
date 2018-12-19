@@ -24,7 +24,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TRemoteReaderOptionsPtr options,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     const NErasure::ICodec* codec,
     IBlockCachePtr blockCache = GetNullBlockCache(),

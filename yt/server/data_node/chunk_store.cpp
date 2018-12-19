@@ -144,7 +144,7 @@ TChunkStore::TChunkEntry TChunkStore::FindExistingChunk(IChunkPtr chunk) const
     return {};
 }
 
-IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId, int mediumIndex) const
+IChunkPtr TChunkStore::FindChunk(TChunkId chunkId, int mediumIndex) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -408,7 +408,7 @@ TChunkStore::TChunkEntry TChunkStore::BuildEntry(IChunkPtr chunk)
     return result;
 }
 
-IChunkPtr TChunkStore::GetChunkOrThrow(const TChunkId& chunkId, int mediumIndex) const
+IChunkPtr TChunkStore::GetChunkOrThrow(TChunkId chunkId, int mediumIndex) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

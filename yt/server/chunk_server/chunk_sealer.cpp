@@ -160,7 +160,7 @@ private:
     }
 
 
-    void RescheduleSeal(const TChunkId& chunkId)
+    void RescheduleSeal(TChunkId chunkId)
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* chunk = chunkManager->FindChunk(chunkId);
@@ -234,7 +234,7 @@ private:
     }
 
     void SealChunk(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         TAsyncSemaphoreGuard /*guard*/)
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();

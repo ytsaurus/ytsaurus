@@ -102,7 +102,7 @@ TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, const TCac
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedBlockMeta::TCachedBlockMeta(const NChunkClient::TChunkId& chunkId, NTableClient::NProto::TBlockMetaExt blockMeta)
+TCachedBlockMeta::TCachedBlockMeta(NChunkClient::TChunkId chunkId, NTableClient::NProto::TBlockMetaExt blockMeta)
     : TSyncCacheValueBase<NChunkClient::TChunkId, TCachedBlockMeta>(chunkId)
     , NTableClient::NProto::TBlockMetaExt(std::move(blockMeta))
 {

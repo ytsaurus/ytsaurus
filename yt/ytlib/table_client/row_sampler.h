@@ -70,7 +70,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IRowSampler> CreateChunkRowSampler(
-    const NChunkClient::TChunkId& chunkId,
+    NChunkClient::TChunkId chunkId,
     double rate,
     ui64 seed);
 

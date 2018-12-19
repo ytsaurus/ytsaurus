@@ -44,7 +44,7 @@ void ReadHeader(
 
 TFileReader::TFileReader(
     const IIOEnginePtr& ioEngine,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TString& fileName,
     bool validateBlocksChecksums,
     IBlocksExtCache* blocksExtCache)

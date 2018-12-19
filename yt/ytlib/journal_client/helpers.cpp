@@ -41,7 +41,7 @@ class TQuorumSessionBase
 {
 public:
     TQuorumSessionBase(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const std::vector<TChunkReplicaDescriptor>& replicas,
         TDuration timeout,
         int quorum,
@@ -72,7 +72,7 @@ class TAbortSessionsQuorumSession
 {
 public:
     TAbortSessionsQuorumSession(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const std::vector<TChunkReplicaDescriptor>& replicas,
         TDuration timeout,
         int quorum,
@@ -159,7 +159,7 @@ private:
 };
 
 TFuture<void> AbortSessionsQuorum(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,
@@ -282,7 +282,7 @@ private:
 };
 
 TFuture<TMiscExt> ComputeQuorumInfo(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,

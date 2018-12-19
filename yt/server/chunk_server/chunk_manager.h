@@ -69,7 +69,7 @@ public:
         TCtxExecuteBatchPtr context);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
-    TChunk* GetChunkOrThrow(const TChunkId& id);
+    TChunk* GetChunkOrThrow(TChunkId id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     TChunkList* GetChunkListOrThrow(const TChunkListId& id);

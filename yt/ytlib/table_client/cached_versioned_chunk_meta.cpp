@@ -33,7 +33,7 @@ using NChunkClient::TChunkReaderStatistics;
 TCachedVersionedChunkMeta::TCachedVersionedChunkMeta() = default;
 
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchema& schema,
     const TColumnRenameDescriptors& renameDescriptors,
@@ -65,7 +65,7 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
 }
 
 void TCachedVersionedChunkMeta::Init(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchema& schema,
     const TColumnRenameDescriptors& renameDescriptors,

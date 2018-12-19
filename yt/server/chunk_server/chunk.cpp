@@ -32,7 +32,7 @@ const TChunk::TReplicasData TChunk::EmptyReplicasData = {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunk::TChunk(const TChunkId& id)
+TChunk::TChunk(TChunkId id)
     : TChunkTree(id)
     , AggregatedRequisitionIndex_(IsErasure()
         ? MigrationErasureChunkRequisitionIndex

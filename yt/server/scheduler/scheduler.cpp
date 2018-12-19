@@ -1237,7 +1237,7 @@ public:
 
     TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TOperationId& operationId,
         const TJobId& jobId,
         const TString& user) override
@@ -1359,7 +1359,7 @@ private:
 
     void DoAttachJobContext(
         const NYTree::TYPath& path,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TOperationId& operationId,
         const TJobId& jobId,
         const TString& user)

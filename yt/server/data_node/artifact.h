@@ -17,7 +17,7 @@ struct TArtifactKey
 {
     TArtifactKey() = default;
 
-    explicit TArtifactKey(const NChunkClient::TChunkId& id);
+    explicit TArtifactKey(NChunkClient::TChunkId id);
     explicit TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor);
 
     // Hasher.

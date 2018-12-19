@@ -15,7 +15,7 @@ class TCacheReader
 {
 public:
     TCacheReader(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         IBlockCachePtr blockCache)
         : ChunkId_(chunkId)
         , BlockCache_(std::move(blockCache))
@@ -88,7 +88,7 @@ private:
 };
 
 IChunkReaderPtr CreateCacheReader(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     IBlockCachePtr blockCache)
 {
     return New<TCacheReader>(chunkId, std::move(blockCache));

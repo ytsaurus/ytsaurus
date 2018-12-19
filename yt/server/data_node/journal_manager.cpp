@@ -112,11 +112,11 @@ struct IMultiplexedReplayerCallbacks
     virtual IChangelogPtr OpenMultiplexedChangelog(int id) = 0;
     virtual void MarkMultiplexedChangelogClean(int id) = 0;
 
-    virtual IChangelogPtr CreateSplitChangelog(const TChunkId& chunkId) = 0;
-    virtual IChangelogPtr OpenSplitChangelog(const TChunkId& chunkId) = 0;
-    virtual void FlushSplitChangelog(const TChunkId& chunkId) = 0;
-    virtual bool RemoveSplitChangelog(const TChunkId& chunkId) = 0;
-    virtual bool IsSplitChangelogSealed(const TChunkId& chunkId) = 0;
+    virtual IChangelogPtr CreateSplitChangelog(TChunkId chunkId) = 0;
+    virtual IChangelogPtr OpenSplitChangelog(TChunkId chunkId) = 0;
+    virtual void FlushSplitChangelog(TChunkId chunkId) = 0;
+    virtual bool RemoveSplitChangelog(TChunkId chunkId) = 0;
+    virtual bool IsSplitChangelogSealed(TChunkId chunkId) = 0;
 };
 
 class TMultiplexedReplayer
@@ -199,7 +199,7 @@ private:
 
     struct TSplitEntry
     {
-        TSplitEntry(const TChunkId& chunkId, IChangelogPtr changelog)
+        TSplitEntry(TChunkId chunkId, IChangelogPtr changelog)
             : ChunkId(chunkId)
             , Changelog(changelog)
         { }
@@ -218,7 +218,7 @@ private:
     THashMap<TChunkId, TSplitEntry> SplitMap_;
 
 
-    TVersion GetFirstRelevantVersion(const TChunkId& chunkId)
+    TVersion GetFirstRelevantVersion(TChunkId chunkId)
     {
         auto it = ChunkIdToFirstRelevantVersion_.find(chunkId);
         YCHECK(it != ChunkIdToFirstRelevantVersion_.end());
@@ -501,7 +501,7 @@ public:
         BarrierCleanupExecutor_->Start();
     }
 
-    TFuture<void> WriteCreateRecord(const TChunkId& chunkId)
+    TFuture<void> WriteCreateRecord(TChunkId chunkId)
     {
         TMultiplexedRecord record;
         record.Header.Type = EMultiplexedRecordType::Create;
@@ -510,7 +510,7 @@ public:
         return WriteMultiplexedRecord(record);
     }
 
-    TFuture<void> WriteRemoveRecord(const TChunkId& chunkId)
+    TFuture<void> WriteRemoveRecord(TChunkId chunkId)
     {
         TMultiplexedRecord record;
         record.Header.Type = EMultiplexedRecordType::Remove;
@@ -520,7 +520,7 @@ public:
     }
 
     TFuture<void> WriteAppendRecord(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         int recordId,
         const TSharedRef& recordData)
     {
@@ -878,7 +878,7 @@ public:
         YT_LOG_INFO("Journals initialized");
     }
 
-    TFuture<IChangelogPtr> OpenChangelog(const TChunkId& chunkId)
+    TFuture<IChangelogPtr> OpenChangelog(TChunkId chunkId)
     {
         return Location_->DisableOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
@@ -886,7 +886,7 @@ public:
     }
 
     TFuture<IChangelogPtr> CreateChangelog(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         bool enableMultiplexing,
         const TWorkloadDescriptor& workloadDescriptor)
     {
@@ -935,7 +935,7 @@ public:
     }
 
     TFuture<void> AppendMultiplexedRecord(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         int recordId,
         const TSharedRef& recordData,
         TFuture<void> splitResult)
@@ -948,7 +948,7 @@ public:
             recordData);
     }
 
-    TFuture<bool> IsChangelogSealed(const TChunkId& chunkId)
+    TFuture<bool> IsChangelogSealed(TChunkId chunkId)
     {
         return Location_->DisableOnError(BIND(&TImpl::DoIsChangelogSealed, MakeStrong(this), chunkId))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
@@ -983,7 +983,7 @@ private:
     }
 
     IChangelogPtr DoCreateChangelog(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         bool enableMultiplexing,
         const TWorkloadDescriptor& /*workloadDescriptor*/)
     {
@@ -1007,7 +1007,7 @@ private:
         return changelog;
     }
 
-    IChangelogPtr DoOpenChangelog(const TChunkId& chunkId)
+    IChangelogPtr DoOpenChangelog(TChunkId chunkId)
     {
         IChangelogPtr changelog;
 
@@ -1034,7 +1034,7 @@ private:
         chunk->SyncRemove(false);
     }
 
-    bool DoIsChangelogSealed(const TChunkId& chunkId)
+    bool DoIsChangelogSealed(TChunkId chunkId)
     {
         return NFS::Exists(GetSealedFlagFileName(chunkId));
     }
@@ -1044,7 +1044,7 @@ private:
         TFile file(GetSealedFlagFileName(chunk->GetId()), CreateNew);
     }
 
-    TString GetSealedFlagFileName(const TChunkId& chunkId)
+    TString GetSealedFlagFileName(TChunkId chunkId)
     {
         return Location_->GetChunkPath(chunkId) + "." + SealedFlagExtension;
     }
@@ -1074,7 +1074,7 @@ private:
             Impl_->MultiplexedWriter_->MarkMultiplexedChangelogClean(id);
         }
 
-        virtual IChangelogPtr CreateSplitChangelog(const TChunkId& chunkId) override
+        virtual IChangelogPtr CreateSplitChangelog(TChunkId chunkId) override
         {
             const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             if (chunkStore->FindChunk(chunkId)) {
@@ -1101,7 +1101,7 @@ private:
             return changelog;
         }
 
-        virtual IChangelogPtr OpenSplitChangelog(const TChunkId& chunkId) override
+        virtual IChangelogPtr OpenSplitChangelog(TChunkId chunkId) override
         {
             const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
@@ -1121,7 +1121,7 @@ private:
             return changelog;
         }
 
-        virtual void FlushSplitChangelog(const TChunkId& chunkId) override
+        virtual void FlushSplitChangelog(TChunkId chunkId) override
         {
             const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
@@ -1138,7 +1138,7 @@ private:
             journalChunk->DetachChangelog();
         }
 
-        virtual bool RemoveSplitChangelog(const TChunkId& chunkId) override
+        virtual bool RemoveSplitChangelog(TChunkId chunkId) override
         {
             const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
@@ -1157,7 +1157,7 @@ private:
             return true;
         }
 
-        virtual bool IsSplitChangelogSealed(const TChunkId& chunkId) override
+        virtual bool IsSplitChangelogSealed(TChunkId chunkId) override
         {
              return Impl_->IsChangelogSealed(chunkId)
                  .Get()
@@ -1186,13 +1186,13 @@ void TJournalManager::Initialize()
 }
 
 TFuture<IChangelogPtr> TJournalManager::OpenChangelog(
-    const TChunkId& chunkId)
+    TChunkId chunkId)
 {
     return Impl_->OpenChangelog(chunkId);
 }
 
 TFuture<IChangelogPtr> TJournalManager::CreateChangelog(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     bool enableMultiplexing,
     const TWorkloadDescriptor& workloadDescriptor)
 {
@@ -1207,7 +1207,7 @@ TFuture<void> TJournalManager::RemoveChangelog(
 }
 
 TFuture<void> TJournalManager::AppendMultiplexedRecord(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     int recordId,
     const TSharedRef& recordData,
     TFuture<void> splitResult)
@@ -1219,7 +1219,7 @@ TFuture<void> TJournalManager::AppendMultiplexedRecord(
         std::move(splitResult));
 }
 
-TFuture<bool> TJournalManager::IsChangelogSealed(const TChunkId& chunkId)
+TFuture<bool> TJournalManager::IsChangelogSealed(TChunkId chunkId)
 {
     return Impl_->IsChangelogSealed(chunkId);
 }

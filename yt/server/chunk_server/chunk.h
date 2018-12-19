@@ -86,7 +86,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Movable);
 
 public:
-    explicit TChunk(const TChunkId& id);
+    explicit TChunk(TChunkId id);
 
     TChunkDynamicData* GetDynamicData() const;
 

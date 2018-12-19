@@ -49,7 +49,7 @@ struct INodeShardHost
 
     virtual TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         const TOperationId& operationId,
         const TJobId& jobId,
         const TString& user) = 0;

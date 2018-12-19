@@ -79,7 +79,7 @@ public:
 
     void AttachJobContext(
         const NYPath::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         const TOperationId& operationId,
         const TJobId& jobId,
         const TString& usrt);

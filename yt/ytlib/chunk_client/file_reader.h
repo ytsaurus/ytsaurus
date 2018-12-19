@@ -39,7 +39,7 @@ public:
      */
     TFileReader(
         const IIOEnginePtr& ioEngine,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TString& fileName,
         bool validateBlocksChecksums = true,
         IBlocksExtCache* blocksExtCache = nullptr);

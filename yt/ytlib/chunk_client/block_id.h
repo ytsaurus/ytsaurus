@@ -15,7 +15,7 @@ namespace NYT::NChunkClient {
 struct TBlockId
 {
     TBlockId();
-    TBlockId(const TChunkId& chunkId, int blockIndex);
+    TBlockId(TChunkId chunkId, int blockIndex);
 
     //! TChunkId of the chunk where the block belongs.
     TChunkId ChunkId;

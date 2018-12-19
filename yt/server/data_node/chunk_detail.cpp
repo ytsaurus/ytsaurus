@@ -26,13 +26,13 @@ static const auto& Logger = DataNodeLogger;
 TChunkBase::TChunkBase(
     TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& id)
+    TChunkId id)
     : Bootstrap_(bootstrap)
     , Location_(location)
     , Id_(id)
 { }
 
-const TChunkId& TChunkBase::GetId() const
+TChunkId TChunkBase::GetId() const
 {
     return Id_;
 }

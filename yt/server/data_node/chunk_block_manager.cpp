@@ -97,7 +97,7 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlockRange(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         int firstBlockIndex,
         int blockCount,
         const TBlockReadOptions& options)
@@ -123,7 +123,7 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlockSet(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options)
     {
@@ -220,7 +220,7 @@ TCachedBlockCookie TChunkBlockManager::BeginInsertCachedBlock(const TBlockId& bl
 }
 
 TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockRange(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     int firstBlockIndex,
     int blockCount,
     const TBlockReadOptions& options)
@@ -233,7 +233,7 @@ TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockRange(
 }
 
 TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockSet(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const std::vector<int>& blockIndexes,
     const TBlockReadOptions& options)
 {

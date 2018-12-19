@@ -163,14 +163,14 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         void,
         OnInputChunkLocated,
-        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
         (chunkId, replicas, missing),
         false)
 
     //! Called by #IntermediateChunkScraper.
     IMPLEMENT_SAFE_METHOD(
         void, OnIntermediateChunkLocated,
-        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
         (chunkId, replicas, missing),
         false)
 
@@ -652,7 +652,7 @@ protected:
     virtual void OnChunksReleased(int chunkCount);
 
     //! Called when a job is unable to read a chunk.
-    void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
+    void OnChunkFailed(NChunkClient::TChunkId chunkId);
 
     //! Gets the list of all intermediate chunks that are not lost.
     THashSet<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
@@ -660,10 +660,10 @@ protected:
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).
     //! Returns false if the chunk was already considered lost.
-    bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
+    bool OnIntermediateChunkUnavailable(NChunkClient::TChunkId chunkId);
 
     void OnIntermediateChunkAvailable(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         const NChunkClient::TChunkReplicaList& replicas);
 
     //! Return a pointer to `YsonSerializable` object that represents
@@ -706,11 +706,11 @@ protected:
     //! Called when a job is unable to read an input chunk or
     //! chunk scraper has encountered unavailable chunk.
     void OnInputChunkUnavailable(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         TInputChunkDescriptor* descriptor);
 
     void OnInputChunkAvailable(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         const NChunkClient::TChunkReplicaList& replicas,
         TInputChunkDescriptor* descriptor);
 
@@ -781,7 +781,7 @@ protected:
         bool ping = false);
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
-    virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
+    virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
 
     void AttachToLivePreview(
         NChunkClient::TChunkTreeId chunkTreeId,
