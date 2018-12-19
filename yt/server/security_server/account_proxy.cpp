@@ -106,7 +106,7 @@ private:
                     .BeginMap()
                         .Item("disk_space").Value(account->IsDiskSpaceLimitViolated())
                         .Item("disk_space_per_medium").DoMapFor(chunkManager->Media(),
-                            [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                            [&] (TFluentMap fluent, const std::pair<TMediumId, TMedium*>& pair) {
                                 const auto* medium = pair.second;
                                 fluent
                                     .Item(medium->GetName()).Value(account->IsDiskSpaceLimitViolated(medium->GetIndex()));

@@ -30,7 +30,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
 public:
-    explicit TMedium(const TMediumId& id);
+    explicit TMedium(TMediumId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
