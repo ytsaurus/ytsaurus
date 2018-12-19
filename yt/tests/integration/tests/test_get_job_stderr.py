@@ -132,7 +132,7 @@ class TestGetJobStderr(YTEnvSetup):
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 
-            update_op_parameters(op.id, parameters={"owners": ["other"]})
+            update_op_parameters(op.id, parameters={"acl": [make_ace("allow", "other", ["read", "manage"])]})
 
             release_breakpoint()
             op.track()

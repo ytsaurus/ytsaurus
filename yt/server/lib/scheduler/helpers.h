@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/api/native/public.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/core/ytree/public.h>
 
 #include <yt/core/logging/public.h>
@@ -17,13 +19,7 @@ NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateOperationAccess(
-    const TString& user,
-    TOperationId operationId,
-    EAccessType accessType,
-    const NYTree::INodePtr& acl,
-    const NApi::NNative::IClientPtr& client,
-    const NLogging::TLogger& logger);
+NSecurityClient::TSerializableAccessControlList MakeOperationArtifactAcl(const NSecurityClient::TSerializableAccessControlList& acl);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,6 +17,7 @@ message TRspDumpInputContext
 message TReqGetJobNode
 {
     required NYT.NProto.TGuid job_id = 1;
+    optional uint32 required_permissions = 2 [default = 0];
 }
 
 message TRspGetJobNode

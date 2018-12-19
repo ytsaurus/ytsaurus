@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/ytree/permission.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT::NControllerAgent {
 
@@ -90,7 +90,7 @@ public:
 
     virtual void ValidateOperationAccess(
         const TString& user,
-        NScheduler::EAccessType accessType) override;
+        NYTree::EPermission permission) override;
 
 private:
     const TOperationId OperationId_;

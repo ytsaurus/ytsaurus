@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/scheduler/config.h>

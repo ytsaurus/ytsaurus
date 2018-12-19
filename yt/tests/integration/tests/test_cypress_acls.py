@@ -157,7 +157,7 @@ class TestAcls(YTEnvSetup):
         create_account("a")
 
         create("table", "//tmp/t1")
-        write_table("//tmp/t1", {"a" : "b"})
+        write_table("//tmp/t1", {str(i): i for i in xrange(20)})
 
         create("table", "//tmp/t2")
 
@@ -184,17 +184,6 @@ class TestAcls(YTEnvSetup):
         set_account_disk_space_limit("a", 0)
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
-    def test_scheduler_operation_abort_acl(self):
-        self._prepare_scheduler_test()
-        create_user("u1")
-        op = map(
-            dont_track=True,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command="cat; while true; do sleep 1; done",
-            authenticated_user="u")
-        with pytest.raises(YtError): op.abort(authenticated_user="u1")
-        op.abort(authenticated_user="u")
 
     def test_scheduler_operation_abort_by_owners(self):
         self._prepare_scheduler_test()
@@ -205,7 +194,8 @@ class TestAcls(YTEnvSetup):
             out="//tmp/t2",
             command="cat; while true; do sleep 1; done",
             authenticated_user="u",
-            spec={"owners": ["u1"]})
+            spec={"owners": ["u1"]},
+        )
         op.abort(authenticated_user="u1")
 
     def test_inherit1(self):

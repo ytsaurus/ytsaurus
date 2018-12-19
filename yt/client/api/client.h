@@ -873,7 +873,7 @@ struct TOperation
     std::optional<TInstant> FinishTime;
 
     std::optional<TString> AuthenticatedUser;
-    std::optional<std::vector<TString>> Owners;
+    NYTree::INodePtr Acl;
 
     std::optional<std::vector<TString>> Pools;
 

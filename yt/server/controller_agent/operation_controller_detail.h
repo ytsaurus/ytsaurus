@@ -364,7 +364,7 @@ protected:
     const NLogging::TLogger Logger;
     const std::vector<TString> CoreNotes_;
 
-    std::vector<TString> Owners;
+    NSecurityClient::TSerializableAccessControlList Acl;
 
     // Usually these clients are all the same (and connected to the current cluster).
     // But `remote copy' operation connects InputClient to remote cluster.

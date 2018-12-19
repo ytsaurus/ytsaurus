@@ -753,7 +753,7 @@ public:
         if (operation->GetSecureVault()) {
             descriptor->set_secure_vault(ConvertToYsonString(operation->GetSecureVault()).GetData());
         }
-        ToProto(descriptor->mutable_owners(), operation->GetOwners());
+        descriptor->set_acl(ConvertToYsonString(operation->GetAcl()).GetData());
         ToProto(descriptor->mutable_user_transaction_id(), operation->GetUserTransactionId());
         ToProto(descriptor->mutable_pool_tree_scheduling_tag_filters(), operation->PoolTreeToSchedulingTagFilter());
 

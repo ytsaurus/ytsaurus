@@ -13,6 +13,8 @@
 #include <yt/ytlib/scheduler/proto/output_result.pb.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/ytlib/security_client/acl.h>
+
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
@@ -30,6 +32,7 @@ namespace NYT::NControllerAgent {
 using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkPools;
+using namespace NSecurityClient;
 using namespace NScheduler;
 using namespace NTableClient;
 using namespace NTransactionClient;

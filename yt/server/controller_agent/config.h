@@ -603,9 +603,6 @@ public:
     //! Enables splitting of long jobs.
     bool EnableJobSplitting;
 
-    //! Acl used for intermediate tables and stderrs additional to acls specified by user.
-    NYTree::IListNodePtr AdditionalIntermediateDataAcl;
-
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
@@ -701,6 +698,9 @@ public:
     EOperationControllerQueue JobEventsControllerQueue;
 
     TDuration ScheduleJobWaitTimeThreshold;
+
+    // TODO(levysotsky): Get rid of this option when everybody migrates to new operation ACLs.
+    bool AllowUsersGroupReadIntermediateData;
 
     TControllerAgentConfig();
 

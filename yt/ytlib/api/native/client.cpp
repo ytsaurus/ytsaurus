@@ -4416,26 +4416,32 @@ private:
             operationId);
     }
 
-    void ValidateJobAcl(
+    void ValidateOperationAccess(
         TJobId jobId,
-        std::optional<NJobTrackerClient::NProto::TJobSpec> jobSpec = std::nullopt)
+        const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+        EPermissionSet permissions)
     {
-        if (!jobSpec) {
-            jobSpec = GetJobSpecFromArchive(jobId);
+        const auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+        TSerializableAccessControlList acl;
+        if (jobSpec.HasExtension(extensionId) && jobSpec.GetExtension(extensionId).has_acl()) {
+            TYsonString aclYson(jobSpec.GetExtension(extensionId).acl());
+            acl = ConvertTo<TSerializableAccessControlList>(aclYson);
+        } else {
+            // We check against an empty ACL to allow only "superusers" and "root" access.
+            YT_LOG_WARNING(
+                "Job spec has no sheduler_job_spec_ext or the extension has no ACL, "
+                "validating against empty ACL (JobId: %v)",
+                jobId);
         }
 
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
-
-        if (schedulerJobSpecExt && schedulerJobSpecExt->has_acl()) {
-            auto aclYson = TYsonString(schedulerJobSpecExt->acl());
-            auto checkResult = WaitFor(CheckPermissionByAcl(std::nullopt, EPermission::Read, ConvertToNode(aclYson), TCheckPermissionByAclOptions()))
-                .ValueOrThrow();
-            if (checkResult.Action != ESecurityAction::Allow) {
-                THROW_ERROR_EXCEPTION("No permissions to read job from archive")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("user", checkResult.SubjectName);
-            }
-        }
+        NScheduler::ValidateOperationAccess(
+            /* user */ std::nullopt,
+            /* operationId */ std::nullopt,
+            jobId,
+            permissions,
+            acl,
+            this,
+            Logger);
     }
 
     void DoDumpJobContext(
@@ -4461,46 +4467,69 @@ private:
         }
     }
 
-    TNodeDescriptor GetJobNodeDescriptor(TJobId jobId)
+    bool IsNoSuchJobOrOperationError(const TError& error)
+    {
+        return
+            error.FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
+            error.FindMatching(NScheduler::EErrorCode::NoSuchOperation);
+    }
+
+    // Get job node descriptor from scheduler and check that user has |requiredPermissions|
+    // for accessing the corresponding operation.
+    TErrorOr<TNodeDescriptor> GetJobNodeDescriptor(TJobId jobId, EPermissionSet requiredPermissions)
     {
         TNodeDescriptor jobNodeDescriptor;
         auto req = JobProberProxy_->GetJobNode();
         ToProto(req->mutable_job_id(), jobId);
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
+        req->set_required_permissions(static_cast<ui32>(requiredPermissions));
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            return TError("Failed to get job node descriptor")
+                << std::move(rspOrError)
+                << TErrorAttribute("job_id", jobId);
+        }
+        auto rsp = rspOrError.Value();
         FromProto(&jobNodeDescriptor, rsp->node_descriptor());
         return jobNodeDescriptor;
     }
 
-    std::optional<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(TJobId jobId)
+    TErrorOr<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(
+        TJobId jobId,
+        NJobProberClient::TJobProberServiceProxy& jobProberServiceProxy)
     {
-        try {
-            TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
-
-            auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
-            NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
-
-            auto req = jobProberServiceProxy.GetSpec();
-            ToProto(req->mutable_job_id(), jobId);
-            auto rsp = WaitFor(req->Invoke())
-                .ValueOrThrow();
-
-            ValidateJobSpecVersion(jobId, rsp->spec());
-            return rsp->spec();
-        } catch (const TErrorException& exception) {
-            auto isIgnorable =
-                exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
-                exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchOperation);
-            if (!isIgnorable) {
-                THROW_ERROR_EXCEPTION("Failed to get job spec from job node")
-                    << TErrorAttribute("job_id", jobId)
-                    << exception;
-            }
+        auto req = jobProberServiceProxy.GetSpec();
+        ToProto(req->mutable_job_id(), jobId);
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            return TError("Failed to get job spec from job node")
+                << std::move(rspOrError)
+                << TErrorAttribute("job_id", jobId);
         }
-        return std::nullopt;
+        const auto& spec = rspOrError.Value()->spec();
+        ValidateJobSpecVersion(jobId, spec);
+        return spec;
     }
 
-    NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(TJobId jobId)
+    // Get job spec from node and check that user has |requiredPermissions|
+    // for accessing the corresponding operation.
+    TErrorOr<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(
+        TJobId jobId,
+        EPermissionSet requiredPermissions)
+    {
+        auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, requiredPermissions);
+        if (!jobNodeDescriptorOrError.IsOK()) {
+            return TError(std::move(jobNodeDescriptorOrError));
+        }
+        auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
+        NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+        return GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
+    }
+
+    // Get job spec from job archive and check that user has |requiredPermissions|
+    // for accessing the corresponding operation.
+    NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(
+        TJobId jobId,
+        EPermissionSet requiredPermissions)
     {
         auto nameTable = New<TNameTable>();
 
@@ -4547,7 +4576,9 @@ private:
             THROW_ERROR_EXCEPTION("Cannot parse job spec")
                 << TErrorAttribute("job_id", jobId);
         }
+
         ValidateJobSpecVersion(jobId, jobSpec);
+        ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
 
         return jobSpec;
     }
@@ -4557,13 +4588,15 @@ private:
         const TGetJobInputOptions& /*options*/)
     {
         NJobTrackerClient::NProto::TJobSpec jobSpec;
-        if (auto jobSpecFromProxy = GetJobSpecFromJobNode(jobId)) {
-            jobSpec = std::move(*jobSpecFromProxy);
-        } else {
-            jobSpec = GetJobSpecFromArchive(jobId);
+        auto jobSpecFromProxyOrError = GetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
+        if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
+            THROW_ERROR jobSpecFromProxyOrError;
         }
-
-        ValidateJobAcl(jobId, jobSpec);
+        if (jobSpecFromProxyOrError.IsOK()) {
+            jobSpec = std::move(jobSpecFromProxyOrError.Value());
+        } else {
+            jobSpec = GetJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+        }
 
         auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -4627,13 +4660,15 @@ private:
         const TGetJobInputPathsOptions& /*options*/)
     {
         NJobTrackerClient::NProto::TJobSpec jobSpec;
-        if (auto jobSpecFromProxy = GetJobSpecFromJobNode(jobId)) {
-            jobSpec = std::move(*jobSpecFromProxy);
-        } else {
-            jobSpec = GetJobSpecFromArchive(jobId);
+        auto jobSpecFromProxyOrError = GetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
+        if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
+            THROW_ERROR jobSpecFromProxyOrError;
         }
-
-        ValidateJobAcl(jobId, jobSpec);
+        if (jobSpecFromProxyOrError.IsOK()) {
+            jobSpec = std::move(jobSpecFromProxyOrError.Value());
+        } else {
+            jobSpec = GetJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+        }
 
         auto schedulerJobSpecExt = jobSpec.GetExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -4798,33 +4833,35 @@ private:
         TOperationId operationId,
         TJobId jobId)
     {
-        try {
-            TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
+        auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, EPermissionSet(EPermission::Read));
+        if (!jobNodeDescriptorOrError.IsOK() && IsNoSuchJobOrOperationError(jobNodeDescriptorOrError)) {
+            return TSharedRef();
+        }
+        auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
+        NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
 
-            auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
-            NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
-
-            auto req = jobProberServiceProxy.GetStderr();
-            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-            ToProto(req->mutable_job_id(), jobId);
-            auto rsp = WaitFor(req->Invoke())
-                .ValueOrThrow();
-            return TSharedRef::FromString(rsp->stderr_data());
-        } catch (const TErrorException& exception) {
-            auto isIgnorable =
-                exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
-                exception.Error().FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning) ||
-                exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchOperation);
-
-            if (!isIgnorable) {
-                THROW_ERROR_EXCEPTION("Failed to get job stderr from job proxy")
-                    << TErrorAttribute("operation_id", operationId)
-                    << TErrorAttribute("job_id", jobId)
-                    << exception.Error();
-            }
+        auto specOrError = GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
+        if (!specOrError.IsOK()) {
+            return TSharedRef();
         }
 
-        return TSharedRef();
+        auto req = jobProberServiceProxy.GetStderr();
+        req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+        ToProto(req->mutable_job_id(), jobId);
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            if (IsNoSuchJobOrOperationError(rspOrError) ||
+                rspOrError.FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning))
+            {
+                return TSharedRef();
+            }
+            THROW_ERROR_EXCEPTION("Failed to get job stderr from job proxy")
+                << TErrorAttribute("operation_id", operationId)
+                << TErrorAttribute("job_id", jobId)
+                << std::move(rspOrError);
+        }
+        auto rsp = rspOrError.Value();
+        return TSharedRef::FromString(rsp->stderr_data());
     }
 
     TSharedRef DoGetJobStderrFromCypress(
@@ -4879,6 +4916,9 @@ private:
         TOperationId operationId,
         TJobId jobId)
     {
+        // Check permissions.
+        GetJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+
         try {
             TJobStderrTableDescriptor tableDescriptor;
 
@@ -4941,8 +4981,6 @@ private:
             return stderrRef;
         }
 
-        ValidateJobAcl(jobId);
-
         stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
         if (stderrRef) {
             return stderrRef;
@@ -4957,6 +4995,9 @@ private:
         TOperationId operationId,
         TJobId jobId)
     {
+        // Check permissions.
+        GetJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+
         try {
             TJobFailContextTableDescriptor tableDescriptor;
 
@@ -5057,21 +5098,15 @@ private:
         TJobId jobId,
         const TGetJobFailContextOptions& /*options*/)
     {
-        {
-            auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId);
-            if (failContextRef) {
-                return failContextRef;
-            }
-        }
-
-        ValidateJobAcl(jobId);
-
-        auto failContextRef = DoGetJobFailContextFromArchive(operationId, jobId);
-        if (failContextRef) {
+        if (auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId)) {
             return failContextRef;
         }
-
-        THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job fail context is not found")
+        if (auto failContextRef = DoGetJobFailContextFromArchive(operationId, jobId)) {
+            return failContextRef;
+        }
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::NoSuchJob,
+            "Job fail context is not found")
             << TErrorAttribute("operation_id", operationId)
             << TErrorAttribute("job_id", jobId);
     }
@@ -5268,8 +5303,7 @@ private:
             if (operation.RuntimeParameters) {
                 auto runtimeParametersNode = ConvertToNode(operation.RuntimeParameters);
                 operation.Pools = GetPoolsFromRuntimeParameters(runtimeParametersNode);
-                operation.Owners = ConvertTo<decltype(operation.Owners)>(
-                    runtimeParametersNode->AsMap()->FindChild("owners"));
+                operation.Acl = runtimeParametersNode->AsMap()->FindChild("acl");
             }
         }
 
@@ -5365,13 +5399,23 @@ private:
                 return LightAttributes.contains(attribute);
             });
 
-        auto areIntersecting = [] (const THashSet<TString>& set, const std::vector<TString>& vector) {
-            for (const auto& element : vector) {
-                if (set.contains(element)) {
-                    return true;
+        auto checkPermissions = [] (
+            const THashSet<TString>& transitiveClosureOfSubject,
+            EPermissionSet permissions,
+            const TSerializableAccessControlList& acl)
+        {
+            for (const auto& ace : acl.Entries) {
+                YCHECK(ace.Action == ESecurityAction::Allow);
+                if ((permissions & ace.Permissions) != permissions) {
+                    continue;
+                }
+                for (const auto& subject : ace.Subjects) {
+                    if (transitiveClosureOfSubject.contains(subject)) {
+                        return ESecurityAction::Allow;
+                    }
                 }
             }
-            return false;
+            return ESecurityAction::Deny;
         };
 
         TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
@@ -5413,15 +5457,19 @@ private:
                 auto operation = CreateOperationFromNode(operationNode);
 
                 if (options.FromTime && *operation.StartTime < *options.FromTime ||
-                    options.ToTime && *operation.StartTime >= *options.ToTime) {
+                    options.ToTime && *operation.StartTime >= *options.ToTime)
+                {
                     continue;
                 }
 
-                if (transitiveClosureOfOwnedBy &&
-                    !(operation.AuthenticatedUser && transitiveClosureOfOwnedBy->contains(*operation.AuthenticatedUser)) &&
-                    !areIntersecting(*transitiveClosureOfOwnedBy, operation.Owners.value_or(std::vector<TString>{})))
-                {
-                    continue;
+                if (transitiveClosureOfOwnedBy && operation.Acl) {
+                    auto action = checkPermissions(
+                        *transitiveClosureOfOwnedBy,
+                        EPermissionSet(EPermission::Read | EPermission::Manage),
+                        ConvertTo<TSerializableAccessControlList>(operation.Acl));
+                    if (action != ESecurityAction::Allow) {
+                        continue;
+                    }
                 }
 
                 auto textFactor = ExtractTextFactorForCypressItem(operation);
@@ -5828,26 +5876,15 @@ private:
 
         std::optional<THashSet<TString>> transitiveClosureOfOwnedBy;
         if (options.OwnedBy) {
-            auto writePermissionResult = DoCheckPermission(
-                *options.OwnedBy,
-                NScheduler::GetOperationsPath(),
-                EPermission::Write,
-                TCheckPermissionOptions());
-            // Any user having "write" permission to the operations node
-            // is considered to own all the operations, so the filter must be Null.
-            if (writePermissionResult.Action != ESecurityAction::Allow) {
-                TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
-                auto req = TYPathProxy::Get(GetUserPath(*options.OwnedBy) + "/@member_of_closure");
-                auto rspOrError = WaitFor(proxy.Execute(req));
-                if (!rspOrError.IsOK()) {
-                    THROW_ERROR_EXCEPTION("User specified in \"owned_by\" is unknown")
-                        << TErrorAttribute("owned_by", *options.OwnedBy)
-                        << rspOrError;
-                }
-                transitiveClosureOfOwnedBy.emplace(
-                    ConvertTo<THashSet<TString>>(TYsonString(rspOrError.Value()->value())));
-                transitiveClosureOfOwnedBy->insert(*options.OwnedBy);
-            }
+            TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+            auto req = TYPathProxy::Get(GetUserPath(*options.OwnedBy) + "/@member_of_closure");
+            auto rsp = WaitFor(proxy.Execute(req))
+                .ValueOrThrow();
+            auto closure = ConvertTo<THashSet<TString>>(TYsonString(rsp->value()));
+            closure.insert(*options.OwnedBy);
+            if (*options.OwnedBy != RootUserName && !closure.contains(SuperusersGroupName)) {
+                transitiveClosureOfOwnedBy = std::move(closure);
+            } // Else the filter is empty, because the user has unlimited access.
         }
 
         DoListOperationsFromCypress(deadline, countingFilter, transitiveClosureOfOwnedBy, options, &idToOperation);
@@ -6862,12 +6899,17 @@ private:
         const TYsonString& parameters,
         const TPollJobShellOptions& options)
     {
-        TNodeDescriptor jobNodeDescriptor = GetJobNodeDescriptor(jobId);
+        auto jobNodeDescriptor = GetJobNodeDescriptor(jobId, EPermissionSet(EPermission::Manage | EPermission::Read))
+            .ValueOrThrow();
         auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
 
         YT_LOG_DEBUG("Polling job shell (JobId: %v)", jobId);
 
         NJobProberClient::TJobProberServiceProxy proxy(nodeChannel);
+
+        auto spec = GetJobSpecFromJobNode(jobId, proxy)
+            .ValueOrThrow();
+
         auto req = proxy.PollJobShell();
         ToProto(req->mutable_job_id(), jobId);
         ToProto(req->mutable_parameters(), parameters.GetData());

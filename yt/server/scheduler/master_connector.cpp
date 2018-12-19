@@ -6,6 +6,7 @@
 #include "bootstrap.h"
 
 #include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/helpers.h>
 
 #include <yt/server/lib/misc/update_executor.h>
 
@@ -16,6 +17,8 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
+
+#include <yt/ytlib/security_client/acl.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -162,12 +165,13 @@ public:
             .BeginAttributes()
                 .Do(BIND(&BuildMinimalOperationAttributes, operation))
                 .Item("opaque").Value(true)
-                .Item("acl").Do(std::bind(&TImpl::BuildAcl, operation, _1))
                 .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
             .EndAttributes()
             .BeginMap()
                 .Item("jobs").BeginAttributes()
                     .Item("opaque").Value(true)
+                    .Item("acl").Value(MakeOperationArtifactAcl(operation->GetAcl()))
+                    .Item("inherit_acl").Value(false)
                 .EndAttributes()
                 .BeginMap().EndMap()
             .EndMap()
@@ -184,8 +188,7 @@ public:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("inherit_acl", false);
             attributes->Set("value", operation->GetSecureVault());
-            attributes->Set("acl", BuildYsonStringFluently()
-                .Do(std::bind(&TImpl::BuildAcl, operation, _1)));
+            attributes->Set("acl", ConvertToYsonString(operation->GetAcl()));
 
             auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
             req->set_type(static_cast<int>(EObjectType::Document));
@@ -916,6 +919,7 @@ private:
                 attributes.Find<IMapNodePtr>("annotations"),
                 secureVault,
                 runtimeParams,
+                Owner_->Bootstrap_->GetScheduler()->GetBaseOperationAcl(),
                 user,
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
@@ -1243,20 +1247,6 @@ private:
         StartConnecting(true);
     }
 
-    static void BuildAcl(const TOperationPtr& operation, TFluentAny fluent)
-    {
-        fluent
-            .BeginList()
-                .Do(std::bind(
-                    &BuildOperationAce,
-                    operation->GetOwners(),
-                    operation->GetAuthenticatedUser(),
-                    EPermission::Write | EPermission::Read,
-                    _1))
-            .EndList();
-    }
-
-
     void StartPeriodicActivities()
     {
         OperationNodesUpdateExecutor_->Start();
@@ -1341,13 +1331,12 @@ private:
 
             auto operationPath = GetOperationPath(operation->GetId());
 
-            // Set operation acl.
+            // Set "jobs" node ACL.
             if (operation->GetShouldFlushAcl()) {
                 auto aclBatchReq = StartObjectBatchRequest();
-                auto req = TYPathProxy::Set(operationPath + "/@acl");
-                req->set_value(BuildYsonStringFluently()
-                    .Do(std::bind(&TImpl::BuildAcl, operation, _1))
-                    .GetData());
+                auto req = TYPathProxy::Set(GetJobsPath(operation->GetId()) + "/@acl");
+                auto operationNodeAcl = MakeOperationArtifactAcl(operation->GetAcl());
+                req->set_value(ConvertToYsonString(operationNodeAcl).GetData());
                 aclBatchReq->AddRequest(req, "set_acl");
 
                 auto aclBatchRspOrError = WaitFor(aclBatchReq->Invoke());
