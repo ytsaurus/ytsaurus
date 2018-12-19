@@ -34,7 +34,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity, NTransactionClient::EAtomicity::Full)
 
 public:
-    explicit TTableReplica(const TTableReplicaId& id);
+    explicit TTableReplica(TTableReplicaId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

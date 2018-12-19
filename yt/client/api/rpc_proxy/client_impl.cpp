@@ -365,7 +365,7 @@ TFuture<void> TClient::AlterTable(
 }
 
 TFuture<void> TClient::AlterTableReplica(
-    const TTableReplicaId& replicaId,
+    TTableReplicaId replicaId,
     const TAlterTableReplicaOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());

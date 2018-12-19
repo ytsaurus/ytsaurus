@@ -3272,7 +3272,7 @@ private:
         return &replicaInfo;
     }
 
-    void RemoveTableReplica(TTablet* tablet, const TTableReplicaId& replicaId)
+    void RemoveTableReplica(TTablet* tablet, TTableReplicaId replicaId)
     {
         auto& replicas = tablet->Replicas();
         auto it = replicas.find(replicaId);

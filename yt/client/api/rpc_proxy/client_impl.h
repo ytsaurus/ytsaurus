@@ -71,7 +71,7 @@ public:
         const NApi::TAlterTableOptions& options) override;
 
     virtual TFuture<void> AlterTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
+        NTabletClient::TTableReplicaId replicaId,
         const NApi::TAlterTableReplicaOptions& options) override;
 
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(

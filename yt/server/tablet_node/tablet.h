@@ -173,7 +173,7 @@ struct TTabletSnapshot
     //! This includes both regular and locked Eden stores.
     std::vector<ISortedStorePtr> GetEdenStores();
 
-    TTableReplicaSnapshotPtr FindReplicaSnapshot(const TTableReplicaId& replicaId);
+    TTableReplicaSnapshotPtr FindReplicaSnapshot(TTableReplicaId replicaId);
 
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(i64 mountRevision);
@@ -363,7 +363,7 @@ public:
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::ECommitOrdering commitOrdering,
-        const NTabletClient::TTableReplicaId& upstreamReplicaId);
+        NTabletClient::TTableReplicaId upstreamReplicaId);
 
     ETabletState GetPersistentState() const;
 
@@ -402,8 +402,8 @@ public:
     IStorePtr GetStore(const TStoreId& id);
     IStorePtr GetStoreOrThrow(const TStoreId& id);
 
-    TTableReplicaInfo* FindReplicaInfo(const TTableReplicaId& id);
-    TTableReplicaInfo* GetReplicaInfoOrThrow(const TTableReplicaId& id);
+    TTableReplicaInfo* FindReplicaInfo(TTableReplicaId id);
+    TTableReplicaInfo* GetReplicaInfoOrThrow(TTableReplicaId id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);

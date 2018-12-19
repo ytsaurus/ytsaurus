@@ -792,7 +792,7 @@ private:
         TTableCommitSession(
             TTransaction* transaction,
             TTableMountInfoPtr tableInfo,
-            const TTableReplicaId& upstreamReplicaId)
+            TTableReplicaId upstreamReplicaId)
             : Transaction_(transaction)
             , TableInfo_(std::move(tableInfo))
             , UpstreamReplicaId_(upstreamReplicaId)
@@ -805,7 +805,7 @@ private:
             return TableInfo_;
         }
 
-        const TTableReplicaId& GetUpstreamReplicaId() const
+        TTableReplicaId GetUpstreamReplicaId() const
         {
             return UpstreamReplicaId_;
         }
@@ -1392,7 +1392,7 @@ private:
         Requests_.push_back(std::move(request));
     }
 
-    TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, const TTableReplicaId& upstreamReplicaId)
+    TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, TTableReplicaId upstreamReplicaId)
     {
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {

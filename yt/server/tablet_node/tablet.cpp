@@ -155,7 +155,7 @@ std::vector<ISortedStorePtr> TTabletSnapshot::GetEdenStores()
     return stores;
 }
 
-TTableReplicaSnapshotPtr TTabletSnapshot::FindReplicaSnapshot(const TTableReplicaId& replicaId)
+TTableReplicaSnapshotPtr TTabletSnapshot::FindReplicaSnapshot(TTableReplicaId replicaId)
 {
     auto it = Replicas.find(replicaId);
     return it == Replicas.end() ? nullptr : it->second;
@@ -345,7 +345,7 @@ TTablet::TTablet(
     TOwningKey nextPivotKey,
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
-    const TTableReplicaId& upstreamReplicaId)
+    TTableReplicaId upstreamReplicaId)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -915,13 +915,13 @@ IStorePtr TTablet::GetStoreOrThrow(const TStoreId& id)
     return store;
 }
 
-TTableReplicaInfo* TTablet::FindReplicaInfo(const TTableReplicaId& id)
+TTableReplicaInfo* TTablet::FindReplicaInfo(TTableReplicaId id)
 {
     auto it = Replicas_.find(id);
     return it == Replicas_.end() ? nullptr : &it->second;
 }
 
-TTableReplicaInfo* TTablet::GetReplicaInfoOrThrow(const TTableReplicaId& id)
+TTableReplicaInfo* TTablet::GetReplicaInfoOrThrow(TTableReplicaId id)
 {
     auto* info = FindReplicaInfo(id);
     if (!info) {

@@ -629,7 +629,7 @@ public:
         const TTrimTableOptions& options),
         (path, tabletIndex, trimmedRowCount, options))
     IMPLEMENT_METHOD(void, AlterTableReplica, (
-        const TTableReplicaId& replicaId,
+        TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options),
         (replicaId, options))
 
@@ -2700,7 +2700,7 @@ private:
     }
 
     void DoAlterTableReplica(
-        const TTableReplicaId& replicaId,
+        TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options)
     {
         auto cellTag = CellTagFromId(replicaId);
