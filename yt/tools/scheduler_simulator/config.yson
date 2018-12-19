@@ -1,10 +1,10 @@
 {
     thread_count = 10;
+    node_groups_file = "nodes_info.yson";
+    pool_trees_file = "pool_trees.yson";
+    scheduler_config_file = "scheduler_config.yson";
 
     heartbeat_period = 5000;
-    node_groups_file = "nodes_info.yson";
-    pools_file = "pools.yson";
-    scheduler_config_file = "scheduler_config.yson";
     operations_stats_file = "operations_stats.csv";
     event_log_file = "scheduler_event_log.txt";
     enable_full_event_log = %false;
@@ -24,6 +24,7 @@
         ];
 
         writers = {
+            debug = { file_name = "debug.log"; type = file; }
             info  = { file_name = "info.log"; type = file; };
             stderr = { type = stderr; };
         };
