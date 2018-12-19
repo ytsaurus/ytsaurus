@@ -20,7 +20,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TSubject*>, Members);
 
 public:
-    explicit TGroup(const TGroupId& id);
+    explicit TGroup(TGroupId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
