@@ -695,14 +695,14 @@ void TTablet::CreateInitialPartition()
     PartitionList_.push_back(std::move(partition));
 }
 
-TPartition* TTablet::FindPartition(const TPartitionId& partitionId)
+TPartition* TTablet::FindPartition(TPartitionId partitionId)
 {
     YCHECK(IsPhysicallySorted());
     const auto& it = PartitionMap_.find(partitionId);
     return it == PartitionMap_.end() ? nullptr : it->second;
 }
 
-TPartition* TTablet::GetPartition(const TPartitionId& partitionId)
+TPartition* TTablet::GetPartition(TPartitionId partitionId)
 {
     YCHECK(IsPhysicallySorted());
     auto* partition = FindPartition(partitionId);

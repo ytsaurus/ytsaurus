@@ -42,7 +42,7 @@ void TSampleKeyList::Load(TLoadContext& context)
 
 TPartition::TPartition(
     TTablet* tablet,
-    const TPartitionId& id,
+    TPartitionId id,
     int index,
     TOwningKey pivotKey,
     TOwningKey nextPivotKey)
