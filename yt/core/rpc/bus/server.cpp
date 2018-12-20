@@ -106,7 +106,8 @@ private:
             replyWithError(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Server is not started")
-                << TErrorAttribute("realm_id", realmId));
+                << TErrorAttribute("realm_id", realmId)
+                << TErrorAttribute("endpoint", replyBus->GetEndpointDescription()));
             return;
         }
 
@@ -116,8 +117,9 @@ private:
             replyWithError(TError(
                 EErrorCode::NoSuchService,
                 "Service is not registered")
-                 << TErrorAttribute("service", serviceName)
-                 << TErrorAttribute("realm_id", realmId));
+                << TErrorAttribute("service", serviceName)
+                << TErrorAttribute("realm_id", realmId)
+                << TErrorAttribute("endpoint", replyBus->GetEndpointDescription()));
             return;
         }
 
