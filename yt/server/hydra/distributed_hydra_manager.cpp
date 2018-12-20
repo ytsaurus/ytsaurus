@@ -361,6 +361,11 @@ public:
                 BIND(&TDistributedHydraManager::OnUpsteamSyncDeadlineReached, MakeStrong(this))
                     .Via(epochContext->EpochUserAutomatonInvoker),
                 Config_->UpstreamSyncDelay);
+            TDelayedExecutor::Submit(
+                BIND([promise = epochContext->PendingUpstreamSyncPromise] () mutable {
+                    promise.TrySet(TError(NRpc::EErrorCode::Unavailable, "Upstream sync timed out"));
+                }),
+                Config_->UpstreamSyncDelay);
         }
 
         return epochContext->PendingUpstreamSyncPromise;
@@ -1587,7 +1592,7 @@ private:
             Profiler.Enqueue("/upstream_sync_time", syncTime.MilliSeconds(), NProfiling::EMetricType::Gauge);
         }
 
-        epochContext->ActiveUpstreamSyncPromise.Set(combinedError);
+        epochContext->ActiveUpstreamSyncPromise.TrySet(combinedError);
         epochContext->ActiveUpstreamSyncPromise.Reset();
 
         if (epochContext->UpstreamSyncDeadlineReached) {
