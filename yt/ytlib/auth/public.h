@@ -100,13 +100,6 @@ struct TAuthenticationResult
 };
 
 inline bool operator ==(
-    const TTokenCredentials& lhs,
-    const TTokenCredentials& rhs)
-{
-    return std::tie(lhs.Token) == std::tie(rhs.Token);
-}
-
-inline bool operator ==(
     const TCookieCredentials& lhs,
     const TCookieCredentials& rhs)
 {
@@ -117,17 +110,6 @@ inline bool operator ==(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth
-
-template <>
-struct THash<NYT::NAuth::TTokenCredentials>
-{
-    inline size_t operator()(const NYT::NAuth::TTokenCredentials& credentials) const
-    {
-        size_t result = 0;
-        NYT::HashCombine(result, credentials.Token);
-        return result;
-    }
-};
 
 template <>
 struct THash<NYT::NAuth::TCookieCredentials>
