@@ -277,11 +277,16 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         create("map_node", "//sys/pools/parent_pool/subpool1", attributes={"min_share_ratio": 1})
         create("map_node", "//sys/pools/parent_pool/subpool2", attributes={"min_share_ratio": 1})
 
-        time.sleep(0.2)
-        ratio_path = "//sys/scheduler/orchid/scheduler/pools/{0}/recursive_min_share_ratio"
+        def check():
+            ratio_path = "//sys/scheduler/orchid/scheduler/pools/{0}/recursive_min_share_ratio"
+            try:
+                return \
+                    get(ratio_path.format("subpool1")) == 0.05 and \
+                    get(ratio_path.format("subpool2")) == 0.05
+            except:
+                return False
 
-        assert get(ratio_path.format("subpool1")) == 0.05
-        assert get(ratio_path.format("subpool2")) == 0.05
+        wait(check)
 
     def test_fractional_cpu_usage(self):
         self._create_table("//tmp/t_in")
