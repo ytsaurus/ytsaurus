@@ -2259,8 +2259,9 @@ class TestSchedulingTags(YTEnvSetup):
                 "retry_backoff_time": 300
             },
             "available_exec_nodes_check_period": 100,
+            "max_available_exec_node_resources_update_period": 100,
             "snapshot_period": 500,
-            "safe_scheduler_online_time": 1000
+            "safe_scheduler_online_time": 2000
         }
     }
 
