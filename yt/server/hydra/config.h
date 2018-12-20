@@ -261,6 +261,9 @@ public:
     //! during active (leading and following) stages.
     TDuration AutomatonThreadLogBatchingPeriod;
 
+    //! Timeout for #IHydraManager::SyncWithUpstream calls.
+    TDuration UpstreamSyncTimeout;
+
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -328,6 +331,9 @@ public:
 
         RegisterParameter("automaton_thread_log_batching_period", AutomatonThreadLogBatchingPeriod)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("upstream_sync_timeout", UpstreamSyncTimeout)
+            .Default(TDuration::Seconds(30));
 
         RegisterPostprocessor([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
