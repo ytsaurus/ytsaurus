@@ -35,6 +35,7 @@ public:
 protected:
     virtual TFuture<TValue> DoGet(const TKey& key) = 0;
     virtual TFuture<TCombinedValue> DoGetMany(const std::vector<TKey>& keys);
+    virtual void OnErase(const TKey& key);
 
 private:
     const TAsyncExpiringCacheConfigPtr Config_;
