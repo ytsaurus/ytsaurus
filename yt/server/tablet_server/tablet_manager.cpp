@@ -3435,7 +3435,7 @@ private:
             for (const auto& pair : TabletCellMap_) {
                 auto* cell = pair.second;
                 cell->LocalStatistics() = NTabletServer::TTabletCellStatistics();
-                cell->LocalStatistics().Decommissioned = cell->DecommissionCompleted();
+                cell->LocalStatistics().Decommissioned = cell->DecommissionStarted();
                 for (const auto& tablet : cell->Tablets()) {
                     cell->LocalStatistics() += GetTabletStatistics(tablet);
                 }
