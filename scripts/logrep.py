@@ -282,7 +282,7 @@ class GrepTask(RemoteTask):
         for f in file_to_grep_list:
             logging.info("would grep {}".format(f))
 
-        cmd = ["zfgrep", "--no-filename", self.pattern] + file_to_grep_list
+        cmd = ["zfgrep", "--text", "--no-filename", self.pattern] + file_to_grep_list
         logging.info("running {}".format(" ".join(map(shell_quote, cmd))))
 
         cmd = ["stdbuf", "-oL", "-eL"] + cmd
