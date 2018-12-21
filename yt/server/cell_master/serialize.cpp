@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 819;
+    return 820;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -97,7 +97,9 @@ bool ValidateSnapshotVersion(int version)
         version == 816 || // shakurov: initialize medium-specific max_replication_factor
         version == 817 || // shakurov: persist TNode::Resource{Usage,Limits}_
         version == 818 || // shakurov: int -> i64 for NSecurityServer::TClusterResources::{Node,Chunk}Count
-        version == 819;   // savrus: Add tablet cell life stage
+        version == 819 || // savrus: Add tablet cell life stage
+        version == 820 || // savrus: Fix snapshot
+        false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

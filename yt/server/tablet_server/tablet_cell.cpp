@@ -55,7 +55,7 @@ void TTabletCell::Save(TSaveContext& context) const
     Save(context, MulticellStatistics_);
     Save(context, PrerequisiteTransaction_);
     Save(context, CellBundle_);
-    Save(context, LifeStage_);
+    Save(context, TabletCellLifeStage_);
 }
 
 void TTabletCell::Load(TLoadContext& context)
@@ -89,8 +89,12 @@ void TTabletCell::Load(TLoadContext& context)
     }
     // COMPAT(savrus)
     if (context.GetVersion() >= 713) {
-        if (context.GetVersion() >= 819) {
+        if (context.GetVersion() >= 820) {
             Load(context, TabletCellLifeStage_);
+        } else if (context.GetVersion() >= 819) {
+            // Saved wrong value by accident
+            Load<NObjectServer::EObjectLifeStage>(context);
+            TabletCellLifeStage_ = ETabletCellLifeStage::Running;
         } else {
             TabletCellLifeStage_ = Load<bool>(context)
                 ? ETabletCellLifeStage::Decommissioned
