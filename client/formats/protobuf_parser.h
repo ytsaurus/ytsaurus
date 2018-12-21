@@ -3,8 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +14,5 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats
 

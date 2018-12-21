@@ -19,8 +19,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -56,12 +55,12 @@ private:
         descriptors->push_back(EInternedAttributeKey::State);
         descriptors->push_back(EInternedAttributeKey::SecondaryCellTags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Timeout)
-            .SetPresent(transaction->GetTimeout().HasValue())
+            .SetPresent(transaction->GetTimeout().operator bool())
             .SetWritable(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastPingTime)
-            .SetPresent(transaction->GetTimeout().HasValue()));
+            .SetPresent(transaction->GetTimeout().operator bool()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Title)
-            .SetPresent(transaction->GetTitle().HasValue()));
+            .SetPresent(transaction->GetTitle().operator bool()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ParentId)
             .SetReplicated(true));
         descriptors->push_back(EInternedAttributeKey::StartTime);
@@ -88,7 +87,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::PrerequisiteTransactionIds);
         descriptors->push_back(EInternedAttributeKey::DependentTransactionIds);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Deadline)
-            .SetPresent(transaction->GetDeadline().HasValue()));
+            .SetPresent(transaction->GetDeadline().operator bool()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -304,7 +303,7 @@ private:
                 break;
         }
 
-        return Null;
+        return std::nullopt;
     }
 
     // Account name -> cluster resources.
@@ -532,6 +531,5 @@ IObjectProxyPtr CreateTransactionProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer
 

@@ -10,8 +10,7 @@
 
 #include <util/string/escape.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 using namespace NConcurrency;
 using namespace NNet;
@@ -406,7 +405,7 @@ void THttpInput::FinishMessage()
 
     auto stats = Connection_->GetReadStatistics();
     if (MessageType_ == EMessageType::Request) {
-        LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %v, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
+        YT_LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %v, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
             RequestId_,
             GetReadByteCount(),
             stats.IdleDuration - StartStatistics_.IdleDuration,
@@ -467,7 +466,7 @@ void THttpInput::MaybeLogSlowProgress()
 {
     auto now = TInstant::Now();
     if (LastProgressLogTime_ + Config_->BodyReadIdleTimeout < now) {
-        LOG_DEBUG("Reading HTTP message (RequestId: %v, BytesIn: %v)",
+        YT_LOG_DEBUG("Reading HTTP message (RequestId: %v, BytesIn: %v)",
             RequestId_,
             GetReadByteCount());
         LastProgressLogTime_ = now;
@@ -550,9 +549,9 @@ void THttpOutput::Reset()
     ConnectionClose_ = false;
     Headers_ = New<THeaders>();
 
-    Status_.Reset();
-    Method_.Reset();
-    HostHeader_.Reset();
+    Status_.reset();
+    Method_.reset();
+    HostHeader_.reset();
     Path_ = {};
 
     HeadersFlushed_ = false;
@@ -580,7 +579,7 @@ void THttpOutput::WriteRequest(EMethod method, const TString& path)
     Path_ = path;
 }
 
-TNullable<EStatusCode> THttpOutput::GetStatus() const
+std::optional<EStatusCode> THttpOutput::GetStatus() const
 {
     return Status_;
 }
@@ -592,7 +591,7 @@ void THttpOutput::SetStatus(EStatusCode status)
     Status_ = status;
 }
 
-TSharedRef THttpOutput::GetHeadersPart(TNullable<size_t> contentLength)
+TSharedRef THttpOutput::GetHeadersPart(std::optional<size_t> contentLength)
 {
     TBufferOutput messageHeaders;
     if (MessageType_ == EMessageType::Request) {
@@ -669,7 +668,7 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
     std::vector<TSharedRef> writeRefs;
     if (!HeadersFlushed_) {
         HeadersFlushed_ = true;
-        writeRefs.emplace_back(GetHeadersPart(Null));
+        writeRefs.emplace_back(GetHeadersPart(std::nullopt));
         writeRefs.emplace_back(CrLf);
     }
 
@@ -754,7 +753,7 @@ void THttpOutput::OnWriteFinish()
     auto now = TInstant::Now();
     auto stats = Connection_->GetWriteStatistics();
     if (LastProgressLogTime_ + Config_->WriteIdleTimeout < now) {
-        LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %v, IdleDuration: %v, BusyDuration: %v)",
+        YT_LOG_DEBUG("Writing HTTP message (Requestid: %v, BytesOut: %v, IdleDuration: %v, BusyDuration: %v)",
             RequestId_,
             GetWriteByteCount(),
             stats.IdleDuration - StartStatistics_.IdleDuration,
@@ -765,13 +764,13 @@ void THttpOutput::OnWriteFinish()
     if (MessageType_ == EMessageType::Response) {
         if (HeadersFlushed_ && !HeadersLogged_) {
             HeadersLogged_ = true;
-            LOG_DEBUG("Finished writing HTTP headers (RequestId: %v, StatusCode: %v)",
+            YT_LOG_DEBUG("Finished writing HTTP headers (RequestId: %v, StatusCode: %v)",
                 RequestId_,
                 Status_);
         }
 
         if (MessageFinished_) {
-            LOG_DEBUG("Finished writing HTTP response (RequestId: %v, BytesOut: %d)",
+            YT_LOG_DEBUG("Finished writing HTTP response (RequestId: %v, BytesOut: %d)",
                 RequestId_,
                 GetWriteByteCount());
         }
@@ -794,5 +793,4 @@ const TSharedRef THttpOutput::ZeroCrLfCrLf = TSharedRef::FromString("0\r\n\r\n")
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

@@ -6,8 +6,7 @@
 
 #include <yt/core/concurrency/periodic_yielder.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NTableClient;
 using namespace NChunkClient;
@@ -63,13 +62,13 @@ public:
             EEndpointType::ForeignLeft,
             dataSlice,
             GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
-            dataSlice->LowerLimit().RowIndex.Get(0)
+            dataSlice->LowerLimit().RowIndex.value_or(0)
         };
         TEndpoint rightEndpoint = {
             EEndpointType::ForeignRight,
             dataSlice,
             GetStrictKeySuccessor(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_),
-            dataSlice->UpperLimit().RowIndex.Get(0)
+            dataSlice->UpperLimit().RowIndex.value_or(0)
         };
 
         try {
@@ -114,7 +113,7 @@ public:
                 0LL /* RowIndex */
             };
         } else {
-            int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
+            int leftRowIndex = dataSlice->LowerLimit().RowIndex.value_or(0);
             leftEndpoint = {
                 EEndpointType::Left,
                 dataSlice,
@@ -122,7 +121,7 @@ public:
                 leftRowIndex
             };
 
-            int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
+            int rightRowIndex = dataSlice->UpperLimit().RowIndex.value_or(
                 dataSlice->Type == EDataSourceType::UnversionedTable
                 ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
                 : 0);
@@ -162,7 +161,7 @@ public:
             job->Finalize(true /* sortByPosition */);
 
             if (job->GetDataWeight() > JobSizeConstraints_->GetMaxDataWeightPerJob()) {
-                LOG_DEBUG("Maximum allowed data weight per sorted job exceeds the limit (DataWeight: %v, MaxDataWeightPerJob: %v, "
+                YT_LOG_DEBUG("Maximum allowed data weight per sorted job exceeds the limit (DataWeight: %v, MaxDataWeightPerJob: %v, "
                     "LowerKey: %v, UpperKey: %v, JobDebugString: %v)",
                     job->GetDataWeight(),
                     JobSizeConstraints_->GetMaxDataWeightPerJob(),
@@ -179,7 +178,7 @@ public:
             }
 
             if (job->GetPrimaryDataWeight() > JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob()) {
-                LOG_DEBUG("Maximum allowed primary data weight per sorted job exceeds the limit (PrimaryDataWeight: %v, MaxPrimaryDataWeightPerJob: %v, "
+                YT_LOG_DEBUG("Maximum allowed primary data weight per sorted job exceeds the limit (PrimaryDataWeight: %v, MaxPrimaryDataWeightPerJob: %v, "
                     "LowerKey: %v, UpperKey: %v, JobDebugString: %v)",
                     job->GetPrimaryDataWeight(),
                     JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
@@ -260,7 +259,7 @@ private:
 
     void SortEndpoints()
     {
-        LOG_DEBUG("Sorting endpoints (Count: %v)", Endpoints_.size());
+        YT_LOG_DEBUG("Sorting endpoints (Count: %v)", Endpoints_.size());
         std::sort(
             Endpoints_.begin(),
             Endpoints_.end(),
@@ -300,13 +299,13 @@ private:
     {
         for (int index = 0; index < Endpoints_.size(); ++index) {
             const auto& endpoint = Endpoints_[index];
-            LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %v)",
+            YT_LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %v)",
                 index,
                 endpoint.Key,
                 endpoint.RowIndex,
                 (endpoint.DataSlice && endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
-                ? MakeNullable(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
-                : Null,
+                ? std::make_optional(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
+                : std::nullopt,
                 endpoint.Type,
                 endpoint.DataSlice.Get());
         }
@@ -316,14 +315,14 @@ private:
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 chunkIds.emplace_back(chunkSlice->GetInputChunk()->ChunkId());
             }
-            LOG_DEBUG("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v, ChunkIds: %v)",
+            YT_LOG_DEBUG("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v, ChunkIds: %v)",
                 dataSlice.Get(),
                 dataSlice->GetDataWeight(),
                 dataSlice->InputStreamIndex,
                 chunkIds);
         }
         for (const auto& teleportChunk : TeleportChunks_) {
-            LOG_DEBUG("Teleport chunk (Address: %v, MinKey: %v, MaxKey: %v)",
+            YT_LOG_DEBUG("Teleport chunk (Address: %v, MinKey: %v, MaxKey: %v)",
                 teleportChunk.Get(),
                 teleportChunk->BoundaryKeys()->MinKey,
                 teleportChunk->BoundaryKeys()->MaxKey);
@@ -349,7 +348,7 @@ private:
     void BuildJobs()
     {
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "Building jobs with sampling "
                 "(SamplingRate: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
                 *JobSizeConstraints_->GetSamplingRate(),
@@ -395,7 +394,7 @@ private:
             // otherwise we should create a new job.
             if (Jobs_.back()->GetSliceCount() > 0) {
                 if (JobSampler_->Sample()) {
-                    LOG_DEBUG("Sorted job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
+                    YT_LOG_DEBUG("Sorted job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
                         "PrimarySliceCount: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
                         "PreliminaryForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
                         jobIndex,
@@ -414,7 +413,7 @@ private:
                     ValidateTotalSliceCountLimit();
                     Jobs_.emplace_back(std::make_unique<TJobStub>());
                 } else {
-                    LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
+                    YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
                         "PreliminaryForeignDataSize: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
                         jobIndex,
                         static_cast<int>(Jobs_.size()) - 1,
@@ -515,9 +514,9 @@ private:
         if (!Jobs_.empty() && Jobs_.back()->GetSliceCount() == 0) {
             Jobs_.pop_back();
         }
-        LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
+        YT_LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
         if (InSplit_ && Jobs_.size() == 1 && JobSizeConstraints_->GetJobCount() > 1) {
-            LOG_DEBUG("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
+            YT_LOG_DEBUG("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
                 JobSizeConstraints_->GetJobCount(),
                 Jobs_.size());
 
@@ -606,5 +605,4 @@ ISortedJobBuilderPtr CreateSortedJobBuilder(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

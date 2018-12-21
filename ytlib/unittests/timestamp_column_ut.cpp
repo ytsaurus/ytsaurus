@@ -5,8 +5,7 @@
 #include <yt/ytlib/table_chunk_format/timestamp_writer.h>
 #include <yt/ytlib/table_chunk_format/timestamp_reader.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NCompression;
@@ -234,5 +233,4 @@ TEST_F(TTimestampColumnTest, ScanAllRows)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

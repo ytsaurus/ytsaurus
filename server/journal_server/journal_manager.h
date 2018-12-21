@@ -10,8 +10,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,5 +40,4 @@ DEFINE_REFCOUNTED_TYPE(TJournalManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
-} // namespace NYT
+} // namespace NYT::NJournalServer

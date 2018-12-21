@@ -4,9 +4,7 @@
 
 #include <DataStreams/IBlockInputStream.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,6 +12,4 @@ DB::BlockInputStreamPtr CreateStorageInputStream(NNative::ITableReaderPtr tableR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

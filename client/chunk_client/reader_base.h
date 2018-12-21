@@ -8,8 +8,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,5 +30,4 @@ DEFINE_REFCOUNTED_TYPE(IReaderBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

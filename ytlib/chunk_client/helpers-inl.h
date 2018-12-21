@@ -21,8 +21,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,14 +51,14 @@ template <class T, class U = NDetail::TDefaultUnwrapper<T>>
 void GetUserObjectBasicAttributes(
     NApi::NNative::IClientPtr client,
     TMutableRange<T> objects,
-    const NObjectClient::TTransactionId& defaultTransactionId,
+    NObjectClient::TTransactionId defaultTransactionId,
     const NLogging::TLogger& logger,
     NYTree::EPermission permission,
     bool suppressAccessTracking = false)
 {
     const auto& Logger = logger;
 
-    LOG_INFO("Getting basic attributes of user objects");
+    YT_LOG_INFO("Getting basic attributes of user objects");
 
     auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower);
     NObjectClient::TObjectServiceProxy proxy(channel);
@@ -70,7 +69,7 @@ void GetUserObjectBasicAttributes(
         const auto& userObject = U::Unwrap(*iterator);
         auto req = NObjectClient::TObjectYPathProxy::GetBasicAttributes(userObject.GetPath());
         req->set_permissions(static_cast<ui32>(permission));
-        auto transactionId = userObject.TransactionId.Get(defaultTransactionId);
+        auto transactionId = userObject.TransactionId.value_or(defaultTransactionId);
         NCypressClient::SetTransactionId(req, transactionId);
         NCypressClient::SetSuppressAccessTracking(req, suppressAccessTracking);
         batchReq->AddRequest(req, "get_basic_attributes");
@@ -138,5 +137,4 @@ void SetRpcAttachedBlocks(const TRpcPtr& rpc, const std::vector<TBlock>& blocks)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

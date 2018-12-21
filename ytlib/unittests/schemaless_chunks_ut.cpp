@@ -23,8 +23,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 namespace {
 
 using namespace NChunkClient;
@@ -668,5 +667,4 @@ INSTANTIATE_TEST_CASE_P(Sorted,
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

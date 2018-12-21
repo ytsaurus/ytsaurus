@@ -8,8 +8,7 @@
 
 #include <yt/core/actions/signal.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +43,5 @@ bool CheckIfNodeCanHostTabletCells(const NNodeTrackerServer::TNode* node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

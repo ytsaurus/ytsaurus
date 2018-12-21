@@ -3,8 +3,7 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,5 +72,4 @@ DEFINE_ENUM(EAutomatonThreadQueue,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

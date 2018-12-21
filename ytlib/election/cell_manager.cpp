@@ -13,8 +13,7 @@
 
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 using namespace NYTree;
 using namespace NBus;
@@ -48,7 +47,7 @@ TCellManager::TCellManager(
         PeerChannels_[id] = CreatePeerChannel(id);
     }
 
-    LOG_INFO("Cell initialized (SelfId: %v, Peers: %v)",
+    YT_LOG_INFO("Cell initialized (SelfId: %v, Peers: %v)",
         SelfId_,
         Config_->Peers);
 }
@@ -70,7 +69,7 @@ void TCellManager::BuildTags()
     CellIdTag_ = profilingManager->RegisterTag("cell_id", Config_->CellId);
 }
 
-const TCellId& TCellManager::GetCellId() const
+TCellId TCellManager::GetCellId() const
 {
     return Config_->CellId;
 }
@@ -165,7 +164,7 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
         const auto& newPeer = newPeers[id];
         const auto& oldPeer = oldPeers[id];
         if (newPeer.Address != oldPeer.Address || newPeer.Voting != oldPeer.Voting) {
-            LOG_INFO("Peer reconfigured (PeerId: %v, Address: %v -> %v, Voting: %v -> %v)",
+            YT_LOG_INFO("Peer reconfigured (PeerId: %v, Address: %v -> %v, Voting: %v -> %v)",
                 id,
                 oldPeer.Address,
                 newPeer.Address,
@@ -190,5 +189,4 @@ IChannelPtr TCellManager::CreatePeerChannel(TPeerId id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NContainers {
+namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,5 +8,4 @@ NLogging::TLogger ContainersLogger("Containers");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NContainers
-} // namespace NYT
+} // namespace NYT::NContainers

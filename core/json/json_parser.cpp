@@ -8,8 +8,7 @@
 
 #include <contrib/libs/yajl/api/yajl_parse.h>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 
 using namespace NYson;
 using namespace NYTree;
@@ -240,5 +239,4 @@ void ParseJson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

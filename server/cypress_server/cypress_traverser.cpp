@@ -17,8 +17,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NYTree;
 using namespace NTransactionServer;
@@ -229,5 +228,4 @@ void TraverseCypress(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

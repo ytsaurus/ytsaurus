@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +39,7 @@ struct TProxyEntry
     TLivenessPtr Liveness;
 
     bool IsBanned;
-    TNullable<TString> BanMessage;
+    std::optional<TString> BanMessage;
 
     TProxyEntry();
 
@@ -64,7 +63,7 @@ public:
     bool IsBanned() const;
     bool CanHandleHeavyRequests() const;
 
-    std::vector<TProxyEntryPtr> ListProxies(TNullable<TString> roleFilter, bool includeDeadAndBanned = false);
+    std::vector<TProxyEntryPtr> ListProxies(std::optional<TString> roleFilter, bool includeDeadAndBanned = false);
     TProxyEntryPtr AllocateProxy(const TString& role);
     TProxyEntryPtr GetSelf();
 
@@ -89,7 +88,7 @@ private:
     std::vector<TProxyEntryPtr> ListCypressProxies();
 
     TInstant StatisticsUpdatedAt_;
-    TNullable<TNetworkStatistics> LastStatistics_;
+    std::optional<TNetworkStatistics> LastStatistics_;
 
     TLivenessPtr GetSelfLiveness();
 };
@@ -157,5 +156,4 @@ DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

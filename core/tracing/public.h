@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NTracing {
+namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ constexpr TSpanId InvalidSpanId = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTracing
-} // namespace NYT
+} // namespace NYT::NTracing

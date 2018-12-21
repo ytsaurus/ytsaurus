@@ -4,22 +4,21 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NRpc;
 using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommit::TCommit(const TTransactionId& transationId)
+TCommit::TCommit(TTransactionId transationId)
     : TransactionId_(transationId)
     , Persistent_(false)
 { }
 
 TCommit::TCommit(
-    const TTransactionId& transationId,
-    const TMutationId& mutationId,
+    TTransactionId transationId,
+    TMutationId mutationId,
     const std::vector<TCellId>& participantCellIds,
     bool distributed,
     bool generatePrepareTimestamp,
@@ -97,5 +96,4 @@ void TCommit::Load(TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

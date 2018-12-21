@@ -7,8 +7,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 
 using namespace NYTree;
 using namespace NYson;
@@ -413,5 +412,4 @@ void TJsonCallbacksForwardingImpl::OnItemFinished()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

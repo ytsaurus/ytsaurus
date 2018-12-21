@@ -29,8 +29,7 @@
 
 #include <vector>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -74,8 +73,8 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     NNative::IClientPtr client,
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    const TChunkListId& chunkListId,
-    const TTransactionId& transactionId,
+    TChunkListId chunkListId,
+    TTransactionId transactionId,
     const TTableSchema& tableSchema,
     const TChunkTimestamps& chunkTimestamps,
     TTrafficMeterPtr trafficMeter,
@@ -128,7 +127,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             blockReadOptions,
             columnFilter,
             TKeyColumns(),
-            /* partitionTag */ Null,
+            /* partitionTag */ std::nullopt,
             std::move(trafficMeter),
             std::move(bandwidthTrottler),
             std::move(rpsTrottler));
@@ -146,7 +145,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             blockReadOptions,
             columnFilter,
             TKeyColumns(),
-            /* partitionTag */ Null,
+            /* partitionTag */ std::nullopt,
             std::move(trafficMeter),
             std::move(bandwidthTrottler),
             std::move(rpsTrottler));
@@ -307,7 +306,7 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 keyColumns,
-                /* partitionTag */ Null,
+                /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
                 OutRpsThrottler_);
@@ -335,7 +334,7 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 keyColumns,
-                /* partitionTag */ Null,
+                /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
                 OutRpsThrottler_);
@@ -402,8 +401,8 @@ public:
         NNative::IClientPtr client,
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
-        const TChunkListId& chunkListId,
-        const TTransactionId& transactionId,
+        TChunkListId chunkListId,
+        TTransactionId transactionId,
         const TTableSchema& tableSchema,
         const TChunkTimestamps& chunkTimestamps) override
     {
@@ -562,8 +561,8 @@ NTableClient::ISchemalessMultiChunkWriterPtr TUserJobIOFactoryBase::CreateWriter
     NNative::IClientPtr client,
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    const TChunkListId& chunkListId,
-    const TTransactionId& transactionId,
+    TChunkListId chunkListId,
+    TTransactionId transactionId,
     const TTableSchema& tableSchema,
     const TChunkTimestamps& chunkTimestamps)
 {
@@ -624,5 +623,4 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

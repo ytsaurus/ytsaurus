@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,5 +68,4 @@ TString ToString(const TTypeSet& typeSet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

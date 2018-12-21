@@ -5,8 +5,7 @@
 
 #include <yt/core/yson/producer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,8 +109,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 #define VIRTUAL_INL_H_
 #include "virtual-inl.h"

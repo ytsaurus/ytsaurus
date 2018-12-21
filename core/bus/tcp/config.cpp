@@ -1,7 +1,6 @@
 #include "config.h"
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,5 +76,4 @@ TTcpBusClientConfigPtr TTcpBusClientConfig::CreateUnixDomain(const TString& addr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

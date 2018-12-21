@@ -15,8 +15,7 @@
     #define be32toh(x) OSSwapBigToHostInt32(x)
 #endif
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NConcurrency;
 using namespace NNet;
@@ -106,7 +105,7 @@ EPeerMessage TPeerConnection::ReceiveMessage()
     } else if (type == "PING") {
         return EPeerMessage::Ping;
     } else {
-        LOG_WARNING("Ignoring unknown message (Type: %s)", type);
+        YT_LOG_WARNING("Ignoring unknown message (Type: %s)", type);
         return EPeerMessage::Unknown;
     }
 }
@@ -125,7 +124,7 @@ std::pair<TString, INodePtr> TPeerConnection::ReceiveRawMessage()
     Input_->LoadOrFail(buffer.Begin(), buffer.Size());
     auto msg = ParseFromMsgpack(buffer);
     auto type = ConvertTo<TString>(msg->AsList()->FindChild(0));
-    LOG_DEBUG("Received message from peer (Type: %s)", type);
+    YT_LOG_DEBUG("Received message from peer (Type: %s)", type);
     return {
         type,
         msg->AsList()->FindChild(1)
@@ -134,7 +133,7 @@ std::pair<TString, INodePtr> TPeerConnection::ReceiveRawMessage()
 
 void TPeerConnection::SendRawMessage(const TString& type, const INodePtr& msg)
 {
-    LOG_DEBUG("Sending message to peer (Type: %s)", type);
+    YT_LOG_DEBUG("Sending message to peer (Type: %s)", type);
     auto buffer = SerializeToMsgpack(BuildYsonNodeFluently()
         .BeginList()
             .Item().Value(type)
@@ -154,5 +153,4 @@ const TNetworkAddress& TPeerConnection::PeerAddress() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

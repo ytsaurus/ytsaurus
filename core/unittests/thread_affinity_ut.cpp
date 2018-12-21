@@ -6,8 +6,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,5 +143,4 @@ TEST(TThreadAffinityDeathTest, DISABLED_TangledThreadAccess2)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

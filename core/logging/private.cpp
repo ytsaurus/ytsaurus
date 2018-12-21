@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,5 +12,4 @@ const NProfiling::TProfiler LoggingProfiler("/logging");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

@@ -13,8 +13,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -224,5 +223,4 @@ DEFINE_REFCOUNTED_TYPE(TJobManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

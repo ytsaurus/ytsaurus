@@ -5,8 +5,7 @@
 #include "block.h"
 #endif
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 inline TBlock::operator bool() const
 {
@@ -18,5 +17,4 @@ inline size_t TBlock::Size() const
     return Data.Size();
 }
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

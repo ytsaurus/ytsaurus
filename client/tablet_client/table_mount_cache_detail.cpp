@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/hash.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 using namespace NConcurrency;
 
@@ -15,7 +14,7 @@ static const TDuration TabletCacheExpireTimeout = TDuration::Seconds(1);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TTabletInfoPtr TTabletCache::Find(const TTabletId& tabletId)
+TTabletInfoPtr TTabletCache::Find(TTabletId tabletId)
 {
     TReaderGuard guard(SpinLock_);
     RemoveExpiredEntries();
@@ -74,8 +73,8 @@ void TTabletCache::RemoveExpiredEntries()
 
 TTableMountCacheKey::TTableMountCacheKey(
     const NYPath::TYPath& path,
-    TNullable<i64> refreshPrimaryRevision,
-    TNullable<i64> refreshSecondaryRevision)
+    std::optional<i64> refreshPrimaryRevision,
+    std::optional<i64> refreshSecondaryRevision)
     : Path(path)
     , RefreshPrimaryRevision(refreshPrimaryRevision)
     , RefreshSecondaryRevision(refreshSecondaryRevision)
@@ -121,7 +120,7 @@ TFuture<TTableMountInfoPtr> TTableMountCacheBase::GetTableInfo(const NYPath::TYP
     return TAsyncExpiringCache::Get(path);
 }
 
-TTabletInfoPtr TTableMountCacheBase::FindTablet(const TTabletId& tabletId)
+TTabletInfoPtr TTableMountCacheBase::FindTablet(TTabletId tabletId)
 {
     return TabletCache_.Find(tabletId);
 }
@@ -154,7 +153,7 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                 }
                 auto tabletInfo = FindTablet(*tabletId);
                 if (tabletInfo) {
-                    LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, CellId: %v, MountRevision: %llx, Owners: %v)",
+                    YT_LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, CellId: %v, MountRevision: %llx, Owners: %v)",
                         tabletInfo->TabletId,
                         tabletInfo->CellId,
                         tabletInfo->MountRevision,
@@ -177,10 +176,9 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
 void TTableMountCacheBase::Clear()
 {
     TAsyncExpiringCache::Clear();
-    LOG_DEBUG("Table mount info cache cleared");
+    YT_LOG_DEBUG("Table mount info cache cleared");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

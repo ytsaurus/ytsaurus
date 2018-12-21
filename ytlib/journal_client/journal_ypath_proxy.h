@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/journal_client/journal_ypath.pb.h>
 
-namespace NYT {
-namespace NJournalClient {
+namespace NYT::NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,5 +20,4 @@ struct TJournalYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalClient
-} // namespace NYT
+} // namespace NYT::NJournalClient

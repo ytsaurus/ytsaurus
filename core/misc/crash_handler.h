@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <util/generic/string.h>
 
@@ -10,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void InstallCrashSignalHandler(TNullable<std::set<int>> signalNumbers = Null);
+void InstallCrashSignalHandler(std::optional<std::set<int>> signalNumbers = std::nullopt);
 
 void DumpCodicils();
 

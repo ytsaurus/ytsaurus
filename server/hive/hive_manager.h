@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +34,7 @@ public:
     THiveManager(
         THiveManagerConfigPtr config,
         NHiveClient::TCellDirectoryPtr cellDirectory,
-        const TCellId& selfCellId,
+        TCellId selfCellId,
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton);
@@ -44,11 +43,11 @@ public:
 
     NRpc::IServicePtr GetRpcService();
 
-    const TCellId& GetSelfCellId() const;
+    TCellId GetSelfCellId() const;
 
-    TMailbox* CreateMailbox(const TCellId& cellId);
-    TMailbox* GetOrCreateMailbox(const TCellId& cellId);
-    TMailbox* GetMailboxOrThrow(const TCellId& cellId);
+    TMailbox* CreateMailbox(TCellId cellId);
+    TMailbox* GetOrCreateMailbox(TCellId cellId);
+    TMailbox* GetMailboxOrThrow(TCellId cellId);
 
     void RemoveMailbox(TMailbox* mailbox);
 
@@ -89,5 +88,4 @@ DEFINE_REFCOUNTED_TYPE(THiveManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

@@ -13,8 +13,7 @@
 
 #include <util/stream/zlib.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
 
@@ -372,5 +371,4 @@ IAsyncInputStreamPtr CreateDecompressingAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

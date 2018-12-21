@@ -5,9 +5,7 @@
 #include <util/string/cast.h>
 #include <util/string/escape.h>
 
-namespace NYT {
-namespace NQueryClient {
-namespace NAst {
+namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2332,7 +2330,5 @@ case 102:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAst
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient::NAst
 

@@ -27,8 +27,8 @@ public:
     //! Returns first element in the queue.
     TEntry Pop();
 
-    //! Retruns element with specified key in the queue or Null if none exists;
-    TNullable<TEntry> Pop(const TKey& key);
+    //! Retruns element with specified key in the queue or null if none exists;
+    std::optional<TEntry> Pop(const TKey& key);
 
     //! Returns number of elements in the queue.
     i64 Size() const;

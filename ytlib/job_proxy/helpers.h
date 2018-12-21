@@ -7,21 +7,7 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NScheduler {
-namespace NProto {
-
-class TQuerySpec;
-
-} // namespace NProto
-} // namespace NScheduler
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,11 +15,10 @@ void RunQuery(
     const NScheduler::NProto::TQuerySpec& querySpec,
     const NTableClient::TSchemalessReaderFactory& readerFactory,
     const NTableClient::TSchemalessWriterFactory& writerFactory,
-    const TNullable<TString>& udfDirectory);
+    const std::optional<TString>& udfDirectory);
 
 std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(const NScheduler::NProto::TTableInputSpec& inputTableSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

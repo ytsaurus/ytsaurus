@@ -4,8 +4,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,5 +80,4 @@ static constexpr ui64 Thresholds[] = { 10, 20, 40, 80, 220, 400, 900, 1800, 3100
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail

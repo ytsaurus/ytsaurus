@@ -2,8 +2,7 @@
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 
@@ -79,5 +78,4 @@ IVersionedReaderPtr CreateEmptyVersionedReader(int rowCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

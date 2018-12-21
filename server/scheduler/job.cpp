@@ -4,18 +4,17 @@
 #include "helpers.h"
 #include "operation.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TJob::TJob(
-    const TJobId& id,
+    TJobId id,
     EJobType type,
-    const TOperationId& operationId,
-    const TIncarnationId& incarnationId,
+    TOperationId operationId,
+    TIncarnationId incarnationId,
     TExecNodePtr node,
     TInstant startTime,
     const TJobResources& resourceLimits,
@@ -49,5 +48,4 @@ bool TJob::IsRevived() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

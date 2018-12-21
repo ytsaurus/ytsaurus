@@ -12,8 +12,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NEventLog {
+namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,8 +95,7 @@ DEFINE_REFCOUNTED_TYPE(TEventLogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEventLog
-} // namespace NYT
+} // namespace NYT::NEventLog
 
 #define EVENT_LOG_INL_H_
 #include "event_log-inl.h"

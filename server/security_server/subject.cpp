@@ -4,15 +4,14 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSubject::TSubject(const TAccountId& id)
+TSubject::TSubject(TSubjectId id)
     : TNonversionedObjectBase(id)
     , Acd_(this)
 { }
@@ -76,6 +75,5 @@ void TSubject::UnlinkObject(TObjectBase* object)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

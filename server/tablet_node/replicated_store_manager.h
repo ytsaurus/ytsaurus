@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,5 +126,4 @@ DEFINE_REFCOUNTED_TYPE(TReplicatedStoreManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

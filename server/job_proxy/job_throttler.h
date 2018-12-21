@@ -8,8 +8,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,5 +42,4 @@ NConcurrency::IThroughputThrottlerPtr CreateOutJobRpsThrottler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

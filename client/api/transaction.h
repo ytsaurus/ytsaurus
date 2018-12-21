@@ -10,8 +10,7 @@
 
 #include <yt/core/actions/signal.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +61,7 @@ struct ITransaction
 {
     virtual IClientPtr GetClient() const = 0;
     virtual NTransactionClient::ETransactionType GetType() const = 0;
-    virtual const NTransactionClient::TTransactionId& GetId() const = 0;
+    virtual NTransactionClient::TTransactionId GetId() const = 0;
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const = 0;
     virtual NTransactionClient::EAtomicity GetAtomicity() const = 0;
     virtual NTransactionClient::EDurability GetDurability() const = 0;
@@ -110,6 +109,5 @@ DEFINE_REFCOUNTED_TYPE(ITransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

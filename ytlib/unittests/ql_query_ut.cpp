@@ -46,8 +46,7 @@
 // TQueryCoordinateTest
 // TQueryEvaluateTest
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1903,7 +1902,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
             Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
                 source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
         },
-        HasSubstr("Null values in group key"));
+        HasSubstr("std::nullopt values in group key"));
 
     SUCCEED();
 }
@@ -5281,5 +5280,4 @@ TEST_F(TQueryEvaluateTest, TestMakeMapFailure)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

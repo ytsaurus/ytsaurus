@@ -12,8 +12,7 @@
 
 #include <yt/core/misc/async_cache.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
@@ -119,5 +118,4 @@ TFuture<TCachedVersionedChunkMetaPtr> TVersionedChunkMetaManager::GetMeta(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

@@ -14,32 +14,31 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NYPath::TYPath GetOperationsPath();
-NYPath::TYPath GetOperationPath(const TOperationId& operationId);
-NYPath::TYPath GetJobsPath(const TOperationId& operationId);
-NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
-NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
-NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
+NYPath::TYPath GetOperationPath(TOperationId operationId);
+NYPath::TYPath GetJobsPath(TOperationId operationId);
+NYPath::TYPath GetJobPath(TOperationId operationId, TJobId jobId);
+NYPath::TYPath GetStderrPath(TOperationId operationId, TJobId jobId);
+NYPath::TYPath GetSnapshotPath(TOperationId operationId);
+NYPath::TYPath GetSecureVaultPath(TOperationId operationId);
+NYPath::TYPath GetFailContextPath(TOperationId operationId, TJobId jobId);
 
-NYPath::TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId);
+NYPath::TYPath GetSchedulerOrchidOperationPath(TOperationId operationId);
 NYPath::TYPath GetSchedulerOrchidAliasPath(const TString& alias);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
     const TString& controllerAgentAddress,
-    const TOperationId& operationId);
-TNullable<TString> GetControllerAgentAddressFromCypress(
-    const TOperationId& operationId,
+    TOperationId operationId);
+std::optional<TString> GetControllerAgentAddressFromCypress(
+    TOperationId operationId,
     const NRpc::IChannelPtr& channel);
 
 NYPath::TYPath GetJobPath(
-    const TOperationId& operationId,
-    const TJobId& jobId,
+    TOperationId operationId,
+    TJobId jobId,
     const TString& resourceName);
 
 const NYPath::TYPath& GetPoolTreesPath();
@@ -50,6 +49,7 @@ const NYPath::TYPath& GetOperationsArchiveVersionPath();
 const NYPath::TYPath& GetOperationsArchiveJobsPath();
 const NYPath::TYPath& GetOperationsArchiveJobSpecsPath();
 const NYPath::TYPath& GetOperationsArchiveJobStderrsPath();
+const NYPath::TYPath& GetOperationsArchiveJobProfilesPath();
 const NYPath::TYPath& GetOperationsArchiveJobFailContextsPath();
 
 bool IsOperationFinished(EOperationState state);
@@ -66,7 +66,7 @@ bool IsNonSchedulingReason(EAbortReason reason);
 bool IsSentinelReason(EAbortReason reason);
 
 TError GetSchedulerTransactionsAbortedError(const std::vector<NObjectClient::TTransactionId>& transactionIds);
-TError GetUserTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
+TError GetUserTransactionAbortedError(NObjectClient::TTransactionId transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +78,7 @@ struct TJobFile
     TString DescriptionType;
 };
 
-void SaveJobFiles(NApi::NNative::IClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files);
+void SaveJobFiles(NApi::NNative::IClientPtr client, TOperationId operationId, const std::vector<TJobFile>& files);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +86,7 @@ void SaveJobFiles(NApi::NNative::IClientPtr client, const TOperationId& operatio
 //! If needed, access to a certain subnode may be checked, not to the whole operation node.
 void ValidateOperationPermission(
     const TString& user,
-    const TOperationId& operationId,
+    TOperationId operationId,
     const NApi::IClientPtr& client,
     NYTree::EPermission permission,
     const NLogging::TLogger& logger,
@@ -100,5 +100,4 @@ void BuildOperationAce(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

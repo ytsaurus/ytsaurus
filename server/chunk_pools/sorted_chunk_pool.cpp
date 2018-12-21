@@ -18,8 +18,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -81,7 +80,7 @@ public:
         Logger.AddTag("Task: %v", Task_);
         JobManager_->SetLogger(Logger);
 
-        LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
+        YT_LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
             "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
@@ -166,7 +165,7 @@ public:
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         if (jobSummary.InterruptReason != EInterruptReason::None) {
-            LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
+            YT_LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
                 cookie,
                 jobSummary.InterruptReason,
                 jobSummary.SplitJobCount);
@@ -294,7 +293,7 @@ private:
                     auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
                     if (chunkSliceFetcher) {
                         if (SortedJobOptions_.LogDetails) {
-                            LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v)",
+                            YT_LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v)",
                                 inputChunk->ChunkId(),
                                 inputChunk->GetDataWeight());
                         }
@@ -494,7 +493,7 @@ private:
             totalTeleportChunkSize += teleportChunk->GetUncompressedDataSize();
         }
 
-        LOG_DEBUG("Chunks teleported (ChunkCount: %v, DroppedChunkCount: %v, TotalSize: %v)",
+        YT_LOG_DEBUG("Chunks teleported (ChunkCount: %v, DroppedChunkCount: %v, TotalSize: %v)",
             TeleportChunks_.size(),
             droppedTeleportChunkCount,
             totalTeleportChunkSize);
@@ -601,7 +600,7 @@ private:
                 break;
             } catch (TErrorException& ex) {
                 if (ex.Error().FindMatching(EErrorCode::DataSliceLimitExceeded)) {
-                    LOG_DEBUG(ex,
+                    YT_LOG_DEBUG(ex,
                         "Retriable error during job building (RetryIndex: %v, MaxBuildRetryCount: %v)",
                         retryIndex,
                         JobSizeConstraints_->GetMaxBuildRetryCount());
@@ -612,7 +611,7 @@ private:
             }
         }
         if (!succeeded) {
-            LOG_DEBUG("Retry limit exceeded (MaxBuildRetryCount: %v)", JobSizeConstraints_->GetMaxBuildRetryCount());
+            YT_LOG_DEBUG("Retry limit exceeded (MaxBuildRetryCount: %v)", JobSizeConstraints_->GetMaxBuildRetryCount());
             THROW_ERROR_EXCEPTION("Retry limit exceeded while building jobs")
                 << errors;
         }
@@ -660,7 +659,7 @@ private:
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
-            Null /* samplingRate */);
+            std::nullopt /* samplingRate */);
 
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
@@ -717,5 +716,4 @@ std::unique_ptr<IChunkPool> CreateSortedChunkPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

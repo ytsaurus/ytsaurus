@@ -6,8 +6,7 @@
 
 #include <yt/client/ypath/rich.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +126,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUnlockCommand
+    : public TTypedCommand<NApi::TUnlockNodeOptions>
+{
+public:
+    TUnlockCommand();
+
+private:
+    NYPath::TRichYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCopyCommand
     : public TTypedCommand<NApi::TCopyNodeOptions>
 {
@@ -202,6 +215,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver
 

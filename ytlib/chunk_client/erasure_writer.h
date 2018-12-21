@@ -13,14 +13,13 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     NErasure::ECodec codecId,
     NErasure::ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers,
@@ -29,7 +28,7 @@ IChunkWriterPtr CreateErasureWriter(
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     NErasure::ICodec* codec,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
@@ -39,6 +38,5 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

@@ -13,8 +13,7 @@
 
 #include <yt/core/misc/async_cache.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 
@@ -100,7 +99,7 @@ public:
         auto cookie = BeginInsert(MakeReaderCacheKey(chunk.Get()));
         if (cookie.IsActive()) {
             auto fileName = chunk->GetFileName();
-            LOG_TRACE("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
+            YT_LOG_TRACE("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
                 location->GetId(),
                 chunkId);
 
@@ -125,7 +124,7 @@ public:
                 }
             }
 
-            LOG_TRACE("Finished opening blob chunk reader (LocationId: %v, ChunkId: %v)",
+            YT_LOG_TRACE("Finished opening blob chunk reader (LocationId: %v, ChunkId: %v)",
                 chunk->GetLocation()->GetId(),
                 chunkId);
         }
@@ -168,5 +167,4 @@ void TBlobReaderCache::EvictReader(TBlobChunkBase* chunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

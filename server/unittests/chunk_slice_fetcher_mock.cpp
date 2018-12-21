@@ -1,7 +1,6 @@
 #include "chunk_slice_fetcher_mock.h"
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NTableClient;
 using namespace NPhoenix;
@@ -39,6 +38,5 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMockChunkSliceFetcherFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools
 

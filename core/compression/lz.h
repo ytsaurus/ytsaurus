@@ -2,8 +2,7 @@
 
 #include "details.h"
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +18,5 @@ void QuickLzDecompress(StreamSource* source, TBlob* sink);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression
 

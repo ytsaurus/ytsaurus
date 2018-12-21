@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,6 +9,5 @@ const NProfiling::TProfiler RpcProxyProfiler("/rpc_proxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy
 

@@ -1,8 +1,7 @@
 #include "buffered_stream.h"
 #include "helpers.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,5 +215,4 @@ void TBufferedStreamWrap::InitType()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

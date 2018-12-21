@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NHydra;
 using namespace NChunkClient;
@@ -62,7 +61,7 @@ void TJournalSession::DoCancel(const TError& /*error*/)
 
 TFuture<IChunkPtr> TJournalSession::DoFinish(
     const TRefCountedChunkMetaPtr& /*chunkMeta*/,
-    TNullable<int> blockCount)
+    std::optional<int> blockCount)
 {
     auto changelog = Chunk_->GetAttachedChangelog();
     auto result = changelog->Close();
@@ -101,7 +100,7 @@ TFuture<void> TJournalSession::DoPutBlocks(
     }
 
     if (startBlockIndex < recordCount) {
-        LOG_DEBUG("Skipped duplicate blocks %v:%v-%v",
+        YT_LOG_DEBUG("Skipped duplicate blocks %v:%v-%v",
             GetId(),
             startBlockIndex,
             recordCount - 1);
@@ -158,5 +157,4 @@ void TJournalSession::OnFinished()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

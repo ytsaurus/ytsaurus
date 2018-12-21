@@ -12,8 +12,7 @@
 
 #include <yt/core/actions/signal.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,9 +79,9 @@ public:
 
     void AttachJobContext(
         const NYPath::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId,
+        NChunkClient::TChunkId chunkId,
+        TOperationId operationId,
+        TJobId jobId,
         const TString& usrt);
 
     TFuture<void> FlushOperationRuntimeParameters(
@@ -124,5 +123,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

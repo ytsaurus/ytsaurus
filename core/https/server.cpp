@@ -11,8 +11,7 @@
 
 #include <yt/core/concurrency/poller.h>
 
-namespace NYT {
-namespace NHttps {
+namespace NYT::NHttps {
 
 using namespace NNet;
 using namespace NHttp;
@@ -94,5 +93,4 @@ IServerPtr CreateServer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttps
-} // namespace NYT
+} // namespace NYT::NHttps

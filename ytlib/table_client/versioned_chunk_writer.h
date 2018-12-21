@@ -15,8 +15,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,12 +55,11 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     const TTableSchema& schema,
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
-    const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
+    NTransactionClient::TTransactionId transactionId,
+    NChunkClient::TChunkListId parentChunkListId = NChunkClient::NullChunkListId,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

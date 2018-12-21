@@ -1,8 +1,7 @@
 #include "private.h"
 #include "public.h"
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +20,5 @@ TString GetJobProxyUnixDomainName(const TString& nodeTag, int slotIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent
 

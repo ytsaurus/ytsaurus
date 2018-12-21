@@ -5,8 +5,7 @@
 #include <yt/client/table_client/row_base.h>
 #include <yt/core/misc/variant.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using NTableClient::EValueType;
 
@@ -107,5 +106,4 @@ TString ToString(const TTypeSet& typeSet);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

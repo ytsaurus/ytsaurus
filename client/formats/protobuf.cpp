@@ -6,8 +6,7 @@
 
 #include <contrib/libs/protobuf/wire_format_lite.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using ::google::protobuf::Descriptor;
 using ::google::protobuf::FileDescriptor;
@@ -154,7 +153,7 @@ static TEnumerationDescription CreateEnumerationMap(const TString& enumName, con
     Y_UNREACHABLE();
 }
 
-TNullable<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::FieldDescriptor::Type type, bool enumAsStrings)
+std::optional<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::FieldDescriptor::Type type, bool enumAsStrings)
 {
     using namespace ::google::protobuf;
     switch (type) {
@@ -177,7 +176,7 @@ TNullable<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::Field
         case FieldDescriptor::TYPE_STRING:
             return EProtobufType::String;
         case FieldDescriptor::TYPE_GROUP:
-            return Null;
+            return std::nullopt;
         case FieldDescriptor::TYPE_MESSAGE:
             return EProtobufType::Message;
         case FieldDescriptor::TYPE_BYTES:
@@ -195,7 +194,7 @@ TNullable<EProtobufType> ConvertToInternalProtobufType(::google::protobuf::Field
         case FieldDescriptor::TYPE_SINT64:
             return EProtobufType::Sint64;
     }
-    return Null;
+    return std::nullopt;
 }
 
 TEnumerationDescription ConvertToEnumMap(const ::google::protobuf::EnumDescriptor& enumDescriptor)
@@ -310,8 +309,8 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
                 }
             }
 
-            auto maybeType = ConvertToInternalProtobufType(fieldDescriptor->type(), enumsAsStrings);
-            if (!maybeType) {
+            auto optionalType = ConvertToInternalProtobufType(fieldDescriptor->type(), enumsAsStrings);
+            if (!optionalType) {
                 continue;
             }
 
@@ -321,7 +320,7 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
             field.WireTag = google::protobuf::internal::WireFormatLite::MakeTag(
                 fieldDescriptor->number(),
                 ::google::protobuf::internal::WireFormatLite::WireTypeForFieldType(wireFieldType));
-            field.Type = *maybeType;
+            field.Type = *optionalType;
             field.TagSize = ::google::protobuf::internal::WireFormatLite::TagSize(fieldDescriptor->number(), wireFieldType);
 
             if (field.Type == EProtobufType::EnumString || field.Type == EProtobufType::EnumInt)
@@ -391,5 +390,4 @@ void TProtobufFormatDescription::InitFromProtobufSchema(const TProtobufFormatCon
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

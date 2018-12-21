@@ -5,8 +5,7 @@
 
 #include <yt/server/object_server/object_manager.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 using namespace NObjectServer;
 
@@ -60,7 +59,7 @@ int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectBase* TLoadContext::GetWeakGhostObject(const TObjectId& id) const
+TObjectBase* TLoadContext::GetWeakGhostObject(TObjectId id) const
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
     return objectManager->GetWeakGhostObject(id);
@@ -68,6 +67,5 @@ TObjectBase* TLoadContext::GetWeakGhostObject(const TObjectId& id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster
 

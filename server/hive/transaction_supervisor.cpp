@@ -40,8 +40,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -73,7 +72,7 @@ public:
         TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
         ISecurityManagerPtr securityManager,
-        const TCellId& selfCellId,
+        TCellId selfCellId,
         ITimestampProviderPtr timestampProvider,
         const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
         : TCompositeAutomatonPart(
@@ -136,7 +135,7 @@ public:
     }
 
     TFuture<void> CommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TString& userName,
         const std::vector<TCellId>& participantCellIds)
     {
@@ -153,7 +152,7 @@ public:
     }
 
     TFuture<void> AbortTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force)
     {
         return MessageToError(
@@ -162,6 +161,18 @@ public:
                 NullMutationId,
                 force,
                 RootUserName));
+    }
+
+    void Decommission()
+    {
+        YT_LOG_DEBUG("Decommission transaction supervisor");
+
+        Decommissioned_ = true;
+    }
+
+    bool IsDecommissioned() const
+    {
+        return Decommissioned_ && PersistentCommitMap_.empty();
     }
 
 private:
@@ -182,13 +193,15 @@ private:
 
     THashMap<TTransactionId, TAbort> TransientAbortMap_;
 
+    bool Decommissioned_ = false;
+
 
     class TWrappedParticipant
         : public TRefCounted
     {
     public:
         TWrappedParticipant(
-            const TCellId& cellId,
+            TCellId cellId,
             TTransactionSupervisorConfigPtr config,
             ITimestampProviderPtr coordinatorTimestampProvider,
             const std::vector<ITransactionParticipantProviderPtr>& providers,
@@ -207,7 +220,7 @@ private:
             ProbationExecutor_->Start();
         }
 
-        const TCellId& GetCellId() const
+        TCellId GetCellId() const
         {
             return CellId_;
         }
@@ -300,7 +313,7 @@ private:
 
             guard.Release();
 
-            LOG_DEBUG("Participant cell is up");
+            YT_LOG_DEBUG("Participant cell is up");
 
             for (const auto& sender : senders) {
                 sender.Run();
@@ -317,7 +330,7 @@ private:
 
             Up_ = false;
 
-            LOG_DEBUG(error, "Participant cell is down");
+            YT_LOG_DEBUG(error, "Participant cell is down");
         }
 
     private:
@@ -380,7 +393,7 @@ private:
 
                     case ETransactionParticipantState::Unregistered:
                         if (succeedOnUnregistered) {
-                            LOG_DEBUG("Transaction participant unregistered; assuming success");
+                            YT_LOG_DEBUG("Transaction participant unregistered; assuming success");
                             promise.Set(TError());
                         } else {
                             promise.Set(TError("Participant cell %v is no longer registered", CellId_));
@@ -703,13 +716,13 @@ private:
     // Coordinator implementation.
 
     TFuture<TSharedRefArray> CoordinatorCommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const std::vector<TCellId>& participantCellIds,
         bool force2PC,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        const TMutationId& mutationId,
+        TMutationId mutationId,
         const TString& userName)
     {
         YCHECK(!HasMutationContext());
@@ -754,7 +767,7 @@ private:
             TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUserName());
             TransactionManager_->PrepareTransactionCommit(transactionId, false, prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v, User: %v)",
+            YT_LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v, User: %v)",
                 transactionId,
                 commit->GetUserName());
             SetCommitFailed(commit, ex);
@@ -789,8 +802,8 @@ private:
     }
 
     TFuture<TSharedRefArray> CoordinatorAbortTransaction(
-        const TTransactionId& transactionId,
-        const TMutationId& mutationId,
+        TTransactionId transactionId,
+        TMutationId mutationId,
         bool force,
         const TString& userName)
     {
@@ -812,7 +825,7 @@ private:
             TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->PrepareTransactionAbort(transactionId, force);
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Error preparing transaction abort (TransactionId: %v, Force: %v, User: %v)",
+            YT_LOG_DEBUG(ex, "Error preparing transaction abort (TransactionId: %v, Force: %v, User: %v)",
                 transactionId,
                 force,
                 userName);
@@ -837,6 +850,9 @@ private:
 
         auto considerParticipant = [&] (const auto& weakParticipant) {
             if (auto participant = weakParticipant.Lock()) {
+                if (participant->GetCellId() == SelfCellId_) {
+                    return;
+                }
                 if (!participant->IsUp()) {
                     result.push_back(participant->GetCellId());
                 }
@@ -884,7 +900,7 @@ private:
         auto* commit = FindCommit(transactionId);
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit simple transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit simple transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
             return;
@@ -904,7 +920,7 @@ private:
                 SetCommitFailed(commit, ex);
                 RemoveTransientCommit(commit);
             }
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error committing simple transaction (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error committing simple transaction (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -938,26 +954,36 @@ private:
         auto coordindatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto prepareTimestamp = request->prepare_timestamp();
         const auto& userName = request->user_name();
+        TCommit* commit;
 
         // Ensure commit existence (possibly moving it from transient to persistent).
-        auto* commit = GetOrCreatePersistentCommit(
-            transactionId,
-            mutationId,
-            participantCellIds,
-            true,
-            generatePrepareTimestamp,
-            inheritCommitTimestamp,
-            coordindatorCommitMode,
-            userName);
+        try {
+            commit = GetOrCreatePersistentCommit(
+                transactionId,
+                mutationId,
+                participantCellIds,
+                true,
+                generatePrepareTimestamp,
+                inheritCommitTimestamp,
+                coordindatorCommitMode,
+                userName);
+        } catch (const std::exception& ex) {
+            if (auto commit = FindCommit(transactionId)) {
+                YCHECK(!commit->GetPersistent());
+                SetCommitFailed(commit, ex);
+                RemoveTransientCommit(commit);
+            }
+            throw;
+        }
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(),
+        YT_LOG_DEBUG_UNLESS(IsRecovery(),
             "Distributed commit phase one started (TransactionId: %v, User: %v, ParticipantCellIds: %v, PrepareTimestamp: %llx)",
             transactionId,
             commit->GetUserName(),
@@ -970,7 +996,7 @@ private:
             TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v, User: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
                 ECommitState::Prepare,
                 userName);
@@ -980,14 +1006,14 @@ private:
                 TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
                 TransactionManager_->AbortTransaction(transactionId, true);
             } catch (const std::exception& ex) {
-                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, User: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, User: %v)",
                     transactionId,
                     userName);
             }
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v)",
             transactionId,
             ECommitState::Prepare);
 
@@ -1002,12 +1028,12 @@ private:
 
         auto* commit = FindPersistentCommit(transactionId);
         if (!commit) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Requested to execute phase two commit for a non-existing transaction; ignored (TransactionId: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Requested to execute phase two commit for a non-existing transaction; ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(),
+        YT_LOG_DEBUG_UNLESS(IsRecovery(),
             "Distributed commit phase two started "
             "(TransactionId: %v, ParticipantCellIds: %v, CommitTimestamps: %v)",
             transactionId,
@@ -1018,7 +1044,7 @@ private:
         YCHECK(commit->GetPersistent());
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
-            LOG_ERROR_UNLESS(IsRecovery(),
+            YT_LOG_ERROR_UNLESS(IsRecovery(),
                 "Requested to execute phase two commit for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
@@ -1041,7 +1067,7 @@ private:
 
         auto* commit = FindPersistentCommit(transactionId);
         if (!commit) {
-            LOG_ERROR_UNLESS(IsRecovery(),
+            YT_LOG_ERROR_UNLESS(IsRecovery(),
                 "Requested to execute phase two abort for a non-existing transaction; ignored (TransactionId: %v)",
                 transactionId);
             return;
@@ -1051,7 +1077,7 @@ private:
         YCHECK(commit->GetPersistent());
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
-            LOG_ERROR_UNLESS(IsRecovery(),
+            YT_LOG_ERROR_UNLESS(IsRecovery(),
                 "Requested to execute phase two abort for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
@@ -1063,7 +1089,7 @@ private:
             TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUserName());
             TransactionManager_->AbortTransaction(transactionId, true);
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, State: %v, User: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
                 ECommitState::Abort,
                 commit->GetUserName());
@@ -1073,7 +1099,7 @@ private:
         ChangeCommitPersistentState(commit, ECommitState::Abort);
         ChangeCommitTransientState(commit, ECommitState::Abort);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator aborted (TransactionId: %v, State: %v, User: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator aborted (TransactionId: %v, State: %v, User: %v)",
             transactionId,
             ECommitState::Abort,
             commit->GetUserName());
@@ -1096,7 +1122,7 @@ private:
         } catch (const std::exception& ex) {
             SetAbortFailed(abort, ex);
             RemoveAbort(abort);
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction; ignored (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction; ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -1123,7 +1149,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto* commit = FindPersistentCommit(transactionId);
         if (!commit) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Requested to finish a non-existing transaction commit; ignored (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requested to finish a non-existing transaction commit; ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -1137,7 +1163,7 @@ private:
 
         RemovePersistentCommit(commit);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed transaction commit finished (TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Distributed transaction commit finished (TransactionId: %v)",
             transactionId);
     }
 
@@ -1152,14 +1178,14 @@ private:
             TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, User: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
                 ECommitState::Prepare,
                 userName);
             throw;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, User: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, User: %v)",
             transactionId,
             ECommitState::Prepare,
             userName);
@@ -1176,7 +1202,7 @@ private:
             TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, User: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
                 ECommitState::Commit,
                 userName);
@@ -1185,7 +1211,7 @@ private:
 
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, User: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, User: %v)",
             transactionId,
             ECommitState::Commit,
             userName);
@@ -1201,31 +1227,31 @@ private:
             TAuthenticatedUserGuardBase userGuard(SecurityManager_, userName);
             TransactionManager_->AbortTransaction(transactionId, true);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, User: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
                 ECommitState::Abort,
                 userName);
             throw;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, User: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, User: %v)",
             transactionId,
             ECommitState::Abort,
             userName);
     }
 
 
-    TCommit* FindTransientCommit(const TTransactionId& transactionId)
+    TCommit* FindTransientCommit(TTransactionId transactionId)
     {
         return TransientCommitMap_.Find(transactionId);
     }
 
-    TCommit* FindPersistentCommit(const TTransactionId& transactionId)
+    TCommit* FindPersistentCommit(TTransactionId transactionId)
     {
         return PersistentCommitMap_.Find(transactionId);
     }
 
-    TCommit* FindCommit(const TTransactionId& transactionId)
+    TCommit* FindCommit(TTransactionId transactionId)
     {
         if (auto* commit = FindTransientCommit(transactionId)) {
             return commit;
@@ -1237,8 +1263,8 @@ private:
     }
 
     TCommit* CreateTransientCommit(
-        const TTransactionId& transactionId,
-        const TMutationId& mutationId,
+        TTransactionId transactionId,
+        TMutationId mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
         bool generatePrepareTimestamp,
@@ -1259,8 +1285,8 @@ private:
     }
 
     TCommit* GetOrCreatePersistentCommit(
-        const TTransactionId& transactionId,
-        const TMutationId& mutationId,
+        TTransactionId transactionId,
+        TMutationId mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
         bool generatePrepareTimstamp,
@@ -1268,6 +1294,11 @@ private:
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         const TString& userName)
     {
+        if (Decommissioned_) {
+            THROW_ERROR_EXCEPTION("Tablet cell %v is decommissioned",
+                SelfCellId_);
+        }
+
         auto* commit = FindCommit(transactionId);
         std::unique_ptr<TCommit> commitHolder;
         if (commit) {
@@ -1304,7 +1335,7 @@ private:
 
     void SetCommitFailed(TCommit* commit, const TError& error)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), error, "Transaction commit failed (TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), error, "Transaction commit failed (TransactionId: %v)",
             commit->GetTransactionId());
 
         auto responseMessage = CreateErrorResponseMessage(error);
@@ -1313,7 +1344,7 @@ private:
 
     void SetCommitSucceeded(TCommit* commit)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit succeeded (TransactionId: %v, CommitTimestamps: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit succeeded (TransactionId: %v, CommitTimestamps: %v)",
             commit->GetTransactionId(),
             commit->CommitTimestamps());
 
@@ -1348,12 +1379,12 @@ private:
             TAuthenticatedUserGuardBase userGuard(SecurityManager_, commit->GetUserName());
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v, User: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
                 commit->GetPersistentState(),
                 commit->GetUserName());
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v, User: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
                 commit->GetPersistentState(),
                 commit->GetUserName());
@@ -1361,13 +1392,13 @@ private:
     }
 
 
-    TAbort* FindAbort(const TTransactionId& transactionId)
+    TAbort* FindAbort(TTransactionId transactionId)
     {
         auto it = TransientAbortMap_.find(transactionId);
         return it == TransientAbortMap_.end() ? nullptr : &it->second;
     }
 
-    TAbort* CreateAbort(const TTransactionId& transactionId, const TMutationId& mutationId)
+    TAbort* CreateAbort(TTransactionId transactionId, TMutationId mutationId)
     {
         auto pair = TransientAbortMap_.emplace(transactionId, TAbort(transactionId, mutationId));
         YCHECK(pair.second);
@@ -1376,7 +1407,7 @@ private:
 
     void SetAbortFailed(TAbort* abort, const TError& error)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), error, "Transaction abort failed (TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), error, "Transaction abort failed (TransactionId: %v)",
             abort->GetTransactionId());
 
         auto responseMessage = CreateErrorResponseMessage(error);
@@ -1385,7 +1416,7 @@ private:
 
     void SetAbortSucceeded(TAbort* abort)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction abort succeeded (TransactionId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction abort succeeded (TransactionId: %v)",
             abort->GetTransactionId());
 
         NHiveClient::NProto::NTransactionSupervisor::TRspAbortTransaction response;
@@ -1417,7 +1448,7 @@ private:
         TFuture<TTimestamp> asyncCoordinatorTimestamp;
         std::vector<TFuture<std::pair<TCellTag, TTimestamp>>> asyncTimestamps;
         THashSet<TCellTag> timestampProviderCellTags;
-        auto generateFor = [&] (const TCellId& cellId) {
+        auto generateFor = [&] (TCellId cellId) {
             try {
                 auto cellTag = CellTagFromId(cellId);
                 if (!timestampProviderCellTags.insert(cellTag).second) {
@@ -1429,13 +1460,13 @@ private:
 
                 TFuture<TTimestamp> asyncTimestamp;
                 if (commit->GetInheritCommitTimestamp() && cellId != SelfCellId_) {
-                    LOG_DEBUG("Inheriting commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
+                    YT_LOG_DEBUG("Inheriting commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
                         transactionId,
                         cellId);
                     YCHECK(asyncCoordinatorTimestamp);
                     asyncTimestamp = asyncCoordinatorTimestamp;
                 } else {
-                    LOG_DEBUG("Generating commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
+                    YT_LOG_DEBUG("Generating commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
                         transactionId,
                         cellId);
                     asyncTimestamp = timestampProvider->GenerateTimestamps(1);
@@ -1462,12 +1493,12 @@ private:
     }
 
     void OnCommitTimestampsGenerated(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TErrorOr<std::vector<std::pair<TCellTag, TTimestamp>>>& timestampsOrError)
     {
         auto* commit = FindCommit(transactionId);
         if (!commit) {
-            LOG_DEBUG("Commit timestamp generated for a non-existing transaction commit; ignored (TransactionId: %v)",
+            YT_LOG_DEBUG("Commit timestamp generated for a non-existing transaction commit; ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -1475,7 +1506,7 @@ private:
         if (!timestampsOrError.IsOK()) {
             // If this is a distributed transaction then it's already prepared at coordinator and
             // at all participants. We _must_ forcefully abort it.
-            LOG_DEBUG(timestampsOrError, "Error generating commit timestamps (TransactionId: %v)",
+            YT_LOG_DEBUG(timestampsOrError, "Error generating commit timestamps (TransactionId: %v)",
                 transactionId);
             AbortTransaction(transactionId, true);
             return;
@@ -1486,7 +1517,7 @@ private:
         TTimestampMap commitTimestamps;
         commitTimestamps.Timestamps.insert(commitTimestamps.Timestamps.end(), result.begin(), result.end());
 
-        LOG_DEBUG("Commit timestamps generated (TransactionId: %v, CommitTimestamps: %v)",
+        YT_LOG_DEBUG("Commit timestamps generated (TransactionId: %v, CommitTimestamps: %v)",
             transactionId,
             commitTimestamps);
 
@@ -1508,7 +1539,7 @@ private:
     }
 
 
-    TWrappedParticipantPtr GetParticipant(const TCellId& cellId)
+    TWrappedParticipantPtr GetParticipant(TCellId cellId)
     {
         auto it = WeakParticipantMap_.find(cellId);
         if (it != WeakParticipantMap_.end()) {
@@ -1519,7 +1550,7 @@ private:
                     return participant;
                 }
                 if (StrongParticipantMap_.erase(cellId) == 1) {
-                    LOG_DEBUG("Participant is not valid; invalidated (ParticipantCellId: %v, State: %v)",
+                    YT_LOG_DEBUG("Participant is not valid; invalidated (ParticipantCellId: %v, State: %v)",
                         cellId,
                         state);
                 }
@@ -1537,7 +1568,7 @@ private:
         YCHECK(StrongParticipantMap_.emplace(cellId, wrappedParticipant).second);
         YCHECK(WeakParticipantMap_.emplace(cellId, wrappedParticipant).second);
 
-        LOG_DEBUG("Participant cell registered (ParticipantCellId: %v)",
+        YT_LOG_DEBUG("Participant cell registered (ParticipantCellId: %v)",
             cellId);
 
         return wrappedParticipant;
@@ -1548,7 +1579,7 @@ private:
         for (auto it = StrongParticipantMap_.begin(); it != StrongParticipantMap_.end(); ) {
             auto jt = it++;
             if (jt->second->GetState() != ETransactionParticipantState::Valid) {
-                LOG_DEBUG("Participant invalidated (ParticipantCellId: %v)",
+                YT_LOG_DEBUG("Participant invalidated (ParticipantCellId: %v)",
                     jt->first);
                 StrongParticipantMap_.erase(jt);
             }
@@ -1569,7 +1600,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Commit transient state changed (TransactionId: %v, State: %v -> %v)",
+        YT_LOG_DEBUG("Commit transient state changed (TransactionId: %v, State: %v -> %v)",
             commit->GetTransactionId(),
             commit->GetTransientState(),
             state);
@@ -1611,7 +1642,7 @@ private:
 
     void ChangeCommitPersistentState(TCommit* commit, ECommitState state)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Commit persistent state changed (TransactionId: %v, State: %v -> %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Commit persistent state changed (TransactionId: %v, State: %v -> %v)",
             commit->GetTransactionId(),
             commit->GetPersistentState(),
             state);
@@ -1627,7 +1658,7 @@ private:
         CheckAllParticipantsResponded(commit);
     }
 
-    void SendParticipantRequest(TCommit* commit, const TCellId& cellId)
+    void SendParticipantRequest(TCommit* commit, TCellId cellId)
     {
         auto participant = GetParticipant(cellId);
 
@@ -1666,7 +1697,7 @@ private:
         if (error.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction) &&
             commit->GetTransientState() != ECommitState::Prepare)
         {
-            LOG_DEBUG("Transaction is missing at participant; still consider this a success "
+            YT_LOG_DEBUG("Transaction is missing at participant; still consider this a success "
                 "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                 commit->GetTransactionId(),
                 participant->GetCellId(),
@@ -1683,7 +1714,7 @@ private:
     }
 
     void OnParticipantResponse(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         ECommitState state,
         const TWrappedParticipantPtr& participant,
         const TError& error)
@@ -1698,14 +1729,14 @@ private:
 
         auto* commit = FindPersistentCommit(transactionId);
         if (!commit) {
-            LOG_DEBUG("Received participant response for a non-existing commit; ignored (TransactionId: %v, ParticipantCellId: %v)",
+            YT_LOG_DEBUG("Received participant response for a non-existing commit; ignored (TransactionId: %v, ParticipantCellId: %v)",
                 transactionId,
                 participantCellId);
             return;
         }
 
         if (state != commit->GetTransientState()) {
-            LOG_DEBUG("Received participant response for a commit in wrong state; ignored (TransactionId: %v, "
+            YT_LOG_DEBUG("Received participant response for a commit in wrong state; ignored (TransactionId: %v, "
                 "ParticipantCellId: %v, ExpectedState: %v, ActualState: %v)",
                 transactionId,
                 participantCellId,
@@ -1715,7 +1746,7 @@ private:
         }
 
         if (IsParticipantResponseSuccessful(commit, participant, error)) {
-            LOG_DEBUG("Coordinator observes participant success "
+            YT_LOG_DEBUG("Coordinator observes participant success "
                 "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                 commit->GetTransactionId(),
                 participantCellId,
@@ -1727,7 +1758,7 @@ private:
         } else {
             switch (state) {
                 case ECommitState::Prepare: {
-                    LOG_DEBUG(error, "Coordinator observes participant failure; will abort "
+                    YT_LOG_DEBUG(error, "Coordinator observes participant failure; will abort "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),
                         participantCellId,
@@ -1740,7 +1771,7 @@ private:
 
                 case ECommitState::Commit:
                 case ECommitState::Abort:
-                    LOG_DEBUG(error, "Coordinator observes participant failure; will retry "
+                    YT_LOG_DEBUG(error, "Coordinator observes participant failure; will retry "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),
                         participantCellId,
@@ -1749,7 +1780,7 @@ private:
                     break;
 
                 default:
-                    LOG_DEBUG(error, "Coordinator observes participant failure; ignored "
+                    YT_LOG_DEBUG(error, "Coordinator observes participant failure; ignored "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),
                         participantCellId,
@@ -1793,12 +1824,13 @@ private:
             version == 3 ||
             version == 4 ||
             version == 5 || // babenko
-            version == 6;   // savrus: Add User to TCommit
+            version == 6 || // savrus: Add User to TCommit
+            version == 7;   // savrus: Add tablet cell life stage
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 6;
+        return 7;
     }
 
 
@@ -1865,6 +1897,7 @@ private:
     void SaveValues(TSaveContext& context) const
     {
         PersistentCommitMap_.SaveValues(context);
+        Save(context, Decommissioned_);
     }
 
     void LoadKeys(TLoadContext& context)
@@ -1875,6 +1908,12 @@ private:
     void LoadValues(TLoadContext& context)
     {
         PersistentCommitMap_.LoadValues(context);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= 7) {
+            Load(context, Decommissioned_);
+        } else {
+            Decommissioned_ = false;
+        }
     }
 };
 
@@ -1889,7 +1928,7 @@ TTransactionSupervisor::TTransactionSupervisor(
     TResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
     ISecurityManagerPtr securityManager,
-    const TCellId& selfCellId,
+    TCellId selfCellId,
     ITimestampProviderPtr timestampProvider,
     const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
     : Impl_(New<TImpl>(
@@ -1914,7 +1953,7 @@ std::vector<NRpc::IServicePtr> TTransactionSupervisor::GetRpcServices()
 }
 
 TFuture<void> TTransactionSupervisor::CommitTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TString& userName,
     const std::vector<TCellId>& participantCellIds)
 {
@@ -1925,7 +1964,7 @@ TFuture<void> TTransactionSupervisor::CommitTransaction(
 }
 
 TFuture<void> TTransactionSupervisor::AbortTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool force)
 {
     return Impl_->AbortTransaction(
@@ -1933,7 +1972,16 @@ TFuture<void> TTransactionSupervisor::AbortTransaction(
         force);
 }
 
+void TTransactionSupervisor::Decommission()
+{
+    Impl_->Decommission();
+}
+
+bool TTransactionSupervisor::IsDecommissioned() const
+{
+    return Impl_->IsDecommissioned();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

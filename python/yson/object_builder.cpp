@@ -2,8 +2,7 @@
 
 #include <yt/python/common/helpers.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using NPython::GetYsonTypeClass;
 
@@ -11,7 +10,7 @@ using NPython::GetYsonTypeClass;
 
 TPythonObjectBuilder::TPythonObjectBuilder() = default;
 
-TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<TString>& encoding)
+TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const std::optional<TString>& encoding)
     : YsonMap(GetYsonTypeClass("YsonMap"), /* owned */ true)
     , YsonList(GetYsonTypeClass("YsonList"), /* owned */ true)
     , YsonString(GetYsonTypeClass("YsonString"), /* owned */ true)
@@ -41,7 +40,7 @@ void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
 
     if (Encoding_) {
         auto decodedString = MakePyObjectPtr(
-            PyUnicode_FromEncodedObject(bytes.get(), Encoding_.Get().data(), "strict"));
+            PyUnicode_FromEncodedObject(bytes.get(), Encoding_->data(), "strict"));
         if (!decodedString) {
             throw Py::Exception();
         }
@@ -118,7 +117,7 @@ void TPythonObjectBuilder::OnKeyedItem(TStringBuf key)
             OriginalKeyCache_.emplace_back(std::move(pyKeyPtr));
 
             pyKeyPtr = MakePyObjectPtr(
-                PyUnicode_FromEncodedObject(originalPyKeyObj, Encoding_.Get().data(), "strict"));
+                PyUnicode_FromEncodedObject(originalPyKeyObj, Encoding_->data(), "strict"));
             if (!pyKeyPtr) {
                 throw Py::Exception();
             }
@@ -172,7 +171,7 @@ void TPythonObjectBuilder::AddObject(
 
     if (Attributes_) {
         PyObject_SetAttrString(obj.get(), attributesStr, Attributes_->get());
-        Attributes_ = Null;
+        Attributes_ = std::nullopt;
     }
 
     if (ObjectStack_.empty()) {
@@ -216,5 +215,4 @@ bool TPythonObjectBuilder::HasObject() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

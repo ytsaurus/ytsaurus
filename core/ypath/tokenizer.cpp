@@ -5,8 +5,7 @@
 
 #include <yt/core/yson/token.h>
 
-namespace NYT {
-namespace NYPath {
+namespace NYT::NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,6 +210,11 @@ TStringBuf TTokenizer::GetPrefix() const
     return TStringBuf(Path_.begin(), Input_.begin());
 }
 
+TStringBuf TTokenizer::GetPrefixPlusToken() const
+{
+    return TStringBuf(Path_.begin(), Input_.begin() + Token_.length());
+}
+
 TStringBuf TTokenizer::GetSuffix() const
 {
     return TStringBuf(Input_.begin() + Token_.length(), Input_.end());
@@ -250,5 +254,4 @@ bool HasPrefix(const TYPath& fullPath, const TYPath& prefixPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYPath
-} // namespace NYT
+} // namespace NYT::NYPath

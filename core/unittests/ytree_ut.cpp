@@ -5,8 +5,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 namespace {
 
 using namespace NYson;
@@ -125,6 +124,5 @@ TEST(TYTreeTest, TestBizzareKeys)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

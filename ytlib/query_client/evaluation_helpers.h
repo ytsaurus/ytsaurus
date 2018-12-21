@@ -21,8 +21,7 @@
 #include <sparsehash/dense_hash_set>
 #include <sparsehash/dense_hash_map>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 constexpr size_t RowsetProcessingSize = 1024;
 constexpr size_t WriteRowsetSize = 64 * RowsetProcessingSize;
@@ -390,8 +389,7 @@ struct TJoinComparers
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 
 #define EVALUATION_HELPERS_INL_H_
 #include "evaluation_helpers-inl.h"

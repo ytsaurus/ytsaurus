@@ -16,8 +16,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -181,8 +180,8 @@ protected:
 
     // If some argument is null, eschews corresponding parts of validation.
     void ValidateMediaChange(
-        const TNullable<NChunkServer::TChunkReplication>& oldReplication,
-        TNullable<int> primaryMediumIndex,
+        const std::optional<NChunkServer::TChunkReplication>& oldReplication,
+        std::optional<int> primaryMediumIndex,
         const NChunkServer::TChunkReplication& newReplication);
 
     //! Validates an attempt to set #newPrimaryMedium as a primary medium.
@@ -194,7 +193,7 @@ protected:
     bool ValidatePrimaryMediumChange(
         NChunkServer::TMedium* newPrimaryMedium,
         const NChunkServer::TChunkReplication& oldReplication,
-        TNullable<int> oldPrimaryMediumIndex,
+        std::optional<int> oldPrimaryMediumIndex,
         NChunkServer::TChunkReplication* newReplication);
 
     void SetModified(EModificationType modificationType = EModificationType::Content);
@@ -212,6 +211,7 @@ protected:
         bool recursive);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
 
@@ -314,7 +314,7 @@ protected:
         const auto& Logger = CypressServerLogger;
         bool forbidden = TBase::Bootstrap_->GetConfig()->CypressManager->ForbidSetCommand && !force;
         if (path) {
-            LOG_DEBUG("Validating possibly malicious \"set\" in Cypress (Path: %v, Forbidden: %v)",
+            YT_LOG_DEBUG("Validating possibly malicious \"set\" in Cypress (Path: %v, Forbidden: %v)",
                 path,
                 forbidden);
         }
@@ -467,7 +467,7 @@ public:
     virtual bool RemoveChild(const TString& key) override;
     virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     virtual void RemoveChild(const NYTree::INodePtr& child) override;
-    virtual TNullable<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
+    virtual std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
 private:
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
@@ -524,7 +524,7 @@ public:
     virtual bool RemoveChild(int index) override;
     virtual void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     virtual void RemoveChild(const NYTree::INodePtr& child) override;
-    virtual TNullable<int> FindChildIndex(const NYTree::IConstNodePtr& child) override;
+    virtual std::optional<int> FindChildIndex(const NYTree::IConstNodePtr& child) override;
 
 private:
     virtual void SetChildNode(
@@ -618,5 +618,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

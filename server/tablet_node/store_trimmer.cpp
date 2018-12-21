@@ -27,8 +27,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -159,12 +158,12 @@ private:
         Logger.AddTag("TabletId: %v", tablet->GetId());
 
         try {
-            LOG_INFO("Trimming tablet stores (StoreIds: %v)",
+            YT_LOG_INFO("Trimming tablet stores (StoreIds: %v)",
                 MakeFormattableRange(stores, TStoreIdFormatter()));
 
             NNative::ITransactionPtr transaction;
             {
-                LOG_INFO("Creating tablet trim transaction");
+                YT_LOG_INFO("Creating tablet trim transaction");
 
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
@@ -180,7 +179,7 @@ private:
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
-                LOG_INFO("Tablet trim transaction created (TransactionId: %v)",
+                YT_LOG_INFO("Tablet trim transaction created (TransactionId: %v)",
                     transaction->GetId());
 
                 Logger.AddTag("TransactionId: %v", transaction->GetId());
@@ -205,7 +204,7 @@ private:
 
             // NB: There's no need to call EndStoreCompaction since these stores are gone.
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error trimming tablet stores");
+            YT_LOG_ERROR(ex, "Error trimming tablet stores");
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
@@ -248,5 +247,4 @@ void StartStoreTrimmer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

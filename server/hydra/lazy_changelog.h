@@ -4,8 +4,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,5 +21,4 @@ IChangelogPtr CreateLazyChangelog(TFuture<IChangelogPtr> futureChangelog);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

@@ -15,8 +15,7 @@
 // Tests:
 // TComputedColumnTest
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace {
 
 using namespace NYson;
@@ -850,5 +849,4 @@ INSTANTIATE_TEST_CASE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

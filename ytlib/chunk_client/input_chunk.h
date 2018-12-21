@@ -19,8 +19,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,7 +128,6 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, NNodeTrackerClient::TNo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 
 Y_DECLARE_PODTYPE(NYT::NChunkClient::TInputChunkBase);

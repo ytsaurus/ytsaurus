@@ -2,8 +2,7 @@
 
 #include <yt/core/rpc/service.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,9 +21,9 @@ TFuture<TMutationResponse> TMutation::CommitAndLog(const NLogging::TLogger& logg
     return Commit().Apply(
         BIND([Logger = logger, type = std::move(type)] (const TErrorOr<TMutationResponse>& result) {
             if (result.IsOK()) {
-                LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
+                YT_LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
             } else {
-                LOG_DEBUG(result, "Mutation commit failed (MutationType: %v)", type);
+                YT_LOG_DEBUG(result, "Mutation commit failed (MutationType: %v)", type);
             }
             return result;
         }));
@@ -66,7 +65,7 @@ void TMutation::SetAllowLeaderForwarding(bool value)
     Request_.AllowLeaderForwarding = value;
 }
 
-void TMutation::SetMutationId(const NRpc::TMutationId& mutationId, bool retry)
+void TMutation::SetMutationId(NRpc::TMutationId mutationId, bool retry)
 {
     Request_.MutationId = mutationId;
     Request_.Retry = retry;
@@ -74,5 +73,4 @@ void TMutation::SetMutationId(const NRpc::TMutationId& mutationId, bool retry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

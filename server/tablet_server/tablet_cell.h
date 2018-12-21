@@ -17,15 +17,14 @@
 #include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/small_vector.h>
 
 #include <yt/core/yson/public.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,10 +61,10 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundle*, CellBundle);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned);
+    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::ETabletCellLifeStage, TabletCellLifeStage, NTabletClient::ETabletCellLifeStage::Running);
 
 public:
-    explicit TTabletCell(const TTabletCellId& id);
+    explicit TTabletCell(TTabletCellId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -103,9 +102,14 @@ public:
 
     //! Helper to calculate aggregated health.
     static ETabletCellHealth CombineHealths(ETabletCellHealth lhs, ETabletCellHealth rhs);
+
+    //! Returns |true| if decommission requested.
+    bool DecommissionStarted() const;
+
+    //! Returns |true| if cell reported that it is decommissioned.
+    bool DecommissionCompleted() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

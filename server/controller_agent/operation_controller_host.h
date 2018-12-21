@@ -8,8 +8,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,10 +26,11 @@ struct TAgentToSchedulerJobEvent
     NScheduler::EAgentToSchedulerJobEventType EventType;
     TJobId JobId;
     TError Error;
-    TNullable<EInterruptReason> InterruptReason;
-    TNullable<bool> ArchiveJobSpec;
-    TNullable<bool> ArchiveStderr;
-    TNullable<bool> ArchiveFailContext;
+    std::optional<EInterruptReason> InterruptReason;
+    std::optional<bool> ArchiveJobSpec;
+    std::optional<bool> ArchiveStderr;
+    std::optional<bool> ArchiveFailContext;
+    std::optional<bool> ArchiveProfile;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,9 +46,9 @@ public:
         TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
         TBootstrap* bootstrap);
 
-    virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override;
-    virtual void AbortJob(const TJobId& jobId, const TError& error) override;
-    virtual void FailJob(const TJobId& jobId) override;
+    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) override;
+    virtual void AbortJob(TJobId jobId, const TError& error) override;
+    virtual void FailJob(TJobId jobId) override;
     virtual void ReleaseJobs(const std::vector<NScheduler::TJobToRelease>& TJobToRelease) override;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() override;
@@ -59,8 +59,8 @@ public:
     virtual void CreateJobNode(const TCreateJobNodeRequest& request) override;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
-        const NTransactionClient::TTransactionId& transactionId,
-        const NCypressClient::TNodeId& tableId,
+        NTransactionClient::TTransactionId transactionId,
+        NCypressClient::TNodeId tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds) override;
     virtual void AddChunkTreesToUnstageList(
         const std::vector<NChunkClient::TChunkId>& chunkTreeIds,
@@ -80,7 +80,7 @@ public:
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override;
 
     virtual TInstant GetConnectionTime() override;
-    virtual const TIncarnationId& GetIncarnationId() override;
+    virtual TIncarnationId GetIncarnationId() override;
 
     virtual void OnOperationCompleted() override;
     virtual void OnOperationAborted(const TError& error) override;
@@ -105,6 +105,5 @@ DEFINE_REFCOUNTED_TYPE(TOperationControllerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

@@ -41,8 +41,7 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/lazy_ptr.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,10 +102,10 @@ public:
 
     const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const;
 
-    const NObjectClient::TCellId& GetCellId() const;
+    NObjectClient::TCellId GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
-    TNullable<TString> GetDefaultNetworkName();
+    std::optional<TString> GetDefaultNetworkName();
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
 
@@ -200,5 +199,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

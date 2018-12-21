@@ -7,8 +7,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,5 +89,4 @@ DEFINE_REFCOUNTED_TYPE(TSyncFileChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,5 +26,4 @@ Py::Exception CreateYsonError(const TString& message, TContext* context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

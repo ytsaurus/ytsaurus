@@ -11,7 +11,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/actions/future.h>
 
@@ -19,8 +19,7 @@
 
 #include <yt/core/logging/public.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +58,7 @@ void FromProto(TCellPeerDescriptor* descriptor, const NProto::TCellPeerDescripto
 struct TCellDescriptor
 {
     TCellDescriptor() = default;
-    explicit TCellDescriptor(const TCellId& cellId);
+    explicit TCellDescriptor(TCellId cellId);
 
     NElection::TCellConfigPtr ToConfig(const NNodeTrackerClient::TNetworkPreferenceList& networks) const;
     TCellInfo ToInfo() const;
@@ -96,32 +95,32 @@ public:
      *  No user or timeout is configured for the returned channel.
      */
     NRpc::IChannelPtr FindChannel(
-        const TCellId& cellId,
+        TCellId cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
     //! Similar to #FindChannel but throws an exception if no channel is known.
     NRpc::IChannelPtr GetChannelOrThrow(
-        const TCellId& cellId,
+        TCellId cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
     //! Similar to #FindChannel but fails if no channel is known.
     NRpc::IChannelPtr GetChannel(
-        const TCellId& cellId,
+        TCellId cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
 
-    //! Returns the descriptor for a given cell id (|Null| if the cell is not known).
-    TNullable<TCellDescriptor> FindDescriptor(const TCellId& cellId);
+    //! Returns the descriptor for a given cell id (null if the cell is not known).
+    std::optional<TCellDescriptor> FindDescriptor(TCellId cellId);
 
     //! Returns the descriptor for a given cell id (throws if the cell is not known).
-    TCellDescriptor GetDescriptorOrThrow(const TCellId& cellId);
+    TCellDescriptor GetDescriptorOrThrow(TCellId cellId);
 
 
     //! Returns the list of all registered cells, their versions, and configurations.
     std::vector<TCellInfo> GetRegisteredCells();
 
     //! Returns |true| if the cell was unregistered by calling #UnregisterCell.
-    bool IsCellUnregistered(const TCellId& cellId);
+    bool IsCellUnregistered(TCellId cellId);
 
 
     //! Registers a new cell or updates the configuration of an existing cell
@@ -140,14 +139,14 @@ public:
      *  This call could be used in conjuction with #IsCellUnregistered to make sure that
      *  a given #cellId is no longer valid.
      */
-    void RegisterCell(const TCellId& cellId);
+    void RegisterCell(TCellId cellId);
 
     //! Unregisters the cell. Returns |true| if the cell was found.
     /*!
      *  The ids of all unregistered cells are kept forever.
      *  Once the cell is unregistered, no further reconfigurations are possible.
      */
-    bool UnregisterCell(const TCellId& cellId);
+    bool UnregisterCell(TCellId cellId);
 
     //! Clears the state; i.e. drops all known registered and unregistered cells.
     void Clear();
@@ -163,5 +162,4 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

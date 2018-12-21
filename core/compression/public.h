@@ -3,8 +3,7 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/string.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,5 +97,4 @@ const int MaxBlockSize = 1 << 30;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression

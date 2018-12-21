@@ -13,9 +13,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +40,7 @@ public:
     virtual NApi::IAdminPtr CreateAdmin(const NApi::TAdminOptions& options) override;
     virtual NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override;
     virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
-        const NHiveClient::TCellId& cellId,
+        NHiveClient::TCellId cellId,
         const NApi::TTransactionParticipantOptions& options) override;
 
     virtual void ClearMetadataCaches() override;
@@ -66,7 +64,7 @@ private:
 
     TSpinLock HttpDiscoveryLock_;
     // TODO(prime@): Create http endpoint for discovery that works without authentication.
-    TNullable<NApi::TClientOptions> HttpCredentials_;
+    std::optional<NApi::TClientOptions> HttpCredentials_;
 
     std::vector<TString> DiscoverProxiesByRpc(const NRpc::IChannelPtr& channel);
     std::vector<TString> DiscoverProxiesByHttp(const NApi::TClientOptions& options);
@@ -78,6 +76,4 @@ DEFINE_REFCOUNTED_TYPE(TConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

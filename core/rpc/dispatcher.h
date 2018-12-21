@@ -7,8 +7,7 @@
 #include <yt/core/misc/shutdownable.h>
 #include <yt/core/bus/public.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,5 +43,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

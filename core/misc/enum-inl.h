@@ -67,20 +67,20 @@ namespace NYT {
             return PP_COUNT(seq); \
         } \
         \
-        static NYT::TRange<TStringBuf> GetDomainNames() \
+        static ::NYT::TRange<TStringBuf> GetDomainNames() \
         { \
             static const std::array<TStringBuf, PP_COUNT(seq)> result{{ \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_NAMES_ITEM, seq) \
             }}; \
-            return NYT::MakeRange(result); \
+            return ::NYT::MakeRange(result); \
         } \
         \
-        static NYT::TRange<TType> GetDomainValues() \
+        static ::NYT::TRange<TType> GetDomainValues() \
         { \
             static const std::array<TType, PP_COUNT(seq)> result{{ \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) \
             }}; \
-            return NYT::MakeRange(result); \
+            return ::NYT::MakeRange(result); \
         } \
         \
         static TType FromString(TStringBuf str) \

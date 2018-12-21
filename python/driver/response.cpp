@@ -4,16 +4,15 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDriverResponseHolder::TDriverResponseHolder()
 #if PY_MAJOR_VERSION < 3
-    : ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, Null))
+    : ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, std::nullopt))
 #else
-    : ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, MakeNullable<TString>("utf-8")))
+    : ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, std::make_optional<TString>("utf-8")))
 #endif
     , ResponseParametersConsumer_(new NYTree::TGilGuardedYsonConsumer(ResponseParametersBuilder_.get()))
 { }
@@ -121,9 +120,9 @@ Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
     }
     Py::Object object;
 #if PY_MAJOR_VERSION < 3
-    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), Null);
+    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), std::nullopt);
 #else
-    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), MakeNullable<TString>("utf-8"));
+    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), std::make_optional<TString>("utf-8"));
 #endif
     return object;
 }
@@ -157,5 +156,4 @@ void TDriverResponse::InitType()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

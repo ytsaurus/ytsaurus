@@ -20,9 +20,7 @@ class TestFiles(YTEnvSetup):
         write_file("//tmp/file", content)
         assert read_file("//tmp/file") == content
 
-        chunk_ids = get("//tmp/file/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/file")
 
         assert get("//tmp/file/@uncompressed_data_size") == len(content)
 
@@ -74,9 +72,7 @@ class TestFiles(YTEnvSetup):
         create("file", "//tmp/f")
         write_file("//tmp/f", content)
 
-        chunk_ids = get("//tmp/f/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/f")
 
         assert read_file("//tmp/f") == content
         copy("//tmp/f", "//tmp/f2")
@@ -97,9 +93,7 @@ class TestFiles(YTEnvSetup):
         create("file", "//tmp/f")
         write_file("//tmp/f", content)
 
-        chunk_ids = get("//tmp/f/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/f")
 
         tx = start_transaction()
         assert read_file("//tmp/f", tx=tx) == content

@@ -23,8 +23,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NTableClient;
 using namespace NCodegen;
@@ -556,5 +555,4 @@ GenerateComparers(int keyColumnCount, const TTableSchema& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

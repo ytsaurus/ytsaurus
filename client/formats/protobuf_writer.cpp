@@ -12,8 +12,7 @@
 
 #include <contrib/libs/protobuf/wire_format_lite_inl.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -368,5 +367,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForProtobuf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

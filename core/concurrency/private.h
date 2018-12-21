@@ -6,8 +6,7 @@
 
 #include <yt/core/profiling/public.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,5 +39,4 @@ extern const NLogging::TLogger ConcurrencyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

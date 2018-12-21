@@ -22,8 +22,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NYTree;
 using namespace NTableClient;
@@ -132,7 +131,7 @@ private:
 
 TOrderedChunkStore::TOrderedChunkStore(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
@@ -153,12 +152,12 @@ TOrderedChunkStore::TOrderedChunkStore(
         localDescriptor)
     , TOrderedStoreBase(config, id, tablet)
 {
-    LOG_DEBUG("Ordered chunk store created");
+    YT_LOG_DEBUG("Ordered chunk store created");
 }
 
 TOrderedChunkStore::~TOrderedChunkStore()
 {
-    LOG_DEBUG("Ordered chunk store destroyed");
+    YT_LOG_DEBUG("Ordered chunk store destroyed");
 }
 
 void TOrderedChunkStore::Initialize(const TAddStoreDescriptor* descriptor)
@@ -263,5 +262,4 @@ TKeyComparer TOrderedChunkStore::GetKeyComparer()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

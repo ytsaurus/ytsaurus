@@ -15,8 +15,7 @@
 
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NCypressClient;
 using namespace NObjectClient;
@@ -35,8 +34,8 @@ TChunkListPool::TChunkListPool(
     TControllerAgentConfigPtr config,
     NNative::IClientPtr client,
     IInvokerPtr controllerInvoker,
-    const TOperationId& operationId,
-    const TTransactionId& transactionId)
+    TOperationId operationId,
+    TTransactionId transactionId)
     : Config_(config)
     , Client_(client)
     , ControllerInvoker_(controllerInvoker)
@@ -76,7 +75,7 @@ TChunkListId TChunkListPool::Extract(TCellTag cellTag)
     auto id = data.Ids.back();
     data.Ids.pop_back();
 
-    LOG_DEBUG("Chunk list extracted from pool (ChunkListId: %v, CellTag: %v, RemainingCount: %v)",
+    YT_LOG_DEBUG("Chunk list extracted from pool (ChunkListId: %v, CellTag: %v, RemainingCount: %v)",
         id,
         cellTag,
         data.Ids.size());
@@ -84,15 +83,15 @@ TChunkListId TChunkListPool::Extract(TCellTag cellTag)
     return id;
 }
 
-void TChunkListPool::Reinstall(const TChunkListId& id)
+void TChunkListPool::Reinstall(TChunkListId id)
 {
     auto cellTag = CellTagFromId(id);
     auto& data = CellMap_[cellTag];
     data.Ids.push_back(id);
-    LOG_DEBUG("Reinstalled chunk list into the pool (ChunkListId: %v, CellTag: %v, RemainingCount: %v)",
+    YT_LOG_DEBUG("Reinstalled chunk list into the pool (ChunkListId: %v, CellTag: %v, RemainingCount: %v)",
         id,
         cellTag,
-        static_cast<int>(data.Ids.size()));
+        data.Ids.size());
 }
 
 void TChunkListPool::AllocateMore(TCellTag cellTag)
@@ -106,12 +105,12 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
     count = std::min(count, Config_->MaxChunkListAllocationCount);
 
     if (data.RequestInProgress) {
-        LOG_DEBUG("Cannot allocate more chunk lists for pool, another request is in progress (CellTag: %v)",
+        YT_LOG_DEBUG("Cannot allocate more chunk lists for pool, another request is in progress (CellTag: %v)",
             cellTag);
         return;
     }
 
-    LOG_DEBUG("Allocating more chunk lists for pool (CellTag: %v, Count: %v)",
+    YT_LOG_DEBUG("Allocating more chunk lists for pool (CellTag: %v, Count: %v)",
         cellTag,
         count);
 
@@ -143,7 +142,7 @@ void TChunkListPool::OnChunkListsCreated(
 
     auto error = GetCumulativeError(batchRspOrError);
     if (!error.IsOK()) {
-        LOG_ERROR(batchRspOrError, "Error allocating chunk lists for pool (CellTag: %v)",
+        YT_LOG_ERROR(batchRspOrError, "Error allocating chunk lists for pool (CellTag: %v)",
             cellTag);
         return;
     }
@@ -154,12 +153,11 @@ void TChunkListPool::OnChunkListsCreated(
     data.Ids.insert(data.Ids.end(), ids.begin(), ids.end());
     data.LastSuccessCount = ids.size();
 
-    LOG_DEBUG("Allocated more chunk lists for pool (CellTag: %v, Count: %v)",
+    YT_LOG_DEBUG("Allocated more chunk lists for pool (CellTag: %v, Count: %v)",
         cellTag,
         data.LastSuccessCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

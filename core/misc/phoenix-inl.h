@@ -5,8 +5,7 @@
 #include "phoenix.h"
 #endif
 
-namespace NYT {
-namespace NPhoenix {
+namespace NYT::NPhoenix {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,8 +238,7 @@ struct TSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPhoenix
-} // namespace NYT
+} // namespace NYT::NPhoenix
 
 namespace NYT {
 

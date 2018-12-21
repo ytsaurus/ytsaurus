@@ -5,10 +5,9 @@
 #include "execution_stack.h"
 #include "scheduler.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +60,7 @@ public:
     TCoroutine(TCallee&& callee, const EExecutionStackKind stackKind = EExecutionStackKind::Small);
 
     template <class... TParams>
-    const TNullable<R>& Run(TParams&&... params);
+    const std::optional<R>& Run(TParams&&... params);
 
     template <class Q>
     TArguments&& Yield(Q&& result);
@@ -73,7 +72,7 @@ private:
     const TCallee Callee_;
 
     TArguments Arguments_;
-    TNullable<R> Result_;
+    std::optional<R> Result_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,8 +105,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define COROUTINE_INL_H_
 #include "coroutine-inl.h"

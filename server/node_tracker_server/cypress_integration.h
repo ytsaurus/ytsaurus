@@ -6,8 +6,7 @@
 
 #include <yt/server/cypress_server/public.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,5 +17,4 @@ NCypressServer::INodeTypeHandlerPtr CreateDataCenterMapTypeHandler(NCellMaster::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

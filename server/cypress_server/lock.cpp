@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
 
@@ -152,6 +151,5 @@ void TLock::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 

@@ -28,8 +28,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,8 +36,8 @@ TSessionId CreateChunk(
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
-    const NObjectClient::TTransactionId& transactionId,
-    const TChunkListId& chunkListId,
+    NObjectClient::TTransactionId transactionId,
+    TChunkListId chunkListId,
     const NLogging::TLogger& logger);
 
 //! Synchronously parses #fetchResponse, populates #nodeDirectory,
@@ -50,7 +49,7 @@ void ProcessFetchResponse(
     NObjectClient::TCellTag fetchCellTag,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int maxChunksPerLocateRequest,
-    TNullable<int> rangeIndex,
+    std::optional<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs,
     bool skipUnavailableChunks = false);
@@ -77,10 +76,10 @@ void FetchChunkSpecs(
 //! Throws if the server returns no replicas.
 TChunkReplicaList AllocateWriteTargets(
     NApi::NNative::IClientPtr client,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     int desiredTargetCount,
     int minTargetCount,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     bool preferLocalHost,
     const std::vector<TString>& forbiddenAddresses,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -134,7 +133,7 @@ struct TUserObject
     NObjectClient::TObjectId ObjectId;
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
-    TNullable<NObjectClient::TTransactionId> TransactionId;
+    std::optional<NObjectClient::TTransactionId> TransactionId;
 
     virtual ~TUserObject() = default;
 
@@ -169,8 +168,7 @@ void DumpCodecStatistics(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

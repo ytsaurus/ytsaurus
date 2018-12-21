@@ -7,8 +7,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NProfiling  {
+namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,5 +299,4 @@ TProfilingTimingGuard::~TProfilingTimingGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling

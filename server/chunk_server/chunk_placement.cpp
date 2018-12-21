@@ -20,8 +20,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -142,19 +141,6 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
     node->ClearSessionHints();
 
-    // Update IO weights from statistics.
-    auto& ioWeights = node->IOWeights();
-    ioWeights.fill(0.0);
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    for (const auto& statistics : node->Statistics().media()) {
-        int mediumIndex = statistics.medium_index();
-        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!medium || medium->GetCache()) {
-            continue;
-        }
-        ioWeights[mediumIndex] = statistics.io_weight();
-    }
-
     OnNodeUnregistered(node);
     OnNodeRegistered(node);
 }
@@ -173,9 +159,9 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
-    const TNullable<TString>& preferredHostName,
+    const std::optional<TString>& preferredHostName,
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
@@ -230,7 +216,7 @@ void TChunkPlacement::RemoveFromFillFactorMaps(TNode* node)
         }
 
         MediumToFillFactorToNode_[mediumIndex].erase(*it);
-        node->SetFillFactorIterator(mediumIndex, Null);
+        node->SetFillFactorIterator(mediumIndex, std::nullopt);
     }
 }
 
@@ -268,7 +254,7 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
         }
 
         MediumToLoadFactorToNode_[mediumIndex].erase(*it);
-        node->SetLoadFactorIterator(mediumIndex, Null);
+        node->SetLoadFactorIterator(mediumIndex, std::nullopt);
     }
 }
 
@@ -278,10 +264,10 @@ TNodeList TChunkPlacement::GetWriteTargets(
     int desiredCount,
     int minCount,
     bool forceRackAwareness,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     const TDataCenterSet* dataCenters,
     const TNodeList* forbiddenNodes,
-    const TNullable<TString>& preferredHostName)
+    const std::optional<TString>& preferredHostName)
 {
     if (dataCenters && dataCenters->empty()) {
         return TNodeList();
@@ -349,7 +335,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     const TDataCenterSet& dataCenters,
     ESessionType sessionType)
 {
@@ -374,7 +360,7 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     auto* chunk = chunkWithIndexes.GetPtr();
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
     auto mediumIndex = chunkWithIndexes.GetMediumIndex();
-    int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, Null);
+    int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, std::nullopt);
 
     std::array<i8, RackIndexBound> perRackCounters{};
     for (auto replica : chunk->StoredReplicas()) {
@@ -464,7 +450,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
     }
 
     int mediumIndex = medium->GetIndex();
-    int maxReplicasPerRack = GetMaxReplicasPerRack(medium, chunk, Null);
+    int maxReplicasPerRack = GetMaxReplicasPerRack(medium, chunk, std::nullopt);
     TTargetCollector collector(
         medium,
         chunk,
@@ -656,7 +642,7 @@ void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType 
 int TChunkPlacement::GetMaxReplicasPerRack(
     const TMedium* medium,
     TChunk* chunk,
-    TNullable<int> replicationFactorOverride)
+    std::optional<int> replicationFactorOverride)
 {
     auto result = chunk->GetMaxReplicasPerRack(
         medium->GetIndex(),
@@ -677,7 +663,7 @@ int TChunkPlacement::GetMaxReplicasPerRack(
 int TChunkPlacement::GetMaxReplicasPerRack(
     int mediumIndex,
     TChunk* chunk,
-    TNullable<int> replicationFactorOverride)
+    std::optional<int> replicationFactorOverride)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
@@ -686,5 +672,4 @@ int TChunkPlacement::GetMaxReplicasPerRack(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

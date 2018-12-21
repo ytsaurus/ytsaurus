@@ -29,8 +29,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NErasure;
 using namespace NConcurrency;
@@ -117,7 +116,7 @@ class TErasureWriter
 public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
-        const TSessionId& sessionId,
+        TSessionId sessionId,
         ECodec codecId,
         ICodec* codec,
         const std::vector<IChunkWriterPtr>& writers,
@@ -448,7 +447,7 @@ void TErasureWriter::OnWritten()
 
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     ECodec codecId,
     ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers,
@@ -468,7 +467,7 @@ IChunkWriterPtr CreateErasureWriter(
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
@@ -488,7 +487,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
         sessionId,
         codec->GetTotalPartCount(),
         codec->GetTotalPartCount(),
-        Null,
+        std::nullopt,
         partConfig->PreferLocalHost,
         std::vector<TString>(),
         nodeDirectory,
@@ -518,5 +517,4 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

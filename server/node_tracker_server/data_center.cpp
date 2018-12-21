@@ -2,12 +2,11 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataCenter::TDataCenter(const TDataCenterId& id)
+TDataCenter::TDataCenter(TDataCenterId id)
     : TObjectBase(id)
 { }
 
@@ -29,5 +28,4 @@ void TDataCenter::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

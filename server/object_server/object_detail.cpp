@@ -54,8 +54,7 @@
 #include <yt/core/yson/async_consumer.h>
 #include <yt/core/yson/attribute_consumer.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NRpc;
 using namespace NYPath;
@@ -86,7 +85,7 @@ TObjectProxyBase::TObjectProxyBase(
     Y_ASSERT(Object_);
 }
 
-const TObjectId& TObjectProxyBase::GetId() const
+TObjectId TObjectProxyBase::GetId() const
 {
     return Object_->GetId();
 }
@@ -180,7 +179,7 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
         objectManager->ValidatePrerequisites(prerequisitesExt);
     }
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, RequestId: %v, User: %v)",
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, RequestId: %v, User: %v)",
         context->GetService(),
         context->GetMethod(),
         ypathExt.path(),
@@ -197,7 +196,7 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
 void TObjectProxyBase::DoWriteAttributesFragment(
     IAsyncYsonConsumer* consumer,
-    const TNullable<std::vector<TString>>& attributeKeys,
+    const std::optional<std::vector<TString>>& attributeKeys,
     bool stable)
 {
     const auto& customAttributes = Attributes();
@@ -490,7 +489,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
 
 TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)
 {
-    return Null;
+    return std::nullopt;
 }
 
 bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
@@ -826,6 +825,5 @@ TAccessControlDescriptor* TNontemplateNonversionedObjectProxyBase::FindThisAcd()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 

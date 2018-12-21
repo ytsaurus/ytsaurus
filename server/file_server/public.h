@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NFileServer {
+namespace NYT::NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,6 +10,5 @@ class TFileNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
-} // namespace NYT
+} // namespace NYT::NFileServer
 

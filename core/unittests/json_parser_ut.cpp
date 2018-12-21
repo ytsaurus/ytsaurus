@@ -4,8 +4,7 @@
 
 #include <yt/core/json/json_parser.h>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 namespace {
 
 using namespace NYson;
@@ -804,5 +803,4 @@ TEST(TJsonParserTest, MemoryLimit4)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

@@ -9,9 +9,7 @@
 #include <yt/client/api/client.h>
 #include <yt/client/api/config.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,8 +17,8 @@ class TConnectionConfig
     : public NApi::TConnectionConfig
 {
 public:
-    TNullable<TString> ClusterUrl;
-    TNullable<TString> ProxyRole;
+    std::optional<TString> ClusterUrl;
+    std::optional<TString> ProxyRole;
     std::vector<TString> Addresses;
     //! Number of open connection to rpc proxies.
     int ChannelPoolSize;
@@ -47,6 +45,4 @@ DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

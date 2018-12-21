@@ -9,8 +9,7 @@
 #include <contrib/libs/openssl/crypto/evp/evp.h>
 #include <contrib/libs/openssl/crypto/sha/sha.h>
 
-namespace NYT {
-namespace NCrypto {
+namespace NYT::NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,7 +182,7 @@ bool ConstantTimeCompare(const TString& trusted, const TString& untrusted)
 
 namespace NProto {
 
-void ToProto(NCrypto::NProto::TMD5Hasher* protoHasher, const TNullable<NYT::NCrypto::TMD5Hasher>& hasher)
+void ToProto(NCrypto::NProto::TMD5Hasher* protoHasher, const std::optional<NYT::NCrypto::TMD5Hasher>& hasher)
 {
     auto* outputBytes = protoHasher->mutable_state();
     outputBytes->clear();
@@ -195,7 +194,7 @@ void ToProto(NCrypto::NProto::TMD5Hasher* protoHasher, const TNullable<NYT::NCry
     outputBytes->assign(state.begin(), state.end());
 }
 
-void FromProto(TNullable<NYT::NCrypto::TMD5Hasher>* hasher, const NCrypto::NProto::TMD5Hasher& protoHasher)
+void FromProto(std::optional<NYT::NCrypto::TMD5Hasher>* hasher, const NCrypto::NProto::TMD5Hasher& protoHasher)
 {
     const auto& inputBytes = protoHasher.state();
     if (inputBytes.empty()) {
@@ -205,13 +204,12 @@ void FromProto(TNullable<NYT::NCrypto::TMD5Hasher>* hasher, const NCrypto::NProt
     TMD5State state;
     std::copy(inputBytes.begin(), inputBytes.end(), state.data());
 
-    hasher->Emplace(state);
+    hasher->emplace(state);
 }
 
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCrypto
-} // namespace NYT
+} // namespace NYT::NCrypto
 

@@ -1,7 +1,6 @@
 #include "column_reader_detail.h"
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
 using namespace NTableClient;
@@ -246,5 +245,4 @@ void TVersionedColumnReaderBase::EnsureSegmentReader()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

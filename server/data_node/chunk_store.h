@@ -16,8 +16,7 @@
 
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +62,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    IChunkPtr FindChunk(const TChunkId& chunkId, int mediumIndex = NChunkClient::AllMediaIndex) const;
+    IChunkPtr FindChunk(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex) const;
 
     //! Finds chunk by id on the specified medium (or on the highest priority
     //! medium if #mediumIndex == AllMediaIndex). Throws if no chunk exists.
@@ -71,7 +70,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    IChunkPtr GetChunkOrThrow(const TChunkId& chunkId, int mediumIndex = NChunkClient::AllMediaIndex) const;
+    IChunkPtr GetChunkOrThrow(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex) const;
 
     //! Returns the list of all registered chunks. These are not guaranteed to
     //! have unique IDs because a chunk may be stored on multiple media.
@@ -110,7 +109,7 @@ public:
      *  Throws exception if no suitable location could be found.
      */
     TStoreLocationPtr GetNewChunkLocation(
-        const TSessionId& sessionId,
+        TSessionId sessionId,
         const TSessionOptions& options);
 
     //! Storage locations.
@@ -184,6 +183,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

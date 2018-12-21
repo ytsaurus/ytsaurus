@@ -34,8 +34,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NApi;
 using namespace NYTree;
@@ -285,7 +284,7 @@ protected:
 
     void CalculateSizes()
     {
-        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
         switch (OperationType) {
             case EOperationType::Merge:
@@ -320,7 +319,7 @@ protected:
 
         InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
-        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
+        YT_LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             InputSliceDataWeight_);
@@ -337,7 +336,7 @@ protected:
     void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
+            YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
@@ -351,7 +350,7 @@ protected:
                 yielder.TryYield();
             }
 
-            LOG_INFO("Processed inputs (Slices: %v)", sliceCount);
+            YT_LOG_INFO("Processed inputs (Slices: %v)", sliceCount);
         }
     }
 
@@ -721,7 +720,7 @@ private:
         return Spec_->OutputTablePaths;
     }
 
-    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    virtual std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec_->StderrTablePath;
     }
@@ -731,7 +730,7 @@ private:
         return Spec_->StderrTableWriter;
     }
 
-    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    virtual std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec_->CoreTablePath;
     }
@@ -1193,7 +1192,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
-            auto attributeKeys = Spec_->AttributeKeys.Get(userAttributeKeys);
+            auto attributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);
 
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& key : attributeKeys) {
@@ -1293,6 +1292,11 @@ private:
     {
         return false;
     }
+
+    virtual TCpuResource GetCpuLimit() const
+    {
+        return Options_->CpuLimit;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
@@ -1309,5 +1313,4 @@ IOperationControllerPtr CreateRemoteCopyController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

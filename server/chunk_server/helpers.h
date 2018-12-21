@@ -13,8 +13,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,8 +68,7 @@ NTableClient::TOwningKey GetMinKey(const TChunkTree* chunkTree);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

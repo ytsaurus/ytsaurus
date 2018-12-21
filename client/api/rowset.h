@@ -8,8 +8,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +39,5 @@ std::tuple<NTableClient::ISchemafulWriterPtr, TFuture<IUnversionedRowsetPtr>>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

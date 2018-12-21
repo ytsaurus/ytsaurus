@@ -3,8 +3,7 @@
 #include <util/stream/input.h>
 #include <util/system/file.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,5 +11,4 @@ i64 WriteSparseCoreDump(IInputStream* in, TFile* out);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

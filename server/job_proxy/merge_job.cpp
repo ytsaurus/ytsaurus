@@ -14,8 +14,7 @@
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -48,14 +47,14 @@ public:
     virtual void Initialize() override
     {
         TKeyColumns keyColumns;
-        TNullable<int> partitionTag;
+        std::optional<int> partitionTag;
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
             keyColumns = FromProto<TKeyColumns>(mergeJobSpec.key_columns());
             if (mergeJobSpec.has_partition_tag()) {
                 partitionTag = mergeJobSpec.partition_tag();
             }
-            LOG_INFO("Ordered merge produces sorted output");
+            YT_LOG_INFO("Ordered merge produces sorted output");
         }
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
@@ -156,5 +155,4 @@ IJobPtr CreateUnorderedMergeJob(IJobHostPtr host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

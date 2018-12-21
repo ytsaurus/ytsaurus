@@ -39,8 +39,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -430,7 +429,7 @@ void ValidateKeyColumns(
     }
 }
 
-TColumnFilter CreateColumnFilter(const TNullable<std::vector<TString>>& columns, TNameTablePtr nameTable)
+TColumnFilter CreateColumnFilter(const std::optional<std::vector<TString>>& columns, TNameTablePtr nameTable)
 {
     if (!columns) {
         return TColumnFilter();
@@ -679,7 +678,7 @@ void ValidateDynamicTableTimestamp(
             path.GetPath());
     }
 
-    auto requested = nullableRequested.Get(AsyncLastCommittedTimestamp);
+    auto requested = nullableRequested.value_or(AsyncLastCommittedTimestamp);
     if (requested != AsyncLastCommittedTimestamp) {
         auto retained = attributes.Get<TTimestamp>("retained_timestamp");
         auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
@@ -701,12 +700,12 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     const TFetchChunkSpecConfigPtr& config,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TLogger& logger)
 {
     const auto& Logger = logger;
 
-    LOG_INFO("Getting table attributes (Path: %v)", path);
+    YT_LOG_INFO("Getting table attributes (Path: %v)", path);
 
     TYPath objectIdPath;
     TCellTag tableCellTag;
@@ -732,7 +731,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         }
     }
 
-    LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)", tableCellTag, objectIdPath);
+    YT_LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)", tableCellTag, objectIdPath);
     int chunkCount;
     {
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
@@ -753,7 +752,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         chunkCount = attributes->Get<int>("chunk_count");
     }
 
-    LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
+    YT_LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
 
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
     FetchChunkSpecs(
@@ -853,5 +852,4 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<TChu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTableClient
+} // namespace NTableClient::NYT

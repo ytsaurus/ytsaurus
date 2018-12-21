@@ -3,14 +3,13 @@
 
 #include <yt/python/common/helpers.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<TString> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs)
+std::optional<TString> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs)
 {
-    TNullable<TString> encoding;
+    std::optional<TString> encoding;
     if (HasArgument(args, kwargs, "encoding")) {
         auto arg = ExtractArgument(args, kwargs, "encoding");
         if (!arg.isNone()) {
@@ -29,7 +28,7 @@ TNullable<TString> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs)
     return encoding;
 }
 
-Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& encoding, TContext* context)
+Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>& encoding, TContext* context)
 {
     if (PyUnicode_Check(obj.ptr())) {
         if (!encoding) {
@@ -41,7 +40,7 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& en
                 ),
                 context);
         }
-        return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), encoding.Get().data(), "strict"), true);
+        return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), encoding->data(), "strict"), true);
     } else {
 #if PY_MAJOR_VERSION >= 3
         if (encoding) {
@@ -62,6 +61,5 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& en
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython
 

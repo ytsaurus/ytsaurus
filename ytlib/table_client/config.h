@@ -6,8 +6,7 @@
 
 #include <yt/client/table_client/config.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,5 +70,4 @@ DEFINE_REFCOUNTED_TYPE(TTableReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -5,8 +5,7 @@
 
 #include <yt/server/scheduler/job.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,5 +25,4 @@ std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -7,8 +7,7 @@
 #include <util/generic/string.h>
 #include <util/string/cast.h>
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,8 +89,7 @@ TRepeatedVariant16SchemaPtr CreateRepeatedVariant16Schema(TSkiffSchemaList child
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff
 
 #define SKIFF_SCHEMA_H
 #include "skiff_schema-inl.h"

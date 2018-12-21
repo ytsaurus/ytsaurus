@@ -9,8 +9,7 @@
 
 #include <limits>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 using namespace NYson;
 using namespace NYTree;
@@ -159,7 +158,7 @@ TObjectId ObjectIdFromNodeId(TNodeId nodeId, TCellTag cellTag)
     return MakeId(EObjectType::ClusterNode, cellTag, nodeId, 0);
 }
 
-TNodeId NodeIdFromObjectId(const TObjectId& objectId)
+TNodeId NodeIdFromObjectId(TObjectId objectId)
 {
     return CounterFromId(objectId);
 }
@@ -321,7 +320,7 @@ class TSerializableNodeResourceLimitsOverrides
     : public NYTree::TYsonSerializableLite
 {
 public:
-    #define XX(name, Name) TNullable<decltype(TNodeResourceLimitsOverrides::default_instance().name())> Name;
+    #define XX(name, Name) std::optional<decltype(TNodeResourceLimitsOverrides::default_instance().name())> Name;
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
 
@@ -366,6 +365,5 @@ void Deserialize(TNodeResourceLimitsOverrides& overrides, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient
 

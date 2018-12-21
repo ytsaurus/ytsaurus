@@ -13,8 +13,7 @@
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/overlaid_attribute_dictionaries.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +29,8 @@ public:
     virtual NYTree::ENodeType GetNodeType() const override;
 
     virtual bool IsSupportedInheritableAttribute(const TString& key) const;
+
+    virtual bool HasBranchedChangesImpl(TChunkOwner* originatingNode, TChunkOwner* branchedNode) override;
 
 private:
     NSecurityServer::TClusterResources GetChunkOwnerDiskUsage(
@@ -80,8 +81,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 #define CHUNK_OWNER_TYPE_HANDLER_INL_H_
 #include "chunk_owner_type_handler-inl.h"

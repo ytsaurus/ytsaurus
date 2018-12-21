@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NMonitoring {
+namespace NYT::NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,6 +9,5 @@ const NProfiling::TProfiler MonitoringProfiler("/monitoring");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalClient
-} // namespace NYT
+} // namespace NYT::NJournalClient
 

@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,8 +69,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 
 #define BLOCK_INL_H_
 #include "block-inl.h"

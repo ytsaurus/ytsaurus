@@ -6,8 +6,7 @@
 
 #include <yt/client/table_client/versioned_row.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
 using namespace NTableClient;
@@ -207,5 +206,4 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedDoubleColumnWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

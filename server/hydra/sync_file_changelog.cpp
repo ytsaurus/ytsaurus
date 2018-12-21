@@ -17,8 +17,7 @@
 
 #include <util/system/align.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NHydra::NProto;
 using namespace NConcurrency;
@@ -36,7 +35,7 @@ namespace {
 template <class T>
 void ValidateSignature(const T& header)
 {
-    LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
+    YT_LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
         "Invalid signature: expected %" PRIx64 ", got %" PRIx64,
         T::ExpectedSignature,
         header.Signature);
@@ -244,22 +243,22 @@ public:
             SerializedMeta_ = serializedMeta;
 
             TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
-                ? Null
-                : MakeNullable(header.TruncatedRecordCount);
+                ? std::nullopt
+                : std::make_optional(header.TruncatedRecordCount);
 
             ReadIndex(dataFile, header);
             ReadChangelogUntilEnd(dataFile, header);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error opening changelog");
+            YT_LOG_ERROR(ex, "Error opening changelog");
             Error_ = ex;
             throw;
         }
 
         Open_ = true;
 
-        LOG_DEBUG("Changelog opened (RecordCount: %v, Truncated: %v)",
+        YT_LOG_DEBUG("Changelog opened (RecordCount: %v, Truncated: %v)",
             RecordCount_,
-            TruncatedRecordCount_.HasValue());
+            TruncatedRecordCount_.operator bool());
     }
 
     void Close()
@@ -282,14 +281,14 @@ public:
                 IndexFile_.Close();
             });
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error closing changelog");
+            YT_LOG_ERROR(ex, "Error closing changelog");
             Error_ = ex;
             throw;
         }
 
         Open_ = false;
 
-        LOG_DEBUG("Changelog closed");
+        YT_LOG_DEBUG("Changelog closed");
     }
 
     void Create(const TChangelogMeta& meta)
@@ -311,14 +310,14 @@ public:
 
             CurrentFilePosition_ = DataFile_->GetLength();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error creating changelog");
+            YT_LOG_ERROR(ex, "Error creating changelog");
             Error_ = ex;
             throw;
         }
 
         Open_ = true;
 
-        LOG_DEBUG("Changelog created");
+        YT_LOG_DEBUG("Changelog created");
     }
 
 
@@ -369,7 +368,7 @@ public:
         YCHECK(!TruncatedRecordCount_);
         YCHECK(firstRecordId == RecordCount_);
 
-        LOG_DEBUG("Started appending to changelog (RecordIds: %v-%v)",
+        YT_LOG_DEBUG("Started appending to changelog (RecordIds: %v-%v)",
             firstRecordId,
             firstRecordId + records.size() - 1);
 
@@ -422,12 +421,12 @@ public:
                 CurrentFilePosition_ += AppendSizes_[index];
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error appending to changelog");
+            YT_LOG_ERROR(ex, "Error appending to changelog");
             Error_ = ex;
             throw;
         }
 
-        LOG_DEBUG("Finished appending to changelog");
+        YT_LOG_DEBUG("Finished appending to changelog");
     }
 
     void Flush()
@@ -439,7 +438,7 @@ public:
         Error_.ThrowOnError();
         ValidateOpen();
 
-        LOG_DEBUG("Started flushing changelog");
+        YT_LOG_DEBUG("Started flushing changelog");
 
         try {
             if (Config_->EnableSync) {
@@ -450,12 +449,12 @@ public:
                 WaitFor(Combine(futures)).ThrowOnError();
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error flushing changelog");
+            YT_LOG_ERROR(ex, "Error flushing changelog");
             Error_ = ex;
             throw;
         }
 
-        LOG_DEBUG("Finished flushing changelog");
+        YT_LOG_DEBUG("Finished flushing changelog");
     }
 
     std::vector<TSharedRef> Read(
@@ -473,7 +472,7 @@ public:
         YCHECK(firstRecordId >= 0);
         YCHECK(maxRecords >= 0);
 
-        LOG_DEBUG("Started reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
+        YT_LOG_DEBUG("Started reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
             firstRecordId,
             maxRecords,
             maxBytes);
@@ -530,12 +529,12 @@ public:
                 }
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error reading changelog");
+            YT_LOG_ERROR(ex, "Error reading changelog");
             Error_ = ex;
             throw;
         }
 
-        LOG_DEBUG("Finished reading changelog");
+        YT_LOG_DEBUG("Finished reading changelog");
         return records;
     }
 
@@ -551,7 +550,7 @@ public:
         YCHECK(recordCount >= 0);
         YCHECK(!TruncatedRecordCount_ || recordCount <= *TruncatedRecordCount_);
 
-        LOG_DEBUG("Started truncating changelog (RecordCount: %v)",
+        YT_LOG_DEBUG("Started truncating changelog (RecordCount: %v)",
             recordCount);
 
         try {
@@ -559,12 +558,12 @@ public:
             TruncatedRecordCount_ = recordCount;
             UpdateLogHeader();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error truncating changelog");
+            YT_LOG_ERROR(ex, "Error truncating changelog");
             Error_ = ex;
             throw;
         }
 
-        LOG_DEBUG("Finished truncating changelog");
+        YT_LOG_DEBUG("Finished truncating changelog");
     }
 
     void Preallocate(size_t size)
@@ -577,7 +576,7 @@ public:
 
         // PB: acually does ftruncate
         DataFile_->Resize(size);
-        LOG_DEBUG("Finished preallocating changelog");
+        YT_LOG_DEBUG("Finished preallocating changelog");
     }
 
 private:
@@ -630,9 +629,9 @@ private:
     {
         int index = 0;
         while (true) {
-            LOG_DEBUG("Locking data file");
+            YT_LOG_DEBUG("Locking data file");
             if (DataFile_->Flock(LOCK_EX | LOCK_NB) == 0) {
-                LOG_DEBUG("Data file locked successfullly");
+                YT_LOG_DEBUG("Data file locked successfullly");
                 break;
             } else {
                 if (++index >= MaxLockRetries) {
@@ -640,7 +639,7 @@ private:
                         "Cannot flock %Qv",
                         FileName_) << TError::FromSystem();
                 }
-                LOG_WARNING("Error locking data file; backing off and retrying");
+                YT_LOG_WARNING("Error locking data file; backing off and retrying");
                 WaitFor(TDelayedExecutor::MakeDelayed(LockBackoffTime))
                     .ThrowOnError();
             }
@@ -685,7 +684,7 @@ private:
                 TruncatedRecordCount_ ? *TruncatedRecordCount_ : TChangelogHeader::NotTruncatedRecordCount,
                 Alignment_);
 
-            auto data = TAsyncFileChangelogIndex::AllocateAligned<TNull>(header.HeaderSize, false, Alignment_);
+            auto data = TAsyncFileChangelogIndex::AllocateAligned<std::nullopt_t>(header.HeaderSize, false, Alignment_);
             ::memcpy(data.Begin(), &header, sizeof(header));
             ::memcpy(data.Begin() + sizeof(header), SerializedMeta_.Begin(), SerializedMeta_.Size());
 
@@ -699,8 +698,8 @@ private:
     {
         NFS::ExpectIOErrors([&] () {
             auto truncatedRecordCount = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
-                ? Null
-                : MakeNullable(header.TruncatedRecordCount);
+                ? std::nullopt
+                : std::make_optional(header.TruncatedRecordCount);
 
             IndexFile_.Read(truncatedRecordCount);
             auto correctPrefixSize = ComputeValidIndexPrefix(IndexFile_.Records(), header, &*dataFile);
@@ -742,7 +741,7 @@ private:
         });
 
         TCheckedReader<TFileWrapper> dataReader(*dataFile);
-        TNullable<TRecordInfo> lastCorrectRecordInfo;
+        std::optional<TRecordInfo> lastCorrectRecordInfo;
 
         if (!IndexFile_.IsEmpty()) {
             // Skip the first index record.
@@ -767,7 +766,7 @@ private:
                         << recordInfoOrError;
                 }
 
-                LOG_WARNING(recordInfoOrError, "Broken record found in changelog, trimmed (RecordId: %v, Offset: %v)",
+                YT_LOG_WARNING(recordInfoOrError, "Broken record found in changelog, trimmed (RecordId: %v, Offset: %v)",
                     RecordCount_,
                     CurrentFilePosition_);
                 break;
@@ -806,7 +805,7 @@ private:
         if (correctSize > CurrentFilePosition_) {
             YCHECK(lastCorrectRecordInfo);
 
-            auto totalRecordSize =  lastCorrectRecordInfo.Get().TotalSize;
+            auto totalRecordSize =  lastCorrectRecordInfo->TotalSize;
             auto offset = CurrentFilePosition_ - totalRecordSize;
             TFileWrapper file(FileName_, RdWr);
             TChangelogRecordHeader header;
@@ -851,7 +850,7 @@ private:
     TError Error_;
     bool Open_ = false;
     int RecordCount_ = -1;
-    TNullable<int> TruncatedRecordCount_;
+    std::optional<int> TruncatedRecordCount_;
     i64 CurrentFilePosition_ = -1;
 
     TChangelogMeta Meta_;
@@ -963,5 +962,4 @@ void TSyncFileChangelog::Preallocate(size_t size)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

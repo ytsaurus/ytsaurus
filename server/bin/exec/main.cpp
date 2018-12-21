@@ -17,8 +17,7 @@
     #include <sys/resource.h>
 #endif
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NYTree;
 using namespace NYson;
@@ -237,8 +236,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy
 
 int main(int argc, const char** argv)
 {

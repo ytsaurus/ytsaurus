@@ -2,8 +2,7 @@
 #include "automaton.h"
 #include "tablet.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NTableClient;
 
@@ -53,5 +52,4 @@ TOwningKey RowToKey(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

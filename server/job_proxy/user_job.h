@@ -7,14 +7,13 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobPtr CreateUserJob(IJobHostPtr host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    const NJobAgent::TJobId& jobId,
+    NJobAgent::TJobId jobId,
     const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController);
 
@@ -23,5 +22,4 @@ const TString& GetCGroupUserJobPrefix();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

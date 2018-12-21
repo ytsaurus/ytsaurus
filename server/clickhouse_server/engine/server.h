@@ -4,9 +4,7 @@
 
 #include <string>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +16,7 @@ public:
         NNative::IStoragePtr storage,
         NNative::ICoordinationServicePtr coordinationService,
         NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-        std::string configFile,
+        NNative::TConfigPtr nativeConfig,
         std::string cliqueId,
         std::string instanceId,
         ui16 tcpPort,
@@ -36,6 +34,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

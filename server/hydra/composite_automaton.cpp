@@ -15,8 +15,7 @@
 
 #include <util/stream/buffered.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -217,7 +216,7 @@ void TCompositeAutomatonPart::LogHandlerError(const TError& error)
 
 TCompositeAutomaton::TCompositeAutomaton(
     IInvokerPtr asyncSnapshotInvoker,
-    const TCellId& cellId,
+    TCellId cellId,
     const NProfiling::TTagIdList& profilingTagIds)
     : Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", cellId))
@@ -360,11 +359,11 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
                         auto it = PartNameToLoaderDescriptor_.find(name);
                         if (it == PartNameToLoaderDescriptor_.end()) {
                             SERIALIZATION_DUMP_WRITE(context, "<skipped>");
-                            LOG_INFO("Skipping unknown automaton part (Name: %v, Version: %v)",
+                            YT_LOG_INFO("Skipping unknown automaton part (Name: %v, Version: %v)",
                                 name,
                                 version);
                         } else {
-                            LOG_INFO("Loading automaton part (Name: %v, Version: %v)",
+                            YT_LOG_INFO("Loading automaton part (Name: %v, Version: %v)",
                                 name,
                                 version);
                             context.SetVersion(version);
@@ -397,12 +396,12 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     }
 
     if (mutationType.empty()) {
-        LOG_DEBUG_UNLESS(isRecovery, "Skipping heartbeat mutation (Version: %v)",
+        YT_LOG_DEBUG_UNLESS(isRecovery, "Skipping heartbeat mutation (Version: %v)",
             version);
     } else {
         NProfiling::TWallTimer timer;
 
-        LOG_DEBUG_UNLESS(isRecovery, "Applying mutation (Version: %v, MutationType: %v, MutationId: %v, WaitTime: %v)",
+        YT_LOG_DEBUG_UNLESS(isRecovery, "Applying mutation (Version: %v, MutationType: %v, MutationId: %v, WaitTime: %v)",
             version,
             mutationType,
             mutationId,
@@ -466,7 +465,7 @@ void TCompositeAutomaton::DoLoadSnapshot(
 void TCompositeAutomaton::WritePartHeader(TSaveContext& context, const TSaverDescriptorBase& descriptor)
 {
     auto version = descriptor.SnapshotVersion;
-    LOG_INFO("Saving automaton part (Name: %v, Version: %v)",
+    YT_LOG_INFO("Saving automaton part (Name: %v, Version: %v)",
         descriptor.Name,
         version);
 
@@ -507,7 +506,7 @@ std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()
 
 void TCompositeAutomaton::LogHandlerError(const TError& error)
 {
-    LOG_DEBUG(error, "Error executing mutation handler");
+    YT_LOG_DEBUG(error, "Error executing mutation handler");
 }
 
 bool TCompositeAutomaton::IsRecovery() const
@@ -517,5 +516,4 @@ bool TCompositeAutomaton::IsRecovery() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

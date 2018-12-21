@@ -18,8 +18,7 @@
 
 #include <yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NHydra;
 using namespace NCellMaster;
@@ -146,5 +145,4 @@ NRpc::IServicePtr CreateNodeTrackerService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

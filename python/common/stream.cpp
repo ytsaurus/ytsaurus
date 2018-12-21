@@ -11,8 +11,7 @@
 #include <memory>
 #include <string>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -324,5 +323,4 @@ void TStreamReader::ReadNextBlock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

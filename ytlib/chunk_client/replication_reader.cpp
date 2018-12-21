@@ -44,8 +44,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -123,7 +122,7 @@ public:
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const TNodeDescriptor& localDescriptor,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TChunkReplicaList& seedReplicas,
         IBlockCachePtr blockCache,
         IThroughputThrottlerPtr bandwidthThrottler,
@@ -161,7 +160,7 @@ public:
             SeedsPromise_ = MakePromise(InitialSeedReplicas_);
         }
 
-        LOG_DEBUG("Reader initialized (InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
+        YT_LOG_DEBUG("Reader initialized (InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
             MakeFormattableRange(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
@@ -174,18 +173,18 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& estimatedSize) override;
+        const std::optional<i64>& estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& estimatedSize) override;
+        const std::optional<i64>& estimatedSize) override;
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags) override;
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -281,7 +280,7 @@ private:
         for (auto replica : seedReplicas) {
             const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!nodeDescriptor) {
-                LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
+                YT_LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
                 continue;
             }
             auto address = nodeDescriptor->FindAddress(Networks_);
@@ -363,7 +362,7 @@ public:
         TGuard<TSpinLock> guard(Reader_->SeedsSpinLock_);
 
         if (!Reader_->SeedsPromise_) {
-            LOG_DEBUG("Need fresh chunk seeds");
+            YT_LOG_DEBUG("Need fresh chunk seeds");
             Reader_->SeedsPromise_ = NewPromise<TChunkReplicaList>();
             auto locateChunk = BIND(&TAsyncGetSeedsSession::LocateChunk, MakeStrong(this))
                 .Via(Reader_->LocateChunksInvoker_);
@@ -395,7 +394,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_DEBUG("Requesting chunk seeds from master");
+        YT_LOG_DEBUG("Requesting chunk seeds from master");
 
         try {
             auto channel = Client_->GetMasterChannelOrThrow(
@@ -450,7 +449,7 @@ private:
         auto seedReplicas = FromProto<TChunkReplicaList>(subresponse.replicas());
         Reader_->ExcludeFreshSeedsFromBannedForeverPeers(seedReplicas);
 
-        LOG_DEBUG("Chunk seeds received (SeedReplicas: %v)",
+        YT_LOG_DEBUG("Chunk seeds received (SeedReplicas: %v)",
             MakeFormattableRange(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
 
         YCHECK(!Reader_->SeedsPromise_.IsSet());
@@ -557,13 +556,13 @@ protected:
         }
 
         if (forever && !reader->IsPeerBannedForever(address)) {
-            LOG_DEBUG("Node is banned until seeds are re-fetched from master (Address: %v)", address);
+            YT_LOG_DEBUG("Node is banned until seeds are re-fetched from master (Address: %v)", address);
             reader->BanPeerForever(address);
         }
 
         if (BannedPeers_.insert(address).second) {
             reader->OnPeerBanned(address);
-            LOG_DEBUG("Node is banned for the current retry (Address: %v, BanCount: %v)",
+            YT_LOG_DEBUG("Node is banned for the current retry (Address: %v, BanCount: %v)",
                 address,
                 reader->GetBanCount(address));
         }
@@ -611,7 +610,7 @@ protected:
         auto it = Peers_.find(address);
         YCHECK(it != Peers_.end());
 
-        LOG_DEBUG("Reinstall peer into peer queue (Address: %v)", address);
+        YT_LOG_DEBUG("Reinstall peer into peer queue (Address: %v)", address);
         PeerQueue_.push(TPeerQueueEntry(it->second, reader->GetBanCount(address)));
     }
 
@@ -662,7 +661,7 @@ protected:
             BanPeer(peerAddress, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
             RegisterError(error);
         } else {
-            LOG_DEBUG(error);
+            YT_LOG_DEBUG(error);
         }
     }
 
@@ -721,7 +720,7 @@ protected:
 
         YCHECK(!SeedsFuture_);
 
-        LOG_DEBUG("Retry started: %v of %v",
+        YT_LOG_DEBUG("Retry started: %v of %v",
             RetryIndex_ + 1,
             ReaderConfig_->RetryCount);
 
@@ -740,7 +739,7 @@ protected:
         DiscardSeeds();
 
         int retryCount = ReaderConfig_->RetryCount;
-        LOG_DEBUG("Retry failed: %v of %v",
+        YT_LOG_DEBUG("Retry failed: %v of %v",
             RetryIndex_ + 1,
             retryCount);
 
@@ -784,7 +783,7 @@ protected:
             return false;
         }
 
-        LOG_DEBUG("Pass started: %v of %v",
+        YT_LOG_DEBUG("Pass started: %v of %v",
             PassIndex_ + 1,
             ReaderConfig_->PassCount);
 
@@ -835,7 +834,7 @@ protected:
         }
 
         int passCount = ReaderConfig_->PassCount;
-        LOG_DEBUG("Pass completed: %v of %v",
+        YT_LOG_DEBUG("Pass completed: %v of %v",
             PassIndex_ + 1,
             passCount);
 
@@ -855,14 +854,14 @@ protected:
     void BanSeedIfUncomplete(const TResponsePtr& rsp, const TString& address)
     {
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
-            LOG_DEBUG("Seed does not contain the chunk (Address: %v)", address);
+            YT_LOG_DEBUG("Seed does not contain the chunk (Address: %v)", address);
             BanPeer(address, false);
         }
     }
 
     void RegisterError(const TError& error)
     {
-        LOG_ERROR(error);
+        YT_LOG_ERROR(error);
         InnerErrors_.push_back(error);
     }
 
@@ -1003,7 +1002,7 @@ public:
         TReplicationReader* reader,
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& estimatedSize)
+        const std::optional<i64>& estimatedSize)
         : TSessionBase(reader, options)
         , BlockIndexes_(blockIndexes)
     {
@@ -1029,7 +1028,7 @@ private:
     //! Block indexes to read during the session.
     const std::vector<int> BlockIndexes_;
 
-    const TNullable<i64> EstimatedSize_;
+    const std::optional<i64> EstimatedSize_;
 
     i64 BytesThrottled_ = 0;
 
@@ -1095,22 +1094,22 @@ private:
                 TBlockId blockId(reader->ChunkId_, blockIndex);
                 auto block = reader->BlockCache_->Find(blockId, EBlockType::CompressedData);
                 if (block) {
-                    LOG_DEBUG("Block is fetched from cache (Block: %v)", blockIndex);
+                    YT_LOG_DEBUG("Block is fetched from cache (Block: %v)", blockIndex);
                     YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
                 }
             }
         }
     }
 
-    TNullable<TPeer> SelectBestPeer(
+    std::optional<TPeer> SelectBestPeer(
         const std::vector<TPeer>& candidates,
         const std::vector<int>& blockIndexes,
         const TReplicationReaderPtr& reader)
     {
-        LOG_DEBUG("Gathered candidate peers (Addresses: %v)", candidates);
+        YT_LOG_DEBUG("Gathered candidate peers (Addresses: %v)", candidates);
 
         if (candidates.empty()) {
-            return Null;
+            return std::nullopt;
         }
 
         // Multiple candidates - send probing requests.
@@ -1142,13 +1141,13 @@ private:
 
         auto errorOrResults = WaitFor(CombineAll(asyncResults));
         if (!errorOrResults.IsOK()) {
-            return Null;
+            return std::nullopt;
         }
 
         const auto& results = errorOrResults.Value();
 
         TDataNodeServiceProxy::TRspGetBlockSetPtr bestRsp;
-        TNullable<TPeer> bestPeer;
+        std::optional<TPeer> bestPeer;
 
         auto getLoad = [&] (const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp) {
             return ReaderConfig_->NetQueueSizeFactor * rsp->net_queue_size() +
@@ -1171,7 +1170,10 @@ private:
 
             // Exclude throttling peers from current pass.
             if (rsp->net_throttling() || rsp->disk_throttling()) {
-                LOG_DEBUG("Peer is throttling (Address: %v)", peer.Address);
+                YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
+                    peer.Address,
+                    rsp->net_throttling(),
+                    rsp->disk_throttling());
                 continue;
             }
 
@@ -1193,19 +1195,19 @@ private:
 
         if (bestPeer) {
             if (receivedNewPeers) {
-                LOG_DEBUG("Discard best peer since p2p was activated (Address: %v, PeerType: %v)",
+                YT_LOG_DEBUG("Discard best peer since p2p was activated (Address: %v, PeerType: %v)",
                     bestPeer->Address,
                     bestPeer->Type);
                 ReinstallPeer(bestPeer->Address);
-                bestPeer = Null;
+                bestPeer = std::nullopt;
             } else {
-                LOG_DEBUG("Best peer selected (Address: %v, DiskQueueSize: %v, NetQueueSize: %v)",
+                YT_LOG_DEBUG("Best peer selected (Address: %v, DiskQueueSize: %v, NetQueueSize: %v)",
                     bestPeer->Address,
                     bestRsp->disk_queue_size(),
                     bestRsp->net_queue_size());
             }
         } else {
-            LOG_DEBUG("All peer candidates were discarded");
+            YT_LOG_DEBUG("All peer candidates were discarded");
         }
 
         return bestPeer;
@@ -1223,7 +1225,7 @@ private:
         const TReplicationReaderPtr& reader)
     {
         if (!ReaderConfig_->FetchFromPeers && rsp->peer_descriptors_size() > 0) {
-            LOG_DEBUG("Peer suggestions received but ignored");
+            YT_LOG_DEBUG("Peer suggestions received but ignored");
             return false;
         }
 
@@ -1239,11 +1241,11 @@ private:
                         addedNewPeers = true;
                     }
                     PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
-                    LOG_DEBUG("Peer descriptor received (Block: %v, SuggestedAddress: %v)",
+                    YT_LOG_DEBUG("Peer descriptor received (Block: %v, SuggestedAddress: %v)",
                         blockIndex,
                         *suggestedAddress);
                 } else {
-                    LOG_WARNING("Peer suggestion ignored, required network is missing (Block: %v, SuggestedAddress: %v)",
+                    YT_LOG_WARNING("Peer suggestion ignored, required network is missing (Block: %v, SuggestedAddress: %v)",
                         blockIndex,
                         suggestedDescriptor.GetDefaultAddress());
                 }
@@ -1267,8 +1269,8 @@ private:
             return;
         }
 
-        TNullable<TPeer> maybePeer;
-        while (!maybePeer) {
+        std::optional<TPeer> optionalPeer;
+        while (!optionalPeer) {
             auto candidates = PickPeerCandidates(
                 ReaderConfig_->ProbePeerCount,
                 [&] (const TString& address) {
@@ -1287,15 +1289,15 @@ private:
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                     "Failed to throttle bandwidth in reader")
                     << throttleResult;
-                LOG_WARNING(error, "Chunk reader failed");
+                YT_LOG_WARNING(error, "Chunk reader failed");
                 OnSessionFailed(true, error);
                 return;
             }
 
-            maybePeer = SelectBestPeer(candidates, blockIndexes, reader);
+            optionalPeer = SelectBestPeer(candidates, blockIndexes, reader);
         }
 
-        const auto& peerAddress = maybePeer->Address;
+        const auto& peerAddress = optionalPeer->Address;
         auto channel = GetChannel(peerAddress);
         if (!channel) {
             RequestBlocks();
@@ -1315,7 +1317,7 @@ private:
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                     "Failed to throttle bandwidth in reader")
                     << throttleResult;
-                LOG_WARNING(error, "Chunk reader failed");
+                YT_LOG_WARNING(error, "Chunk reader failed");
                 OnSessionFailed(true, error);
                 return;
             }
@@ -1352,12 +1354,12 @@ private:
 
         reader->AccountTraffic(
             rsp->GetTotalSize(),
-            maybePeer->NodeDescriptor);
+            optionalPeer->NodeDescriptor);
 
         UpdatePeerBlockMap(rsp, reader);
 
         if (rsp->net_throttling() || rsp->disk_throttling()) {
-            LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
+            YT_LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
         }
 
         if (rsp->has_chunk_reader_statistics()) {
@@ -1391,8 +1393,8 @@ private:
             }
 
             auto sourceDescriptor = ReaderOptions_->EnableP2P
-                ? TNullable<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
-                : TNullable<TNodeDescriptor>(Null);
+                ? std::optional<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
+                : std::optional<TNodeDescriptor>(std::nullopt);
 
             reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
@@ -1409,9 +1411,9 @@ private:
             ReinstallPeer(peerAddress);
         }
 
-        LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
+        YT_LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
               peerAddress,
-              maybePeer->Type,
+              optionalPeer->Type,
               MakeShrunkFormattableRange(receivedBlockIndexes, TDefaultFormatter(), 3),
               bytesReceived,
               rsp->peer_descriptors_size());
@@ -1425,7 +1427,7 @@ private:
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                     "Failed to throttle bandwidth in reader")
                     << throttleResult;
-                LOG_WARNING(error, "Chunk reader failed");
+                YT_LOG_WARNING(error, "Chunk reader failed");
                 OnSessionFailed(true, error);
                 return;
             }
@@ -1436,7 +1438,7 @@ private:
 
     void OnSessionSucceeded()
     {
-        LOG_DEBUG("All requested blocks are fetched");
+        YT_LOG_DEBUG("All requested blocks are fetched");
 
         std::vector<TBlock> blocks;
         blocks.reserve(BlockIndexes_.size());
@@ -1469,7 +1471,7 @@ private:
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     const std::vector<int>& blockIndexes,
-    const TNullable<i64>& estimatedSize)
+    const std::optional<i64>& estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1488,7 +1490,7 @@ public:
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64> estimatedSize)
+        const std::optional<i64> estimatedSize)
         : TSessionBase(reader, options)
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
@@ -1516,7 +1518,7 @@ private:
     //! Number of blocks to fetch.
     const int BlockCount_;
 
-    TNullable<i64> EstimatedSize_;
+    std::optional<i64> EstimatedSize_;
 
     //! Promise representing the session.
     TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
@@ -1573,7 +1575,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v-%v, EstimatedSize: %v, BytesThrottled: %v)",
+        YT_LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v-%v, EstimatedSize: %v, BytesThrottled: %v)",
             peerAddress,
             FirstBlockIndex_,
             FirstBlockIndex_ + BlockCount_ - 1,
@@ -1594,7 +1596,7 @@ private:
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                     "Failed to throttle bandwidth in reader")
                     << throttleResult;
-                LOG_WARNING(error, "Chunk reader failed");
+                YT_LOG_WARNING(error, "Chunk reader failed");
                 OnSessionFailed(true, error);
                 return;
             }
@@ -1663,15 +1665,15 @@ private:
         BanSeedIfUncomplete(rsp, peerAddress);
 
         if (rsp->net_throttling() || rsp->disk_throttling()) {
-            LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
+            YT_LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
         } else if (blocksReceived == 0) {
-            LOG_DEBUG("Peer has no relevant blocks (Address: %v)", peerAddress);
+            YT_LOG_DEBUG("Peer has no relevant blocks (Address: %v)", peerAddress);
             BanPeer(peerAddress, false);
         } else {
             ReinstallPeer(peerAddress);
         }
 
-        LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: %v-%v, BytesReceived: %v)",
+        YT_LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: %v-%v, BytesReceived: %v)",
             peerAddress,
             FirstBlockIndex_,
             FirstBlockIndex_ + blocksReceived - 1,
@@ -1686,7 +1688,7 @@ private:
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                     "Failed to throttle bandwidth in reader")
                     << throttleResult;
-                LOG_WARNING(error, "Chunk reader failed");
+                YT_LOG_WARNING(error, "Chunk reader failed");
                 OnSessionFailed(true, error);
                 return;
             }
@@ -1701,7 +1703,7 @@ private:
 
     void OnSessionSucceeded()
     {
-        LOG_DEBUG("Some blocks are fetched (Blocks: %v-%v)",
+        YT_LOG_DEBUG("Some blocks are fetched (Blocks: %v-%v)",
             FirstBlockIndex_,
             FirstBlockIndex_ + FetchedBlocks_.size() - 1);
 
@@ -1730,7 +1732,7 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    const TNullable<i64>& estimatedSize)
+    const std::optional<i64>& estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1747,8 +1749,8 @@ public:
     TGetMetaSession(
         TReplicationReader* reader,
         const TClientBlockReadOptions& options,
-        const TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags)
+        const std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags)
         : TSessionBase(reader, options)
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
@@ -1767,8 +1769,8 @@ public:
     }
 
 private:
-    const TNullable<int> PartitionTag_;
-    const TNullable<std::vector<int>> ExtensionTags_;
+    const std::optional<int> PartitionTag_;
+    const std::optional<std::vector<int>> ExtensionTags_;
 
     //! Promise representing the session.
     TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
@@ -1819,7 +1821,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Requesting chunk meta (Address: %v)", peerAddress);
+        YT_LOG_DEBUG("Requesting chunk meta (Address: %v)", peerAddress);
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
@@ -1832,7 +1834,7 @@ private:
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
         if (PartitionTag_) {
-            req->set_partition_tag(PartitionTag_.Get());
+            req->set_partition_tag(*PartitionTag_);
         }
         if (ExtensionTags_) {
             ToProto(req->mutable_extension_tags(), *ExtensionTags_);
@@ -1853,7 +1855,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
         if (rsp->net_throttling()) {
-            LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
+            YT_LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
             RequestMeta();
         } else {
             if (rsp->has_chunk_reader_statistics()) {
@@ -1867,7 +1869,7 @@ private:
 
     void OnSessionSucceeded(NProto::TChunkMeta&& chunkMeta)
     {
-        LOG_DEBUG("Chunk meta obtained");
+        YT_LOG_DEBUG("Chunk meta obtained");
         Promise_.TrySet(New<TRefCountedChunkMeta>(std::move(chunkMeta)));
     }
 
@@ -1891,8 +1893,8 @@ private:
 
 TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
     const TClientBlockReadOptions& options,
-    TNullable<int> partitionTag,
-    const TNullable<std::vector<int>>& extensionTags)
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1908,7 +1910,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
@@ -1938,5 +1940,4 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

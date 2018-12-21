@@ -23,8 +23,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -53,8 +52,8 @@ public:
         const IJobHostPtr& jobHost,
         const TBlobTableWriterConfigPtr& blobTableWriterConfig,
         const TTableWriterOptionsPtr& tableWriterOptions,
-        const TTransactionId& transaction,
-        const TChunkListId& chunkList,
+        TTransactionId transaction,
+        TChunkListId chunkList,
         const IInvokerPtr& controlInvoker,
         TDuration readWriteTimeout,
         const TLogger& logger)
@@ -87,7 +86,7 @@ public:
         }
         ++ActiveCoreCount_;
 
-        LOG_INFO("Registering core dump (ProcessId: %v, ExecutableName: %v, ActiveCoreCount: %v)",
+        YT_LOG_INFO("Registering core dump (ProcessId: %v, ExecutableName: %v, ActiveCoreCount: %v)",
             processId,
             executableName,
             ActiveCoreCount_);
@@ -106,13 +105,13 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-        LOG_INFO("Finalizing core processor");
+        YT_LOG_INFO("Finalizing core processor");
 
         TCoreResult coreResult;
 
         TError coreAppearedWaitResult;
         if (timeout != TDuration::Zero()) {
-            LOG_INFO("Waiting for core to appear (Timeout: %v)",
+            YT_LOG_INFO("Waiting for core to appear (Timeout: %v)",
                 timeout);
             coreAppearedWaitResult = WaitFor(GetCoreAppearedEvent()
                 .WithTimeout(timeout));
@@ -120,7 +119,7 @@ public:
 
         if (!coreAppearedWaitResult.IsOK()) {
             YCHECK(coreAppearedWaitResult.FindMatching(NYT::EErrorCode::Timeout));
-            LOG_INFO("Core did not appear within timeout, creating a dummy core info entry (Timeout: %v)", timeout);
+            YT_LOG_INFO("Core did not appear within timeout, creating a dummy core info entry (Timeout: %v)", timeout);
             // Even though the core file we have been waiting for didn't appear, we create an entity node in Cypress related to it.
             TCoreInfo dummyCoreInfo;
             dummyCoreInfo.set_process_id(-1);
@@ -129,14 +128,14 @@ public:
             coreResult.CoreInfos = { dummyCoreInfo };
             coreResult.BoundaryKeys.set_empty(true);
         } else {
-            LOG_INFO("At least one core dump appeared within timeout, waiting until no core dump is active "
+            YT_LOG_INFO("At least one core dump appeared within timeout, waiting until no core dump is active "
                      "(NumberOfActiveCores: %v)",
                 ActiveCoreCount_);
             coreResult = WaitFor(GetCoreResult())
                 .ValueOrThrow();
         }
 
-        LOG_INFO("Core processor finished");
+        YT_LOG_INFO("Core processor finished");
 
         return coreResult;
     }
@@ -193,7 +192,7 @@ private:
                 executableName,
                 namedPipe->GetPath());
 
-        LOG_INFO("Started processing core dump");
+        YT_LOG_INFO("Started processing core dump");
 
         CoreInfos_.emplace_back();
         CoreInfos_[coreId].set_process_id(processId);
@@ -240,11 +239,11 @@ private:
                 BoundaryKeys_.mutable_max()->swap(*outputResult.mutable_max());
             }
 
-            LOG_INFO("Finished processing core dump (Size: %v)", coreSize);
+            YT_LOG_INFO("Finished processing core dump (Size: %v)", coreSize);
 
             CoreInfos_[coreId].set_size(coreSize);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error while piping core to Cypress");
+            YT_LOG_ERROR(ex, "Error while piping core to Cypress");
             auto error = TError("Error while piping core to Cypress")
                 << ex;
             ToProto(CoreInfos_[coreId].mutable_error(), error);
@@ -261,7 +260,7 @@ private:
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
         --ActiveCoreCount_;
-        LOG_INFO("Finished processing core dump (ActiveCoreCount: %v)",
+        YT_LOG_INFO("Finished processing core dump (ActiveCoreCount: %v)",
             ActiveCoreCount_);
 
         if (ActiveCoreCount_ == 0) {
@@ -276,8 +275,8 @@ TCoreProcessorService::TCoreProcessorService(
     const IJobHostPtr& jobHost,
     const TBlobTableWriterConfigPtr& blobTableWriterConfig,
     const TTableWriterOptionsPtr& tableWriterOptions,
-    const TTransactionId& transaction,
-    const TChunkListId& chunkList,
+    TTransactionId transaction,
+    TChunkListId chunkList,
     const IInvokerPtr& controlInvoker,
     TDuration readWriteTimeout)
     : TServiceBase(
@@ -320,6 +319,5 @@ DEFINE_RPC_SERVICE_METHOD(TCoreProcessorService, StartCoreDump)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump
 

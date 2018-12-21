@@ -5,15 +5,14 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/mpl.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 
 #include <yt/core/yson/public.h>
 
 #include <functional>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +58,7 @@ public:
     {
     public:
         typedef std::function<void(const T&)> TPostprocessor;
-        typedef typename TNullableTraits<T>::TValueType TValueType;
+        typedef typename TOptionalTraits<T>::TValue TValueType;
 
         explicit TParameter(T& parameter);
 
@@ -90,7 +89,7 @@ public:
 
     private:
         T& Parameter;
-        TNullable<T> DefaultValue;
+        std::optional<T> DefaultValue;
         std::vector<TPostprocessor> Postprocessors;
         std::vector<TString> Aliases;
         EMergeStrategy MergeStrategy;
@@ -182,8 +181,7 @@ bool ReconfigureYsonSerializable(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 
 namespace NYT {

@@ -8,8 +8,7 @@
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/client/chunk_client/read_limit.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,5 +53,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

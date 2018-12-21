@@ -6,15 +6,14 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobDirectoryProperties
 {
-    TNullable<i64> DiskSpaceLimit;
-    TNullable<i64> InodeLimit;
+    std::optional<i64> DiskSpaceLimit;
+    std::optional<i64> InodeLimit;
     int UserId;
 };
 
@@ -53,5 +52,4 @@ IJobDirectoryManagerPtr CreateSimpleJobDirectoryManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NY::NExecAgent

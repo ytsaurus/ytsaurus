@@ -7,8 +7,7 @@
 #include <util/generic/hash_set.h>
 
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,5 +67,4 @@ DEFINE_REFCOUNTED_TYPE(TSharedTableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer

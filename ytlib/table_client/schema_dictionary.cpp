@@ -5,8 +5,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/farm_hash.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,5 +110,4 @@ void FromProto(TSchemaDictionary* dictionary, const NProto::TSchemaDictionary& p
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

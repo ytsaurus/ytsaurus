@@ -6,8 +6,7 @@ extern "C" {
 #include <yt/contrib/jerasure/jerasure.h>
 }
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,5 +238,4 @@ std::vector<TSharedRef> BitMatrixDecode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure

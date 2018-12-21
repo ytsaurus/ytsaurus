@@ -23,8 +23,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,9 +173,9 @@ struct TTabletSnapshot
     //! This includes both regular and locked Eden stores.
     std::vector<ISortedStorePtr> GetEdenStores();
 
-    TTableReplicaSnapshotPtr FindReplicaSnapshot(const TTableReplicaId& replicaId);
+    TTableReplicaSnapshotPtr FindReplicaSnapshot(TTableReplicaId replicaId);
 
-    void ValidateCellId(const NElection::TCellId& cellId);
+    void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(i64 mountRevision);
     bool IsProfilingEnabled() const;
 };
@@ -231,7 +230,7 @@ struct ITabletContext
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
-        const TStoreId& storeId,
+        TStoreId storeId,
         const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
     virtual TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NRpc::IServerPtr GetLocalRpcServer() = 0;
@@ -347,16 +346,16 @@ public:
 
 public:
     TTablet(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         ITabletContext* context);
     TTablet(
         TTableMountConfigPtr config,
         TTabletChunkReaderConfigPtr readerConfig,
         TTabletChunkWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions,
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         i64 mountRevision,
-        const NObjectClient::TObjectId& tableId,
+        NObjectClient::TObjectId tableId,
         const NYPath::TYPath& path,
         ITabletContext* context,
         const NTableClient::TTableSchema& schema,
@@ -364,7 +363,7 @@ public:
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::ECommitOrdering commitOrdering,
-        const NTabletClient::TTableReplicaId& upstreamReplicaId);
+        NTabletClient::TTableReplicaId upstreamReplicaId);
 
     ETabletState GetPersistentState() const;
 
@@ -387,8 +386,8 @@ public:
     const TPartitionList& PartitionList() const;
     TPartition* GetEden() const;
     void CreateInitialPartition();
-    TPartition* FindPartition(const TPartitionId& partitionId);
-    TPartition* GetPartition(const TPartitionId& partitionId);
+    TPartition* FindPartition(TPartitionId partitionId);
+    TPartition* GetPartition(TPartitionId partitionId);
     void MergePartitions(int firstIndex, int lastIndex);
     void SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys);
     //! Finds a partition fully containing the range |[minKey, maxKey]|.
@@ -399,12 +398,12 @@ public:
     const std::map<i64, IOrderedStorePtr>& StoreRowIndexMap() const;
     void AddStore(IStorePtr store);
     void RemoveStore(IStorePtr store);
-    IStorePtr FindStore(const TStoreId& id);
-    IStorePtr GetStore(const TStoreId& id);
-    IStorePtr GetStoreOrThrow(const TStoreId& id);
+    IStorePtr FindStore(TStoreId id);
+    IStorePtr GetStore(TStoreId id);
+    IStorePtr GetStoreOrThrow(TStoreId id);
 
-    TTableReplicaInfo* FindReplicaInfo(const TTableReplicaId& id);
-    TTableReplicaInfo* GetReplicaInfoOrThrow(const TTableReplicaId& id);
+    TTableReplicaInfo* FindReplicaInfo(TTableReplicaId id);
+    TTableReplicaInfo* GetReplicaInfoOrThrow(TTableReplicaId id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -450,7 +449,7 @@ public:
     i64 Unlock();
     i64 GetTabletLockCount() const;
 
-    void FillProfilerTags(const TCellId& cellId);
+    void FillProfilerTags(TCellId cellId);
     void UpdateReplicaCounters();
     bool IsProfilingEnabled() const;
 
@@ -501,5 +500,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

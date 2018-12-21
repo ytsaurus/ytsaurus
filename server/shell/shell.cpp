@@ -20,8 +20,7 @@
 
 #include <util/stream/file.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 using namespace NConcurrency;
 using namespace NCGroup;
@@ -50,7 +49,7 @@ public:
         : Options_(std::move(options))
         , Id_(TGuid::Create())
         , Process_(New<TSimpleProcess>(Options_->ExePath, false))
-        , Freezer_(Options_->CGroupBasePath.Get("") + CGroupShellPrefix + ToString(Id_))
+        , Freezer_(Options_->CGroupBasePath.value_or(TString()) + CGroupShellPrefix + ToString(Id_))
         , CurrentHeight_(Options_->Height)
         , CurrentWidth_(Options_->Width)
         , InactivityTimeout_(Options_->InactivityTimeout)
@@ -68,11 +67,11 @@ public:
         YCHECK(!IsRunning_);
         IsRunning_ = true;
 
-        int uid = Options_->Uid.Get(::getuid());
+        int uid = Options_->Uid.value_or(::getuid());
         auto user = SafeGetUsernameByUid(uid);
         auto home = Options_->WorkingDir;
 
-        LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v, Command: %v)",
+        YT_LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v, Command: %v)",
             Options_->Term,
             CurrentHeight_,
             CurrentWidth_,
@@ -147,7 +146,7 @@ public:
             .Subscribe(
                 BIND(&TShell::Terminate, MakeWeak(this))
                     .Via(GetCurrentInvoker()));
-        LOG_INFO("Shell started");
+        YT_LOG_INFO("Shell started");
     }
 
     virtual void ResizeWindow(int height, int width) override
@@ -173,7 +172,7 @@ public:
         }
 
         if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
-            LOG_WARNING(
+            YT_LOG_WARNING(
                 "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
                 ConsumedOffset_,
                 inputOffset);
@@ -216,7 +215,7 @@ public:
         Writer_->Abort();
         CleanupShellProcesses();
         TerminatedPromise_.TrySet();
-        LOG_INFO(error, "Shell terminated");
+        YT_LOG_INFO(error, "Shell terminated");
     }
 
     virtual TFuture<void> Shutdown(const TError& error) override
@@ -234,7 +233,7 @@ public:
         return TerminatedPromise_;
     }
 
-    virtual const TShellId& GetId() override
+    virtual TShellId GetId() override
     {
         return Id_;
     }
@@ -262,7 +261,7 @@ private:
     TError InactivityError_;
     TPromise<void> TerminatedPromise_ = NewPromise<void>();
 
-    TNullable<TString> Command_;
+    std::optional<TString> Command_;
 
     NLogging::TLogger Logger = ShellLogger;
 
@@ -278,7 +277,7 @@ private:
             Freezer_.Create();
             Process_->AddArguments({ "--cgroup", Freezer_.GetFullPath() });
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to create required cgroups");
+            YT_LOG_FATAL(ex, "Failed to create required cgroups");
         }
     }
 
@@ -297,7 +296,7 @@ private:
             RunKiller(Freezer_.GetFullPath());
             Freezer_.Destroy();
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to clean up shell processes");
+            YT_LOG_FATAL(ex, "Failed to clean up shell processes");
         }
     }
 
@@ -323,5 +322,4 @@ IShellPtr CreateShell(std::unique_ptr<TShellOptions> /*options*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NShell
-} // namespace NYT
+} // namespace NYT::NShell

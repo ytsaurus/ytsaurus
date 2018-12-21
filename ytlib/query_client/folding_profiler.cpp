@@ -6,8 +6,7 @@
 #include "llvm_folding_set.h"
 #include "helpers.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,10 +116,10 @@ void TSchemaProfiler::Profile(const TTableSchema& tableSchema)
         int aux = (column.Expression() ? 1 : 0) | ((column.Aggregate() ? 1 : 0) << 1);
         Fold(aux);
         if (column.Expression()) {
-            Fold(column.Expression().Get().c_str());
+            Fold(column.Expression()->c_str());
         }
         if (column.Aggregate()) {
-            Fold(column.Aggregate().Get().c_str());
+            Fold(column.Aggregate()->c_str());
         }
     }
 }
@@ -131,12 +130,12 @@ struct TDebugInfo
 {
     TConstExpressionPtr Expr;
     std::vector<size_t> Args;
-    TNullable<size_t> ExtraArg;
+    std::optional<size_t> ExtraArg;
 
     TDebugInfo(
         const TConstExpressionPtr& expr,
         const std::vector<size_t>& args,
-        const TNullable<size_t>& extraArg = Null)
+        const std::optional<size_t>& extraArg = std::nullopt)
         : Expr(expr)
         , Args(args)
         , ExtraArg(extraArg)
@@ -561,7 +560,7 @@ size_t TExpressionProfiler::Profile(
             id.AddInteger(argIds.back());
         }
 
-        TNullable<size_t> defaultExprId;
+        std::optional<size_t> defaultExprId;
         if (const auto& defaultExpression = transformExpr->DefaultExpression) {
             defaultExprId = Profile(defaultExpression, schema, fragments, isIsolated);
             id.AddInteger(*defaultExprId);
@@ -1028,7 +1027,7 @@ void TQueryProfiler::Profile(
     if (useMultijoin) {
         std::vector<size_t> joinGroups = GetJoinGroups(query->JoinClauses, schema);
         if (!joinGroups.empty()) {
-            LOG_DEBUG("Join groups: [%v]", JoinToString(joinGroups));
+            YT_LOG_DEBUG("Join groups: [%v]", JoinToString(joinGroups));
         }
 
         size_t joinIndex = 0;
@@ -1476,6 +1475,5 @@ TCGQueryCallbackGenerator Profile(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

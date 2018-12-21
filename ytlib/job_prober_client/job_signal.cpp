@@ -4,12 +4,11 @@
 
 #include <map>
 
-namespace NYT {
-namespace NJobProberClient {
+namespace NYT::NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<int> FindSignalIdBySignalName(const TString& signalName)
+std::optional<int> FindSignalIdBySignalName(const TString& signalName)
 {
     static THashMap<TString, int> SignalNameToNumber = {
         { "SIGHUP",  SIGHUP },
@@ -23,18 +22,17 @@ TNullable<int> FindSignalIdBySignalName(const TString& signalName)
     };
 
     auto it = SignalNameToNumber.find(signalName);
-    return it == SignalNameToNumber.end() ? Null : MakeNullable(it->second);
+    return it == SignalNameToNumber.end() ? std::nullopt : std::make_optional(it->second);
 }
 
 void ValidateSignalName(const TString& signalName)
 {
     auto signal = FindSignalIdBySignalName(signalName);
-    if (!signal.HasValue()) {
+    if (!signal) {
         THROW_ERROR_EXCEPTION("Unsupported signal name %Qv", signalName);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProberClient
-} // namespace NYT
+} // namespace NYT::NJobProberClient

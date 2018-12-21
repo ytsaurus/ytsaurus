@@ -6,12 +6,11 @@
 #endif
 #undef COROUTINE_INL_H_
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace  NDetail {
+namespace NDetail {
 
 template <class TCallee, class TCaller, class TArguments, unsigned... Indexes>
 void Invoke(
@@ -37,7 +36,7 @@ TCoroutine<R(TArgs...)>::TCoroutine(TCoroutine<R(TArgs...)>::TCallee&& callee, c
 
 template <class R, class... TArgs>
 template <class... TParams>
-const TNullable<R>& TCoroutine<R(TArgs...)>::Run(TParams&& ... params)
+const std::optional<R>& TCoroutine<R(TArgs...)>::Run(TParams&& ... params)
 {
     static_assert(sizeof...(TParams) == sizeof...(TArgs),
         "TParams<> and TArgs<> have different length");
@@ -64,9 +63,9 @@ void TCoroutine<R(TArgs...)>::Invoke()
             *this,
             std::move(Arguments_),
             typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType());
-        Result_.Reset();
+        Result_.reset();
     } catch (...) {
-        Result_.Reset();
+        Result_.reset();
         throw;
     }
 }
@@ -117,5 +116,4 @@ typename TCoroutine<void(TArgs...)>::TArguments&& TCoroutine<void(TArgs...)>::Yi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
 #include <yt/core/yson/consumer.h>
@@ -12,8 +12,7 @@
 #include <queue>
 #include <stack>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +28,7 @@ class TPythonObjectBuilder
 {
 public:
     TPythonObjectBuilder();
-    explicit TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<TString>& encoding);
+    explicit TPythonObjectBuilder(bool alwaysCreateAttributes, const std::optional<TString>& encoding);
 
     virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -63,7 +62,7 @@ private:
     Py::Callable YsonEntity;
 
     bool AlwaysCreateAttributes_;
-    TNullable<TString> Encoding_;
+    std::optional<TString> Encoding_;
 
     // NOTE: Not using specific PyCXX objects (e.g. Py::Bytes) here and below to avoid
     // unnecessary checks.
@@ -74,7 +73,7 @@ private:
     std::stack<std::pair<PyObjectPtr, EPythonObjectType>> ObjectStack_;
     // NB(ignat): to avoid using TString we need to make tricky bufferring while reading from input stream.
     std::stack<PyObject*> Keys_;
-    TNullable<PyObjectPtr> Attributes_;
+    std::optional<PyObjectPtr> Attributes_;
 
     THashMap<TStringBuf, PyObjectPtr> KeyCache_;
     std::vector<PyObjectPtr> OriginalKeyCache_;
@@ -93,5 +92,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

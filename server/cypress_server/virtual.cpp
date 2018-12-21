@@ -40,8 +40,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -121,8 +120,8 @@ void TVirtualMulticellMapBase::GetSelf(
     Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     i64 limit = request->has_limit()
         ? request->limit()
@@ -192,8 +191,8 @@ void TVirtualMulticellMapBase::ListSelf(
     const TCtxListPtr& context)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     i64 limit = request->has_limit()
         ? request->limit()
@@ -287,7 +286,7 @@ TFuture<TYsonString> TVirtualMulticellMapBase::GetBuiltinAttributeAsync(TInterne
             break;
     }
 
-    return Null;
+    return std::nullopt;
 }
 
 ISystemAttributeProvider* TVirtualMulticellMapBase::GetBuiltinAttributeProvider()
@@ -365,7 +364,7 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(
 
 TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBase::FetchItems(
     i64 limit,
-    const TNullable<std::vector<TString>>& attributeKeys)
+    const std::optional<std::vector<TString>>& attributeKeys)
 {
     auto session = New<TFetchItemsSession>();
     session->Invoker = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
@@ -483,7 +482,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSe
         }).AsyncVia(session->Invoker));
 }
 
-TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNullable<std::vector<TString>>& attributeKeys)
+TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const std::optional<std::vector<TString>>& attributeKeys)
 {
     TAsyncYsonWriter writer(EYsonType::MapFragment);
     if (OwningNode_) {
@@ -500,8 +499,8 @@ bool TVirtualMulticellMapBase::NeedSuppressUpstreamSync() const
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     i64 limit = request->limit();
 
@@ -745,6 +744,13 @@ public:
         return ENodeType::Entity;
     }
 
+    virtual bool HasBranchedChangesImpl(TVirtualNode* /*originatingNode*/, TVirtualNode* /*branchedNode*/) override
+    {
+        // Treat virtual nodes as always different because explicitly unlocking
+        // them makes little sense anyway.
+        return true;
+    }
+
 private:
     const TYPathServiceProducer Producer_;
     const EObjectType ObjectType_;
@@ -780,5 +786,4 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

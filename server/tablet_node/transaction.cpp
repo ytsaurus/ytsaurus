@@ -17,8 +17,7 @@
 
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NHiveServer;
 using namespace NObjectClient;
@@ -29,7 +28,7 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionWriteRecord::TTransactionWriteRecord(
-    const TTabletId& tabletId,
+    TTabletId tabletId,
     TSharedRef data,
     int rowCount,
     size_t dataWeight,
@@ -70,7 +69,7 @@ i64 TTransactionWriteRecord::GetByteSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(const TTransactionId& id)
+TTransaction::TTransaction(TTransactionId id)
     : TTransactionBase(id)
 { }
 
@@ -201,6 +200,5 @@ TCellTag TTransaction::GetCellTag() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

@@ -12,8 +12,7 @@
 
 #include <yt/core/misc/assert.h>
 
-namespace NYT {
-namespace NPhdrCache {
+namespace NYT::NPhdrCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,8 +37,7 @@ std::vector<dl_phdr_info>* PhdrCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPhdrCache
-} // namespace NYT
+} // namespace NYT::NPhdrCache
 
 extern "C"
 #ifndef __clang__

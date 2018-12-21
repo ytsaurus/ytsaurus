@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/node_tracker_client/config.h>
 
+#include <yt/ytlib/scheduler/job_resources.h>
+
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -19,8 +21,7 @@
 
 #include <yt/core/misc/phoenix.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,6 +365,15 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
 class TRemoteCopyOperationOptions
     : public TSimpleOperationOptions
 {
+public:
+    NScheduler::TCpuResource CpuLimit;
+
+    TRemoteCopyOperationOptions()
+    {
+        RegisterParameter("cpu_limit", CpuLimit)
+            .Default(0.1);
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationOptions, 0xf3893dc8);
 };
@@ -505,7 +515,7 @@ public:
     TSuspiciousJobsOptionsPtr SuspiciousJobs;
 
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
-    TNullable<TDuration> OperationTimeLimit;
+    std::optional<TDuration> OperationTimeLimit;
 
     TDuration OperationTimeLimitCheckPeriod;
 
@@ -602,8 +612,8 @@ public:
     double ResourceOverdraftFactor;
 
     //! If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
-    TNullable<int> IopsThreshold;
-    TNullable<int> IopsThrottlerLimit;
+    std::optional<int> IopsThreshold;
+    std::optional<int> IopsThrottlerLimit;
 
     //! Patch for all operation options.
     NYT::NYTree::INodePtr OperationOptions;
@@ -636,7 +646,7 @@ public:
 
     NChunkClient::TFetcherConfigPtr Fetcher;
 
-    TNullable<NYPath::TYPath> UdfRegistryPath;
+    std::optional<NYPath::TYPath> UdfRegistryPath;
 
     //! Discriminates between "heavy" and "light" job specs. For those with slice count
     //! not exceeding this threshold no throttling is done.
@@ -663,7 +673,7 @@ public:
     // Cypress path to a special layer containing YT-specific data required to
     // run jobs with custom rootfs, e.g. statically linked job-satellite.
     // Is applied on top of user layers if they are used.
-    TNullable<TString> SystemLayerPath;
+    std::optional<TString> SystemLayerPath;
 
     // Running jobs cached YSON string update period.
     TDuration CachedRunningJobsUpdatePeriod;
@@ -681,7 +691,7 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
-    TNullable<i64> TotalControllerMemoryLimit;
+    std::optional<i64> TotalControllerMemoryLimit;
 
     TControllerAgentConfig();
 
@@ -732,8 +742,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 
 #define CONFIG_INL_H_
 #include "config-inl.h"

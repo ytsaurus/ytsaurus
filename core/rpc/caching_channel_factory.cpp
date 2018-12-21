@@ -5,8 +5,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -177,5 +176,4 @@ ICachingChannelFactoryPtr CreateCachingChannelFactory(IChannelFactoryPtr underly
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

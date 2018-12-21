@@ -39,6 +39,9 @@ message TReqOnJobFinished
     optional uint64 finish_time = 5;
     optional string job_stderr = 6;
     optional string fail_context = 7;
+
+    optional string profile_type = 8;
+    optional string profile_blob = 9;
 }
 
 message TRspOnJobFinished

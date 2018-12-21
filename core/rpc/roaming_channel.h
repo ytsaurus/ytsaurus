@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,5 +41,4 @@ IChannelPtr CreateRoamingChannel(IRoamingChannelProviderPtr provider);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

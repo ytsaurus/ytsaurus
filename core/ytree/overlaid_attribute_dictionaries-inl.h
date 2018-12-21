@@ -4,8 +4,7 @@
 #include "overlaid_attribute_dictionaries.h"
 #endif
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -57,9 +56,9 @@ template <class T>
 NYson::TYsonString TOverlaidAttributeDictionary<T>::FindYson(const TString& key) const
 {
     for (const auto& dict : UnderlyingDictionaries_) {
-        auto maybeResult = dict ? dict->FindYson(key) : NYson::TYsonString();
-        if (maybeResult) {
-            return maybeResult;
+        auto optionalResult = dict ? dict->FindYson(key) : NYson::TYsonString();
+        if (optionalResult) {
+            return optionalResult;
         }
     }
 
@@ -155,5 +154,4 @@ OverlayAttributeDictionaries(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

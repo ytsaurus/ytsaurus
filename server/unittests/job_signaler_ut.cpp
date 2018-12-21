@@ -8,8 +8,7 @@
 #include <fcntl.h>
 #endif
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,5 +63,4 @@ TEST(TJobSignaler, UnknownSignal)
 
 ////////////////////////////////////////////////////////////////////////////////
 } // namespace
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

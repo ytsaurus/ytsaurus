@@ -23,8 +23,7 @@
 
 #include <yt/core/rpc/service.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,7 +140,7 @@ public:
     TUser* GetUserByNameOrThrow(const TString& name);
 
     //! Finds user by id, throws if nothing is found.
-    TUser* GetUserOrThrow(const TUserId& id);
+    TUser* GetUserOrThrow(TUserId id);
 
     //! Returns "root" built-in user.
     TUser* GetRootUser();
@@ -203,8 +202,8 @@ public:
     //! Returns the current user or |nullptr| if there's no one.
     TUser* GetAuthenticatedUser();
 
-    //! Returns the current user or Null if there's no one.
-    virtual TNullable<TString> GetAuthenticatedUserName() override;
+    //! Returns the current user or null if there's no one.
+    virtual std::optional<TString> GetAuthenticatedUserName() override;
 
     //! Resets the authenticated user.
     virtual void ResetAuthenticatedUser() override;
@@ -305,5 +304,4 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

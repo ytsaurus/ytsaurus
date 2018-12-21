@@ -5,8 +5,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -76,5 +75,4 @@ TChunkReadGuard TChunkReadGuard::AcquireOrThrow(IChunkPtr chunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

@@ -25,8 +25,7 @@
 
 #include <util/system/fs.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NBus;
 using namespace NConcurrency;
@@ -76,8 +75,8 @@ public:
 
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyConfigPtr config,
-        const TJobId& jobId,
-        const TOperationId& operationId) override
+        TJobId jobId,
+        TOperationId operationId) override
     {
         JobProberClient_ = CreateJobProbe(GetRpcClientConfig(), jobId);
         return RunPrepareAction<void>([&] () {
@@ -164,9 +163,9 @@ public:
         return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
     }
 
-    virtual TFuture<TNullable<TString>> CreateSandboxDirectories(TUserSandboxOptions options)
+    virtual TFuture<std::optional<TString>> CreateSandboxDirectories(TUserSandboxOptions options)
     {
-        return RunPrepareAction<TNullable<TString>>([&] () {
+        return RunPrepareAction<std::optional<TString>>([&] () {
                 return Location_->CreateSandboxDirectories(
                     SlotIndex_,
                     options,
@@ -232,5 +231,4 @@ ISlotPtr CreateSlot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

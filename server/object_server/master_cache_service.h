@@ -4,17 +4,15 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateMasterCacheService(
     TMasterCacheServiceConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    const NRpc::TRealmId& masterCellId);
+    NRpc::TRealmId masterCellId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

@@ -17,8 +17,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +34,7 @@ struct TCrossCellMessage
         : Payload(TProtoMessage{&message})
     { }
 
-    TCrossCellMessage(const NObjectClient::TObjectId& objectId, NRpc::IServiceContextPtr context)
+    TCrossCellMessage(NObjectClient::TObjectId objectId, NRpc::IServiceContextPtr context)
         : Payload(TServiceMessage{objectId, std::move(context)})
     { }
 
@@ -142,5 +141,4 @@ DEFINE_REFCOUNTED_TYPE(TMulticellManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

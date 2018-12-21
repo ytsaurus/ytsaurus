@@ -17,8 +17,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +101,7 @@ public:
 
     virtual void Register(const IPollablePtr& pollable) override
     {
-        LOG_DEBUG("Pollable registered (%v)", pollable->GetLoggingId());
+        YT_LOG_DEBUG("Pollable registered (%v)", pollable->GetLoggingId());
         {
             auto guard = Guard(SpinLock_);
             YCHECK(Pollables_.insert(pollable).second);
@@ -111,7 +110,7 @@ public:
 
     virtual TFuture<void> Unregister(const IPollablePtr& pollable) override
     {
-        LOG_DEBUG("Requesting pollable unregistration (%v)", pollable->GetLoggingId());
+        YT_LOG_DEBUG("Requesting pollable unregistration (%v)", pollable->GetLoggingId());
         auto entry = New<TUnregisterEntry>();
         entry->Pollable = pollable;
         if (!ShutdownRequested_.load()) {
@@ -258,7 +257,7 @@ private:
 
             for (const auto& entry : deadEntries) {
                 entry->Pollable->OnShutdown();
-                LOG_DEBUG("Pollable unregistered (%v)", entry->Pollable->GetLoggingId());
+                YT_LOG_DEBUG("Pollable unregistered (%v)", entry->Pollable->GetLoggingId());
                 entry->Promise.Set();
             }
 
@@ -389,7 +388,7 @@ private:
             TUnregisterEntryPtr entry;
             YCHECK(ShutdownUnregisterEntries_.Dequeue(&entry));
             entry->Pollable->OnShutdown();
-            LOG_DEBUG("Pollable unregistered (%v)", entry->Pollable->GetLoggingId());
+            YT_LOG_DEBUG("Pollable unregistered (%v)", entry->Pollable->GetLoggingId());
             entry->Promise.Set();
 
             auto guard = Guard(SpinLock_);
@@ -411,5 +410,4 @@ IPollerPtr CreateThreadPoolPoller(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

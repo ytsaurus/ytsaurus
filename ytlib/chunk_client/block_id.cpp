@@ -2,13 +2,12 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockId::TBlockId(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     int blockIndex)
     : ChunkId(chunkId)
     , BlockIndex(blockIndex)
@@ -53,6 +52,5 @@ void FromProto(TBlockId* blockId, const NProto::TBlockId& protoBlockId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

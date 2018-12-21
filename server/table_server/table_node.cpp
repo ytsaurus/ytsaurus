@@ -7,8 +7,7 @@
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell_bundle.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
@@ -153,8 +152,8 @@ void TTableNode::EndUpload(
     const TDataStatistics* statistics,
     const TSharedTableSchemaPtr& sharedSchema,
     ETableSchemaMode schemaMode,
-    TNullable<NTableClient::EOptimizeFor> optimizeFor,
-    const TNullable<TMD5Hasher>& md5Hasher)
+    std::optional<NTableClient::EOptimizeFor> optimizeFor,
+    const std::optional<TMD5Hasher>& md5Hasher)
 {
     SchemaMode_ = schemaMode;
     SharedTableSchema() = sharedSchema;
@@ -424,7 +423,7 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
             {
                 auto it = attributes.find(attributeName);
                 if (it != attributes.end()) {
-                    LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
+                    YT_LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
                         attributeName,
                         ConvertToYsonString(it->second, EYsonFormat::Text),
                         Id_);
@@ -611,7 +610,7 @@ void TTableNode::ValidateAllTabletsUnmounted(TStringBuf message) const
     ValidateExpectedTabletState(message, false);
 }
 
-std::vector<TError> TTableNode::GetTabletErrors(TNullable<int> limit) const
+std::vector<TError> TTableNode::GetTabletErrors(std::optional<int> limit) const
 {
     auto* trunkNode = GetTrunkNode();
     std::vector<TError> errors;
@@ -629,6 +628,5 @@ DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, Dy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

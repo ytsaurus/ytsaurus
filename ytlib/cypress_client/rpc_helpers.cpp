@@ -5,8 +5,7 @@
 #include <yt/core/rpc/client.h>
 #include <yt/core/rpc/service.h>
 
-namespace NYT {
-namespace NCypressClient {
+namespace NYT::NCypressClient {
 
 using namespace NRpc;
 using namespace NRpc::NProto;
@@ -24,12 +23,12 @@ TTransactionId GetTransactionId(const TRequestHeader& header)
     return FromProto<TTransactionId>(header.GetExtension(TTransactionalExt::transaction_id));
 }
 
-void SetTransactionId(const IClientRequestPtr& request, const TTransactionId& transactionId)
+void SetTransactionId(const IClientRequestPtr& request, TTransactionId transactionId)
 {
     SetTransactionId(&request->Header(), transactionId);
 }
 
-void SetTransactionId(TRequestHeader* header, const TTransactionId& transactionId)
+void SetTransactionId(TRequestHeader* header, TTransactionId transactionId)
 {
     ToProto(header->MutableExtension(TTransactionalExt::transaction_id), transactionId);
 }
@@ -70,6 +69,5 @@ bool GetSuppressModificationTracking(const TRequestHeader& header)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressClient
-} // namespace NYT
+} // namespace NYT::NCypressClient
 

@@ -5,8 +5,7 @@
 #include "cg_types.h"
 #include "query_common.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +124,7 @@ TCodegenExpression MakeCodegenBetweenExpr(
 
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
-    TNullable<size_t> defaultExprId,
+    std::optional<size_t> defaultExprId,
     int arrayIndex,
     int hashtableIndex,
     EValueType resultType,
@@ -271,5 +270,4 @@ TCGAggregateCallbacks CodegenAggregate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

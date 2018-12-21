@@ -7,8 +7,7 @@
 #include <yt/core/concurrency/action_queue.h>
 
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,5 +90,4 @@ private:
     TControlThreadEvent PopControlThreadEvent();
 };
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

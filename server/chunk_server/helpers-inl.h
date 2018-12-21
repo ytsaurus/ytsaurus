@@ -8,8 +8,7 @@
 #include "chunk.h"
 #include "chunk_list.h"
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,5 +59,4 @@ void VisitAncestors(TChunkList* chunkList, F functor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

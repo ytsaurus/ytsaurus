@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/common.h>
 
-namespace NYT {
-namespace NCodegen {
+namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,7 +10,6 @@ const NLogging::TLogger CompressionLogger("Compression");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodegen
-} // namespace NYT
+} // namespace NYT::NCodegen
 
 

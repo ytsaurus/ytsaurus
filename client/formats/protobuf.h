@@ -5,8 +5,7 @@
 #include <contrib/libs/protobuf/descriptor.h>
 #include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,5 +70,4 @@ DEFINE_REFCOUNTED_TYPE(TProtobufFormatDescription)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

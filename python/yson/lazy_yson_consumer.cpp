@@ -1,7 +1,6 @@
 #include "lazy_yson_consumer.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYTree;
 
@@ -12,7 +11,7 @@ using NYson::NDetail::KeyValueSeparatorSymbol;
 TLazyYsonConsumer::TLazyYsonConsumer(
     TCallback<TSharedRef()> extractPrefixCallback_,
     TPythonStringCache* keyCacher,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     bool alwaysCreateAttributes)
     : ExtractPrefixCallback_(extractPrefixCallback_)
     , KeyCacher_(keyCacher)
@@ -219,5 +218,4 @@ void TLazyYsonConsumer::OnItem()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

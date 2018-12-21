@@ -15,8 +15,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +71,7 @@ public:
 
     TLogger& AddRawTag(const TString& tag);
     template <class... TArgs>
-    TLogger& AddTag(const char* format, const TArgs&... args);
+    TLogger& AddTag(const char* format, TArgs&&... args);
     const TString& GetContext() const;
 
     void Save(TStreamSaveContext& context) const;
@@ -83,8 +82,6 @@ private:
     const TLoggingCategory* Category_;
 
     TString Context_;
-
-    static TString GetMessageWithContext(const TString& originalMessage, const TString& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,41 +103,41 @@ void LogStructuredEvent(const TLogger& logger,
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef YT_ENABLE_TRACE_LOGGING
-#define LOG_TRACE(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Trace, __VA_ARGS__)
-#define LOG_TRACE_IF(condition, ...)        if (condition)    LOG_TRACE(__VA_ARGS__)
-#define LOG_TRACE_UNLESS(condition, ...)    if (!(condition)) LOG_TRACE(__VA_ARGS__)
+#define YT_LOG_TRACE(...)                      YT_LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Trace, __VA_ARGS__)
+#define YT_LOG_TRACE_IF(condition, ...)        if (condition)    YT_LOG_TRACE(__VA_ARGS__)
+#define YT_LOG_TRACE_UNLESS(condition, ...)    if (!(condition)) YT_LOG_TRACE(__VA_ARGS__)
 #else
-#define LOG_UNUSED(...)                     if (true) { } else { LOG_DEBUG(__VA_ARGS__); }
-#define LOG_TRACE(...)                      LOG_UNUSED(__VA_ARGS__)
-#define LOG_TRACE_IF(condition, ...)        LOG_UNUSED(__VA_ARGS__)
-#define LOG_TRACE_UNLESS(condition, ...)    LOG_UNUSED(__VA_ARGS__)
+#define YT_LOG_UNUSED(...)                     if (true) { } else { YT_LOG_DEBUG(__VA_ARGS__); }
+#define YT_LOG_TRACE(...)                      YT_LOG_UNUSED(__VA_ARGS__)
+#define YT_LOG_TRACE_IF(condition, ...)        YT_LOG_UNUSED(__VA_ARGS__)
+#define YT_LOG_TRACE_UNLESS(condition, ...)    YT_LOG_UNUSED(__VA_ARGS__)
 #endif
 
-#define LOG_DEBUG(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Debug, __VA_ARGS__)
-#define LOG_DEBUG_IF(condition, ...)        if (condition)    LOG_DEBUG(__VA_ARGS__)
-#define LOG_DEBUG_UNLESS(condition, ...)    if (!(condition)) LOG_DEBUG(__VA_ARGS__)
+#define YT_LOG_DEBUG(...)                      YT_LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Debug, __VA_ARGS__)
+#define YT_LOG_DEBUG_IF(condition, ...)        if (condition)    YT_LOG_DEBUG(__VA_ARGS__)
+#define YT_LOG_DEBUG_UNLESS(condition, ...)    if (!(condition)) YT_LOG_DEBUG(__VA_ARGS__)
 
-#define LOG_INFO(...)                       LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Info, __VA_ARGS__)
-#define LOG_INFO_IF(condition, ...)         if (condition)    LOG_INFO(__VA_ARGS__)
-#define LOG_INFO_UNLESS(condition, ...)     if (!(condition)) LOG_INFO(__VA_ARGS__)
+#define YT_LOG_INFO(...)                       YT_LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Info, __VA_ARGS__)
+#define YT_LOG_INFO_IF(condition, ...)         if (condition)    YT_LOG_INFO(__VA_ARGS__)
+#define YT_LOG_INFO_UNLESS(condition, ...)     if (!(condition)) YT_LOG_INFO(__VA_ARGS__)
 
-#define LOG_WARNING(...)                    LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Warning, __VA_ARGS__)
-#define LOG_WARNING_IF(condition, ...)      if (condition)    LOG_WARNING(__VA_ARGS__)
-#define LOG_WARNING_UNLESS(condition, ...)  if (!(condition)) LOG_WARNING(__VA_ARGS__)
+#define YT_LOG_WARNING(...)                    YT_LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Warning, __VA_ARGS__)
+#define YT_LOG_WARNING_IF(condition, ...)      if (condition)    YT_LOG_WARNING(__VA_ARGS__)
+#define YT_LOG_WARNING_UNLESS(condition, ...)  if (!(condition)) YT_LOG_WARNING(__VA_ARGS__)
 
-#define LOG_ERROR(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Error, __VA_ARGS__)
-#define LOG_ERROR_IF(condition, ...)        if (condition)    LOG_ERROR(__VA_ARGS__)
-#define LOG_ERROR_UNLESS(condition, ...)    if (!(condition)) LOG_ERROR(__VA_ARGS__)
+#define YT_LOG_ERROR(...)                      YT_LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Error, __VA_ARGS__)
+#define YT_LOG_ERROR_IF(condition, ...)        if (condition)    YT_LOG_ERROR(__VA_ARGS__)
+#define YT_LOG_ERROR_UNLESS(condition, ...)    if (!(condition)) YT_LOG_ERROR(__VA_ARGS__)
 
-#define LOG_FATAL(...) \
+#define YT_LOG_FATAL(...) \
     do { \
-        LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Fatal, __VA_ARGS__); \
+        YT_LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Fatal, __VA_ARGS__); \
         BUILTIN_UNREACHABLE(); \
     } while(false)
-#define LOG_FATAL_IF(condition, ...)        if (Y_UNLIKELY(condition)) LOG_FATAL(__VA_ARGS__)
-#define LOG_FATAL_UNLESS(condition, ...)    if (!Y_LIKELY(condition)) LOG_FATAL(__VA_ARGS__)
+#define YT_LOG_FATAL_IF(condition, ...)        if (Y_UNLIKELY(condition)) YT_LOG_FATAL(__VA_ARGS__)
+#define YT_LOG_FATAL_UNLESS(condition, ...)    if (!Y_LIKELY(condition)) YT_LOG_FATAL(__VA_ARGS__)
 
-#define LOG_EVENT(logger, level, ...) \
+#define YT_LOG_EVENT(logger, level, ...) \
     do { \
         if (!logger.IsLevelEnabled(level)) { \
             break; \
@@ -152,7 +149,7 @@ void LogStructuredEvent(const TLogger& logger,
             break; \
         } \
         \
-        auto message__##__LINE__ = ::NYT::NLogging::NDetail::FormatLogMessage(__VA_ARGS__); \
+        auto message__##__LINE__ = ::NYT::NLogging::NDetail::BuildLogMessage(logger.GetContext(), __VA_ARGS__); \
         if (!positionUpToDate__##__LINE__) { \
             logger.UpdatePosition(&position__##__LINE__, message__##__LINE__); \
         } \
@@ -167,8 +164,7 @@ void LogStructuredEvent(const TLogger& logger,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging
 
 #define LOG_INL_H_
 #include "log-inl.h"

@@ -1,7 +1,6 @@
 #include "phoenix.h"
 
-namespace NYT {
-namespace NPhoenix {
+namespace NYT::NPhoenix {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,5 +85,4 @@ void* TLoadContext::GetObject(ui32 id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPhoenix
-} // namespace NYT
+} // namespace NYT::NPhoenix

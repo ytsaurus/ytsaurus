@@ -17,8 +17,7 @@
 
 #include <yt/core/tracing/trace_context.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -113,9 +112,9 @@ private:
 
     void MainLoop()
     {
-        LOG_INFO("Server started");
+        YT_LOG_INFO("Server started");
         auto logStop = Finally([] {
-            LOG_INFO("Server stopped");
+            YT_LOG_INFO("Server stopped");
         });
 
         while (true) {
@@ -126,13 +125,13 @@ private:
             if (++ActiveClients_ >= Config_->MaxSimultaneousConnections) {
                 HttpProfiler.Increment(ConnectionsDropped_);
                 --ActiveClients_;
-                LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
+                YT_LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
                     client->RemoteAddress());
                 continue;
             }
 
             auto connectionId = TGuid::Create();
-            LOG_DEBUG("Client accepted (ConnectionId: %v, RemoteAddress: %v, LocalAddress: %v)",
+            YT_LOG_DEBUG("Client accepted (ConnectionId: %v, RemoteAddress: %v, LocalAddress: %v)",
                 connectionId,
                 client->RemoteAddress(),
                 client->LocalAddress());
@@ -153,7 +152,7 @@ private:
 
             const auto& path = request->GetUrl().Path;
 
-            LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7RequestId: %v, L7RealIP: %v, UserAgent: %v)",
+            YT_LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7RequestId: %v, L7RealIP: %v, UserAgent: %v)",
                 request->GetConnectionId(),
                 request->GetRequestId(),
                 request->GetMethod(),
@@ -186,10 +185,10 @@ private:
 
                 handler->HandleRequest(request, response);
 
-                LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
+                YT_LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
                     request->GetRequestId());
             } else {
-                LOG_DEBUG("Missing HTTP handler for given URL (RequestId: %v, Path: %v)",
+                YT_LOG_DEBUG("Missing HTTP handler for given URL (RequestId: %v, Path: %v)",
                     request->GetRequestId(),
                     path);
 
@@ -197,7 +196,7 @@ private:
             }
         } catch (const std::exception& ex) {
             closeResponse = true;
-            LOG_DEBUG(ex, "Error handling HTTP request (RequestId: %v)",
+            YT_LOG_DEBUG(ex, "Error handling HTTP request (RequestId: %v)",
                 request->GetRequestId());
 
             if (!response->IsHeadersFlushed()) {
@@ -208,7 +207,7 @@ private:
         if (closeResponse) {
             auto responseResult = WaitFor(response->Close());
             if (!responseResult.IsOK()) {
-                LOG_DEBUG(responseResult, "Error flushing HTTP response stream (RequestId: %v)",
+                YT_LOG_DEBUG(responseResult, "Error flushing HTTP response stream (RequestId: %v)",
                     request->GetRequestId());
             }
         }
@@ -248,7 +247,7 @@ private:
             }
 
             auto logDrop = [&] (auto reason) {
-                LOG_DEBUG("Dropping HTTP connection (ConnectionId: %v, Reason: %Qv)",
+                YT_LOG_DEBUG("Dropping HTTP connection (ConnectionId: %v, Reason: %Qv)",
                     connectionId,
                     reason);
             };
@@ -297,10 +296,10 @@ private:
 
         auto connectionResult = WaitFor(connection->Close());
         if (connectionResult.IsOK()) {
-            LOG_DEBUG("HTTP connection closed (ConnectionId: %v)",
+            YT_LOG_DEBUG("HTTP connection closed (ConnectionId: %v)",
                 connectionId);
         } else {
-            LOG_DEBUG(connectionResult, "Error closing HTTP connection (ConnectionId: %v)",
+            YT_LOG_DEBUG(connectionResult, "Error closing HTTP connection (ConnectionId: %v)",
                 connectionId);
         }
     }
@@ -325,7 +324,7 @@ IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller
             if (i + 1 == config->BindRetryCount) {
                 throw;
             } else {
-                LOG_ERROR(ex, "HTTP server bind failed");
+                YT_LOG_ERROR(ex, "HTTP server bind failed");
                 Sleep(config->BindRetryBackoff);
             }
         }
@@ -393,5 +392,4 @@ IHttpHandlerPtr TRequestPathMatcher::Match(TStringBuf path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

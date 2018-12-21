@@ -11,8 +11,7 @@
 
 #include <yt/core/profiling/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,5 +61,4 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

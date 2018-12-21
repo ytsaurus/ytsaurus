@@ -23,8 +23,7 @@
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +52,20 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const 
     };
 
     return supportedInheritableAttributes.contains(key);
+}
+
+template <class TChunkOwner>
+bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* originatingNode, TChunkOwner* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return branchedNode->GetUpdateMode() != NChunkClient::EUpdateMode::None ||
+        branchedNode->GetPrimaryMediumIndex() != originatingNode->GetPrimaryMediumIndex() ||
+        branchedNode->Replication() != originatingNode->Replication() ||
+        branchedNode->GetCompressionCodec() != originatingNode->GetCompressionCodec() ||
+        branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec();
 }
 
 template <class TChunkOwner>
@@ -154,7 +167,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
 {
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
-    LOG_DEBUG_UNLESS(
+    YT_LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
         "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
         "PrimaryMedium: %v, Replication: %v, Mode: %v, LockTimestamp: %llx)",
@@ -312,7 +325,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto* originatingPrimaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     const auto* branchedPrimaryMedium = chunkManager->GetMediumByIndex(branchedNode->GetPrimaryMediumIndex());
-    LOG_DEBUG_UNLESS(
+    YT_LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
         "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, "
         "OriginatingReplication: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
@@ -363,5 +376,4 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

@@ -4,9 +4,7 @@
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,9 +34,7 @@ struct TClusterNodeName
     }
 };
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine
 
 namespace std {
 
@@ -53,9 +49,7 @@ struct hash<NYT::NClickHouseServer::NEngine::TClusterNodeName>
 
 }   // namespace std
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 using TClusterNodeNames = std::unordered_set<TClusterNodeName>;
 
@@ -84,6 +78,4 @@ IClusterNodePtr CreateClusterNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

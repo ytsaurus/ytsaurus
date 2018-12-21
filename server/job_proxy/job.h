@@ -4,6 +4,8 @@
 
 #include <yt/server/exec_agent/public.h>
 
+#include <yt/server/job_agent/job_statistics.h>
+
 #include <yt/server/job_proxy/environment.h>
 
 #include <yt/ytlib/api/native/public.h>
@@ -26,8 +28,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,8 +38,8 @@ struct IJobHost
 {
     virtual TJobProxyConfigPtr GetConfig() const = 0;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment() const = 0;
-    virtual const NJobTrackerClient::TOperationId& GetOperationId() const = 0;
-    virtual const NJobTrackerClient::TJobId& GetJobId() const = 0;
+    virtual NJobTrackerClient::TOperationId GetOperationId() const = 0;
+    virtual NJobTrackerClient::TJobId GetJobId() const = 0;
 
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const = 0;
 
@@ -93,7 +94,9 @@ struct IJob
 
     virtual ui64 GetStderrSize() const = 0;
 
-    virtual TNullable<TString> GetFailContext() = 0;
+    virtual std::optional<TString> GetFailContext() = 0;
+
+    virtual std::optional<NJobAgent::TJobProfile> GetProfile() = 0;
 
     virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
 
@@ -104,5 +107,4 @@ DEFINE_REFCOUNTED_TYPE(IJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

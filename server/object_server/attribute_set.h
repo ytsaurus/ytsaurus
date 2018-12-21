@@ -4,13 +4,11 @@
 
 #include <yt/server/cell_master/public.h>
 
-#include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,5 +26,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

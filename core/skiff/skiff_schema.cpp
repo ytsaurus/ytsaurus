@@ -1,7 +1,6 @@
 #include "skiff_schema.h"
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,5 +101,4 @@ TSimpleTypeSchema::TSimpleTypeSchema(EWireType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff

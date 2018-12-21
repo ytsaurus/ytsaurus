@@ -11,9 +11,7 @@
 #include <memory>
 #include <vector>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,8 +38,6 @@ public:
     virtual std::vector<std::string> List() const = 0;
     virtual NNative::TObjectAttributes GetAttributes(const std::string& name) const = 0;
 
-    virtual IConfigPtr Load(const std::string& name) const = 0;
-
     virtual IConfigPollerPtr CreatePoller(const std::string& name) const = 0;
 };
 
@@ -56,6 +52,4 @@ IConfigRepositoryPtr CreateConfigRepository(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

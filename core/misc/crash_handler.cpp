@@ -358,7 +358,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 }
 #endif
 
-void InstallCrashSignalHandler(TNullable<std::set<int>> signalNumbers)
+void InstallCrashSignalHandler(std::optional<std::set<int>> signalNumbers)
 {
 #ifdef _unix_
     struct sigaction sa;

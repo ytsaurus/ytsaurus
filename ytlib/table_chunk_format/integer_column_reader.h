@@ -8,8 +8,7 @@
 
 #include <yt/client/table_client/versioned_row.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +36,4 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedUint64ColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

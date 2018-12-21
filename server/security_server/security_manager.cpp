@@ -45,7 +45,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/logging/fluent_log.h>
 
@@ -53,8 +53,7 @@
 
 #include <yt/core/ypath/token.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
@@ -123,10 +122,10 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual std::unique_ptr<TObjectBase> InstantiateObject(const TObjectId& id) override;
+    virtual std::unique_ptr<TObjectBase> InstantiateObject(TObjectId id) override;
 
 private:
     TImpl* const Owner_;
@@ -179,7 +178,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -222,7 +221,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -323,7 +322,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
 
 
-    TAccount* CreateAccount(const TString& name, const TObjectId& hintId)
+    TAccount* CreateAccount(const TString& name, TObjectId hintId)
     {
         ValidateAccountName(name);
 
@@ -387,7 +386,7 @@ public:
     {
         YCHECK(!chunk->IsForeign());
 
-        auto doCharge = [] (TClusterResources* usage, int mediumIndex, int chunkCount, i64 diskSpace) {
+        auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
             usage->DiskSpace[mediumIndex] += diskSpace;
             usage->ChunkCount += chunkCount;
         };
@@ -396,7 +395,7 @@ public:
             chunk,
             requisition,
             delta,
-            [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool committed) {
+            [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool committed) {
                 doCharge(&account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 doCharge(&account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 if (committed) {
@@ -417,7 +416,7 @@ public:
         auto* stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->GetStagingAccount();
 
-        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool /*committed*/) {
+        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool /*committed*/) {
             // If a chunk has been created before the migration but is being confirmed after it,
             // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
             // isn't really delta-based, and it's nicer from the user's point of view.
@@ -570,7 +569,7 @@ public:
         subject->LinkedObjects().clear();
     }
 
-    TUser* CreateUser(const TString& name, const TObjectId& hintId)
+    TUser* CreateUser(const TString& name, TObjectId hintId)
     {
         ValidateSubjectName(name);
 
@@ -592,7 +591,7 @@ public:
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
         auto* user = DoCreateUser(id, name);
         if (user) {
-            LOG_DEBUG("User created (User: %v)", name);
+            YT_LOG_DEBUG("User created (User: %v)", name);
             LogStructuredEventFluently(Logger, ELogLevel::Info)
                 .Item("event").Value(EAccessControlEvent::UserCreated)
                 .Item("name").Value(user->GetName());
@@ -628,7 +627,7 @@ public:
         return user;
     }
 
-    TUser* GetUserOrThrow(const TUserId& id)
+    TUser* GetUserOrThrow(TUserId id)
     {
         auto* user = FindUser(id);
         if (!IsObjectAlive(user)) {
@@ -657,7 +656,7 @@ public:
     }
 
 
-    TGroup* CreateGroup(const TString& name, const TObjectId& hintId)
+    TGroup* CreateGroup(const TString& name, TObjectId hintId)
     {
         ValidateSubjectName(name);
 
@@ -679,7 +678,7 @@ public:
         auto id = objectManager->GenerateId(EObjectType::Group, hintId);
         auto* group = DoCreateGroup(id, name);
         if (group) {
-            LOG_DEBUG("Group created (Group: %v)", name);
+            YT_LOG_DEBUG("Group created (Group: %v)", name);
             LogStructuredEventFluently(Logger, ELogLevel::Info)
                 .Item("event").Value(EAccessControlEvent::GroupCreated)
                 .Item("name").Value(name);
@@ -777,7 +776,7 @@ public:
 
         DoAddMember(group, member);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Group member added (Group: %v, Member: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member added (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
 
@@ -803,7 +802,7 @@ public:
 
         DoRemoveMember(group, member);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Group member removed (Group: %v, Member: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member removed (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
 
@@ -919,17 +918,17 @@ public:
         return result ? result : RootUser_;
     }
 
-    TNullable<TString> GetAuthenticatedUserName()
+    std::optional<TString> GetAuthenticatedUserName()
     {
         if (auto* user = GetAuthenticatedUser()) {
             return user->GetName();
         }
-        return Null;
+        return std::nullopt;
     }
 
-    static TNullable<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
+    static std::optional<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
     {
-        auto nothing = TNullable<EAceInheritanceMode>();
+        auto nothing = std::optional<EAceInheritanceMode>();
         switch (mode) {
             case EAceInheritanceMode::ObjectAndDescendants:
                 return EAceInheritanceMode::ObjectAndDescendants;
@@ -945,7 +944,7 @@ public:
 
     static bool CheckInheritanceMode(EAceInheritanceMode mode, int depth)
     {
-        return GetInheritedInheritanceMode(mode, depth).HasValue();
+        return GetInheritedInheritanceMode(mode, depth).operator bool();
     }
 
     bool IsUserRootOrSuperuser(const TUser* user)
@@ -1040,7 +1039,7 @@ public:
                                 result.Subject = subject;
                                 // At least one denying ACE is found, deny the request.
                                 if (result.Action == ESecurityAction::Deny) {
-                                    LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
+                                    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
                                         "(CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                                         object->GetId(),
                                         permission,
@@ -1066,7 +1065,7 @@ public:
 
         // No allowing ACE, deny the request.
         if (result.Action == ESecurityAction::Undefined) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
                 "(CheckObjectId: %v, Permission: %v, User: %v)",
                 object->GetId(),
                 permission,
@@ -1075,7 +1074,7 @@ public:
             return result;
         } else {
             Y_ASSERT(result.Action == ESecurityAction::Allow);
-            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
+            YT_LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
                 "(CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                 object->GetId(),
                 permission,
@@ -1108,7 +1107,7 @@ public:
                         result.Subject = subject;
                         // At least one denying ACE is found, deny the request.
                         if (result.Action == ESecurityAction::Deny) {
-                            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
+                            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
                                 "(Permission: %v, User: %v, AclSubject: %v)",
                                 permission,
                                 user->GetName(),
@@ -1122,7 +1121,7 @@ public:
 
         // No allowing ACE, deny the request.
         if (result.Action == ESecurityAction::Undefined) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
                 "(Permission: %v, User: %v)",
                 permission,
                 user->GetName());
@@ -1131,7 +1130,7 @@ public:
             return result;
         } else {
             Y_ASSERT(result.Action == ESecurityAction::Allow);
-            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
+            YT_LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
                 "(Permission: %v, User: %v, AclSubject: %v)",
                 permission,
                 user->GetName(),
@@ -1299,9 +1298,9 @@ public:
         if (user->GetBanned() != banned) {
             user->SetBanned(banned);
             if (banned) {
-                LOG_INFO_UNLESS(IsRecovery(), "User is banned (User: %v)", user->GetName());
+                YT_LOG_INFO_UNLESS(IsRecovery(), "User is banned (User: %v)", user->GetName());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "User is no longer banned (User: %v)", user->GetName());
+                YT_LOG_INFO_UNLESS(IsRecovery(), "User is no longer banned (User: %v)", user->GetName());
             }
         }
     }
@@ -1331,14 +1330,7 @@ public:
 
     TFuture<void> ThrottleUser(TUser* user, int requestCount, EUserWorkloadType workloadType)
     {
-        switch (workloadType) {
-            case EUserWorkloadType::Read:
-                return RequestTracker_->ThrottleUserReadRequest(user, requestCount);
-            case EUserWorkloadType::Write:
-                return RequestTracker_->ThrottleUserWriteRequest(user, requestCount);
-            default:
-                Y_UNREACHABLE();
-        }
+        return RequestTracker_->ThrottleUserRequest(user, requestCount, workloadType);
     }
 
     void SetUserReadRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
@@ -1515,7 +1507,7 @@ private:
     }
 
 
-    TAccount* DoCreateAccount(const TAccountId& id, const TString& name)
+    TAccount* DoCreateAccount(TAccountId id, const TString& name)
     {
         auto accountHolder = std::make_unique<TAccount>(id);
         accountHolder->SetName(name);
@@ -1558,7 +1550,7 @@ private:
         }
     }
 
-    TUser* DoCreateUser(const TUserId& id, const TString& name)
+    TUser* DoCreateUser(TUserId id, const TString& name)
     {
         auto userHolder = std::make_unique<TUser>(id);
         userHolder->SetName(name);
@@ -1590,7 +1582,7 @@ private:
         return tagId;
     }
 
-    TGroup* DoCreateGroup(const TGroupId& id, const TString& name)
+    TGroup* DoCreateGroup(TGroupId id, const TString& name)
     {
         auto groupHolder = std::make_unique<TGroup>(id);
         groupHolder->SetName(name);
@@ -1766,63 +1758,6 @@ private:
         RecomputeAccountResourceUsage();
     }
 
-    // COMPAT(shakurov)
-    #ifdef DUMP_ACCOUNT_RESOURCE_USAGE
-    void DumpAccountResourceUsage(bool afterRecomputing)
-    {
-        auto localCellTag = Bootstrap_->GetCellTag();
-        auto dumpResourceUsageInCellImpl = [&] (const TCellTag& cellTag, bool committed) {
-            Cerr << "On " << (Bootstrap_->IsPrimaryMaster() ? "primary" : "secondary") << ", "
-                 << cellTag << (cellTag == localCellTag ? "(local)" : "") << ", "
-                 << (committed ? "committed" : "total") << "\n";
-
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
-
-                if (!IsObjectAlive(account)) {
-                    continue;
-                }
-
-                const auto* cellStatistics = account->GetCellStatistics(cellTag);
-                const auto& resourceUsage = committed ? cellStatistics->CommittedResourceUsage : cellStatistics->ResourceUsage;
-                Cerr << account->GetName() << ";"
-                     << resourceUsage.DiskSpace[DefaultStoreMediumIndex] << ";"
-                     << resourceUsage.NodeCount << ";"
-                     << resourceUsage.ChunkCount << ";"
-                     << resourceUsage.TabletCount << ";"
-                     << resourceUsage.TabletStaticMemory << "\n";
-            }
-        };
-
-        auto dumpResourceUsageInCell = [&] (const TCellTag& cellTag) {
-            dumpResourceUsageInCellImpl(cellTag, true);
-            dumpResourceUsageInCellImpl(cellTag, false);
-        };
-
-        if (!afterRecomputing) {
-            Cerr << "Account;DiskSpace_DefaultMedium;NodeCount;ChunkCount;TabletCount;TabletStaticMemory\n";
-        }
-        Cerr << "ACCOUNT RESOURCE USAGE " << (afterRecomputing ? "AFTER" : "BEFORE") << " RECOMPUTING\n";
-
-        dumpResourceUsageInCell(localCellTag);
-
-        // Also dump usage for secondary cells - but only before recomputing (we
-        // can't recompute usage for secondary cells, so there's no point in
-        // dumping same stats twice).
-        if (Bootstrap_->IsPrimaryMaster() && !afterRecomputing) {
-            const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
-            for (const auto& cellTag : secondaryCellTags) {
-                dumpResourceUsageInCell(cellTag);
-            }
-        }
-
-        Cerr << Endl;
-    }
-    #else
-    void DumpAccountResourceUsage(bool)
-    { }
-    #endif
-
     void RecomputeAccountResourceUsage()
     {
         if (!ValidateAccountResourceUsage_ && !RecomputeAccountResourceUsage_) {
@@ -1831,8 +1766,6 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->MaybeRecomputeChunkRequisitions();
-
-        DumpAccountResourceUsage(false);
 
         // NB: transaction resource usage isn't recomputed.
 
@@ -1891,7 +1824,7 @@ private:
             }
         }
 
-        auto chargeStatMap = [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool committed) {
+        auto chargeStatMap = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool committed) {
             auto& stat = statMap[account];
             stat.NodeUsage.DiskSpace[mediumIndex] += diskSpace;
             stat.NodeUsage.ChunkCount += chunkCount;
@@ -1935,26 +1868,26 @@ private:
             const auto& expectedCommittedUsage = stat.NodeCommittedUsage;
             if (ValidateAccountResourceUsage_) {
                 if (account->LocalStatistics().ResourceUsage != expectedUsage) {
-                    LOG_ERROR("XXX %v account usage mismatch",
+                    YT_LOG_ERROR("XXX %v account usage mismatch",
                               account->GetName());
                     log = true;
                 }
                 if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
-                    LOG_ERROR("XXX %v account committed usage mismatch",
+                    YT_LOG_ERROR("XXX %v account committed usage mismatch",
                               account->GetName());
                     log = true;
                 }
                 if (log) {
-                    LOG_ERROR("XXX %v account usage %v",
+                    YT_LOG_ERROR("XXX %v account usage %v",
                               account->GetName(),
                               account->LocalStatistics().ResourceUsage);
-                    LOG_ERROR("XXX %v account committed usage %v",
+                    YT_LOG_ERROR("XXX %v account committed usage %v",
                               account->GetName(),
                               account->LocalStatistics().CommittedResourceUsage);
-                    LOG_ERROR("XXX %v node usage %v",
+                    YT_LOG_ERROR("XXX %v node usage %v",
                               account->GetName(),
                               stat.NodeUsage);
-                    LOG_ERROR("XXX %v node committed usage %v",
+                    YT_LOG_ERROR("XXX %v node committed usage %v",
                               account->GetName(),
                               stat.NodeCommittedUsage);
                 }
@@ -1967,8 +1900,6 @@ private:
                 }
             }
         }
-
-        DumpAccountResourceUsage(true);
     }
 
     virtual void Clear() override
@@ -2181,7 +2112,7 @@ private:
             Bootstrap_->GetObjectManager());
     }
 
-    bool EnsureBuiltinGroupInitialized(TGroup*& group, const TGroupId& id, const TString& name)
+    bool EnsureBuiltinGroupInitialized(TGroup*& group, TGroupId id, const TString& name)
     {
         if (group) {
             return false;
@@ -2194,7 +2125,7 @@ private:
         return true;
     }
 
-    bool EnsureBuiltinUserInitialized(TUser*& user, const TUserId& id, const TString& name)
+    bool EnsureBuiltinUserInitialized(TUser*& user, TUserId id, const TString& name)
     {
         if (user) {
             return false;
@@ -2207,7 +2138,7 @@ private:
         return true;
     }
 
-    bool EnsureBuiltinAccountInitialized(TAccount*& account, const TAccountId& id, const TString& name)
+    bool EnsureBuiltinAccountInitialized(TAccount*& account, TAccountId id, const TString& name)
     {
         if (account) {
             return false;
@@ -2294,7 +2225,7 @@ private:
             return;
         }
 
-        LOG_INFO("Sending account statistics gossip message");
+        YT_LOG_INFO("Sending account statistics gossip message");
 
         NProto::TReqSetAccountStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -2326,12 +2257,12 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -2375,7 +2306,7 @@ private:
             return;
         }
 
-        LOG_INFO("Sending user statistics gossip message");
+        YT_LOG_INFO("Sending user statistics gossip message");
 
         NProto::TReqSetUserStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -2432,12 +2363,12 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -2543,7 +2474,7 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
@@ -2554,7 +2485,7 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     return account;
 }
 
-std::unique_ptr<TObjectBase> TSecurityManager::TAccountTypeHandler::InstantiateObject(const TObjectId& id)
+std::unique_ptr<TObjectBase> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)
 {
     return std::make_unique<TAccount>(id);
 }
@@ -2580,7 +2511,7 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
@@ -2609,7 +2540,7 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
@@ -2715,7 +2646,7 @@ TUser* TSecurityManager::GetUserByNameOrThrow(const TString& name)
     return Impl_->GetUserByNameOrThrow(name);
 }
 
-TUser* TSecurityManager::GetUserOrThrow(const TUserId& id)
+TUser* TSecurityManager::GetUserOrThrow(TUserId id)
 {
     return Impl_->GetUserOrThrow(id);
 }
@@ -2815,7 +2746,7 @@ TUser* TSecurityManager::GetAuthenticatedUser()
     return Impl_->GetAuthenticatedUser();
 }
 
-TNullable<TString> TSecurityManager::GetAuthenticatedUserName()
+std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
 {
     return Impl_->GetAuthenticatedUserName();
 }
@@ -2918,5 +2849,4 @@ DELEGATE_SIGNAL(TSecurityManager, void(TUser*, const TUserWorkload&), UserCharge
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

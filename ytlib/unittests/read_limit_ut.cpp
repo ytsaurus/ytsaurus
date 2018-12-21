@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 namespace {
 
 using namespace NYTree;
@@ -46,6 +45,5 @@ TEST(TReadRangeTest, Simple2)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

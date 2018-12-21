@@ -10,8 +10,7 @@
 
 #include <yt/server/object_server/public.h>
 
-namespace NYT {
-namespace NFileServer {
+namespace NYT::NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +22,5 @@ NCypressServer::ICypressNodeProxyPtr CreateFileNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
-} // namespace NYT
+} // namespace NYT::NFileServer
 

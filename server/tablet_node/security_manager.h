@@ -9,12 +9,11 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +26,7 @@ class TAuthenticatedUserGuard
     : public NSecurityServer::TAuthenticatedUserGuardBase
 {
 public:
-    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const TNullable<TString>& maybeUser);
+    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const std::optional<TString>& optionalUser);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,7 +42,7 @@ public:
 
     virtual void SetAuthenticatedUserByNameOrThrow(const TString& user) override;
     virtual void ResetAuthenticatedUser() override;
-    virtual TNullable<TString> GetAuthenticatedUserName() override;
+    virtual std::optional<TString> GetAuthenticatedUserName() override;
 
     TFuture<void> CheckPermission(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -73,5 +72,4 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -21,8 +21,7 @@
 
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -42,7 +41,7 @@ public:
     TMasterCacheService(
         TMasterCacheServiceConfigPtr config,
         IChannelPtr masterChannel,
-        const TRealmId& masterCellId)
+        TRealmId masterCellId)
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             TObjectServiceProxy::GetDescriptor(),
@@ -62,7 +61,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
-    using TSubrequestResponse = std::pair<TSharedRefArray, TNullable<i64>>;
+    using TSubrequestResponse = std::pair<TSharedRefArray, std::optional<i64>>;
 
     struct TKey
     {
@@ -126,7 +125,7 @@ private:
         TEntry(
             const TKey& key,
             bool success,
-            TNullable<i64> revision,
+            std::optional<i64> revision,
             TInstant timestamp,
             TSharedRefArray responseMessage)
             : TAsyncCacheValueBase(key)
@@ -141,7 +140,7 @@ private:
         DEFINE_BYVAL_RO_PROPERTY(TSharedRefArray, ResponseMessage);
         DEFINE_BYVAL_RO_PROPERTY(i64, TotalSpace);
         DEFINE_BYVAL_RO_PROPERTY(TInstant, Timestamp);
-        DEFINE_BYVAL_RO_PROPERTY(TNullable<i64>, Revision);
+        DEFINE_BYVAL_RO_PROPERTY(std::optional<i64>, Revision);
     };
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
@@ -164,7 +163,7 @@ private:
             TSharedRefArray requestMessage,
             TDuration successExpirationTime,
             TDuration failureExpirationTime,
-            TNullable<i64> refreshRevision)
+            std::optional<i64> refreshRevision)
         {
             return New<TLookupSession>(
                 this,
@@ -190,7 +189,7 @@ private:
                 const TKey& key,
                 TDuration successExpirationTime,
                 TDuration failureExpirationTime,
-                TNullable<i64> refreshRevision)
+                std::optional<i64> refreshRevision)
                 : Owner_(owner)
                 , SuccessExpirationTime_(successExpirationTime)
                 , FailureExpirationTime_(failureExpirationTime)
@@ -212,21 +211,21 @@ private:
                 auto entry = Owner_->Find(key);
                 if (entry) {
                     if (RefreshRevision_ && entry->GetRevision() && *entry->GetRevision() <= *RefreshRevision_) {
-                        LOG_DEBUG("Cache entry refresh requested (Revision: %v, Success: %v)",
+                        YT_LOG_DEBUG("Cache entry refresh requested (Revision: %v, Success: %v)",
                             entry->GetRevision(),
                             entry->GetSuccess());
 
                         Owner_->TryRemove(entry);
 
                     } else if (IsExpired(entry, SuccessExpirationTime_, FailureExpirationTime_)) {
-                        LOG_DEBUG("Cache entry expired (Revision: %v, Success: %v)",
+                        YT_LOG_DEBUG("Cache entry expired (Revision: %v, Success: %v)",
                             entry->GetRevision(),
                             entry->GetSuccess());
 
                         Owner_->TryRemove(entry);
 
                     } else {
-                        LOG_DEBUG("Cache hit (Revision: %v, Success: %v)",
+                        YT_LOG_DEBUG("Cache hit (Revision: %v, Success: %v)",
                             entry->GetRevision(),
                             entry->GetSuccess());
 
@@ -239,7 +238,7 @@ private:
                 auto cookie = Owner_->BeginInsert(key);
                 auto result = cookie.GetValue();
                 if (cookie.IsActive()) {
-                    LOG_DEBUG("Populating cache");
+                    YT_LOG_DEBUG("Populating cache");
 
                     TObjectServiceProxy proxy(Owner_->Owner_->MasterChannel_);
                     auto req = proxy.Execute();
@@ -265,7 +264,7 @@ private:
             TIntrusivePtr<TCache> Owner_;
             const TDuration SuccessExpirationTime_;
             const TDuration FailureExpirationTime_;
-            const TNullable<i64> RefreshRevision_;
+            const std::optional<i64> RefreshRevision_;
 
             NLogging::TLogger Logger;
 
@@ -274,7 +273,7 @@ private:
                 const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
             {
                 if (!rspOrError.IsOK()) {
-                    LOG_WARNING(rspOrError, "Cache population request failed");
+                    YT_LOG_WARNING(rspOrError, "Cache population request failed");
                     cookie.Cancel(rspOrError);
                     return;
                 }
@@ -288,9 +287,9 @@ private:
                 TResponseHeader responseHeader;
                 YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
                 auto responseError = FromProto<TError>(responseHeader.error());
-                auto revision = rsp->revisions_size() > 0 ? MakeNullable(rsp->revisions(0)) : Null;
+                auto revision = rsp->revisions_size() > 0 ? std::make_optional(rsp->revisions(0)) : std::nullopt;
 
-                LOG_DEBUG("Cache population request succeeded (Key: %v, Revision: %v, Error: %v)",
+                YT_LOG_DEBUG("Cache population request succeeded (Key: %v, Revision: %v, Error: %v)",
                     key,
                     revision,
                     responseError);
@@ -313,7 +312,7 @@ private:
             TAsyncSlruCacheBase::OnAdded(entry);
 
             const auto& key = entry->GetKey();
-            LOG_DEBUG("Cache entry added (Key: %v, Revision: %v, Success: %v, TotalSpace: %v)",
+            YT_LOG_DEBUG("Cache entry added (Key: %v, Revision: %v, Success: %v, TotalSpace: %v)",
                 key,
                 entry->GetRevision(),
                 entry->GetSuccess(),
@@ -327,7 +326,7 @@ private:
             TAsyncSlruCacheBase::OnRemoved(entry);
 
             const auto& key = entry->GetKey();
-            LOG_DEBUG("Cache entry removed (Key: %v, Revision: %v, Success: %v, TotalSpace: %v)",
+            YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %v, Success: %v, TotalSpace: %v)",
                 key,
                 entry->GetRevision(),
                 entry->GetSuccess(),
@@ -385,7 +384,7 @@ private:
 
         void Invoke()
         {
-            LOG_DEBUG("Running cache bypass request (RequestId: %v, SubrequestCount: %v)",
+            YT_LOG_DEBUG("Running cache bypass request (RequestId: %v, SubrequestCount: %v)",
                 Context_->GetRequestId(),
                 Promises_.size());
             Request_->Invoke().Subscribe(BIND(&TMasterRequest::OnResponse, MakeStrong(this)));
@@ -403,7 +402,7 @@ private:
         void OnResponse(const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
         {
             if (!rspOrError.IsOK()) {
-                LOG_DEBUG("Cache bypass request failed (RequestId: %v)",
+                YT_LOG_DEBUG("Cache bypass request failed (RequestId: %v)",
                     Context_->GetRequestId());
                 for (auto& promise : Promises_) {
                     promise.Set(rspOrError);
@@ -411,7 +410,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Cache bypass request succeeded (RequestId: %v)",
+            YT_LOG_DEBUG("Cache bypass request succeeded (RequestId: %v)",
                 Context_->GetRequestId());
 
             const auto& rsp = rspOrError.Value();
@@ -424,7 +423,7 @@ private:
                 auto parts = std::vector<TSharedRef>(
                     attachments.begin() + attachmentIndex,
                     attachments.begin() + attachmentIndex + partCount);
-                Promises_[subresponseIndex].Set(std::make_pair(TSharedRefArray(std::move(parts)), Null));
+                Promises_[subresponseIndex].Set(std::make_pair(TSharedRefArray(std::move(parts)), std::nullopt));
                 attachmentIndex += partCount;
             }
         }
@@ -480,8 +479,8 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         if (subrequestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
             const auto& cachingRequestHeaderExt = subrequestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
             auto refreshRevision = cachingRequestHeaderExt.has_refresh_revision()
-                ? MakeNullable(cachingRequestHeaderExt.refresh_revision())
-                : Null;
+                ? std::make_optional(cachingRequestHeaderExt.refresh_revision())
+                : std::nullopt;
 
             if (ypathExt.mutating()) {
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
@@ -491,7 +490,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 THROW_ERROR_EXCEPTION("Cannot cache responses for requests with attachments");
             }
 
-            LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex:  %v, Key: %v)",
+            YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex:  %v, Key: %v)",
                 requestId,
                 subrequestIndex,
                 key);
@@ -504,7 +503,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time()),
                 refreshRevision));
         } else {
-            LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
+            YT_LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
                 requestId,
                 subrequestIndex,
                 key);
@@ -553,7 +552,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 IServicePtr CreateMasterCacheService(
     TMasterCacheServiceConfigPtr config,
     IChannelPtr masterChannel,
-    const TRealmId& masterCellId)
+    TRealmId masterCellId)
 {
     return New<TMasterCacheService>(
         std::move(config),
@@ -563,5 +562,4 @@ IServicePtr CreateMasterCacheService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

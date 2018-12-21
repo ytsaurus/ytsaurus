@@ -4,8 +4,7 @@
 #include <yt/core/ytree/serialize.h>
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 using namespace NYTree;
 
@@ -252,7 +251,7 @@ class TSkiffSchemaRepresentation
 public:
     TString Name;
     NSkiff::EWireType WireType;
-    TNullable<std::vector<INodePtr>> Children;
+    std::optional<std::vector<INodePtr>> Children;
 
     TSkiffSchemaRepresentation()
     {
@@ -374,5 +373,4 @@ TSparseFieldDescription::TSparseFieldDescription(TString name, const NSkiff::TSk
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff

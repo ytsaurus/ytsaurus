@@ -9,8 +9,7 @@
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYTree;
 using namespace NObjectClient;
@@ -240,6 +239,24 @@ void TLockCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUnlockCommand::TUnlockCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TUnlockCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncUnlockResult = context->GetClient()->UnlockNode(
+        RewritePath(Path.GetPath(), RewriteOperationPath),
+        Options);
+    WaitFor(asyncUnlockResult)
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCopyCommand::TCopyCommand()
 {
     RegisterParameter("source_path", SourcePath);
@@ -384,5 +401,4 @@ void TConcatenateCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

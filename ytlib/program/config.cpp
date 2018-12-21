@@ -11,7 +11,7 @@ void WarnForUnrecognizedOptions(
     const auto& Logger = logger;
     auto unrecognized = config->GetUnrecognizedRecursively();
     if (unrecognized && unrecognized->GetChildCount() > 0) {
-        LOG_WARNING("Bootstrap config contains unrecognized options (Unrecognized: %v)",
+        YT_LOG_WARNING("Bootstrap config contains unrecognized options (Unrecognized: %v)",
             ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
     }
 }

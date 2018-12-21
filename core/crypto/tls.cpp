@@ -19,8 +19,9 @@
 #include <contrib/libs/openssl/include/openssl/evp.h>
 #include <contrib/libs/openssl/include/openssl/pem.h>
 
-namespace NYT {
-namespace NCrypto {
+#include <library/openssl/io/stream.h>
+
+namespace NYT::NCrypto {
 
 using namespace NNet;
 using namespace NConcurrency;
@@ -385,7 +386,7 @@ private:
                 } else {
                     Error_ = TError("SSL_do_handshake failed")
                         << GetLastSslError();
-                    LOG_DEBUG(Error_, "TLS handshake failed");
+                    YT_LOG_DEBUG(Error_, "TLS handshake failed");
                     CheckError();
                     return;
                 }
@@ -404,7 +405,7 @@ private:
                 if (count < 0) {
                     Error_ = TError("SSL_write failed")
                         << GetLastSslError();
-                    LOG_DEBUG(Error_, "TLS write failed");
+                    YT_LOG_DEBUG(Error_, "TLS write failed");
                     CheckError();
                     return;
                 }
@@ -436,7 +437,7 @@ private:
                 } else {
                     Error_ = TError("SSL_read failed")
                         << GetLastSslError();
-                    LOG_DEBUG(Error_, "TLS read failed");
+                    YT_LOG_DEBUG(Error_, "TLS read failed");
                     CheckError();
                     return;
                 }
@@ -518,6 +519,11 @@ private:
 TSslContext::TSslContext()
     : Impl_(New<TSslContextImpl>())
 { }
+
+void TSslContext::UseBuiltinOpenSslX509Store()
+{
+    SSL_CTX_set_cert_store(Impl_->Ctx, GetBuiltinOpenSslX509Store().Release());
+}
 
 void TSslContext::SetCipherList(const TString& list)
 {
@@ -672,5 +678,4 @@ IListenerPtr TSslContext::CreateListener(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCrypto
-} // namespace NYT
+} // namespace NYT::NCrypto

@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +16,4 @@ struct TFileYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient

@@ -2,14 +2,13 @@
 #include "chunk.h"
 #include "chunk_list.h"
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkTree::TChunkTree(const TChunkTreeId& id)
+TChunkTree::TChunkTree(TChunkTreeId id)
     : TStagedObject(id)
 { }
 
@@ -55,5 +54,4 @@ void TChunkTree::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

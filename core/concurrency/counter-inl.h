@@ -8,8 +8,7 @@
 #endif
 #undef COUNTER_INL_H_
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,5 +47,4 @@ Y_FORCE_INLINE void TCounter::Decrement(i64 delta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

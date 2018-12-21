@@ -13,8 +13,9 @@
 
 #include <yt/core/concurrency/poller.h>
 
-namespace NYT {
-namespace NHttps {
+#include <library/openssl/io/stream.h>
+
+namespace NYT::NHttps {
 
 using namespace NNet;
 using namespace NHttp;
@@ -62,19 +63,27 @@ IClientPtr CreateClient(
     auto libraryLock = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
 
     auto sslContext =  New<TSslContext>();
-    if (config->Credentials->CertChain->FileName) {
-        sslContext->AddCertificateChainFromFile(*config->Credentials->CertChain->FileName);
-    } else if (config->Credentials->CertChain->Value) {
-        sslContext->AddCertificateChain(*config->Credentials->CertChain->Value);
+    if (config->Credentials) {
+        if (config->Credentials->CertChain) {
+            if (config->Credentials->CertChain->FileName) {
+                sslContext->AddCertificateChainFromFile(*config->Credentials->CertChain->FileName);
+            } else if (config->Credentials->CertChain->Value) {
+                sslContext->AddCertificateChain(*config->Credentials->CertChain->Value);
+            } else {
+                THROW_ERROR_EXCEPTION("Neither \"file_name\" nor \"value\" is given for client certificate chain");
+            }
+        }
+        if (config->Credentials->PrivateKey) {
+            if (config->Credentials->PrivateKey->FileName) {
+                sslContext->AddPrivateKeyFromFile(*config->Credentials->PrivateKey->FileName);
+            } else if (config->Credentials->PrivateKey->Value) {
+                sslContext->AddPrivateKey(*config->Credentials->PrivateKey->Value);
+            } else {
+                THROW_ERROR_EXCEPTION("Neither \"file_name\" nor \"value\" is given for client private key");
+            }
+        }
     } else {
-        Y_UNREACHABLE();
-    }
-    if (config->Credentials->PrivateKey->FileName) {
-        sslContext->AddPrivateKeyFromFile(*config->Credentials->PrivateKey->FileName);
-    } else if (config->Credentials->PrivateKey->Value) {
-        sslContext->AddPrivateKey(*config->Credentials->PrivateKey->Value);
-    } else {
-        Y_UNREACHABLE();
+        sslContext->UseBuiltinOpenSslX509Store();
     }
 
     auto tlsDialer = sslContext->CreateDialer(
@@ -94,5 +103,4 @@ IClientPtr CreateClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttps
-} // namespace NYT
+} // namespace NYT::NHttps

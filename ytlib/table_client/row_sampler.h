@@ -6,8 +6,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,11 +70,10 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IRowSampler> CreateChunkRowSampler(
-    const NChunkClient::TChunkId& chunkId,
+    NChunkClient::TChunkId chunkId,
     double rate,
     ui64 seed);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

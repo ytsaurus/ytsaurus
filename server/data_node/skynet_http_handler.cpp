@@ -23,8 +23,7 @@
 
 #include <util/string/cgiparam.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NHttp;
 using namespace NApi;
@@ -193,5 +192,4 @@ IHttpHandlerPtr MakeSkynetHttpHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

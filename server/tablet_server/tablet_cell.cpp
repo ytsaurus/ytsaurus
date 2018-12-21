@@ -10,14 +10,14 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
-using namespace NYTree;
+using namespace NCellMaster;
 using namespace NHiveClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
-using namespace NCellMaster;
+using namespace NTabletClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +32,7 @@ void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCell::TTabletCell(const TTabletCellId& id)
+TTabletCell::TTabletCell(TTabletCellId id)
     : TNonversionedObjectBase(id)
     , LeadingPeerId_(0)
     , ConfigVersion_(0)
@@ -55,7 +55,7 @@ void TTabletCell::Save(TSaveContext& context) const
     Save(context, MulticellStatistics_);
     Save(context, PrerequisiteTransaction_);
     Save(context, CellBundle_);
-    Save(context, Decommissioned_);
+    Save(context, LifeStage_);
 }
 
 void TTabletCell::Load(TLoadContext& context)
@@ -89,7 +89,13 @@ void TTabletCell::Load(TLoadContext& context)
     }
     // COMPAT(savrus)
     if (context.GetVersion() >= 713) {
-        Load(context, Decommissioned_);
+        if (context.GetVersion() >= 819) {
+            Load(context, TabletCellLifeStage_);
+        } else {
+            TabletCellLifeStage_ = Load<bool>(context)
+                ? ETabletCellLifeStage::Decommissioned
+                : ETabletCellLifeStage::Running;
+        }
     }
 }
 
@@ -262,8 +268,19 @@ ETabletCellHealth TTabletCell::CombineHealths(ETabletCellHealth lhs, ETabletCell
     return ETabletCellHealth::Failed;
 }
 
+bool TTabletCell::DecommissionStarted() const
+{
+    return TabletCellLifeStage_ == ETabletCellLifeStage::DecommissioningOnMaster ||
+        TabletCellLifeStage_ == ETabletCellLifeStage::DecommissioningOnNode ||
+        TabletCellLifeStage_ == ETabletCellLifeStage::Decommissioned;
+}
+
+bool TTabletCell::DecommissionCompleted() const
+{
+    return TabletCellLifeStage_ == ETabletCellLifeStage::Decommissioned;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

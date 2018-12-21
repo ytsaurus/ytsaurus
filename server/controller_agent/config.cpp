@@ -1,7 +1,6 @@
 #include "config.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -503,7 +502,7 @@ TControllerAgentConfig::TControllerAgentConfig()
         .DefaultNew();
 
     RegisterParameter("udf_registry_path", UdfRegistryPath)
-        .Default(Null);
+        .Default();
 
     RegisterParameter("enable_tmpfs", EnableTmpfs)
         .Default(true);
@@ -540,9 +539,9 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(1.1);
 
     RegisterParameter("iops_threshold", IopsThreshold)
-        .Default(Null);
+        .Default();
     RegisterParameter("iops_throttler_limit", IopsThrottlerLimit)
-        .Default(Null);
+        .Default();
 
     RegisterParameter("chunk_scraper", ChunkScraper)
         .DefaultNew();
@@ -571,7 +570,7 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(TDuration::Seconds(15));
 
     RegisterParameter("system_layer_path", SystemLayerPath)
-        .Default(Null);
+        .Default();
 
     RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
         .Default(TDuration::Seconds(1));
@@ -646,5 +645,4 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

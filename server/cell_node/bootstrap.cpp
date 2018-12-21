@@ -126,8 +126,7 @@
 
 #include <yt/core/alloc/alloc.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 using namespace NAdmin;
 using namespace NBus;
@@ -198,7 +197,7 @@ void TBootstrap::DoRun()
         Config->ClusterConnection->Networks = GetLocalNetworks();
     }
 
-    LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
+    YT_LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
         GetValues(localRpcAddresses),
         Config->ClusterConnection->PrimaryMaster->Addresses,
         Config->Tags);
@@ -423,7 +422,7 @@ void TBootstrap::DoRun()
         if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
             config->RpcTimeout = *config->RetryTimeout;
         }
-        config->RetryTimeout = Null;
+        config->RetryTimeout = std::nullopt;
         config->RetryAttempts = 1;
     };
 
@@ -454,8 +453,8 @@ void TBootstrap::DoRun()
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
     auto createExecJob = BIND([this] (
-            const NJobAgent::TJobId& jobId,
-            const NJobAgent::TOperationId& operationId,
+            NJobAgent::TJobId jobId,
+            NJobAgent::TOperationId operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
@@ -485,8 +484,8 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::Vanilla,           createExecJob);
 
     auto createChunkJob = BIND([this] (
-            const NJobAgent::TJobId& jobId,
-            const NJobAgent::TOperationId& /*operationId*/,
+            NJobAgent::TJobId jobId,
+            NJobAgent::TOperationId /*operationId*/,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
@@ -600,9 +599,9 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper));
 
-    LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
+    YT_LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
 
-    LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
     RpcServer->Configure(Config->RpcServer);
 
     // Do not start subsystems until everything is initialized.
@@ -806,7 +805,7 @@ const NQueryClient::ISubexecutorPtr& TBootstrap::GetQueryExecutor() const
     return QueryExecutor;
 }
 
-const TCellId& TBootstrap::GetCellId() const
+TCellId TBootstrap::GetCellId() const
 {
     return Config->ClusterConnection->PrimaryMaster->CellId;
 }
@@ -927,7 +926,7 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks()
         : GetIths<0>(Config->Addresses);
 }
 
-TNullable<TString> TBootstrap::GetDefaultNetworkName()
+std::optional<TString> TBootstrap::GetDefaultNetworkName()
 {
     return Config->BusServer->DefaultNetwork;
 }
@@ -1001,7 +1000,7 @@ void TBootstrap::UpdateFootprintMemoryUsage()
 
     auto oldFootprint = GetMemoryUsageTracker()->GetUsed(EMemoryCategory::Footprint);
 
-    LOG_INFO("Memory footprint updated (BytesCommitted: %v, OldFootprint: %v, NewFootprint: %v)",
+    YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, OldFootprint: %v, NewFootprint: %v)",
         bytesCommitted,
         oldFootprint,
         newFootprint);
@@ -1019,5 +1018,4 @@ void TBootstrap::UpdateFootprintMemoryUsage()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
-} // namespace NYT
+} // namespace NYT::NCellNode

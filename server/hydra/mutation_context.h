@@ -9,8 +9,7 @@
 #include <yt/core/misc/random.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,6 +96,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 

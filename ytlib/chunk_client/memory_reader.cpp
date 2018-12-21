@@ -2,8 +2,7 @@
 #include "chunk_meta_extensions.h"
 #include "chunk_reader.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 
@@ -23,7 +22,7 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& /*options*/,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& /* estimatedSize */) override
+        const std::optional<i64>& /* estimatedSize */) override
     {
         std::vector<TBlock> blocks;
         for (auto index : blockIndexes) {
@@ -42,7 +41,7 @@ public:
         const TClientBlockReadOptions& /*options*/,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& /* estimatedSize */) override
+        const std::optional<i64>& /* estimatedSize */) override
     {
         if (firstBlockIndex >= Blocks_.size()) {
             return MakeFuture(std::vector<TBlock>());
@@ -61,8 +60,8 @@ public:
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& /*options*/,
-        TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags) override
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override
     {
         YCHECK(!partitionTag);
         return MakeFuture(New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, extensionTags)));
@@ -95,5 +94,4 @@ IChunkReaderPtr CreateMemoryReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

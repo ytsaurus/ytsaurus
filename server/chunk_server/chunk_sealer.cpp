@@ -32,8 +32,7 @@
 
 #include <deque>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -161,7 +160,7 @@ private:
     }
 
 
-    void RescheduleSeal(const TChunkId& chunkId)
+    void RescheduleSeal(TChunkId chunkId)
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* chunk = chunkManager->FindChunk(chunkId);
@@ -176,7 +175,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Chunk added to seal queue (ChunkId: %v)",
+        YT_LOG_DEBUG("Chunk added to seal queue (ChunkId: %v)",
             chunk->GetId());
     }
 
@@ -222,20 +221,20 @@ private:
         auto enabledInConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->EnableChunkSealer;
 
         if (!enabledInConfig && Enabled_) {
-            LOG_INFO("Chunk sealer disabled, see //sys/@config");
+            YT_LOG_INFO("Chunk sealer disabled, see //sys/@config");
             Enabled_ = false;
             return;
         }
 
         if (enabledInConfig && !Enabled_) {
-            LOG_INFO("Chunk sealer enabled");
+            YT_LOG_INFO("Chunk sealer enabled");
             Enabled_ = true;
             return;
         }
     }
 
     void SealChunk(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         TAsyncSemaphoreGuard /*guard*/)
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -247,7 +246,7 @@ private:
         try {
             GuardedSealChunk(chunk);
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Error sealing journal chunk %v; backing off",
+            YT_LOG_DEBUG(ex, "Error sealing journal chunk %v; backing off",
                 chunkId);
             TDelayedExecutor::Submit(
                 BIND(&TImpl::RescheduleSeal, MakeStrong(this), chunkId)
@@ -265,7 +264,7 @@ private:
         auto chunkId = chunk->GetId();
         auto readQuorum = chunk->GetReadQuorum();
         auto replicas = GetChunkReplicas(chunk);
-        LOG_DEBUG("Sealing journal chunk (ChunkId: %v)",
+        YT_LOG_DEBUG("Sealing journal chunk (ChunkId: %v)",
             chunkId);
 
         {
@@ -310,7 +309,7 @@ private:
                 chunkId);
         }
 
-        LOG_DEBUG("Journal chunk sealed (ChunkId: %v)",
+        YT_LOG_DEBUG("Journal chunk sealed (ChunkId: %v)",
             chunkId);
     }
 
@@ -371,6 +370,5 @@ int TChunkSealer::GetQueueSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 

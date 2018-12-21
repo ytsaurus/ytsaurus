@@ -10,8 +10,7 @@
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/fs.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NHydra::NProto;
@@ -142,10 +141,10 @@ private:
     TFuture<void> CheckLock()
     {
         // TODO(sandello): Currently broken. See YT-7421.
-        return Null;
+        return std::nullopt;
         /*
         return Lock_->IsAcquired(Epoch_)
-            ? Null
+            ? std::nullopt
             : MakeFuture<void>(TError("Changelog store lock expired"));
         */
     }
@@ -244,7 +243,7 @@ public:
 
     void Start()
     {
-        LOG_DEBUG("Preparing changelog store");
+        YT_LOG_DEBUG("Preparing changelog store");
 
         NFS::MakeDirRecursive(Config_->Path);
         NFS::CleanTempFiles(Config_->Path);
@@ -296,7 +295,7 @@ private:
             auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error creating changelog %v",
+            YT_LOG_FATAL(ex, "Error creating changelog %v",
                 path);
         }
 
@@ -321,7 +320,7 @@ private:
                     auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
-                    LOG_FATAL(ex, "Error opening changelog %v",
+                    YT_LOG_FATAL(ex, "Error opening changelog %v",
                         path);
                 }
             }
@@ -368,7 +367,7 @@ private:
                     latestId = id;
                 }
             } catch (const std::exception&) {
-                LOG_WARNING("Found unrecognized file %Qv", fileName);
+                YT_LOG_WARNING("Found unrecognized file %Qv", fileName);
             }
         }
 
@@ -388,7 +387,7 @@ private:
                 .ValueOrThrow();
             return TVersion(latestId, changelog->GetRecordCount());
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error opening changelog %v",
+            YT_LOG_FATAL(ex, "Error opening changelog %v",
                 GetChangelogPath(Config_->Path, latestId));
         }
     }
@@ -454,6 +453,5 @@ IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 

@@ -2,8 +2,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NCGroup {
+namespace NYT::NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ extern const NLogging::TLogger CGroupLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCGroup
-} // namespace NYT
+} // namespace NYT::NCGroup

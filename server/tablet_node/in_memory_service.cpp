@@ -20,10 +20,9 @@
 #include <yt/core/concurrency/lease_manager.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NRpc;
 using namespace NChunkClient;
@@ -100,7 +99,7 @@ private:
             std::move(interceptingBlockCache),
             std::move(lease));
 
-        LOG_DEBUG("In-memory session started (SessionId: %v)", sessionId);
+        YT_LOG_DEBUG("In-memory session started (SessionId: %v)", sessionId);
 
         YCHECK(SessionMap_.emplace(sessionId, session).second);
 
@@ -132,7 +131,7 @@ private:
             auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
 
             if (!tabletSnapshot) {
-                LOG_DEBUG("Tablet snapshot not found (TabletId: %v)", tabletId);
+                YT_LOG_DEBUG("Tablet snapshot not found (TabletId: %v)", tabletId);
                 continue;
             }
 
@@ -151,9 +150,9 @@ private:
             TLeaseManager::CloseLease(session->Lease);
             YCHECK(SessionMap_.erase(sessionId));
 
-            LOG_DEBUG("In-memory session finished (SessionId: %v)", sessionId);
+            YT_LOG_DEBUG("In-memory session finished (SessionId: %v)", sessionId);
         } else {
-            LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
+            YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
         }
 
         context->Reply();
@@ -169,7 +168,7 @@ private:
         auto session = FindSession(sessionId);
 
         if (!session) {
-            LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
+            YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
 
             response->set_dropped(true);
 
@@ -188,7 +187,7 @@ private:
                 blockId,
                 session->InterceptingBlockCache->GetSupportedBlockTypes(),
                 TBlock(request->Attachments()[index]),
-                Null);
+                std::nullopt);
         }
 
         bool dropped = Bootstrap_->GetMemoryUsageTracker()->IsExceeded(
@@ -208,7 +207,7 @@ private:
         if (auto session = FindSession(sessionId)) {
             TLeaseManager::RenewLease(session->Lease);
         } else {
-            LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
+            YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
         }
 
         context->Reply();
@@ -223,7 +222,7 @@ private:
             return;
         }
 
-        LOG_INFO("Session lease expired (SessionId: %v)",
+        YT_LOG_INFO("Session lease expired (SessionId: %v)",
             sessionId);
 
         YCHECK(SessionMap_.erase(sessionId));
@@ -245,5 +244,4 @@ IServicePtr CreateInMemoryService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

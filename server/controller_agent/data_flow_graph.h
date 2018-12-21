@@ -18,8 +18,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +34,7 @@ struct TEdgeDescriptor
     NTableClient::TTableWriterOptionsPtr TableWriterOptions;
     NTableClient::TTableUploadOptions TableUploadOptions;
     NYson::TYsonString TableWriterConfig;
-    TNullable<NTransactionClient::TTimestamp> Timestamp;
+    std::optional<NTransactionClient::TTimestamp> Timestamp;
     // Cell tag to allocate chunk lists.
     NObjectClient::TCellTag CellTag;
     bool ImmediatelyUnstageChunkLists = false;
@@ -95,5 +94,4 @@ DEFINE_REFCOUNTED_TYPE(TDataFlowGraph);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NOrchid {
+namespace NYT::NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,5 +10,4 @@ DECLARE_REFCOUNTED_STRUCT(TOrchidManifest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NOrchid
-} // namespace NYT
+} // namespace NYT::NOrchid

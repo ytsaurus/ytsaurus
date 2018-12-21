@@ -3,8 +3,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/string.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +38,5 @@ std::vector<TString> FormatPermissions(EPermissionSet permissions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

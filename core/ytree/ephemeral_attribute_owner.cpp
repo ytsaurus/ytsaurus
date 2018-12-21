@@ -1,8 +1,7 @@
 #include "ephemeral_attribute_owner.h"
 #include "helpers.h"
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,5 +33,4 @@ void TEphemeralAttributeOwner::SetAttributes(std::unique_ptr<IAttributeDictionar
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

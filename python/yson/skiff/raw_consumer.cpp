@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/finally.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,5 +53,4 @@ void TPythonSkiffRawRecordBuilder::OnOtherColumns(TStringBuf /*value*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

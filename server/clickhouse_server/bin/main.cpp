@@ -20,7 +20,6 @@ class TProgram
     , public TProgramConfigMixin<NNative::TConfig>
 {
 private:
-    TString XmlConfig;
     TString InstanceId_;
     TString CliqueId_;
     ui16 RpcPort_;
@@ -42,10 +41,6 @@ TProgram::TProgram()
     , TProgramPdeathsigMixin(Opts_)
     , TProgramConfigMixin(Opts_)
 {
-    Opts_.AddLongOption("xml-config", "xml configuration file")
-        .Required()
-        .DefaultValue("config.xml")
-        .StoreResult(&XmlConfig);
     Opts_.AddLongOption("instance-id", "ClickHouse instance id")
         .Required()
         .StoreResult(&InstanceId_);
@@ -91,7 +86,6 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
     TBootstrap bootstrap {
         std::move(config),
         std::move(configNode),
-        XmlConfig,
         InstanceId_,
         CliqueId_,
         RpcPort_,

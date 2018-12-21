@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/finally.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,5 +91,4 @@ TSharedRef TListFragmentParser::NextItem()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

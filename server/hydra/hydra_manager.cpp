@@ -1,7 +1,6 @@
 #include "hydra_manager.h"
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +45,7 @@ void IHydraManager::ValidatePeer(EPeerKind kind)
             break;
 
         case EPeerKind::LeaderOrFollower:
-            if (!IsActiveLeader() && !IsActiveFollower()) {
+            if (!IsActive()) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Not an active peer");
@@ -60,5 +59,4 @@ void IHydraManager::ValidatePeer(EPeerKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

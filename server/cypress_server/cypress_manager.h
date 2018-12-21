@@ -31,8 +31,7 @@
 #include <yt/core/ytree/tree_builder.h>
 #include <yt/core/ytree/ypath_service.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +69,7 @@ public:
 
     //! Creates a new node and registers it.
     TCypressNodeBase* CreateNode(
-        const TNodeId& hintId,
+        TNodeId hintId,
         NObjectClient::TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         NSecurityServer::TAccount* account,
@@ -80,7 +79,7 @@ public:
 
     //! Creates a new node and registers it.
     TCypressNodeBase* InstantiateNode(
-        const TNodeId& id,
+        TNodeId id,
         NObjectClient::TCellTag externalCellTag);
 
     //! Clones a node and registers its clone.
@@ -110,7 +109,7 @@ public:
         const NYPath::TYPath& path,
         NTransactionServer::TTransaction* transaction = nullptr);
 
-    //! Similar to |FindNode| provided by |DECLARE_ENTITY_ACCESSORS| but
+    //! Similar to |FindNode| provided by |DECLARE_ENTITY_MAP_ACCESSORS| but
     //! specially optimized for the case of null transaction.
     TCypressNodeBase* FindNode(
         TCypressNodeBase* trunkNode,
@@ -137,6 +136,13 @@ public:
         const TLockRequest& request,
         bool waitable);
 
+    //! Releases and destroys all acquired locks on the specified node for the
+    //! specified transaction. Also destroys all pending locks. Adjusts the
+    //! version tree of the node correspondingly.
+    void UnlockNode(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction);
+
     void SetModified(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
@@ -144,7 +150,7 @@ public:
 
     void SetAccessed(TCypressNodeBase* trunkNode);
 
-    void SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time);
+    void SetExpirationTime(TCypressNodeBase* trunkNode, std::optional<TInstant> time);
 
     typedef SmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
     TSubtreeNodes ListSubtreeNodes(
@@ -192,5 +198,4 @@ DEFINE_REFCOUNTED_TYPE(TCypressManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

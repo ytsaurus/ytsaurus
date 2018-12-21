@@ -2,8 +2,7 @@
 
 #include <yt/client/table_client/schemaful_reader.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient::NProto;
 
@@ -86,5 +85,4 @@ ISchemafulReaderPtr CreateSchemafulConcatenatingReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

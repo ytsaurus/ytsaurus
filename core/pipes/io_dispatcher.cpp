@@ -6,8 +6,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
-namespace NYT {
-namespace NPipes {
+namespace NYT::NPipes {
 
 using namespace NConcurrency;
 
@@ -51,5 +50,4 @@ REGISTER_SHUTDOWN_CALLBACK(6, TIODispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPipes
-} // namespace NYT
+} // namespace NYT::NPipes

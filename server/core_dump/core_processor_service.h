@@ -18,8 +18,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,8 +38,8 @@ public:
         const NJobProxy::IJobHostPtr& jobHost,
         const NTableClient::TBlobTableWriterConfigPtr& blobTableWriterConfig,
         const NTableClient::TTableWriterOptionsPtr& tableWriterOptions,
-        const NObjectClient::TTransactionId& transaction,
-        const NChunkClient::TChunkListId& chunkList,
+        NObjectClient::TTransactionId transaction,
+        NChunkClient::TChunkListId chunkList,
         const IInvokerPtr& controlInvoker,
         TDuration readTimeout);
 
@@ -61,5 +60,4 @@ DEFINE_REFCOUNTED_TYPE(TCoreProcessorService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

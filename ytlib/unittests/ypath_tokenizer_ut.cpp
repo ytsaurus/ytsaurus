@@ -4,8 +4,7 @@
 
 #include <util/string/vector.h>
 
-namespace NYT {
-namespace NYPath {
+namespace NYT::NYPath {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,5 +199,4 @@ TEST_F(TYPathTokenizerTest, InvalidEscapeSequences)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYPath
-} // namespace NYT
+} // namespace NYT::NYPath

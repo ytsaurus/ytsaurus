@@ -5,8 +5,7 @@
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NRpc;
 using namespace NJobTrackerClient;
@@ -51,6 +50,5 @@ IServicePtr CreateJobTrackerService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

@@ -2,8 +2,7 @@
 
 #include <yt/server/scheduler/config.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NChunkPools;
@@ -86,6 +85,5 @@ i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

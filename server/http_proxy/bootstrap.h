@@ -31,8 +31,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +73,6 @@ private:
     NDriver::IDriverPtr DriverV3_;
     NDriver::IDriverPtr DriverV4_;
 
-    NConcurrency::TThreadPoolPtr BlackboxThreadPool_;
     NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
     THttpAuthenticatorPtr HttpAuthenticator_;
@@ -93,5 +91,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

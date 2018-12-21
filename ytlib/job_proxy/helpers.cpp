@@ -18,8 +18,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +38,7 @@ void RunQuery(
     const TQuerySpec& querySpec,
     const TSchemalessReaderFactory& readerFactory,
     const TSchemalessWriterFactory& writerFactory,
-    const TNullable<TString>& udfDirectory)
+    const std::optional<TString>& udfDirectory)
 {
     auto query = FromProto<TConstQueryPtr>(querySpec.query());
     auto resultSchema = query->GetTableSchema();
@@ -65,7 +64,7 @@ void RunQuery(
     auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
     auto reader = CreateSchemafulReaderAdapter(readerFactory, query->GetReadSchema());
 
-    LOG_INFO("Reading, evaluating query and writing");
+    YT_LOG_INFO("Reading, evaluating query and writing");
     evaluator->Run(
         query,
         reader,
@@ -88,5 +87,4 @@ std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

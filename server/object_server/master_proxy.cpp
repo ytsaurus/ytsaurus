@@ -24,8 +24,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -85,7 +84,7 @@ private:
 
         const auto& objectId = object->GetId();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Id: %v, Type: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Id: %v, Type: %v)",
             objectId,
             type);
 
@@ -196,5 +195,4 @@ IObjectProxyPtr CreateMasterProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

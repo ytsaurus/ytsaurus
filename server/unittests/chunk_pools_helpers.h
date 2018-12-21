@@ -4,8 +4,7 @@
 
 #pragma once
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,5 +12,4 @@ void PrintTo(const TInputChunk& /* chunk */, std::ostream* /* os */);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namesapce NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

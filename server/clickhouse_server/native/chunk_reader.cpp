@@ -114,7 +114,7 @@ ISchemafulReaderPtr CreateChunkReader(
                 blockReadOptions,
                 columnFilter,
                 TKeyColumns(),
-                Null,
+                std::nullopt,
                 nullptr /* trafficMeter */,
                 bandwidthThrottler,
                 GetUnlimitedThrottler() /* rps throttler */);

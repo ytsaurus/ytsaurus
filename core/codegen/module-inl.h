@@ -8,8 +8,7 @@
 
 #include <yt/core/actions/bind.h>
 
-namespace NYT {
-namespace NCodegen {
+namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +22,5 @@ TCGFunction<TSignature> TCGModule::GetCompiledFunction(const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodegen
-} // namespace NYT
+} // namespace NYT::NCodegen
 

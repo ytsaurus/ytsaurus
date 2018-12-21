@@ -1,8 +1,7 @@
 #include "attribute_consumer.h"
 #include "writer.h"
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,5 +247,4 @@ void TAttributeValueConsumer::ProduceKeyIfNeeded()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

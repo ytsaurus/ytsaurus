@@ -4,9 +4,7 @@
 
 #include <yt/core/bus/public.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NBus {
+namespace NYT::NRpc::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +16,4 @@ IChannelFactoryPtr CreateBusChannelFactory(NYT::NBus::TTcpBusConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NBus

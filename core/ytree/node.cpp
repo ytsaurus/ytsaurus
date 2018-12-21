@@ -7,8 +7,7 @@
 
 #include <yt/core/yson/writer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 
@@ -144,11 +143,11 @@ INodePtr IMapNode::GetChild(const TString& key) const
 
 TString IMapNode::GetChildKeyOrThrow(const IConstNodePtr& child)
 {
-    auto maybeKey = FindChildKey(child);
-    if (!maybeKey) {
+    auto optionalKey = FindChildKey(child);
+    if (!optionalKey) {
         THROW_ERROR_EXCEPTION("Node is not a child");
     }
-    return *maybeKey;
+    return *optionalKey;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,11 +163,11 @@ INodePtr IListNode::GetChild(int index) const
 
 int IListNode::GetChildIndexOrThrow(const IConstNodePtr& child)
 {
-    auto maybeIndex = FindChildIndex(child);
-    if (!maybeIndex) {
+    auto optionalIndex = FindChildIndex(child);
+    if (!optionalIndex) {
         THROW_ERROR_EXCEPTION("Node is not a child");
     }
-    return *maybeIndex;
+    return *optionalIndex;
 }
 
 int IListNode::AdjustChildIndex(int index) const
@@ -184,7 +183,7 @@ int IListNode::AdjustChildIndex(int index) const
 
 void Serialize(INode& value, IYsonConsumer* consumer)
 {
-    VisitTree(&value, consumer, true /*stable*/, Null /*attributeKeys*/);
+    VisitTree(&value, consumer, true /*stable*/, std::nullopt /*attributeKeys*/);
 }
 
 void Deserialize(INodePtr& value, const INodePtr& node)
@@ -217,12 +216,11 @@ TYsonString ConvertToYsonStringStable(const INodePtr& node)
         node,
         &writer,
         true, // truth matters :)
-        Null);
+        std::nullopt);
     writer.Flush();
     return TYsonString(stream.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

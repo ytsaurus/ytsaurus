@@ -6,8 +6,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NApi;
@@ -78,7 +77,7 @@ void TIntermediateChunkScraper::ResetChunkScraper()
 
     auto intermediateChunks = GetChunksCallback_();
 
-    LOG_DEBUG("Reset intermediate chunk scraper (ChunkCount: %v)",
+    YT_LOG_DEBUG("Reset intermediate chunk scraper (ChunkCount: %v)",
         intermediateChunks.size());
     ChunkScraper_ = New<TChunkScraper>(
         Config_,
@@ -94,5 +93,4 @@ void TIntermediateChunkScraper::ResetChunkScraper()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

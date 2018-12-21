@@ -9,8 +9,7 @@
 
 #include <yt/core/misc/heap.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -285,7 +284,7 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         RowCount_ += reader->GetTotalRowCount();
     }
 
-    LOG_DEBUG("Opening schemaless sorted merging reader (SessionCount: %v)",
+    YT_LOG_DEBUG("Opening schemaless sorted merging reader (SessionCount: %v)",
         SessionHolder_.size());
 
     // NB: we don't combine completion error here, because reader opening must not be interrupted.
@@ -334,7 +333,7 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
     while (rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
         const auto& row = session->Rows[session->CurrentRowIndex];
         if (interrupting && CompareRows(row, LastKey_, ReduceKeyColumnCount_) != 0) {
-            LOG_DEBUG("Sorted merging reader interrupted (LastKey: %v, NextKey: %v)",
+            YT_LOG_DEBUG("Sorted merging reader interrupted (LastKey: %v, NextKey: %v)",
                 LastKey_,
                 GetKeyPrefix(row, ReduceKeyColumnCount_));
             ReadyEvent_ = VoidFuture;
@@ -375,7 +374,7 @@ TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
         ? GetKeyPrefix(unreadRows[0], ReduceKeyColumnCount_)
         : MaxKey();
 
-    LOG_DEBUG("Creating interrupt descriptor for sorted merging reader (UnreadRowCount: %v, FirstUnreadKey: %v)",
+    YT_LOG_DEBUG("Creating interrupt descriptor for sorted merging reader (UnreadRowCount: %v, FirstUnreadKey: %v)",
         unreadRows.Size(),
         firstUnreadKey);
 
@@ -454,7 +453,7 @@ TSchemalessJoiningReader::TSchemalessJoiningReader(
     }
     PrimarySession_ = &SessionHolder_[0];
 
-    LOG_INFO("Opening schemaless sorted joining reader (SessionCount: %v)",
+    YT_LOG_INFO("Opening schemaless sorted joining reader (SessionCount: %v)",
         SessionHolder_.size());
 
     // NB: we don't combine completion error here, because reader opening must not be interrupted.
@@ -658,5 +657,4 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessJoinReduceJoiningReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

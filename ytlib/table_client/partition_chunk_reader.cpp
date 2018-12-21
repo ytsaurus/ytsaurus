@@ -19,8 +19,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -223,6 +222,5 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

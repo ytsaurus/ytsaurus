@@ -15,8 +15,7 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/checksum.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 
@@ -81,7 +80,7 @@ void TEncodingWriter::EnsureOpen()
             if (!error.IsOK()) {
                 CompletionError_.TrySet(error);
             } else {
-                LOG_DEBUG("Underlying session for encoding writer opened (ChunkId: %v)",
+                YT_LOG_DEBUG("Underlying session for encoding writer opened (ChunkId: %v)",
                     ChunkWriter_->GetChunkId());
                 PendingBlocks_.Dequeue().Subscribe(
                     WritePendingBlockCallback_);
@@ -94,13 +93,13 @@ void TEncodingWriter::CacheUncompressedBlock(const TSharedRef& block, int blockI
 {
     // We cannot cache blocks before chunk writer is open, since we do not know the #ChunkId.
     auto blockId = TBlockId(ChunkWriter_->GetChunkId(), blockIndex);
-    BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(block), Null);
+    BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(block), std::nullopt);
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
 {
-    LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
+    YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
         AddedBlockIndex_,
         Codec_->GetId());
 
@@ -118,7 +117,7 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
         VerifyBlock(uncompressedBlock, compressedBlock.Data);
     }
 
-    LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
+    YT_LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
         AddedBlockIndex_,
         Codec_->GetId());
 
@@ -137,7 +136,7 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock)
 {
-    LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
+    YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
         AddedBlockIndex_,
         Codec_->GetId());
 
@@ -155,7 +154,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
         VerifyVector(uncompressedVectorizedBlock, compressedBlock.Data);
     }
 
-    LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
+    YT_LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
         AddedBlockIndex_,
         Codec_->GetId());
 
@@ -182,13 +181,13 @@ void TEncodingWriter::VerifyVector(
 {
     auto decompressedBlock = Codec_->Decompress(compressedBlock);
 
-    LOG_FATAL_IF(
+    YT_LOG_FATAL_IF(
         decompressedBlock.Size() != GetByteSize(uncompressedVectorizedBlock),
         "Compression verification failed");
 
     const char* current = decompressedBlock.Begin();
     for (const auto& block : uncompressedVectorizedBlock) {
-        LOG_FATAL_IF(
+        YT_LOG_FATAL_IF(
             !TRef::AreBitwiseEqual(TRef(current, block.Size()), block),
             "Compression verification failed");
         current += block.Size();
@@ -200,7 +199,7 @@ void TEncodingWriter::VerifyBlock(
     const TSharedRef& compressedBlock)
 {
     auto decompressedBlock = Codec_->Decompress(compressedBlock);
-    LOG_FATAL_IF(
+    YT_LOG_FATAL_IF(
         !TRef::AreBitwiseEqual(decompressedBlock, uncompressedBlock),
         "Compression verification failed");
 }
@@ -215,7 +214,7 @@ void TEncodingWriter::ProcessCompressedBlock(const TBlock& block, i64 sizeToRele
     }
 
     PendingBlocks_.Enqueue(block);
-    LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
+    YT_LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
 
     ++AddedBlockIndex_;
 }
@@ -238,7 +237,7 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
     CompressedSize_ += block.Size();
     CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
 
-    LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
+    YT_LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
 
     auto isReady = ChunkWriter_->WriteBlock(block);
     ++WrittenBlockIndex_;
@@ -275,7 +274,7 @@ TFuture<void> TEncodingWriter::GetReadyEvent()
 
 TFuture<void> TEncodingWriter::Flush()
 {
-    LOG_DEBUG("Flushing encoding writer");
+    YT_LOG_DEBUG("Flushing encoding writer");
 
     // This must be the last enqueued element.
     CompressionInvoker_->Invoke(BIND([this, this_ = MakeStrong(this)] () {
@@ -307,5 +306,4 @@ const TCodecDuration& TEncodingWriter::GetCompressionDuration() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

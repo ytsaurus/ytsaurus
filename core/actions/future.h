@@ -5,7 +5,7 @@
 #include "invoker.h"
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 
@@ -155,7 +155,7 @@ public:
     /*!
      *  This call does not block.
      */
-    TNullable<TErrorOr<T>> TryGet() const;
+    std::optional<TErrorOr<T>> TryGet() const;
 
     //! Attaches a result handler.
     /*!
@@ -184,7 +184,7 @@ public:
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
     TFuture<T> WithTimeout(TDuration timeout);
-    TFuture<T> WithTimeout(TNullable<TDuration> timeout);
+    TFuture<T> WithTimeout(std::optional<TDuration> timeout);
 
     //! Chains the asynchronous computation with another synchronous function.
     template <class R>
@@ -230,7 +230,7 @@ class TFuture
 {
 public:
     TFuture() = default;
-    TFuture(TNull);
+    TFuture(std::nullopt_t);
 
     template <class R>
     TFuture<R> Apply(TCallback<R(const T&)> callback);
@@ -267,7 +267,7 @@ class TFuture<void>
 {
 public:
     TFuture() = default;
-    TFuture(TNull);
+    TFuture(std::nullopt_t);
 
     template <class R>
     TFuture<R> Apply(TCallback<R()> callback);
@@ -341,7 +341,7 @@ public:
     /*!
      *  This call does not block.
      */
-    TNullable<TErrorOr<T>> TryGet() const;
+    std::optional<TErrorOr<T>> TryGet() const;
 
     //! Checks if the promise is canceled.
     bool IsCanceled() const;
@@ -385,7 +385,7 @@ class TPromise
 {
 public:
     TPromise() = default;
-    TPromise(TNull);
+    TPromise(std::nullopt_t);
 
     void Set(const T& value);
     void Set(T&& value);
@@ -419,7 +419,7 @@ class TPromise<void>
 {
 public:
     TPromise() = default;
-    TPromise(TNull);
+    TPromise(std::nullopt_t);
 
     void Set();
     using TPromiseBase<void>::Set;
@@ -453,7 +453,7 @@ public:
     TFutureHolder();
 
     //! Constructs an empty holder.
-    TFutureHolder(TNull);
+    TFutureHolder(std::nullopt_t);
 
     //! Wraps #future into a holder.
     TFutureHolder(TFuture<T> future);

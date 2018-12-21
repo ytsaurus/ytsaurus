@@ -7,8 +7,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 using namespace NYson;
 using namespace NYTree;
@@ -38,5 +37,4 @@ void Serialize(const TCoreInfo& coreInfo, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

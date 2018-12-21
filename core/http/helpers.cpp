@@ -19,8 +19,7 @@
 #include <util/string/join.h>
 #include <util/string/cast.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 static const auto& Logger = HttpLogger;
 
@@ -131,7 +130,7 @@ public:
         } catch(const std::exception& ex) {
             TError error(ex);
 
-            LOG_DEBUG(error, "Error handling HTTP request (Path: %v)",
+            YT_LOG_DEBUG(error, "Error handling HTTP request (Path: %v)",
                 req->GetUrl().Path);
 
             FillYTErrorHeaders(rsp, error);
@@ -238,7 +237,7 @@ void ProtectCsrfToken(const IResponseWriterPtr& rsp)
     headers->Set(XDnsPrefetchControlHeaderName, "off");
 }
 
-TNullable<TString> GetBalancerRequestId(const IRequestPtr& req)
+std::optional<TString> GetBalancerRequestId(const IRequestPtr& req)
 {
     static const TString XReqIdHeaderName("X-Req-Id");
     auto header = req->GetHeaders()->Find(XReqIdHeaderName);
@@ -249,7 +248,7 @@ TNullable<TString> GetBalancerRequestId(const IRequestPtr& req)
     return {};
 }
 
-TNullable<TString> GetBalancerRealIP(const IRequestPtr& req)
+std::optional<TString> GetBalancerRealIP(const IRequestPtr& req)
 {
     const auto& headers = req->GetHeaders();
 
@@ -263,7 +262,7 @@ TNullable<TString> GetBalancerRealIP(const IRequestPtr& req)
     return {};
 }
 
-TNullable<TString> GetUserAgent(const IRequestPtr& req)
+std::optional<TString> GetUserAgent(const IRequestPtr& req)
 {
     auto headers = req->GetHeaders();
     auto userAgent = headers->Find("User-Agent");
@@ -346,5 +345,4 @@ void SetParentSpanId(const IResponseWriterPtr& rsp, NTracing::TSpanId parentSpan
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

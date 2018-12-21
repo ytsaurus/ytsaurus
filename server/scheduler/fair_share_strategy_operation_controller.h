@@ -4,8 +4,7 @@
 
 #include <yt/server/controller_agent/operation_controller.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +35,7 @@ public:
         const TString& treeId);
 
     void AbortJob(
-        const TJobId& jobId,
+        TJobId jobId,
         EAbortReason abortReason);
 
     int GetPendingJobCount() const;
@@ -63,5 +62,4 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

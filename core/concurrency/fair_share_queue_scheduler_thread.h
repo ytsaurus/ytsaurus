@@ -3,8 +3,7 @@
 #include "scheduler_thread.h"
 #include "fair_share_invoker_queue.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,5 +41,4 @@ DEFINE_REFCOUNTED_TYPE(TFairShareQueueSchedulerThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

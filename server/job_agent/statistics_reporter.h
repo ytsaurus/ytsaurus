@@ -10,12 +10,11 @@
 #include <yt/client/api/public.h>
 #include <yt/client/api/operation_archive_schema.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +36,7 @@ public:
     void SetEnabled(bool enable);
     void SetSpecEnabled(bool enable);
     void SetStderrEnabled(bool enable);
+    void SetProfileEnabled(bool enable);
     void SetFailContextEnabled(bool enable);
     void SetOperationArchiveVersion(int version);
     int ExtractWriteFailuresCount();
@@ -51,5 +51,4 @@ DEFINE_REFCOUNTED_TYPE(TStatisticsReporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

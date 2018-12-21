@@ -326,6 +326,10 @@ def lock(path, waitable=False, **kwargs):
     kwargs["waitable"] = waitable
     return yson.loads(execute_command("lock", kwargs))
 
+def unlock(path, **kwargs):
+    kwargs["path"] = path
+    execute_command("unlock", kwargs)
+
 def remove(path, **kwargs):
     kwargs["path"] = path
     return execute_command("remove", kwargs)
@@ -1390,3 +1394,11 @@ def sync_control_chunk_replicator(enabled):
     print >>sys.stderr, "Setting chunk replicator state to", enabled
     set("//sys/@config/chunk_manager/enable_chunk_replicator", enabled, recursive=True)
     wait(lambda: all(get("//sys/@chunk_replicator_enabled", driver=driver) == enabled for driver in clusters_drivers["primary"]))
+
+def get_singular_chunk_id(path, **kwargs):
+    chunk_ids = get(path + "/@chunk_ids", **kwargs)
+    assert len(chunk_ids) == 1
+    return chunk_ids[0]
+
+def get_first_chunk_id(path, **kwargs):
+    return get(path + "/@chunk_ids/0", **kwargs)

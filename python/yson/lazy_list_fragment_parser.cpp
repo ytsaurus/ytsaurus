@@ -1,8 +1,7 @@
 #include "lazy_list_fragment_parser.h"
 #include "lazy_yson_consumer.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYTree;
 
@@ -14,7 +13,7 @@ class TLazyListFragmentParser::TImpl
 public:
     explicit TImpl(
         IInputStream* stream,
-        const TNullable<TString>& encoding,
+        const std::optional<TString>& encoding,
         bool alwaysCreateAttributes,
         TPythonStringCache* keyCacher)
         : InputStream_(TStreamReader(stream))
@@ -74,7 +73,7 @@ TLazyListFragmentParser::TLazyListFragmentParser() = default;
 
 TLazyListFragmentParser::TLazyListFragmentParser(
     IInputStream* stream,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     bool alwaysCreateAttributes,
     TPythonStringCache* keyCacher)
     : Impl_(New<TImpl>(stream, encoding, alwaysCreateAttributes, keyCacher))
@@ -89,5 +88,4 @@ PyObject* TLazyListFragmentParser::NextItem()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

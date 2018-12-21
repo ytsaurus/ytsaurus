@@ -45,8 +45,7 @@
 
 #include <yt/core/rpc/local_channel.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NRpc;
@@ -73,7 +72,7 @@ namespace {
 
 void FinalizeChunkData(
     const TInMemoryChunkDataPtr& data,
-    const TChunkId& id,
+    TChunkId id,
     const TRefCountedChunkMetaPtr& meta,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
@@ -162,7 +161,7 @@ public:
         auto chunkData = std::move(it->second);
         ChunkIdToData_.erase(it);
 
-        LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v)",
+        YT_LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v)",
             chunkId,
             chunkData->InMemoryMode);
 
@@ -185,7 +184,7 @@ public:
         }
 
         if (!data) {
-            LOG_INFO("Cannot find intercepted chunk data for finalization (ChunkId: %v)", chunkId);
+            YT_LOG_INFO("Cannot find intercepted chunk data for finalization (ChunkId: %v)", chunkId);
             return;
         }
 
@@ -277,13 +276,13 @@ private:
             mode,
             readSessionId);
 
-        LOG_INFO("Preloading in-memory store");
+        YT_LOG_INFO("Preloading in-memory store");
 
         YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
 
         if (mode == EInMemoryMode::None) {
             // Mode has been changed while current action was waiting in action queue
-            LOG_INFO("In-memory mode has been changed");
+            YT_LOG_INFO("In-memory mode has been changed");
 
             store->SetPreloadState(EStorePreloadState::None);
             store->SetPreloadFuture(TFuture<void>());
@@ -293,7 +292,7 @@ private:
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
         if (!tabletSnapshot) {
-            LOG_INFO("Tablet snapshot is missing");
+            YT_LOG_INFO("Tablet snapshot is missing");
 
             store->UpdatePreloadAttempt(false);
             storeManager->BackoffStorePreload(store);
@@ -326,7 +325,7 @@ private:
             // Do not back off if fiber cancellation exception was thrown.
             // SetInMemoryMode with other mode was called during current action execution.
 
-            LOG_ERROR(ex, "Error preloading tablet store, backing off");
+            YT_LOG_ERROR(ex, "Error preloading tablet store, backing off");
             store->UpdatePreloadAttempt(true);
             storeManager->BackoffStorePreload(store);
 
@@ -336,10 +335,10 @@ private:
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
         } catch (const TFiberCanceledException&) {
-            LOG_DEBUG("Preload cancelled");
+            YT_LOG_DEBUG("Preload cancelled");
             throw;
         } catch (...) {
-            LOG_DEBUG("Unknown exception in preload");
+            YT_LOG_DEBUG("Unknown exception in preload");
             throw;
         }
 
@@ -369,7 +368,7 @@ private:
             const TBlockId& id,
             EBlockType type,
             const TBlock& block,
-            const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+            const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
         {
             if (type != BlockType_) {
                 return;
@@ -432,7 +431,7 @@ private:
         bool Dropped_ = false;
     };
 
-    TInMemoryChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    TInMemoryChunkDataPtr GetChunkData(TChunkId chunkId, EInMemoryMode mode)
     {
         TReaderGuard guard(InterceptedDataSpinLock_);
 
@@ -445,7 +444,7 @@ private:
         return chunkData;
     }
 
-    TInMemoryChunkDataPtr CreateChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    TInMemoryChunkDataPtr CreateChunkData(TChunkId chunkId, EInMemoryMode mode)
     {
         TWriterGuard guard(InterceptedDataSpinLock_);
 
@@ -460,19 +459,19 @@ private:
         // Replace the old data, if any, by a new one.
         ChunkIdToData_[chunkId] = chunkData;
 
-        LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
+        YT_LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
             chunkId,
             mode);
 
         return chunkData;
     }
 
-    void DropChunkData(const TChunkId& chunkId)
+    void DropChunkData(TChunkId chunkId)
     {
         TWriterGuard guard(InterceptedDataSpinLock_);
 
         if (ChunkIdToData_.erase(chunkId) == 1) {
-            LOG_WARNING("Intercepted chunk data dropped due to memory pressure (ChunkId: %v)",
+            YT_LOG_WARNING("Intercepted chunk data dropped due to memory pressure (ChunkId: %v)",
                 chunkId);
         }
     }
@@ -499,11 +498,11 @@ IInMemoryManagerPtr CreateInMemoryManager(
 TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
-    const TReadSessionId& readSessionId,
+    TReadSessionId readSessionId,
     TNodeMemoryTracker* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
-    const NProfiling::TTagId& preloadTag)
+    NProfiling::TTagId preloadTag)
 {
     auto mode = tabletSnapshot->Config->InMemoryMode;
 
@@ -512,7 +511,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         "TabletId: %v, StoreId: %v, Mode: %v, ReadSessionId: %v",
         tabletSnapshot->TabletId, store->GetId(), mode, readSessionId);
 
-    LOG_INFO("Store preload started");
+    YT_LOG_INFO("Store preload started");
 
     TClientBlockReadOptions blockReadOptions;
     blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
@@ -580,7 +579,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     chunkData->Blocks.reserve(totalBlockCount);
 
     while (startBlockIndex < totalBlockCount) {
-        LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
+        YT_LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
             startBlockIndex);
 
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
@@ -590,7 +589,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             .ValueOrThrow();
 
         int readBlockCount = compressedBlocks.size();
-        LOG_DEBUG("Finished reading chunk blocks (Blocks: %v-%v)",
+        YT_LOG_DEBUG("Finished reading chunk blocks (Blocks: %v-%v)",
             startBlockIndex,
             startBlockIndex + readBlockCount - 1);
 
@@ -606,7 +605,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             }
 
             case EInMemoryMode::Uncompressed: {
-                LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v, Codec: %v)",
+                YT_LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v, Codec: %v)",
                     startBlockIndex,
                     startBlockIndex + readBlockCount - 1,
                     codec->GetId());
@@ -668,7 +667,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
 
-    LOG_INFO(
+    YT_LOG_INFO(
         "Store preload completed (MemoryUsage: %v, LookupHashTable: %v)",
         allocatedMemory,
         static_cast<bool>(chunkData->LookupHashTable));
@@ -704,7 +703,7 @@ struct TNode
     void OnPingSent(const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
+            YT_LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
                 Descriptor.GetDefaultAddress(),
                 SessionId);
         }
@@ -712,7 +711,7 @@ struct TNode
 
     void SendPing()
     {
-        LOG_DEBUG("Sending ping (Address: %v, SessionId: %v)",
+        YT_LOG_DEBUG("Sending ping (Address: %v, SessionId: %v)",
             Descriptor.GetDefaultAddress(),
             SessionId);
 
@@ -750,7 +749,7 @@ public:
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
         if (type != MapInMemoryModeToBlockType(InMemoryMode_)) {
             return;
@@ -840,7 +839,7 @@ private:
             ToProto(req->mutable_session_id(), node->SessionId);
 
             for (const auto& block : blocks) {
-                LOG_DEBUG("Sending in-memory block (ChunkId: %v, BlockIndex: %v, SessionId: %v, Address: %v)",
+                YT_LOG_DEBUG("Sending in-memory block (ChunkId: %v, BlockIndex: %v, SessionId: %v, Address: %v)",
                     block.first.ChunkId,
                     block.first.BlockIndex,
                     node->SessionId,
@@ -863,7 +862,7 @@ private:
         std::vector<TNodePtr> activeNodes;
         for (size_t index = 0; index < results.size(); ++index) {
             if (!results[index].IsOK()) {
-                LOG_WARNING("Error sending batch (SessionId: %v, Address: %v)",
+                YT_LOG_WARNING("Error sending batch (SessionId: %v, Address: %v)",
                     Nodes_[index]->SessionId,
                     Nodes_[index]->Descriptor.GetDefaultAddress());
                 continue;
@@ -872,7 +871,7 @@ private:
             auto result = results[index].Value();
 
             if (result->dropped()) {
-                LOG_WARNING("Dropped in-memory session (SessionId: %v, Address: %v)",
+                YT_LOG_WARNING("Dropped in-memory session (SessionId: %v, Address: %v)",
                     Nodes_[index]->SessionId,
                     Nodes_[index]->Descriptor.GetDefaultAddress());
                 continue;
@@ -888,7 +887,7 @@ private:
 
     TFuture<void> DoFinish(const std::vector<TChunkInfo>& chunkInfos)
     {
-        LOG_DEBUG("Finishing in-memory sessions (SessionIds: %v)",
+        YT_LOG_DEBUG("Finishing in-memory sessions (SessionIds: %v)",
             MakeFormattableRange(Nodes_, [] (TStringBuilder* builder, const TNodePtr& node) {
                 FormatValue(builder, node->SessionId, TStringBuf());
             }));
@@ -941,7 +940,7 @@ public:
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*data*/,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     { }
 
     virtual TBlock Find(
@@ -1007,7 +1006,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
         nodes.push_back(node);
     }
 
-    LOG_DEBUG("In-memory sessions started (SessionIds: %v)",
+    YT_LOG_DEBUG("In-memory sessions started (SessionIds: %v)",
         MakeFormattableRange(nodes, [] (TStringBuilder* builder, const TNodePtr& node) {
             FormatValue(builder, node->SessionId, TStringBuf());
         }));
@@ -1038,5 +1037,4 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

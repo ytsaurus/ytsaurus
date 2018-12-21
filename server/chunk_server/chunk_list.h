@@ -13,8 +13,7 @@
 #include <yt/core/misc/indexed_vector.h>
 #include <yt/core/misc/range.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +66,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
 
 public:
-    explicit TChunkList(const TChunkListId& id);
+    explicit TChunkList(TChunkListId id);
 
     TChunkListDynamicData* GetDynamicData() const;
 
@@ -107,8 +106,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 
 #define CHUNK_LIST_INL_H_

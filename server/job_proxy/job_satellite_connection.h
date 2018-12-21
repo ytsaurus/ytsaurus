@@ -14,8 +14,7 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,13 +50,13 @@ class TJobSatelliteConnection
 {
 public:
     TJobSatelliteConnection(
-        const NJobTrackerClient::TJobId& jobId,
+        NJobTrackerClient::TJobId jobId,
         NBus::TTcpBusServerConfigPtr jobProxyRpcServerConfig,
         NExecAgent::EJobEnvironmentType environmentType,
         bool enableSecureVaultVariablesInJobShell);
     TString GetConfigPath() const;
     NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
-    const NJobTrackerClient::TJobId& GetJobId() const;
+    NJobTrackerClient::TJobId GetJobId() const;
 
     void MakeConfig();
 
@@ -70,5 +69,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

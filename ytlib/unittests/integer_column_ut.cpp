@@ -7,8 +7,7 @@
 #include <yt/ytlib/table_chunk_format/private.h>
 #include <yt/ytlib/table_chunk_format/public.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 
@@ -24,7 +23,7 @@ protected:
 
     struct TValue
     {
-        TNullable<TStored> Data;
+        std::optional<TStored> Data;
         TTimestamp Timestamp;
         bool Aggregate;
     };
@@ -65,7 +64,7 @@ protected:
         rows->push_back(CreateRow({
             {std::numeric_limits<TStored>::max(), TimestampBase, false},
             {std::numeric_limits<TStored>::min(), TimestampBase + 1, true},
-            {Null, TimestampBase + 2, false}}));
+            {std::nullopt, TimestampBase + 2, false}}));
     }
 
     std::vector<TVersionedRow> CreateDirectDense()
@@ -89,7 +88,7 @@ protected:
             for (int j = 0; j < 100; ++j) {
                 rows.push_back(CreateRow({
                     {Base + j, TimestampBase + i * 10, true},
-                    {Null, TimestampBase + (i + 1) * 10, false},
+                    {std::nullopt, TimestampBase + (i + 1) * 10, false},
                     {Base + j * 10, TimestampBase + (i + 2) * 10, true}}));
             }
             rows.push_back(CreateRowWithValues({}));
@@ -129,7 +128,7 @@ protected:
         for (int i = 0; i < 1000; ++i) {
             rows.push_back(CreateRow({
                 {Base + i, TimestampBase + i * 10, false},
-                {Null, TimestampBase + (i + 2) * 10, false}}));
+                {std::nullopt, TimestampBase + (i + 2) * 10, false}}));
             for (int j = 0; j < 10; ++j) {
                 rows.push_back(CreateRowWithValues({}));
             }
@@ -310,9 +309,9 @@ protected:
     using TUnversionedColumnTestBase<TValue>::WriteSegment;
     using TUnversionedColumnTestBase<TValue>::Validate;
 
-    std::vector<TNullable<TValue>> CreateDirectDense()
+    std::vector<std::optional<TValue>> CreateDirectDense()
     {
-        std::vector<TNullable<TValue>> data;
+        std::vector<std::optional<TValue>> data;
         for (int i = 0; i < 100 * 100; ++i) {
             data.push_back(Base_ + i);
         }
@@ -320,9 +319,9 @@ protected:
         return data;
     }
 
-    std::vector<TNullable<TValue>> CreateDictionaryDense()
+    std::vector<std::optional<TValue>> CreateDictionaryDense()
     {
-        std::vector<TNullable<TValue>> data;
+        std::vector<std::optional<TValue>> data;
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
                 data.push_back(Base_ + j * 1024);
@@ -332,29 +331,29 @@ protected:
         return data;
     }
 
-    std::vector<TNullable<TValue>> CreateDictionaryRle()
+    std::vector<std::optional<TValue>> CreateDictionaryRle()
     {
-        std::vector<TNullable<TValue>> data;
+        std::vector<std::optional<TValue>> data;
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
                 data.push_back(Base_ + (j / 25) * 1024);
             }
             for (int j = 0; j < 2; ++j) {
-                data.push_back(Null);
+                data.push_back(std::nullopt);
             }
         }
         AppendExtremeValues(&data);
         return data;
     }
 
-    std::vector<TNullable<TValue>> CreateDirectRle()
+    std::vector<std::optional<TValue>> CreateDirectRle()
     {
-        std::vector<TNullable<TValue>> data;
+        std::vector<std::optional<TValue>> data;
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
                 data.push_back(Base_ + i);
             }
-            data.push_back(Null);
+            data.push_back(std::nullopt);
         }
         return data;
     }
@@ -382,7 +381,7 @@ protected:
 
     void DoReadValues(int startRowIndex, int rowCount)
     {
-        std::vector<TNullable<TValue>> expected;
+        std::vector<std::optional<TValue>> expected;
         AppendVector(&expected, CreateDirectDense());
         AppendVector(&expected, CreateDirectRle());
         AppendVector(&expected, CreateDictionaryDense());
@@ -391,11 +390,11 @@ protected:
         Validate(CreateRows(expected), startRowIndex, rowCount);
     }
 
-    void AppendExtremeValues(std::vector<TNullable<TValue>>* values)
+    void AppendExtremeValues(std::vector<std::optional<TValue>>* values)
     {
         values->push_back(std::numeric_limits<TValue>::max());
         values->push_back(std::numeric_limits<TValue>::min());
-        values->push_back(Null);
+        values->push_back(std::nullopt);
     }
 };
 
@@ -467,5 +466,4 @@ TEST_F(TUnversionedUint64ColumnTest, ReadValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

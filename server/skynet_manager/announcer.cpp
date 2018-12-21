@@ -13,8 +13,7 @@
 
 #include <yt/core/utilex/random.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -74,7 +73,7 @@ TFuture<TDuration> TTrackerConnection::Connect(ui16 dataPort)
         }));
 }
 
-TFuture<TNullable<TDuration>> TTrackerConnection::Announce(TResourceId resource, EAnnounceState state)
+TFuture<std::optional<TDuration>> TTrackerConnection::Announce(TResourceId resource, EAnnounceState state)
 {
     auto transactionId = NextTransactionId_++;
     auto request = BuildYsonNodeFluently()
@@ -89,12 +88,12 @@ TFuture<TNullable<TDuration>> TTrackerConnection::Announce(TResourceId resource,
         .EndList();
 
     return Send(transactionId, request)
-        .Apply(BIND([state] (const TErrorOr<INodePtr>& reply) -> TNullable<TDuration> {
+        .Apply(BIND([state] (const TErrorOr<INodePtr>& reply) -> std::optional<TDuration> {
             if (state == EAnnounceState::Seeding) {
                 return TDuration::Seconds(ConvertTo<int>(reply.ValueOrThrow()->AsList()->FindChild(2)));
             }
 
-            return Null;
+            return std::nullopt;
         }));
 }
 
@@ -105,7 +104,7 @@ void TTrackerConnection::OnTrackerPacket(const TSharedRef& packet)
 
     auto request = ActiveRequests_.find(transactionId);
     if (request == ActiveRequests_.end()) {
-        LOG_WARNING("Received packet with unknown transaction id (TransactionId: %v)", transactionId);
+        YT_LOG_WARNING("Received packet with unknown transaction id (TransactionId: %v)", transactionId);
         return;
     }
 
@@ -129,7 +128,7 @@ TFuture<INodePtr> TTrackerConnection::Send(TTrackerTransactionId id, INodePtr re
     context.Reply = NewPromise<INodePtr>();
     context.Deadline = TInstant::Now() + TDuration::Seconds(5);
 
-    LOG_DEBUG("Sending packet to tracker (TrackerAddress: %v)", TrackerAddress_);
+    YT_LOG_DEBUG("Sending packet to tracker (TrackerAddress: %v)", TrackerAddress_);
     Connection_->SendTo(packet, TrackerAddress_);
     return context.Reply.ToFuture();
 }
@@ -146,7 +145,7 @@ void TTrackerConnection::ExpireRequests()
     }
 
     for (auto id : toRemove) {
-        LOG_ERROR("Tracker request expired (TrackerAddress: %v, TransactionId: %d)",
+        YT_LOG_ERROR("Tracker request expired (TrackerAddress: %v, TransactionId: %d)",
             TrackerAddress_,
             id);
         ActiveRequests_.erase(id);
@@ -325,7 +324,7 @@ void TAnnouncer::SyncResourceList(
         }
 
         SkynetManagerProfiler.Update(ResourceCount_, Resources_.size());
-        LOG_INFO("Finished synchronizing resource list (Cluster: %s, Added: %d, Removed: %d)",
+        YT_LOG_INFO("Finished synchronizing resource list (Cluster: %s, Added: %d, Removed: %d)",
             cluster,
             updated.size(),
             toRemove.size());
@@ -396,7 +395,7 @@ void TAnnouncer::RunAnnounceLoop()
 {
     while (true) {
         auto batch = Scheduler_.GetNextBatch();
-        LOG_INFO("Started backgroud announce iteration (QueueSize: %d, BatchSize: %d)",
+        YT_LOG_INFO("Started backgroud announce iteration (QueueSize: %d, BatchSize: %d)",
             Scheduler_.QueueSize(),
             batch.size());
         for (auto&& resource : batch) {
@@ -411,12 +410,12 @@ void TAnnouncer::RunAnnounceLoop()
             if (result.IsOK()) {
                 Scheduler_.PutWithTTL(resource.first, resource.second, *result.Value());
             } else {
-                LOG_ERROR(result, "Error is background announcer (ResourceId: %v)", resource.first);
+                YT_LOG_ERROR(result, "Error is background announcer (ResourceId: %v)", resource.first);
                 Scheduler_.PutRetry(resource.first, resource.second);
             }
         }
 
-        LOG_INFO("Finished backgroud announce iteration (QueueSize: %d)",
+        YT_LOG_INFO("Finished backgroud announce iteration (QueueSize: %d)",
             Scheduler_.QueueSize());
         TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
     }
@@ -427,9 +426,9 @@ void TAnnouncer::RunConnectLoop(TTrackerConnectionPtr tracker)
     while (true) {
         bool connected = false;
         try {
-            LOG_INFO("Sending connect message to tracker");
+            YT_LOG_INFO("Sending connect message to tracker");
             auto ttl = WaitFor(tracker->Connect(SelfDataPort_)).ValueOrThrow();
-            LOG_INFO("Connected to tracker (Ttl: %v)", ttl);
+            YT_LOG_INFO("Connected to tracker (Ttl: %v)", ttl);
             if (!connected) {
                 connected = true;
                 ConnectedTrackerCount_ += 1;
@@ -437,7 +436,7 @@ void TAnnouncer::RunConnectLoop(TTrackerConnectionPtr tracker)
 
             TDelayedExecutor::WaitForDuration(ttl);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error connecting to tracker");
+            YT_LOG_ERROR(ex, "Error connecting to tracker");
             if (connected) {
                 connected = false;
                 ConnectedTrackerCount_ -= 1;
@@ -454,11 +453,11 @@ void TAnnouncer::RunReceiveLoop()
         auto msg = WaitFor(Connection_->ReceiveFrom(buffer));
 
         if (!msg.IsOK()) {
-            LOG_ERROR(msg, "Error receiving packet from tracker");
+            YT_LOG_ERROR(msg, "Error receiving packet from tracker");
             continue;
         }
 
-        LOG_DEBUG("Received tracker packet (TrackerAddress: %v)", msg.ValueOrThrow().second);
+        YT_LOG_DEBUG("Received tracker packet (TrackerAddress: %v)", msg.ValueOrThrow().second);
         bool found = true;
         for (auto&& trackerConnection : Trackers_) {
             if (trackerConnection.first != msg.ValueOrThrow().second) {
@@ -470,13 +469,13 @@ void TAnnouncer::RunReceiveLoop()
             try {
                 trackerConnection.second->OnTrackerPacket(buffer.Slice(0, msg.ValueOrThrow().first));
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error in tracker packet handler");
+                YT_LOG_ERROR(ex, "Error in tracker packet handler");
             }
             break;
         }
 
         if (!found) {
-            LOG_ERROR("Received packet from unknown address (Address: %v)", msg.ValueOrThrow().second);
+            YT_LOG_ERROR("Received packet from unknown address (Address: %v)", msg.ValueOrThrow().second);
         }
     }
 }
@@ -484,12 +483,11 @@ void TAnnouncer::RunReceiveLoop()
 void TAnnouncer::ExpireRequests()
 {
     for (auto&& tracker : Trackers_) {
-        LOG_INFO("Expiring requests from tracker (TrackerAddress: %v)", tracker.first);
+        YT_LOG_INFO("Expiring requests from tracker (TrackerAddress: %v)", tracker.first);
         tracker.second->ExpireRequests();
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

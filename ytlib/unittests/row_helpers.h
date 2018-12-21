@@ -42,7 +42,7 @@ public:
         return RowList_.at(rowIndex);
     }
 
-    TNullable<NTableClient::TUnversionedValue> FindRowValue(size_t rowIndex, TStringBuf columnName) const
+    std::optional<NTableClient::TUnversionedValue> FindRowValue(size_t rowIndex, TStringBuf columnName) const
     {
         NTableClient::TUnversionedRow row = RowList_.at(rowIndex);
         auto id = GetNameTable()->GetIdOrThrow(columnName);
@@ -52,7 +52,7 @@ public:
                 return value;
             }
         }
-        return Null;
+        return std::nullopt;
     }
 
     NTableClient::TUnversionedValue GetRowValue(size_t rowIndex, TStringBuf columnName) const

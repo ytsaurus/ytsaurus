@@ -13,12 +13,12 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NTabletServer::NProto;
+using namespace NTabletClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,6 +105,43 @@ private:
 
     void DoCheckDecommission()
     {
+        auto retiringCells = GetDecommissionedCellsUsedByActions();
+
+        YT_LOG_DEBUG("Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
+            retiringCells.size());
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        if (Config_->EnableTabletCellDecommission) {
+            for (const auto& pair : tabletManager->TabletCells()) {
+                const auto* cell = pair.second;
+
+                if (IsObjectAlive(cell) &&
+                    cell->DecommissionStarted() &&
+                    !retiringCells.contains(cell))
+                {
+                    MoveTabletsToOtherCells(cell);
+                    RequestTabletCellDecommissonOnNode(cell);
+                }
+            }
+        }
+
+        if (Bootstrap_->IsPrimaryMaster() && Config_->EnableTabletCellRemoval) {
+            for (const auto& pair : tabletManager->TabletCells()) {
+                const auto* cell = pair.second;
+
+                if (IsObjectAlive(cell) &&
+                    cell->DecommissionStarted() &&
+                    !retiringCells.contains(cell))
+                {
+                    RemoveCellIfDecommissioned(cell);
+                }
+            }
+        }
+    }
+
+    THashSet<const TTabletCell*> GetDecommissionedCellsUsedByActions()
+    {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         THashSet<const TTabletCell*> retiringCells;
@@ -117,7 +154,7 @@ private:
             {
                 for (const auto* tablet : action->Tablets()) {
                     if (tablet->GetState() != ETabletState::Unmounted &&
-                        tablet->GetCell()->GetDecommissioned())
+                        tablet->GetCell()->DecommissionStarted())
                     {
                         retiringCells.insert(tablet->GetCell());
                     }
@@ -125,8 +162,8 @@ private:
 
                 // When cell is decommissioned all tablet actions should be unlinked.
                 for (const auto* cell : action->TabletCells()) {
-                    if (cell->GetDecommissioned()) {
-                        LOG_ERROR("Tablet action target cell is decommissioned (ActionId: %v, CellId: %v)",
+                    if (cell->DecommissionStarted()) {
+                        YT_LOG_ERROR("Tablet action target cell is decommissioned (ActionId: %v, CellId: %v)",
                             action->GetId(),
                             cell->GetId());
 
@@ -136,44 +173,60 @@ private:
             }
         }
 
-        LOG_DEBUG("Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
-            retiringCells.size());
+        return retiringCells;
+    }
 
-        for (const auto& pair : tabletManager->TabletCells()) {
-            const auto* cell = pair.second;
-
-            if (IsObjectAlive(cell) &&
-                cell->GetDecommissioned() &&
-                !retiringCells.contains(cell))
-            {
-                for (auto* tablet : cell->Tablets()) {
-                    if (!DecommissionThrottler_->TryAcquire(1)) {
-                        auto result = WaitFor(DecommissionThrottler_->Throttle(1));
-                        if (!result.IsOK()) {
-                            return;
-                        }
-                    }
-
-                    TReqCreateTabletAction request;
-                    request.set_kind(static_cast<int>(ETabletActionKind::Move));
-                    ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
-
-                    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-                    CreateMutation(hydraManager, request)
-                        ->CommitAndLog(Logger);
-                }
-
-                if (Bootstrap_->IsPrimaryMaster()) {
-                    const auto& statistics = cell->ClusterStatistics();
-                    if (statistics.Decommissioned && statistics.TabletCount == 0) {
-                        const auto& objectManager = Bootstrap_->GetObjectManager();
-                        auto rootService = objectManager->GetRootService();
-                        auto req = TYPathProxy::Remove(NObjectClient::FromObjectId(cell->GetId()));
-                        ExecuteVerb(rootService, req);
-                    }
-                }
+    void MoveTabletsToOtherCells(const TTabletCell* cell)
+    {
+        for (auto* tablet : cell->Tablets()) {
+            if (!DecommissionThrottler_->TryAcquire(1)) {
+                return;
             }
+
+            TReqCreateTabletAction request;
+            request.set_kind(static_cast<int>(ETabletActionKind::Move));
+            ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
+
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger);
         }
+    }
+
+    void RequestTabletCellDecommissonOnNode(const TTabletCell* cell)
+    {
+        const auto& statistics = cell->ClusterStatistics();
+        if (!Bootstrap_->IsPrimaryMaster() ||
+            cell->GetTabletCellLifeStage() != ETabletCellLifeStage::DecommissioningOnMaster ||
+            !statistics.Decommissioned ||
+            statistics.TabletCount != 0)
+        {
+            return;
+        }
+
+        TReqOnTabletCellDecommisionedOnMaster request;
+        ToProto(request.mutable_cell_id(), cell->GetId());
+
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger);
+    }
+
+    void RemoveCellIfDecommissioned(const TTabletCell* cell)
+    {
+        const auto& statistics = cell->ClusterStatistics();
+        if (!Bootstrap_->IsPrimaryMaster() ||
+            !cell->DecommissionCompleted() ||
+            !statistics.Decommissioned ||
+            statistics.TabletCount != 0)
+        {
+            return;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto rootService = objectManager->GetRootService();
+        auto req = TYPathProxy::Remove(NObjectClient::FromObjectId(cell->GetId()));
+        ExecuteVerb(rootService, req);
     }
 
     void DoCheckOrphans()
@@ -232,6 +285,5 @@ void TTabletCellDecommissioner::Reconfigure(TTabletCellDecommissionerConfigPtr c
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

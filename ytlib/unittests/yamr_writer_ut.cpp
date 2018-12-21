@@ -7,8 +7,7 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -642,5 +641,4 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithRangeAndRowIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

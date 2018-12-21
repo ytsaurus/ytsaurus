@@ -9,8 +9,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-namespace NVariant {
+namespace NDetail::NVariant {
 
 template <class... Ts>
 struct TStorageTraits;
@@ -21,8 +20,7 @@ struct TTagTraits;
 template <class... Ts>
 struct TTypeTraits;
 
-} // namespace NVariant
-} // namespace NDetail
+} // namespace NDetail::NVariant
 
 ////////////////////////////////////////////////////////////////////////////////
 

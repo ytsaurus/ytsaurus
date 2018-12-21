@@ -13,8 +13,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,9 +44,6 @@ public:
     // Limits and bans.
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
 
-    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, ReadRequestRateThrottler);
-    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, WriteRequestRateThrottler);
-
     DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSizeLimit);
     DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize);
 
@@ -59,7 +55,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex);
     
 public:
-    explicit TUser(const TUserId& id);
+    explicit TUser(TUserId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -69,15 +65,20 @@ public:
 
     void RecomputeClusterStatistics();
 
-    int GetRequestRateLimit(EUserWorkloadType);
-    void SetRequestRateLimit(int, EUserWorkloadType);
+    const NConcurrency::IReconfigurableThroughputThrottlerPtr GetRequestRateThrottler(EUserWorkloadType workloadType);
+    void SetRequestRateThrottler(const NConcurrency::IReconfigurableThroughputThrottlerPtr& throttler, EUserWorkloadType workloadType);
+
+    int GetRequestRateLimit(EUserWorkloadType workloadType);
+    void SetRequestRateLimit(int limit, EUserWorkloadType workloadType);
 
 private:
+    NConcurrency::IReconfigurableThroughputThrottlerPtr ReadRequestRateThrottler_;
+    NConcurrency::IReconfigurableThroughputThrottlerPtr WriteRequestRateThrottler_;
+
     int ReadRequestRateLimit_;
     int WriteRequestRateLimit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

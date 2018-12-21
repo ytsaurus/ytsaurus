@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/config.h>
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +54,7 @@ class TAddressResolverConfig
 public:
     bool EnableIPv4;
     bool EnableIPv6;
-    TNullable<TString> LocalHostFqdn;
+    std::optional<TString> LocalHostFqdn;
     int Retries;
     TDuration ResolveTimeout;
     TDuration MaxResolveTimeout;
@@ -90,5 +89,4 @@ DEFINE_REFCOUNTED_TYPE(TAddressResolverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet

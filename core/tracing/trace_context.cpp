@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/guid.h>
 
-namespace NYT {
-namespace NTracing {
+namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +72,7 @@ bool IsVerboseTracing()
 
 void PushContext(const TTraceContext& context)
 {
-    LOG_TRACE("Push context %v", context);
+    YT_LOG_TRACE("Push context %v", context);
     TraceContextStack().push_back(context);
 }
 
@@ -81,7 +80,7 @@ void PopContext()
 {
     auto& stack = TraceContextStack();
     YCHECK(!stack.empty());
-    LOG_TRACE("Pop context %v", stack.back());
+    YT_LOG_TRACE("Pop context %v", stack.back());
     stack.pop_back();
 }
 
@@ -239,6 +238,5 @@ void TraceEvent(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTracing
-} // namespace NYT
+} // namespace NYT::NTracing
 

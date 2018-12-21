@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/chunk_client/io_engine.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +19,7 @@ namespace {
 template <class T>
 void ValidateSignature(const T& header)
 {
-    LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
+    YT_LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
         "Invalid signature: expected %" PRIx64 ", got %" PRIx64,
         T::ExpectedSignature,
         header.Signature);
@@ -82,7 +81,7 @@ typename std::vector<T>::const_iterator FirstGreater(
 
 TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
     : Capacity_(capacity)
-    , Data_(TAsyncFileChangelogIndex::AllocateAligned<TNull>(capacity * sizeof(TChangelogIndexRecord), true, alignment))
+    , Data_(TAsyncFileChangelogIndex::AllocateAligned<std::nullopt_t>(capacity * sizeof(TChangelogIndexRecord), true, alignment))
     , Offset_(offset)
 {
     auto maxCurrentIndexRecords = alignment / sizeof(TChangelogIndexRecord);
@@ -172,7 +171,7 @@ void TAsyncFileChangelogIndex::Create()
     IndexFile_ = IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec).Get().ValueOrThrow();
 }
 
-void TAsyncFileChangelogIndex::Read(const TNullable<i32>& truncatedRecordCount)
+void TAsyncFileChangelogIndex::Read(const std::optional<i32>& truncatedRecordCount)
 {
     // Create index if it is missing.
     if (!NFS::Exists(IndexFileName_) ||
@@ -213,7 +212,7 @@ void TAsyncFileChangelogIndex::Read(const TNullable<i32>& truncatedRecordCount)
 
 void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
 {
-    LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
+    YT_LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
     YCHECK(correctPrefixSize <= Index_.size());
     Index_.resize(correctPrefixSize);
 
@@ -342,7 +341,7 @@ void TAsyncFileChangelogIndex::ProcessRecord(int recordId, i64 currentFilePositi
         CurrentBlockSize_ = 0;
         Index_.emplace_back(recordId, currentFilePosition);
 
-        LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
+        YT_LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
             recordId,
             currentFilePosition);
 
@@ -406,5 +405,4 @@ bool TAsyncFileChangelogIndex::IsEmpty() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

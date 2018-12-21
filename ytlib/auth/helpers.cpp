@@ -5,8 +5,7 @@
 #include <util/string/quote.h>
 #include <util/string/url.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,6 +76,5 @@ TString TSafeUrlBuilder::FlushSafeUrl()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth
 

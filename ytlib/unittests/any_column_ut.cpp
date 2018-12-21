@@ -11,8 +11,7 @@
 #include <yt/ytlib/table_client/public.h>
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 
@@ -88,5 +87,4 @@ TEST(TAnyColumnTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

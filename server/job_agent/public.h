@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,5 +29,4 @@ DECLARE_REFCOUNTED_CLASS(TStatisticsReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

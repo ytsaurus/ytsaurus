@@ -10,8 +10,7 @@
 
 #include <util/system/file.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +21,7 @@ class TFileWriter
 public:
     TFileWriter(
         const IIOEnginePtr& ioEngine,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TString& fileName,
         bool syncOnClose = true,
         bool enableWriteDirectIO = false);
@@ -95,5 +94,4 @@ DEFINE_REFCOUNTED_TYPE(TFileWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

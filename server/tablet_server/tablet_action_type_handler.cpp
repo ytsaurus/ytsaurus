@@ -6,8 +6,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NHydra;
 using namespace NObjectServer;
@@ -41,7 +40,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
         auto kind = attributes->GetAndRemove<ETabletActionKind>("kind");
@@ -117,5 +116,4 @@ IObjectTypeHandlerPtr CreateTabletActionTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

@@ -28,8 +28,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +55,7 @@ private:
 
     const NConcurrency::TActionQueuePtr ControlQueue_;
     const NConcurrency::TThreadPoolPtr WorkerPool_;
+    const NConcurrency::IPollerPtr HttpPoller_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
@@ -77,5 +77,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

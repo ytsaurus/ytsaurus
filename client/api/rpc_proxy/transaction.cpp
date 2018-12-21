@@ -1,9 +1,7 @@
 #include "transaction.h"
 #include "transaction_impl.h"
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,13 +9,13 @@ NApi::ITransactionPtr CreateTransaction(
     TConnectionPtr connection,
     TClientPtr client,
     NRpc::IChannelPtr channel,
-    const NTransactionClient::TTransactionId& id,
+    NTransactionClient::TTransactionId id,
     NTransactionClient::TTimestamp startTimestamp,
     NTransactionClient::ETransactionType type,
     NTransactionClient::EAtomicity atomicity,
     NTransactionClient::EDurability durability,
     TDuration timeout,
-    TNullable<TDuration> pingPeriod,
+    std::optional<TDuration> pingPeriod,
     bool sticky)
 {
     return New<TTransaction>(
@@ -36,7 +34,5 @@ NApi::ITransactionPtr CreateTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy
 

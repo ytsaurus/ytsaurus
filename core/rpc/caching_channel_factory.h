@@ -3,8 +3,7 @@
 #include "public.h"
 #include "channel.h"
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +23,4 @@ ICachingChannelFactoryPtr CreateCachingChannelFactory(IChannelFactoryPtr underly
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

@@ -1,8 +1,7 @@
 #include "async_writer.h"
 #include "detail.h"
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,5 +131,4 @@ void TAsyncYsonWriter::FlushCurrentSegment()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

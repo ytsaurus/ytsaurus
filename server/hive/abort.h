@@ -7,8 +7,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,8 +20,8 @@ public:
 
 public:
     TAbort(
-        const TTransactionId& transactionId,
-        const NRpc::TMutationId& mutationId);
+        TTransactionId transactionId,
+        NRpc::TMutationId mutationId);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);
@@ -34,5 +33,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

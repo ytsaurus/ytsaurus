@@ -4,8 +4,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,10 +23,10 @@ public:
     explicit TChunkRegistry(NCellNode::TBootstrap* bootstrap);
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
-    IChunkPtr FindChunk(const TChunkId& chunkId, int mediumIndex = NChunkClient::AllMediaIndex);
+    IChunkPtr FindChunk(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex);
 
     //! Finds chunk by id. Throws if no chunk exists.
-    IChunkPtr GetChunkOrThrow(const TChunkId& chunkId, int mediumIndex = NChunkClient::AllMediaIndex);
+    IChunkPtr GetChunkOrThrow(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex);
 
 private:
     NCellNode::TBootstrap* const Bootstrap_;
@@ -38,6 +37,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

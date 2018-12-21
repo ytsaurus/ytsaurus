@@ -8,8 +8,7 @@
 
 #include <yt/client/table_client/versioned_row.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +33,7 @@ struct IColumnReaderBase
 
     virtual int GetCurrentBlockIndex() const = 0;
 
-    virtual TNullable<int> GetNextBlockIndex() const = 0;
+    virtual std::optional<int> GetNextBlockIndex() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,5 +124,4 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

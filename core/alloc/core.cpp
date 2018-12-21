@@ -59,6 +59,10 @@
 #define MADV_FREE 8
 #endif
 
+#ifndef MADV_DONTDUMP
+#define MADV_DONTDUMP 16
+#endif
+
 #ifndef NDEBUG
 #define PARANOID
 #endif
@@ -69,8 +73,7 @@
 #define PARANOID_CHECK(condition) (void)(0)
 #endif
 
-namespace NYT {
-namespace NYTAlloc {
+namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,10 +131,22 @@ constexpr uintptr_t TaggedSmallZonesEnd = TaggedSmallZonesStart + 32 * SmallZone
 constexpr uintptr_t MinTaggedSmallPtr = TaggedSmallZonesStart + SmallZoneSize * 1;
 constexpr uintptr_t MaxTaggedSmallPtr = TaggedSmallZonesStart + SmallZoneSize * SmallRankCount;
 
-constexpr uintptr_t LargeZoneStart = TaggedSmallZonesEnd;
-constexpr uintptr_t LargeZoneEnd = LargeZoneStart + LargeZoneSize;
+constexpr uintptr_t DumpableLargeZoneStart = TaggedSmallZonesEnd;
+constexpr uintptr_t DumpableLargeZoneEnd = DumpableLargeZoneStart + LargeZoneSize;
 
-constexpr uintptr_t HugeZoneStart = LargeZoneEnd;
+constexpr uintptr_t UndumpableLargeZoneStart = DumpableLargeZoneEnd;
+constexpr uintptr_t UndumpableLargeZoneEnd = UndumpableLargeZoneStart + LargeZoneSize;
+
+constexpr uintptr_t LargeZoneStart(bool dumpable)
+{
+    return dumpable ? DumpableLargeZoneStart : UndumpableLargeZoneStart;
+}
+constexpr uintptr_t LargeZoneEnd(bool dumpable)
+{
+    return dumpable ? DumpableLargeZoneEnd : UndumpableLargeZoneEnd;
+}
+
+constexpr uintptr_t HugeZoneStart = UndumpableLargeZoneEnd;
 constexpr uintptr_t HugeZoneEnd = HugeZoneStart + HugeZoneSize;
 
 constexpr uintptr_t SystemZoneStart = HugeZoneEnd;
@@ -682,7 +697,7 @@ public:
         const auto& Logger = context.Logger;
         if (Logger) {
             for (const auto& event : PullEvents()) {
-                LOG_DEBUG("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
+                YT_LOG_DEBUG("Timing event logged (Type: %v, Duration: %v, Size: %v, Timestamp: %v, FiberId: %llx)",
                     event.Type,
                     event.Duration,
                     event.Size,
@@ -824,6 +839,13 @@ public:
         YCHECK(result == 0);
     }
 
+    void DontDump(void* ptr, size_t size)
+    {
+        auto result = ::madvise(ptr, size, MADV_DONTDUMP);
+        // Must not fail.
+        YCHECK(result == 0);
+    }
+
     void Populate(void* ptr, size_t size)
     {
         if (PopulateUnavailable_.load(std::memory_order_relaxed)) {
@@ -863,23 +885,23 @@ public:
             return;
         }
         if (IsBuggyKernel() && !BuggyKernelLogged_) {
-            LOG_WARNING("Kernel is buggy; see KERNEL-118");
+            YT_LOG_WARNING("Kernel is buggy; see KERNEL-118");
             BuggyKernelLogged_ = true;
         }
         if (MlockallFailed_ && !MlockallFailedLogged_) {
-            LOG_WARNING("Failed lock process memory");
+            YT_LOG_WARNING("Failed lock process memory");
             MlockallFailedLogged_ = true;
         }
         if (PopulateUnavailable_.load() && !PopulateUnavailableLogged_) {
-            LOG_WARNING("MADV_POPULATE is not supported");
+            YT_LOG_WARNING("MADV_POPULATE is not supported");
             PopulateUnavailableLogged_ = true;
         }
         if (FreeUnavailable_.load() && !FreeUnavailableLogged_) {
-            LOG_WARNING("MADV_FREE is not supported");
+            YT_LOG_WARNING("MADV_FREE is not supported");
             FreeUnavailableLogged_ = true;
         }
         if (StockpileUnavailable_.load() && !StockpileUnavailableLogged_) {
-            LOG_WARNING("MADV_STOCKPILE is not supported");
+            YT_LOG_WARNING("MADV_STOCKPILE is not supported");
             StockpileUnavailableLogged_ = true;
         }
     }
@@ -1270,6 +1292,9 @@ using TGlobalLargeCounters = TEnumIndexedVector<std::atomic<ssize_t>, ELargeAren
 using TLocalHugeCounters = TEnumIndexedVector<ssize_t, EHugeCounter>;
 using TGlobalHugeCounters = TEnumIndexedVector<std::atomic<ssize_t>, EHugeCounter>;
 
+using TLocalUndumpableCounters = TEnumIndexedVector<ssize_t, EUndumpableCounter>;
+using TGlobalUndumpableCounters = TEnumIndexedVector<std::atomic<ssize_t>, EUndumpableCounter>;
+
 Y_FORCE_INLINE ssize_t LoadCounter(ssize_t counter)
 {
     return counter;
@@ -1300,6 +1325,7 @@ struct TThreadState
     // Per-thread counters.
     TTotalCounters<ssize_t> TotalCounters;
     std::array<TLocalLargeCounters, LargeRankCount> LargeArenaCounters;
+    TLocalUndumpableCounters UndumpableCounters;
 
     // Each thread maintains caches of small chunks.
     // One cache is for tagged chunks; the other is for untagged ones.
@@ -1487,6 +1513,7 @@ struct TGlobalState
 {
     TTotalCounters<std::atomic<ssize_t>> TotalCounters;
     std::array<TGlobalLargeCounters, LargeRankCount> LargeArenaCounters;
+    TGlobalUndumpableCounters UndumpableCounters;
 };
 
 TBox<TGlobalState> GlobalState;
@@ -1524,9 +1551,20 @@ public:
         state->LargeArenaCounters[rank][counter] += delta;
     }
 
+    template <class TState>
+    static Y_FORCE_INLINE void IncrementUndumpableCounter(TState* state, EUndumpableCounter counter, ssize_t delta)
+    {
+        state->UndumpableCounters[counter] += delta;
+    }
+
     void IncrementHugeCounter(EHugeCounter counter, ssize_t delta)
     {
         HugeCounters_[counter] += delta;
+    }
+
+    void IncrementHugeUndumpableCounter(EUndumpableCounter counter, ssize_t delta)
+    {
+        HugeUndumpableCounters_[counter] += delta;
     }
 
     void IncrementSystemCounter(ESystemCounter counter, ssize_t delta)
@@ -1703,6 +1741,24 @@ public:
         return result;
     }
 
+    TLocalUndumpableCounters GetUndumpableCounters()
+    {
+        TLocalUndumpableCounters result;
+        for (auto counter : TEnumTraits<EUndumpableCounter>::GetDomainValues()) {
+            result[counter] = HugeUndumpableCounters_[counter].load();
+            result[counter] += GlobalState->UndumpableCounters[counter].load();
+        }
+
+        ThreadManager->EnumerateThreadStates(
+            [&] (const auto* state) {
+                result[EUndumpableCounter::BytesAllocated] += LoadCounter(state->UndumpableCounters[EUndumpableCounter::BytesAllocated]);
+                result[EUndumpableCounter::BytesFreed] += LoadCounter(state->UndumpableCounters[EUndumpableCounter::BytesFreed]);
+            });
+
+        result[EUndumpableCounter::BytesUsed] = GetUsed(result[EUndumpableCounter::BytesAllocated], result[EUndumpableCounter::BytesFreed]);
+        return result;
+    }
+
     // Called before TThreadState is destroyed.
     // Adds the counter values from TThreadState to the global counters.
     void AccumulateLocalCounters(TThreadState* state)
@@ -1741,6 +1797,7 @@ public:
         PushSmallStatistics(context);
         PushLargeStatistics(context);
         PushHugeStatistics(context);
+        PushUndumpableStatistics(context);
     }
 
 private:
@@ -1795,6 +1852,13 @@ private:
     {
         auto counters = GetHugeCounters();
         auto profiler = context.Profiler.AppendPath("/total");
+        PushCounterStatistics(profiler, counters);
+    }
+
+    void PushUndumpableStatistics(const TBackgroundContext& context)
+    {
+        auto counters = GetUndumpableCounters();
+        auto profiler = context.Profiler.AppendPath("/undumpable");
         PushCounterStatistics(profiler, counters);
     }
 
@@ -1862,6 +1926,7 @@ private:
     TGlobalSystemCounters SystemCounters_;
     std::array<TGlobalSmallCounters, SmallRankCount> SmallArenaCounters_;
     TGlobalHugeCounters HugeCounters_;
+    TGlobalUndumpableCounters HugeUndumpableCounters_;
 };
 
 TBox<TStatisticsManager> StatisticsManager;
@@ -1936,7 +2001,7 @@ void TSystemAllocator::Free(void* ptr)
 // (if the latter is empty then the arena allocator is consulted).
 // Vice versa, if the local cache overflows, a group of chunks is moved from it to the global cache.
 //
-// Global caches and arena allocators also take care of (rare) cases when YTAlloc/YTFree is called
+// Global caches and arena allocators also take care of (rare) cases when Allocate/Free is called
 // without a valid thread state (which happens during thread shutdown when TThreadState is already destroyed).
 
 // Each tagged small chunk is prepended with this header (and there is no header at all
@@ -2288,7 +2353,7 @@ private:
 // its acquired size is extended (if needed); the acquired size never shrinks on allocation.
 // If no spare blobs exist, a disposed segment is extracted and is turned into a blob (i.e.
 // its header is initialized) and the needed number of bytes is acquired. If no disposed segments
-// exist, then a new extent is allocated and slices into segments.
+// exist, then a new extent is allocated and sliced into segments.
 //
 // The above algorithm only claims memory from the system (by means of madvise(MADV_POPULATE));
 // the reclaim is handled by a separate background mechanism. Two types of reclaimable memory
@@ -2301,25 +2366,25 @@ private:
 // the disposed segment list.
 //
 // Reclaiming overheads is more complicated since (a) allocated blobs are never tracked directly and
-// (b) reclaiming them may interfere with YTAlloc and YTFree.
+// (b) reclaiming them may interfere with Allocate and Free.
 //
 // To overcome (a), for each extent we maintain a bitmap marking segments that are actually blobs
 // (i.e. contain a header). (For simplicity and efficiency this bitmap is just a vector of bytes.)
-// These flags are updated in YTAlloc/YTFree with appropriate memory ordering. Note that since
+// These flags are updated in Allocate/Free with appropriate memory ordering. Note that since
 // blobs are only disposed (and are turned into segments) by the background thread; if this
 // thread discovers a segment that is marked as a blob, then it is safe to assume that this segment
 // remains a blob unless the thread disposes it.
 //
 // To overcome (b), each large blob header maintains a spin lock. When blob B is extracted
-// from a spare list in YTAlloc, an acquisition is tried. If successful, B is returned to the
+// from a spare list in Allocate, an acquisition is tried. If successful, B is returned to the
 // user. Otherwise it is assumed that B is currently being examined by the background
-// reclaimer thread. YTAlloc then skips this blob and retries extraction; the problem is that
+// reclaimer thread. Allocate then skips this blob and retries extraction; the problem is that
 // since the spare list is basically a stack one cannot just push B back into the spare list.
 // Instead, B is pushed into a special locked spare list. This list is purged by the background
 // thread on each tick and its items are pushed back into the usual spare list.
 //
-// A similar trick is used by YTFree: when invoked for blob B its spin lock acquisition is first
-// tried. Upon success, B is moved to the spare list. On failure, YTFree has to postpone this deallocation
+// A similar trick is used by Free: when invoked for blob B its spin lock acquisition is first
+// tried. Upon success, B is moved to the spare list. On failure, Free has to postpone this deallocation
 // by moving B into the freed locked list. This list, similarly, is being purged by the background thread.
 //
 // It remains to explain how the background thread computes the number of bytes to be reclaimed from
@@ -2331,12 +2396,12 @@ private:
 // spare and overhead volumes.
 //
 // The above implies that each large blob contains a fixed-size header preceeding it.
-// Hence ptr % PageSize == sizeof (TLargeBlobHeader) for each ptr returned by YTAlloc
+// Hence ptr % PageSize == sizeof (TLargeBlobHeader) for each ptr returned by Allocate
 // (since large blob sizes are larger than PageSize and are divisible by PageSize).
-// For YTAllocPageAligned, however, ptr must be divisible by PageSize. To handle such an allocation, we
-// artificially increase its size and align the result of YTAlloc up to the next page boundary.
+// For AllocatePageAligned, however, ptr must be divisible by PageSize. To handle such an allocation, we
+// artificially increase its size and align the result of Allocate up to the next page boundary.
 // When handling a deallocation, ptr is moved back by UnalignPtr (which is capable of dealing
-// with both the results of YTAlloc and YTAllocPageAligned).
+// with both the results of Allocate and AllocatePageAligned).
 // This technique is applied to both large and huge blobs.
 
 // Every large blob (either tagged or not) is prepended with this header.
@@ -2407,11 +2472,12 @@ struct TLargeArena
     size_t CurrentOverheadScanSegment = 0;
 };
 
+template <bool Dumpable>
 class TLargeBlobAllocator
 {
 public:
     TLargeBlobAllocator()
-        : ZoneAllocator_(LargeZoneStart, LargeZoneEnd)
+        : ZoneAllocator_(LargeZoneStart(Dumpable), LargeZoneEnd(Dumpable))
     {
         for (size_t rank = 0; rank < Arenas_.size(); ++rank) {
             auto& arena = Arenas_[rank];
@@ -2543,7 +2609,7 @@ private:
         }
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG_IF(count > 0, "Locked spare blobs reinstalled (Rank: %v, Blobs: %v)",
+        YT_LOG_DEBUG_IF(count > 0, "Locked spare blobs reinstalled (Rank: %v, Blobs: %v)",
             arena->Rank,
             count);
     }
@@ -2562,7 +2628,7 @@ private:
         }
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG_IF(count > 0, "Locked freed blobs reinstalled (Rank: %v, Blobs: %v)",
+        YT_LOG_DEBUG_IF(count > 0, "Locked freed blobs reinstalled (Rank: %v, Blobs: %v)",
             arena->Rank,
             count);
     }
@@ -2577,7 +2643,7 @@ private:
         auto* state = TThreadManager::GetThreadState();
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG("Started processing spare memory in arena (BytesToReclaim: %vM, Rank: %v)",
+        YT_LOG_DEBUG("Started processing spare memory in arena (BytesToReclaim: %vM, Rank: %v)",
             bytesToReclaim / 1_MB,
             rank);
 
@@ -2616,7 +2682,7 @@ private:
 
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::SpareBytesReclaimed, bytesReclaimed);
 
-        LOG_DEBUG("Finished processing spare memory in arena (Rank: %v, BytesReclaimed: %vM, BlobsReclaimed: %v)",
+        YT_LOG_DEBUG("Finished processing spare memory in arena (Rank: %v, BytesReclaimed: %vM, BlobsReclaimed: %v)",
             arena->Rank,
             bytesReclaimed / 1_MB,
             blobsReclaimed);
@@ -2632,7 +2698,7 @@ private:
         auto rank = arena->Rank;
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG("Started processing overhead memory in arena (BytesToReclaim: %vM, Rank: %v)",
+        YT_LOG_DEBUG("Started processing overhead memory in arena (BytesToReclaim: %vM, Rank: %v)",
             bytesToReclaim / 1_MB,
             rank);
 
@@ -2649,6 +2715,9 @@ private:
                     break;
                 }
                 currentExtent = arena->FirstExtent.load();
+                if (!currentExtent) {
+                    break;
+                }
                 restartedFromFirstExtent = true;
             }
 
@@ -2687,7 +2756,7 @@ private:
 
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::OverheadBytesReclaimed, bytesReclaimed);
 
-        LOG_DEBUG("Finished processing overhead memory in arena (Rank: %v, Extents: %v, Segments: %v, BytesReclaimed: %vM)",
+        YT_LOG_DEBUG("Finished processing overhead memory in arena (Rank: %v, Extents: %v, Segments: %v, BytesReclaimed: %vM)",
             arena->Rank,
             extentsTraversed,
             segmentsTraversed,
@@ -2711,7 +2780,7 @@ private:
         }
 
         const auto& Logger = context.Logger;
-        LOG_DEBUG("Memory reclaim started (BytesToReclaim: %vM)",
+        YT_LOG_DEBUG("Memory reclaim started (BytesToReclaim: %vM)",
             bytesToReclaim / 1_MB);
 
         std::array<ssize_t, LargeRankCount * 2> bytesReclaimablePerArena;
@@ -2751,7 +2820,7 @@ private:
             ReclaimSpareMemory(context, &arena, bytesToReclaimPerArena[rank * 2 + 1]);
         }
 
-        LOG_DEBUG("Memory reclaim finished");
+        YT_LOG_DEBUG("Memory reclaim finished");
     }
 
     template <class TState>
@@ -2765,6 +2834,10 @@ private:
         size_t allocationSize = extentHeaderSize + LargeExtentSize;
 
         auto* ptr = ZoneAllocator_.Allocate(allocationSize, MAP_NORESERVE);
+        if (!Dumpable) {
+            MappedMemoryManager->DontDump(ptr, allocationSize);
+        }
+
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesMapped, allocationSize);
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::PagesMapped, allocationSize / PageSize);
 
@@ -2855,9 +2928,12 @@ private:
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BlobsAllocated, 1);
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesAllocated, size);
         StatisticsManager->IncrementTotalCounter(state, tag, EBasicCounter::BytesAllocated, size);
+        if (!Dumpable) {
+            StatisticsManager->IncrementUndumpableCounter(state, EUndumpableCounter::BytesAllocated, size);
+        }
 
         auto* result = HeaderToPtr(blob);
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd);
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart(Dumpable) && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd(Dumpable));
         PoisonUninitializedRange(result, size);
         return result;
     }
@@ -2865,7 +2941,7 @@ private:
     template <class TState>
     void DoFree(TState* state, void* ptr)
     {
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(Dumpable) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(Dumpable));
 
         auto* blob = PtrToHeader<TLargeBlobHeader>(ptr);
         auto size = blob->BytesAllocated;
@@ -2881,6 +2957,9 @@ private:
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BlobsFreed, 1);
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesFreed, size);
         StatisticsManager->IncrementTotalCounter(state, tag, EBasicCounter::BytesFreed, size);
+        if (!Dumpable) {
+            StatisticsManager->IncrementUndumpableCounter(state, EUndumpableCounter::BytesFreed, size);
+        }
 
         if (TryLockBlob(blob)) {
             MoveBlobToSpare(state, &arena, blob, true);
@@ -2897,7 +2976,8 @@ private:
     TSystemPool<TDisposedSegment, DisposedSegmentsBatchSize> DisposedSegmentPool_;
 };
 
-TBox<TLargeBlobAllocator> LargeBlobAllocator;
+TBox<TLargeBlobAllocator<true>> DumpableLargeBlobAllocator;
+TBox<TLargeBlobAllocator<false>> UndumpableLargeBlobAllocator;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Huge blob allocator
@@ -2907,13 +2987,16 @@ TBox<TLargeBlobAllocator> LargeBlobAllocator;
 // Every huge blob (both tagged or not) is prepended with this header.
 struct THugeBlobHeader
 {
-    THugeBlobHeader(TMemoryTag tag, size_t size)
+    THugeBlobHeader(TMemoryTag tag, size_t size, bool dumpable)
         : Tag(tag)
         , Size(size)
+        , Dumpable(dumpable)
     { }
 
     TMemoryTag Tag;
     size_t Size;
+    bool Dumpable;
+    char Padding[15];
 };
 
 CHECK_HEADER_SIZE(THugeBlobHeader)
@@ -2925,16 +3008,22 @@ public:
         : ZoneAllocator_(HugeZoneStart, HugeZoneEnd)
     { }
 
-    void* Allocate(size_t size)
+    void* Allocate(size_t size, bool dumpable)
     {
         auto tag = TThreadManager::GetCurrentMemoryTag();
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
         auto* blob = static_cast<THugeBlobHeader*>(ZoneAllocator_.Allocate(rawSize, MAP_POPULATE));
-        new (blob) THugeBlobHeader(tag, size);
+        if (!dumpable) {
+            MappedMemoryManager->DontDump(blob, rawSize);
+        }
+        new (blob) THugeBlobHeader(tag, size, dumpable);
 
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesAllocated, size);
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BlobsAllocated, 1);
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BytesAllocated, size);
+        if (!dumpable) {
+            StatisticsManager->IncrementHugeUndumpableCounter(EUndumpableCounter::BytesAllocated, size);
+        }
 
         auto* result = HeaderToPtr(blob);
         PoisonUninitializedRange(result, size);
@@ -2946,6 +3035,7 @@ public:
         auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
         auto tag = blob->Tag;
         auto size = blob->Size;
+        auto dumpable = blob->Dumpable;
         PoisonFreedRange(ptr, size);
 
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
@@ -2954,6 +3044,9 @@ public:
         StatisticsManager->IncrementTotalCounter(tag, EBasicCounter::BytesFreed, size);
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BlobsFreed, 1);
         StatisticsManager->IncrementHugeCounter(EHugeCounter::BytesFreed, size);
+        if (!dumpable) {
+            StatisticsManager->IncrementHugeUndumpableCounter(EUndumpableCounter::BytesFreed, size);
+        }
     }
 
     static size_t GetAllocationSize(void* ptr)
@@ -2975,17 +3068,23 @@ TBox<THugeBlobAllocator> HugeBlobAllocator;
 class TBlobAllocator
 {
 public:
-    static void* Allocate(size_t size)
+    static void* Allocate(size_t size, bool dumpable)
     {
         InitializeGlobals();
         // NB: Account for the header. Also note that we may safely ignore the alignment since
         // HugeSizeThreshold is already page-aligned.
         if (size < HugeSizeThreshold - sizeof(TLargeBlobHeader)) {
-            auto* result = LargeBlobAllocator->Allocate(size);
-            PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd);
+            void* result;
+            if (dumpable) {
+                result = DumpableLargeBlobAllocator->Allocate(size);
+            } else {
+                result = UndumpableLargeBlobAllocator->Allocate(size);
+            }
+
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= LargeZoneStart(dumpable) && reinterpret_cast<uintptr_t>(result) < LargeZoneEnd(dumpable));
             return result;
         } else {
-            auto* result = HugeBlobAllocator->Allocate(size);
+            auto* result = HugeBlobAllocator->Allocate(size, dumpable);
             PARANOID_CHECK(reinterpret_cast<uintptr_t>(result) >= HugeZoneStart && reinterpret_cast<uintptr_t>(result) < HugeZoneEnd);
             return result;
         }
@@ -2994,10 +3093,14 @@ public:
     static void Free(void* ptr)
     {
         InitializeGlobals();
-        if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd) {
-            PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
+        if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(true)) {
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(true) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(true));
             UnalignPtr<TLargeBlobHeader>(ptr);
-            LargeBlobAllocator->Free(ptr);
+            DumpableLargeBlobAllocator->Free(ptr);
+        } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(false)) {
+            PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(false) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(false));
+            UnalignPtr<TLargeBlobHeader>(ptr);
+            UndumpableLargeBlobAllocator->Free(ptr);
         } else if (reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd) {
             PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= HugeZoneStart && reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd);
             UnalignPtr<THugeBlobHeader>(ptr);
@@ -3101,7 +3204,8 @@ private:
             }
 
             StatisticsManager->RunBackgroundTasks(context);
-            LargeBlobAllocator->RunBackgroundTasks(context);
+            DumpableLargeBlobAllocator->RunBackgroundTasks(context);
+            UndumpableLargeBlobAllocator->RunBackgroundTasks(context);
             MappedMemoryManager->RunBackgroundTasks(context);
             TimingManager->RunBackgroundTasks(context);
         }
@@ -3198,7 +3302,8 @@ void InitializeGlobals()
         MappedMemoryManager.Construct();
         ThreadManager.Construct();
         GlobalState.Construct();
-        LargeBlobAllocator.Construct();
+        DumpableLargeBlobAllocator.Construct();
+        UndumpableLargeBlobAllocator.Construct();
         HugeBlobAllocator.Construct();
         ConfigurationManager.Construct();
         SystemAllocator.Construct();
@@ -3221,7 +3326,7 @@ void InitializeGlobals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE void* AllocateInline(size_t size)
+Y_FORCE_INLINE void* AllocateInline(size_t size, bool dumpable)
 {
 #define XX() \
     size_t rank; \
@@ -3231,7 +3336,7 @@ Y_FORCE_INLINE void* AllocateInline(size_t size)
         if (Y_LIKELY(size < LargeSizeThreshold)) { \
             rank = SmallSizeToRank2[(size - 1) >> 8]; \
         } else { \
-            return TBlobAllocator::Allocate(size); \
+            return TBlobAllocator::Allocate(size, dumpable); \
         } \
     }
 
@@ -3254,9 +3359,9 @@ Y_FORCE_INLINE void* AllocateInline(size_t size)
 #undef XX
 }
 
-Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
+Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size, bool dumpable)
 {
-    auto* ptr = TBlobAllocator::Allocate(size + PageSize);
+    auto* ptr = TBlobAllocator::Allocate(size + PageSize, dumpable);
     return AlignUp(ptr, PageSize);
 }
 
@@ -3293,9 +3398,12 @@ Y_FORCE_INLINE size_t GetAllocationSizeInline(void* ptr)
     } else if (reinterpret_cast<uintptr_t>(ptr) < TaggedSmallZonesEnd) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= MinTaggedSmallPtr && reinterpret_cast<uintptr_t>(ptr) < MaxTaggedSmallPtr);
         return TSmallAllocator::GetAllocationSize(ptr);
-    } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd) {
-        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
-        return TLargeBlobAllocator::GetAllocationSize(ptr);
+    } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(true)) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(true) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(true));
+        return TLargeBlobAllocator<true>::GetAllocationSize(ptr);
+    } else if (reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(false)) {
+        PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart(false) && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd(false));
+        return TLargeBlobAllocator<false>::GetAllocationSize(ptr);
     } else if (reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd) {
         PARANOID_CHECK(reinterpret_cast<uintptr_t>(ptr) >= HugeZoneStart && reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd);
         return THugeBlobAllocator::GetAllocationSize(ptr);
@@ -3418,6 +3526,5 @@ TString FormatCounters()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTAlloc
-} // namespace NYT
+} // namespace NYT::NYTAlloc
 

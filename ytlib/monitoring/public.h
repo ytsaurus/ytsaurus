@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NMonitoring {
+namespace NYT::NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,5 +11,4 @@ typedef TIntrusivePtr<TMonitoringManager> TMonitoringManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMonitoring
-} // namespace NYT
+} // namespace NYT::NMonitoring

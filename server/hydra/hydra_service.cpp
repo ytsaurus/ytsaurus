@@ -7,8 +7,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -19,7 +18,7 @@ THydraServiceBase::THydraServiceBase(
     IInvokerPtr invoker,
     const TServiceDescriptor& descriptor,
     const NLogging::TLogger& logger,
-    const TRealmId& realmId)
+    TRealmId realmId)
     : TServiceBase(
         invoker,
         descriptor,
@@ -73,5 +72,4 @@ bool THydraServiceBase::IsUp(const TCtxDiscoverPtr& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

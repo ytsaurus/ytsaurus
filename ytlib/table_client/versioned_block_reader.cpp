@@ -8,8 +8,7 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/algorithm_helpers.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NTransactionClient;
 using namespace NProto;
@@ -394,7 +393,7 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
 
     value->Id = id;
     value->Timestamp = timestamp;
-    value->Aggregate = ValueAggregateFlags_.HasValue() ? ValueAggregateFlags_->operator[](valueIndex) : false;
+    value->Aggregate = ValueAggregateFlags_ ? ValueAggregateFlags_->operator[](valueIndex) : false;
 
     bool isNull = ValueNullFlags_[valueIndex];
     if (Y_UNLIKELY(isNull)) {
@@ -507,5 +506,4 @@ i64 THorizontalSchemalessVersionedBlockReader::GetRowIndex() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

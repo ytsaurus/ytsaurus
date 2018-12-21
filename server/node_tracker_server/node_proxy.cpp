@@ -20,8 +20,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NYson;
 using namespace NYTree;
@@ -351,7 +350,6 @@ private:
                     break;
                 }
 
-                RequireLeader();
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
                     .DoMapFor(0, NChunkClient::MaxMediumCount, [&] (TFluentMap fluent, int mediumIndex) {
@@ -370,7 +368,6 @@ private:
                 if (!isGood) {
                     break;
                 }
-                RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceUsage());
                 return true;
@@ -379,7 +376,6 @@ private:
                 if (!isGood) {
                     break;
                 }
-                RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceLimits());
                 return true;
@@ -512,6 +508,5 @@ IObjectProxyPtr CreateClusterNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer
 

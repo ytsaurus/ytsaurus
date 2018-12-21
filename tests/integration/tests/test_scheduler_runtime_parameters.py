@@ -4,6 +4,7 @@ from yt_commands import *
 
 import pytest
 
+
 class TestRuntimeParameters(YTEnvSetup):
 
     NUM_MASTERS = 1
@@ -169,3 +170,41 @@ class TestRuntimeParameters(YTEnvSetup):
         create("map_node", "//sys/pool_trees/" + pool_tree, attributes={"nodes_filter": tag})
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
         return node
+
+
+class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "operations_update_period": 10,
+            "pool_change_is_allowed": True
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 10,
+                    "cpu": 10,
+                    "memory": 10 * 1024 ** 3,
+                }
+            }
+        }
+    }
+
+    def test_jobs_are_scheduled_after_pool_change(self):
+        create("map_node", "//sys/pools/initial_pool")
+        create("map_node", "//sys/pools/changed_pool")
+        op = run_test_vanilla(":", job_count=100000, spec={"pool": "initial_pool"})
+        wait(lambda: op.get_job_count("running") > 5, iter=10)
+
+        update_op_parameters(op.id, parameters={"pool": "changed_pool"})
+        time.sleep(0.1)
+
+        scheduled = op.get_job_count("running") + op.get_job_count("completed")
+        wait(lambda: op.get_job_count("running") + op.get_job_count("completed") > scheduled + 10)

@@ -10,8 +10,7 @@
 
 #include <yt/core/alloc/alloc.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,8 +61,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager
 
 int main(int argc, const char** argv)
 {

@@ -1,13 +1,12 @@
 #include "serialize.h"
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetCurrentSnapshotVersion()
 {
-    return 815;
+    return 819;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -94,7 +93,11 @@ bool ValidateSnapshotVersion(int version)
         version == 812 || // savrus: add reassign peer mutation
         version == 813 || // aozeritsky: YT-9775: master-master protocol change
         version == 814 || // aozeritsky
-        version == 815;   // aozeritsky: Add read_request_rate_limit and write_request_rate_limit
+        version == 815 || // aozeritsky: Add read_request_rate_limit and write_request_rate_limit
+        version == 816 || // shakurov: initialize medium-specific max_replication_factor
+        version == 817 || // shakurov: persist TNode::Resource{Usage,Limits}_
+        version == 818 || // shakurov: int -> i64 for NSecurityServer::TClusterResources::{Node,Chunk}Count
+        version == 819;   // savrus: Add tablet cell life stage
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,5 +108,4 @@ TLoadContext::TLoadContext(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

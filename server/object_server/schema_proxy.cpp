@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -65,5 +64,4 @@ IObjectProxyPtr CreateSchemaProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

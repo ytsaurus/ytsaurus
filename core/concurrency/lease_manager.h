@@ -4,10 +4,9 @@
 
 #include <yt/core/actions/callback.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,10 +28,10 @@ public:
     //! Renews the lease.
     /*!
      *  \param lease A lease to renew.
-     *  \param timeout A new timeout (if |Null| then the old one is preserved).
+     *  \param timeout A new timeout (if |std::nullopt| then the old one is preserved).
      *  \returns True iff the lease is still valid (i.e. not expired).
      */
-    static bool RenewLease(TLease lease, TNullable<TDuration> timeout = Null);
+    static bool RenewLease(TLease lease, std::optional<TDuration> timeout = std::nullopt);
 
     //! Closes the lease.
     /*!
@@ -50,5 +49,4 @@ extern const TLease NullLease;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

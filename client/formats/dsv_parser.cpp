@@ -4,8 +4,7 @@
 #include "escape.h"
 #include "parser.h"
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NYTree;
 using namespace NYson;
@@ -193,10 +192,10 @@ void TDsvParser::FinishRecord()
 
 void TDsvParser::ValidatePrefix(const TString& prefix) const
 {
-    if (prefix != Config->LinePrefix.Get()) {
+    if (prefix != *Config->LinePrefix) {
         // TODO(babenko): provide position
         THROW_ERROR_EXCEPTION("Malformed line prefix in DSV: expected %Qv, found %Qv",
-            Config->LinePrefix.Get(),
+            *Config->LinePrefix,
             prefix)
             << TErrorAttribute("record_index", RecordCount)
             << TErrorAttribute("field_index", FieldCount);
@@ -234,5 +233,4 @@ std::unique_ptr<IParser> CreateParserForDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

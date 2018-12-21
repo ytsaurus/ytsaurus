@@ -3,8 +3,7 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/intrusive_ptr.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,5 +22,4 @@ DECLARE_REFCOUNTED_STRUCT(IUserJobReadController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

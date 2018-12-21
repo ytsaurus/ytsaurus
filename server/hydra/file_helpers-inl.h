@@ -5,8 +5,7 @@
 #include "file_helpers.h"
 #endif
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,5 +68,4 @@ bool TCheckedReader<T>::Check(size_t length)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

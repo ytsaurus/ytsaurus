@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -107,5 +106,4 @@ void Serialize(const TQueryStatistics& statistics, NYson::IYsonConsumer* consume
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

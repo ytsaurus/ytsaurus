@@ -10,8 +10,7 @@
 #include <yt/core/misc/process.h>
 
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +43,7 @@ struct IUserJobEnvironment
 
     virtual void SetIOThrottle(i64 operations) = 0;
 
-    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) = 0;
+    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const std::optional<TString>& coreHandlerSocketPath) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)
@@ -65,10 +64,9 @@ DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     NYTree::INodePtr config,
-    const TNullable<NContainers::TRootFS>& rootFS,
+    const std::optional<NContainers::TRootFS>& rootFS,
     std::vector<TString> gpuDevices);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

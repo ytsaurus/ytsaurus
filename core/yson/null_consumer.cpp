@@ -1,8 +1,7 @@
 #include "null_consumer.h"
 #include "string.h"
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,5 +59,4 @@ IYsonConsumer* GetNullYsonConsumer()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

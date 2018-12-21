@@ -19,8 +19,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
@@ -83,7 +82,7 @@ public:
 
             auto Logger = MakeQueryLogger(query);
 
-            LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
+            YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
                 queryFingerprint,
                 query->GetReadSchema(),
                 query->GetTableSchema());
@@ -93,7 +92,7 @@ public:
             NProfiling::TCpuTimer syncTime;
 
             auto finalLogger = Finally([&] () {
-                LOG_DEBUG("Finalizing evaluation");
+                YT_LOG_DEBUG("Finalizing evaluation");
             });
 
             try {
@@ -112,7 +111,7 @@ public:
                     fragmentParams.Clear();
                 });
 
-                LOG_DEBUG("Evaluating plan fragment");
+                YT_LOG_DEBUG("Evaluating plan fragment");
 
                 // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
                 TExecutionContext executionContext;
@@ -127,7 +126,7 @@ public:
                 executionContext.IsOrdered = query->IsOrdered();
                 executionContext.MemoryChunkProvider = MemoryChunkProvider_;
 
-                LOG_DEBUG("Evaluating query");
+                YT_LOG_DEBUG("Evaluating query");
 
                 CallCGQueryPtr(
                     cgQuery,
@@ -136,7 +135,7 @@ public:
                     &executionContext);
 
             } catch (const std::exception& ex) {
-                LOG_DEBUG("Query evaluation failed");
+                YT_LOG_DEBUG("Query evaluation failed");
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }
 
@@ -145,7 +144,7 @@ public:
             statistics.ExecuteTime =
                 statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
 
-            LOG_DEBUG("Query statistics (%v)", statistics);
+            YT_LOG_DEBUG("Query statistics (%v)", statistics);
 
             TRACE_ANNOTATION("rows_read", statistics.RowsRead);
             TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
@@ -190,10 +189,10 @@ private:
 
         auto compileWithLogging = [&] () {
             TRACE_CHILD("QueryClient", "Compile") {
-                LOG_DEBUG("Started compiling fragment");
+                YT_LOG_DEBUG("Started compiling fragment");
                 NProfiling::TCpuTimingGuard timingGuard(&statistics.CodegenTime);
                 auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
-                LOG_DEBUG("Finished compiling fragment");
+                YT_LOG_DEBUG("Finished compiling fragment");
                 return cgQuery;
             }
         };
@@ -202,7 +201,7 @@ private:
         if (enableCodeCache) {
             auto cookie = BeginInsert(id);
             if (cookie.IsActive()) {
-                LOG_DEBUG("Codegen cache miss: generating query evaluator");
+                YT_LOG_DEBUG("Codegen cache miss: generating query evaluator");
 
                 try {
                     cookie.EndInsert(compileWithLogging());
@@ -214,7 +213,7 @@ private:
             cgQuery = WaitFor(cookie.GetValue())
                 .ValueOrThrow();
         } else {
-            LOG_DEBUG("Codegen cache disabled");
+            YT_LOG_DEBUG("Codegen cache disabled");
 
             cgQuery = compileWithLogging();
         }
@@ -271,5 +270,4 @@ TQueryStatistics TEvaluator::Run(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

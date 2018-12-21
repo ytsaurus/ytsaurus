@@ -6,13 +6,12 @@
 
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/mpl.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/small_vector.h>
 
 #include <yt/core/yson/writer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,9 +100,9 @@ void Serialize(
     NYson::IYsonConsumer* consumer,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
 
-// TNullable
+// std::optional
 template <class T>
-void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer);
+void Serialize(const std::optional<T>& value, NYson::IYsonConsumer* consumer);
 
 // std::vector
 template <class T, class A>
@@ -189,9 +188,9 @@ void Deserialize(
     INodePtr node,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
 
-// TNullable
+// std::optional
 template <class T>
-void Deserialize(TNullable<T>& value, INodePtr node);
+void Deserialize(std::optional<T>& value, INodePtr node);
 
 // std::vector
 template <class T, class A>
@@ -227,8 +226,7 @@ void Deserialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 #define SERIALIZE_INL_H_
 #include "serialize-inl.h"

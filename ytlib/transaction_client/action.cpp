@@ -2,8 +2,7 @@
 
 #include <yt/ytlib/transaction_client/action.pb.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +27,5 @@ void FromProto(TTransactionActionData* data, const NProto::TTransactionActionDat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient
 

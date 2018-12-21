@@ -2,8 +2,7 @@
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,5 +153,4 @@ TString ToString(const TOutputOrder::TEntry& entry) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

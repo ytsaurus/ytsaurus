@@ -1898,10 +1898,14 @@ class TestCypressApiVersion4(YTEnvSetup):
         tx_result = self._execute("start_transaction")
         assert "transaction_id" in tx_result
 
-    def test_lock(self):
+    def test_lock_unlock(self):
         self._execute("set", path="//tmp/a", input='{"a"= 1}')
         result = self._execute("start_transaction")
         tx = result["transaction_id"]
         lock_result = self._execute("lock", path="//tmp/a", transaction_id=tx)
         assert "lock_id" in lock_result and "node_id" in lock_result
-
+        assert len(get("//tmp/a/@locks")) == 1
+        with pytest.raises(YtError): self._execute("set", path="//tmp/a", input='{"a"=2}')
+        self._execute("unlock", path="//tmp/a", transaction_id=tx)
+        assert len(get("//tmp/a/@locks")) == 0
+        self._execute("set", path="//tmp/a", input='{"a"=3}')

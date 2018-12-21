@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -29,7 +28,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVirtualStaticTable::TVirtualStaticTable(const THashSet<NYT::NChunkClient::TInputChunkPtr>& chunks, TNodeDirectoryPtr nodeDirectory)
+TVirtualStaticTable::TVirtualStaticTable(const THashSet<NChunkClient::TInputChunkPtr>& chunks, TNodeDirectoryPtr nodeDirectory)
     : Chunks_(chunks)
     , NodeDirectory_(std::move(nodeDirectory))
 { }
@@ -147,7 +146,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
 
 TFuture<TYsonString> TVirtualStaticTable::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)
 {
-    return Null;
+    return std::nullopt;
 }
 
 ISystemAttributeProvider* TVirtualStaticTable::GetBuiltinAttributeProvider()
@@ -175,7 +174,7 @@ void TVirtualStaticTable::GetSelf(
     if (request->has_attributes()) {
         auto keys = NYT::FromProto<std::vector<TString>>(request->attributes().keys());
         writer.OnBeginAttributes();
-        DoWriteAttributesFragment(&writer, MakeNullable(keys), false /* stable */);
+        DoWriteAttributesFragment(&writer, std::make_optional(keys), false /* stable */);
         writer.OnEndAttributes();
     }
     writer.OnEntity();
@@ -191,8 +190,8 @@ void TVirtualStaticTable::GetSelf(
 }
 
 void TVirtualStaticTable::DoWriteAttributesFragment(
-    NYT::NYson::IAsyncYsonConsumer* consumer,
-    const NYT::TNullable<std::vector<TString>>& attributeKeys,
+    NYson::IAsyncYsonConsumer* consumer,
+    const std::optional<std::vector<TString>>& attributeKeys,
     bool /* stable */)
 {
     if (!attributeKeys) {
@@ -212,6 +211,5 @@ void TVirtualStaticTable::DoWriteAttributesFragment(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

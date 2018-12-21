@@ -10,8 +10,7 @@
 
 #include <yt/client/ypath/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,10 +23,9 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreOptionsPtr options,
     const NYPath::TYPath& path,
     NApi::IClientPtr client,
-    const NTransactionClient::TTransactionId& prerequisiteTransactionId =
+    NTransactionClient::TTransactionId prerequisiteTransactionId =
         NTransactionClient::NullTransactionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

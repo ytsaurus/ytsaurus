@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,5 +54,4 @@ IProxyCoordinatorPtr CreateProxyCoordinator();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

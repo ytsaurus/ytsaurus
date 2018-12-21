@@ -10,8 +10,7 @@
 
 #include <limits>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,5 +341,4 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, ColumnsHeader)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

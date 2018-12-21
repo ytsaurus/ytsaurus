@@ -30,8 +30,7 @@
 #include <yt/client/table_client/schemaful_writer.h>
 #include <yt/client/table_client/name_table.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NYTree;
 using namespace NYson;
@@ -63,11 +62,11 @@ public:
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        const TNullable<TColumnFilter>& maybeColumnFilter)
+        const std::optional<TColumnFilter>& optionalColumnFilter)
         : Store_(std::move(store))
         , TabletIndex_(tabletIndex)
         , UpperRowIndex_(std::min(upperRowIndex, Store_->GetStartingRowIndex() + Store_->GetRowCount()))
-        , MaybeColumnFilter_(maybeColumnFilter)
+        , MaybeColumnFilter_(optionalColumnFilter)
         , CurrentRowIndex_(std::max(lowerRowIndex, Store_->GetStartingRowIndex()))
     { }
 
@@ -84,7 +83,7 @@ public:
             for (int id = 0; id < static_cast<int>(Store_->Schema_.Columns().size()) + 2; ++id) {
                 columnFilterIndexes.push_back(id);
             }
-            MaybeColumnFilter_.Emplace(std::move(columnFilterIndexes));
+            MaybeColumnFilter_.emplace(std::move(columnFilterIndexes));
         }
 
         Pool_ = std::make_unique<TChunkedMemoryPool>(TOrderedDynamicStoreReaderPoolTag(), ReaderPoolSize);
@@ -124,7 +123,7 @@ private:
     const TOrderedDynamicStorePtr Store_;
     const int TabletIndex_;
     const i64 UpperRowIndex_;
-    TNullable<TColumnFilter> MaybeColumnFilter_;
+    std::optional<TColumnFilter> MaybeColumnFilter_;
 
     std::unique_ptr<TChunkedMemoryPool> Pool_;
 
@@ -162,11 +161,11 @@ private:
 
 namespace {
 
-TNullable<int> GetTimestampColumnId(const TTableSchema& schema)
+std::optional<int> GetTimestampColumnId(const TTableSchema& schema)
 {
     const auto* column = schema.FindColumn(TimestampColumnName);
     if (!column) {
-        return Null;
+        return std::nullopt;
     }
     return schema.GetColumnIndex(*column);
 }
@@ -175,7 +174,7 @@ TNullable<int> GetTimestampColumnId(const TTableSchema& schema)
 
 TOrderedDynamicStore::TOrderedDynamicStore(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : TStoreBase(config, id, tablet)
     , TDynamicStoreBase(config, id, tablet)
@@ -184,12 +183,12 @@ TOrderedDynamicStore::TOrderedDynamicStore(
 {
     AllocateCurrentSegment(InitialOrderedDynamicSegmentIndex);
 
-    LOG_DEBUG("Ordered dynamic store created");
+    YT_LOG_DEBUG("Ordered dynamic store created");
 }
 
 TOrderedDynamicStore::~TOrderedDynamicStore()
 {
-    LOG_DEBUG("Ordered dynamic memory store destroyed");
+    YT_LOG_DEBUG("Ordered dynamic memory store destroyed");
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
@@ -199,7 +198,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
         -1,
         StartingRowIndex_,
         StartingRowIndex_ + FlushRowCount_,
-        Null);
+        std::nullopt);
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
@@ -208,7 +207,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
         -1,
         StartingRowIndex_,
         StartingRowIndex_ + GetRowCount(),
-        Null);
+        std::nullopt);
 }
 
 TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
@@ -288,7 +287,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
     auto tableReader = CreateSnapshotReader();
 
     return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
-        LOG_DEBUG("Store snapshot serialization started");
+        YT_LOG_DEBUG("Store snapshot serialization started");
 
         auto chunkWriter = New<TMemoryWriter>();
 
@@ -308,12 +307,12 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         std::vector<TUnversionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
 
-        LOG_DEBUG("Serializing store snapshot");
+        YT_LOG_DEBUG("Serializing store snapshot");
 
         i64 rowCount = 0;
         while (tableReader->Read(&rows)) {
             if (rows.empty()) {
-                LOG_DEBUG("Waiting for table reader");
+                YT_LOG_DEBUG("Waiting for table reader");
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
@@ -321,7 +320,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
 
             rowCount += rows.size();
             if (!tableWriter->Write(rows)) {
-                LOG_DEBUG("Waiting for table writer");
+                YT_LOG_DEBUG("Waiting for table writer");
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -336,20 +335,20 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         Save(context, true);
 
         // NB: This also closes chunkWriter.
-        LOG_DEBUG("Closing table writer");
+        YT_LOG_DEBUG("Closing table writer");
         WaitFor(tableWriter->Close())
             .ThrowOnError();
 
         Save(context, *chunkWriter->GetChunkMeta());
 
         auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
-        LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
+        YT_LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
             rowCount,
             blocks.size());
 
         Save(context, blocks);
 
-        LOG_DEBUG("Store snapshot serialization complete");
+        YT_LOG_DEBUG("Store snapshot serialization complete");
     });
 }
 
@@ -474,19 +473,18 @@ ISchemafulReaderPtr TOrderedDynamicStore::DoCreateReader(
     int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    const TNullable<TColumnFilter>& maybeColumnFilter)
+    const std::optional<TColumnFilter>& optionalColumnFilter)
 {
     auto reader = New<TReader>(
         this,
         tabletIndex,
         lowerRowIndex,
         upperRowIndex,
-        maybeColumnFilter);
+        optionalColumnFilter);
     reader->Initialize();
     return reader;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -6,8 +6,7 @@
 
 #include <yt/client/election/public.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -224,10 +223,10 @@ struct TVersionedObjectId
     TVersionedObjectId();
 
     //! Initializes an instance by given node. Sets #TransactionId to #NullTransactionId.
-    explicit TVersionedObjectId(const TObjectId& objectId);
+    explicit TVersionedObjectId(TObjectId objectId);
 
     //! Initializes an instance by given node and transaction ids.
-    TVersionedObjectId(const TObjectId& objectId, const TTransactionId& transactionId);
+    TVersionedObjectId(TObjectId objectId, TTransactionId transactionId);
 
     //! Checks that the id is branched, i.e. #TransactionId is not #NullTransactionId.
     bool IsBranched() const;
@@ -258,8 +257,7 @@ struct TDirectVersionedObjectIdHash;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient
 
 ////////////////////////////////////////////////////////////////////////////////
 

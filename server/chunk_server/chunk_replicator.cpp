@@ -59,8 +59,7 @@
 #include <array>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -266,14 +265,14 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, Null);
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, std::nullopt);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 hasUnsafelyPlacedReplicas[mediumIndex] = true;
             }
         }
     }
 
-    const auto replicationFactors = chunk->GetAggregatedReplicationFactors(GetChunkRequisitionRegistry());
+    const auto replicationFactors = GetChunkAggregatedReplicationFactors(chunk);
 
     bool precarious = true;
     bool allMediaTransient = true;
@@ -455,7 +454,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         }
     }
 
-    const auto chunkReplication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
+    const auto chunkReplication = GetChunkAggregatedReplication(chunk);
 
     bool allMediaTransient = true;
     bool allMediaDataPartsOnly = true;
@@ -709,7 +708,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 {
     TChunkStatistics results;
 
-    const auto replication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
+    const auto replication = GetChunkAggregatedReplication(chunk);
 
     TPerMediumIntArray replicaCount{};
     int totalReplicaCount = 0;
@@ -742,7 +741,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, Null);
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, std::nullopt);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 // A journal chunk is considered placed unsafely if some non-null rack
                 // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.
@@ -916,6 +915,8 @@ void TChunkReplicator::ComputeJournalChunkStatisticsCrossMedia(
 
 void TChunkReplicator::ScheduleJobs(
     TNode* node,
+    const TNodeResources& resourceUsage,
+    const TNodeResources& resourceLimits,
     const std::vector<TJobPtr>& runningJobs,
     std::vector<TJobPtr>* jobsToStart,
     std::vector<TJobPtr>* jobsToAbort,
@@ -931,6 +932,8 @@ void TChunkReplicator::ScheduleJobs(
 
     ScheduleNewJobs(
         node,
+        resourceUsage,
+        resourceLimits,
         jobsToStart,
         jobsToAbort);
 }
@@ -943,7 +946,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
     auto idToJob = node->IdToJob();
     for (const auto& pair : idToJob) {
         const auto& job = pair.second;
-        LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
+        YT_LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
         UnregisterJob(job);
     }
     node->Reset();
@@ -1022,7 +1025,7 @@ void TChunkReplicator::ProcessExistingJobs(
             case EJobState::Waiting: {
                 if (TInstant::Now() - job->GetStartTime() > Config_->JobTimeout) {
                     jobsToAbort->push_back(job);
-                    LOG_WARNING("Job timed out (JobId: %v, Address: %v, Duration: %v)",
+                    YT_LOG_WARNING("Job timed out (JobId: %v, Address: %v, Duration: %v)",
                         jobId,
                         address,
                         TInstant::Now() - job->GetStartTime());
@@ -1031,13 +1034,13 @@ void TChunkReplicator::ProcessExistingJobs(
 
                 switch (job->GetState()) {
                     case EJobState::Running:
-                        LOG_DEBUG("Job is running (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG("Job is running (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         break;
 
                     case EJobState::Waiting:
-                        LOG_DEBUG("Job is waiting (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG("Job is waiting (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         break;
@@ -1054,19 +1057,19 @@ void TChunkReplicator::ProcessExistingJobs(
                 jobsToRemove->push_back(job);
                 switch (job->GetState()) {
                     case EJobState::Completed:
-                        LOG_DEBUG("Job completed (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG("Job completed (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         break;
 
                     case EJobState::Failed:
-                        LOG_WARNING(job->Error(), "Job failed (JobId: %v, Address: %v)",
+                        YT_LOG_WARNING(job->Error(), "Job failed (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         break;
 
                     case EJobState::Aborted:
-                        LOG_WARNING(job->Error(), "Job aborted (JobId: %v, Address: %v)",
+                        YT_LOG_WARNING(job->Error(), "Job aborted (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         break;
@@ -1090,7 +1093,7 @@ void TChunkReplicator::ProcessExistingJobs(
         const auto& job = pair.second;
         if (currentJobSet.find(job) == currentJobSet.end()) {
             missingJobs.push_back(job);
-            LOG_WARNING("Job is missing (JobId: %v, Address: %v)",
+            YT_LOG_WARNING("Job is missing (JobId: %v, Address: %v)",
                 job->GetJobId(),
                 address);
         }
@@ -1129,7 +1132,7 @@ bool TChunkReplicator::CreateReplicationJob(
     }
 
     int targetMediumIndex = targetMedium->GetIndex();
-    const auto replicationFactor = chunk->GetAggregatedReplicationFactor(targetMediumIndex, GetChunkRequisitionRegistry());
+    const auto replicationFactor = GetChunkAggregatedReplicationFactor(chunk, targetMediumIndex);
 
     auto statistics = ComputeChunkStatistics(chunk);
     const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
@@ -1162,7 +1165,7 @@ bool TChunkReplicator::CreateReplicationJob(
         chunk,
         replicasNeeded,
         1,
-        Null,
+        std::nullopt,
         UnsaturatedInterDCEdges[sourceNode->GetDataCenter()],
         ESessionType::Replication);
     if (targetNodes.empty()) {
@@ -1180,7 +1183,7 @@ bool TChunkReplicator::CreateReplicationJob(
         sourceNode,
         targetReplicas);
 
-    LOG_DEBUG("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: %v)",
+    YT_LOG_DEBUG("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: %v)",
         (*job)->GetJobId(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndexes,
@@ -1231,7 +1234,7 @@ bool TChunkReplicator::CreateBalancingJob(
         sourceNode,
         targetReplicas);
 
-    LOG_DEBUG("Balancing job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
+    YT_LOG_DEBUG("Balancing job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
         (*job)->GetJobId(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndexes,
@@ -1264,7 +1267,7 @@ bool TChunkReplicator::CreateRemovalJob(
         chunkIdWithIndexes,
         node);
 
-    LOG_DEBUG("Removal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
+    YT_LOG_DEBUG("Removal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunkIdWithIndexes);
@@ -1335,7 +1338,7 @@ bool TChunkReplicator::CreateRepairJob(
         // Try popping decommissioned replicas as long repair cannot be performed.
         do {
             if (mediumStatistics.DecommissionedReplicaCount[erasedPartIndexes.back()] == 0) {
-                LOG_ERROR("Erasure chunk has not enough replicas to repair (ChunkId: %v)",
+                YT_LOG_ERROR("Erasure chunk has not enough replicas to repair (ChunkId: %v)",
                     chunk->GetId());
                 return false;
             }
@@ -1352,7 +1355,7 @@ bool TChunkReplicator::CreateRepairJob(
         chunk,
         erasedPartCount,
         erasedPartCount,
-        Null,
+        std::nullopt,
         UnsaturatedInterDCEdges[node->GetDataCenter()],
         ESessionType::Repair);
     if (targetNodes.empty()) {
@@ -1375,7 +1378,7 @@ bool TChunkReplicator::CreateRepairJob(
         Config_->RepairJobMemoryUsage,
         repairQueue == EChunkRepairQueue::Decommissioned);
 
-    LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, Targets: %v, ErasedPartIndexes: %v)",
+    YT_LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, Targets: %v, ErasedPartIndexes: %v)",
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunkWithIndexes,
@@ -1415,7 +1418,7 @@ bool TChunkReplicator::CreateSealJob(
         chunkWithIndexes,
         node);
 
-    LOG_DEBUG("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
+    YT_LOG_DEBUG("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunkWithIndexes);
@@ -1425,6 +1428,8 @@ bool TChunkReplicator::CreateSealJob(
 
 void TChunkReplicator::ScheduleNewJobs(
     TNode* node,
+    TNodeResources resourceUsage,
+    const TNodeResources& resourceLimits,
     std::vector<TJobPtr>* jobsToStart,
     std::vector<TJobPtr>* jobsToAbort)
 {
@@ -1432,8 +1437,6 @@ void TChunkReplicator::ScheduleNewJobs(
         return;
     }
 
-    const auto& resourceLimits = node->ResourceLimits();
-    auto& resourceUsage = node->ResourceUsage();
     const auto* nodeDataCenter = node->GetDataCenter();
 
     auto registerJob = [&] (const TJobPtr& job) {
@@ -1668,7 +1671,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         return;
     }
 
-    const auto replication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
+    const auto replication = GetChunkAggregatedReplication(chunk);
 
     ResetChunkStatus(chunk);
     RemoveChunkFromQueuesOnRefresh(chunk);
@@ -1898,7 +1901,7 @@ void TChunkReplicator::CancelChunkJobs(TChunk* chunk)
 {
     auto job = chunk->GetJob();
     if (job) {
-        LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
+        YT_LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
         UnregisterJob(job);
     }
 }
@@ -1907,6 +1910,44 @@ bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndexes replica)
 {
     auto* node = replica.GetPtr();
     return node->GetDecommissioned();
+}
+
+TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(const TChunk* chunk)
+{
+    auto result = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
+    for (const auto& [mediumId, medium] : Bootstrap_->GetChunkManager()->Media()) {
+        auto& policy = result[medium->GetIndex()];
+        if (policy) {
+            auto cap = medium->Config()->MaxReplicationFactor;
+            policy.SetReplicationFactor(std::min(cap, policy.GetReplicationFactor()));
+        }
+    }
+    return result;
+}
+
+int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex)
+{
+    auto result = chunk->GetAggregatedReplicationFactor(mediumIndex, GetChunkRequisitionRegistry());
+    auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
+    if (medium) {
+        auto cap = medium->Config()->MaxReplicationFactor;
+        result = std::min(cap, result);
+    }
+    return result;
+}
+
+TPerMediumIntArray TChunkReplicator::GetChunkAggregatedReplicationFactors(const TChunk* chunk)
+{
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto result = chunk->GetAggregatedReplicationFactors(GetChunkRequisitionRegistry());
+    for (auto mediumIndex = 0; mediumIndex < result.size(); ++mediumIndex) {
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (medium) {
+            auto cap = medium->Config()->MaxReplicationFactor;
+            result[mediumIndex] = std::min(cap, result[mediumIndex]);
+        }
+    }
+    return result;
 }
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
@@ -1943,7 +1984,7 @@ void TChunkReplicator::OnRefresh()
     int aliveCount = 0;
     NProfiling::TWallTimer timer;
 
-    LOG_DEBUG("Incremental chunk refresh iteration started");
+    YT_LOG_DEBUG("Incremental chunk refresh iteration started");
 
     PROFILE_AGGREGATED_TIMING (RefreshTimeCounter) {
         auto deadline = GetCpuInstant() - ChunkRefreshDelay_;
@@ -1965,14 +2006,14 @@ void TChunkReplicator::OnRefresh()
         }
     }
 
-    LOG_DEBUG("Incremental chunk refresh iteration completed (TotalCount: %v, AliveCount: %v)",
+    YT_LOG_DEBUG("Incremental chunk refresh iteration completed (TotalCount: %v, AliveCount: %v)",
         totalCount,
         aliveCount);
 }
 
 bool TChunkReplicator::IsEnabled()
 {
-    return Enabled_.Get(false);
+    return Enabled_.value_or(false);
 }
 
 void TChunkReplicator::OnCheckEnabled()
@@ -1989,7 +2030,7 @@ void TChunkReplicator::OnCheckEnabled()
             OnCheckEnabledSecondary();
         }
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error updating chunk replicator state, disabling until the next attempt");
+        YT_LOG_ERROR(ex, "Error updating chunk replicator state, disabling until the next attempt");
         Enabled_ = false;
     }
 }
@@ -1998,7 +2039,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
 {
     if (!Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->EnableChunkReplicator) {
         if (!Enabled_ || *Enabled_) {
-            LOG_INFO("Chunk replicator is disabled, see //sys/@config");
+            YT_LOG_INFO("Chunk replicator is disabled, see //sys/@config");
         }
         Enabled_ = false;
         return;
@@ -2009,7 +2050,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
     int gotOnline = nodeTracker->GetOnlineNodeCount();
     if (gotOnline < needOnline) {
         if (!Enabled_ || *Enabled_) {
-            LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
+            YT_LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
                 needOnline,
                 gotOnline);
         }
@@ -2027,7 +2068,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
         double gotFraction = (double) gotLostChunkCount / gotChunkCount;
         if (gotFraction > needFraction) {
             if (!Enabled_ || *Enabled_) {
-                LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
+                YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
                     needFraction,
                     gotFraction);
             }
@@ -2038,7 +2079,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
 
     if (gotLostChunkCount > needLostChunkCount) {
         if (!Enabled_ || *Enabled_) {
-            LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
+            YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
                 needLostChunkCount,
                 gotLostChunkCount);
         }
@@ -2047,7 +2088,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
     }
 
     if (!Enabled_ || !*Enabled_) {
-        LOG_INFO("Chunk replicator enabled");
+        YT_LOG_INFO("Chunk replicator enabled");
     }
     Enabled_ = true;
 }
@@ -2065,9 +2106,9 @@ void TChunkReplicator::OnCheckEnabledSecondary()
     auto value = ConvertTo<bool>(TYsonString(rsp->value()));
     if (!Enabled_ || value != *Enabled_) {
         if (value) {
-            LOG_INFO("Chunk replicator enabled at primary master");
+            YT_LOG_INFO("Chunk replicator enabled at primary master");
         } else {
-            LOG_INFO("Chunk replicator disabled at primary master");
+            YT_LOG_INFO("Chunk replicator disabled at primary master");
         }
         Enabled_ = value;
     }
@@ -2158,7 +2199,7 @@ void TChunkReplicator::OnRequisitionUpdate()
     int aliveCount = 0;
     NProfiling::TWallTimer timer;
 
-    LOG_DEBUG("Chunk requisition update iteration started");
+    YT_LOG_DEBUG("Chunk requisition update iteration started");
 
     TmpRequisitionRegistry_.Clear();
     PROFILE_AGGREGATED_TIMING (RequisitionUpdateTimeCounter) {
@@ -2183,7 +2224,7 @@ void TChunkReplicator::OnRequisitionUpdate()
 
     FillChunkRequisitionDict(&request, TmpRequisitionRegistry_);
 
-    LOG_DEBUG("Chunk requisition update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
+    YT_LOG_DEBUG("Chunk requisition update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
         totalCount,
         aliveCount,
         request.updates_size());
@@ -2288,8 +2329,8 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
 void TChunkReplicator::ClearChunkRequisitionCache()
 {
     ChunkRequisitionCache_.LastChunkParents.clear();
-    ChunkRequisitionCache_.LastChunkUpdatedRequisition = Null;
-    ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition = Null;
+    ChunkRequisitionCache_.LastChunkUpdatedRequisition = std::nullopt;
+    ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition = std::nullopt;
 }
 
 bool TChunkReplicator::CanServeRequisitionFromCache(const TChunk* chunk)
@@ -2299,8 +2340,8 @@ bool TChunkReplicator::CanServeRequisitionFromCache(const TChunk* chunk)
     }
 
     return chunk->IsErasure()
-        ? ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition.HasValue()
-        : ChunkRequisitionCache_.LastChunkUpdatedRequisition.HasValue();
+        ? ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition.operator bool()
+        : ChunkRequisitionCache_.LastChunkUpdatedRequisition.operator bool();
 }
 
 TChunkRequisition TChunkReplicator::GetRequisitionFromCache(const TChunk* chunk)
@@ -2331,7 +2372,7 @@ void TChunkReplicator::CacheRequisition(const TChunk* chunk, const TChunkRequisi
 void TChunkReplicator::ConfirmChunkListRequisitionTraverseFinished(TChunkList* chunkList)
 {
     auto chunkListId = chunkList->GetId();
-    LOG_DEBUG("Chunk list requisition traverse finished (ChunkListId: %v)",
+    YT_LOG_DEBUG("Chunk list requisition traverse finished (ChunkListId: %v)",
         chunkListId);
     ChunkListIdsWithFinishedRequisitionTraverse_.push_back(chunkListId);
 }
@@ -2346,7 +2387,7 @@ void TChunkReplicator::OnFinishedRequisitionTraverseFlush()
         return;
     }
 
-    LOG_DEBUG("Flushing finished chunk lists requisition traverse confirmations (Count: %v)",
+    YT_LOG_DEBUG("Flushing finished chunk lists requisition traverse confirmations (Count: %v)",
         ChunkListIdsWithFinishedRequisitionTraverse_.size());
 
     TReqConfirmChunkListsRequisitionTraverseFinished request;
@@ -2478,16 +2519,16 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
     auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
-        const TNullable<TString>& srcDataCenterName = srcDataCenter
-            ? static_cast<TNullable<TString>>(srcDataCenter->GetName())
-            : Null;
+        const std::optional<TString>& srcDataCenterName = srcDataCenter
+            ? static_cast<std::optional<TString>>(srcDataCenter->GetName())
+            : std::nullopt;
         auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
         const auto& newInterDCEdgeCapacities = capacities[srcDataCenterName];
 
         auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
-            const TNullable<TString>& dstDataCenterName = dstDataCenter
-                ? static_cast<TNullable<TString>>(dstDataCenter->GetName())
-                : Null;
+            const std::optional<TString>& dstDataCenterName = dstDataCenter
+                ? static_cast<std::optional<TString>>(dstDataCenter->GetName())
+                : std::nullopt;
             auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
             if (it != newInterDCEdgeCapacities.end()) {
                 interDCEdgeCapacities[dstDataCenter] = it->second / secondaryCellCount;
@@ -2639,5 +2680,4 @@ TDecayingMaxMinBalancer<int, double>& TChunkReplicator::ChunkRepairQueueBalancer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

@@ -10,8 +10,7 @@
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NYson;
 using namespace NRpc::NProto;
@@ -186,7 +185,7 @@ class TRealmChannel
     : public TChannelWrapper
 {
 public:
-    TRealmChannel(IChannelPtr underlyingChannel, const TRealmId& realmId)
+    TRealmChannel(IChannelPtr underlyingChannel, TRealmId realmId)
         : TChannelWrapper(std::move(underlyingChannel))
         , RealmId_(realmId)
     { }
@@ -208,7 +207,7 @@ private:
 
 };
 
-IChannelPtr CreateRealmChannel(IChannelPtr underlyingChannel, const TRealmId& realmId)
+IChannelPtr CreateRealmChannel(IChannelPtr underlyingChannel, TRealmId realmId)
 {
     YCHECK(underlyingChannel);
 
@@ -223,7 +222,7 @@ class TRealmChannelFactory
 public:
     TRealmChannelFactory(
         IChannelFactoryPtr underlyingFactory,
-        const TRealmId& realmId)
+        TRealmId realmId)
         : UnderlyingFactory_(underlyingFactory)
         , RealmId_(realmId)
     { }
@@ -242,7 +241,7 @@ private:
 
 IChannelFactoryPtr CreateRealmChannelFactory(
     IChannelFactoryPtr underlyingFactory,
-    const TRealmId& realmId)
+    TRealmId realmId)
 {
     YCHECK(underlyingFactory);
 
@@ -363,7 +362,7 @@ void GenerateMutationId(const IClientRequestPtr& request)
     SetMutationId(request, GenerateMutationId(), false);
 }
 
-void SetMutationId(TRequestHeader* header, const TMutationId& id, bool retry)
+void SetMutationId(TRequestHeader* header, TMutationId id, bool retry)
 {
     if (id) {
         ToProto(header->mutable_mutation_id(), id);
@@ -373,17 +372,16 @@ void SetMutationId(TRequestHeader* header, const TMutationId& id, bool retry)
     }
 }
 
-void SetMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry)
+void SetMutationId(const IClientRequestPtr& request, TMutationId id, bool retry)
 {
     SetMutationId(&request->Header(), id, retry);
 }
 
-void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry)
+void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, bool retry)
 {
     SetMutationId(request, id ? id : TMutationId::Create(), retry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

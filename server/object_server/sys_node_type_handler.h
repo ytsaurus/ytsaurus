@@ -6,8 +6,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ NCypressServer::INodeTypeHandlerPtr CreateSysNodeTypeHandler(NCellMaster::TBoots
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

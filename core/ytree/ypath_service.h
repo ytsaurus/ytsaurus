@@ -14,8 +14,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,14 +65,14 @@ struct IYPathService
      */
     void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable);
 
     //! Wraps WriteAttributesFragment by enclosing attributes with angle brackets.
     //! If WriteAttributesFragment writes nothing then this method also does nothing.
     void WriteAttributes(
         NYson::IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable);
 
     //! Manages strategy of writing attributes if attribute keys are null.
@@ -112,7 +111,7 @@ protected:
     //! It always write requested attributes and call ShouldHideAttributes.
     virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) = 0;
 
 };
@@ -128,5 +127,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NJournalClient {
+namespace NYT::NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,6 +8,5 @@ const NLogging::TLogger JournalClientLogger("JournalClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalClient
-} // namespace NYT
+} // namespace NYT::NJournalClient
 

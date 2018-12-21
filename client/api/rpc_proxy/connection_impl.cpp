@@ -25,9 +25,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 using namespace NBus;
 using namespace NRpc;
@@ -63,8 +61,8 @@ TString NormalizeHttpProxyUrl(TString url)
 std::vector<TString> GetRpcProxiesFromHttp(
     const NHttp::TClientConfigPtr& config,
     const TString& proxyUrl,
-    const TNullable<TString>& oauthToken,
-    const TNullable<TString>& role)
+    const std::optional<TString>& oauthToken,
+    const std::optional<TString>& role)
 {
     auto client = CreateClient(config, TTcpDispatcher::Get()->GetXferPoller());
     auto headers = New<THeaders>();
@@ -82,7 +80,7 @@ std::vector<TString> GetRpcProxiesFromHttp(
             .EndAttributes()
             .Value("yson")
             .DoIf(
-                role.HasValue(), [&](auto fluent) {
+                role.operator bool(), [&] (auto fluent) {
                     fluent.Item("role").Value(*role);
                 })
             .EndMap().GetData());
@@ -162,7 +160,7 @@ NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
 }
 
 NHiveClient::ITransactionParticipantPtr TConnection::CreateTransactionParticipant(
-    const NHiveClient::TCellId&,
+    NHiveClient::TCellId,
     const TTransactionParticipantOptions&)
 {
     Y_UNIMPLEMENTED();
@@ -173,7 +171,7 @@ void TConnection::ClearMetadataCaches()
 
 void TConnection::Terminate()
 {
-    LOG_DEBUG("Terminating connection");
+    YT_LOG_DEBUG("Terminating connection");
     ChannelPool_->Terminate();
     UpdateProxyListExecutor_->Stop();
 }
@@ -224,11 +222,11 @@ void TConnection::OnProxyListUpdate()
         try {
             std::vector<TString> proxies;
             if (Config_->ClusterUrl) {
-                LOG_DEBUG("Updating proxy list from HTTP");
+                YT_LOG_DEBUG("Updating proxy list from HTTP");
                 YCHECK(HttpCredentials_);
                 proxies = DiscoverProxiesByHttp(*HttpCredentials_);
             } else {
-                LOG_DEBUG("Updating proxy list from RPC");
+                YT_LOG_DEBUG("Updating proxy list from RPC");
                 if (!DiscoveryChannel_) {
                     auto address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
                     DiscoveryChannel_ = ChannelFactory_->CreateChannel(address);
@@ -254,7 +252,7 @@ void TConnection::OnProxyListUpdate()
                 ChannelPool_->SetAddressList(TError(ex));
             }
 
-            LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
+            YT_LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
             TDelayedExecutor::WaitForDuration(backoff);
 
             if (backoff < Config_->MaxProxyListRetryPeriod) {
@@ -270,6 +268,4 @@ void TConnection::OnProxyListUpdate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

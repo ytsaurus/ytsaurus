@@ -20,8 +20,7 @@
 
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,5 +283,4 @@ extern const TString UnknownProfilingTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -15,8 +15,7 @@
 
 #include <util/string/util.h>
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 
 using namespace NYTree;
 using namespace NYson;
@@ -295,13 +294,13 @@ i64 GetNumericValue(const TStatistics& statistics, const TString& path)
     }
 }
 
-TNullable<i64> FindNumericValue(const TStatistics& statistics, const TString& path)
+std::optional<i64> FindNumericValue(const TStatistics& statistics, const TString& path)
 {
     auto summary = FindSummary(statistics, path);
-    return summary ? MakeNullable(summary->GetSum()) : Null;
+    return summary ? std::make_optional(summary->GetSum()) : std::nullopt;
 }
 
-TNullable<TSummary> FindSummary(const TStatistics& statistics, const TString& path)
+std::optional<TSummary> FindSummary(const TStatistics& statistics, const TString& path)
 {
     const auto& data = statistics.Data();
     auto iterator = data.lower_bound(path);
@@ -309,7 +308,7 @@ TNullable<TSummary> FindSummary(const TStatistics& statistics, const TString& pa
         THROW_ERROR_EXCEPTION("Invalid statistics type: cannot get summary of %v since it is a map",
             path);
     } else if (iterator == data.end() || iterator->first != path) {
-        return Null;
+        return std::nullopt;
     } else {
         return iterator->second;
     }
@@ -594,5 +593,4 @@ void TStatisticsConsumer::OnMyListItem()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient

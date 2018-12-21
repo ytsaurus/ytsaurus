@@ -25,8 +25,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,8 +36,8 @@ class TJobProxy
 public:
     TJobProxy(
         TJobProxyConfigPtr config,
-        const NJobTrackerClient::TOperationId& operationId,
-        const NJobTrackerClient::TJobId& jobId);
+        NJobTrackerClient::TOperationId operationId,
+        NJobTrackerClient::TJobId jobId);
 
     //! Runs the job. Blocks until the job is complete.
     void Run();
@@ -53,7 +52,7 @@ public:
     virtual void Interrupt() override;
     virtual void Fail() override;
 
-    virtual const NJobAgent::TJobId& GetJobId() const override;
+    virtual NJobAgent::TJobId GetJobId() const override;
 
     virtual NRpc::IServerPtr GetRpcServer() const override;
 
@@ -87,7 +86,7 @@ private:
     // Job proxy peak memory usage.
     std::atomic<i64> JobProxyMaxMemoryUsage_ = {0};
     // If this limit for job proxy memory overcommit is exceeded, the job proxy is terminated.
-    TNullable<i64> JobProxyMemoryOvercommitLimit_;
+    std::optional<i64> JobProxyMemoryOvercommitLimit_;
 
     std::atomic<i64> UserJobCurrentMemoryUsage_ = {0};
 
@@ -135,7 +134,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
 
-    void ValidateJobId(const NJobTrackerClient::TJobId& jobId);
+    void ValidateJobId(NJobTrackerClient::TJobId jobId);
 
     NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();
@@ -157,7 +156,7 @@ private:
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment() const override;
-    virtual const NJobAgent::TOperationId& GetOperationId() const override;
+    virtual NJobAgent::TOperationId GetOperationId() const override;
 
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;
 
@@ -189,5 +188,4 @@ DEFINE_REFCOUNTED_TYPE(TJobProxy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

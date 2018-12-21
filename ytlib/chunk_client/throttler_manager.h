@@ -11,8 +11,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,5 +42,4 @@ DEFINE_REFCOUNTED_TYPE(TThrottlerManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

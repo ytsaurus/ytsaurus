@@ -13,8 +13,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NTableClient;
 using namespace NTableClient::NProto;
@@ -260,8 +259,8 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
     YCHECK(sliceDataWeight > 0);
     YCHECK(sliceRowCount > 0);
 
-    i64 lowerRowIndex = LowerLimit_.RowIndex.Get(0);
-    i64 upperRowIndex = UpperLimit_.RowIndex.Get(InputChunk_->GetRowCount());
+    i64 lowerRowIndex = LowerLimit_.RowIndex.value_or(0);
+    i64 upperRowIndex = UpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
@@ -289,8 +288,8 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
 
 std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRowIndex(i64 splitRow) const
 {
-    i64 lowerRowIndex = LowerLimit_.RowIndex.Get(0);
-    i64 upperRowIndex = UpperLimit_.RowIndex.Get(InputChunk_->GetRowCount());
+    i64 lowerRowIndex = LowerLimit_.RowIndex.value_or(0);
+    i64 upperRowIndex = UpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
@@ -508,5 +507,4 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

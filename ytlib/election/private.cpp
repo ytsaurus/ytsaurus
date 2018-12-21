@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,6 +9,5 @@ const NProfiling::TProfiler ElectionProfiler("/election");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection
 

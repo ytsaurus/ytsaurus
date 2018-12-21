@@ -22,9 +22,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 using NYTree::ENodeType;
 
@@ -52,21 +50,6 @@ TString ToString(const grpc_slice& slice)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TGrpcMetadataArray::TGrpcMetadataArray()
-{
-    grpc_metadata_array_init(&Native_);
-}
-
-TGrpcMetadataArray::~TGrpcMetadataArray()
-{
-    grpc_metadata_array_destroy(&Native_);
-}
-
-grpc_metadata_array* TGrpcMetadataArray::Unwrap()
-{
-    return &Native_;
-}
 
 TStringBuf TGrpcMetadataArray::Find(const char* key) const
 {
@@ -100,28 +83,6 @@ size_t TGrpcMetadataArrayBuilder::GetSize() const
 grpc_metadata* TGrpcMetadataArrayBuilder::Unwrap()
 {
     return NativeMetadata_.data();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TGrpcCallDetails::TGrpcCallDetails()
-{
-    grpc_call_details_init(&Native_);
-}
-
-TGrpcCallDetails::~TGrpcCallDetails()
-{
-    grpc_call_details_destroy(&Native_);
-}
-
-grpc_call_details* TGrpcCallDetails::Unwrap()
-{
-    return &Native_;
-}
-
-grpc_call_details* TGrpcCallDetails::operator->()
-{
-    return &Native_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,29 +157,28 @@ grpc_ssl_pem_key_cert_pair* TGrpcPemKeyCertPair::Unwrap()
 ////////////////////////////////////////////////////////////////////////////////
 
 TGrpcByteBufferStream::TGrpcByteBufferStream(grpc_byte_buffer* buffer)
+    : CurrentSlice_(grpc_empty_slice())
+    , RemainingBytes_(grpc_byte_buffer_length(buffer))
 {
     YCHECK(grpc_byte_buffer_reader_init(&Reader_, buffer) == 1);
-    RemainingBytes_ = grpc_byte_buffer_length(buffer);
 }
 
 TGrpcByteBufferStream::~TGrpcByteBufferStream()
 {
     grpc_byte_buffer_reader_destroy(&Reader_);
+    grpc_slice_unref(CurrentSlice_);
 }
 
 bool TGrpcByteBufferStream::ReadNextSlice()
 {
-    // NB: Do not unref uninitialized slice.
-    if (Started_) {
-        grpc_slice_unref(Slice_);
-    }
-    Started_ = true;
+    grpc_slice_unref(CurrentSlice_);
+    CurrentSlice_ = grpc_empty_slice();
 
-    if (grpc_byte_buffer_reader_next(&Reader_, &Slice_) == 0) {
+    if (grpc_byte_buffer_reader_next(&Reader_, &CurrentSlice_) == 0) {
         return false;
     }
 
-    AvailableBytes_ = GRPC_SLICE_LENGTH(Slice_);
+    AvailableBytes_ = GRPC_SLICE_LENGTH(CurrentSlice_);
     return true;
 }
 
@@ -232,10 +192,10 @@ size_t TGrpcByteBufferStream::DoRead(void* buf, size_t len)
         }
     }
 
-    const auto* sliceData = GRPC_SLICE_START_PTR(Slice_);
-    auto offset = GRPC_SLICE_LENGTH(Slice_) - AvailableBytes_;
+    const auto* sliceData = GRPC_SLICE_START_PTR(CurrentSlice_);
+    auto offset = GRPC_SLICE_LENGTH(CurrentSlice_) - AvailableBytes_;
 
-    ui32 toRead = std::min(static_cast<ui32>(len), AvailableBytes_);
+    size_t toRead = std::min(len, AvailableBytes_);
     ::memcpy(buf, sliceData + offset, toRead);
     AvailableBytes_ -= toRead;
     RemainingBytes_ -= toRead;
@@ -255,7 +215,7 @@ struct TMessageTag
 
 TMessageWithAttachments ByteBufferToMessageWithAttachments(
     grpc_byte_buffer* buffer,
-    TNullable<ui32> messageBodySize)
+    std::optional<ui32> messageBodySize)
 {
     TMessageWithAttachments result;
 
@@ -448,7 +408,7 @@ TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPt
         nullptr));
 }
 
-TNullable<TString> ParseIssuerFromX509(TStringBuf x509String)
+std::optional<TString> ParseIssuerFromX509(TStringBuf x509String)
 {
     auto* bio = BIO_new(BIO_s_mem());
     auto bioGuard = Finally([&] {
@@ -463,7 +423,7 @@ TNullable<TString> ParseIssuerFromX509(TStringBuf x509String)
     });
 
     if (!x509) {
-        return Null;
+        return std::nullopt;
     }
 
     auto* issuerName = X509_get_issuer_name(x509);
@@ -471,7 +431,7 @@ TNullable<TString> ParseIssuerFromX509(TStringBuf x509String)
     std::array<char, 1024> buf;
     auto* issuerString = X509_NAME_oneline(issuerName, buf.data(), buf.size());
     if (!issuerString) {
-        return Null;
+        return std::nullopt;
     }
 
     return TString(issuerString);
@@ -479,6 +439,4 @@ TNullable<TString> ParseIssuerFromX509(TStringBuf x509String)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

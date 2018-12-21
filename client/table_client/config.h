@@ -6,8 +6,7 @@
 
 #include <yt/client/chunk_client/config.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,8 +49,8 @@ class TChunkReaderConfig
 public:
     i64 MaxDataSizePerRead;
 
-    TNullable<double> SamplingRate;
-    TNullable<ui64> SamplingSeed;
+    std::optional<double> SamplingRate;
+    std::optional<ui64> SamplingSeed;
 
     TChunkReaderConfig()
     {
@@ -314,5 +313,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

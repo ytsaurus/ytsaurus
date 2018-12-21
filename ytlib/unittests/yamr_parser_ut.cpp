@@ -6,8 +6,7 @@
 
 #include <yt/core/yson/null_consumer.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 namespace {
 
 using namespace NYson;
@@ -163,14 +162,12 @@ TEST(TYamrParserTest, IncompleteRows)
 
 TEST(TYamrParserTest, IncorrectIncompleteRows)
 {
-    auto Null = GetNullYsonConsumer();
-
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = false;
 
-    EXPECT_THROW(ParseYamr("\n", Null, config), std::exception);
-    EXPECT_THROW(ParseYamr("key\n", Null, config), std::exception);
-    EXPECT_THROW(ParseYamr("key\tvalue\nkey\n", Null, config), std::exception);
+    EXPECT_THROW(ParseYamr("\n", GetNullYsonConsumer(), config), std::exception);
+    EXPECT_THROW(ParseYamr("key\n", GetNullYsonConsumer(), config), std::exception);
+    EXPECT_THROW(ParseYamr("key\tvalue\nkey\n", GetNullYsonConsumer(), config), std::exception);
 }
 
 TEST(TYamrParserTest, TabsInValue)
@@ -374,9 +371,7 @@ TEST(TYamrLenvalParserTest, HugeLength)
     config->HasSubkey = true;
     config->Lenval = true;
 
-    auto Null = GetNullYsonConsumer();
-
-    EXPECT_THROW(ParseYamr(input, Null, config), std::exception);
+    EXPECT_THROW(ParseYamr(input, GetNullYsonConsumer(), config), std::exception);
 }
 
 TEST(TYamrLenvalParserTest, SimpleEndOfMessage)
@@ -460,8 +455,6 @@ TEST(TYamrLenvalParserTest, EmptyFieldsWithEOM)
 
 TEST(TYamrParserTest, IncorrectPlaceOfEOM)
 {
-    auto Null = GetNullYsonConsumer();
-
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = false;
     config->Lenval = true;
@@ -494,14 +487,12 @@ TEST(TYamrParserTest, IncorrectPlaceOfEOM)
         , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
     );
 
-    EXPECT_THROW(ParseYamr(input1, Null, config), std::exception);
-    EXPECT_THROW(ParseYamr(input2, Null, config), std::exception);
+    EXPECT_THROW(ParseYamr(input1, GetNullYsonConsumer(), config), std::exception);
+    EXPECT_THROW(ParseYamr(input2, GetNullYsonConsumer(), config), std::exception);
 }
 
 TEST(TYamrParserTest, IncorrectEOM)
 {
-    auto Null = GetNullYsonConsumer();
-
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = false;
     config->Lenval = true;
@@ -556,16 +547,14 @@ TEST(TYamrParserTest, IncorrectEOM)
         , 3 * 4
     );
 
-    EXPECT_THROW(ParseYamr(input1, Null, config), std::exception);
-    EXPECT_THROW(ParseYamr(input2, Null, config), std::exception);
-    EXPECT_THROW(ParseYamr(input3, Null, config), std::exception);
-    EXPECT_THROW(ParseYamr(input4, Null, config), std::exception);
+    EXPECT_THROW(ParseYamr(input1, GetNullYsonConsumer(), config), std::exception);
+    EXPECT_THROW(ParseYamr(input2, GetNullYsonConsumer(), config), std::exception);
+    EXPECT_THROW(ParseYamr(input3, GetNullYsonConsumer(), config), std::exception);
+    EXPECT_THROW(ParseYamr(input4, GetNullYsonConsumer(), config), std::exception);
 }
 
 TEST(TYamrParserTest, UnsupportedEOMInTextMode)
 {
-    auto Null = GetNullYsonConsumer();
-
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = false;
     config->Lenval = false;
@@ -585,13 +574,11 @@ TEST(TYamrParserTest, UnsupportedEOMInTextMode)
         , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
     );
 
-    EXPECT_THROW(ParseYamr(input, Null, config), std::exception);
+    EXPECT_THROW(ParseYamr(input, GetNullYsonConsumer(), config), std::exception);
 }
 
 TEST(TYamrParserTest, UnexpectedEOM)
 {
-    auto Null = GetNullYsonConsumer();
-
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = false;
     config->Lenval = true;
@@ -610,11 +597,10 @@ TEST(TYamrParserTest, UnexpectedEOM)
         , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
     );
 
-    EXPECT_THROW(ParseYamr(input, Null, config), std::exception);
+    EXPECT_THROW(ParseYamr(input, GetNullYsonConsumer(), config), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

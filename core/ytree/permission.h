@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/enum.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,6 +61,5 @@ DEFINE_BIT_ENUM(EPermissionCheckScope,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

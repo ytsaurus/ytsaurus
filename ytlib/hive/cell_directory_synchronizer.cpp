@@ -11,8 +11,7 @@
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/hive_service_proxy.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 using namespace NConcurrency;
 
@@ -28,7 +27,7 @@ public:
     TImpl(
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        const TCellId& primaryCellId,
+        TCellId primaryCellId,
         const NLogging::TLogger& logger)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
@@ -98,7 +97,7 @@ private:
     void DoSync()
     {
         try {
-            LOG_DEBUG("Started synchronizing cell directory");
+            YT_LOG_DEBUG("Started synchronizing cell directory");
 
             auto channel = CellDirectory_->GetChannelOrThrow(PrimaryCellId_, NHydra::EPeerKind::Follower);
             THiveServiceProxy proxy(channel);
@@ -120,7 +119,7 @@ private:
                 CellDirectory_->ReconfigureCell(descriptor);
             }
 
-            LOG_DEBUG("Finished synchronizing cell directory");
+            YT_LOG_DEBUG("Finished synchronizing cell directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing cell directory")
                 << ex;
@@ -134,7 +133,7 @@ private:
             DoSync();
         } catch (const std::exception& ex) {
             error = TError(ex);
-            LOG_DEBUG(error);
+            YT_LOG_DEBUG(error);
         }
 
         auto guard = Guard(SpinLock_);
@@ -150,7 +149,7 @@ private:
 TCellDirectorySynchronizer::TCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     TCellDirectoryPtr cellDirectory,
-    const TCellId& primaryCellId,
+    TCellId primaryCellId,
     const NLogging::TLogger& logger)
     : Impl_(New<TImpl>(
         std::move(config),
@@ -178,5 +177,4 @@ TFuture<void> TCellDirectorySynchronizer::Sync()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient

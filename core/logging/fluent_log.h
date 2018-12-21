@@ -3,8 +3,7 @@
 #include <yt/core/yson/public.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -44,8 +43,7 @@ TOneShotFluentLogEvent LogStructuredEventFluently(const NLogging::TLogger& logge
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging
 
 #define FLUENT_LOG_INL_H_
 #include "fluent_log-inl.h"

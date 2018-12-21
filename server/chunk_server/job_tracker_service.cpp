@@ -23,14 +23,14 @@
 
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NHydra;
 using namespace NJobTrackerClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
+using namespace NNodeTrackerServer::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient::NProto;
 using namespace NCellMaster;
@@ -64,7 +64,7 @@ private:
         auto nodeId = request->node_id();
 
         const auto& resourceLimits = request->resource_limits();
-        const auto& resourceUsage = request->resource_usage();
+        auto resourceUsage = request->resource_usage();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
@@ -81,9 +81,6 @@ private:
                 node->GetLocalState());
         }
 
-        node->ResourceLimits() = resourceLimits;
-        node->ResourceUsage() = resourceUsage;
-
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         std::vector<TJobPtr> currentJobs;
         for (const auto& jobStatus : request->jobs()) {
@@ -99,31 +96,31 @@ private:
             } else {
                 switch (state) {
                     case EJobState::Completed:
-                        LOG_DEBUG("Unknown job has completed, removal scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Unknown job has completed, removal scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                         break;
 
                     case EJobState::Failed:
-                        LOG_DEBUG("Unknown job has failed, removal scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Unknown job has failed, removal scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                         break;
 
                     case EJobState::Aborted:
-                        LOG_DEBUG("Job aborted, removal scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Job aborted, removal scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                         break;
 
                     case EJobState::Running:
-                        LOG_DEBUG("Unknown job is running, abort scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Unknown job is running, abort scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_abort(), jobId);
                         break;
 
                     case EJobState::Waiting:
-                        LOG_DEBUG("Unknown job is waiting, abort scheduled (JobId: %v)",
+                        YT_LOG_DEBUG("Unknown job is waiting, abort scheduled (JobId: %v)",
                             jobId);
                         ToProto(response->add_jobs_to_abort(), jobId);
                         break;
@@ -139,10 +136,16 @@ private:
         std::vector<TJobPtr> jobsToRemove;
         chunkManager->ScheduleJobs(
             node,
+            resourceUsage,
+            resourceLimits,
             currentJobs,
             &jobsToStart,
             &jobsToAbort,
             &jobsToRemove);
+
+        for (const auto& job : jobsToStart) {
+            resourceUsage += job->ResourceUsage();
+        }
 
         for (const auto& job : jobsToStart) {
             const auto& chunkIdWithIndexes = job->GetChunkIdWithIndexes();
@@ -226,6 +229,16 @@ private:
             ToProto(response->add_jobs_to_remove(), {job->GetJobId(), false /* ArchiveJobSpec */});
         }
 
+        if (node->ResourceUsage() != resourceUsage || node->ResourceLimits() != resourceLimits) {
+            TReqUpdateNodeResources request;
+            request.set_node_id(node->GetId());
+            request.mutable_resource_usage()->CopyFrom(resourceUsage);
+            request.mutable_resource_limits()->CopyFrom(resourceLimits);
+
+            nodeTracker->CreateUpdateNodeResourcesMutation(request)
+                ->CommitAndLog(Logger);
+        }
+
         context->Reply();
     }
 };
@@ -237,5 +250,4 @@ NRpc::IServicePtr CreateJobTrackerService(TBootstrap* boostrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

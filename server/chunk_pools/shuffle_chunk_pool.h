@@ -3,8 +3,7 @@
 #include "private.h"
 #include "chunk_pool.h"
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,5 +14,4 @@ std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

@@ -7,8 +7,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,7 +82,7 @@ struct TChunkStripeList
 
     std::vector<TChunkStripePtr> Stripes;
 
-    TNullable<int> PartitionTag;
+    std::optional<int> PartitionTag;
 
     //! If True then TotalDataWeight and TotalRowCount are approximate (and are hopefully upper bounds).
     bool IsApproximate = false;
@@ -105,5 +104,4 @@ extern const TChunkStripeListPtr NullStripeList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

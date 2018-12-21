@@ -6,9 +6,7 @@
 #endif
 #undef TRANSACTION_IMPL_INL_H_
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +28,4 @@ T TTransaction::PatchTransactionTimestamp(const T& options)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

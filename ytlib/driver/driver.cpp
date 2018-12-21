@@ -18,8 +18,7 @@
 
 #include <yt/core/misc/sync_cache.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYTree;
 using namespace NYson;
@@ -153,6 +152,7 @@ public:
         REGISTER_ALL(TGetCommand,                         "get",                           Null,       Structured, false, false);
         REGISTER_ALL(TListCommand,                        "list",                          Null,       Structured, false, false);
         REGISTER_ALL(TLockCommand,                        "lock",                          Null,       Structured, true,  false);
+        REGISTER_ALL(TUnlockCommand,                      "unlock",                        Null,       Structured, true,  false);
         REGISTER_ALL(TCopyCommand,                        "copy",                          Null,       Structured, true,  false);
         REGISTER_ALL(TMoveCommand,                        "move",                          Null,       Structured, true,  false);
         REGISTER_ALL(TLinkCommand,                        "link",                          Null,       Structured, true,  false);
@@ -329,10 +329,10 @@ public:
             .Run();
     }
 
-    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const override
+    virtual std::optional<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const override
     {
         auto it = CommandNameToEntry_.find(commandName);
-        return it == CommandNameToEntry_.end() ? Null : MakeNullable(it->second.Descriptor);
+        return it == CommandNameToEntry_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
     }
 
     virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const override
@@ -414,7 +414,7 @@ private:
 
         TError result;
         TRACE_CHILD("Driver", request.CommandName) {
-            LOG_DEBUG("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            YT_LOG_DEBUG("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
@@ -428,12 +428,12 @@ private:
         }
 
         if (result.IsOK()) {
-            LOG_DEBUG("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            YT_LOG_DEBUG("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
         } else {
-            LOG_DEBUG(result, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            YT_LOG_DEBUG(result, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
@@ -537,8 +537,8 @@ private:
         const TCommandDescriptor Descriptor_;
         TDriverRequest Request_;
 
-        TNullable<TFormat> InputFormat_;
-        TNullable<TFormat> OutputFormat_;
+        std::optional<TFormat> InputFormat_;
+        std::optional<TFormat> OutputFormat_;
     };
 };
 
@@ -553,6 +553,5 @@ IDriverPtr CreateDriver(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver
 

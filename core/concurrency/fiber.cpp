@@ -10,8 +10,7 @@
 
 #include <util/generic/singleton.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,11 +152,11 @@ void TFiber::Cancel()
     }
 
     if (awaitedFuture) {
-        LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %llx)",
+        YT_LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %llx)",
             Id_);
         awaitedFuture.Cancel();
     } else {
-        LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %llx)",
+        YT_LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %llx)",
             Id_);
     }
 }
@@ -224,7 +223,7 @@ void TFiber::DoRunNaked()
         Callee_.Run();
     } catch (const TFiberCanceledException&) {
         // Thrown intentionally, ignore.
-        LOG_DEBUG("Fiber canceled");
+        YT_LOG_DEBUG("Fiber canceled");
     }
     // NB: All other uncaught exceptions will lead to std::terminate().
     // This way we preserve the much-needed backtrace.
@@ -318,6 +317,5 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

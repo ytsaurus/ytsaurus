@@ -10,8 +10,7 @@
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,5 +43,4 @@ DEFINE_REFCOUNTED_TYPE(TNetworkStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

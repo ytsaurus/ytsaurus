@@ -20,8 +20,7 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 using namespace NJobTrackerClient;
@@ -84,7 +83,7 @@ public:
         OperationIdToOperationState_.clear();
         IdToTree_.clear();
 
-        DefaultTreeId_.Reset();
+        DefaultTreeId_.reset();
 
         {
             TWriterGuard guard(TreeIdToSnapshotLock_);
@@ -101,7 +100,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        LOG_INFO("Starting min needed job resources update");
+        YT_LOG_INFO("Starting min needed job resources update");
 
         for (const auto& pair : OperationIdToOperationState_) {
             const auto& state = pair.second;
@@ -110,7 +109,7 @@ public:
             }
         }
 
-        LOG_INFO("Min needed job resources successfully updated");
+        YT_LOG_INFO("Min needed job resources successfully updated");
     }
 
     void OnFairShareLogging()
@@ -128,7 +127,7 @@ public:
 
         // Can happen if all trees are removed.
         if (!snapshot) {
-            LOG_INFO("Node does not belong to any fair-share tree, scheduling skipped (Address: %v)",
+            YT_LOG_INFO("Node does not belong to any fair-share tree, scheduling skipped (Address: %v)",
                 schedulingContext->GetNodeDescriptor().Address);
             return VoidFuture;
         }
@@ -175,13 +174,13 @@ public:
         YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
     }
 
-    virtual void UnregisterOperationFromTree(const TOperationId& operationId, const TString& treeId) override
+    virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operationId);
         if (!state->TreeIdToPoolNameMap().contains(treeId)) {
-            LOG_INFO("Operation to be removed from a tentative tree was not found in that tree (OperationId: %v, TreeId: %v)",
+            YT_LOG_INFO("Operation to be removed from a tentative tree was not found in that tree (OperationId: %v, TreeId: %v)",
                 operationId,
                 treeId);
             return;
@@ -191,7 +190,7 @@ public:
 
         state->EraseTree(treeId);
 
-        LOG_INFO("Operation removed from a tentative tree (OperationId: %v, TreeId: %v)", operationId, treeId);
+        YT_LOG_INFO("Operation removed from a tentative tree (OperationId: %v, TreeId: %v)", operationId, treeId);
     }
 
     void DoUnregisterOperationFromTree(const TFairShareStrategyOperationStatePtr& operationState, const TString& treeId)
@@ -215,13 +214,13 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        LOG_INFO("Updating pool trees");
+        YT_LOG_INFO("Updating pool trees");
 
         if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
             auto error = TError("Pool trees node has invalid type")
                 << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
                 << TErrorAttribute("actual_type", poolTreesNode->GetType());
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             return;
         }
@@ -307,11 +306,11 @@ public:
                             .Item(treeId).Do(BIND(&TFairShareTree::BuildStaticPoolsInformation, tree));
                     });
             }
-            LOG_INFO("Pool trees updated");
+            YT_LOG_INFO("Pool trees updated");
         }
     }
 
-    virtual void BuildOperationAttributes(const TOperationId& operationId, TFluentMap fluent) override
+    virtual void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -323,7 +322,7 @@ public:
         }
     }
 
-    virtual void BuildOperationProgress(const TOperationId& operationId, TFluentMap fluent) override
+    virtual void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -334,7 +333,7 @@ public:
         DoBuildOperationProgress(&TFairShareTree::BuildOperationProgress, operationId, fluent);
     }
 
-    virtual void BuildBriefOperationProgress(const TOperationId& operationId, TFluentMap fluent) override
+    virtual void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -345,7 +344,7 @@ public:
         DoBuildOperationProgress(&TFairShareTree::BuildBriefOperationProgress, operationId, fluent);
     }
 
-    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) override
+    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(TOperationId operationId) override
     {
         TPoolTreeToSchedulingTagFilter result;
         for (const auto& pair : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
@@ -362,10 +361,13 @@ public:
             const auto& operationId = operationStatePair.first;
             const auto& operationState = operationStatePair.second;
 
+            if (operationState->TreeIdToPoolNameMap().empty()) {
+                // This operation is orphaned and will be aborted.
+                continue;
+            }
+
             bool hasSchedulableTree = false;
             TError operationError("Operation is unschedulable in all trees");
-
-            YCHECK(operationState->TreeIdToPoolNameMap().size() > 0);
 
             for (const auto& treePoolPair : operationState->TreeIdToPoolNameMap()) {
                 const auto& treeName = treePoolPair.first;
@@ -413,7 +415,7 @@ public:
         const auto& pools = operationState->TreeIdToPoolNameMap();
 
         fluent
-            .DoIf(DefaultTreeId_.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(DefaultTreeId_.operator bool(), [&] (TFluentMap fluent) {
                 auto it = pools.find(*DefaultTreeId_);
                 if (it != pools.end()) {
                     fluent
@@ -535,7 +537,7 @@ public:
         }
 
         fluent
-            .DoIf(DefaultTreeId_.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(DefaultTreeId_.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     // COMPAT(asaitgalin): Remove it when UI will use scheduling_info_per_pool_tree
                     .Item("fair_share_info").BeginMap()
@@ -625,7 +627,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        LOG_INFO("Starting fair share update");
+        YT_LOG_INFO("Starting fair share update");
 
         std::vector<TError> errors;
 
@@ -667,7 +669,7 @@ public:
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
         }
 
-        LOG_INFO("Fair share successfully updated");
+        YT_LOG_INFO("Fair share successfully updated");
     }
 
     virtual void OnFairShareEssentialLoggingAt(TInstant now) override
@@ -700,7 +702,7 @@ public:
         YCHECK(successfullyUpdatedJobs->empty());
         YCHECK(jobsToAbort->empty());
 
-        LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
+        YT_LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
             jobUpdates.size());
 
         THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
@@ -736,6 +738,8 @@ public:
                         snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
                     } else if (!job.SnapshotRevision || *job.SnapshotRevision == *snapshotRevision) {
                         jobsToSave.insert(job.JobId);
+                    } else {
+                        YT_LOG_DEBUG("Dropping finished job (OperationId: %v, JobId: %v)", job.OperationId, job.JobId);
                     }
                     break;
                 }
@@ -751,7 +755,7 @@ public:
         }
     }
 
-    virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs) override
+    virtual void RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -823,7 +827,7 @@ private:
     using TFairShareTreeMap = THashMap<TString, TFairShareTreePtr>;
     TFairShareTreeMap IdToTree_;
 
-    TNullable<TString> DefaultTreeId_;
+    std::optional<TString> DefaultTreeId_;
 
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
@@ -896,7 +900,7 @@ private:
     {
         THashMap<TString, TPoolName> pools;
         for (const auto& pair : runtimeParams->SchedulingOptionsPerPoolTree) {
-            pools.emplace(pair.first, pair.second->Pool.Get());
+            pools.emplace(pair.first, *pair.second->Pool);
         }
         return pools;
     }
@@ -927,7 +931,7 @@ private:
             .ThrowOnError();
     }
 
-    TFairShareStrategyOperationStatePtr FindOperationState(const TOperationId& operationId) const
+    TFairShareStrategyOperationStatePtr FindOperationState(TOperationId operationId) const
     {
         auto it = OperationIdToOperationState_.find(operationId);
         if (it == OperationIdToOperationState_.end()) {
@@ -936,7 +940,7 @@ private:
         return it->second;
     }
 
-    TFairShareStrategyOperationStatePtr GetOperationState(const TOperationId& operationId) const
+    TFairShareStrategyOperationStatePtr GetOperationState(TOperationId operationId) const
     {
         auto it = OperationIdToOperationState_.find(operationId);
         YCHECK(it != OperationIdToOperationState_.end());
@@ -974,8 +978,8 @@ private:
     }
 
     void DoBuildOperationProgress(
-        void (TFairShareTree::*method)(const TOperationId& operationId, TFluentMap fluent),
-        const TOperationId& operationId,
+        void (TFairShareTree::*method)(TOperationId operationId, TFluentMap fluent),
+        TOperationId operationId,
         TFluentMap fluent)
     {
         const auto& state = GetOperationState(operationId);
@@ -1057,7 +1061,7 @@ private:
                 auto error = TError("Error parsing configuration of tree %Qv", treeId)
                     << ex;
                 errors->push_back(error);
-                LOG_WARNING(error);
+                YT_LOG_WARNING(error);
                 continue;
             }
 
@@ -1230,5 +1234,4 @@ ISchedulerStrategyPtr CreateFairShareStrategy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

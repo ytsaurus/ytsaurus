@@ -25,8 +25,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +55,7 @@ public:
     ~TTabletSlot();
 
     int GetIndex() const;
-    const NHydra::TCellId& GetCellId() const;
+    NHydra::TCellId GetCellId() const;
     NHydra::EPeerState GetControlState() const;
     NHydra::EPeerState GetAutomatonState() const;
     NHydra::TPeerId GetPeerId() const;
@@ -95,6 +94,8 @@ public:
 
     double GetUsedCpu(double cpuPerTabletSlot) const;
 
+    NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const;
+
     i32 GetDynamicConfigVersion() const;
     void UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTabletSlotInfo& updateInfo);
 
@@ -111,5 +112,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 using namespace NYTree;
 using namespace NYson;
@@ -32,7 +31,7 @@ size_t EstimateSize(TGuid id)
 }
 
 template <typename T>
-size_t EstimateSize(const TNullable<T>& v)
+size_t EstimateSize(const std::optional<T>& v)
 {
     return v ? EstimateSize(*v) : 0;
 }
@@ -60,10 +59,10 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
             fluent.Item()
                 .BeginMap()
                 .Item("time").Value(event.Timestamp())
-                .DoIf(event.State().HasValue(), [&] (TFluentMap fluent) {
+                .DoIf(event.State().operator bool(), [&] (TFluentMap fluent) {
                     fluent.Item("state").Value(*event.State());
                 })
-                .DoIf(event.Phase().HasValue(), [&] (TFluentMap fluent) {
+                .DoIf(event.Phase().operator bool(), [&] (TFluentMap fluent) {
                     fluent.Item("phase").Value(*event.Phase());
                 })
                 .EndMap();
@@ -242,9 +241,18 @@ TJobStatistics TJobStatistics::ExtractFailContext()
     return copy;
 }
 
+TJobStatistics TJobStatistics::ExtractProfile()
+{
+    TJobStatistics copy;
+    copy.JobId_ = JobId_;
+    copy.OperationId_ = OperationId_;
+    copy.Profile_ = Profile_;
+    return copy;
+}
+
 bool TJobStatistics::IsEmpty() const
 {
-    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_ || FailContext_);
+    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_ || FailContext_ || Profile_);
 }
 
 void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)
@@ -317,7 +325,11 @@ void TJobStatistics::SetFailContext(const TString& failContext)
     FailContext_ = failContext;
 }
 
+void TJobStatistics::SetProfile(const TJobProfile& profile)
+{
+    Profile_ = profile;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

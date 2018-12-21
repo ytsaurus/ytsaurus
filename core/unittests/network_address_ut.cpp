@@ -8,8 +8,7 @@
     #include <sys/socket.h>
 #endif
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -237,5 +236,4 @@ TEST(TIP6AddressTest, ToStringFromStringRandom)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet

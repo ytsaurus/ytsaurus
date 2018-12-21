@@ -17,8 +17,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 namespace {
 
 using namespace NControllerAgent;
@@ -394,7 +393,7 @@ protected:
 
     i64 InputSliceRowCount_;
 
-    TNullable<double> SamplingRate_;
+    std::optional<double> SamplingRate_;
 
     i64 JobCount_;
 
@@ -600,5 +599,4 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks3)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

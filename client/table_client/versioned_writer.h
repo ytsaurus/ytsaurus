@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/range.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,5 +35,4 @@ DEFINE_REFCOUNTED_TYPE(IVersionedWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

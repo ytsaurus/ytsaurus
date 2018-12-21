@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NFS {
+namespace NYT::NFS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,8 +135,8 @@ void Umount(const TString& path, bool detach);
 void SetQuota(
     int userId,
     TStringBuf path,
-    TNullable<i64> diskSpaceLimit,
-    TNullable<i64> inodeLimit);
+    std::optional<i64> diskSpaceLimit,
+    std::optional<i64> inodeLimit);
 
 //! Wraps a given #func in with try/catch; makes sure that only IO-related
 //! exceptions are being thrown. For all other exceptions, immediately terminates
@@ -158,8 +157,10 @@ TError AttachFindOutput(TError error, const TString& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFS
+} // namespace NYT::NFS
 
+namespace NYT {
+    
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetDirectorySizeAsRootTool

@@ -2,8 +2,7 @@
 
 #include <yt/contrib/http-parser/http_parser.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -177,5 +176,4 @@ void THeaders::ValidateValue(TStringBuf header, TStringBuf value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

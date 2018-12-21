@@ -6,8 +6,7 @@
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 namespace {
 
 using namespace NApi;
@@ -895,6 +894,5 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

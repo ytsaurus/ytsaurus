@@ -4,8 +4,7 @@
 
 #include <yt/server/object_server/object_manager.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 
@@ -28,7 +27,7 @@ void TChunkScanner::Start(TChunk* frontChunk, int chunkCount)
     YCHECK(GlobalCount_ < 0);
     GlobalCount_ = chunkCount;
 
-    LOG_INFO("Global chunk scan started (ChunkCount: %v)",
+    YT_LOG_INFO("Global chunk scan started (ChunkCount: %v)",
         GlobalCount_);
 }
 
@@ -105,7 +104,7 @@ void TChunkScanner::AdvanceGlobalIterator()
         // NB: Some chunks could vanish during the scan so this is not
         // necessary zero.
         YCHECK(GlobalCount_ >= 0);
-        LOG_INFO("Global chunk scan finished (VanishedChunkCount: %v)",
+        YT_LOG_INFO("Global chunk scan finished (VanishedChunkCount: %v)",
             GlobalCount_);
         GlobalCount_ = 0;
     }
@@ -113,5 +112,4 @@ void TChunkScanner::AdvanceGlobalIterator()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

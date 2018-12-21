@@ -100,7 +100,12 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple("5+10 in 12+3", 1),
         std::make_tuple("5+(10 in 12)+3", 8),
         std::make_tuple("10 in 5, 6, 7+4, 2+8", 1),
-        std::make_tuple("11 in 5, 6, 7+4, 2+8", 1)
+        std::make_tuple("11 in 5, 6, 7+4, 2+8", 1),
+
+        std::make_tuple("1 + %true", 2),
+        std::make_tuple("%true+1", 2),
+        std::make_tuple("10%%true", 0),
+        std::make_tuple("10 % %true", 0)
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,7 +161,11 @@ INSTANTIATE_TEST_CASE_P(
         "(1, 1) in (1, 1)",
         "1, 1 + 2",
         "in/",
-        "1,(1,1)"
+        "1,(1,1)",
+        "%%true",
+        "%true.foo",
+        "1%% true",
+        "1 %in b"
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,6 +213,10 @@ TEST(TArithmeticFormulaTest, Misc)
     auto emptyFormula = MakeArithmeticFormula("");
     EXPECT_TRUE(emptyFormula.IsEmpty());
     EXPECT_THROW(emptyFormula.Eval({}), TErrorException);
+
+    auto modulusByTrue = MakeArithmeticFormula("123 %true");
+    EXPECT_EQ(modulusByTrue.Eval({{"true", 100}}), 23);
+    EXPECT_THROW(modulusByTrue.Eval({}), TErrorException);
 }
 
 TEST(TArithmeticFormulaTest, InExpression)
@@ -264,6 +277,9 @@ TEST(TArithmeticFormulaTest, Equality)
 
     assertComparison(fn1, fn2, false);
     assertComparison(fn1, f5, false);
+
+    assertComparison(MakeArithmeticFormula("1"), MakeArithmeticFormula("%true"), false);
+    assertComparison(MakeArithmeticFormula("%false"), MakeArithmeticFormula("%true"), false);
 }
 
 TEST(TArithmeticFormulaTest, TestValidateVariable)

@@ -22,8 +22,7 @@
 
 #include <util/datetime/base.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +32,7 @@ struct TTabletInfo
     TTabletId TabletId;
     i64 MountRevision = 0;
     ETabletState State;
-    TNullable<EInMemoryMode> InMemoryMode;
+    std::optional<EInMemoryMode> InMemoryMode;
     NTableClient::TOwningKey PivotKey;
     TTabletCellId CellId;
     NObjectClient::TObjectId TableId;
@@ -99,8 +98,8 @@ struct TTableMountInfo
     NTableClient::TOwningKey UpperCapBound;
 
     // Master reply revision for master service cache invalidation.
-    TNullable<i64> PrimaryRevision;
-    TNullable<i64> SecondaryRevision;
+    std::optional<i64> PrimaryRevision;
+    std::optional<i64> SecondaryRevision;
 
     bool IsSorted() const;
     bool IsOrdered() const;
@@ -127,7 +126,7 @@ struct ITableMountCache
     : public virtual TRefCounted
 {
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) = 0;
-    virtual TTabletInfoPtr FindTablet(const TTabletId& tabletId) = 0;
+    virtual TTabletInfoPtr FindTablet(TTabletId tabletId) = 0;
     virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) = 0;
     virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) = 0;
 
@@ -138,6 +137,5 @@ DEFINE_REFCOUNTED_TYPE(ITableMountCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient
 

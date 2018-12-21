@@ -9,8 +9,7 @@
 
 #include <util/string/cast.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 
@@ -396,5 +395,4 @@ void TWritingValueConsumer::OnEndRow()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -43,7 +43,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/random.h>
 #include <yt/core/misc/serialize.h>
@@ -53,8 +53,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NRpc;
 using namespace NChunkClient;
@@ -194,7 +193,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
-        auto blockCount = request->has_block_count() ? MakeNullable(request->block_count()) : Null;
+        auto blockCount = request->has_block_count() ? std::make_optional(request->block_count()) : std::nullopt;
 
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
             sessionId,
@@ -387,8 +386,8 @@ private:
             const auto& protoBlock = request->blocks(index);
             auto blockId = FromProto<TBlockId>(protoBlock.block_id());
             auto sourceDescriptor = protoBlock.has_source_descriptor()
-                ? MakeNullable(FromProto<TNodeDescriptor>(protoBlock.source_descriptor()))
-                : Null;
+                ? std::make_optional(FromProto<TNodeDescriptor>(protoBlock.source_descriptor()))
+                : std::nullopt;
             blockManager->PutCachedBlock(blockId, block, sourceDescriptor);
         }
 
@@ -460,7 +459,7 @@ private:
                 for (const auto& peer : peers) {
                     ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
                 }
-                LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
+                YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
                     blockId,
                     peers.size());
             }
@@ -653,11 +652,11 @@ private:
             ? request->medium_index()
             : AllMediaIndex;
         auto partitionTag = request->has_partition_tag()
-            ? MakeNullable(request->partition_tag())
-            : Null;
+            ? std::make_optional(request->partition_tag())
+            : std::nullopt;
         auto extensionTags = request->all_extension_tags()
-            ? Null
-            : MakeNullable(FromProto<std::vector<int>>(request->extension_tags()));
+            ? std::nullopt
+            : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
         context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
@@ -742,7 +741,7 @@ private:
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
                     chunkId);
-                LOG_WARNING(error);
+                YT_LOG_WARNING(error);
                 ToProto(slices->mutable_error(), error);
                 continue;
             }
@@ -809,9 +808,9 @@ private:
 
             // COMPAT(savrus) Support schemaful and versioned chunks.
             TKeyColumns chunkKeyColumns;
-            auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(meta.extensions());
-            if (maybeKeyColumnsExt) {
-                chunkKeyColumns = FromProto<TKeyColumns>(*maybeKeyColumnsExt);
+            auto optionalKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(meta.extensions());
+            if (optionalKeyColumnsExt) {
+                chunkKeyColumns = FromProto<TKeyColumns>(*optionalKeyColumnsExt);
             } else {
                 auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
                 chunkKeyColumns = FromProto<TTableSchema>(schemaExt).GetKeyColumns();
@@ -846,7 +845,7 @@ private:
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             ToProto(result->mutable_error(), error);
         }
     }
@@ -883,7 +882,7 @@ private:
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
                     chunkId);
-                LOG_WARNING(error);
+                YT_LOG_WARNING(error);
                 ToProto(sampleResponse->mutable_error(), error);
                 continue;
             }
@@ -958,7 +957,7 @@ private:
 
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             ToProto(sampleResponse->mutable_error(), error);
         }
     }
@@ -1008,9 +1007,9 @@ private:
 
         // COMPAT(psushin)
         TKeyColumns chunkKeyColumns;
-        auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
-        if (maybeKeyColumnsExt) {
-            chunkKeyColumns = NYT::FromProto<TKeyColumns>(*maybeKeyColumnsExt);
+        auto optionalKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+        if (optionalKeyColumnsExt) {
+            chunkKeyColumns = NYT::FromProto<TKeyColumns>(*optionalKeyColumnsExt);
         } else {
             auto schemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
             chunkKeyColumns = FromProto<TTableSchema>(schemaExt).GetKeyColumns();
@@ -1029,7 +1028,7 @@ private:
                 chunkId,
                 keyColumns,
                 chunkKeyColumns);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             ToProto(chunkSamples->mutable_error(), error);
             return;
         }
@@ -1097,7 +1096,7 @@ private:
             }
         } catch (const std::exception& ex) {
             auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
-            LOG_WARNING(ex, "Failed to gather samples (ChunkId: %v)", chunkId);
+            YT_LOG_WARNING(ex, "Failed to gather samples (ChunkId: %v)", chunkId);
 
             // We failed to deserialize name table, so we don't return any samples.
             return;
@@ -1174,7 +1173,7 @@ private:
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
                     chunkId);
-                LOG_WARNING(error);
+                YT_LOG_WARNING(error);
                 ToProto(subresponse->mutable_error(), error);
                 continue;
             }
@@ -1229,15 +1228,15 @@ private:
                     type);
             }
 
-            auto maybeColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
+            auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
             // COMPAT(max42): remove second option when YT-8954 is at least several months old.
-            if (!maybeColumnarStatisticsExt || maybeColumnarStatisticsExt->data_weights_size() == 0) {
+            if (!optionalColumnarStatisticsExt || optionalColumnarStatisticsExt->data_weights_size() == 0) {
                 ToProto(
                     subresponse->mutable_error(),
                     TError(NChunkClient::EErrorCode::MissingExtension, "Columnar statistics chunk meta extension missing"));
                 return;
             }
-            const auto& columnarStatisticsExt = *maybeColumnarStatisticsExt;
+            const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
 
             auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
             TNameTablePtr nameTable;
@@ -1262,7 +1261,7 @@ private:
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             ToProto(subresponse->mutable_error(), error);
         }
     }
@@ -1298,7 +1297,7 @@ private:
         }
     }
 
-    void ValidateNoSession(const TSessionId& sessionId)
+    void ValidateNoSession(TSessionId sessionId)
     {
         if (Bootstrap_->GetSessionManager()->FindSession(sessionId)) {
             THROW_ERROR_EXCEPTION(
@@ -1308,7 +1307,7 @@ private:
         }
     }
 
-    void ValidateNoChunk(const TSessionId& sessionId)
+    void ValidateNoChunk(TSessionId sessionId)
     {
         if (Bootstrap_->GetChunkStore()->FindChunk(sessionId.ChunkId, sessionId.MediumIndex)) {
             THROW_ERROR_EXCEPTION(
@@ -1340,5 +1339,4 @@ IServicePtr CreateDataNodeService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

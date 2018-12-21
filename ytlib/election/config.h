@@ -4,17 +4,16 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCellPeerConfig
 {
     TCellPeerConfig();
-    explicit TCellPeerConfig(const TNullable<TString>& address, bool voting = true);
+    explicit TCellPeerConfig(const std::optional<TString>& address, bool voting = true);
 
-    TNullable<TString> Address;
+    std::optional<TString> Address;
     bool Voting = true;
 };
 
@@ -33,7 +32,7 @@ public:
     TCellId CellId;
 
     //! Peer addresses.
-    //! Some could be |Null| to indicate that the peer is temporarily missing.
+    //! Some could be Null to indicate that the peer is temporarily missing.
     std::vector<TCellPeerConfig> Peers;
 
     TCellConfig();
@@ -46,5 +45,4 @@ DEFINE_REFCOUNTED_TYPE(TCellConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

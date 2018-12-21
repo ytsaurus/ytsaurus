@@ -13,8 +13,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +26,7 @@ public:
         NRpc::IChannelFactoryPtr channelFactory,
         TPeerId selfId);
 
-    const TCellId& GetCellId() const;
+    TCellId GetCellId() const;
     TPeerId GetSelfPeerId() const;
     const TCellPeerConfig& GetSelfConfig() const;
 
@@ -73,6 +72,5 @@ DEFINE_REFCOUNTED_TYPE(TCellManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection
 

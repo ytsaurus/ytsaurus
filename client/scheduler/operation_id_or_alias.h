@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/variant.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 extern const TString OperationAliasPrefix;
 
@@ -26,8 +25,7 @@ TString GetOperationIdOrAliasContextInfo(const TOperationIdOrAlias& operationIdO
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 
 #define OPERATION_ID_OR_ALIAS_INL_H_
 #include "operation_id_or_alias-inl.h"

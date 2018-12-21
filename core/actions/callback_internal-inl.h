@@ -6,8 +6,7 @@
 #endif
 #undef CALLBACK_INTERNAL_INL_H_
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,5 +70,4 @@ inline TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT
-}  // namespace NDetail
+}  // namespace NYT::NDetail

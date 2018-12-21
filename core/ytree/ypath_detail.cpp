@@ -22,8 +22,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NBus;
 using namespace NRpc;
@@ -113,7 +112,7 @@ void TYPathServiceBase::AfterInvoke(const IServiceContextPtr& /*context*/)
 
 void TYPathServiceBase::DoWriteAttributesFragment(
     NYson::IAsyncYsonConsumer* /*consumer*/,
-    const TNullable<std::vector<TString>>& /*attributeKeys*/,
+    const std::optional<std::vector<TString>>& /*attributeKeys*/,
     bool /*stable*/)
 { }
 
@@ -441,7 +440,7 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const TString& key)
         }
     }
 
-    return Null;
+    return std::nullopt;
 }
 
 TYsonString TSupportsAttributes::DoGetAttributeFragment(
@@ -453,12 +452,12 @@ TYsonString TSupportsAttributes::DoGetAttributeFragment(
         ThrowNoSuchAttribute(key);
     }
     auto node = ConvertToNode<TYsonString>(wholeYson);
-    return SyncYPathGet(node, path, Null);
+    return SyncYPathGet(node, path, std::nullopt);
 }
 
 TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys)
+    const std::optional<std::vector<TString>>& attributeKeys)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -538,8 +537,8 @@ void TSupportsAttributes::GetAttribute(
     context->SetRequestInfo();
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     DoGetAttribute(path, attributeKeys).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (!ysonOrError.IsOK()) {
@@ -690,9 +689,9 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
         if (builtinAttributeProvider) {
             auto internedKey = GetInternedAttributeKey(key);
             if (internedKey != InvalidInternedAttribute) {
-                auto maybeDescriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
-                if (maybeDescriptor) {
-                    const auto& descriptor = *maybeDescriptor;
+                auto optionalDescriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
+                if (optionalDescriptor) {
+                    const auto& descriptor = *optionalDescriptor;
                     return descriptor.Present ? TrueFuture : FalseFuture;
                 }
             }
@@ -825,7 +824,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             ValidateAttributeKey(key);
             auto internedKey = GetInternedAttributeKey(key);
 
-            TNullable<ISystemAttributeProvider::TAttributeDescriptor> descriptor;
+            std::optional<ISystemAttributeProvider::TAttributeDescriptor> descriptor;
             if (builtinAttributeProvider && internedKey != InvalidInternedAttribute) {
                 descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
             }
@@ -1298,7 +1297,7 @@ public:
 protected:
     const TString LoggingInfo_;
 
-    TNullable<NProfiling::TWallTimer> Timer_;
+    std::optional<NProfiling::TWallTimer> Timer_;
 
 
     virtual void DoReply() override
@@ -1328,9 +1327,9 @@ protected:
             delimitedBuilder->AppendString(RequestInfo_);
         }
 
-        LOG_DEBUG(builder.Flush());
+        YT_LOG_DEBUG(builder.Flush());
 
-        Timer_.Emplace();
+        Timer_.emplace();
     }
 
     virtual void LogResponse() override
@@ -1356,7 +1355,7 @@ protected:
 
         delimitedBuilder->AppendFormat("Error: %v", Error_);
 
-        LOG_DEBUG(builder.Flush());
+        YT_LOG_DEBUG(builder.Flush());
     }
 };
 
@@ -1421,7 +1420,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override
     {
         UnderlyingService_->WriteAttributesFragment(consumer, attributeKeys, stable);
@@ -1444,5 +1443,4 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

@@ -3,8 +3,7 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYson;
@@ -133,5 +132,4 @@ TFuture<void> TVersionedWriter::GetReadyEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

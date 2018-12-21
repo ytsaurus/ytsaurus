@@ -3,8 +3,7 @@
 #include "format.h"
 #include "parser_detail.h"
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 using namespace NConcurrency;
 
@@ -183,5 +182,4 @@ void ParseYsonStringBuffer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

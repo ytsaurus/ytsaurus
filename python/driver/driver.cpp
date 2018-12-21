@@ -25,8 +25,7 @@
 #include <yt/core/tracing/trace_manager.h>
 #include <yt/core/tracing/config.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +68,7 @@ INodePtr ConvertObjectToNode(const Py::Object& obj)
     auto factory = GetEphemeralNodeFactory();
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
-    Serialize(obj, builder.get(), MakeNullable<TString>("utf-8"));
+    Serialize(obj, builder.get(), std::make_optional<TString>("utf-8"));
     return builder->EndTree();
 }
 
@@ -100,7 +99,7 @@ public:
 
         auto config = ConvertTo<NApi::TConnectionConfigPtr>(ConfigNode_);
 
-        LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
+        YT_LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
     }
 
     void DoTerminate()
@@ -144,7 +143,7 @@ public:
 
     Py::Object Execute(Py::Tuple& args, Py::Dict& kwargs)
     {
-        LOG_DEBUG("Preparing driver request");
+        YT_LOG_DEBUG("Preparing driver request");
 
         auto pyRequest = ExtractArgument(args, kwargs, "request");
         ValidateArgumentsEmpty(args, kwargs);
@@ -211,7 +210,7 @@ public:
             }
         } CATCH_AND_CREATE_YT_ERROR("Driver command execution failed");
 
-        LOG_DEBUG("Request execution started (RequestId: %v, CommandName: %v, User: %v)",
+        YT_LOG_DEBUG("Request execution started (RequestId: %v, CommandName: %v, User: %v)",
             request.Id,
             request.CommandName,
             request.AuthenticatedUser);
@@ -369,9 +368,9 @@ public:
 
         Py::Object object;
 #if PY_MAJOR_VERSION < 3
-        Deserialize(object, ConfigNode_, Null);
+        Deserialize(object, ConfigNode_, std::nullopt);
 #else
-        Deserialize(object, ConfigNode_, MakeNullable<TString>("utf-8"));
+        Deserialize(object, ConfigNode_, std::make_optional<TString>("utf-8"));
 #endif
         return object;
     }
@@ -417,17 +416,17 @@ public:
 
         RegisterShutdown();
         RegisterShutdownCallback(BIND([] () {
-                LOG_INFO("Module shutdown started");
+                YT_LOG_INFO("Module shutdown started");
                 for (const auto& pair : ActiveDrivers) {
                     auto driver = pair.second.Lock();
                     if (!driver) {
                         continue;
                     }
-                    LOG_INFO("Terminating leaked driver (DriverId: %v)", pair.first);
+                    YT_LOG_INFO("Terminating leaked driver (DriverId: %v)", pair.first);
                     driver->Terminate();
                 }
                 ActiveDrivers.clear();
-                LOG_INFO("Module shutdown finished");
+                YT_LOG_INFO("Module shutdown finished");
             }),
             /*index*/ 0);
 
@@ -497,8 +496,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython
 
 ////////////////////////////////////////////////////////////////////////////////
 

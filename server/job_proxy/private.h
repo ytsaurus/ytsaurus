@@ -10,8 +10,7 @@
 
 #include <util/generic/ptr.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +22,5 @@ const TString SatelliteConfigFileName("satellite_config.yson");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy
 

@@ -6,8 +6,7 @@
 
 #include <yt/core/yson/null_consumer.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 namespace {
 
 using namespace NYson;
@@ -196,8 +195,7 @@ TEST(TSchemafulDsvParserTest, ColumnsNamesHeader)
     config->Columns->push_back("b");
     config->EnableColumnNamesHeader = true;
 
-    auto Null = GetNullYsonConsumer();
-    EXPECT_THROW(ParseSchemafulDsv(input, Null, config), std::exception);
+    EXPECT_THROW(ParseSchemafulDsv(input, GetNullYsonConsumer(), config), std::exception);
 }
 
 TEST(TSchemafulDsvParserTest, MissingValueModePrintSentinel)
@@ -258,5 +256,4 @@ TEST(TSchemafulDsvParserTest, MissingValueModePrintSentinel)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

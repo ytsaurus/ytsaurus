@@ -9,9 +9,7 @@
 
 #include <yt/client/api/connection.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NHiveClient;
 using namespace NTransactionClient;
@@ -28,7 +26,7 @@ public:
         TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
         ITimestampProviderPtr timestampProvider,
         IConnectionPtr connection,
-        const TCellId& cellId,
+        TCellId cellId,
         const TTransactionParticipantOptions& options)
         : CellDirectory_(std::move(cellDirectory))
         , CellDirectorySynchronizer_(std::move(cellDirectorySynchronizer))
@@ -38,7 +36,7 @@ public:
         , Options_(options)
     { }
 
-    virtual const TCellId& GetCellId() const override
+    virtual TCellId GetCellId() const override
     {
         return CellId_;
     }
@@ -62,7 +60,7 @@ public:
         return ETransactionParticipantState::Valid;
     }
 
-    virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId, TTimestamp prepareTimestamp, const TString& user) override
+    virtual TFuture<void> PrepareTransaction(TTransactionId transactionId, TTimestamp prepareTimestamp, const TString& user) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
@@ -75,7 +73,7 @@ public:
             });
     }
 
-    virtual TFuture<void> CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp) override
+    virtual TFuture<void> CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
@@ -87,7 +85,7 @@ public:
             });
     }
 
-    virtual TFuture<void> AbortTransaction(const TTransactionId& transactionId) override
+    virtual TFuture<void> AbortTransaction(TTransactionId transactionId) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
@@ -155,7 +153,7 @@ ITransactionParticipantPtr CreateTransactionParticipant(
     TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
     ITimestampProviderPtr timestampProvider,
     IConnectionPtr connection,
-    const TCellId& cellId,
+    TCellId cellId,
     const TTransactionParticipantOptions& options)
 {
     return New<TTransactionParticipant>(
@@ -169,6 +167,4 @@ ITransactionParticipantPtr CreateTransactionParticipant(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

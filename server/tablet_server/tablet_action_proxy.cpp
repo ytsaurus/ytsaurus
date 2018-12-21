@@ -13,8 +13,7 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -178,6 +177,5 @@ IObjectProxyPtr CreateTabletActionProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

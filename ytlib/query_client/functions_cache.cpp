@@ -40,8 +40,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -66,7 +65,7 @@ class TCypressFunctionDescriptor
 public:
     TString Name;
     std::vector<TDescriptorType> ArgumentTypes;
-    TNullable<TDescriptorType> RepeatedArgumentType;
+    std::optional<TDescriptorType> RepeatedArgumentType;
     TDescriptorType ResultType;
     ECallingConvention CallingConvention;
     bool UseFunctionContext;
@@ -146,8 +145,7 @@ TString GetUdfDescriptorPath(const TYPath& registryPath, const TString& function
 } // namespace
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<TString>& functionNames,
-    const TString& udfRegistryPath,
+    const std::vector<std::pair<TString, TString>>& functionNames,
     const NNative::IClientPtr& client)
 {
     using NObjectClient::TObjectYPathProxy;
@@ -158,7 +156,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
     std::vector<TExternalFunctionSpec> result;
 
-    LOG_DEBUG("Looking for UDFs in Cypress");
+    YT_LOG_DEBUG("Looking for UDFs in Cypress");
 
     auto attributeFilter = std::vector<TString>{
         FunctionDescriptorAttribute,
@@ -167,8 +165,8 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& functionName : functionNames) {
-        auto path = GetUdfDescriptorPath(udfRegistryPath, functionName);
+    for (const auto& item : functionNames) {
+        auto path = GetUdfDescriptorPath(item.first, item.second);
 
         auto getReq = TYPathProxy::Get(path);
 
@@ -188,13 +186,16 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     THashMap<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> infoByCellTags;
 
     for (int index = 0; index < functionNames.size(); ++index) {
-        const auto& functionName = functionNames[index];
-        auto path = GetUdfDescriptorPath(udfRegistryPath, functionName);
+        const auto& function = functionNames[index];
+        auto path = GetUdfDescriptorPath(function.first, function.second);
 
         auto getRspOrError = getRspsOrError[index];
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(getRspOrError, "Failed to find implementation of function %Qv in Cypress",
-            functionName);
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            getRspOrError,
+            "Failed to find implementation of function %v at path %v in Cypress",
+            function.second,
+            function.first);
 
         auto getRsp = getRspOrError
             .ValueOrThrow();
@@ -206,8 +207,8 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto objectId = NYT::FromProto<NObjectClient::TObjectId>(basicAttrsRsp->object_id());
         auto cellTag = basicAttrsRsp->cell_tag();
 
-        LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
-            functionName,
+        YT_LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
+            function.second,
             ConvertToYsonString(item, NYson::EYsonFormat::Text).GetData());
 
         TExternalFunctionSpec cypressInfo;
@@ -249,7 +250,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
                 cellTag,
                 nodeDirectory,
                 10000,
-                Null,
+                std::nullopt,
                 Logger,
                 &result[resultIndex].Chunks);
 
@@ -270,14 +271,14 @@ void AppendUdfDescriptors(
 {
     YCHECK(functionNames.size() == externalFunctionSpecs.size());
 
-    LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
+    YT_LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
 
     for (size_t index = 0; index < externalFunctionSpecs.size(); ++index) {
         const auto& item = externalFunctionSpecs[index];
         const auto& descriptor = item.Descriptor;
         const auto& name = functionNames[index];
 
-        LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
+        YT_LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
             name,
             ConvertToYsonString(descriptor, NYson::EYsonFormat::Text).GetData());
 
@@ -304,13 +305,13 @@ void AppendUdfDescriptors(
         functionBody.Name = name;
         functionBody.ChunkSpecs = chunks;
 
-        LOG_DEBUG("Appending UDF descriptor {%v}",
+        YT_LOG_DEBUG("Appending UDF descriptor {%v}",
             MakeFormattableRange(chunks, [] (TStringBuilder* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
                 builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
             }));
 
         if (functionDescriptor) {
-            LOG_DEBUG("Appending function UDF descriptor %Qv", name);
+            YT_LOG_DEBUG("Appending function UDF descriptor %Qv", name);
 
             functionBody.IsAggregate = false;
             functionBody.SymbolName = functionDescriptor->Name;
@@ -337,7 +338,7 @@ void AppendUdfDescriptors(
         }
 
         if (aggregateDescriptor) {
-            LOG_DEBUG("Appending aggregate UDF descriptor %Qv", name);
+            YT_LOG_DEBUG("Appending aggregate UDF descriptor %Qv", name);
 
             functionBody.IsAggregate = true;
             functionBody.SymbolName = aggregateDescriptor->Name;
@@ -364,34 +365,37 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 namespace {
 
 class TCypressFunctionRegistry
-    : public TAsyncExpiringCache<TString, TExternalFunctionSpec>
+    : public TAsyncExpiringCache<std::pair<TString, TString>, TExternalFunctionSpec>
     , public IFunctionRegistry
 {
 public:
-    typedef TAsyncExpiringCache<TString, TExternalFunctionSpec> TBase;
+    typedef TAsyncExpiringCache<std::pair<TString, TString>, TExternalFunctionSpec> TBase;
 
     TCypressFunctionRegistry(
-        const TString& registryPath,
         TAsyncExpiringCacheConfigPtr config,
         TWeakPtr<NNative::IClient> client,
         IInvokerPtr invoker)
         : TBase(config)
-        , RegistryPath_(registryPath)
         , Client_(client)
         , Invoker_(invoker)
     { }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<TString>& names) override
+    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
+        const TString& udfRegistryPath,
+        const std::vector<TString>& names) override
     {
-        return Get(names);
+        std::vector<std::pair<TString, TString>> keys;
+        for (const auto& name : names) {
+            keys.emplace_back(udfRegistryPath, name);
+        }
+        return Get(keys);
     }
 
 private:
-    const TString RegistryPath_;
     const TWeakPtr<NNative::IClient> Client_;
     const IInvokerPtr Invoker_;
 
-    virtual TFuture<TExternalFunctionSpec> DoGet(const TString& key) override
+    virtual TFuture<TExternalFunctionSpec> DoGet(const std::pair<TString, TString>& key) override
     {
         return DoGetMany({key})
             .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& result) {
@@ -399,10 +403,11 @@ private:
             }));
     }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<TString>& keys) override
+    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(
+        const std::vector<std::pair<TString, TString>>& keys) override
     {
         if (auto client = Client_.Lock()) {
-            return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, std::move(client))
+            return BIND(LookupAllUdfDescriptors, keys, std::move(client))
                 .AsyncVia(Invoker_)
                 .Run();
         } else {
@@ -416,13 +421,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IFunctionRegistryPtr CreateFunctionRegistryCache(
-    const TString& registryPath,
     TAsyncExpiringCacheConfigPtr config,
     TWeakPtr<NNative::IClient> client,
     IInvokerPtr invoker)
 {
     return New<TCypressFunctionRegistry>(
-        registryPath,
         std::move(config),
         std::move(client),
         std::move(invoker));
@@ -520,7 +523,7 @@ public:
         YCHECK(client);
         auto chunks = key.ChunkSpecs;
 
-        LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v, ReadSessionId: %v)",
+        YT_LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v, ReadSessionId: %v)",
             key,
             blockReadOptions.ReadSessionId);
 
@@ -664,7 +667,7 @@ void FetchFunctionImplementationsFromCypress(
     for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
-        LOG_DEBUG("Fetching UDF implementation (Name: %v, ReadSessionId: %v)",
+        YT_LOG_DEBUG("Fetching UDF implementation (Name: %v, ReadSessionId: %v)",
             name,
             blockReadOptions.ReadSessionId);
 
@@ -696,7 +699,7 @@ void FetchFunctionImplementationsFromFiles(
      for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
-        LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
+        YT_LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
         auto path = rootPath + "/" + function.Name;
         auto file = TUnbufferedFileInput(path);
@@ -794,5 +797,4 @@ void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

@@ -97,6 +97,7 @@ void ThrowError(const TString& formula, int position, const TString& message, EE
 #define FOR_EACH_TOKEN(func) \
     func(0, Variable) \
     func(0, Number) \
+    func(0, BooleanLiteral) \
     func(0, Set) \
     func(0, LeftBracket) \
     func(0, RightBracket) \
@@ -155,6 +156,15 @@ TString ToString(const TFormulaToken& token)
         return ToString(token.Number);
     } else if (token.Type == EFormulaTokenType::Variable) {
         return "[" + token.Name + "]";
+    } else if (token.Type == EFormulaTokenType::BooleanLiteral) {
+        switch (token.Number) {
+            case 0:
+                return "%false";
+            case 1:
+                return "%true";
+            default:
+                Y_UNREACHABLE();
+        }
     } else {
         return ToString(token.Type);
     }
@@ -274,6 +284,7 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
                 stack.push_back(variableValue(token.Name));
                 break;
             case EFormulaTokenType::Number:
+            case EFormulaTokenType::BooleanLiteral:
                 stack.push_back(token.Number);
                 break;
             case EFormulaTokenType::LogicalNot:
@@ -419,13 +430,13 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
         }
     };
 
-    auto extractSpecialToken = [&] () -> TNullable<EFormulaTokenType> {
+    auto extractSpecialToken = [&] () -> std::optional<EFormulaTokenType> {
         char first = formula[pos];
         char second = pos + 1 < formula.Size() ? formula[pos + 1] : '\0';
         if (first == 'i' && second == 'n') {
             char third = pos + 2 < formula.Size() ? formula[pos + 2] : '\0';
             if (IsSymbolAllowedInName(third, context, false)) {
-                return Null;
+                return std::nullopt;
             } else {
                 pos += 2;
                 return EFormulaTokenType::In;
@@ -511,22 +522,22 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
                         return EFormulaTokenType::Greater;
                 }
             default:
-                return Null;
+                return std::nullopt;
         }
     };
 
     auto extractNumber = [&] {
-        TString buf;
+        size_t start = pos;
         if (formula[pos] == '-') {
-            buf += formula[pos++];
+            ++pos;
         }
         if (pos == formula.Size() || !std::isdigit(formula[pos])) {
             throwError(pos, "Expected digit");
         }
         while (pos < formula.Size() && std::isdigit(formula[pos])) {
-            buf += formula[pos++];
+            ++pos;
         }
-        return IntFromString<i64, 10>(buf);
+        return IntFromString<i64, 10>(TStringBuf(formula, start, pos - start));
     };
 
     auto extractVariable = [&] {
@@ -535,6 +546,26 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
             name += formula[pos++];
         }
         return name;
+    };
+
+    auto extractBooleanLiteral = [&] {
+        YCHECK(formula[pos] == '%');
+        ++pos;
+
+        size_t start = pos;
+        while (pos < formula.Size() && std::isalpha(formula[pos])) {
+            ++pos;
+        }
+
+        TStringBuf buf(formula, start, pos - start);
+        if (buf == "false") {
+            return 0;
+        } else if (buf == "true") {
+            return 1;
+        } else {
+            throwError(pos, Format("Invalid literal %Qv", buf));
+            Y_UNREACHABLE();
+        }
     };
 
     bool expectBinaryOperator = false;
@@ -556,8 +587,12 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
             token.Type = EFormulaTokenType::Number;
             token.Number = extractNumber();
             expectBinaryOperator = true;
-        } else if (auto maybeType = extractSpecialToken()) {
-            token.Type = *maybeType;
+        } else if (!expectBinaryOperator && c == '%') {
+            token.Type = EFormulaTokenType::BooleanLiteral;
+            token.Number = extractBooleanLiteral();
+            expectBinaryOperator = true;
+        } else if (auto optionalType = extractSpecialToken()) {
+            token.Type = *optionalType;
             expectBinaryOperator = token.Type == EFormulaTokenType::RightBracket;
         } else if (IsSymbolAllowedInName(formula[pos], context, true)) {
             token.Type = EFormulaTokenType::Variable;
@@ -608,6 +643,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Parse(
         switch (token.Type) {
             case EFormulaTokenType::Variable:
             case EFormulaTokenType::Number:
+            case EFormulaTokenType::BooleanLiteral:
                 if (!expectSubformula) {
                     throwError(token.Position, "Unexpected variable");
                 }
@@ -660,9 +696,12 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Parse(
                 case EFormulaTokenType::BitwiseOr:
                 case EFormulaTokenType::LogicalNot:
                 case EFormulaTokenType::Variable:
+                case EFormulaTokenType::BooleanLiteral:
                     break;
                 default:
-                    throwError(token.Position, "Invalid token in boolean formula (only '!', '&', '|', '(', ')' are allowed)");
+                    throwError(
+                        token.Position,
+                        "Invalid token in boolean formula (only '!', '&', '|', '(', ')', '%false', '%true' are allowed)");
                     Y_UNREACHABLE();
             }
         }
@@ -702,6 +741,7 @@ void TGenericFormulaImpl::CheckTypeConsistency(
         switch (token.Type) {
             case EFormulaTokenType::Variable:
             case EFormulaTokenType::Number:
+            case EFormulaTokenType::BooleanLiteral:
                 stack.push_back(EFormulaTokenType::Number);
                 break;
             case EFormulaTokenType::LogicalNot:
@@ -904,13 +944,16 @@ TBooleanFormula operator&(const TBooleanFormula& lhs, const TBooleanFormula& rhs
     if (lhs.IsEmpty()) {
         return rhs;
     }
+    if (rhs.IsEmpty()) {
+        return lhs;
+    }
     return MakeBooleanFormula(Format("(%v) & (%v)", lhs.GetFormula(), rhs.GetFormula()));
 }
 
 TBooleanFormula operator|(const TBooleanFormula& lhs, const TBooleanFormula& rhs)
 {
-    if (lhs.IsEmpty()) {
-        return lhs;
+    if (lhs.IsEmpty() || rhs.IsEmpty()) {
+        return MakeBooleanFormula("%true");
     }
     return MakeBooleanFormula(Format("(%v) | (%v)", lhs.GetFormula(), rhs.GetFormula()));
 }
@@ -918,8 +961,7 @@ TBooleanFormula operator|(const TBooleanFormula& lhs, const TBooleanFormula& rhs
 TBooleanFormula operator!(const TBooleanFormula& formula)
 {
     if (formula.IsEmpty()) {
-        // TODO: introduce false literal.
-        return MakeBooleanFormula("false");
+        return MakeBooleanFormula("%false");
     }
     return MakeBooleanFormula(Format("!(%v)", formula.GetFormula()));
 }

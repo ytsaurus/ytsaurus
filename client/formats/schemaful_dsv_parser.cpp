@@ -6,8 +6,7 @@
 
 #include <yt/client/table_client/public.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NYTree;
 using namespace NYson;
@@ -196,5 +195,4 @@ std::unique_ptr<IParser> CreateParserForSchemafulDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

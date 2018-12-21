@@ -27,8 +27,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -50,7 +49,7 @@ class TBatchingChunkService
 {
 public:
     TBatchingChunkService(
-        const TCellId& cellId,
+        TCellId cellId,
         TBatchingChunkServiceConfigPtr serviceConfig,
         TMasterConnectionConfigPtr connectionConfig,
         IChannelFactoryPtr channelFactory)
@@ -145,7 +144,7 @@ private:
             auto& state = CurrentBatch_->ContextsWithStates.back().second;
             BatchRequest(&context->Request(), CurrentBatch_->BatchRequest.Get(), &state);
 
-            LOG_DEBUG("Chunk Service request batched (RequestId: %v -> %v)",
+            YT_LOG_DEBUG("Chunk Service request batched (RequestId: %v -> %v)",
                 context->GetRequestId(),
                 CurrentBatch_->BatchRequest->GetRequestId());
 
@@ -255,7 +254,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Chunk Service batch request sent (RequestId: %v)",
+            YT_LOG_DEBUG("Chunk Service batch request sent (RequestId: %v)",
                 batch->BatchRequest->GetRequestId());
 
             batch->BatchRequest->Invoke().Subscribe(
@@ -266,10 +265,10 @@ private:
         void OnBatchResponse(const TBatchPtr& batch, const TErrorOr<TResponsePtr>& responseOrError)
         {
             if (responseOrError.IsOK()) {
-                LOG_DEBUG("Chunk Service batch request succeeded (RequestId: %v)",
+                YT_LOG_DEBUG("Chunk Service batch request succeeded (RequestId: %v)",
                     batch->BatchRequest->GetRequestId());
             } else {
-                LOG_DEBUG(responseOrError, "Chunk Service batch request failed (RequestId: %v)",
+                YT_LOG_DEBUG(responseOrError, "Chunk Service batch request failed (RequestId: %v)",
                     batch->BatchRequest->GetRequestId());
             }
 
@@ -464,7 +463,7 @@ private:
 };
 
 IServicePtr CreateBatchingChunkService(
-    const TCellId& cellId,
+    TCellId cellId,
     TBatchingChunkServiceConfigPtr serviceConfig,
     TMasterConnectionConfigPtr connectionConfig,
     IChannelFactoryPtr channelFactory)
@@ -478,5 +477,4 @@ IServicePtr CreateBatchingChunkService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
-} // namespace NYT
+} // namespace NYT::NCellNode

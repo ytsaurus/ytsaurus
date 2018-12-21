@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/async_cache.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +30,7 @@ public:
 
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TBlockReadOptions& options,
-        const TNullable<std::vector<int>>& extensionTags = Null) override;
+        const std::optional<std::vector<int>>& extensionTags = std::nullopt) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
@@ -146,6 +145,5 @@ DEFINE_REFCOUNTED_TYPE(TCachedBlobChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

@@ -5,8 +5,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,7 +15,7 @@ struct TChunkDescriptor
     TChunkDescriptor()
     { }
 
-    explicit TChunkDescriptor(const TChunkId& id)
+    explicit TChunkDescriptor(TChunkId id)
         : Id(id)
     { }
 
@@ -35,7 +34,7 @@ class TChunkBase
     : public IChunk
 {
 public:
-    virtual const TChunkId& GetId() const override;
+    virtual TChunkId GetId() const override;
     virtual TLocationPtr GetLocation() const override;
     virtual TString GetFileName() const override;
 
@@ -71,19 +70,18 @@ protected:
     TChunkBase(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& id);
+        TChunkId id);
 
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 
     static NChunkClient::TRefCountedChunkMetaPtr FilterMeta(
         NChunkClient::TRefCountedChunkMetaPtr meta,
-        const TNullable<std::vector<int>>& extensionTags);
+        const std::optional<std::vector<int>>& extensionTags);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

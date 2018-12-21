@@ -9,8 +9,7 @@
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 
@@ -333,7 +332,7 @@ TConstExpressionPtr EliminateInExpression(
 
     std::vector<size_t> valueMapping;
     std::vector<size_t> keyMapping;
-    TNullable<size_t> rangeArgIndex;
+    std::optional<size_t> rangeArgIndex;
 
     bool allArgsAreKey = true;
     for (size_t argumentIndex = 0; argumentIndex < inExpr->Arguments.size(); ++argumentIndex) {
@@ -350,7 +349,7 @@ TConstExpressionPtr EliminateInExpression(
         }
 
         if (bounds && keyIndex == keyPrefixSize) {
-            rangeArgIndex.Assign(argumentIndex);
+            rangeArgIndex = argumentIndex;
         }
     }
 
@@ -810,6 +809,5 @@ std::vector<TMutableRowRange> MergeOverlappingRanges(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

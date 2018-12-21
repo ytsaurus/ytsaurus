@@ -2,8 +2,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 using namespace NYTree;
 using namespace NYson;
@@ -95,5 +94,4 @@ void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

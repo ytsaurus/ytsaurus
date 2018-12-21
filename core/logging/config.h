@@ -5,8 +5,7 @@
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +16,8 @@ public:
     EWriterType Type;
     TString FileName;
     ELogMessageFormat AcceptedMessageFormat;
-    TNullable<size_t> RateLimit;
+    std::optional<size_t> RateLimit;
+    bool EnableCompression;
 
     TWriterConfig()
     {
@@ -28,6 +28,8 @@ public:
             .Default(ELogMessageFormat::PlainText);
         RegisterParameter("rate_limit", RateLimit)
             .Default();
+        RegisterParameter("enable_compression", EnableCompression)
+            .Default(false);
 
         RegisterPostprocessor([&] () {
             if (Type == EWriterType::File && FileName.empty()) {
@@ -47,7 +49,7 @@ class TRuleConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<THashSet<TString>> IncludeCategories;
+    std::optional<THashSet<TString>> IncludeCategories;
     THashSet<TString> ExcludeCategories;
 
     ELogLevel MinLevel;
@@ -85,9 +87,9 @@ class TLogConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<TDuration> FlushPeriod;
-    TNullable<TDuration> WatchPeriod;
-    TNullable<TDuration> CheckSpacePeriod;
+    std::optional<TDuration> FlushPeriod;
+    std::optional<TDuration> WatchPeriod;
+    std::optional<TDuration> CheckSpacePeriod;
 
     i64 MinDiskSpace;
 
@@ -158,5 +160,4 @@ DEFINE_REFCOUNTED_TYPE(TLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

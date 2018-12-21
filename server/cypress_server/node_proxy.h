@@ -17,8 +17,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/system_attribute_provider.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +37,7 @@ struct ICypressNodeFactory
         NYTree::IAttributeDictionary* explicitAttributes) = 0;
 
     virtual TCypressNodeBase* InstantiateNode(
-        const TNodeId& id,
+        TNodeId id,
         NObjectClient::TCellTag externalCellTag) = 0;
 
     virtual TCypressNodeBase* CloneNode(
@@ -75,5 +74,4 @@ DEFINE_REFCOUNTED_TYPE(ICypressNodeProxy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

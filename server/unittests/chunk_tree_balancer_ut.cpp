@@ -12,8 +12,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 namespace {
 
 using namespace NObjectClient;
@@ -235,5 +234,4 @@ TEST(ChunkTreeBalancer, EmptyChunkLists)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

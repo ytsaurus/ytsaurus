@@ -25,8 +25,7 @@
 
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,10 +141,10 @@ public:
 
     void AlterTableReplica(
         TTableReplica* replica,
-        TNullable<bool> enabled,
-        TNullable<ETableReplicaMode> mode,
-        TNullable<NTransactionClient::EAtomicity> atomicity,
-        TNullable<bool> preserveTimestamps);
+        std::optional<bool> enabled,
+        std::optional<ETableReplicaMode> mode,
+        std::optional<NTransactionClient::EAtomicity> atomicity,
+        std::optional<bool> preserveTimestamps);
 
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
 
@@ -158,11 +157,11 @@ public:
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
-    TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);
-    void DecomissionTabletCell(TTabletCell* cell);
+    TTabletCell* GetTabletCellOrThrow(TTabletCellId id);
+    void RemoveTabletCell(TTabletCell* cell, bool force);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
-    TTablet* GetTabletOrThrow(const TTabletId&);
+    TTablet* GetTabletOrThrow(TTabletId);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
@@ -186,12 +185,12 @@ private:
 
     void DestroyTablet(TTablet* tablet);
 
-    TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, const NObjectClient::TObjectId& hintId);
+    TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, NObjectClient::TObjectId hintId);
     void DestroyTabletCell(TTabletCell* cell);
 
     TTabletCellBundle* CreateTabletCellBundle(
         const TString& name,
-        const NObjectClient::TObjectId& hintId,
+        NObjectClient::TObjectId hintId,
         TTabletCellOptionsPtr options);
     void DestroyTabletCellBundle(TTabletCellBundle* cellBundle);
 
@@ -203,16 +202,16 @@ private:
         bool preserveTimestamps,
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::TTimestamp startReplicationTimestamp,
-        const TNullable<std::vector<i64>>& startReplicationRowIndexes);
+        const std::optional<std::vector<i64>>& startReplicationRowIndexes);
     void DestroyTableReplica(TTableReplica* replica);
 
     TTabletAction* CreateTabletAction(
-        const NObjectClient::TObjectId& hintId,
+        NObjectClient::TObjectId hintId,
         ETabletActionKind kind,
         const std::vector<TTablet*>& tabletIds,
         const std::vector<TTabletCell*>& cellIds,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
-        const TNullable<int>& tabletCount,
+        const std::optional<int>& tabletCount,
         bool skipFreezing,
         bool preserve);
 
@@ -226,5 +225,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

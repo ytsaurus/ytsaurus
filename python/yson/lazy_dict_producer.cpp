@@ -1,7 +1,6 @@
 #include "lazy_dict_producer.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYTree;
 
@@ -9,12 +8,12 @@ using namespace NYTree;
 
 TLazyDictProducer::TLazyDictProducer() = default;
 
-TLazyDictProducer::TLazyDictProducer(const TNullable<TString>& encoding, bool alwaysCreateAttributes)
+TLazyDictProducer::TLazyDictProducer(const std::optional<TString>& encoding, bool alwaysCreateAttributes)
     : PythonObjectBuilder_(alwaysCreateAttributes, encoding)
 {
     Py::Object encodingParam;
     if (encoding) {
-        encodingParam = Py::String(encoding.Get());
+        encodingParam = Py::String(*encoding);
     } else {
         encodingParam = Py::None();
     }
@@ -83,5 +82,4 @@ NYTree::TPythonObjectBuilder* TLazyDictProducer::GetPythonObjectBuilder()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

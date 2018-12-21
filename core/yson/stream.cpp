@@ -6,8 +6,7 @@
 
 #include <yt/core/yson/parser.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 using namespace NConcurrency;
 
@@ -78,5 +77,4 @@ void ParseYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

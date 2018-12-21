@@ -5,9 +5,7 @@
 #include <Poco/AutoPtr.h>
 #include <Poco/Util/AbstractConfiguration.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +13,4 @@ Poco::AutoPtr<Poco::Util::AbstractConfiguration> CreateDocumentConfig(NNative::I
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

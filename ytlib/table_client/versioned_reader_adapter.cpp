@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 
@@ -159,5 +158,4 @@ IVersionedReaderPtr CreateVersionedReaderAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -6,8 +6,7 @@
 
 #include <yt/core/yson/format.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -54,7 +53,7 @@ private:
             bool firstValue = true;
 
             if (Config_->LinePrefix) {
-                output->Write(Config_->LinePrefix.Get());
+                output->Write(*Config_->LinePrefix);
                 firstValue = false;
             }
 
@@ -261,5 +260,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

@@ -69,8 +69,7 @@
 #include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/chunked_memory_pool.h>
 
-namespace NYT {
-namespace NQueryAgent {
+namespace NYT::NQueryAgent {
 
 using namespace NCellNode;
 using namespace NChunkClient;
@@ -215,7 +214,7 @@ public:
     { }
 
     void ValidateAndRegisterTabletSnapshot(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         const i64 mountRevision,
         const TTimestamp timestamp)
     {
@@ -232,7 +231,7 @@ public:
 
         if (!MultipleTables_) {
             if (TableId_ && tabletSnapshot->TableId != TableId_) {
-                LOG_ERROR("Found different tables in query, profiling will be incorrect (TableId1: %v, TableId2: %v)",
+                YT_LOG_ERROR("Found different tables in query, profiling will be incorrect (TableId1: %v, TableId2: %v)",
                     TableId_,
                     tabletSnapshot->TableId);
                 MultipleTables_ = true;
@@ -250,7 +249,7 @@ public:
         return MultipleTables_ ? NProfiling::TTagIdList() : ProfilerTags_;
     }
 
-    TTabletSnapshotPtr GetCachedTabletSnapshot(const TTabletId& tabletId)
+    TTabletSnapshotPtr GetCachedTabletSnapshot(TTabletId tabletId)
     {
         auto it = Map_.find(tabletId);
         YCHECK(it != Map_.end());
@@ -370,7 +369,7 @@ private:
     TTabletSnapshotCache TabletSnapshots_;
     const IInvokerPtr Invoker_;
 
-    TNullable<TString> MaybeUser_;
+    std::optional<TString> MaybeUser_;
 
     typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
 
@@ -378,7 +377,7 @@ private:
     {
         if (Options_.VerboseLogging) {
             for (const auto& split : splits) {
-                LOG_DEBUG("Ranges in split %v: %v",
+                YT_LOG_DEBUG("Ranges in split %v: %v",
                     split.Id,
                     MakeFormattableRange(split.Ranges, TRangeFormatter()));
             }
@@ -441,7 +440,7 @@ private:
                         minKeyWidth = std::min(minKeyWidth, split.KeyWidth);
                     }
 
-                    LOG_DEBUG("Profiling (CommonKeyPrefix: %v, minKeyWidth: %v)",
+                    YT_LOG_DEBUG("Profiling (CommonKeyPrefix: %v, minKeyWidth: %v)",
                         joinClause->CommonKeyPrefix,
                         minKeyWidth);
 
@@ -480,7 +479,7 @@ private:
                                 upperBound[upperBoundWidth] = MakeUnversionedSentinelValue(EValueType::Max);
                                 prefixRanges.emplace_back(lowerBound, upperBound);
 
-                                LOG_DEBUG_IF(verboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
+                                YT_LOG_DEBUG_IF(verboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
                                     range.first,
                                     range.second,
                                     lowerBound,
@@ -525,7 +524,7 @@ private:
                         // COMPAT(lukyan): Use ordered read without modification of protocol
                         subquery->Limit = std::numeric_limits<i64>::max() - 1;
 
-                        LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
+                        YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
                         auto pipe = New<NTableClient::TSchemafulPipe>();
 
@@ -569,7 +568,7 @@ private:
                                 std::move(keys),
                                 permanentBuffer);
 
-                            LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", foreignQuery->Id);
+                            YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", foreignQuery->Id);
 
                             auto pipe = New<NTableClient::TSchemafulPipe>();
 
@@ -597,7 +596,7 @@ private:
 
                 auto mergingReader = subreaderCreators[index]();
 
-                LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
+                YT_LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
                 auto pipe = New<TSchemafulPipe>();
 
@@ -619,7 +618,7 @@ private:
                 {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
-                        LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
+                        YT_LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
                         return MakeFuture(result);
                     } else {
                         TQueryStatistics statistics = result.Value();
@@ -630,7 +629,7 @@ private:
                             this_ = MakeStrong(this)
                         ] (const std::vector<TQueryStatistics>& subqueryResults) mutable {
                             for (const auto& subqueryResult : subqueryResults) {
-                                LOG_DEBUG("Remote subquery statistics %v", subqueryResult);
+                                YT_LOG_DEBUG("Remote subquery statistics %v", subqueryResult);
                                 statistics.AddInnerStatistics(subqueryResult);
                             }
                             return statistics;
@@ -641,7 +640,7 @@ private:
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
             [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
-                LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
+                YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto result = Evaluator_->Run(
                     topQuery,
                     std::move(reader),
@@ -650,7 +649,7 @@ private:
                     functionGenerators,
                     aggregateGenerators,
                     Options_);
-                LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
+                YT_LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             });
     }
@@ -674,7 +673,7 @@ private:
 
     TQueryStatistics DoExecuteImpl()
     {
-        LOG_DEBUG("Classifying data sources into ranges and lookup keys");
+        YT_LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
         std::vector<TDataRanges> rangesByTablet;
 
@@ -758,7 +757,7 @@ private:
             pushKeys();
         }
 
-        LOG_DEBUG("Splitting %v ranges", rangesCount);
+        YT_LOG_DEBUG("Splitting %v ranges", rangesCount);
 
         auto splits = Split(std::move(rangesByTablet), rowBuffer);
 
@@ -796,7 +795,7 @@ private:
                     [] (size_t sum, const TDataRanges& element) {
                         return sum + element.Ranges.Size();
                     });
-                LOG_DEBUG("Generating reader for %v splits from %v ranges",
+                YT_LOG_DEBUG("Generating reader for %v splits from %v ranges",
                     groupedSplit.size(),
                     rangesCount);
 
@@ -960,7 +959,7 @@ private:
                 TRow pivot = rowBuffer->Capture((*partitionIt)->PivotKey);
                 TRow nextPivot = rowBuffer->Capture((*partitionIt)->NextPivotKey);
 
-                LOG_DEBUG_IF(verboseLogging, "Iterating over partition (%v .. %v): [%v .. %v]",
+                YT_LOG_DEBUG_IF(verboseLogging, "Iterating over partition (%v .. %v): [%v .. %v]",
                     pivot,
                     nextPivot,
                     group.BeginIt - begin(ranges),
@@ -1015,8 +1014,8 @@ private:
             : 0;
         size_t cappedSampleCount = std::min(freeSlotCount, totalSampleCount);
 
-        LOG_DEBUG_IF(verboseLogging, "Total sample count: %v", totalSampleCount);
-        LOG_DEBUG_IF(verboseLogging, "Capped sample count: %v", cappedSampleCount);
+        YT_LOG_DEBUG_IF(verboseLogging, "Total sample count: %v", totalSampleCount);
+        YT_LOG_DEBUG_IF(verboseLogging, "Capped sample count: %v", cappedSampleCount);
 
         size_t sampleIndex = 0;
         size_t nextSampleCount;
@@ -1036,7 +1035,7 @@ private:
 
         auto addGroup = [&] () {
             YCHECK(!group.empty());
-            LOG_DEBUG_IF(verboseLogging, "(%v, %v) make batch [%v .. %v] from %v ranges",
+            YT_LOG_DEBUG_IF(verboseLogging, "(%v, %v) make batch [%v .. %v] from %v ranges",
                 currentSampleCount,
                 nextSampleCount,
                 group.front().second,
@@ -1152,7 +1151,7 @@ private:
     }
 
     ISchemafulReaderPtr GetMultipleRangesReader(
-        const TObjectId& tabletId,
+        TObjectId tabletId,
         const TSharedRange<TRowRange>& bounds)
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
@@ -1202,7 +1201,7 @@ private:
     }
 
     ISchemafulReaderPtr GetTabletReader(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         const TSharedRange<TRow>& keys)
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
@@ -1349,6 +1348,5 @@ ISubexecutorPtr CreateQuerySubexecutor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryAgent
-} // namespace NYT
+} // namespace NYT::NQueryAgent
 

@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NClickHouseProxy {
+namespace NYT::NClickHouseProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,5 +79,4 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseProxyServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellProxy
-} // namespace NYT
+} // namespace NYT::NCellProxy

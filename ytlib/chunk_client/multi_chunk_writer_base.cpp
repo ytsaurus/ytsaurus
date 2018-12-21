@@ -24,8 +24,7 @@
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
@@ -45,8 +44,8 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TMultiChunkWriterOptionsPtr options,
     NNative::IClientPtr client,
     TCellTag cellTag,
-    const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId,
+    TTransactionId transactionId,
+    TChunkListId parentChunkListId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -195,14 +194,14 @@ void TNontemplateMultiChunkWriterBase::InitSession()
 bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 {
     if (CurrentSession_.TemplateWriter->IsCloseDemanded()) {
-        LOG_DEBUG("Switching to next chunk due to chunk writer demand");
+        YT_LOG_DEBUG("Switching to next chunk due to chunk writer demand");
 
         SwitchSession();
         return true;
     }
 
     if (CurrentSession_.TemplateWriter->GetMetaSize() > Config_->MaxMetaSize) {
-        LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v)",
+        YT_LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v)",
             CurrentSession_.TemplateWriter->GetMetaSize());
 
         SwitchSession();
@@ -210,7 +209,7 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
     }
 
     if (CurrentSession_.TemplateWriter->GetDataWeight() > Config_->DesiredChunkWeight) {
-        LOG_DEBUG("Switching to next chunk: data weight is too large (DataWeight: %v)",
+        YT_LOG_DEBUG("Switching to next chunk: data weight is too large (DataWeight: %v)",
             CurrentSession_.TemplateWriter->GetDataWeight());
 
         SwitchSession();
@@ -221,7 +220,7 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
         if (Options_->ErasureCodec != ECodec::None ||
             CurrentSession_.TemplateWriter->GetCompressedDataSize() > 2 * Config_->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: compressed data size is too large (CurrentSessionSize: %v, DesiredChunkSize: %v)",
+            YT_LOG_DEBUG("Switching to next chunk: compressed data size is too large (CurrentSessionSize: %v, DesiredChunkSize: %v)",
                 CurrentSession_.TemplateWriter->GetCompressedDataSize(),
                 Config_->DesiredChunkSize);
 
@@ -235,5 +234,4 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

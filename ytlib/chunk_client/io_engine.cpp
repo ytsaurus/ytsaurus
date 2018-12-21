@@ -29,8 +29,7 @@
 #include <util/system/align.h>
 #include <util/system/sanitizers.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -79,21 +78,21 @@ class TThreadedIOEngineConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<int> ThreadCount; // COMPAT(aozeritsky)
+    std::optional<int> ThreadCount; // COMPAT(aozeritsky)
     int ReadThreadCount;
     int WriteThreadCount;
     bool UseDirectIO;
 
-    TNullable<TDuration> SickReadTimeThreshold;
-    TNullable<TDuration> SickReadTimeWindow;
-    TNullable<TDuration> SickWriteTimeThreshold;
-    TNullable<TDuration> SickWriteTimeWindow;
-    TNullable<TDuration> SicknessExpirationTimeout;
+    std::optional<TDuration> SickReadTimeThreshold;
+    std::optional<TDuration> SickReadTimeWindow;
+    std::optional<TDuration> SickWriteTimeThreshold;
+    std::optional<TDuration> SickWriteTimeWindow;
+    std::optional<TDuration> SicknessExpirationTimeout;
 
     TThreadedIOEngineConfig()
     {
         RegisterParameter("thread_count", ThreadCount)
-            .Default(Null)
+            .Default()
             .GreaterThanOrEqual(1);
         RegisterParameter("read_thread_count", ReadThreadCount)
             .GreaterThanOrEqual(1)
@@ -106,36 +105,36 @@ public:
 
         RegisterParameter("sick_read_time_threshold", SickReadTimeThreshold)
             .GreaterThanOrEqual(TDuration::Zero())
-            .Default(Null);
+            .Default();
 
         RegisterParameter("sick_read_time_window", SickReadTimeWindow)
             .GreaterThanOrEqual(TDuration::Zero())
-            .Default(Null);
+            .Default();
 
         RegisterParameter("sick_write_time_threshold", SickWriteTimeThreshold)
             .GreaterThanOrEqual(TDuration::Zero())
-            .Default(Null);
+            .Default();
 
         RegisterParameter("sick_write_time_window", SickWriteTimeWindow)
             .GreaterThanOrEqual(TDuration::Zero())
-            .Default(Null);
+            .Default();
 
         RegisterParameter("sickness_expiration_timeout", SicknessExpirationTimeout)
             .GreaterThanOrEqual(TDuration::Zero())
-            .Default(Null);
+            .Default();
 
         RegisterPostprocessor([&] () {
             if (ThreadCount && ReadThreadCount == 1 && WriteThreadCount == 1) {
-                if (ThreadCount.Get() == 1) {
+                if (*ThreadCount == 1) {
                     ThreadCount = 2;
                 }
 
-                ReadThreadCount = (ThreadCount.Get() + 1) / 2;
-                WriteThreadCount = ThreadCount.Get() - ReadThreadCount;
+                ReadThreadCount = (*ThreadCount + 1) / 2;
+                WriteThreadCount = *ThreadCount - ReadThreadCount;
 
                 YCHECK(ReadThreadCount > 0);
                 YCHECK(WriteThreadCount > 0);
-                YCHECK(ReadThreadCount + WriteThreadCount == ThreadCount.Get());
+                YCHECK(ReadThreadCount + WriteThreadCount == *ThreadCount);
             }
         });
     }
@@ -278,10 +277,10 @@ private:
     const i64 Alignment_ = 4_KB;
 
     TSpinLock ReadWaitSpinLock_;
-    TNullable<TInstant> SickReadWaitStart_;
+    std::optional<TInstant> SickReadWaitStart_;
 
     TSpinLock WriteWaitSpinLock_;
-    TNullable<TInstant> SickWriteWaitStart_;
+    std::optional<TInstant> SickWriteWaitStart_;
 
     std::atomic<bool> Sick_ = { false };
     std::atomic<i64> SicknessCounter_ = { 0 };
@@ -460,7 +459,7 @@ private:
                 }
             } else {
                 auto guard = Guard(WriteWaitSpinLock_);
-                SickWriteWaitStart_.Reset();
+                SickWriteWaitStart_.reset();
             }
         }
 
@@ -483,7 +482,7 @@ private:
                 }
             } else {
                 auto guard = Guard(ReadWaitSpinLock_);
-                SickReadWaitStart_.Reset();
+                SickReadWaitStart_.reset();
             }
         }
 
@@ -499,7 +498,7 @@ private:
                 BIND(&TThreadedIOEngine::ResetSickFlag, MakeStrong(this)),
                 *Config_->SicknessExpirationTimeout);
 
-            LOG_WARNING(error, "Location is sick");
+            YT_LOG_WARNING(error, "Location is sick");
         }
     }
 
@@ -507,17 +506,17 @@ private:
     {
         {
             auto guard = Guard(WriteWaitSpinLock_);
-            SickWriteWaitStart_.Reset();
+            SickWriteWaitStart_.reset();
         }
 
         {
             auto guard = Guard(ReadWaitSpinLock_);
-            SickReadWaitStart_.Reset();
+            SickReadWaitStart_.reset();
         }
 
         Sick_ = false;
 
-        LOG_WARNING("Reset sick flag");
+        YT_LOG_WARNING("Reset sick flag");
     }
 
     void UpdateSicknessProfiling()
@@ -968,5 +967,4 @@ IIOEnginePtr CreateIOEngine(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

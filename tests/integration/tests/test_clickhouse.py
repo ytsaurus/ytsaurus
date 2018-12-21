@@ -39,8 +39,11 @@ class TestClickhouse(YTEnvSetup):
     def _start_clique(self, instance_count, max_failed_job_count=1, **kwargs):
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
                                                           host_ytserver_clickhouse_path=self._ytserver_clickhouse_binary,
+                                                          cypress_config_path="//sys/clickhouse/config.yson",
                                                           max_failed_job_count=max_failed_job_count,
-                                                          *kwargs)
+                                                          cpu_limit=1,
+                                                          memory_limit=5*2**30,
+                                                          **kwargs)
         spec = simplify_structure(spec_builder.build())
         op = start_op("vanilla",
                       spec=spec,
@@ -78,36 +81,12 @@ class TestClickhouse(YTEnvSetup):
         if exists("//sys/clickhouse"):
             return
         create("map_node", "//sys/clickhouse")
-        create("map_node", "//sys/clickhouse/config_files")
-        create("map_node", "//sys/clickhouse/configuration")
-
-        # Setup necessary config files and upload them to the Cypress as files.
-        file_configs = dict()
-
-        file_configs["config_files/config.xml"] = self._read_local_config_file("config.xml")
 
         # We need to inject cluster_connection into yson config.
-        yson_config = yson.loads(self._read_local_config_file("config.yson"))
-        yson_config["cluster_connection"] = self.__class__.Env.configs["driver"]
-        file_configs["config_files/config.yson"] = yson.dumps(yson_config, yson_format="pretty")
-
-        file_configs["configuration/clusters"] = ""
-
-        # Upload some of the configs as yson documents.
-        document_configs = dict()
-
-        document_configs["configuration/server"] = yson.loads(self._read_local_config_file("server.yson"))
-        document_configs["configuration/users"] = yson.loads(self._read_local_config_file("users.yson"))
-
-        for config_name, content in file_configs.iteritems():
-            cypress_path = "//sys/clickhouse/{0}".format(config_name)
-            create("file", cypress_path)
-            write_file(cypress_path, content)
-
-        for config_name, content in document_configs.iteritems():
-            cypress_path = "//sys/clickhouse/{0}".format(config_name)
-            create("document", cypress_path)
-            set(cypress_path, content)
+        config = yson.loads(self._read_local_config_file("config.yson"))
+        config["cluster_connection"] = self.__class__.Env.configs["driver"]
+        create("file", "//sys/clickhouse/config.yson")
+        write_file("//sys/clickhouse/config.yson", yson.dumps(config, yson_format="pretty"))
 
     def _make_query(self, clique, query, verbose=True):
         instances = get("//sys/clickhouse/cliques/{0}".format(clique.id), attributes=["host", "tcp_port"])
@@ -140,6 +119,17 @@ class TestClickhouse(YTEnvSetup):
             raise YtError("Clickhouse query failed\n" + output)
 
         return json.loads(stdout)
+
+    def test_readonly(self):
+        clique = self._start_clique(1)
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+
+        try:
+            self._make_query(clique, 'insert into "//tmp/t" values(1)')
+        except YtError as err:
+            # 164 is an error code for READONLY.
+            assert "164" in str(err)
 
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):
@@ -182,3 +172,12 @@ class TestClickhouse(YTEnvSetup):
         result = self._make_query(clique, 'select CAST(a as datetime) from "//tmp/t"')
         assert result["data"] == [{"CAST(a, 'datetime')": "2012-12-12 20:00:00"}]
 
+    def test_settings(self):
+        clique = self._start_clique(1)
+
+        # I took some random option from the documentation and changed it in config.yson.
+        # Let's see if it changed in internal table with settings.
+
+        result = self._make_query(clique, "select * from system.settings where name = 'max_temporary_non_const_columns'")
+        assert result["data"][0]["value"] == "1234"
+        assert result["data"][0]["changed"] == 1

@@ -12,13 +12,12 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using TChunkLocatedHandler = TCallback<void(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TChunkReplicaList& replicas,
     bool missing)>;
 
@@ -69,5 +68,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkScraper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

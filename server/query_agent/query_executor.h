@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/query_client/public.h>
 
-namespace NYT {
-namespace NQueryAgent {
+namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,6 +16,5 @@ NQueryClient::ISubexecutorPtr CreateQuerySubexecutor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryAgent
-} // namespace NYT
+} // namespace NYT::NQueryAgent
 

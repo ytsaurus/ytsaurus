@@ -18,8 +18,7 @@
 
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,6 +207,5 @@ struct IShuffleChunkPool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools
 

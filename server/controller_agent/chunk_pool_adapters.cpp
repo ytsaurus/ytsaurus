@@ -2,8 +2,7 @@
 
 #include "task.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkPools;
 
@@ -154,5 +153,4 @@ std::unique_ptr<IChunkPoolInput> CreateHintAddingAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

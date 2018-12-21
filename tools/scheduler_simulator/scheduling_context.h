@@ -7,8 +7,7 @@
 
 #include <yt/server/controller_agent/operation_controller.h>
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +25,7 @@ public:
         : TSchedulingContextBase(schedulerConfig, node, runningJobs)
     { }
 
-    void SetDurationForStartedJob(const NScheduler::TJobId& jobId, const TDuration& duration)
+    void SetDurationForStartedJob(NScheduler::TJobId jobId, const TDuration& duration)
     {
         Durations_[jobId] = duration;
     }
@@ -42,5 +41,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

@@ -1,7 +1,6 @@
 #include "node_proxy.h"
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +30,5 @@ TIntrusivePtr<const ICypressNodeProxy> ICypressNodeProxy::FromNode(const TIntrus
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 

@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/algorithm_helpers.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,5 +183,4 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

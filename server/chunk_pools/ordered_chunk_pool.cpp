@@ -13,8 +13,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -74,7 +73,7 @@ public:
         Logger.AddTag("Task: %v", Task_);
         JobManager_->SetLogger(Logger);
 
-        LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, MaxDataSlicesPerJob: %v, "
+        YT_LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, MaxDataSlicesPerJob: %v, "
             "InputSliceDataWeight: %v, InputSliceRowCount: %v)",
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
@@ -139,7 +138,7 @@ public:
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         if (jobSummary.InterruptReason != EInterruptReason::None) {
-            LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
+            YT_LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
                 cookie,
                 jobSummary.InterruptReason,
                 jobSummary.SplitJobCount);
@@ -253,7 +252,7 @@ private:
     void BuildJobsAndFindTeleportChunks()
     {
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "Building jobs with sampling "
                 "(SamplingRate: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
                 *JobSizeConstraints_->GetSamplingRate(),
@@ -307,7 +306,7 @@ private:
         }
         EndJob();
 
-        LOG_INFO("Jobs created (Count: %v, TeleportChunkCount: %v, DroppedTeleportChunkCount: %v)",
+        YT_LOG_INFO("Jobs created (Count: %v, TeleportChunkCount: %v, DroppedTeleportChunkCount: %v)",
             BuiltJobCount_,
             TeleportChunks_.size(),
             droppedTeleportChunkCount);
@@ -379,7 +378,7 @@ private:
     {
         if (CurrentJob()->GetSliceCount() > 0) {
             if (Sampler_->Sample()) {
-                LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, RowCount: %v, SliceCount: %v)",
+                YT_LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, RowCount: %v, SliceCount: %v)",
                     JobIndex_,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),
@@ -407,7 +406,7 @@ private:
 
                 Y_ASSERT(!CurrentJob_);
             } else {
-                LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
+                YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
                     JobIndex_,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),
@@ -441,5 +440,4 @@ std::unique_ptr<IChunkPool> CreateOrderedChunkPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

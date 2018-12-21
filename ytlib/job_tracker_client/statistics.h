@@ -19,8 +19,7 @@
 
 #include <util/generic/iterator_range.h>
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +58,7 @@ public:
     using TSummaryMap = std::map<NYPath::TYPath, TSummary>;
     using TSummaryRange = TIteratorRange<TSummaryMap::const_iterator>;
     DEFINE_BYREF_RO_PROPERTY(TSummaryMap, Data);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, Timestamp);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, Timestamp);
 
 public:
     void AddSample(const NYPath::TYPath& path, i64 sample);
@@ -90,8 +89,8 @@ private:
 
 i64 GetNumericValue(const TStatistics& statistics, const TString& path);
 
-TNullable<i64> FindNumericValue(const TStatistics& statistics, const TString& path);
-TNullable<TSummary> FindSummary(const TStatistics& statistics, const TString& path);
+std::optional<i64> FindNumericValue(const TStatistics& statistics, const TString& path);
+std::optional<TSummary> FindSummary(const TStatistics& statistics, const TString& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,8 +132,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient
 
 #define STATISTICS_INL_H_
 #include "statistics-inl.h"

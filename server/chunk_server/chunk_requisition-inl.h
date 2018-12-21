@@ -4,8 +4,7 @@
 #include "chunk_requisition.h"
 #endif
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -326,5 +325,4 @@ void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request, const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

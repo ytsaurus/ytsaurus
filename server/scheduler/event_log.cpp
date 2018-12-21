@@ -1,7 +1,6 @@
 #include "event_log.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NYson;
 using namespace NEventLog;
@@ -24,6 +23,5 @@ TFluentLogEvent TEventLogHostBase::LogEventFluently(ELogEventType eventType, TIn
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

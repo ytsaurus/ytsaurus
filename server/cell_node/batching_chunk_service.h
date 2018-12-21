@@ -8,18 +8,16 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateBatchingChunkService(
-    const NElection::TCellId& cellId,
+    NElection::TCellId cellId,
     TBatchingChunkServiceConfigPtr serviceConfig,
     NApi::NNative::TMasterConnectionConfigPtr connectionConfig,
     NRpc::IChannelFactoryPtr channelFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
-} // namespace NYT
+} // namespace NYT::NCellNode

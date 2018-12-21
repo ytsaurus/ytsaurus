@@ -6,8 +6,7 @@
 
 #include <stack>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 
@@ -240,5 +239,4 @@ void TChunkTreeBalancer::MergeChunkTrees(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

@@ -50,8 +50,7 @@
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NRpc;
 using namespace NYT::NBus;
@@ -146,7 +145,7 @@ class TJobProbeTools
 public:
     ~TJobProbeTools();
     static TJobProbeToolsPtr Create(
-        const TJobId& jobId,
+        TJobId jobId,
         pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
@@ -176,7 +175,7 @@ private:
         const std::vector<TString>& env,
         EJobEnvironmentType environmentType,
         bool enableSecureVaultVariablesInJobShell);
-    void Init(const TJobId& jobId);
+    void Init(TJobId jobId);
 
     DECLARE_NEW_FRIEND();
 };
@@ -200,7 +199,7 @@ TJobProbeTools::TJobProbeTools(
 { }
 
 TJobProbeToolsPtr TJobProbeTools::Create(
-    const TJobId& jobId,
+    TJobId jobId,
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
@@ -211,14 +210,14 @@ TJobProbeToolsPtr TJobProbeTools::Create(
     try {
         tools->Init(jobId);
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Unable to create cgroup tools");
+        YT_LOG_ERROR(ex, "Unable to create cgroup tools");
         THROW_ERROR_EXCEPTION("Unable to create cgroup tools")
             << ex;
     }
     return tools;
 }
 
-void TJobProbeTools::Init(const TJobId& jobId)
+void TJobProbeTools::Init(TJobId jobId)
 {
     switch (EnvironmentType_) {
         case EJobEnvironmentType::Cgroups:
@@ -260,7 +259,7 @@ void TJobProbeTools::Init(const TJobId& jobId)
     ShellManager_ = CreateShellManager(
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
-        EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>("user_job_" + ToString(jobId)) : TNullable<TString>(),
+        EnvironmentType_ == EJobEnvironmentType::Cgroups ? std::optional<TString>("user_job_" + ToString(jobId)) : std::optional<TString>(),
         Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, AsStringBuf("\n"))),
         std::move(shellEnvironment));
 }
@@ -291,7 +290,7 @@ TYsonString TJobProbeTools::StraceJob()
         pids.erase(it);
     }
 
-    LOG_DEBUG("Run strace for %v", pids);
+    YT_LOG_DEBUG("Run strace for %v", pids);
 
     auto result = WaitFor(BIND([=] () {
         return RunTool<TStraceTool>(pids);
@@ -318,7 +317,7 @@ void TJobProbeTools::SignalJob(const TString& signalName)
 
     arg->SignalName = signalName;
 
-    LOG_INFO("Sending signal %v to pids %v",
+    YT_LOG_INFO("Sending signal %v to pids %v",
         arg->SignalName,
         arg->Pids);
 
@@ -353,7 +352,7 @@ public:
         pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
-        const TJobId& jobId,
+        TJobId jobId,
         EJobEnvironmentType environmentType,
         bool enableSecureVaultVariablesInJobShell);
     void GracefulShutdown(const TError& error);
@@ -385,7 +384,7 @@ TJobSatelliteWorker::TJobSatelliteWorker(
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
-    const TJobId& jobId,
+    TJobId jobId,
     EJobEnvironmentType environmentType,
     bool enableSecureVaultVariablesInJobShell)
     : RootPid_(rootPid)
@@ -398,7 +397,7 @@ TJobSatelliteWorker::TJobSatelliteWorker(
         .AddTag("JobId: %v", JobId_))
 {
     YCHECK(JobId_);
-    LOG_DEBUG("Starting job satellite service");
+    YT_LOG_DEBUG("Starting job satellite service");
 }
 
 void TJobSatelliteWorker::EnsureJobProbe()
@@ -465,7 +464,7 @@ public:
         pid_t rootPid,
         int uid,
         const std::vector<TString>& env,
-        const TJobId& jobId);
+        TJobId jobId);
     void Run();
     void Stop(const TError& error);
 
@@ -485,7 +484,7 @@ TJobSatellite::TJobSatellite(TJobSatelliteConnectionConfigPtr config,
     pid_t rootPid,
     int uid,
     const std::vector<TString>& env,
-    const TJobId& jobId)
+    TJobId jobId)
     : SatelliteConnectionConfig_(config)
     , RootPid_(rootPid)
     , Uid_(uid)
@@ -545,7 +544,7 @@ void RunJobSatellite(
         try {
             SafeCreateStderrFile("../satellite_stderr");
         } catch (const std::exception& ex) {
-            LOG_ERROR("Failed to reopen satellite stderr");
+            YT_LOG_ERROR("Failed to reopen satellite stderr");
             _exit(1);
         }
 
@@ -559,10 +558,10 @@ void RunJobSatellite(
 
             jobSatellite->Stop(ProcessInfoToError(processInfo));
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Exception thrown during job satellite functioning");
+            YT_LOG_ERROR(ex, "Exception thrown during job satellite functioning");
             _exit(1);
         }
-        LOG_DEBUG("User process finished (Pid: %v, Status: %v)",
+        YT_LOG_DEBUG("User process finished (Pid: %v, Status: %v)",
             pid,
             ProcessInfoToError(processInfo));
         NLogging::TLogManager::StaticShutdown();
@@ -584,5 +583,4 @@ void NotifyExecutorPrepared(TJobSatelliteConnectionConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

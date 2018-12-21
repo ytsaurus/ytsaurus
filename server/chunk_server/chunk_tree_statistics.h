@@ -8,8 +8,7 @@
 
 #include <yt/core/yson/public.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,5 +71,4 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

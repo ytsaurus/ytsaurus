@@ -16,8 +16,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +27,7 @@ public:
     bool Enable;
     bool Announce;
 
-    TNullable<TString> PublicFqdn;
+    std::optional<TString> PublicFqdn;
 
     TDuration HeartbeatInterval;
     TDuration DeathAge;
@@ -163,5 +162,4 @@ NYTree::INodePtr ConvertFromLegacyConfig(const NYTree::INodePtr& legacyConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

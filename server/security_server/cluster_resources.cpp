@@ -10,8 +10,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NYson;
 
@@ -42,13 +41,13 @@ TClusterResources::TClusterResources()
     , TabletStaticMemory(0)
 { }
 
-TClusterResources&& TClusterResources::SetNodeCount(int nodeCount) &&
+TClusterResources&& TClusterResources::SetNodeCount(i64 nodeCount) &&
 {
     NodeCount = nodeCount;
     return std::move(*this);
 }
 
-TClusterResources&& TClusterResources::SetChunkCount(int chunkCount) &&
+TClusterResources&& TClusterResources::SetChunkCount(i64 chunkCount) &&
 {
     ChunkCount = chunkCount;
     return std::move(*this);
@@ -95,8 +94,14 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     } else {
         Load(context, DiskSpace);
     }
-    Load(context, NodeCount);
-    Load(context, ChunkCount);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 818) {
+        NodeCount = Load<int>(context);
+        ChunkCount = Load<int>(context);
+    } else {
+        Load(context, NodeCount);
+        Load(context, ChunkCount);
+    }
     // COMPAT(savrus)
     if (context.GetVersion() >= 604) {
         Load(context, TabletCount);
@@ -345,6 +350,5 @@ TString ToString(const TClusterResources& resources)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

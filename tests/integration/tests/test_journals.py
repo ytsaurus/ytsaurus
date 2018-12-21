@@ -67,9 +67,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 
-        chunk_ids = get("//tmp/j/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/j")
 
         wait(lambda: get("#" + chunk_id + "/@sealed"))
 

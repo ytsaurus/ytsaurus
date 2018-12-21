@@ -11,8 +11,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NHydra;
 using namespace NYTree;
@@ -46,7 +45,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
         auto tablePath = attributes->GetAndRemove<TString>("table_path");
@@ -116,5 +115,4 @@ IObjectTypeHandlerPtr CreateTableReplicaTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

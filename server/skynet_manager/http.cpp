@@ -22,8 +22,7 @@
 #include <yt/core/http/helpers.h>
 #include <yt/core/http/client.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NHttp;
 using namespace NYson;
@@ -102,10 +101,10 @@ public:
 
     virtual void OnBeginRow() override
     {
-        Filename_.Reset();
-        DataSize_.Reset();
-        Md5_.Reset();
-        Sha1_.Reset();
+        Filename_.reset();
+        DataSize_.reset();
+        MD5_.reset();
+        Sha1_.reset();
     }
     
     virtual void OnValue(const TUnversionedValue& value)
@@ -133,7 +132,7 @@ public:
         } else if (value.Id == Sha1Id_) {
             Sha1_ = valueToString("sha1");
         } else if (value.Id == Md5Id_) {
-            Md5_ = valueToString("md5");
+            MD5_ = valueToString("md5");
         } else if (value.Id == DataSizeId_) {
             DataSize_ = valueToInt("data_size");
         } else {
@@ -149,7 +148,7 @@ public:
     virtual void OnEndRow()
     {
         auto key = KeyBuilder_.FinishRow();
-        if (!Filename_ || !DataSize_ || !Md5_ || !Sha1_ || key.GetCount() != KeyColumns_.size()) {
+        if (!Filename_ || !DataSize_ || !MD5_ || !Sha1_ || key.GetCount() != KeyColumns_.size()) {
             THROW_ERROR_EXCEPTION("Missing columns");
         }
 
@@ -157,7 +156,7 @@ public:
         if (Shards_.empty() || Shards_.back().Key != key) {
             Shards_.emplace_back();
             Shards_.back().Key = key;
-            CurrentFile_.Reset();
+            CurrentFile_.reset();
         }
 
         // File changed
@@ -176,7 +175,7 @@ public:
         file->set_file_size(file->file_size() + *DataSize_);
         file->set_row_count(file->row_count() + 1);
         *(file->mutable_sha1sum()) += *Sha1_;
-        file->set_md5sum(*Md5_);
+        file->set_md5sum(*MD5_);
         
         if (ProgressCallback_) {
             ProgressCallback_(RowIndex_);
@@ -205,14 +204,14 @@ private:
     int Md5Id_;
     int DataSizeId_;
 
-    TNullable<TString> Filename_;
-    TNullable<i64> DataSize_;
-    TNullable<TString> Md5_;
-    TNullable<TString> Sha1_;
+    std::optional<TString> Filename_;
+    std::optional<i64> DataSize_;
+    std::optional<TString> MD5_;
+    std::optional<TString> Sha1_;
 
     TUnversionedOwningRowBuilder KeyBuilder_;
 
-    TNullable<TString> CurrentFile_;
+    std::optional<TString> CurrentFile_;
 
     std::vector<TTableShard> Shards_;
 };
@@ -271,7 +270,7 @@ std::vector<TTableShard> ReadSkynetMetaFromTable(
     if (shards.size() == 0) {
         THROW_ERROR_EXCEPTION("Can't share empty table");
     }
-    LOG_INFO("Finished reading share meta (Path: %v, ShardsCount: %d, StartRow: %d, EndRow: %d)",
+    YT_LOG_INFO("Finished reading share meta (Path: %v, ShardsCount: %d, StartRow: %d, EndRow: %d)",
         path,
         shards.size(),
         startRowIndex,
@@ -363,5 +362,4 @@ std::vector<TRowRangeLocation> FetchSkynetPartsLocations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

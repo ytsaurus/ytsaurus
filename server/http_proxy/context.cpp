@@ -22,8 +22,7 @@
 #include <util/string/ascii.h>
 #include <util/string/strip.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
 using namespace NYson;
@@ -83,7 +82,7 @@ static const THashSet<TString> V2CommandWhitelist = {
     "upload", 
 };
 
-TNullable<TString> CommandNameV2ToV3(TString commandName)
+std::optional<TString> CommandNameV2ToV3(TString commandName)
 {
     if (V2CommandWhitelist.find(commandName) == V2CommandWhitelist.end()) {
         return {};
@@ -97,7 +96,7 @@ TNullable<TString> CommandNameV2ToV3(TString commandName)
     return commandName;
 }
 
-TNullable<TString> CommandNameV3ToV2(TString commandName)
+std::optional<TString> CommandNameV3ToV2(TString commandName)
 {
     for (const auto& patch : V2CommandMapping) {
         if (commandName == patch.second) {
@@ -262,7 +261,7 @@ bool TContext::TryParseUser()
 
     auto authResult = Api_->GetHttpAuthenticator()->Authenticate(Request_);
     if (!authResult.IsOK()) {
-        LOG_DEBUG(authResult, "Authentication error");
+        YT_LOG_DEBUG(authResult, "Authentication error");
 
         if (authResult.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
             Response_->SetStatus(EStatusCode::Unauthorized);
@@ -661,7 +660,7 @@ void TContext::SetContentDispositionAndMimeType()
 void TContext::LogRequest()
 {
     DriverRequest_.Id = Request_->GetRequestId();
-    LOG_INFO("Gathered request parameters (RequestId: %v, Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
+    YT_LOG_INFO("Gathered request parameters (RequestId: %v, Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
         Request_->GetRequestId(),
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
@@ -783,7 +782,7 @@ void TContext::Run()
 
 void TContext::Finalize()
 {
-    if (IsWrapperBuggy(Request_)) {
+    if (IsClientBuggy(Request_)) {
         try {
             while (true) {
                 auto chunk = WaitFor(Request_->Read())
@@ -864,7 +863,7 @@ void TContext::DispatchNotFound(const TString& message)
 
 void TContext::ReplyError(const TError& error)
 {
-    LOG_DEBUG(error, "Request finished with error");
+    YT_LOG_DEBUG(error, "Request finished with error");
     FillYTErrorHeaders(Response_, error);
     DispatchJson([&] (auto consumer) {
         BuildYsonFluently(consumer)
@@ -897,5 +896,4 @@ void TContext::OnOutputParameters()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

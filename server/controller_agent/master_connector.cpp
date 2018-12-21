@@ -38,8 +38,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NApi;
 using namespace NRpc;
@@ -94,7 +93,7 @@ public:
             Unretained(this)));
     }
 
-    void RegisterOperation(const TOperationId& operationId)
+    void RegisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -104,7 +103,7 @@ public:
             TOperationNodeUpdate(operationId));
     }
 
-    void UnregisterOperation(const TOperationId& operationId)
+    void UnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -112,7 +111,7 @@ public:
         OperationNodesUpdateExecutor_->RemoveUpdate(operationId);
     }
 
-    void CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
+    void CreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -124,7 +123,7 @@ public:
             request));
     }
 
-    TFuture<void> UpdateInitializedOperationNode(const TOperationId& operationId)
+    TFuture<void> UpdateInitializedOperationNode(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -133,20 +132,20 @@ public:
             .Run();
     }
 
-    TFuture<void> FlushOperationNode(const TOperationId& operationId)
+    TFuture<void> FlushOperationNode(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
 
-        LOG_INFO("Flushing operation node (OperationId: %v)",
+        YT_LOG_INFO("Flushing operation node (OperationId: %v)",
             operationId);
 
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operationId);
     }
 
     TFuture<void> AttachToLivePreview(
-        const TOperationId& operationId,
-        const TTransactionId& transactionId,
+        TOperationId operationId,
+        TTransactionId transactionId,
         TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
@@ -158,7 +157,7 @@ public:
             .Run(operationId, transactionId, tableId, childIds);
     }
 
-    TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId)
+    TFuture<TOperationSnapshot> DownloadSnapshot(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -172,7 +171,7 @@ public:
             .Run(operationId);
     }
 
-    TFuture<void> RemoveSnapshot(const TOperationId& operationId)
+    TFuture<void> RemoveSnapshot(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -217,7 +216,7 @@ private:
 
     struct TOperationNodeUpdate
     {
-        explicit TOperationNodeUpdate(const TOperationId& operationId)
+        explicit TOperationNodeUpdate(TOperationId operationId)
             : OperationId(operationId)
         { }
 
@@ -493,7 +492,7 @@ private:
             batchReqs[cellTag]->AddRequest(checkReq, "check_tx_" + ToString(id));
         }
 
-        LOG_INFO("Refreshing transactions");
+        YT_LOG_INFO("Refreshing transactions");
 
         THashMap<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
 
@@ -504,7 +503,7 @@ private:
             if (batchRspOrError.IsOK()) {
                 batchRsps[cellTag] = batchRspOrError.Value();
             } else {
-                LOG_ERROR(batchRspOrError, "Error refreshing transactions (CellTag: %v)",
+                YT_LOG_ERROR(batchRspOrError, "Error refreshing transactions (CellTag: %v)",
                     cellTag);
             }
         }
@@ -518,13 +517,13 @@ private:
                 const auto& batchRsp = it->second;
                 auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
                 if (!rspOrError.IsOK()) {
-                    LOG_DEBUG(rspOrError, "Found dead transaction (TransactionId: %v)", id);
+                    YT_LOG_DEBUG(rspOrError, "Found dead transaction (TransactionId: %v)", id);
                     deadTransactionIds.insert(id);
                 }
             }
         }
 
-        LOG_INFO("Transactions refreshed");
+        YT_LOG_INFO("Transactions refreshed");
 
         // Check every transaction of every operation and raise appropriate notifications.
         for (const auto& pair : controllerAgent->GetOperations()) {
@@ -545,7 +544,7 @@ private:
         }
     }
 
-    void DoUpdateInitializedOperationNode(const TOperationId& operationId)
+    void DoUpdateInitializedOperationNode(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -598,7 +597,7 @@ private:
             livePreviewTransactionId = update->LivePreviewTransactionId;
         }
 
-        LOG_DEBUG("Started updating operation node (OperationId: %v, JobRequestCount: %v, "
+        YT_LOG_DEBUG("Started updating operation node (OperationId: %v, JobRequestCount: %v, "
             "LivePreviewTransactionId: %v, LivePreviewRequestCount: %v)",
             operationId,
             jobRequests.size(),
@@ -609,7 +608,7 @@ private:
         try {
             successfulJobRequests = CreateJobNodes(operation, jobRequests);
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
+            YT_LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
                 operationId);
             auto error = TError("Error creating job nodes for operation %v",
                 operationId)
@@ -653,7 +652,7 @@ private:
         } catch (const std::exception& ex) {
             // NB: Don' treat this as a critical error.
             // Some of these chunks could go missing for a number of reasons.
-            LOG_WARNING(ex, "Error saving job files (OperationId: %v)",
+            YT_LOG_WARNING(ex, "Error saving job files (OperationId: %v)",
                 operationId);
         }
 
@@ -662,7 +661,7 @@ private:
         } catch (const std::exception& ex) {
             // NB: Don' treat this as a critical error.
             // Some of these chunks could go missing for a number of reasons.
-            LOG_WARNING(ex, "Error attaching live preview chunks (OperationId: %v)",
+            YT_LOG_WARNING(ex, "Error attaching live preview chunks (OperationId: %v)",
                 operationId);
         }
 
@@ -674,11 +673,11 @@ private:
                 << ex;
         }
 
-        LOG_DEBUG("Finished updating operation node (OperationId: %v)",
+        YT_LOG_DEBUG("Finished updating operation node (OperationId: %v)",
             operationId);
     }
 
-    TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& operationId, TOperationNodeUpdate* update)
+    TCallback<TFuture<void>()> UpdateOperationNode(TOperationId operationId, TOperationNodeUpdate* update)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -701,7 +700,7 @@ private:
             .AsyncVia(CancelableControlInvoker_);
     }
 
-    void UpdateOperationNodes(const TOperationId& operationId)
+    void UpdateOperationNodes(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -795,7 +794,7 @@ private:
                 }
                 allOK = false;
                 if (rspOrError.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                    LOG_ERROR(rspOrError, "Account limit exceeded while creating job node (JobId: %v)",
+                    YT_LOG_ERROR(rspOrError, "Account limit exceeded while creating job node (JobId: %v)",
                         jobId);
                 } else {
                     THROW_ERROR_EXCEPTION("Failed to create job node")
@@ -808,7 +807,7 @@ private:
             }
         }
 
-        LOG_INFO("Job nodes created (TotalCount: %v, SuccessCount: %v, OperationId: %v)",
+        YT_LOG_INFO("Job nodes created (TotalCount: %v, SuccessCount: %v, OperationId: %v)",
             requests.size(),
             successfulRequests.size(),
             operation->GetId());
@@ -817,8 +816,8 @@ private:
     }
 
     void AttachLivePreviewChunks(
-        const TOperationId& operationId,
-        const TTransactionId& transactionId,
+        TOperationId operationId,
+        TTransactionId transactionId,
         const std::vector<TLivePreviewRequest>& requests)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -839,7 +838,7 @@ private:
             tableInfo.TableId = request.TableId;
             tableInfo.ChildIds.push_back(request.ChildId);
 
-            LOG_DEBUG("Appending live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
+            YT_LOG_DEBUG("Appending live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
                 operationId,
                 tableInfo.TableId,
                 tableInfo.ChildIds.size());
@@ -974,8 +973,8 @@ private:
     }
 
     void DoAttachToLivePreview(
-        const TOperationId& operationId,
-        const TTransactionId& transactionId,
+        TOperationId operationId,
+        TTransactionId transactionId,
         TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
@@ -983,7 +982,7 @@ private:
 
         auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
         if (!update) {
-            LOG_DEBUG("Trying to attach live preview to an unknown operation (OperationId: %v)",
+            YT_LOG_DEBUG("Trying to attach live preview to an unknown operation (OperationId: %v)",
                 operationId);
             return;
         }
@@ -992,7 +991,7 @@ private:
         YCHECK(!update->LivePreviewTransactionId || update->LivePreviewTransactionId == transactionId);
         update->LivePreviewTransactionId = transactionId;
 
-        LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
+        YT_LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
             operationId,
             tableId,
             childIds.size());
@@ -1002,7 +1001,7 @@ private:
         }
     }
 
-    TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
+    TOperationSnapshot DoDownloadSnapshot(TOperationId operationId)
     {
         auto batchReq = StartObjectBatchRequest();
 
@@ -1029,7 +1028,7 @@ private:
         const auto& rsp = rspOrError.Value();
         int version = ConvertTo<int>(TYsonString(rsp->value()));
 
-        LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
+        YT_LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
             operationId,
             version);
 
@@ -1051,19 +1050,19 @@ private:
         return snapshot;
     }
 
-    void DoCreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
+    void DoCreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
         if (!update) {
-            LOG_DEBUG("Requested to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
+            YT_LOG_DEBUG("Requested to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
                 operationId,
                 request.JobId);
             return;
         }
 
-        LOG_DEBUG("Job node creation scheduled (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
+        YT_LOG_DEBUG("Job node creation scheduled (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
             operationId,
             request.JobId,
             request.StderrChunkId,
@@ -1072,7 +1071,7 @@ private:
         update->JobRequests.emplace_back(request);
     }
 
-    void DoRemoveSnapshot(const TOperationId& operationId)
+    void DoRemoveSnapshot(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1090,7 +1089,7 @@ private:
         }
     }
 
-    void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
+    void SaveJobFiles(TOperationId operationId, const std::vector<TJobFile>& files)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1122,9 +1121,9 @@ private:
         // NB: Result is logged in the builder.
         auto error = WaitFor(builder->Run(weakControllerMap));
         if (error.IsOK()) {
-            LOG_INFO("Snapshot builder finished");
+            YT_LOG_INFO("Snapshot builder finished");
         } else {
-            LOG_ERROR(error, "Error building snapshots");
+            YT_LOG_ERROR(error, "Error building snapshots");
         }
     }
 
@@ -1177,14 +1176,14 @@ private:
                 req->set_recursive(unstageRequest.Recursive);
             }
 
-            LOG_DEBUG("Unstaging chunk trees (ChunkTreeCount: %v, CellTag: %v)",
+            YT_LOG_DEBUG("Unstaging chunk trees (ChunkTreeCount: %v, CellTag: %v)",
                 batchReq->unstage_chunk_tree_subrequests_size(),
                 cellTag);
 
             batchReq->Invoke().Apply(
                 BIND([=] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                     if (!batchRspOrError.IsOK()) {
-                        LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees (CellTag: %v)", cellTag);
+                        YT_LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees (CellTag: %v)", cellTag);
                     }
                 }));
         }
@@ -1227,7 +1226,7 @@ private:
         if (Config_->EnableUnrecognizedAlert) {
             auto unrecognized = Config_->GetUnrecognizedRecursively();
             if (unrecognized && unrecognized->GetChildCount() > 0) {
-                LOG_WARNING("Controller agent config contains unrecognized options (Unrecognized: %v)",
+                YT_LOG_WARNING("Controller agent config contains unrecognized options (Unrecognized: %v)",
                     ConvertToYsonString(unrecognized, EYsonFormat::Text));
                 SetControllerAgentAlert(
                     EControllerAgentAlertType::UnrecognizedConfigOptions,
@@ -1238,14 +1237,14 @@ private:
 
         if (!Config_->EnableSnapshotLoading) {
             auto error = TError("Snapshot loading is disabled; consider enabling it using the controller agent config");
-            LOG_WARNING(error);
+            YT_LOG_WARNING(error);
             SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, error);
         }
     }
 
     void ExecuteUpdateConfig()
     {
-        LOG_INFO("Updating controller agent configuration");
+        YT_LOG_INFO("Updating controller agent configuration");
 
         try {
             TObjectServiceProxy proxy(Bootstrap_
@@ -1255,7 +1254,7 @@ private:
             auto req = TYPathProxy::Get("//sys/controller_agents/config");
             auto rspOrError = WaitFor(proxy.Execute(req));
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                LOG_INFO("No configuration found in Cypress");
+                YT_LOG_INFO("No configuration found in Cypress");
                 SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
                 return;
             }
@@ -1284,11 +1283,11 @@ private:
 
             Bootstrap_->GetControllerAgent()->UpdateConfig(newConfig);
 
-            LOG_INFO("Controller agent configuration updated");
+            YT_LOG_INFO("Controller agent configuration updated");
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, error);
-            LOG_WARNING(error, "Error updating controller agent configuration");
+            YT_LOG_WARNING(error, "Error updating controller agent configuration");
         }
     }
 
@@ -1321,7 +1320,7 @@ private:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error updating controller agent alerts");
+            YT_LOG_WARNING(rspOrError, "Error updating controller agent alerts");
         }
     }
 };
@@ -1341,46 +1340,46 @@ void TMasterConnector::Initialize()
     Impl_->Initialize();
 }
 
-void TMasterConnector::RegisterOperation(const TOperationId& operationId)
+void TMasterConnector::RegisterOperation(TOperationId operationId)
 {
     Impl_->RegisterOperation(operationId);
 }
 
-void TMasterConnector::UnregisterOperation(const TOperationId& operationId)
+void TMasterConnector::UnregisterOperation(TOperationId operationId)
 {
     Impl_->UnregisterOperation(operationId);
 }
 
-void TMasterConnector::CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
+void TMasterConnector::CreateJobNode(TOperationId operationId, const TCreateJobNodeRequest& request)
 {
     Impl_->CreateJobNode(operationId, request);
 }
 
-TFuture<void> TMasterConnector::FlushOperationNode(const TOperationId& operationId)
+TFuture<void> TMasterConnector::FlushOperationNode(TOperationId operationId)
 {
     return Impl_->FlushOperationNode(operationId);
 }
 
-TFuture<void> TMasterConnector::UpdateInitializedOperationNode(const TOperationId& operationId)
+TFuture<void> TMasterConnector::UpdateInitializedOperationNode(TOperationId operationId)
 {
     return Impl_->UpdateInitializedOperationNode(operationId);
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(
-    const TOperationId& operationId,
-    const TTransactionId& transactionId,
+    TOperationId operationId,
+    TTransactionId transactionId,
     TNodeId tableId,
     const std::vector<TChunkTreeId>& childIds)
 {
     return Impl_->AttachToLivePreview(operationId, transactionId, tableId, childIds);
 }
 
-TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(const TOperationId& operationId)
+TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(TOperationId operationId)
 {
     return Impl_->DownloadSnapshot(operationId);
 }
 
-TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
+TFuture<void> TMasterConnector::RemoveSnapshot(TOperationId operationId)
 {
     return Impl_->RemoveSnapshot(operationId);
 }
@@ -1397,7 +1396,6 @@ TFuture<void> TMasterConnector::UpdateConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 
 

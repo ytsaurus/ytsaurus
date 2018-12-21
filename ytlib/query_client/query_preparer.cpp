@@ -19,8 +19,7 @@
 
 #include <unordered_set>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -96,8 +95,8 @@ std::vector<TString> ExtractFunctionNames(
     ExtractFunctionNames(query.HavingPredicate, &functions);
     ExtractFunctionNames(query.SelectExprs, &functions);
 
-    if (auto groupExprs = query.GroupExprs.GetPtr()) {
-        for (const auto& expr : groupExprs->first) {
+    if (query.GroupExprs) {
+        for (const auto& expr : query.GroupExprs->first) {
             ExtractFunctionNames(expr, &functions);
         }
     }
@@ -366,7 +365,7 @@ TSharedRange<TRowRange> LiteralRangesListToRows(
     return MakeSharedRange(std::move(ranges), std::move(rowBuffer));
 }
 
-TNullable<TUnversionedValue> FoldConstants(
+std::optional<TUnversionedValue> FoldConstants(
     EUnaryOp opcode,
     const TConstExpressionPtr& operand)
 {
@@ -404,10 +403,10 @@ TNullable<TUnversionedValue> FoldConstants(
             return value;
         }
     }
-    return Null;
+    return std::nullopt;
 }
 
-TNullable<TUnversionedValue> FoldConstants(
+std::optional<TUnversionedValue> FoldConstants(
     EBinaryOp opcode,
     const TConstExpressionPtr& lhsExpr,
     const TConstExpressionPtr& rhsExpr)
@@ -638,7 +637,7 @@ TNullable<TUnversionedValue> FoldConstants(
                 break;
         }
     }
-    return Null;
+    return std::nullopt;
 }
 
 struct TNotExpressionPropagator
@@ -764,7 +763,7 @@ class ISchemaProxy
     : public TIntrinsicRefCounted
 {
 public:
-    virtual TNullable<TBaseColumn> GetColumnPtr(
+    virtual std::optional<TBaseColumn> GetColumnPtr(
         const NAst::TReference& reference) = 0;
 
     virtual TUntypedExpression GetAggregateColumnPtr(
@@ -798,7 +797,7 @@ TTypeSet InferFunctionTypes(
 {
     std::vector<TTypeSet> typeConstraints;
     std::vector<size_t> formalArguments;
-    TNullable<std::pair<size_t, bool>> repeatedType;
+    std::optional<std::pair<size_t, bool>> repeatedType;
     size_t formalResultType = inferrer->GetNormalizedConstraints(
         &typeConstraints,
         &formalArguments,
@@ -825,7 +824,7 @@ TTypeSet InferFunctionTypes(
         }
     }
 
-    bool hasNoRepeatedArgument = !repeatedType.HasValue();
+    bool hasNoRepeatedArgument = !repeatedType.operator bool();
 
     if (formalArg != formalArguments.end() ||
         (arg != effectiveTypes.end() && hasNoRepeatedArgument))
@@ -866,7 +865,7 @@ std::vector<EValueType> RefineFunctionTypes(
 {
     std::vector<TTypeSet> typeConstraints;
     std::vector<size_t> formalArguments;
-    TNullable<std::pair<size_t, bool>> repeatedType;
+    std::optional<std::pair<size_t, bool>> repeatedType;
     size_t formalResultType = inferrer->GetNormalizedConstraints(
         &typeConstraints,
         &formalArguments,
@@ -910,7 +909,7 @@ std::vector<EValueType> RefineFunctionTypes(
 struct TOperatorTyper
 {
     TTypeSet Constraint;
-    TNullable<EValueType> ResultType;
+    std::optional<EValueType> ResultType;
 };
 
 TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
@@ -925,7 +924,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
     {
         result[op] = {
             TTypeSet({EValueType::Int64, EValueType::Uint64, EValueType::Double}),
-            Null
+            std::nullopt
         };
     }
 
@@ -938,7 +937,7 @@ TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
     {
         result[op] = {
             TTypeSet({EValueType::Int64, EValueType::Uint64}),
-            Null
+            std::nullopt
         };
     }
 
@@ -991,18 +990,18 @@ TEnumIndexedVector<TOperatorTyper, EUnaryOp> BuildUnaryOperatorTypers()
     {
         result[op] = {
             TTypeSet({EValueType::Int64, EValueType::Uint64, EValueType::Double}),
-            Null
+            std::nullopt
         };
     }
 
     result[EUnaryOp::BitNot] = {
         TTypeSet({EValueType::Int64, EValueType::Uint64}),
-        Null
+        std::nullopt
     };
 
     result[EUnaryOp::Not] = {
         TTypeSet({EValueType::Boolean}),
-        Null
+        std::nullopt
     };
 
     return result;
@@ -1180,7 +1179,7 @@ struct TTypedExpressionBuilder
         EBinaryOp op,
         TUntypedExpression lhs,
         TUntypedExpression rhs,
-        TNullable<size_t> offset) const;
+        std::optional<size_t> offset) const;
 
     TUntypedExpression DoBuildUntypedBinaryExpression(
         const NAst::TBinaryOpExpression* binaryExpr,
@@ -1452,7 +1451,7 @@ TUntypedExpression TTypedExpressionBuilder::MakeBinaryExpr(
     EBinaryOp op,
     TUntypedExpression lhs,
     TUntypedExpression rhs,
-    TNullable<size_t> offset) const
+    std::optional<size_t> offset) const
 {
     TTypeSet genericAssignments;
 
@@ -1545,7 +1544,7 @@ struct TGenerator
                     untypedRhs,
                     offset),
                 std::move(result),
-                Null);
+                std::nullopt);
 
             if (op == EBinaryOp::Equal || op == EBinaryOp::NotEqual) {
                 result = eq;
@@ -1569,7 +1568,7 @@ struct TGenerator
                     std::move(untypedRhs),
                     offset),
                 std::move(eq),
-                Null);
+                std::nullopt);
         }
 
         return result;
@@ -1833,7 +1832,7 @@ class TSchemaProxy
 public:
     TSchemaProxy() = default;
 
-    virtual TNullable<TBaseColumn> GetColumnPtr(
+    virtual std::optional<TBaseColumn> GetColumnPtr(
         const NAst::TReference& reference) override
     {
         auto found = Lookup_.find(reference);
@@ -1843,7 +1842,7 @@ public:
             YCHECK(Lookup_.emplace(reference, *column).second);
             return column;
         } else {
-            return Null;
+            return std::nullopt;
         }
     }
 
@@ -1889,9 +1888,9 @@ private:
     THashMap<std::pair<TString, EValueType>, TBaseColumn> AggregateLookup_;
 
 protected:
-    virtual TNullable<TBaseColumn> ProvideColumn(const NAst::TReference& /*reference*/)
+    virtual std::optional<TBaseColumn> ProvideColumn(const NAst::TReference& /*reference*/)
     {
-        return Null;
+        return std::nullopt;
     }
 
     virtual std::pair<TTypeSet, std::function<TBaseColumn(EValueType)>> ProvideAggregateColumn(
@@ -1915,17 +1914,17 @@ class TScanSchemaProxy
 public:
     TScanSchemaProxy(
         const TTableSchema& sourceTableSchema,
-        const TNullable<TString>& tableName,
+        const std::optional<TString>& tableName,
         std::vector<TColumnDescriptor>* mapping = nullptr)
         : Mapping_(mapping)
         , SourceTableSchema_(sourceTableSchema)
         , TableName_(tableName)
     { }
 
-    virtual TNullable<TBaseColumn> ProvideColumn(const NAst::TReference& reference) override
+    virtual std::optional<TBaseColumn> ProvideColumn(const NAst::TReference& reference) override
     {
         if (reference.TableName != TableName_) {
-            return Null;
+            return std::nullopt;
         }
 
         auto column = SourceTableSchema_.FindColumn(reference.ColumnName);
@@ -1945,7 +1944,7 @@ public:
 
             return TBaseColumn(formattedName, column->GetPhysicalType());
         } else {
-            return Null;
+            return std::nullopt;
         }
     }
 
@@ -1960,7 +1959,7 @@ private:
     std::vector<TColumnDescriptor>* Mapping_;
     THashMap<TString, size_t> ColumnsCollisions_;
     const TTableSchema SourceTableSchema_;
-    const TNullable<TString> TableName_;
+    const std::optional<TString> TableName_;
 
     DECLARE_NEW_FRIEND();
 };
@@ -1982,7 +1981,7 @@ public:
         , ForeignJoinedColumns_(foreignJoinedColumns)
     { }
 
-    virtual TNullable<TBaseColumn> ProvideColumn(const NAst::TReference& reference) override
+    virtual std::optional<TBaseColumn> ProvideColumn(const NAst::TReference& reference) override
     {
         if (auto column = Self_->GetColumnPtr(reference)) {
             if (SharedColumns_.find(reference) == SharedColumns_.end() &&
@@ -1997,7 +1996,7 @@ public:
             ForeignJoinedColumns_->push_back(column->Name);
             return column;
         } else {
-            return Null;
+            return std::nullopt;
         }
     }
 
@@ -2025,14 +2024,14 @@ private:
 
 };
 
-const TNullable<TBaseColumn> FindColumn(const TNamedItemList& schema, const TString& name)
+const std::optional<TBaseColumn> FindColumn(const TNamedItemList& schema, const TString& name)
 {
     for (size_t index = 0; index < schema.size(); ++index) {
         if (schema[index].Name == name) {
             return TBaseColumn(name, schema[index].Expression->Type);
         }
     }
-    return Null;
+    return std::nullopt;
 }
 
 class TGroupSchemaProxy
@@ -2048,10 +2047,10 @@ public:
         , AggregateItems_(aggregateItems)
     { }
 
-    virtual TNullable<TBaseColumn> ProvideColumn(const NAst::TReference& reference) override
+    virtual std::optional<TBaseColumn> ProvideColumn(const NAst::TReference& reference) override
     {
         if (reference.TableName) {
-            return Null;
+            return std::nullopt;
         }
 
         return FindColumn(*GroupItems_, reference.ColumnName);
@@ -2073,8 +2072,8 @@ public:
         builder.AfterGroupBy = true;
 
         TTypeSet constraint;
-        TNullable<EValueType> stateType;
-        TNullable<EValueType> resultType;
+        std::optional<EValueType> stateType;
+        std::optional<EValueType> resultType;
 
         aggregateFunction->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
 
@@ -2218,7 +2217,7 @@ TConstProjectClausePtr BuildProjectClause(
         projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
     }
 
-    schemaProxy = New<TScanSchemaProxy>(projectClause->GetTableSchema(), Null);
+    schemaProxy = New<TScanSchemaProxy>(projectClause->GetTableSchema(), std::nullopt);
 
     return projectClause;
 }
@@ -2229,18 +2228,18 @@ void PrepareQuery(
     TSchemaProxyPtr& schemaProxy,
     const TTypedExpressionBuilder& builder)
 {
-    if (const auto* wherePredicate = ast.WherePredicate.GetPtr()) {
+    if (ast.WherePredicate) {
         query->WhereClause = BuildPredicate(
-            *wherePredicate,
+            *ast.WherePredicate,
             schemaProxy,
             builder,
             "WHERE-clause");
     }
 
-    if (const auto* groupExprs = ast.GroupExprs.GetPtr()) {
+    if (ast.GroupExprs) {
         query->GroupClause = BuildGroupClause(
-            groupExprs->first,
-            groupExprs->second,
+            ast.GroupExprs->first,
+            ast.GroupExprs->second,
             schemaProxy,
             builder);
         builder.AfterGroupBy = true;
@@ -2251,7 +2250,7 @@ void PrepareQuery(
             THROW_ERROR_EXCEPTION("Expected GROUP BY before HAVING");
         }
         query->HavingClause = BuildHavingClause(
-            ast.HavingPredicate.Get(),
+            *ast.HavingPredicate,
             schemaProxy,
             builder);
     }
@@ -2272,7 +2271,7 @@ void PrepareQuery(
 
     if (ast.SelectExprs) {
         query->ProjectClause = BuildProjectClause(
-            ast.SelectExprs.Get(),
+            *ast.SelectExprs,
             schemaProxy,
             builder);
     }
@@ -2379,7 +2378,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     const auto& table = ast.Table;
 
-    LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v)",
+    YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v)",
         table.Path,
         MakeFormattableRange(ast.Joins, [] (TStringBuilder* builder, const auto& join) {
             FormatValue(builder, join.Table.Path, TStringBuf());
@@ -2394,7 +2393,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     auto dataSplits = WaitFor(Combine(asyncDataSplits))
         .ValueOrThrow();
 
-    LOG_DEBUG("Initial data splits received");
+    YT_LOG_DEBUG("Initial data splits received");
 
     const auto& selfDataSplit = dataSplits[0];
 
@@ -2533,7 +2532,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
             THashSet<TString> references;
             auto evaluatedColumnExpression = PrepareExpression(
-                foreignColumnExpression.Get(),
+                *foreignColumnExpression,
                 foreignTableSchema,
                 functions,
                 &references);
@@ -2572,7 +2571,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
                 if (const auto& selfColumnExpression = tableSchema.Columns()[index].Expression()) {
                     auto evaluatedSelfColumnExpression = PrepareExpression(
-                        selfColumnExpression.Get(),
+                        *selfColumnExpression,
                         tableSchema,
                         functions);
 
@@ -2611,7 +2610,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         joinClause->ForeignKeyPrefix = keyPrefix;
         joinClause->CommonKeyPrefix = commonKeyPrefix;
 
-        LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
+        YT_LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
             commonKeyPrefix,
             keyPrefix);
 
@@ -2664,7 +2663,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
             THashSet<TString> references;
             auto evaluatedColumnExpression = PrepareExpression(
-                expression.Get(),
+                *expression,
                 query->OriginalSchema,
                 functions,
                 &references);
@@ -2687,7 +2686,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
         query->UseDisjointGroupBy = containsPrimaryKey;
 
-        LOG_DEBUG("Group key contains primary key, can omit top-level GROUP BY");
+        YT_LOG_DEBUG("Group key contains primary key, can omit top-level GROUP BY");
     }
 
 
@@ -2698,7 +2697,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     }
 
     auto queryFingerprint = InferName(query, true);
-    LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
+    YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
         queryFingerprint,
         query->GetReadSchema(),
         query->GetTableSchema());
@@ -2745,7 +2744,7 @@ TQueryPtr PrepareJobQuery(
 
     TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
         tableSchema,
-        Null,
+        std::nullopt,
         &query->SchemaMapping);
 
     auto functionNames = ExtractFunctionNames(ast, aliasMap);
@@ -2795,7 +2794,7 @@ TConstExpressionPtr PrepareExpression(
     std::vector<TColumnDescriptor> mapping;
     auto schemaProxy = New<TScanSchemaProxy>(
         tableSchema,
-        Null,
+        std::nullopt,
         &mapping);
 
     TTypedExpressionBuilder builder{
@@ -2819,5 +2818,4 @@ TConstExpressionPtr PrepareExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

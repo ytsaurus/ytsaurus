@@ -5,8 +5,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 using namespace NConcurrency;
 
@@ -146,14 +145,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_DEBUG("Updating latest timestamp");
+        YT_LOG_DEBUG("Updating latest timestamp");
 
         auto timestampOrError = WaitFor(GenerateTimestamps(1));
         if (timestampOrError.IsOK()) {
-            LOG_DEBUG("Latest timestamp updated (Timestamp: %llx)",
+            YT_LOG_DEBUG("Latest timestamp updated (Timestamp: %llx)",
                 timestampOrError.Value());
         } else {
-            LOG_WARNING(timestampOrError, "Error updating latest timestamp");
+            YT_LOG_WARNING(timestampOrError, "Error updating latest timestamp");
             return;
         }
     }
@@ -171,5 +170,4 @@ ITimestampProviderPtr CreateBatchingTimestampProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

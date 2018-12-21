@@ -3,8 +3,7 @@
 
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,24 +54,24 @@ void TNameTable::SetEnableColumnNameValidation()
     EnableColumnNameValidation_ = true;
 }
 
-TNullable<int> TNameTable::FindId(TStringBuf name) const
+std::optional<int> TNameTable::FindId(TStringBuf name) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
     auto it = NameToId_.find(name);
     if (it == NameToId_.end()) {
-        return Null;
+        return std::nullopt;
     } else {
-        return MakeNullable(it->second);
+        return std::make_optional(it->second);
     }
 }
 
 int TNameTable::GetIdOrThrow(TStringBuf name) const
 {
-    auto maybeId = FindId(name);
-    if (!maybeId) {
+    auto optionalId = FindId(name);
+    if (!optionalId) {
         THROW_ERROR_EXCEPTION("No such column %Qv", name);
     }
-    return *maybeId;
+    return *optionalId;
 }
 
 int TNameTable::GetId(TStringBuf name) const
@@ -98,8 +97,8 @@ int TNameTable::RegisterName(TStringBuf name)
 int TNameTable::RegisterNameOrThrow(TStringBuf name)
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    auto maybeId = NameToId_.find(name);
-    if (maybeId != NameToId_.end()) {
+    auto optionalId = NameToId_.find(name);
+    if (optionalId != NameToId_.end()) {
         THROW_ERROR_EXCEPTION("Cannot register column %Qv: column already exists", name);
     }
     return DoRegisterName(name);
@@ -202,28 +201,28 @@ TNameTableWriter::TNameTableWriter(TNameTablePtr nameTable)
     : NameTable_(std::move(nameTable))
 { }
 
-TNullable<int> TNameTableWriter::FindId(TStringBuf name) const
+std::optional<int> TNameTableWriter::FindId(TStringBuf name) const
 {
     auto it = NameToId_.find(name);
     if (it != NameToId_.end()) {
         return it->second;
     }
 
-    auto maybeId = NameTable_->FindId(name);
-    if (maybeId) {
+    auto optionalId = NameTable_->FindId(name);
+    if (optionalId) {
         Names_.push_back(TString(name));
-        YCHECK(NameToId_.insert(std::make_pair(Names_.back(), *maybeId)).second);
+        YCHECK(NameToId_.insert(std::make_pair(Names_.back(), *optionalId)).second);
     }
-    return maybeId;
+    return optionalId;
 }
 
 int TNameTableWriter::GetIdOrThrow(TStringBuf name) const
 {
-    auto maybeId = FindId(name);
-    if (!maybeId) {
+    auto optionalId = FindId(name);
+    if (!optionalId) {
         THROW_ERROR_EXCEPTION("No such column %Qv", name);
     }
-    return *maybeId;
+    return *optionalId;
 }
 
 int TNameTableWriter::GetIdOrRegisterName(TStringBuf name)
@@ -260,6 +259,5 @@ void FromProto(TNameTablePtr* nameTable, const NProto::TNameTableExt& protoNameT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

@@ -34,8 +34,7 @@
 
 #include <yt/core/rpc/channel.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
@@ -83,5 +82,4 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

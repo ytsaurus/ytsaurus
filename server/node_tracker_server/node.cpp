@@ -5,7 +5,9 @@
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/job.h>
+#include <yt/server/chunk_server/medium.h>
 
 #include <yt/server/node_tracker_server/config.h>
 
@@ -24,8 +26,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NNet;
 using namespace NObjectClient;
@@ -131,7 +132,7 @@ void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNode::TNode(const TObjectId& objectId)
+TNode::TNode(TObjectId objectId)
     : TObjectBase(objectId)
 {
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
@@ -145,7 +146,7 @@ TNode::TNode(const TObjectId& objectId)
 
 void TNode::ComputeAggregatedState()
 {
-    TNullable<ENodeState> result;
+    std::optional<ENodeState> result;
     for (const auto& pair : MulticellDescriptors_) {
         if (result) {
             if (*result != pair.second.State) {
@@ -164,11 +165,14 @@ void TNode::ComputeDefaultAddress()
     DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(GetAddressesOrThrow(EAddressType::InternalRpc));
 }
 
-void TNode::SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statistics)
+void TNode::SetStatistics(
+    NNodeTrackerClient::NProto::TNodeStatistics&& statistics,
+    const NChunkServer::TChunkManagerPtr& chunkManager)
 {
     Statistics_.Swap(&statistics);
     ComputeFillFactors();
     ComputeSessionCount();
+    RecomputeIOWeights(chunkManager);
 }
 
 void TNode::ComputeFillFactors()
@@ -185,19 +189,19 @@ void TNode::ComputeFillFactors()
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
         i64 totalSpace = freeSpace[mediumIndex] + usedSpace[mediumIndex];
         FillFactors_[mediumIndex] = (totalSpace == 0)
-            ? Null
-            : MakeNullable(usedSpace[mediumIndex] / std::max<double>(1.0, totalSpace));
+            ? std::nullopt
+            : std::make_optional(usedSpace[mediumIndex] / std::max<double>(1.0, totalSpace));
     }
 }
 
 void TNode::ComputeSessionCount()
 {
-    SessionCount_.fill(Null);
+    SessionCount_.fill(std::nullopt);
 
     for (const auto& location : Statistics_.locations()) {
         auto mediumIndex = location.medium_index();
         if (location.enabled() && !location.full()) {
-            SessionCount_[mediumIndex] = SessionCount_[mediumIndex].Get(0) + location.session_count();
+            SessionCount_[mediumIndex] = SessionCount_[mediumIndex].value_or(0) + location.session_count();
         }
     }
 }
@@ -234,7 +238,7 @@ TDataCenter* TNode::GetDataCenter() const
     return rack ? rack->GetDataCenter() : nullptr;
 }
 
-bool TNode::HasTag(const TNullable<TString>& tag) const
+bool TNode::HasTag(const std::optional<TString>& tag) const
 {
     return !tag || Tags_.find(*tag) != Tags_.end();
 }
@@ -243,8 +247,8 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 {
     return TNodeDescriptor(
         GetAddressesOrThrow(addressType),
-        Rack_ ? MakeNullable(Rack_->GetName()) : Null,
-        (Rack_ && Rack_->GetDataCenter()) ? MakeNullable(Rack_->GetDataCenter()->GetName()) : Null,
+        Rack_ ? std::make_optional(Rack_->GetName()) : std::nullopt,
+        (Rack_ && Rack_->GetDataCenter()) ? std::make_optional(Rack_->GetDataCenter()->GetName()) : std::nullopt,
         std::vector<TString>(Tags_.begin(), Tags_.end()));
 }
 
@@ -265,6 +269,19 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
     LocalStatePtr_ = &MulticellDescriptors_[cellTag].State;
 
     ComputeAggregatedState();
+}
+
+void TNode::RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager)
+{
+    IOWeights_.fill(0.0);
+    for (const auto& statistics : Statistics_.media()) {
+        auto mediumIndex = statistics.medium_index();
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (!medium || medium->GetCache()) {
+            continue;
+        }
+        IOWeights_[mediumIndex] = statistics.io_weight();
+    }
 }
 
 ENodeState TNode::GetLocalState() const
@@ -327,6 +344,8 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, LastSeenTime_);
     Save(context, Statistics_);
     Save(context, Alerts_);
+    Save(context, ResourceLimits_);
+    Save(context, ResourceUsage_);
     Save(context, ResourceLimitsOverrides_);
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
@@ -391,6 +410,11 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, LastSeenTime_);
     Load(context, Statistics_);
     Load(context, Alerts_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= 817) {
+        Load(context, ResourceLimits_);
+        Load(context, ResourceUsage_);
+    }
     Load(context, ResourceLimitsOverrides_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
@@ -423,7 +447,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     ComputeDefaultAddress();
 }
 
-TJobPtr TNode::FindJob(const TJobId& jobId)
+TJobPtr TNode::FindJob(TJobId jobId)
 {
     auto it = IdToJob_.find(jobId);
     return it == IdToJob_.end() ? nullptr : it->second;
@@ -629,7 +653,7 @@ void TNode::AddSessionHint(int mediumIndex, ESessionType sessionType)
 
 int TNode::GetHintedSessionCount(int mediumIndex) const
 {
-    return SessionCount_[mediumIndex].Get(0) +
+    return SessionCount_[mediumIndex].value_or(0) +
         HintedUserSessionCount_[mediumIndex] +
         HintedReplicationSessionCount_[mediumIndex] +
         HintedRepairSessionCount_[mediumIndex];
@@ -719,8 +743,8 @@ void TNode::Reset()
         queue.clear();
     }
     ChunkSealQueue_.clear();
-    FillFactorIterators_.fill(Null);
-    LoadFactorIterators_.fill(Null);
+    FillFactorIterators_.fill(std::nullopt);
+    LoadFactorIterators_.fill(std::nullopt);
 
     ClearCellStatistics();
 }
@@ -767,18 +791,18 @@ bool TNode::HasMedium(int mediumIndex) const
     return it != locations.end();
 }
 
-TNullable<double> TNode::GetFillFactor(int mediumIndex) const
+std::optional<double> TNode::GetFillFactor(int mediumIndex) const
 {
     return FillFactors_[mediumIndex];
 }
 
-TNullable<double> TNode::GetLoadFactor(int mediumIndex) const
+std::optional<double> TNode::GetLoadFactor(int mediumIndex) const
 {
     // NB: Avoid division by zero.
     return SessionCount_[mediumIndex]
-        ? MakeNullable(static_cast<double>(GetHintedSessionCount(mediumIndex)) /
+        ? std::make_optional(static_cast<double>(GetHintedSessionCount(mediumIndex)) /
             std::max(IOWeights_[mediumIndex], 0.000000001))
-        : Null;
+        : std::nullopt;
 }
 
 TNode::TFillFactorIterator TNode::GetFillFactorIterator(int mediumIndex)
@@ -886,6 +910,16 @@ void TNode::RebuildTags()
     }
 }
 
+void TNode::SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
+{
+    ResourceUsage_ = resourceUsage;
+}
+
+void TNode::SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& resourceLimits)
+{
+    ResourceLimits_ = resourceLimits;
+}
+
 TCellNodeStatistics TNode::ComputeCellStatistics() const
 {
     TCellNodeStatistics result;
@@ -923,5 +957,4 @@ void TNodePtrAddressFormatter::operator()(TStringBuilder* builder, TNode* node) 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

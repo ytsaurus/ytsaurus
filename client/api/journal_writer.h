@@ -7,8 +7,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +32,5 @@ DEFINE_REFCOUNTED_TYPE(IJournalWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

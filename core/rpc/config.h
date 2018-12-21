@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,8 +98,8 @@ public:
     int RetryAttempts;
 
     //! Maximum time to spend while retrying.
-    //! If |Null| then no limit is enforced.
-    TNullable<TDuration> RetryTimeout;
+    //! If null then no limit is enforced.
+    std::optional<TDuration> RetryTimeout;
 
     TRetryingChannelConfig()
     {
@@ -139,7 +138,7 @@ public:
         RegisterParameter("discover_timeout", DiscoverTimeout)
             .Default(TDuration::Seconds(5));
         RegisterParameter("hard_backoff_time", HardBackoffTime)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(10));
         RegisterParameter("soft_backoff_time", SoftBackoffTime)
             .Default(TDuration::Seconds(5));
     }
@@ -283,5 +282,4 @@ DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

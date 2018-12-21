@@ -20,8 +20,7 @@
 
 #include <yt/core/rpc/channel.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -70,7 +69,7 @@ public:
 
     virtual TFuture<void> Fetch() override
     {
-        LOG_DEBUG("Started fetching chunk slices (ChunkCount: %v)",
+        YT_LOG_DEBUG("Started fetching chunk slices (ChunkCount: %v)",
             Chunks_.size());
         return TFetcherBase::Fetch();
     }
@@ -179,7 +178,7 @@ private:
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetChunkSlicesPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            LOG_INFO("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
+            YT_LOG_INFO("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
                 NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
                 nodeId);
 
@@ -195,11 +194,11 @@ private:
         const auto& rsp = rspOrError.Value();
 
         // We keep reader in the scope as a holder for a wire reader and uncompressed attachment.
-        TNullable<TKeySetReader> keysReader;
+        std::optional<TKeySetReader> keysReader;
         NYT::TRange<TKey> keys;
         if (rsp->keys_in_attachment()) {
             YCHECK(rsp->Attachments().size() == 1);
-            keysReader.Emplace(rsp->Attachments().front());
+            keysReader.emplace(rsp->Attachments().front());
             keys = keysReader->GetKeys();
         }
 
@@ -220,7 +219,7 @@ private:
                 continue;
             }
 
-            LOG_TRACE("Received %v chunk slices for chunk #%v",
+            YT_LOG_TRACE("Received %v chunk slices for chunk #%v",
                 slices.chunk_slices_size(),
                 index);
 
@@ -265,5 +264,4 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

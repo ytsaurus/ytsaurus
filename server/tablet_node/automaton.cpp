@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NHydra;
 using namespace NTableClient;
@@ -77,5 +76,4 @@ int TTabletAutomatonPart::GetCurrentSnapshotVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTabletNode
+} // namespace NTabletNode::NYT

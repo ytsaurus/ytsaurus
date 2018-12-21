@@ -10,8 +10,7 @@
 
 #include <yt/core/https/config.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +18,7 @@ class TDefaultBlackboxServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    NHttps::TClientConfigPtr HttpClient;
     TString Host;
     int Port;
     bool Secure;
@@ -30,6 +30,8 @@ public:
 
     TDefaultBlackboxServiceConfig()
     {
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
         RegisterParameter("host", Host)
             .Default("blackbox.yandex-team.ru");
         RegisterParameter("port", Port)
@@ -55,6 +57,7 @@ class TDefaultTvmServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    NHttp::TClientConfigPtr HttpClient;
     TString Host;
     int Port;
     TString Token;
@@ -63,6 +66,8 @@ public:
 
     TDefaultTvmServiceConfig()
     {
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
         RegisterParameter("host", Host)
             .Default("localhost");
         RegisterParameter("port", Port);
@@ -189,7 +194,7 @@ class TBlackboxCookieAuthenticatorConfig
 public:
     TString Domain;
 
-    TNullable<TString> CsrfSecret;
+    std::optional<TString> CsrfSecret;
     TDuration CsrfTokenTtl;
 
     TBlackboxCookieAuthenticatorConfig()
@@ -250,7 +255,8 @@ public:
             .Default("vault-api.passport.yandex.net");
         RegisterParameter("port", Port)
             .Default(443);
-        RegisterParameter("http_client", HttpClient);
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(3));
         RegisterParameter("vault_service_id", VaultServiceId)
@@ -300,6 +306,13 @@ public:
     {
         RegisterParameter("cache", Cache)
             .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            Cache->RefreshTime = std::nullopt;
+            Cache->ExpireAfterAccessTime = TDuration::Seconds(60);
+            Cache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(60);
+            Cache->ExpireAfterFailedUpdateTime = TDuration::Seconds(60);
+        });
     }
 };
 
@@ -367,5 +380,4 @@ DEFINE_REFCOUNTED_TYPE(TAuthenticationManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

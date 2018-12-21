@@ -9,9 +9,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +88,10 @@ public:
         NCypressClient::ELockMode mode,
         const NApi::TLockNodeOptions& options) override;
 
+    virtual TFuture<void> UnlockNode(
+        const NYPath::TYPath& path,
+        const NApi::TUnlockNodeOptions& options) override;
+
     virtual TFuture<NCypressClient::TNodeId> CopyNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
@@ -167,6 +169,4 @@ DEFINE_REFCOUNTED_TYPE(TClientBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

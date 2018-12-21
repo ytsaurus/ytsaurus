@@ -4,8 +4,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +16,7 @@ protected:
         IInvokerPtr invoker,
         const NRpc::TServiceDescriptor& descriptor,
         const NLogging::TLogger& logger,
-        const NRpc::TRealmId& realmId);
+        NRpc::TRealmId realmId);
 
     void ValidatePeer(EPeerKind kind);
     void SyncWithUpstream();
@@ -30,5 +29,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

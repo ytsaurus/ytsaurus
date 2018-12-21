@@ -4,8 +4,7 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,5 +42,4 @@ NConcurrency::IAsyncInputStreamPtr CreateDecompressingAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

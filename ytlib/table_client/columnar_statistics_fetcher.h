@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,5 +51,4 @@ DEFINE_REFCOUNTED_TYPE(TColumnarStatisticsFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

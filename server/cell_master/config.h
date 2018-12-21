@@ -36,8 +36,7 @@
 
 #include <yt/core/rpc/config.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +44,8 @@ class TMasterHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
 {
 public:
-    TNullable<int> MaxSnapshotCountToKeep;
-    TNullable<i64> MaxSnapshotSizeToKeep;
+    std::optional<int> MaxSnapshotCountToKeep;
+    std::optional<i64> MaxSnapshotSizeToKeep;
 
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
@@ -195,5 +194,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicClusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

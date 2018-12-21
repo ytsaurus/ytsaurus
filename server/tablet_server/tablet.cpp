@@ -21,8 +21,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NChunkClient;
@@ -402,7 +401,7 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablet::TTablet(const TTabletId& id)
+TTablet::TTablet(TTabletId id)
     : TNonversionedObjectBase(id)
     , Index_(-1)
     , InMemoryMode_(EInMemoryMode::None)
@@ -469,7 +468,7 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (brokenPrepare) {
         const auto& Logger = TabletServerLogger;
-        LOG_ERROR("Broken prepared tablet found (TabletId: %v, TableId: %v)",
+        YT_LOG_ERROR("Broken prepared tablet found (TabletId: %v, TableId: %v)",
             Id_,
             Table_->GetId());
     }
@@ -679,6 +678,5 @@ std::vector<TError> TTablet::GetErrors() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

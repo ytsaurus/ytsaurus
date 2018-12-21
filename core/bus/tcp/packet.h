@@ -5,8 +5,7 @@
 #include <yt/core/misc/chunked_memory_allocator.h>
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,7 +108,7 @@ public:
     bool IsInProgress() const;
     EPacketType GetPacketType() const;
     EPacketFlags GetPacketFlags() const;
-    const TPacketId& GetPacketId() const;
+    TPacketId GetPacketId() const;
     TSharedRefArray GrabMessage() const;
     size_t GetPacketSize() const;
 
@@ -150,7 +149,7 @@ public:
         EPacketFlags flags,
         bool generateChecksums,
         int checksummedPartCount,
-        const TPacketId& packetId,
+        TPacketId packetId,
         TSharedRefArray message);
 
     bool IsFragmentOwned() const;
@@ -168,8 +167,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus
 
 Y_DECLARE_PODTYPE(NYT::NBus::TPacketHeader);
 

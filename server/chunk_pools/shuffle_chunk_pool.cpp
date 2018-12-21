@@ -5,8 +5,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
@@ -534,5 +533,4 @@ std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

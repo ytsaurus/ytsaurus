@@ -1,7 +1,6 @@
 #include "public.h"
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,6 +16,5 @@ const TString TReplicationLogTable::FlagsColumnNamePrefix("flags:");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient
 

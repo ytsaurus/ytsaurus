@@ -4,8 +4,7 @@
 #include <deque>
 #include <tuple>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 
@@ -741,5 +740,4 @@ TString ToString(TKeyTriePtr node) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

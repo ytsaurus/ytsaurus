@@ -6,8 +6,7 @@
 
 #include <yt/core/crypto/config.h>
 
-namespace NYT {
-namespace NHttps {
+namespace NYT::NHttps {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +55,7 @@ class TClientConfig
     : public NHttp::TClientConfig
 {
 public:
+    // If missing then builtin certificate store is used.
     TClientCredentialsConfigPtr Credentials;
 
     TClientConfig();
@@ -65,5 +65,4 @@ DEFINE_REFCOUNTED_TYPE(TClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttps
-} // namespace NYT
+} // namespace NYT::NHttps

@@ -1,7 +1,6 @@
 #include "snapshot_store_thunk.h"
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,5 +33,4 @@ ISnapshotStorePtr TSnapshotStoreThunk::GetUnderlying()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

@@ -54,7 +54,10 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple("var-1 | !var/2", std::vector<TString>{"var/2"}, false),
         std::make_tuple("var-1 | !var/2", std::vector<TString>{}, true),
         std::make_tuple("!in-", std::vector<TString>{}, true),
-        std::make_tuple("in/|x", std::vector<TString>{"in/"}, true)
+        std::make_tuple("in/|x", std::vector<TString>{"in/"}, true),
+        std::make_tuple("%true", std::vector<TString>{""}, true),
+        std::make_tuple("%false", std::vector<TString>{"false"}, false),
+        std::make_tuple("%true|%false", std::vector<TString>{""}, true)
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,7 +115,10 @@ INSTANTIATE_TEST_CASE_P(
         "-",
         "a /b",
         "a & /b",
-        "in"
+        "in",
+        "% true",
+        "%something",
+        "%true.abc"
 ));
 
 class TBooleanFormulaTest2
@@ -171,6 +177,20 @@ TEST(TBooleanFormulaTest, ExternalOperators)
     EXPECT_EQ((formulaA & formulaB).GetFormula(), "(a) & (b)");
     EXPECT_EQ((formulaA | formulaB).GetFormula(), "(a) | (b)");
     EXPECT_EQ((!formulaA).GetFormula(), "!(a)");
+
+    auto empty = MakeBooleanFormula("");
+    EXPECT_TRUE(empty.IsSatisfiedBy(THashSet<TString>{}));
+    EXPECT_FALSE((!empty).IsSatisfiedBy(THashSet<TString>{}));
+    EXPECT_TRUE((empty | !empty).IsSatisfiedBy(THashSet<TString>{}));
+
+    EXPECT_TRUE((empty | formulaA).IsSatisfiedBy(THashSet<TString>{}));
+    EXPECT_TRUE((empty | formulaA).IsSatisfiedBy(THashSet<TString>{"a"}));
+    EXPECT_TRUE((formulaA | empty).IsSatisfiedBy(THashSet<TString>{}));
+    EXPECT_TRUE((formulaA | empty).IsSatisfiedBy(THashSet<TString>{"a"}));
+    EXPECT_FALSE((empty & formulaA).IsSatisfiedBy(THashSet<TString>{}));
+    EXPECT_TRUE((empty & formulaA).IsSatisfiedBy(THashSet<TString>{"a"}));
+    EXPECT_FALSE((formulaA & empty).IsSatisfiedBy(THashSet<TString>{}));
+    EXPECT_TRUE((formulaA & empty).IsSatisfiedBy(THashSet<TString>{"a"}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

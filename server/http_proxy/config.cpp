@@ -2,8 +2,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NYTree;
 using namespace NAuth;
@@ -121,5 +120,4 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

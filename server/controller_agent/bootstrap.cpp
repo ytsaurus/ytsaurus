@@ -57,8 +57,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NAdmin;
 using namespace NBus;
@@ -110,7 +109,7 @@ void TBootstrap::DoRun()
 {
     AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
-    LOG_INFO("Starting controller agent");
+    YT_LOG_INFO("Starting controller agent");
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
@@ -186,10 +185,10 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));
 
-    LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
 
-    LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 }
@@ -243,5 +242,4 @@ const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

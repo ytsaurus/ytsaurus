@@ -7,8 +7,7 @@
 #include <yt/core/rpc/public.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NCypressClient {
+namespace NYT::NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,5 +17,4 @@ struct TLockYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressClient
-} // namespace NYT
+} // namespace NYT::NCypressClient

@@ -8,8 +8,7 @@
 
 #include <yt/core/codegen/llvm_migrate_helpers.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using llvm::Function;
 using llvm::BasicBlock;
@@ -239,6 +238,5 @@ llvm::Value* TCGIRBuilder::CreateSelect(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

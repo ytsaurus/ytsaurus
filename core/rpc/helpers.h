@@ -12,8 +12,7 @@
 
 #include <yt/core/tracing/trace_context.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,10 +39,10 @@ IChannelFactoryPtr CreateAuthenticatedChannelFactory(
 //! Returns a wrapper that sets realm id in every request.
 IChannelPtr CreateRealmChannel(
     IChannelPtr underlyingChannel,
-    const TRealmId& realmId);
+    TRealmId realmId);
 IChannelFactoryPtr CreateRealmChannelFactory(
     IChannelFactoryPtr underlyingFactory,
-    const TRealmId& realmId);
+    TRealmId realmId);
 
 //! Returns a wrapper that informs about channel failures.
 /*!
@@ -66,11 +65,10 @@ void SetTraceContext(
 TMutationId GenerateMutationId();
 
 void GenerateMutationId(const IClientRequestPtr& request);
-void SetMutationId(NProto::TRequestHeader* header, const TMutationId& id, bool retry);
-void SetMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry);
-void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry);
+void SetMutationId(NProto::TRequestHeader* header, TMutationId id, bool retry);
+void SetMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);
+void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

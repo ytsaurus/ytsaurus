@@ -167,11 +167,11 @@ void Run(const char* configFilename)
 
     TLogManager::Get()->Configure(config->Logging);
 
-    LOG_INFO("Reading operations description");
+    YT_LOG_INFO("Reading operations description");
 
     std::vector<TExecNodePtr> execNodes = CreateExecNodesFromFile(config->NodeGroupsFilename);
 
-    LOG_INFO("Discovered %v nodes", execNodes.size());
+    YT_LOG_INFO("Discovered %v nodes", execNodes.size());
 
     YCHECK(!execNodes.empty());
 

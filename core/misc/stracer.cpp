@@ -61,7 +61,7 @@ TStracePtr DoStrace(int pid)
         trace->ProcessName = GetProcessName(pid);
         trace->ProcessCommandLine = GetProcessCommandLine(pid);
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Failed to get information for process %v", pid);
+        YT_LOG_ERROR(ex, "Failed to get information for process %v", pid);
     }
 
     TSubprocess tracer("/usr/bin/strace");
@@ -77,7 +77,7 @@ TStracePtr DoStrace(int pid)
             try {
                 tracer.Kill(SIGINT);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Failed to interrupt stracer process %v", pid);
+                YT_LOG_ERROR(ex, "Failed to interrupt stracer process %v", pid);
             }
         }),
         TraceInterval);
@@ -87,7 +87,7 @@ TStracePtr DoStrace(int pid)
             try {
                 tracer.Kill(SIGKILL);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Failed to kill stracer process %v", pid);
+                YT_LOG_ERROR(ex, "Failed to kill stracer process %v", pid);
             }
         }),
         TraceTimeout);

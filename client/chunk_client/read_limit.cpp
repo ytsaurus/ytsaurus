@@ -7,8 +7,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NYTree;
 using namespace NYson;
@@ -310,7 +309,7 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
 namespace {
 
 template <class T>
-TNullable<T> FindReadLimitComponent(const std::unique_ptr<IAttributeDictionary>& attributes, const TString& key)
+std::optional<T> FindReadLimitComponent(const std::unique_ptr<IAttributeDictionary>& attributes, const TString& key)
 {
     try {
         return attributes->Find<T>(key);
@@ -334,24 +333,24 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
     readLimit = TReadLimit();
     auto attributes = ConvertToAttributes(node);
 
-    auto maybeKey = FindReadLimitComponent<TOwningKey>(attributes, "key");
-    if (maybeKey) {
-        readLimit.SetKey(*maybeKey);
+    auto optionalKey = FindReadLimitComponent<TOwningKey>(attributes, "key");
+    if (optionalKey) {
+        readLimit.SetKey(*optionalKey);
     }
 
-    auto maybeRowIndex = FindReadLimitComponent<i64>(attributes, "row_index");
-    if (maybeRowIndex) {
-        readLimit.SetRowIndex(*maybeRowIndex);
+    auto optionalRowIndex = FindReadLimitComponent<i64>(attributes, "row_index");
+    if (optionalRowIndex) {
+        readLimit.SetRowIndex(*optionalRowIndex);
     }
 
-    auto maybeOffset = FindReadLimitComponent<i64>(attributes, "offset");
-    if (maybeOffset) {
-        readLimit.SetOffset(*maybeOffset);
+    auto optionalOffset = FindReadLimitComponent<i64>(attributes, "offset");
+    if (optionalOffset) {
+        readLimit.SetOffset(*optionalOffset);
     }
 
-    auto maybeChunkIndex = FindReadLimitComponent<i64>(attributes, "chunk_index");
-    if (maybeChunkIndex) {
-        readLimit.SetChunkIndex(*maybeChunkIndex);
+    auto optionalChunkIndex = FindReadLimitComponent<i64>(attributes, "chunk_index");
+    if (optionalChunkIndex) {
+        readLimit.SetChunkIndex(*optionalChunkIndex);
     }
 }
 
@@ -440,7 +439,7 @@ void Serialize(const TReadRange& readRange, NYson::IYsonConsumer* consumer)
 namespace {
 
 template <class T>
-TNullable<T> FindReadRangeComponent(const std::unique_ptr<IAttributeDictionary>& attributes, const TString& key)
+std::optional<T> FindReadRangeComponent(const std::unique_ptr<IAttributeDictionary>& attributes, const TString& key)
 {
     try {
         return attributes->Find<T>(key);
@@ -463,28 +462,27 @@ void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
 
     readRange = TReadRange();
     auto attributes = ConvertToAttributes(node);
-    auto maybeExact = FindReadRangeComponent<TReadLimit>(attributes, "exact");
-    auto maybeLowerLimit = FindReadRangeComponent<TReadLimit>(attributes, "lower_limit");
-    auto maybeUpperLimit = FindReadRangeComponent<TReadLimit>(attributes, "upper_limit");
+    auto optionalExact = FindReadRangeComponent<TReadLimit>(attributes, "exact");
+    auto optionalLowerLimit = FindReadRangeComponent<TReadLimit>(attributes, "lower_limit");
+    auto optionalUpperLimit = FindReadRangeComponent<TReadLimit>(attributes, "upper_limit");
 
-    if (maybeExact) {
-        if (maybeLowerLimit || maybeUpperLimit) {
+    if (optionalExact) {
+        if (optionalLowerLimit || optionalUpperLimit) {
             THROW_ERROR_EXCEPTION("\"lower_limit\" and \"upper_limit\" attributes cannot be specified "
                 "together with \"exact\" attribute");
         }
-        readRange = TReadRange(*maybeExact);
+        readRange = TReadRange(*optionalExact);
     }
 
-    if (maybeLowerLimit) {
-        readRange.LowerLimit() = *maybeLowerLimit;
+    if (optionalLowerLimit) {
+        readRange.LowerLimit() = *optionalLowerLimit;
     }
 
-    if (maybeUpperLimit) {
-        readRange.UpperLimit() = *maybeUpperLimit;
+    if (optionalUpperLimit) {
+        readRange.UpperLimit() = *optionalUpperLimit;
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

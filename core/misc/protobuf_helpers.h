@@ -2,7 +2,7 @@
 
 #include "guid.h"
 #include "mpl.h"
-#include "nullable.h"
+#include "optional.h"
 #include "object_pool.h"
 #include "range.h"
 #include "ref.h"
@@ -242,10 +242,10 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions);
 template <class T>
 bool HasProtoExtension(const NProto::TExtensionSet& extensions);
 
-//! Finds and deserializes an extension of the given type. Returns |Null| if no matching
+//! Finds and deserializes an extension of the given type. Returns null if no matching
 //! extension is found.
 template <class T>
-TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions);
+std::optional<T> FindProtoExtension(const NProto::TExtensionSet& extensions);
 
 //! Serializes and stores an extension.
 //! Overwrites any extension with the same tag (if exists).

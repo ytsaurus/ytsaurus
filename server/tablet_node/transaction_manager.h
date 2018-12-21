@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +59,7 @@ public:
     //! (either persistent or transient, depending on #transient).
     //! \param fresh An out-param indicating if the transaction was just-created.
     TTransaction* GetOrCreateTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
@@ -71,7 +70,7 @@ public:
     //! If a persistent instance is found, just returns it.
     //! If a transient instance is found, makes is persistent and returns it.
     //! Fails if no transaction is found.
-    TTransaction* MakeTransactionPersistent(const TTransactionId& transactionId);
+    TTransaction* MakeTransactionPersistent(TTransactionId transactionId);
 
     //! Removes a given #transaction, which must be transient.
     void DropTransaction(TTransaction* transaction);
@@ -87,6 +86,9 @@ public:
     TTimestamp GetMinPrepareTimestamp();
     TTimestamp GetMinCommitTimestamp();
 
+    void Decommission();
+    bool IsDecommissioned() const;
+
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:
@@ -95,20 +97,20 @@ private:
 
     /// ITransactionManager overrides.
     virtual void PrepareTransactionCommit(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp) override;
     virtual void PrepareTransactionAbort(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force) override;
     virtual void CommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TTimestamp commitTimestamp) override;
     virtual void AbortTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force) override;
     virtual void PingTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool pingAncestors) override;
 };
 
@@ -116,5 +118,4 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

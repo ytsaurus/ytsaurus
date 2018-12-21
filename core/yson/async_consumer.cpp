@@ -1,7 +1,6 @@
 #include "async_consumer.h"
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,5 +90,4 @@ void TAsyncYsonConsumerAdapter::OnRaw(TFuture<TYsonString> /*asyncStr*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

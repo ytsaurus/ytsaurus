@@ -53,8 +53,7 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/heap.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -666,19 +665,19 @@ private:
             &TStoreCompactor::CompactPartition);
     }
 
-    int LockedGetFutureEffect(TReaderGuard&, const TTabletId& tabletId)
+    int LockedGetFutureEffect(TReaderGuard&, TTabletId tabletId)
     {
         auto it = FutureEffect_.find(tabletId);
         return it != FutureEffect_.end() ? it->second : 0;
     }
 
-    int GetFutureEffect(const TTabletId& tabletId)
+    int GetFutureEffect(TTabletId tabletId)
     {
         TReaderGuard guard(FutureEffectLock_);
         return LockedGetFutureEffect(guard, tabletId);
     }
 
-    void ChangeFutureEffect(const TTabletId& tabletId, int delta)
+    void ChangeFutureEffect(TTabletId tabletId, int delta)
     {
         if (delta == 0) {
             return;
@@ -689,7 +688,7 @@ private:
             pair.first->second += delta;
         }
         auto Logger = NLogging::TLogger(TabletNodeLogger);
-        LOG_DEBUG("Accounting for the future effect of the compaction/partitioning (TabletId: %v, FutureEffect: %v -> %v)",
+        YT_LOG_DEBUG("Accounting for the future effect of the compaction/partitioning (TabletId: %v, FutureEffect: %v -> %v)",
             tabletId,
             pair.first->second - delta,
             pair.first->second);
@@ -718,25 +717,25 @@ private:
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task->TabletId);
         if (!tablet) {
-            LOG_DEBUG("Tablet is missing, aborting partitioning");
+            YT_LOG_DEBUG("Tablet is missing, aborting partitioning");
             return;
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId);
         if (!tabletSnapshot) {
-            LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
+            YT_LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
             return;
         }
 
         auto* eden = tablet->GetEden();
         if (eden->GetId() != task->PartitionId) {
-            LOG_DEBUG("Eden is missing, aborting partitioning");
+            YT_LOG_DEBUG("Eden is missing, aborting partitioning");
             return;
         }
 
         if (eden->GetState() != EPartitionState::Normal) {
-            LOG_DEBUG("Eden is in improper state, aborting partitioning (EdenState: %v)", eden->GetState());
+            YT_LOG_DEBUG("Eden is in improper state, aborting partitioning (EdenState: %v)", eden->GetState());
             return;
         }
 
@@ -747,13 +746,13 @@ private:
         for (const auto& storeId : task->StoreIds) {
             auto store = tablet->FindStore(storeId);
             if (!store || !eden->Stores().contains(store->AsSorted())) {
-                LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
+                YT_LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
                 return;
             }
             auto typedStore = store->AsSortedChunk();
             YCHECK(typedStore);
             if (typedStore->GetCompactionState() != EStoreCompactionState::None) {
-                LOG_DEBUG("Eden store is in improper state, aborting partitioning (StoreId: %v, CompactionState: %v)",
+                YT_LOG_DEBUG("Eden store is in improper state, aborting partitioning (StoreId: %v, CompactionState: %v)",
                     storeId,
                     typedStore->GetCompactionState());
                 return;
@@ -787,7 +786,7 @@ private:
             auto beginInstant = TInstant::Now();
             eden->SetCompactionTime(beginInstant);
 
-            LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
+            YT_LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "PartitionCount: %v, CompressedDataSize: %v, "
                 "ChunkCount: %v, CurrentTimestamp: %llx, RetentionConfig: %v)",
                 task->Slack,
@@ -811,7 +810,7 @@ private:
 
             NNative::ITransactionPtr transaction;
             {
-                LOG_INFO("Creating Eden partitioning transaction");
+                YT_LOG_INFO("Creating Eden partitioning transaction");
 
                 TTransactionStartOptions options;
                 options.CellTag = CellTagFromId(tabletSnapshot->TabletId);
@@ -828,7 +827,7 @@ private:
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
-                LOG_INFO("Eden partitioning transaction created (TransactionId: %v)",
+                YT_LOG_INFO("Eden partitioning transaction created (TransactionId: %v)",
                     transaction->GetId());
 
                 Logger.AddTag("TransactionId: %v", transaction->GetId());
@@ -897,7 +896,7 @@ private:
                 blockReadOptions.ChunkReaderStatistics,
                 PartitioningTag_);
 
-            LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
+            YT_LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,
                 storeIdsToAdd,
                 storeIdsToRemove,
@@ -922,7 +921,7 @@ private:
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Partitioning);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(error);
-            LOG_ERROR(error, "Error partitioning Eden, backing off");
+            YT_LOG_ERROR(error, "Error partitioning Eden, backing off");
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
@@ -976,7 +975,7 @@ private:
             if (currentWriter)
                 return;
 
-            LOG_INFO("Started writing partition (PartitionIndex: %v, Keys: %v .. %v)",
+            YT_LOG_INFO("Started writing partition (PartitionIndex: %v, Keys: %v .. %v)",
                 currentPartitionIndex,
                 currentPivotKey,
                 nextPivotKey);
@@ -1023,7 +1022,7 @@ private:
             flushOutputRows();
 
             if (currentWriter) {
-                LOG_INFO("Finished writing partition (PartitionIndex: %v, RowCount: %v)",
+                YT_LOG_INFO("Finished writing partition (PartitionIndex: %v, RowCount: %v)",
                     currentPartitionIndex,
                     currentPartitionRowCount);
 
@@ -1131,14 +1130,14 @@ private:
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task->TabletId);
         if (!tablet) {
-            LOG_DEBUG("Tablet is missing, aborting compaction");
+            YT_LOG_DEBUG("Tablet is missing, aborting compaction");
             return;
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId);
         if (!tabletSnapshot) {
-            LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
+            YT_LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
             return;
         }
 
@@ -1146,12 +1145,12 @@ private:
             ? tablet->GetEden()
             : tablet->FindPartition(task->PartitionId);
         if (!partition) {
-            LOG_DEBUG("Partition is missing, aborting compaction");
+            YT_LOG_DEBUG("Partition is missing, aborting compaction");
             return;
         }
 
         if (partition->GetState() != EPartitionState::Normal) {
-            LOG_DEBUG("Partition is in improper state, aborting compaction (PartitionState: %v)", partition->GetState());
+            YT_LOG_DEBUG("Partition is in improper state, aborting compaction (PartitionState: %v)", partition->GetState());
             return;
         }
 
@@ -1162,13 +1161,13 @@ private:
         for (const auto& storeId : task->StoreIds) {
             auto store = tablet->FindStore(storeId);
             if (!store || !partition->Stores().contains(store->AsSorted())) {
-                LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
+                YT_LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
                 return;
             }
             auto typedStore = store->AsSortedChunk();
             YCHECK(typedStore);
             if (typedStore->GetCompactionState() != EStoreCompactionState::None) {
-                LOG_DEBUG("Partition store is in improper state, aborting compaction (StoreId: %v, CompactionState: %v)",
+                YT_LOG_DEBUG("Partition store is in improper state, aborting compaction (StoreId: %v, CompactionState: %v)",
                     storeId,
                     typedStore->GetCompactionState());
                 return;
@@ -1206,7 +1205,7 @@ private:
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
-            LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
+            YT_LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "RowCount: %v, CompressedDataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, RetentionConfig: %v)",
                 task->Slack,
@@ -1232,7 +1231,7 @@ private:
 
             NNative::ITransactionPtr transaction;
             {
-                LOG_INFO("Creating partition compaction transaction");
+                YT_LOG_INFO("Creating partition compaction transaction");
 
                 TTransactionStartOptions options;
                 options.CellTag = CellTagFromId(tabletSnapshot->TabletId);
@@ -1249,7 +1248,7 @@ private:
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
-                LOG_INFO("Partition compaction transaction created (TransactionId: %v)",
+                YT_LOG_INFO("Partition compaction transaction created (TransactionId: %v)",
                     transaction->GetId());
 
                 Logger.AddTag("TransactionId: %v", transaction->GetId());
@@ -1318,7 +1317,7 @@ private:
                 blockReadOptions.ChunkReaderStatistics,
                 CompactionTag_);
 
-            LOG_INFO("Partition compaction completed (RowCount: %v, CompressedDataSize: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
+            YT_LOG_INFO("Partition compaction completed (RowCount: %v, CompressedDataSize: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 outputRowCount,
                 outputDataSize,
                 storeIdsToAdd,
@@ -1344,7 +1343,7 @@ private:
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
 
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
-            LOG_ERROR(error, "Error compacting partition, backing off");
+            YT_LOG_ERROR(error, "Error compacting partition, backing off");
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
@@ -1484,7 +1483,7 @@ private:
     {
         return std::min(
             config->MaxOverlappingStoreCount,
-            config->CriticalOverlappingStoreCount.Get(config->MaxOverlappingStoreCount));
+            config->CriticalOverlappingStoreCount.value_or(config->MaxOverlappingStoreCount));
     }
 };
 
@@ -1499,5 +1498,4 @@ void StartStoreCompactor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -3,8 +3,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/string.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,5 +247,4 @@ TString ToString(const TToken& token)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

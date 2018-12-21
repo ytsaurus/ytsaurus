@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/misc/public.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,5 +53,4 @@ using TNodeMemoryTrackerGuard = TMemoryUsageTrackerGuard<EMemoryCategory>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

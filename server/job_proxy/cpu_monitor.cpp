@@ -3,8 +3,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +54,7 @@ void TCpuMonitor::DoCheck()
 
     auto decision = TryMakeDecision();
     if (decision) {
-        LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)",
+        YT_LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)",
             SoftLimit_,
             *decision);
         SoftLimit_ = *decision;
@@ -73,20 +72,20 @@ bool TCpuMonitor::TryUpdateSmoothedValue()
     try {
         totalCpu = JobProxy_->GetSpentCpuTime();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Failed to get CPU statistics");
+        YT_LOG_ERROR(ex, "Failed to get CPU statistics");
         return false;
     }
 
     auto now = TInstant::Now();
-    bool canCalcSmoothedUsage = LastCheckTime_.HasValue() && LastTotalCpu_.HasValue();
+    bool canCalcSmoothedUsage = LastCheckTime_ && LastTotalCpu_;
     if (canCalcSmoothedUsage) {
         CheckedTimeInterval_ = (now - *LastCheckTime_);
         auto deltaCpu = totalCpu - *LastTotalCpu_;
         auto cpuUsage = deltaCpu / *CheckedTimeInterval_;
-        auto newSmoothedUsage = SmoothedUsage_.HasValue()
-            ? Config_->SmoothingFactor * cpuUsage + (1 - Config_->SmoothingFactor) * *SmoothedUsage_
+        auto newSmoothedUsage = SmoothedUsage_
+            ? Config_->SmoothingFactor * cpuUsage + (1 - Config_->SmoothingFactor) * (*SmoothedUsage_)
             : HardLimit_;
-        LOG_DEBUG("Smoothed CPU usage updated (OldValue: %v, NewValue: %v)",
+        YT_LOG_DEBUG("Smoothed CPU usage updated (OldValue: %v, NewValue: %v)",
             SmoothedUsage_,
             newSmoothedUsage);
         SmoothedUsage_ = newSmoothedUsage;
@@ -109,9 +108,9 @@ void TCpuMonitor::UpdateVotes()
     }
 }
 
-TNullable<double> TCpuMonitor::TryMakeDecision()
+std::optional<double> TCpuMonitor::TryMakeDecision()
 {
-    TNullable<double> result;
+    std::optional<double> result;
     if (Votes_.size() >= Config_->VoteWindowSize) {
         auto voteSum = 0;
         for (const auto vote : Votes_) {
@@ -153,5 +152,4 @@ void TCpuMonitor::UpdateAggregates()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

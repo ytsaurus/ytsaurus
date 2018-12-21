@@ -14,8 +14,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NChunkClient::NProto;
@@ -461,5 +460,4 @@ void TDataFlowGraph::BuildLegacyYson(TFluentMap fluent) const
 
 /////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

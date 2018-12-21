@@ -10,8 +10,7 @@
 
 #include <errno.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,7 +65,7 @@ inline void TEventCount::CancelWait()
     Y_ASSERT((prev & WaiterMask) != 0);
 }
 
-inline bool TEventCount::Wait(TCookie cookie, TNullable<TInstant> deadline)
+inline bool TEventCount::Wait(TCookie cookie, std::optional<TInstant> deadline)
 {
     bool result = true;
 #ifdef _linux_
@@ -75,8 +74,8 @@ inline bool TEventCount::Wait(TCookie cookie, TNullable<TInstant> deadline)
 
         if (deadline) {
             const auto now = TInstant::Now();
-            if (deadline.Get() > now) {
-                auto timeout = deadline.Get() - now;
+            if (*deadline > now) {
+                auto timeout = *deadline - now;
                 timeoutSpec.tv_sec = timeout.Seconds();
                 timeout -= TDuration::Seconds(timeout.Seconds());
                 timeoutSpec.tv_nsec = timeout.MicroSeconds() * 1000;
@@ -100,7 +99,7 @@ inline bool TEventCount::Wait(TCookie cookie, TNullable<TInstant> deadline)
     TGuard<TMutex> guard(Mutex_);
     if ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
         if (deadline) {
-            result = ConditionVariable_.WaitD(Mutex_, deadline.Get());
+            result = ConditionVariable_.WaitD(Mutex_, *deadline);
         } else {
             ConditionVariable_.WaitI(Mutex_);
         }
@@ -112,7 +111,7 @@ inline bool TEventCount::Wait(TCookie cookie, TNullable<TInstant> deadline)
 }
 
 template <class TCondition>
-bool TEventCount::Await(TCondition condition, TNullable<TInstant> deadline)
+bool TEventCount::Await(TCondition condition, std::optional<TInstant> deadline)
 {
     if (condition()) {
         // Fast path.
@@ -160,7 +159,7 @@ inline bool TEvent::Test() const
     return Set_.load(std::memory_order_acquire);
 }
 
-inline bool TEvent::Wait(TNullable<TInstant> deadline)
+inline bool TEvent::Wait(std::optional<TInstant> deadline)
 {
     return EventCount_.Await([=] () {
             return Set_.load(std::memory_order_acquire);
@@ -170,5 +169,4 @@ inline bool TEvent::Wait(TNullable<TInstant> deadline)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

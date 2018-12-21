@@ -3,8 +3,7 @@
 
 #include <yt/server/tablet_server/table_replica.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NObjectClient;
 using namespace NCypressServer;
@@ -50,6 +49,5 @@ TReplicatedTableNode::TReplicaSet& TReplicatedTableNode::Replicas()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

@@ -2,9 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +40,9 @@ struct TValue;
 
 class TReadJobSpec;
 
+DECLARE_REFCOUNTED_CLASS(TEngineConfig);
 DECLARE_REFCOUNTED_CLASS(TConfig);
+DECLARE_REFCOUNTED_CLASS(TUserConfig);
 DECLARE_REFCOUNTED_CLASS(TNativeClientCacheConfig);
 
 DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
@@ -50,6 +50,4 @@ DECLARE_REFCOUNTED_STRUCT(INativeClientCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

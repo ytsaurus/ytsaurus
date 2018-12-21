@@ -16,8 +16,7 @@
 
 #include <syslog.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 using namespace NFS;
 using namespace NProto;
@@ -67,7 +66,7 @@ protected:
             TString jobProxySocketNameFile = JobProxySocketNameDirectory_ + "/" + ToString(UserId_);
             if (JobProxySocketPath_ || Exists(jobProxySocketNameFile)) {
                 auto jobProxySocketName = JobProxySocketPath_
-                    ? JobProxySocketPath_.Get()
+                    ? *JobProxySocketPath_
                     : TUnbufferedFileInput(jobProxySocketNameFile).ReadLine();
                 ForwardCore(jobProxySocketName);
             } else {
@@ -155,13 +154,12 @@ protected:
 
     TString JobProxySocketNameDirectory_;
     TString FallbackPath_;
-    TNullable<TString> JobProxySocketPath_;
+    std::optional<TString> JobProxySocketPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump
 
 int main(int argc, const char** argv)
 {

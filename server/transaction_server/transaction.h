@@ -18,12 +18,11 @@
 
 #include <yt/ytlib/cypress_client/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,8 +31,8 @@ class TTransaction
     , public TRefTracked<TTransaction>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TString>, Title);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Title);
     DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, SecondaryCellTags);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
@@ -41,7 +40,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObjectBase*>, StagedObjects);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTransaction*>, PrerequisiteTransactions);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, DependentTransactions);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, Deadline);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, Deadline);
 
     struct TExportEntry
     {
@@ -70,7 +69,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
 public:
-    explicit TTransaction(const TTransactionId& id);
+    explicit TTransaction(TTransactionId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -79,11 +78,18 @@ public:
 
     NYson::TYsonString GetErrorDescription() const;
 
+    //! Returns true iff this transaction is (arbitrarily deeply) nested in #transaction.
+    /*!
+     *  A transaction is NOT a descendant of itself.
+     *  NB: complexity is O(number of intermediate descendants).
+     */
+    bool IsDescendantOf(TTransaction* transaction) const;
+
 private:
     void AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

@@ -31,6 +31,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/core/net/address.h>
 
@@ -55,8 +56,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 using namespace NAdmin;
 using namespace NBus;
@@ -82,6 +82,7 @@ TBootstrap::TBootstrap(TCellProxyConfigPtr config, INodePtr configNode)
     , ConfigNode_(std::move(configNode))
     , ControlQueue_(New<TActionQueue>("Control"))
     , WorkerPool_(New<TThreadPool>(Config_->WorkerThreadPoolSize, "Worker"))
+    , HttpPoller_(CreateThreadPoolPoller(1, "HttpPoller"))
 {
     WarnForUnrecognizedOptions(Logger, Config_);
 }
@@ -103,7 +104,7 @@ void TBootstrap::DoRun()
 {
     LocalAddresses_ = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
-    LOG_INFO("Starting proxy (LocalAddresses: %v, PrimaryMasterAddresses: %v)",
+    YT_LOG_INFO("Starting proxy (LocalAddresses: %v, PrimaryMasterAddresses: %v)",
         GetValues(LocalAddresses_),
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
@@ -117,7 +118,7 @@ void TBootstrap::DoRun()
 
     AuthenticationManager_ = New<TAuthenticationManager>(
         Config_,
-        GetControlInvoker(),
+        HttpPoller_,
         NativeClient_);
     ProxyCoordinator_ = CreateProxyCoordinator();
 
@@ -177,10 +178,10 @@ void TBootstrap::DoRun()
         "/orchid/",
         NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
-    LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
 
-    LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 
@@ -191,7 +192,7 @@ void TBootstrap::DoRun()
         int port;
         NNet::ParseServiceAddress(addresses[0]->Address, nullptr, &port);
 
-        LOG_INFO("Listening for GRPC requests on port %v", port);
+        YT_LOG_INFO("Listening for GRPC requests on port %v", port);
         GrpcServer_->Start();
     }
 }
@@ -238,5 +239,4 @@ const NNodeTrackerClient::TAddressMap& TBootstrap::GetLocalAddresses() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

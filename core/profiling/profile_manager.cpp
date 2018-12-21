@@ -21,8 +21,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_detail.h>
 
-namespace NYT {
-namespace NProfiling  {
+namespace NYT::NProfiling {
 
 using namespace NYTree;
 using namespace NYson;
@@ -201,8 +200,8 @@ private:
         }
 
         //! Gets samples with timestamp larger than #lastTime.
-        //! If #lastTime is #Null then all samples are returned.
-        TSamplesRange GetSamples(TNullable<TInstant> lastTime = Null)
+        //! If #lastTime is null then all samples are returned.
+        TSamplesRange GetSamples(std::optional<TInstant> lastTime = std::nullopt)
         {
             if (!lastTime) {
                 return make_pair(Samples.begin(), Samples.end());
@@ -230,9 +229,9 @@ private:
             return TYPathServiceBase::DoInvoke(context);
         }
 
-        static TNullable<TInstant> ParseInstant(TNullable<i64> value)
+        static std::optional<TInstant> ParseInstant(std::optional<i64> value)
         {
-            return value ? MakeNullable(TInstant::MicroSeconds(*value)) : Null;
+            return value ? std::make_optional(TInstant::MicroSeconds(*value)) : std::nullopt;
         }
 
         virtual void GetSelf(
@@ -377,7 +376,7 @@ private:
             return it->second;
         }
 
-        LOG_DEBUG("Creating bucket %v", path);
+        YT_LOG_DEBUG("Creating bucket %v", path);
         auto bucket = New<TBucket>();
         YCHECK(PathToBucket.insert(std::make_pair(path, bucket)).second);
 
@@ -408,7 +407,7 @@ private:
                     tags.insert(std::make_pair(tag.Key, tag.Value));
                 }
             }
-            LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)",
+            YT_LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)",
                 queuedSample.Path,
                 tags);
             ProfilingProfiler.Increment(DroppedCounter);
@@ -474,5 +473,4 @@ TTagId TProfileManager::RegisterTag(const TTag& tag)
 
 REGISTER_SHUTDOWN_CALLBACK(4, TProfileManager::StaticShutdown);
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling

@@ -6,8 +6,7 @@
 
 #include <queue>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,8 +31,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define NONBLOCKING_QUEUE_INL_H_
 #include "nonblocking_queue-inl.h"

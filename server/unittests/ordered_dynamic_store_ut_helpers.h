@@ -4,8 +4,7 @@
 
 #include <yt/client/table_client/schemaful_reader.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,6 +64,5 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

@@ -12,8 +12,7 @@
 
 #include <yt/core/skiff/skiff.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYson;
 using namespace NYTree;
@@ -25,7 +24,7 @@ void SerializeField(
     NSkiff::TSkiffSchemaPtr schema,
     const Py::Object& object,
     bool required,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     NSkiff::TCheckedInDebugSkiffWriter* skiffWriter)
 {
     if (!required) {
@@ -84,7 +83,7 @@ void SerializeSkiff(
     const TIntrusivePtr<TSkiffRecord>& record,
     NSkiff::TCheckedInDebugSkiffWriter* skiffWriter,
     const TIntrusivePtr<TSkiffSchema>& schema,
-    const TNullable<TString>& encoding)
+    const std::optional<TString>& encoding)
 {
     for (ui16 idx = 0; idx < schema->GetDenseFieldsCount(); ++idx) {
         const auto& fieldInfo = schema->GetDenceField(idx);
@@ -154,11 +153,11 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
     }
     auto schemas = Py::List(schemasArg);
 
-    TNullable<TString> encoding("utf-8");
+    std::optional<TString> encoding("utf-8");
     if (HasArgument(args, kwargs, "encoding")) {
         auto arg = ExtractArgument(args, kwargs, "encoding");
         if (arg.isNone()) {
-            encoding = Null;
+            encoding = std::nullopt;
         } else {
             encoding = ConvertStringObjectToString(arg);
         }
@@ -215,5 +214,4 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

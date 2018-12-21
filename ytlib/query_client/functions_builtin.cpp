@@ -31,8 +31,7 @@
 #include "udf/any_to_yson_string.h" // Y_IGNORE
 #endif
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 namespace NBuiltins {
 
 using namespace NTableClient;
@@ -1123,5 +1122,4 @@ const TConstAggregateProfilerMapPtr BuiltinAggregateProfilers = CreateBuiltinAgg
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

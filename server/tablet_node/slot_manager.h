@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +43,7 @@ public:
     double GetUsedCpu(double cpuPerTabletSlot) const;
 
     const std::vector<TTabletSlotPtr>& Slots() const;
-    TTabletSlotPtr FindSlot(const NHydra::TCellId& id);
+    TTabletSlotPtr FindSlot(NHydra::TCellId id);
     void CreateSlot(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo);
     void ConfigureSlot(TTabletSlotPtr slot, const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     void RemoveSlot(TTabletSlotPtr slot);
@@ -56,10 +55,10 @@ public:
     std::vector<TTabletSnapshotPtr> GetTabletSnapshots();
 
     //! Returns the snapshot for a given tablet or |nullptr| if none.
-    TTabletSnapshotPtr FindTabletSnapshot(const TTabletId& tabletId);
+    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId);
 
     //! Returns the snapshot for a given tablet or throws if no such tablet is known.
-    TTabletSnapshotPtr GetTabletSnapshotOrThrow(const TTabletId& tabletId);
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId);
 
     //! Checks that the current user is granted #permission access.
     //! If #timestamp is other than #AsyncLastCommitted then checks
@@ -105,5 +104,4 @@ DEFINE_REFCOUNTED_TYPE(TSlotManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -4,8 +4,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NMonitoring {
+namespace NYT::NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +13,4 @@ extern const NProfiling::TProfiler MonitoringProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalClient
-} // namespace NYT
+} // namespace NYT::NJournalClient

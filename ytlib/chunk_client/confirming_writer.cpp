@@ -26,8 +26,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NApi;
 using namespace NRpc;
@@ -50,8 +49,8 @@ public:
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         TCellTag cellTag,
-        const TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId,
+        TTransactionId transactionId,
+        TChunkListId parentChunkListId,
         TNodeDirectoryPtr nodeDirectory,
         NNative::IClientPtr client,
         IBlockCachePtr blockCache,
@@ -208,13 +207,13 @@ private:
             Logger);
 
         Logger.AddTag("ChunkId: %v", SessionId_);
-        LOG_DEBUG("Chunk created");
+        YT_LOG_DEBUG("Chunk created");
 
         UnderlyingWriter_ = CreateUnderlyingWriter();
         WaitFor(UnderlyingWriter_->Open())
             .ThrowOnError();
 
-        LOG_DEBUG("Chunk writer opened");
+        YT_LOG_DEBUG("Chunk writer opened");
     }
 
     IChunkWriterPtr CreateUnderlyingWriter() const
@@ -265,7 +264,7 @@ private:
             "Failed to close chunk %v",
             SessionId_.ChunkId);
 
-        LOG_DEBUG("Chunk closed");
+        YT_LOG_DEBUG("Chunk closed");
 
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicas();
         YCHECK(!replicas.empty());
@@ -311,7 +310,7 @@ private:
 
         Closed_ = true;
 
-        LOG_DEBUG("Chunk confirmed");
+        YT_LOG_DEBUG("Chunk confirmed");
     }
 };
 
@@ -321,8 +320,8 @@ IChunkWriterPtr CreateConfirmingWriter(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     TCellTag cellTag,
-    const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId,
+    TTransactionId transactionId,
+    TChunkListId parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NNative::IClientPtr client,
     IBlockCachePtr blockCache,
@@ -344,5 +343,4 @@ IChunkWriterPtr CreateConfirmingWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

@@ -2,8 +2,7 @@
 
 #include <yt/server/cell_master/multicell_manager.pb.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,5 +25,4 @@ NProto::TCellStatistics operator +  (const NProto::TCellStatistics& lhs, const N
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

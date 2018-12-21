@@ -14,8 +14,7 @@
 
 #include <yt/core/misc/async_expiring_cache.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -34,8 +33,8 @@ static const auto& Logger = TabletNodeLogger;
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     TSecurityManagerPtr securityManager,
-    const TNullable<TString>& maybeUser)
-    : TAuthenticatedUserGuardBase(std::move(securityManager), maybeUser)
+    const std::optional<TString>& optionalUser)
+    : TAuthenticatedUserGuardBase(std::move(securityManager), optionalUser)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +94,7 @@ private:
 
     virtual TFuture<void> DoGet(const TTablePermissionKey& key) override
     {
-        LOG_DEBUG("Table permission check started (Key: %v)",
+        YT_LOG_DEBUG("Table permission check started (Key: %v)",
             key);
 
         auto client = Bootstrap_->GetMasterClient();
@@ -107,13 +106,13 @@ private:
                     auto wrappedError = TError("Error checking permission for table %v",
                         key.TableId)
                         << resultOrError;
-                    LOG_WARNING(wrappedError);
+                    YT_LOG_WARNING(wrappedError);
                     THROW_ERROR wrappedError;
                 }
 
                 const auto& result = resultOrError.Value();
 
-                LOG_DEBUG("Table permission check complete (Key: %v, Action: %v)",
+                YT_LOG_DEBUG("Table permission check complete (Key: %v, Action: %v)",
                     key,
                     result.Action);
 
@@ -184,7 +183,7 @@ private:
 
     virtual TFuture<void> DoGet(const TResourceLimitsKey& key) override
     {
-        LOG_DEBUG("Resource limits violation check started (Key: %v)",
+        YT_LOG_DEBUG("Resource limits violation check started (Key: %v)",
             key);
 
         auto client = Bootstrap_->GetMasterClient();
@@ -196,13 +195,13 @@ private:
                     auto wrappedError = TError("Error getting resource limits for account %Qv",
                         key.Account)
                         << resultOrError;
-                    LOG_WARNING(wrappedError);
+                    YT_LOG_WARNING(wrappedError);
                     THROW_ERROR wrappedError;
                 }
 
                 const auto& node = ConvertToNode(resultOrError.Value());
 
-                LOG_DEBUG("Got resource limits violations for account %Qv: %Qv",
+                YT_LOG_DEBUG("Got resource limits violations for account %Qv: %Qv",
                     key.Account,
                     ConvertToYsonString(node, EYsonFormat::Text));
 
@@ -259,10 +258,10 @@ public:
     void ResetAuthenticatedUser()
     {
         Y_ASSERT(*AuthenticatedUser_);
-        AuthenticatedUser_->Reset();
+        AuthenticatedUser_->reset();
     }
 
-    TNullable<TString> GetAuthenticatedUserName()
+    std::optional<TString> GetAuthenticatedUserName()
     {
         return *AuthenticatedUser_;
     }
@@ -271,12 +270,12 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         EPermission permission)
     {
-        auto maybeUser = GetAuthenticatedUserName();
-        if (!maybeUser) {
+        auto optionalUser = GetAuthenticatedUserName();
+        if (!optionalUser) {
             return VoidFuture;
         }
 
-        TTablePermissionKey key{tabletSnapshot->TableId, *maybeUser, permission};
+        TTablePermissionKey key{tabletSnapshot->TableId, *optionalUser, permission};
         return TablePermissionCache_->Get(key);
     }
 
@@ -285,14 +284,14 @@ public:
         EPermission permission)
     {
         auto asyncResult = CheckPermission(std::move(tabletSnapshot), permission);
-        auto maybeResult = asyncResult.TryGet();
+        auto optionalResult = asyncResult.TryGet();
         TError result;
-        if (maybeResult) {
-            result = *maybeResult;
+        if (optionalResult) {
+            result = *optionalResult;
         } else {
-            LOG_DEBUG("Started waiting for persmission cache result");
+            YT_LOG_DEBUG("Started waiting for persmission cache result");
             result = WaitFor(asyncResult);
-            LOG_DEBUG("Finished waiting for persmission cache result");
+            YT_LOG_DEBUG("Finished waiting for persmission cache result");
         }
         result.ThrowOnError();
     }
@@ -311,8 +310,8 @@ public:
         EInMemoryMode inMemoryMode)
     {
         auto asyncResult = CheckResourceLimits(account, mediumName, inMemoryMode);
-        auto maybeResult = asyncResult.TryGet();
-        auto result = maybeResult ? *maybeResult : WaitFor(asyncResult);
+        auto optionalResult = asyncResult.TryGet();
+        auto result = optionalResult ? *optionalResult : WaitFor(asyncResult);
         result.ThrowOnError();
     }
 
@@ -323,7 +322,7 @@ private:
     const TTablePermissionCachePtr TablePermissionCache_;
     const TResourceLimitsCachePtr ResourceLimitsCache_;
 
-    TFls<TNullable<TString>> AuthenticatedUser_;
+    TFls<std::optional<TString>> AuthenticatedUser_;
 
 };
 
@@ -349,7 +348,7 @@ void TSecurityManager::ResetAuthenticatedUser()
     Impl_->ResetAuthenticatedUser();
 }
 
-TNullable<TString> TSecurityManager::GetAuthenticatedUserName()
+std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
 {
     return Impl_->GetAuthenticatedUserName();
 }
@@ -386,5 +385,4 @@ void TSecurityManager::ValidateResourceLimits(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

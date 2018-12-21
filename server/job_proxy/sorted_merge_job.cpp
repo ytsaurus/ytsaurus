@@ -14,8 +14,7 @@
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -71,7 +70,7 @@ public:
                 BlockReadOptions_,
                 TColumnFilter(),
                 keyColumns,
-                /* partitionTag */ Null,
+                /* partitionTag */ std::nullopt,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
                 Host_->GetOutRpsThrottler());
@@ -139,5 +138,4 @@ IJobPtr CreateSortedMergeJob(IJobHostPtr host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

@@ -6,8 +6,7 @@
 #include <array>
 #include <vector>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,5 +59,4 @@ i64 WriteSparseCoreDump(IInputStream* in, TFile* out)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

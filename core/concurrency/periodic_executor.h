@@ -6,8 +6,7 @@
 #include <yt/core/actions/callback.h>
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,5 +96,4 @@ DEFINE_REFCOUNTED_TYPE(TPeriodicExecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

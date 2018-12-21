@@ -84,7 +84,7 @@ bool TTableSchemaBuilder::AddColumn(const TColumnSchema& ytColumn)
     TColumn column;
     column.Name = ytColumn.Name();
     column.Type = RepresentYtType(ytPhysicalType);
-    if (ytColumn.SortOrder().HasValue()) {
+    if (ytColumn.SortOrder()) {
         column.SetSorted();
     }
     Columns.push_back(std::move(column));

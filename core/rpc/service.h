@@ -16,8 +16,7 @@
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,10 +52,10 @@ struct IServiceContext
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
     //! Returns the instant when the current retry of request was issued by the client, if known.
-    virtual TNullable<TInstant> GetStartTime() const = 0;
+    virtual std::optional<TInstant> GetStartTime() const = 0;
 
     //! Returns the client-specified request timeout, if any.
-    virtual TNullable<TDuration> GetTimeout() const = 0;
+    virtual std::optional<TDuration> GetTimeout() const = 0;
 
     //! Returns |true| if this is a duplicate copy of a previously sent (and possibly served) request.
     virtual bool IsRetry() const = 0;
@@ -72,7 +71,7 @@ struct IServiceContext
     virtual const TString& GetMethod() const = 0;
 
     //! Returns request realm id.
-    virtual const TRealmId& GetRealmId() const = 0;
+    virtual TRealmId GetRealmId() const = 0;
 
     //! Returns the name of the user issuing the request.
     virtual const TString& GetUser() const = 0;
@@ -190,7 +189,7 @@ DEFINE_REFCOUNTED_TYPE(IServiceContext)
 struct TServiceId
 {
     TServiceId();
-    TServiceId(const TString& serviceName, const TRealmId& realmId = NullRealmId);
+    TServiceId(const TString& serviceName, TRealmId realmId = NullRealmId);
 
     TString ServiceName;
     TRealmId RealmId;
@@ -230,7 +229,7 @@ struct IService
 
     //! Handles request cancelation.
     virtual void HandleRequestCancelation(
-        const TRequestId& requestId) = 0;
+        TRequestId requestId) = 0;
 
 };
 
@@ -238,8 +237,7 @@ DEFINE_REFCOUNTED_TYPE(IService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc
 
 //! A hasher for TServiceId.
 template <>

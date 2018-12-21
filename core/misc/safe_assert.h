@@ -3,7 +3,7 @@
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/misc/common.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 
 namespace NYT {
@@ -16,13 +16,13 @@ class TAssertionFailedException
 public:
     DEFINE_BYVAL_RO_PROPERTY(TString, Expression);
     DEFINE_BYVAL_RO_PROPERTY(TString, StackTrace);
-    DEFINE_BYVAL_RO_PROPERTY(TNullable<TString>, CorePath);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<TString>, CorePath);
 
 public:
     TAssertionFailedException(
         const TString& expression,
         const TString& stackTrace,
-        const TNullable<TString>& corePath);
+        const std::optional<TString>& corePath);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

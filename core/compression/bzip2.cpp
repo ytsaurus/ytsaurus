@@ -6,8 +6,7 @@
 
 #include <util/generic/utility.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 namespace {
 
@@ -132,5 +131,4 @@ void Bzip2Decompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression

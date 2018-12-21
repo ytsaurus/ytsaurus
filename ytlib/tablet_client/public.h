@@ -6,8 +6,7 @@
 
 #include <yt/client/tablet_client/public.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +25,13 @@ DEFINE_ENUM(ETabletBackgroundActivity,
     ((Flush)          (1))
     ((Partitioning)   (2))
     ((Preload)        (3))
+);
+
+DEFINE_ENUM(ETabletCellLifeStage,
+    (Running)
+    (DecommissioningOnMaster)
+    (DecommissioningOnNode)
+    (Decommissioned)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,6 +59,5 @@ DECLARE_REFCOUNTED_CLASS(TTabletCellConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient
 

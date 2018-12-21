@@ -2,9 +2,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NHttp {
+namespace NYT::NRpc::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,6 +10,4 @@ DECLARE_REFCOUNTED_CLASS(TServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NHttp

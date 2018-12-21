@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +78,5 @@ bool TFunctionContext::IsLiteralArg(int argIndex) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

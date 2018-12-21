@@ -10,8 +10,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +27,7 @@ public:
         NRpc::TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
         NSecurityServer::ISecurityManagerPtr securityManager,
-        const TCellId& selfCellId,
+        TCellId selfCellId,
         NTransactionClient::ITimestampProviderPtr timestampProvider,
         const std::vector<ITransactionParticipantProviderPtr>& participantProviders);
 
@@ -37,13 +36,16 @@ public:
     std::vector<NRpc::IServicePtr> GetRpcServices();
 
     TFuture<void> CommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TString& userName,
         const std::vector<NHydra::TCellId>& participantCellIds = std::vector<NHydra::TCellId>());
 
     TFuture<void> AbortTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force = false);
+
+    void Decommission();
+    bool IsDecommissioned() const;
 
 private:
     class TImpl;
@@ -56,5 +58,4 @@ DEFINE_REFCOUNTED_TYPE(TTransactionSupervisor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

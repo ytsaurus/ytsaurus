@@ -10,8 +10,7 @@
 //   * http://www.boost.org/doc/libs/1_48_0/libs/type_traits/doc/html/index.html
 //   * http://www.boost.org/doc/libs/1_48_0/libs/mpl/doc/index.html
 
-namespace NYT {
-namespace NMpl {
+namespace NYT::NMpl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -473,5 +472,4 @@ struct TNothrowMoveAssignable<T, Ts...>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMpl
-} // namespace NYT
+} // namespace NYT::NMpl

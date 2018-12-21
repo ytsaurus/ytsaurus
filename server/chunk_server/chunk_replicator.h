@@ -18,7 +18,7 @@
 #include <yt/core/erasure/public.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/small_set.h>
 
@@ -27,8 +27,7 @@
 #include <functional>
 #include <deque>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,6 +100,8 @@ public:
 
     void ScheduleJobs(
         TNode* node,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
         const std::vector<TJobPtr>& currentJobs,
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort,
@@ -154,8 +155,8 @@ private:
     struct TChunkRequisitionCache
     {
         TChunk::TParents LastChunkParents;
-        TNullable<TChunkRequisition> LastChunkUpdatedRequisition;
-        TNullable<TChunkRequisition> LastErasureChunkUpdatedRequisition;
+        std::optional<TChunkRequisition> LastChunkUpdatedRequisition;
+        std::optional<TChunkRequisition> LastErasureChunkUpdatedRequisition;
     };
 
     TChunkRequisitionCache ChunkRequisitionCache_;
@@ -194,7 +195,7 @@ private:
 
     const NConcurrency::IThroughputThrottlerPtr JobThrottler_;
 
-    TNullable<bool> Enabled_;
+    std::optional<bool> Enabled_;
 
     NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime = {};
     // Cached from InterDCEdgeConsumption and InterDCEdgeCapacities.
@@ -232,6 +233,8 @@ private:
         TJobPtr* job);
     void ScheduleNewJobs(
         TNode* node,
+        NNodeTrackerClient::NProto::TNodeResources resourceUsage,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort);
 
@@ -303,6 +306,11 @@ private:
 
     bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
 
+    //! Same as corresponding #TChunk methods but replication factors are capped by medium-specific bounds.
+    TChunkReplication GetChunkAggregatedReplication(const TChunk* chunk);
+    int GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex);
+    TPerMediumIntArray GetChunkAggregatedReplicationFactors(const TChunk* chunk);
+
     void OnRequisitionUpdate();
     void ComputeChunkRequisitionUpdate(TChunk* chunk, NProto::TReqUpdateChunkRequisition* request);
 
@@ -353,5 +361,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkReplicator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

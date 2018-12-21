@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 using namespace NYTree;
 using namespace NYson;
@@ -92,16 +91,16 @@ private:
     bool IsVotingPeer();
 
     void StartVotingRound();
-    void ContinueVoting(TPeerId voteId, const TEpochId& voteEpochId);
+    void ContinueVoting(TPeerId voteId, TEpochId voteEpochId);
     void StartVoting();
 
     void StartLeading();
-    void StartFollowing(TPeerId leaderId, const TEpochId& epoch);
+    void StartFollowing(TPeerId leaderId, TEpochId epoch);
 
     void StopLeading();
     void StopFollowing();
 
-    void InitEpochContext(TPeerId leaderId, const TEpochId& epoch);
+    void InitEpochContext(TPeerId leaderId, TEpochId epoch);
     void SetState(EPeerState newState);
 
     void OnPeerReconfigured(TPeerId peerId);
@@ -150,7 +149,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Sending ping to follower (PeerId: %v)", peerId);
+        YT_LOG_DEBUG("Sending ping to follower (PeerId: %v)", peerId);
 
         TElectionServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
@@ -187,13 +186,13 @@ private:
 
     void OnPingResponseSuccess(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr rsp)
     {
-        LOG_DEBUG("Ping reply from follower (PeerId: %v)", id);
+        YT_LOG_DEBUG("Ping reply from follower (PeerId: %v)", id);
 
         if (Owner->PotentialFollowers.find(id) != Owner->PotentialFollowers.end()) {
-            LOG_INFO("Follower is up, first success (PeerId: %v)", id);
+            YT_LOG_INFO("Follower is up, first success (PeerId: %v)", id);
             YCHECK(Owner->PotentialFollowers.erase(id) == 1);
         } else if (Owner->AliveFollowers.find(id) == Owner->AliveFollowers.end()) {
-            LOG_INFO("Follower is up (PeerId: %v)", id);
+            YT_LOG_INFO("Follower is up (PeerId: %v)", id);
             YCHECK(Owner->AliveFollowers.insert(id).second);
         }
 
@@ -210,23 +209,23 @@ private:
             // These errors are possible during grace period.
             if (Owner->PotentialFollowers.find(id) == Owner->PotentialFollowers.end()) {
                 if (Owner->AliveFollowers.erase(id) > 0) {
-                    LOG_WARNING(error, "Error pinging follower %v, considered down",
+                    YT_LOG_WARNING(error, "Error pinging follower %v, considered down",
                         id);
                 }
             } else {
                 if (TInstant::Now() > Owner->EpochContext->StartTime + Owner->Config->FollowerGraceTimeout) {
-                    LOG_WARNING(error, "Error pinging follower %v, no success within grace period, considered down",
+                    YT_LOG_WARNING(error, "Error pinging follower %v, no success within grace period, considered down",
                         id);
                     Owner->PotentialFollowers.erase(id);
                     Owner->AliveFollowers.erase(id);
                 } else {
-                    LOG_INFO(error, "Error pinging follower %v, will retry later",
+                    YT_LOG_INFO(error, "Error pinging follower %v, will retry later",
                         id);
                 }
             }
         } else {
             if (Owner->AliveFollowers.erase(id) > 0) {
-                LOG_WARNING(error, "Error pinging follower %v, considered down",
+                YT_LOG_WARNING(error, "Error pinging follower %v, considered down",
                     id);
                 Owner->PotentialFollowers.erase(id);
             }
@@ -266,7 +265,7 @@ public:
 
         auto cellManager = Owner->CellManager;
 
-        LOG_DEBUG("New voting round started");
+        YT_LOG_DEBUG("New voting round started");
 
         if (Owner->IsVotingPeer()) {
             ProcessVote(
@@ -320,7 +319,7 @@ private:
             EPeerState state = EPeerState::Stopped,
             TPeerId vote = InvalidPeerId,
             TPeerPriority priority = -1,
-            const TEpochId& voteEpochId = TEpochId())
+            TEpochId voteEpochId = TEpochId())
             : State(state)
             , VoteId(vote)
             , Priority(priority)
@@ -339,7 +338,7 @@ private:
 
     void ProcessVote(TPeerId id, const TStatus& status)
     {
-        LOG_DEBUG("Vote received (PeerId: %v, State: %v, VoteId: %v, Priority: %v)",
+        YT_LOG_DEBUG("Vote received (PeerId: %v, State: %v, VoteId: %v, Priority: %v)",
             id,
             status.State,
             status.VoteId,
@@ -363,7 +362,7 @@ private:
             return;
 
         if (!rspOrError.IsOK()) {
-            LOG_INFO(rspOrError, "Error requesting status from peer %v",
+            YT_LOG_INFO(rspOrError, "Error requesting status from peer %v",
                 id);
             return;
         }
@@ -399,7 +398,7 @@ private:
             return false;
         }
 
-        LOG_DEBUG("Candidate has quorum (PeerId: %v, VoteCount: %v, QuorumCount: %v)",
+        YT_LOG_DEBUG("Candidate has quorum (PeerId: %v, VoteCount: %v, QuorumCount: %v)",
             candidateId,
             voteCount,
             quorumCount);
@@ -422,7 +421,7 @@ private:
         return true;
     }
 
-    int CountVotesFor(TPeerId candidateId, const TEpochId& epochId) const
+    int CountVotesFor(TPeerId candidateId, TEpochId epochId) const
     {
         int result = 0;
         for (const auto& pair : StatusTable) {
@@ -471,10 +470,10 @@ private:
         if (Finished)
             return;
 
-        LOG_DEBUG("Voting round completed");
+        YT_LOG_DEBUG("Voting round completed");
 
         // Choose the best vote.
-        TNullable<TStatus> bestCandidate;
+        std::optional<TStatus> bestCandidate;
         for (const auto& pair : StatusTable) {
             const auto& currentCandidate = pair.second;
             if (StatusTable.find(currentCandidate.VoteId) != StatusTable.end() &&
@@ -600,7 +599,7 @@ void TDistributedElectionManager::OnLeaderPingLeaseExpired()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("No recurrent ping from leader within timeout");
+    YT_LOG_INFO("No recurrent ping from leader within timeout");
 
     YCHECK(State == EPeerState::Following);
     StopFollowing();
@@ -619,13 +618,13 @@ void TDistributedElectionManager::DoParticipate()
             break;
 
         case EPeerState::Leading:
-            LOG_INFO("Leader restart forced");
+            YT_LOG_INFO("Leader restart forced");
             StopLeading();
             StartVoting();
             break;
 
         case EPeerState::Following:
-            LOG_INFO("Follower restart forced");
+            YT_LOG_INFO("Follower restart forced");
             StopFollowing();
             StartVoting();
             break;
@@ -665,7 +664,7 @@ bool TDistributedElectionManager::CheckQuorum()
         return true;
     }
 
-    LOG_WARNING("Quorum is lost");
+    YT_LOG_WARNING("Quorum is lost");
     
     StopLeading();
 
@@ -678,7 +677,7 @@ bool TDistributedElectionManager::IsVotingPeer()
     return config.Voting;
 }
 
-void TDistributedElectionManager::ContinueVoting(TPeerId voteId, const TEpochId& voteEpoch)
+void TDistributedElectionManager::ContinueVoting(TPeerId voteId, TEpochId voteEpoch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -686,7 +685,7 @@ void TDistributedElectionManager::ContinueVoting(TPeerId voteId, const TEpochId&
     VoteId = voteId;
     VoteEpochId = voteEpoch;
 
-    LOG_DEBUG("Voting for another candidate (VoteId: %v, VoteEpochId: %v)",
+    YT_LOG_DEBUG("Voting for another candidate (VoteId: %v, VoteEpochId: %v)",
         VoteId,
         VoteEpochId);
 
@@ -710,12 +709,12 @@ void TDistributedElectionManager::StartVoting()
 
     if (IsVotingPeer()) {
         VoteId = CellManager->GetSelfPeerId();
-        LOG_DEBUG("Voting for self (VoteId: %v, VoteEpochId: %v)",
+        YT_LOG_DEBUG("Voting for self (VoteId: %v, VoteEpochId: %v)",
             VoteId,
             VoteEpochId);
     } else {
         VoteId = InvalidPeerId;
-        LOG_DEBUG("Voting for nobody (VoteEpochId: %v)",
+        YT_LOG_DEBUG("Voting for nobody (VoteEpochId: %v)",
             VoteEpochId);
     }
 
@@ -757,7 +756,7 @@ void TDistributedElectionManager::StartLeading()
     FollowerPinger = New<TFollowerPinger>(this);
     FollowerPinger->Run();
 
-    LOG_INFO("Started leading (EpochId: %v)",
+    YT_LOG_INFO("Started leading (EpochId: %v)",
         EpochContext->EpochId);
 
     ElectionCallbacks->OnStartLeading(EpochContext);
@@ -765,7 +764,7 @@ void TDistributedElectionManager::StartLeading()
 
 void TDistributedElectionManager::StartFollowing(
     TPeerId leaderId,
-    const TEpochId& epochId)
+    TEpochId epochId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -780,7 +779,7 @@ void TDistributedElectionManager::StartFollowing(
         BIND(&TDistributedElectionManager::OnLeaderPingLeaseExpired, MakeWeak(this))
             .Via(ControlEpochInvoker));
 
-    LOG_INFO("Started following (LeaderId: %v, EpochId: %v)",
+    YT_LOG_INFO("Started following (LeaderId: %v, EpochId: %v)",
         EpochContext->LeaderId,
         EpochContext->EpochId);
 
@@ -792,7 +791,7 @@ void TDistributedElectionManager::StopLeading()
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Leading);
 
-    LOG_INFO("Stopped leading (EpochId: %v)",
+    YT_LOG_INFO("Stopped leading (EpochId: %v)",
         EpochContext->EpochId);
 
     ElectionCallbacks->OnStopLeading();
@@ -808,7 +807,7 @@ void TDistributedElectionManager::StopFollowing()
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Following);
 
-    LOG_INFO("Stopped following (LeaderId: %v, EpochId: %v)",
+    YT_LOG_INFO("Stopped following (LeaderId: %v, EpochId: %v)",
         EpochContext->LeaderId,
         EpochContext->EpochId);
 
@@ -817,7 +816,7 @@ void TDistributedElectionManager::StopFollowing()
     Reset();
 }
 
-void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, const TEpochId& epochId)
+void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, TEpochId epochId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -832,7 +831,7 @@ void TDistributedElectionManager::SetState(EPeerState newState)
         return;
 
     // This generic message logged to simplify tracking state changes.
-    LOG_INFO("State changed: %v -> %v",
+    YT_LOG_INFO("State changed: %v -> %v",
         State,
         newState);
     State = newState;
@@ -948,5 +947,4 @@ IElectionManagerPtr CreateDistributedElectionManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

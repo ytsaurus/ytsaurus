@@ -30,8 +30,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -397,7 +396,7 @@ public:
             }
         }
 
-        LOG_INFO("Operations cleaner config updated (Enable: %v, EnableArchivation: %v)",
+        YT_LOG_INFO("Operations cleaner config updated (Enable: %v, EnableArchivation: %v)",
             Config_->Enable,
             Config_->EnableArchivation);
     }
@@ -423,7 +422,7 @@ public:
         ArchiveTimeToOperationIdMap_.emplace(deadline, id);
         YCHECK(OperationMap_.emplace(id, std::move(request)).second);
 
-        LOG_DEBUG("Operation submitted for archivation (OperationId: %v, ArchivationStartTime: %v)",
+        YT_LOG_DEBUG("Operation submitted for archivation (OperationId: %v, ArchivationStartTime: %v)",
             id,
             deadline);
     }
@@ -437,7 +436,7 @@ public:
         }
 
         EnqueueForRemoval(request.Id);
-        LOG_DEBUG("Operation submitted for removal (OperationId: %v)", request.Id);
+        YT_LOG_DEBUG("Operation submitted for removal (OperationId: %v)", request.Id);
     }
 
     void SetArchiveVersion(int version)
@@ -546,7 +545,7 @@ private:
                 GetInvoker()->Invoke(BIND(&TImpl::FetchFinishedOperations, MakeStrong(this)));
             }
 
-            LOG_INFO("Operations cleaner started");
+            YT_LOG_INFO("Operations cleaner started");
         }
     }
 
@@ -557,7 +556,7 @@ private:
             TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
             Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
-            LOG_INFO("Operations archivation started");
+            YT_LOG_INFO("Operations archivation started");
         }
     }
 
@@ -571,7 +570,7 @@ private:
         TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
         Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
-        LOG_INFO("Operations archivation stopped");
+        YT_LOG_INFO("Operations archivation stopped");
     }
 
     void DoStop()
@@ -600,18 +599,18 @@ private:
         Profiler.Update(ArchivePendingCounter_, 0);
         Profiler.Update(RemovePendingCounter_, 0);
 
-        LOG_INFO("Operations cleaner stopped");
+        YT_LOG_INFO("Operations cleaner stopped");
     }
 
     void OnAnalyzeOperations()
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-        LOG_INFO("Analyzing operations submitted for archivation (SubmittedOperationCount: %v)",
+        YT_LOG_INFO("Analyzing operations submitted for archivation (SubmittedOperationCount: %v)",
             ArchiveTimeToOperationIdMap_.size());
 
         if (ArchiveTimeToOperationIdMap_.empty()) {
-            LOG_INFO("No operations submitted for archivation");
+            YT_LOG_INFO("No operations submitted for archivation");
             return;
         }
 
@@ -669,31 +668,31 @@ private:
             }
         }
 
-        LOG_INFO("Finished analyzing operations submitted for archivation "
+        YT_LOG_INFO("Finished analyzing operations submitted for archivation "
             "(RetainedCount: %v, EnqueuedForArchivationCount: %v)",
             retainedCount,
             enqueuedForArchivationCount);
     }
 
-    void EnqueueForRemoval(const TOperationId& operationId)
+    void EnqueueForRemoval(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_DEBUG("Operation enqueued for removal (OperationId: %v)", operationId);
+        YT_LOG_DEBUG("Operation enqueued for removal (OperationId: %v)", operationId);
         Profiler.Increment(RemovePendingCounter_, 1);
         RemoveBatcher_.Enqueue(operationId);
     }
 
-    void EnqueueForArchivation(const TOperationId& operationId)
+    void EnqueueForArchivation(TOperationId operationId)
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-        LOG_DEBUG("Operation enqueued for archivation (OperationId: %v)", operationId);
+        YT_LOG_DEBUG("Operation enqueued for archivation (OperationId: %v)", operationId);
         Profiler.Increment(ArchivePendingCounter_, 1);
         ArchiveBatcher_.Enqueue(operationId);
     }
 
-    void CleanOperation(const TOperationId& operationId)
+    void CleanOperation(TOperationId operationId)
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -718,7 +717,7 @@ private:
         auto transaction = WaitFor(asyncTransaction)
             .ValueOrThrow();
 
-        LOG_DEBUG("Operations archivation transaction started (TransactionId: %v, OperationCount: %v)",
+        YT_LOG_DEBUG("Operations archivation transaction started (TransactionId: %v, OperationCount: %v)",
             transaction->GetId(),
             operationIds.size());
 
@@ -793,7 +792,7 @@ private:
 
         i64 totalDataWeight = orderedByIdRowsDataWeight + orderedByStartTimeRowsDataWeight;
 
-        LOG_DEBUG("Started committing archivation transaction (TransactionId: %v, OperationCount: %v, OrderedByIdRowsDataWeight: %v, "
+        YT_LOG_DEBUG("Started committing archivation transaction (TransactionId: %v, OperationCount: %v, OrderedByIdRowsDataWeight: %v, "
             "OrderedByStartTimeRowsDataWeight: %v, TotalDataWeight: %v)",
             transaction->GetId(),
             operationIds.size(),
@@ -804,7 +803,7 @@ private:
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        LOG_DEBUG("Finished committing archivation transaction (TransactionId: %v)", transaction->GetId());
+        YT_LOG_DEBUG("Finished committing archivation transaction (TransactionId: %v)", transaction->GetId());
 
         Profiler.Increment(CommittedDataWeightCounter_, totalDataWeight);
         Profiler.Increment(ArchivedCounter_, operationIds.size());
@@ -828,7 +827,7 @@ private:
                     TryArchiveOperations(batch);
                     break;
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Failed to archive operations (PendingCount: %v)",
+                    YT_LOG_WARNING(ex, "Failed to archive operations (PendingCount: %v)",
                         ArchivePendingCounter_.GetCurrent());
                     Profiler.Increment(ArchiveErrorCounter_, 1);
                 }
@@ -869,7 +868,7 @@ private:
             .ValueOrThrow();
 
         if (!batch.empty()) {
-            LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", batch.size());
+            YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", batch.size());
 
             std::vector<TOperationId> failedOperationIds;
             std::vector<TOperationId> operationIdsToRemove;
@@ -912,7 +911,7 @@ private:
                         }
                     }
                 } else {
-                    LOG_WARNING(
+                    YT_LOG_WARNING(
                         batchRspOrError,
                         "Failed to get lock count for operations from Cypress (OperationCount: %v)",
                         batch.size());
@@ -946,7 +945,7 @@ private:
 
                         auto rsp = rsps[index];
                         if (!rsp.IsOK()) {
-                            LOG_DEBUG(
+                            YT_LOG_DEBUG(
                                 rsp,
                                 "Failed to remove finished operation from Cypress (OperationId: %v)",
                                 operationId);
@@ -955,7 +954,7 @@ private:
                         }
                     }
                 } else {
-                    LOG_WARNING(
+                    YT_LOG_WARNING(
                         batchRspOrError,
                         "Failed to remove finished operations from Cypress (OperationCount: %v)",
                         operationIdsToRemove.size());
@@ -968,7 +967,7 @@ private:
 
             YCHECK(batch.size() >= failedOperationIds.size());
             int removedCount = batch.size() - failedOperationIds.size();
-            LOG_DEBUG("Successfully removed %v operations from Cypress", removedCount);
+            YT_LOG_DEBUG("Successfully removed %v operations from Cypress", removedCount);
 
             Profiler.Increment(RemovedCounter_, removedCount);
             Profiler.Increment(RemoveErrorCounter_, failedOperationIds.size());
@@ -1006,7 +1005,7 @@ private:
             TError("Max enqueued operations limit reached; archivation is temporarily disabled")
             << TErrorAttribute("enable_time", enableTime));
 
-        LOG_INFO("Archivation is temporarily disabled (EnableTime: %v)", enableTime);
+        YT_LOG_INFO("Archivation is temporarily disabled (EnableTime: %v)", enableTime);
     }
 
     void FetchFinishedOperations()
@@ -1015,13 +1014,13 @@ private:
             DoFetchFinishedOperations();
         } catch (const std::exception& ex) {
             // NOTE(asaitgalin): Maybe disconnect? What can we do here?
-            LOG_WARNING(ex, "Failed to fetch finished operations from Cypress");
+            YT_LOG_WARNING(ex, "Failed to fetch finished operations from Cypress");
         }
     }
 
     void DoFetchFinishedOperations()
     {
-        LOG_INFO("Fetching all finished operations from Cypress");
+        YT_LOG_INFO("Fetching all finished operations from Cypress");
 
         auto createBatchRequest = BIND([this] {
             auto channel = Client_->GetMasterChannelOrThrow(
@@ -1052,10 +1051,10 @@ private:
             SubmitForArchivation(std::move(operation));
         }
 
-        LOG_INFO("Fetched and processed all finished operations");
+        YT_LOG_INFO("Fetched and processed all finished operations");
     }
 
-    const TArchiveOperationRequest& GetRequest(const TOperationId& operationId) const
+    const TArchiveOperationRequest& GetRequest(TOperationId operationId) const
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1207,5 +1206,4 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

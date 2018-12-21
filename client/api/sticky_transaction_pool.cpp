@@ -3,8 +3,7 @@
 #include "transaction.h"
 #include <yt/core/concurrency/lease_manager.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,14 +35,14 @@ public:
         transaction->SubscribeAborted(
             BIND(&TStickyTransactionPool::OnStickyTransactionFinished, MakeWeak(this), transactionId));
 
-        LOG_DEBUG("Sticky transaction registered (TransactionId: %v)",
+        YT_LOG_DEBUG("Sticky transaction registered (TransactionId: %v)",
             transactionId);
 
         return transaction;
     }
 
     virtual ITransactionPtr GetTransactionAndRenewLease(
-        const NTransactionClient::TTransactionId& transactionId) override
+        NTransactionClient::TTransactionId transactionId) override
     {
         ITransactionPtr transaction;
         NConcurrency::TLease lease;
@@ -61,7 +60,7 @@ public:
             lease = entry.Lease;
         }
         NConcurrency::TLeaseManager::RenewLease(lease);
-        LOG_DEBUG("Sticky transaction lease renewed (TransactionId: %v)",
+        YT_LOG_DEBUG("Sticky transaction lease renewed (TransactionId: %v)",
             transactionId);
         return transaction;
     }
@@ -78,7 +77,7 @@ private:
 
     const NLogging::TLogger& Logger;
 
-    void OnStickyTransactionLeaseExpired(const NTransactionClient::TTransactionId& transactionId)
+    void OnStickyTransactionLeaseExpired(NTransactionClient::TTransactionId transactionId)
     {
         ITransactionPtr transaction;
         {
@@ -91,12 +90,12 @@ private:
             IdToStickyTransactionEntry_.erase(it);
         }
 
-        LOG_DEBUG("Sticky transaction lease expired (TransactionId: %v)",
+        YT_LOG_DEBUG("Sticky transaction lease expired (TransactionId: %v)",
             transactionId);
 
         transaction->Abort();
     }
-    void OnStickyTransactionFinished(const NTransactionClient::TTransactionId& transactionId)
+    void OnStickyTransactionFinished(NTransactionClient::TTransactionId transactionId)
     {
         NConcurrency::TLease lease;
         {
@@ -109,7 +108,7 @@ private:
             IdToStickyTransactionEntry_.erase(it);
         }
 
-        LOG_DEBUG("Sticky transaction unregistered (TransactionId: %v)",
+        YT_LOG_DEBUG("Sticky transaction unregistered (TransactionId: %v)",
             transactionId);
 
         NConcurrency::TLeaseManager::CloseLease(lease);
@@ -126,5 +125,4 @@ IStickyTransactionPoolPtr CreateStickyTransactionPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi

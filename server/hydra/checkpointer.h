@@ -15,8 +15,7 @@
 
 #include <tuple>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +77,7 @@ private:
     bool BuildingSnapshot_ = false;
     bool RotatingChangelogs_ = false;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     class TSession;
 
@@ -91,5 +90,4 @@ DEFINE_REFCOUNTED_TYPE(TCheckpointer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

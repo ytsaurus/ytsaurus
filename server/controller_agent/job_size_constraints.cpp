@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 using namespace NTableClient;
@@ -53,9 +52,9 @@ public:
         }
     }
 
-    virtual TNullable<double> GetSamplingRate() const override
+    virtual std::optional<double> GetSamplingRate() const override
     {
-        return SamplingConfig_ ? SamplingConfig_->SamplingRate : Null;
+        return SamplingConfig_ ? SamplingConfig_->SamplingRate : std::nullopt;
     }
 
     virtual i64 GetSamplingDataWeightPerJob() const override
@@ -129,7 +128,7 @@ public:
 
     virtual void UpdateInputDataWeight(i64 inputDataWeight) override
     {
-        LOG_DEBUG("Job size constraints input data weight updated (OldInputDataWeight: %v, NewInputDataWeight: %v)",
+        YT_LOG_DEBUG("Job size constraints input data weight updated (OldInputDataWeight: %v, NewInputDataWeight: %v)",
             InputDataWeight_,
             inputDataWeight);
         InputDataWeight_ = inputDataWeight;
@@ -170,8 +169,8 @@ private:
     i64 InitialInputDataWeight_ = -1;
     TOperationOptionsPtr Options_;
     TOperationSpecBasePtr Spec_;
-    TNullable<i64> SamplingDataWeightPerJob_;
-    TNullable<i64> SamplingPrimaryDataWeightPerJob_;
+    std::optional<i64> SamplingDataWeightPerJob_;
+    std::optional<i64> SamplingPrimaryDataWeightPerJob_;
     TSamplingConfigPtr SamplingConfig_;
 
     void InitializeSampling()
@@ -190,7 +189,7 @@ private:
         i64 minSamplingJobDataWeightForSliceCountFit = InitialInputDataWeight_ / maxJobCountForSliceCountFit;
         SamplingDataWeightPerJob_ = std::max<i64>({1, minSamplingJobDataWeightForIOEfficiency, minSamplingJobDataWeightForSliceCountFit});
         SamplingPrimaryDataWeightPerJob_ = std::max<i64>(1, minSamplingJobPrimaryDataWeightForIOEfficiency);
-        LOG_INFO(
+        YT_LOG_INFO(
             "Sampling parameters calculated (InitialInputDataWeight: %v, SamplingRate: %v, InputDataWeight: %v, "
             "PrimaryInputDataWeight: %v, MinSamplingJobDataWeightForIOEfficiency: %v, "
             "MinSamplingJobPrimaryDataWeightForIOEfficiency: %v, MaxJobCountForSliceCountFit: %v, "
@@ -245,7 +244,7 @@ public:
         if (Spec_->JobCount) {
             JobCount_ = *Spec_->JobCount;
         } else if (PrimaryInputDataWeight_ > 0) {
-            i64 dataWeightPerJob = Spec_->DataWeightPerJob.Get(Options_->DataWeightPerJob);
+            i64 dataWeightPerJob = Spec_->DataWeightPerJob.value_or(Options_->DataWeightPerJob);
 
             if (dataWeightRatio < 1) {
                 // This means that uncompressed data size is larger than data weight,
@@ -291,7 +290,7 @@ public:
     {
         // If #DataWeightPerJob == 1, we guarantee #JobCount == #RowCount (if row count doesn't exceed #MaxJobCount).
         return static_cast<bool>(Spec_->JobCount) ||
-            (static_cast<bool>(Spec_->DataWeightPerJob) && Spec_->DataWeightPerJob.Get() == 1);
+            (static_cast<bool>(Spec_->DataWeightPerJob) && *Spec_->DataWeightPerJob == 1);
     }
 
     virtual i64 GetDataWeightPerJob() const override
@@ -318,8 +317,8 @@ public:
 
     virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && Spec_->JobCount.Get() > 0
-            ? DivCeil<i64>(InputChunkCount_, Spec_->JobCount.Get())
+        return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
+            ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
             : 1);
     }
 
@@ -450,8 +449,8 @@ public:
 
     virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && Spec_->JobCount.Get() > 0
-            ? DivCeil<i64>(InputChunkCount_, Spec_->JobCount.Get())
+        return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
+            ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
             : 1);
     }
 
@@ -687,7 +686,7 @@ public:
         i64 maxPrimaryDataWeightPerJob,
         i64 inputSliceDataWeight,
         i64 inputSliceRowCount,
-        TNullable<double> samplingRate,
+        std::optional<double> samplingRate,
         i64 samplingDataWeightPerJob,
         i64 samplingPrimaryDataWeightPerJob,
         i64 maxBuildRetryCount,
@@ -759,7 +758,7 @@ public:
         return InputSliceRowCount_;
     }
 
-    virtual TNullable<double> GetSamplingRate() const override
+    virtual std::optional<double> GetSamplingRate() const override
     {
         return SamplingRate_;
     }
@@ -824,7 +823,7 @@ private:
     i64 MaxPrimaryDataWeightPerJob_;
     i64 InputSliceDataWeight_;
     i64 InputSliceRowCount_;
-    TNullable<double> SamplingRate_;
+    std::optional<double> SamplingRate_;
     i64 SamplingDataWeightPerJob_;
     i64 SamplingPrimaryDataWeightPerJob_;
     i64 MaxBuildRetryCount_;
@@ -919,10 +918,10 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     i64 jobsPerPartition = DivCeil(
         options->MaxOutputTablesTimesJobsCount,
         outputTableCount * options->MaxPartitionCount);
-    i64 estimatedDataSizePerPartition = 2 * spec->DataWeightPerSortedJob.Get(spec->DataWeightPerShuffleJob);
+    i64 estimatedDataSizePerPartition = 2 * spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob);
 
     i64 minDataWeightPerJob = std::max(estimatedDataSizePerPartition / jobsPerPartition, (i64)1);
-    i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.Get(spec->DataWeightPerShuffleJob));
+    i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
         false /* canAdjustDataSizePerJob */,
@@ -935,7 +934,7 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
         std::numeric_limits<i64>::max() /* maxPrimaryDataWeightPerJob */,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
         std::numeric_limits<i64>::max() /* inputSliceRowCount */,
-        Null /* samplingRate */);
+        std::nullopt /* samplingRate */);
 }
 
 IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
@@ -949,7 +948,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 maxPrimaryDataWeightPerJob,
     i64 inputSliceDataSize,
     i64 inputSliceRowCount,
-    TNullable<double> samplingRate,
+    std::optional<double> samplingRate,
     i64 samplingDataWeightPerJob,
     i64 samplingPrimaryDataWeightPerJob,
     i64 maxBuildRetryCount,
@@ -975,5 +974,4 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

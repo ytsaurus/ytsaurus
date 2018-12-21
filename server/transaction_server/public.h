@@ -11,8 +11,7 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,5 +48,4 @@ DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, NObjectClient::TDirectObjectId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

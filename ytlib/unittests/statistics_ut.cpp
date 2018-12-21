@@ -10,8 +10,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NJobTrackerClient {
+namespace NYT::NJobTrackerClient {
 namespace {
 
 using namespace NFormats;
@@ -153,6 +152,5 @@ TEST(TStatistics, Consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NJobTrackerClient
-} // namespace NYT
+} // namespace NYT::NJobTrackerClient
 

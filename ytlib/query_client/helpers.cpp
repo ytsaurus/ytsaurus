@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
@@ -78,7 +77,7 @@ bool IsSorted(const TDataSplit& dataSplit)
     return miscProto ? miscProto->sorted(): false;
 }
 
-void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId)
+void SetObjectId(TDataSplit* dataSplit, NObjectClient::TObjectId objectId)
 {
     ToProto(dataSplit->mutable_chunk_id(), objectId);
 }
@@ -157,6 +156,5 @@ size_t GetSignificantWidth(TRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

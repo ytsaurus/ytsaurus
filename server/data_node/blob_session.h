@@ -17,8 +17,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +79,7 @@ private:
 
     virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        TNullable<int> blockCount) override;
+        std::optional<int> blockCount) override;
 
     bool IsInWindow(int blockIndex);
     void ValidateBlockIsInWindow(int blockIndex);
@@ -117,6 +116,5 @@ DEFINE_REFCOUNTED_TYPE(TBlobSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

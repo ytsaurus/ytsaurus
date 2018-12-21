@@ -6,8 +6,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +25,7 @@ TMemoryTagQueue::TMemoryTagQueue(TControllerAgentConfigPtr config)
     }
 }
 
-TMemoryTag TMemoryTagQueue::AssignTagToOperation(const TOperationId& operationId)
+TMemoryTag TMemoryTagQueue::AssignTagToOperation(TOperationId operationId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -41,7 +40,7 @@ TMemoryTag TMemoryTagQueue::AssignTagToOperation(const TOperationId& operationId
     AvailableTags_.pop();
     UsedTags_.insert(tag);
     TagToLastOperationId_[tag] = operationId;
-    LOG_INFO("Assigning memory tag to operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
+    YT_LOG_INFO("Assigning memory tag to operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
         operationId,
         tag,
         UsedTags_.size(),
@@ -61,7 +60,7 @@ void TMemoryTagQueue::ReclaimTag(TMemoryTag tag)
     auto operationId = TagToLastOperationId_[tag];
 
     AvailableTags_.push(tag);
-    LOG_INFO("Reclaiming memory tag of operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
+    YT_LOG_INFO("Reclaiming memory tag of operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
         operationId,
         tag,
         UsedTags_.size(),
@@ -82,7 +81,7 @@ void TMemoryTagQueue::UpdateConfig(TControllerAgentConfigPtr config)
 
 void TMemoryTagQueue::AllocateNewTags()
 {
-    LOG_INFO("Allocating new memory tags (AllocatedTagCount: %v, NewAllocatedTagCount: %v)", AllocatedTagCount_, 2 * AllocatedTagCount_);
+    YT_LOG_INFO("Allocating new memory tags (AllocatedTagCount: %v, NewAllocatedTagCount: %v)", AllocatedTagCount_, 2 * AllocatedTagCount_);
     TagToLastOperationId_.resize(2 * AllocatedTagCount_);
     for (TMemoryTag tag = AllocatedTagCount_; tag < 2 * AllocatedTagCount_; ++tag) {
         AvailableTags_.push(tag);
@@ -115,9 +114,9 @@ void TMemoryTagQueue::UpdateStatistics()
         usages.resize(AllocatedTagCount_ - 1);
     }
 
-    LOG_INFO("Started building tagged memory statistics (EntryCount: %v)", tags.size());
+    YT_LOG_INFO("Started building tagged memory statistics (EntryCount: %v)", tags.size());
     GetMemoryUsageForTags(tags.data(), tags.size(), usages.data());
-    LOG_INFO("Finished building tagged memory statistics (EntryCount: %v)", tags.size());
+    YT_LOG_INFO("Finished building tagged memory statistics (EntryCount: %v)", tags.size());
 
     {
         TGuard<TSpinLock> guard(Lock_);
@@ -125,7 +124,7 @@ void TMemoryTagQueue::UpdateStatistics()
         for (int index = 0; index < tags.size(); ++index) {
             auto tag = tags[index];
             auto usage = usages[index];
-            auto operationId = TagToLastOperationId_[tag] ? MakeNullable(TagToLastOperationId_[tag]) : Null;
+            auto operationId = TagToLastOperationId_[tag] ? std::make_optional(TagToLastOperationId_[tag]) : std::nullopt;
             auto alive = operationId && UsedTags_.contains(tag);
             fluent
                 .Item().BeginMap()
@@ -155,5 +154,4 @@ i64 TMemoryTagQueue::GetTotalUsage()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

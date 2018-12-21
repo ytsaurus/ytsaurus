@@ -1,3 +1,0 @@
-SET(YT_SRCS
-  re2.cpp
-)

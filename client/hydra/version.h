@@ -6,8 +6,7 @@
 
 #include <util/generic/typetraits.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +37,6 @@ TString ToString(TVersion version);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 
 Y_DECLARE_PODTYPE(NYT::NHydra::TVersion);

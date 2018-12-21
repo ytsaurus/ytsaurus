@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,9 +12,9 @@ struct TJobToRelease
     bool ArchiveJobSpec = false;
     bool ArchiveStderr = false;
     bool ArchiveFailContext = false;
+    bool ArchiveProfile = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

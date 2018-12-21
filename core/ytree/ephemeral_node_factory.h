@@ -2,8 +2,7 @@
 
 #include "node.h"
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +15,5 @@ INodeFactory* GetEphemeralNodeFactory(bool shouldHideAttributes = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

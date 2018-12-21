@@ -2,8 +2,7 @@
 
 #include "changelog.h"
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,5 +27,4 @@ DEFINE_REFCOUNTED_TYPE(TChangelogStoreFactoryThunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

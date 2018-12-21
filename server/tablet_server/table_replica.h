@@ -13,8 +13,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +34,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity, NTransactionClient::EAtomicity::Full)
 
 public:
-    explicit TTableReplica(const TTableReplicaId& id);
+    explicit TTableReplica(TTableReplicaId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -43,11 +42,10 @@ public:
     void ThrowInvalidState();
 
     TDuration ComputeReplicationLagTime(NTransactionClient::TTimestamp latestTimestamp) const;
-    std::vector<TError> GetErrors(TNullable<int> limit = Null) const;
+    std::vector<TError> GetErrors(std::optional<int> limit = std::nullopt) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

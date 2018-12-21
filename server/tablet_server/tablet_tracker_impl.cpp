@@ -23,8 +23,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
@@ -54,7 +53,7 @@ public:
 
     virtual std::vector<TNodeHolder> GetNodes() override
     {
-        BalanceRequestTime_.Reset();
+        BalanceRequestTime_.reset();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -112,7 +111,7 @@ public:
             ->TabletManager->TabletCellBalancer->RebalanceWaitTime;
 
         if (BalanceRequestTime_ && *BalanceRequestTime_ + waitTime < Now()) {
-            BalanceRequestTime_.Reset();
+            BalanceRequestTime_.reset();
             return true;
         }
 
@@ -121,7 +120,7 @@ public:
 
 private:
     const TBootstrap* Bootstrap_;
-    TNullable<TInstant> BalanceRequestTime_;
+    std::optional<TInstant> BalanceRequestTime_;
 
     void OnBundleNodesChanged(const TTabletCellBundle* /*bundle*/)
     {
@@ -233,7 +232,7 @@ void TTabletTrackerImpl::ScheduleLeaderReassignment(TTabletCell* cell)
     if (goodPeerId == InvalidPeerId)
         return;
 
-    LOG_DEBUG(error, "Schedule leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
+    YT_LOG_DEBUG(error, "Schedule leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
         cell->GetId(),
         cell->GetLeadingPeerId(),
         leadingPeer.Descriptor.GetDefaultAddress());
@@ -303,7 +302,7 @@ void TTabletTrackerImpl::SchedulePeerRevocation(TTabletCell* cell, ITabletCellBa
         auto error = IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), Config_->PeerRevocationTimeout);
 
         if (!error.IsOK()) {
-            LOG_DEBUG(error, "Schedule peer revocation (CellId: %v, PeerId: %v, Address: %v)",
+            YT_LOG_DEBUG(error, "Schedule peer revocation (CellId: %v, PeerId: %v, Address: %v)",
                 cell->GetId(),
                 peerId,
                 peer.Descriptor.GetDefaultAddress());
@@ -389,5 +388,4 @@ int TTabletTrackerImpl::FindGoodPeer(const TTabletCell* cell)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

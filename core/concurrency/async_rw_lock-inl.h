@@ -8,8 +8,7 @@
 
 #include <util/system/guard.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,5 +40,4 @@ void TAsyncReaderWriterLockGuard<TOperationTraits>::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

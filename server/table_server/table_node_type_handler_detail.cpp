@@ -19,8 +19,7 @@
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_manager.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NTableClient;
 using namespace NCellMaster;
@@ -44,6 +43,26 @@ TTableNodeTypeHandlerBase<TImpl>::TTableNodeTypeHandlerBase(TBootstrap* bootstra
 { }
 
 template <class TImpl>
+bool TTableNodeTypeHandlerBase<TImpl>::HasBranchedChangesImpl(
+    TImpl* originatingNode,
+    TImpl* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode))  {
+        return true;
+    }
+
+    if (branchedNode->IsDynamic()) {
+        YCHECK(originatingNode->IsDynamic());
+        // One may consider supporting unlocking unmounted dynamic tables.
+        // However, it isn't immediately obvious why that should be useful and
+        // allowing to unlock something always requires careful consideration.
+        return true;
+    }
+
+    return false;
+}
+
+template <class TImpl>
 std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const TVersionedNodeId& id,
     TCellTag cellTag,
@@ -55,7 +74,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
 
     auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
-    auto maybeTabletCellBundleName = combinedAttributes.FindAndRemove<TString>("tablet_cell_bundle");
+    auto optionalTabletCellBundleName = combinedAttributes.FindAndRemove<TString>("tablet_cell_bundle");
     auto optimizeFor = combinedAttributes.GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
     auto replicationFactor = combinedAttributes.GetAndRemove("replication_factor", config->DefaultTableReplicationFactor);
     auto compressionCodec = combinedAttributes.GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::Lz4);
@@ -70,9 +89,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         THROW_ERROR_EXCEPTION("Replicated table must be dynamic");
     }
 
-    auto maybeSchema = combinedAttributes.FindAndRemove<TTableSchema>("schema");
+    auto optionalSchema = combinedAttributes.FindAndRemove<TTableSchema>("schema");
 
-    if (dynamic && !maybeSchema) {
+    if (dynamic && !optionalSchema) {
         THROW_ERROR_EXCEPTION("\"schema\" is mandatory for dynamic tables");
     }
 
@@ -82,18 +101,18 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
     }
 
-    if (maybeSchema) {
+    if (optionalSchema) {
         // NB: Sorted dynamic tables contain unique keys, set this for user.
-        if (dynamic && maybeSchema->IsSorted() && !maybeSchema->GetUniqueKeys()) {
-             maybeSchema = maybeSchema->ToUniqueKeys();
+        if (dynamic && optionalSchema->IsSorted() && !optionalSchema->GetUniqueKeys()) {
+             optionalSchema = optionalSchema->ToUniqueKeys();
         }
 
-        ValidateTableSchemaUpdate(TTableSchema(), *maybeSchema, dynamic, true);
+        ValidateTableSchemaUpdate(TTableSchema(), *optionalSchema, dynamic, true);
     }
 
-    auto maybeTabletCount = combinedAttributes.FindAndRemove<int>("tablet_count");
-    auto maybePivotKeys = combinedAttributes.FindAndRemove<std::vector<TOwningKey>>("pivot_keys");
-    if (maybeTabletCount && maybePivotKeys) {
+    auto optionalTabletCount = combinedAttributes.FindAndRemove<int>("tablet_count");
+    auto optionalPivotKeys = combinedAttributes.FindAndRemove<std::vector<TOwningKey>>("pivot_keys");
+    if (optionalTabletCount && optionalPivotKeys) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"tablet_count\" and \"pivot_keys\"");
     }
     auto upstreamReplicaId = combinedAttributes.GetAndRemove<TTableReplicaId>("upstream_replica_id", TTableReplicaId());
@@ -107,8 +126,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
-    auto* tabletCellBundle = maybeTabletCellBundleName
-        ? tabletManager->GetTabletCellBundleByNameOrThrow(*maybeTabletCellBundleName)
+    auto* tabletCellBundle = optionalTabletCellBundleName
+        ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName)
         : tabletManager->GetDefaultTabletCellBundle();
 
     auto nodeHolder = this->DoCreateImpl(
@@ -132,9 +151,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
         }
 
-        if (maybeSchema) {
+        if (optionalSchema) {
             const auto& registry = this->Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
-            auto sharedSchema = registry->GetSchema(std::move(*maybeSchema));
+            auto sharedSchema = registry->GetSchema(std::move(*optionalSchema));
             node->SharedTableSchema() = sharedSchema;
             node->SetSchemaMode(ETableSchemaMode::Strong);
         }
@@ -147,18 +166,18 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             tabletManager->MakeTableDynamic(node);
 
             if (!node->IsForeign()) {
-                if (maybeTabletCount) {
-                    tabletManager->PrepareReshardTable(node, 0, 0, *maybeTabletCount, {}, true);
-                } else if (maybePivotKeys) {
-                    tabletManager->PrepareReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys, true);
+                if (optionalTabletCount) {
+                    tabletManager->PrepareReshardTable(node, 0, 0, *optionalTabletCount, {}, true);
+                } else if (optionalPivotKeys) {
+                    tabletManager->PrepareReshardTable(node, 0, 0, optionalPivotKeys->size(), *optionalPivotKeys, true);
                 }
             }
 
             if (!node->IsExternal()) {
-                if (maybeTabletCount) {
-                    tabletManager->ReshardTable(node, 0, 0, *maybeTabletCount, {});
-                } else if (maybePivotKeys) {
-                    tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
+                if (optionalTabletCount) {
+                    tabletManager->ReshardTable(node, 0, 0, *optionalTabletCount, {});
+                } else if (optionalPivotKeys) {
+                    tabletManager->ReshardTable(node, 0, 0, optionalPivotKeys->size(), *optionalPivotKeys);
                 }
             }
 
@@ -299,6 +318,14 @@ EObjectType TReplicatedTableNodeTypeHandler::GetObjectType() const
     return EObjectType::ReplicatedTable;
 }
 
+bool TReplicatedTableNodeTypeHandler::HasBranchedChangesImpl(
+    TReplicatedTableNode* originatingNode,
+    TReplicatedTableNode* branchedNode)
+{
+    // Forbid explicitly unlocking replicated tables.
+    return true;
+}
+
 ICypressNodeProxyPtr TReplicatedTableNodeTypeHandler::DoGetProxy(
     TReplicatedTableNode* trunkNode,
     TTransaction* transaction)
@@ -312,6 +339,5 @@ ICypressNodeProxyPtr TReplicatedTableNodeTypeHandler::DoGetProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

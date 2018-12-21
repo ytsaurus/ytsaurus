@@ -10,8 +10,7 @@
 
 #include <errno.h>
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -1098,5 +1097,4 @@ IPacketConnectionPtr CreatePacketConnection(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet

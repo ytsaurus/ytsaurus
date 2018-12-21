@@ -26,7 +26,7 @@ class TGenericFormulaImpl;
 class TArithmeticFormula
 {
 public:
-    // TODO(ifsmirnov): remove default ctor (first must make TNullable<T> serializable
+    // TODO(ifsmirnov): remove default ctor (first must make std::optional<T> serializable
     // for non-default-constructible T)
     TArithmeticFormula();
     TArithmeticFormula(const TArithmeticFormula& other);

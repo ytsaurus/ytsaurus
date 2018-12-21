@@ -3,8 +3,7 @@
 #include <algorithm>
 #include <iterator>
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,6 +71,5 @@ bool Contains(const TPartIndexList& set, int elem)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure
 

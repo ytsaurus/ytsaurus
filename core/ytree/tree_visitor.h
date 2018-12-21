@@ -4,8 +4,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,15 +12,14 @@ void VisitTree(
     INodePtr root,
     NYson::IYsonConsumer* consumer,
     bool stable,
-    const TNullable<std::vector<TString>>& attributeKeys = Null);
+    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
 
 void VisitTree(
     INodePtr root,
     NYson::IAsyncYsonConsumer* consumer,
     bool stable,
-    const TNullable<std::vector<TString>>& attributeKeys = Null);
+    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

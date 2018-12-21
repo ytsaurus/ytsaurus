@@ -16,8 +16,7 @@
 
 #include <map>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +37,7 @@ public:
         TString peerId);
 
     TFuture<TDuration> Connect(ui16 dataPort);
-    TFuture<TNullable<TDuration>> Announce(TResourceId resource, EAnnounceState state);
+    TFuture<std::optional<TDuration>> Announce(TResourceId resource, EAnnounceState state);
 
     void OnTrackerPacket(const TSharedRef& packet);
     void ExpireRequests();
@@ -144,7 +143,7 @@ private:
     {
         SmallSet<TString, 2> Clusters;
 
-        TNullable<std::pair<TString, TInstant>> LastOutOfOrderUpdate;
+        std::optional<std::pair<TString, TInstant>> LastOutOfOrderUpdate;
 
         bool IsLocked = false;
 
@@ -171,5 +170,4 @@ DEFINE_REFCOUNTED_TYPE(TAnnouncer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

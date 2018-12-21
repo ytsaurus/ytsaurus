@@ -5,13 +5,12 @@
 #include "transaction_detail.h"
 #endif
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBase>
-TTransactionBase<TBase>::TTransactionBase(const TTransactionId& id)
+TTransactionBase<TBase>::TTransactionBase(TTransactionId id)
     : TBase(id)
     , State_(ETransactionState::Active)
 { }
@@ -54,5 +53,4 @@ void TTransactionBase<TBase>::Load(TStreamLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

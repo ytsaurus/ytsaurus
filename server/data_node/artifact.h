@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +17,7 @@ struct TArtifactKey
 {
     TArtifactKey() = default;
 
-    explicit TArtifactKey(const NChunkClient::TChunkId& id);
+    explicit TArtifactKey(NChunkClient::TChunkId id);
     explicit TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor);
 
     // Hasher.
@@ -32,6 +31,5 @@ TString ToString(const TArtifactKey& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

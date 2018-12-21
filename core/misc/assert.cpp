@@ -20,8 +20,7 @@
 
 #include <errno.h>
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail {
 
 using namespace NConcurrency;
 
@@ -45,7 +44,7 @@ void AssertTrapImpl(
 
     if (SafeAssertionsModeEnabled()) {
         auto semaphore = GetSafeAssertionsCoreSemaphore();
-        TNullable<TString> corePath;
+        std::optional<TString> corePath;
         if (auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(semaphore)) {
             try {
                 std::vector<TString> coreNotes = {"Reason: SafeAssertion"};
@@ -76,5 +75,4 @@ void AssertTrapImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail

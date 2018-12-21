@@ -1,16 +1,12 @@
 #include "private.h"
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger AuthLogger("Auth");
 
-const NProfiling::TProfiler AuthProfiler("/auth");
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth
 

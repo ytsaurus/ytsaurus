@@ -7,8 +7,7 @@
 
 #include <yt/ytlib/table_chunk_format/public.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 
@@ -19,18 +18,18 @@ class TUnversionedBooleanColumnTest
 {
 protected:
 
-    std::vector<TNullable<bool>> CreateDirectDense()
+    std::vector<std::optional<bool>> CreateDirectDense()
     {
-        std::vector<TNullable<bool>> data;
+        std::vector<std::optional<bool>> data;
         for (int i = 0; i < 100 * 100; ++i) {
             data.push_back(i % 2 == 0);
         }
         return data;
     }
 
-    std::vector<TNullable<bool>> CreateDirectRle()
+    std::vector<std::optional<bool>> CreateDirectRle()
     {
-        std::vector<TNullable<bool>> data;
+        std::vector<std::optional<bool>> data;
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
                 data.push_back(i % 2 == 0);
@@ -60,7 +59,7 @@ protected:
 
 TEST_F(TUnversionedBooleanColumnTest, ReadValues)
 {
-    std::vector<TNullable<bool>> expected;
+    std::vector<std::optional<bool>> expected;
     AppendVector(&expected, CreateDirectDense());
     AppendVector(&expected, CreateDirectRle());
     
@@ -69,5 +68,4 @@ TEST_F(TUnversionedBooleanColumnTest, ReadValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

@@ -7,8 +7,7 @@
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +75,7 @@ public:
 
     virtual int GetPendingJobCount() const override;
 
-    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override;
+    virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override;
 
     virtual void OnJobStarted(TJobletPtr joblet) override;
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
@@ -114,8 +113,7 @@ DEFINE_REFCOUNTED_TYPE(TAutoMergeTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 
 #define AUTO_MERGE_TASK_INL_H
 #include "auto_merge_task-inl.h"

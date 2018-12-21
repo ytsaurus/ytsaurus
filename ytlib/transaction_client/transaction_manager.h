@@ -15,8 +15,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +62,7 @@ public:
     ETransactionType GetType() const;
 
     //! Returns the transaction id.
-    const TTransactionId& GetId() const;
+    TTransactionId GetId() const;
 
     //! Returns the transaction start timestamp.
     /*!
@@ -82,12 +81,12 @@ public:
 
 
     //! Once a participant is registered, it will be pinged.
-    void RegisterParticipant(const NElection::TCellId& cellId);
+    void RegisterParticipant(NElection::TCellId cellId);
 
     //! Once a participant is confirmed, its pings must succeeded, otherwise
     //! the transaction fails. The transaction must already be registered prior
     //! to this call.
-    void ConfirmParticipant(const NElection::TCellId& cellId);
+    void ConfirmParticipant(NElection::TCellId cellId);
 
     //! Choose transaction coordinator.
     void ChooseCoordinator(const TTransactionCommitOptions& options);
@@ -132,7 +131,7 @@ class TTransactionManager
 public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        const NHiveClient::TCellId& primaryCellId,
+        NHiveClient::TCellId primaryCellId,
         NApi::NNative::IConnectionPtr connection,
         const TString& user,
         ITimestampProviderPtr timestampProvider,
@@ -167,7 +166,7 @@ public:
      *  This call does not block.
      */
     TTransactionPtr Attach(
-        const TTransactionId& id,
+        TTransactionId id,
         const TTransactionAttachOptions& options = TTransactionAttachOptions());
 
     //! Asynchronously aborts all active transactions.
@@ -183,5 +182,4 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

@@ -23,8 +23,7 @@
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NApi;
 using namespace NScheduler;
@@ -70,7 +69,7 @@ TStartedJobSummary::TStartedJobSummary(NScheduler::NProto::TSchedulerToAgentJobE
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobSummary::TJobSummary(const TJobId& id, EJobState state)
+TJobSummary::TJobSummary(TJobId id, EJobState state)
     : Result()
     , Id(id)
     , State(state)
@@ -80,7 +79,7 @@ TJobSummary::TJobSummary(const TJobId& id, EJobState state)
 TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : Id(FromProto<TJobId>(event->status().job_id()))
     , State(static_cast<EJobState>(event->status().state()))
-    , FinishTime(event->has_finish_time() ? MakeNullable(FromProto<TInstant>(event->finish_time())) : Null)
+    , FinishTime(event->has_finish_time() ? std::make_optional(FromProto<TInstant>(event->finish_time())) : std::nullopt)
     , LogAndProfile(event->log_and_profile())
 {
     auto* status = event->mutable_status();
@@ -115,6 +114,10 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, ArchiveJobSpec);
     Persist(context, ArchiveStderr);
     Persist(context, ArchiveFailContext);
+
+    if (context.GetVersion() >= 300028) {
+        Persist(context, ArchiveProfile);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,7 +152,7 @@ void TCompletedJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReason)
+TAbortedJobSummary::TAbortedJobSummary(TJobId id, EAbortReason abortReason)
     : TJobSummary(id, EJobState::Aborted)
     , AbortReason(abortReason)
 { }
@@ -181,7 +184,7 @@ class TOperationControllerWrapper
 {
 public:
     TOperationControllerWrapper(
-        const TOperationId& id,
+        TOperationId id,
         IOperationControllerPtr underlying,
         IInvokerPtr dtorInvoker,
         TMemoryTag memoryTag,
@@ -203,9 +206,9 @@ public:
             auto Logger = NLogging::TLogger(ControllerLogger)
                 .AddTag("OperationId: %v", id);
             NProfiling::TWallTimer timer;
-            LOG_INFO("Started destroying operation controller");
+            YT_LOG_INFO("Started destroying operation controller");
             underlying.Reset();
-            LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
+            YT_LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
                 timer.GetElapsedTime());
             memoryTagQueue->ReclaimTag(memoryTag);
         }));
@@ -389,12 +392,12 @@ public:
         return Underlying_->GetBriefProgress();
     }
 
-    virtual TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override
+    virtual TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override
     {
         return Underlying_->BuildJobYson(jobId, outputStatistics);
     }
 
-    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override
+    virtual TSharedRef ExtractJobSpec(TJobId jobId) const override
     {
         return Underlying_->ExtractJobSpec(jobId);
     }
@@ -444,7 +447,7 @@ public:
         return Underlying_->RegisterOutputRows(count, tableIndex);
     }
 
-    virtual TNullable<int> GetRowCountLimitTableIndex() override
+    virtual std::optional<int> GetRowCountLimitTableIndex() override
     {
         return Underlying_->GetRowCountLimitTableIndex();
     }
@@ -460,7 +463,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobStartDescriptor::TJobStartDescriptor(
-    const TJobId& id,
+    TJobId id,
     EJobType type,
     const TJobResources& resourceLimits,
     bool interruptible)
@@ -570,6 +573,5 @@ IOperationControllerPtr CreateControllerForOperation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

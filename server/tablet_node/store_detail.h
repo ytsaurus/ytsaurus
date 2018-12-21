@@ -22,8 +22,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +32,7 @@ class TStoreBase
 public:
     TStoreBase(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet);
     ~TStoreBase();
 
@@ -113,7 +112,7 @@ class TDynamicStoreBase
 public:
     TDynamicStoreBase(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet);
 
     ~TDynamicStoreBase();
@@ -191,7 +190,7 @@ class TChunkStoreBase
 public:
     TChunkStoreBase(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry,
@@ -305,7 +304,7 @@ class TSortedStoreBase
 public:
     TSortedStoreBase(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet);
 
     virtual TPartition* GetPartition() const override;
@@ -328,7 +327,7 @@ class TOrderedStoreBase
 public:
     TOrderedStoreBase(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet);
 
     virtual bool IsOrdered() const override;
@@ -347,5 +346,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

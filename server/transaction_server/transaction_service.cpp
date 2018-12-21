@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 using namespace NRpc;
 using namespace NTransactionClient;
@@ -41,11 +40,8 @@ private:
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto timeout = FromProto<TDuration>(request->timeout());
-        TNullable<TInstant> deadline;
-        if (request->has_deadline()) {
-            deadline = FromProto<TInstant>(request->deadline());
-        }
-        auto title = request->has_title() ? MakeNullable(request->title()) : Null;
+        auto deadline = request->has_deadline() ? std::make_optional(FromProto<TInstant>(request->deadline())) : std::nullopt;
+        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
         context->SetRequestInfo("ParentId: %v, PrerequisiteTransactionIds: %v, Timeout: %v, Title: %v, Deadline: %v",
@@ -81,6 +77,7 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
+        // Wait for transaction to appear on secondary master.
         SyncWithUpstream();
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -103,5 +100,4 @@ IServicePtr CreateTransactionService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

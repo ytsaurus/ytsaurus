@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,5 +9,4 @@ const NProfiling::TProfiler TableClientProfiler("/table_client");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -49,8 +49,7 @@
 
 #include <yt/core/misc/crash_handler.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -82,7 +81,7 @@ class TObjectManager::TRemoteProxy
     : public IYPathService
 {
 public:
-    TRemoteProxy(TBootstrap* bootstrap, const TObjectId& objectId)
+    TRemoteProxy(TBootstrap* bootstrap, TObjectId objectId)
         : Bootstrap_(bootstrap)
         , ObjectId_(objectId)
     { }
@@ -116,7 +115,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<TString>>& /*attributeKeys*/,
+        const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
         Y_UNREACHABLE();
@@ -180,7 +179,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<TString>>& /*attributeKeys*/,
+        const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
         Y_UNREACHABLE();
@@ -410,11 +409,11 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
 
         auto schemaObjectId = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
 
-        LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
+        YT_LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
             schemaObjectId);
     } else {
-        LOG_INFO("Type registered (Type: %v)",
+        YT_LOG_INFO("Type registered (Type: %v)",
             type);
     }
 }
@@ -450,7 +449,7 @@ const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
     return RegisteredTypes_;
 }
 
-TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
+TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -477,7 +476,7 @@ int TObjectManager::RefObject(TObjectBase* object)
     Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+    YT_LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         GetObjectEphemeralRefCounter(object),
@@ -497,7 +496,7 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
     Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
-    LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+    YT_LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         GetObjectEphemeralRefCounter(object),
@@ -673,7 +672,7 @@ void TObjectManager::OnStopLeading()
     GarbageCollector_->Stop();
 }
 
-TObjectBase* TObjectManager::FindObject(const TObjectId& id)
+TObjectBase* TObjectManager::FindObject(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -685,7 +684,7 @@ TObjectBase* TObjectManager::FindObject(const TObjectId& id)
     return handler->FindObject(id);
 }
 
-TObjectBase* TObjectManager::GetObject(const TObjectId& id)
+TObjectBase* TObjectManager::GetObject(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -694,7 +693,7 @@ TObjectBase* TObjectManager::GetObject(const TObjectId& id)
     return object;
 }
 
-TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
+TObjectBase* TObjectManager::GetObjectOrThrow(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -709,13 +708,13 @@ TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
     return object;
 }
 
-TObjectBase* TObjectManager::GetWeakGhostObject(const TObjectId& id)
+TObjectBase* TObjectManager::GetWeakGhostObject(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     return GarbageCollector_->GetWeakGhostObject(id);
 }
 
-IYPathServicePtr TObjectManager::CreateRemoteProxy(const TObjectId& id)
+IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id)
 {
     return New<TRemoteProxy>(Bootstrap_, id);
 }
@@ -825,7 +824,7 @@ TFuture<void> TObjectManager::GCCollect()
 }
 
 TObjectBase* TObjectManager::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     EObjectType type,
     IAttributeDictionary* attributes)
 {
@@ -1003,7 +1002,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-    auto getPrerequisiteTransaction = [&] (const TTransactionId& transactionId) {
+    auto getPrerequisiteTransaction = [&] (TTransactionId transactionId) {
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
             THROW_ERROR_EXCEPTION(
@@ -1059,7 +1058,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     TCellTag cellTag,
     TSharedRefArray requestMessage,
-    TNullable<TDuration> timeout)
+    std::optional<TDuration> timeout)
 {
     NRpc::NProto::TRequestHeader header;
     YCHECK(ParseRequestHeader(requestMessage, &header));
@@ -1067,7 +1066,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
-    LOG_DEBUG("Forwarding request to leader (RequestId: %v, Invocation: %v:%v %v, CellTag: %v, Timeout: %v)",
+    YT_LOG_DEBUG("Forwarding request to leader (RequestId: %v, Invocation: %v:%v %v, CellTag: %v, Timeout: %v)",
         requestId,
         header.service(),
         header.method(),
@@ -1095,7 +1094,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
         THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Request forwarding failed");
 
-        LOG_DEBUG("Request forwarding succeeded (RequestId: %v)",
+        YT_LOG_DEBUG("Request forwarding succeeded (RequestId: %v)",
             requestId);
 
         const auto& batchRsp = batchRspOrError.Value();
@@ -1202,7 +1201,7 @@ void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
 {
     // NB: Ordered map is a must to make the behavior deterministic.
     std::map<TCellTag, NProto::TReqUnrefExportedObjects> crossCellRequestMap;
-    auto getCrossCellRequest = [&] (const TObjectId& id) -> NProto::TReqUnrefExportedObjects& {
+    auto getCrossCellRequest = [&] (TObjectId id) -> NProto::TReqUnrefExportedObjects& {
         return crossCellRequestMap[CellTagFromId(id)];
     };
 
@@ -1231,7 +1230,7 @@ void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
         GarbageCollector_->DestroyZombie(object);
         ++DestroyedObjects_;
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %v, Id: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %v, Id: %v)",
             type,
             id);
     }
@@ -1241,7 +1240,7 @@ void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
         auto cellTag = pair.first;
         const auto& perCellRequest = pair.second;
         multicellManager->PostToMaster(perCellRequest, cellTag);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to unreference imported objects (CellTag: %v, Count: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to unreference imported objects (CellTag: %v, Count: %v)",
             cellTag,
             perCellRequest.entries_size());
     }
@@ -1263,7 +1262,7 @@ void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* r
         type,
         attributes.get());
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Foreign object created (Id: %v, Type: %v)",
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Foreign object created (Id: %v, Type: %v)",
         objectId,
         type);
 }
@@ -1274,12 +1273,12 @@ void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* r
 
     auto* object = FindObject(objectId);
     if (object) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v, RefCounter: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v, RefCounter: %v)",
             objectId,
             object->GetObjectRefCounter());
         UnrefObject(object);
     } else {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a non-existing foreign object (ObjectId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a non-existing foreign object (ObjectId: %v)",
             objectId);
     }
 }
@@ -1299,7 +1298,7 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
         handler->UnexportObject(object, cellTag, importRefCounter);
     }
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Exported objects unreferenced (CellTag: %v, Count: %v)",
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Exported objects unreferenced (CellTag: %v, Count: %v)",
         cellTag,
         request->entries_size());
 }
@@ -1311,7 +1310,7 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
     const auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "A non-existing object creation confirmed by a secondary cell (ObjectId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "A non-existing object creation confirmed by a secondary cell (ObjectId: %v)",
             objectId);
         return;
     }
@@ -1337,7 +1336,7 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
     const auto objectId = FromProto<TObjectId>(request->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
-        LOG_DEBUG_UNLESS(IsRecovery(),
+        YT_LOG_DEBUG_UNLESS(IsRecovery(),
             "Life stage advancement for a non-existing object requested by the primary cell (ObjectId: %v)",
             objectId);
         return;
@@ -1445,6 +1444,5 @@ void TObjectManager::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 

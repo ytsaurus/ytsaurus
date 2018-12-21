@@ -18,14 +18,13 @@
 
 #include <yt/core/actions/signal.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/small_vector.h>
 
 #include <yt/core/rpc/service_detail.h>
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,25 +69,25 @@ public:
         TCtxExecuteBatchPtr context);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
-    TChunk* GetChunkOrThrow(const TChunkId& id);
+    TChunk* GetChunkOrThrow(TChunkId id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
-    TChunkList* GetChunkListOrThrow(const TChunkListId& id);
+    TChunkList* GetChunkListOrThrow(TChunkListId id);
 
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
 
-    TChunkTree* FindChunkTree(const TChunkTreeId& id);
-    TChunkTree* GetChunkTree(const TChunkTreeId& id);
-    TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id);
+    TChunkTree* FindChunkTree(TChunkTreeId id);
+    TChunkTree* GetChunkTree(TChunkTreeId id);
+    TChunkTree* GetChunkTreeOrThrow(TChunkTreeId id);
 
     TNodeList AllocateWriteTargets(
         TMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        TNullable<int> replicationFactorOverride,
+        std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const TNullable<TString>& preferredHostName);
+        const std::optional<TString>& preferredHostName);
 
     TChunkList* CreateChunkList(EChunkListKind kind);
 
@@ -126,6 +125,8 @@ public:
 
     void ScheduleJobs(
         TNode* node,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
         const std::vector<TJobPtr>& currentJobs,
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort,
@@ -199,5 +200,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

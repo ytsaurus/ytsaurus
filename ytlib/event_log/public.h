@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NEventLog {
+namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,5 +11,4 @@ DECLARE_REFCOUNTED_CLASS(TEventLogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEventLog
-} // namespace NYT
+} // namespace NYT::NEventLog

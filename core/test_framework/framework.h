@@ -38,8 +38,7 @@ void EXPECT_THROW_THAT(TFunctor functor, TMatcher matcher)
 
 } // namespace NYT
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,8 +157,7 @@ template <class T>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc
 
 namespace testing {
 

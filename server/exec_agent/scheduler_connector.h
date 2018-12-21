@@ -10,8 +10,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,5 +47,4 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

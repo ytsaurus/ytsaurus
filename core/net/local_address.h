@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,5 +43,4 @@ bool UpdateLocalHostName(std::function<void(const char*, const char*)> errorCb);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet

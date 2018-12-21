@@ -5,8 +5,7 @@
 
 #include <yt/core/yson/public.h>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,8 +47,8 @@ struct IJsonConsumer
 {
     virtual void SetAnnotateWithTypesParameter(bool value) = 0;
 
-    virtual void OnStringScalarWeightLimited(TStringBuf value, TNullable<i64> weightLimit) = 0;
-    virtual void OnNodeWeightLimited(TStringBuf yson, TNullable<i64> weightLimit) = 0;
+    virtual void OnStringScalarWeightLimited(TStringBuf value, std::optional<i64> weightLimit) = 0;
+    virtual void OnNodeWeightLimited(TStringBuf yson, std::optional<i64> weightLimit) = 0;
 };
 
 std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
@@ -59,5 +58,4 @@ std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

@@ -7,8 +7,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,13 +24,13 @@ struct IBlockCache
      *  If a block with the given id is already present, then the request is ignored.
      *
      *  #sourceAddress is an address of peer from which the block was downloaded.
-     *  If the block was not downloaded from another peer, it must be Null.
+     *  If the block was not downloaded from another peer, it must be std::nullopt.
      */
     virtual void Put(
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) = 0;
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source) = 0;
 
     //! Fetches a block from the cache.
     /*!
@@ -49,5 +48,4 @@ DEFINE_REFCOUNTED_TYPE(IBlockCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

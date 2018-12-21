@@ -6,8 +6,7 @@
 
 #include <yt/client/object_client/public.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,6 +96,5 @@ DECLARE_REFCOUNTED_STRUCT(ITableMountCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient
 

@@ -10,8 +10,7 @@
 
 #include <util/stream/length.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 using namespace NProfiling;
 using namespace NYTree;
@@ -201,5 +200,4 @@ void TJsonLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

@@ -37,8 +37,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NQueryAgent {
+namespace NYT::NQueryAgent {
 
 using namespace NCellNode;
 using namespace NChunkClient;
@@ -88,7 +87,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
-        LOG_DEBUG("Deserializing subfragment");
+        YT_LOG_DEBUG("Deserializing subfragment");
 
         auto query = FromProto<TConstQueryPtr>(request->query());
         context->SetRequestInfo("FragmentId: %v", query->Id);
@@ -112,7 +111,7 @@ private:
 
         auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
-        LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
+        YT_LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "ReadSesisonId: %v, DataRangeCount: %v)",
             query->Id,
@@ -368,6 +367,5 @@ IServicePtr CreateQueryService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryAgent
-} // namespace NYT
+} // namespace NYT::NQueryAgent
 

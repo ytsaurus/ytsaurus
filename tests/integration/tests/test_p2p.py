@@ -43,7 +43,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         create("table", "//tmp/t")
         set("//tmp/t/@replication_factor", 1)
         write_table("//tmp/t", [{"a": 1}])
-        chunk_id = get("//tmp/t/@chunk_ids/0")
+        chunk_id = get_singular_chunk_id("//tmp/t")
         # Node that is the seed for the only existing chunk.
         self.seed = str(get("#{0}/@stored_replicas/0".format(chunk_id)))
         self.nodes = ls("//sys/nodes")

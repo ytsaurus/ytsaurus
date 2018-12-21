@@ -15,14 +15,13 @@
 
 #include <yt/core/actions/callback.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/phoenix.h>
 
 #include <yt/core/yson/consumer.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +54,7 @@ class TJob
     DEFINE_BYVAL_RO_PROPERTY(bool, Interruptible);
 
     //! The time when the job was finished.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, FinishTime);
 
     //! True if job was already unregistered.
     DEFINE_BYVAL_RW_PROPERTY(bool, Unregistered, false);
@@ -98,10 +97,10 @@ class TJob
 
 public:
     TJob(
-        const TJobId& id,
+        TJobId id,
         EJobType type,
-        const TOperationId& operationId,
-        const TIncarnationId& incarnationId,
+        TOperationId operationId,
+        TIncarnationId incarnationId,
         TExecNodePtr node,
         TInstant startTime,
         const TJobResources& resourceLimits,
@@ -121,5 +120,4 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

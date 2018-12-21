@@ -24,8 +24,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +52,7 @@ struct TEpochContext
     bool UpstreamSyncDeadlineReached = false;
     NProfiling::TCpuInstant UpstreamSyncStartTime;
 
-    TNullable<TVersion> LeaderSyncVersion;
+    std::optional<TVersion> LeaderSyncVersion;
     TPromise<void> LeaderSyncPromise;
 
     TPeerId LeaderId = InvalidPeerId;
@@ -296,5 +295,4 @@ DEFINE_REFCOUNTED_TYPE(TDecoratedAutomaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

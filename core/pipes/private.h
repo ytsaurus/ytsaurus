@@ -2,8 +2,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NPipes {
+namespace NYT::NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,5 +11,4 @@ extern const NLogging::TLogger PtyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPipes
-} // namespace NYT
+} // namespace NYT::NPipes

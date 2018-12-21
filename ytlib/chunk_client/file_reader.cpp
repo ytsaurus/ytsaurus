@@ -9,8 +9,7 @@
 
 #include <yt/client/misc/workload.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
@@ -45,7 +44,7 @@ void ReadHeader(
 
 TFileReader::TFileReader(
     const IIOEnginePtr& ioEngine,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TString& fileName,
     bool validateBlocksChecksums,
     IBlocksExtCache* blocksExtCache)
@@ -59,7 +58,7 @@ TFileReader::TFileReader(
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     const std::vector<int>& blockIndexes,
-    const TNullable<i64>& /* estimatedSize */)
+    const std::optional<i64>& /* estimatedSize */)
 {
     std::vector<TFuture<std::vector<TBlock>>> futures;
     auto count = blockIndexes.size();
@@ -110,7 +109,7 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    const TNullable<i64>& /* estimatedSize */)
+    const std::optional<i64>& /* estimatedSize */)
 {
     YCHECK(firstBlockIndex >= 0);
 
@@ -123,8 +122,8 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
 
 TFuture<TRefCountedChunkMetaPtr> TFileReader::GetMeta(
     const TClientBlockReadOptions& options,
-    TNullable<int> partitionTag,
-    const TNullable<std::vector<int>>& extensionTags)
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
 {
     try {
         return DoReadMeta(options, partitionTag, extensionTags);
@@ -215,7 +214,7 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
     }
 
     if (!blocksExt) {
-        return DoReadMeta(options, Null, Null)
+        return DoReadMeta(options, std::nullopt, std::nullopt)
             .ToUncancelable()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                 auto loadedBlocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<NProto::TBlocksExt>(meta->extensions()));
@@ -317,8 +316,8 @@ TRefCountedChunkMetaPtr TFileReader::OnMetaDataBlock(
 
 TFuture<TRefCountedChunkMetaPtr> TFileReader::DoReadMeta(
     const TClientBlockReadOptions& options,
-    TNullable<int> partitionTag,
-    const TNullable<std::vector<int>>& extensionTags)
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
 {
     // Partition tag filtering not implemented here
     // because there is no practical need.
@@ -350,5 +349,4 @@ const std::shared_ptr<TFileHandle>& TFileReader::GetDataFile()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

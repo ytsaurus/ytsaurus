@@ -57,9 +57,7 @@ class TestErasure(YTEnvSetup):
         set("//tmp/table/@erasure_codec", codec)
         write_table("//tmp/table", {"b": "hello"})
 
-        chunk_ids = get("//tmp/table/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/table")
 
         replicas = get("#%s/@stored_replicas" % chunk_id)
         assert len(replicas) == replica_count
@@ -94,9 +92,7 @@ class TestErasure(YTEnvSetup):
                     table_writer={"block_size": 1024})
 
         # check if there is 1 chunk exactly
-        chunk_ids = get("//tmp/table/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/table")
 
         # check if there is exactly one block in each part
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
@@ -285,9 +281,7 @@ class TestErasure(YTEnvSetup):
         create("table", "//tmp/t")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         write_table("//tmp/t", {"a": "b"})
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
         parts = chunk_id.split("-")
         for x in xrange(103, 119):
             part_id = "%s-%s-%s%x-%s" % (parts[0], parts[1], parts[2][:-2], x, parts[3])

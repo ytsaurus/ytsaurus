@@ -19,8 +19,7 @@
 
 #include <util/system/fs.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NRpc;
 using namespace NJobProberClient;
@@ -140,5 +139,4 @@ IServicePtr CreateJobProberService(IJobProbePtr jobProbe, IInvokerPtr controlInv
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

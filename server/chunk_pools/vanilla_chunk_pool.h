@@ -2,8 +2,7 @@
 
 #include "chunk_pool.h"
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,5 +11,4 @@ std::unique_ptr<IChunkPoolOutput> CreateVanillaChunkPool(int jobCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

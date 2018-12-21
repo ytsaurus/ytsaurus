@@ -22,8 +22,7 @@
 
 #include <exception>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 using ::testing::ContainsRegex;
 
@@ -975,6 +974,5 @@ INSTANTIATE_TEST_CASE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

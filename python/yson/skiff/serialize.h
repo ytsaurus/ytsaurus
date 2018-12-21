@@ -13,8 +13,7 @@
 #include <util/generic/string.h>
 #include <util/generic/hash.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,5 +21,4 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

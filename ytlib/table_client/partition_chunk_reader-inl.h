@@ -5,8 +5,7 @@
 #include "partition_chunk_reader.h"
 #endif
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,5 +78,4 @@ bool TPartitionMultiChunkReader::Read(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

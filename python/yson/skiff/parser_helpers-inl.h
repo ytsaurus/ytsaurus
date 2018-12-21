@@ -7,8 +7,7 @@
 
 #include "parser_helpers.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,5 +43,4 @@ std::unique_ptr<NSkiff::TSkiffMultiTableParser<TConsumer>> CreateSkiffMultiTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

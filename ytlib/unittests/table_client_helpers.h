@@ -8,8 +8,7 @@
 
 #include <iostream>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +63,5 @@ void CheckSchemalessResult(const std::vector<TRow>& expected, TIntrusivePtr<TRea
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

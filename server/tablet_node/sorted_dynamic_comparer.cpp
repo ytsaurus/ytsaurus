@@ -3,8 +3,7 @@
 #include "dynamic_store_bits.h"
 #include "row_comparer_generator.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NCodegen;
 using namespace NTableClient;
@@ -91,5 +90,4 @@ int TSortedDynamicRowKeyComparer::operator()(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

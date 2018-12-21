@@ -14,8 +14,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,8 +27,8 @@ public:
         TMultiChunkWriterOptionsPtr options,
         NApi::NNative::IClientPtr client,
         NObjectClient::TCellTag cellTag,
-        const NTransactionClient::TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId,
+        NTransactionClient::TTransactionId transactionId,
+        TChunkListId parentChunkListId,
         TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
@@ -125,8 +124,8 @@ public:
         TMultiChunkWriterOptionsPtr options,
         NApi::NNative::IClientPtr client,
         NObjectClient::TCellTag cellTag,
-        const NTransactionClient::TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId,
+        NTransactionClient::TTransactionId transactionId,
+        TChunkListId parentChunkListId,
         std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
@@ -169,5 +168,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

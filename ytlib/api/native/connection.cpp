@@ -44,9 +44,7 @@
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/retrying_channel.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -227,10 +225,10 @@ public:
 
     virtual const TNetworkPreferenceList& GetNetworks() const override
     {
-        return Config_->Networks.Get(DefaultNetworkPreferences);
+        return Config_->Networks ? *Config_->Networks : DefaultNetworkPreferences;
     }
 
-    virtual const TCellId& GetPrimaryMasterCellId() const override
+    virtual TCellId GetPrimaryMasterCellId() const override
     {
         return PrimaryMasterCellId_;
     }
@@ -260,7 +258,7 @@ public:
 
     virtual IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
-        const TCellId& cellId) override
+        TCellId cellId) override
     {
         if (ReplaceCellTagInId(cellId, 0) != ReplaceCellTagInId(PrimaryMasterCellId_, 0)) {
             THROW_ERROR_EXCEPTION("Unknown master cell id %v",
@@ -327,7 +325,7 @@ public:
     }
 
     virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
-        const TCellId& cellId,
+        TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {
         // For tablet writes, manual sync is not needed since Table Mount Cache
@@ -432,6 +430,4 @@ IConnectionPtr CreateConnection(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

@@ -4,8 +4,7 @@
 
 #include <yt/client/api/public.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,10 +37,9 @@ private:
     std::vector<TTransactionId> AbortedTransactionIds_;
 
 private:
-    void OnTransactionAborted(const TTransactionId& id);
+    void OnTransactionAborted(TTransactionId id);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

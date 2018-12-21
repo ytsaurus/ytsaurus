@@ -16,8 +16,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NYson;
 using namespace NYTree;
@@ -109,7 +108,7 @@ private:
         : public IBus
     {
     public:
-        TSession(IClientResponseHandlerPtr handler, TNullable<TDuration> timeout)
+        TSession(IClientResponseHandlerPtr handler, std::optional<TDuration> timeout)
             : Handler_(std::move(handler))
         {
             if (timeout) {
@@ -208,7 +207,7 @@ private:
         : public IClientRequestControl
     {
     public:
-        TClientRequestControl(IServicePtr service, const TRequestId& requestId)
+        TClientRequestControl(IServicePtr service, TRequestId requestId)
             : Service_(std::move(service))
             , RequestId_(requestId)
         { }
@@ -232,5 +231,4 @@ IChannelPtr CreateLocalChannel(IServerPtr server)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

@@ -16,8 +16,7 @@
 #include <yt/core/rpc/public.h>
 #include <yt/client/api/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,10 +50,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, UserName);
 
 public:
-    explicit TCommit(const TTransactionId& transactionId);
+    explicit TCommit(TTransactionId transactionId);
     TCommit(
-        const TTransactionId& transactionId,
-        const NRpc::TMutationId& mutationId,
+        TTransactionId transactionId,
+        NRpc::TMutationId mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
         bool generatePrepareTimestamp,
@@ -75,5 +74,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

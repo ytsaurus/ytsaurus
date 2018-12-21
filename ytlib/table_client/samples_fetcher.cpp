@@ -19,8 +19,7 @@
 
 #include <yt/core/rpc/channel.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NTableClient;
 using namespace NChunkClient;
@@ -87,7 +86,7 @@ void TSamplesFetcher::AddChunk(TInputChunkPtr chunk)
 
 TFuture<void> TSamplesFetcher::Fetch()
 {
-    LOG_DEBUG("Started fetching chunk samples (ChunkCount: %v, DesiredSampleCount: %v)",
+    YT_LOG_DEBUG("Started fetching chunk samples (ChunkCount: %v, DesiredSampleCount: %v)",
         Chunks_.size(),
         DesiredSampleCount_);
 
@@ -170,7 +169,7 @@ void TSamplesFetcher::OnResponse(
     const TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        LOG_INFO(rspOrError, "Failed to get samples from node (Address: %v, NodeId: %v)",
+        YT_LOG_INFO(rspOrError, "Failed to get samples from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
         OnNodeFailed(nodeId, requestedChunkIndexes);
@@ -180,11 +179,11 @@ void TSamplesFetcher::OnResponse(
     const auto& rsp = rspOrError.Value();
 
     // We keep reader in the scope as a holder for wire reader and uncompressed attachment.
-    TNullable<TKeySetReader> keysReader;
+    std::optional<TKeySetReader> keysReader;
     NYT::TRange<TKey> keySet;
     if (rsp->keys_in_attachment()) {
         YCHECK(rsp->Attachments().size() == 1);
-        keysReader.Emplace(rsp->Attachments().front());
+        keysReader.emplace(rsp->Attachments().front());
         keySet = keysReader->GetKeys();
     }
 
@@ -197,7 +196,7 @@ void TSamplesFetcher::OnResponse(
             continue;
         }
 
-        LOG_TRACE("Received %v samples for chunk #%v",
+        YT_LOG_TRACE("Received %v samples for chunk #%v",
             sampleResponse.samples_size(),
             requestedChunkIndexes[index]);
 
@@ -224,6 +223,5 @@ void TSamplesFetcher::OnResponse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

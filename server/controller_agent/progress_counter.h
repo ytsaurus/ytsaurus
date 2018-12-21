@@ -7,8 +7,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,5 +77,4 @@ extern const TProgressCounterPtr NullProgressCounter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

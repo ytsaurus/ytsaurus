@@ -9,14 +9,13 @@
 
 #include <yt/ytlib/object_client/master_ypath.pb.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/rpc/service_detail.h>
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,10 +60,10 @@ struct IObjectTypeHandler
     virtual TString GetName(const TObjectBase* object) = 0;
 
     //! Finds object by id, returns |nullptr| if nothing is found.
-    virtual TObjectBase* FindObject(const TObjectId& id) = 0;
+    virtual TObjectBase* FindObject(TObjectId id) = 0;
 
     //! Finds object by id, fails if nothing is found.
-    TObjectBase* GetObject(const TObjectId& id);
+    TObjectBase* GetObject(TObjectId id);
 
     //! Given a versioned object id, constructs a proxy for it.
     //! The object with the given id must exist.
@@ -81,11 +80,11 @@ struct IObjectTypeHandler
      *  The handler may alter the request appropriately to control this process.
      */
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         NYTree::IAttributeDictionary* attributes) = 0;
 
     //! Constructs a new instance of the type (and, unlike #CreateObject, does little else).
-    virtual std::unique_ptr<TObjectBase> InstantiateObject(const TObjectId& id) = 0;
+    virtual std::unique_ptr<TObjectBase> InstantiateObject(TObjectId id) = 0;
 
     //! Raised when the strong ref-counter of the object decreases to zero.
     virtual void ZombifyObject(TObjectBase* object) noexcept = 0;
@@ -123,6 +122,5 @@ DEFINE_REFCOUNTED_TYPE(IObjectTypeHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 

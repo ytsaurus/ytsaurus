@@ -20,8 +20,7 @@
 
 #include <yt/core/misc/range.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NApi;
 using namespace NYson;
@@ -153,13 +152,13 @@ TRequestState TRequestState::FromRow(
         state.Resources = ConvertTo<std::vector<TResourceLinkPtr>>(resourcesYson);
     }
 
-    if (state.State == ERequestState::Failed && !state.Error.HasValue()) {
+    if (state.State == ERequestState::Failed && !state.Error) {
         THROW_ERROR_EXCEPTION("Inconsistent error state");
     }
-    if (state.State == ERequestState::Creating && !state.Progress.HasValue()) {
+    if (state.State == ERequestState::Creating && !state.Progress) {
         THROW_ERROR_EXCEPTION("Inconsistent starting state");
     }
-    if (state.State == ERequestState::Active && !state.Resources.HasValue()) {
+    if (state.State == ERequestState::Active && !state.Resources) {
         THROW_ERROR_EXCEPTION("Invonsistent active state");
     }
 
@@ -281,7 +280,7 @@ std::vector<TRequestKey> TTables::ListActiveRequests()
 
 bool TTables::StartRequest(const TRequestKey& key, TRequestState* state)
 {
-    LOG_INFO("Starting request (RequestKey: %v)", key);
+    YT_LOG_INFO("Starting request (RequestKey: %v)", key);
 
     auto nameTable = New<TNameTable>();
     auto rowBuffer = New<TRowBuffer>();
@@ -293,7 +292,7 @@ bool TTables::StartRequest(const TRequestKey& key, TRequestState* state)
     bool ok = LookupRequest(tx, nameTable, rowBuffer, key, &oldState);
     if (ok) {
         if (oldState.State == ERequestState::Failed) {
-            LOG_INFO("Found failed request (RequestKey: %v)", key);
+            YT_LOG_INFO("Found failed request (RequestKey: %v)", key);
             DeleteRequest(tx, nameTable, rowBuffer, key);
             WaitFor(tx->Commit())
                 .ThrowOnError();
@@ -303,16 +302,16 @@ bool TTables::StartRequest(const TRequestKey& key, TRequestState* state)
 
         // TODO(prime@): move to config
         if (!oldState.IsExpired(TDuration::Minutes(5))) {
-            LOG_INFO("Found existing active request (RequestKey: %v)", key);
+            YT_LOG_INFO("Found existing active request (RequestKey: %v)", key);
             WaitFor(tx->Abort())
                 .ThrowOnError();
             *state = oldState;
             return false;
         }
 
-        LOG_INFO("Found existing expired request (RequestKey: %v)", key);
+        YT_LOG_INFO("Found existing expired request (RequestKey: %v)", key);
     } else {
-        LOG_INFO("Existing request not found (RequestKey: %v)", key);
+        YT_LOG_INFO("Existing request not found (RequestKey: %v)", key);
     }
 
     TRequestState newState;
@@ -335,8 +334,8 @@ bool TTables::StartRequest(const TRequestKey& key, TRequestState* state)
 
 void TTables::UpdateStatus(
     const TRequestKey& key,
-    TNullable<TYsonString> progress,
-    TNullable<TError> error)
+    std::optional<TYsonString> progress,
+    std::optional<TError> error)
 {
     auto nameTable = New<TNameTable>();
 
@@ -394,7 +393,7 @@ std::vector<TResourceId> TTables::FinishRequest(
 
     state.ValidateOwnerId(ProcessId_);
     state.State = ERequestState::Active;
-    state.Progress.Reset();
+    state.Progress.reset();
 
     auto duplicateId = TGuid::Create();
     std::vector<TResourceId> resourceIds;
@@ -564,5 +563,4 @@ void TTables::DeleteRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

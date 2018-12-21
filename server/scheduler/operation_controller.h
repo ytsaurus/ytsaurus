@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +24,7 @@ struct IOperationControllerStrategyHost
 
     //! Called during scheduling to notify the controller that a (nonscheduled) job has been aborted.
     virtual void OnNonscheduledJobAborted(
-        const TJobId& jobId,
+        TJobId jobId,
         EAbortReason abortReason) = 0;
 
     //! Returns the total resources that are additionally needed.
@@ -94,7 +93,7 @@ struct IOperationController
 
     //! Invokes IOperationControllerSchedulerHost::InitializeReviving or InitializeClean asynchronously.
     virtual TFuture<TOperationControllerInitializeResult> Initialize(
-        const TNullable<TOperationTransactions>& transactions) = 0;
+        const std::optional<TOperationTransactions>& transactions) = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Prepare asynchronously.
     virtual TFuture<TOperationControllerPrepareResult> Prepare() = 0;
@@ -169,5 +168,4 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

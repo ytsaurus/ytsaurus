@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/fs.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NCellNode;
 using namespace NChunkClient;
@@ -27,13 +26,13 @@ static const auto& Logger = DataNodeLogger;
 TChunkBase::TChunkBase(
     TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& id)
+    TChunkId id)
     : Bootstrap_(bootstrap)
     , Location_(location)
     , Id_(id)
 { }
 
-const TChunkId& TChunkBase::GetId() const
+TChunkId TChunkBase::GetId() const
 {
     return Id_;
 }
@@ -76,7 +75,7 @@ bool TChunkBase::TryAcquireReadLock()
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (RemovedFuture_) {
-            LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %v)",
+            YT_LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %v)",
                 Id_);
             return false;
         }
@@ -84,7 +83,7 @@ bool TChunkBase::TryAcquireReadLock()
         lockCount = ++ReadLockCounter_;
     }
 
-    LOG_TRACE("Chunk read lock acquired (ChunkId: %v, LockCount: %v)",
+    YT_LOG_TRACE("Chunk read lock acquired (ChunkId: %v, LockCount: %v)",
         Id_,
         lockCount);
 
@@ -106,7 +105,7 @@ void TChunkBase::ReleaseReadLock()
         }
     }
 
-    LOG_TRACE("Chunk read lock released (ChunkId: %v, LockCount: %v)",
+    YT_LOG_TRACE("Chunk read lock released (ChunkId: %v, LockCount: %v)",
         Id_,
         lockCount);
 
@@ -125,7 +124,7 @@ bool TChunkBase::IsReadLockAcquired() const
 
 TFuture<void> TChunkBase::ScheduleRemove()
 {
-    LOG_INFO("Chunk remove scheduled (ChunkId: %v)",
+    YT_LOG_INFO("Chunk remove scheduled (ChunkId: %v)",
         Id_);
 
     bool removing = false;
@@ -166,7 +165,7 @@ void TChunkBase::StartAsyncRemove()
 
 TRefCountedChunkMetaPtr TChunkBase::FilterMeta(
     TRefCountedChunkMetaPtr meta,
-    const TNullable<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags)
 {
     return extensionTags
         ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*meta, extensionTags))
@@ -175,5 +174,4 @@ TRefCountedChunkMetaPtr TChunkBase::FilterMeta(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -106,5 +105,4 @@ IObjectProxyPtr CreateDataCenterProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

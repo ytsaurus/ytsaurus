@@ -24,8 +24,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NRpc;
 using namespace NObjectClient;
@@ -52,7 +51,7 @@ TSessionManager::TSessionManager(
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
-ISessionPtr TSessionManager::FindSession(const TSessionId& sessionId)
+ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -62,7 +61,7 @@ ISessionPtr TSessionManager::FindSession(const TSessionId& sessionId)
     return it == SessionMap_.end() ? nullptr : it->second;
 }
 
-ISessionPtr TSessionManager::GetSessionOrThrow(const TSessionId& sessionId)
+ISessionPtr TSessionManager::GetSessionOrThrow(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -76,7 +75,7 @@ ISessionPtr TSessionManager::GetSessionOrThrow(const TSessionId& sessionId)
     return session;
 }
 
-TSessionManager::TSessionPtrList TSessionManager::GetSessionsOrThrow(const TChunkId& chunkId)
+TSessionManager::TSessionPtrList TSessionManager::GetSessionsOrThrow(TChunkId chunkId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -100,7 +99,7 @@ TSessionManager::TSessionPtrList TSessionManager::GetSessionsOrThrow(const TChun
 }
 
 ISessionPtr TSessionManager::StartSession(
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     const TSessionOptions& options)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -108,13 +107,13 @@ ISessionPtr TSessionManager::StartSession(
     if (SessionMap_.size() >= Config_->MaxWriteSessions) {
         auto error = TError("Maximum concurrent write session limit %v has been reached",
             Config_->MaxWriteSessions);
-        LOG_ERROR(error);
+        YT_LOG_ERROR(error);
         THROW_ERROR(error);
     }
 
     if (DisableWriteSessions_) {
         auto error = TError("Write sessions are disabled");
-        LOG_ERROR(error);
+        YT_LOG_ERROR(error);
         THROW_ERROR(error);
     }
 
@@ -130,7 +129,7 @@ ISessionPtr TSessionManager::StartSession(
 }
 
 ISessionPtr TSessionManager::CreateSession(
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     const TSessionOptions& options)
 {
     auto chunkType = TypeFromId(DecodeChunkId(sessionId.ChunkId).Id);
@@ -174,7 +173,7 @@ ISessionPtr TSessionManager::CreateSession(
     return session;
 }
 
-void TSessionManager::OnSessionLeaseExpired(const TSessionId& sessionId)
+void TSessionManager::OnSessionLeaseExpired(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -183,7 +182,7 @@ void TSessionManager::OnSessionLeaseExpired(const TSessionId& sessionId)
         return;
     }
 
-    LOG_INFO("Session lease expired (ChunkId: %v)",
+    YT_LOG_INFO("Session lease expired (ChunkId: %v)",
         sessionId);
 
     session->Cancel(TError("Session lease expired"));
@@ -198,7 +197,7 @@ void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& session, const
         return;
     }
 
-    LOG_INFO("Session finished (ChunkId: %v)",
+    YT_LOG_INFO("Session finished (ChunkId: %v)",
         session_->GetId());
 
     UnregisterSession(session_);
@@ -234,5 +233,4 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

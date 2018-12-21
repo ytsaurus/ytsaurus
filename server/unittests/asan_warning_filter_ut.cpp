@@ -2,8 +2,7 @@
 
 #include <yt/server/job_proxy/asan_warning_filter.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,5 +48,4 @@ TEST(TAsanWarningFilter, RetainsNonWarning)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

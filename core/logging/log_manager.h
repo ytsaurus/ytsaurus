@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,8 +60,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging
 
 template <>
 struct TSingletonTraits<NYT::NLogging::TLogManager>

@@ -1,8 +1,7 @@
 #include "config.h"
 #include "private.h"
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,5 +104,4 @@ TLogConfigPtr TLogConfig::CreateFromNode(NYTree::INodePtr node, const NYPath::TY
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

@@ -6,9 +6,7 @@
 
 #include <contrib/libs/grpc/include/grpc/grpc_security_constants.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,6 +141,4 @@ DEFINE_REFCOUNTED_TYPE(TChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

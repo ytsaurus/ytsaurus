@@ -12,8 +12,7 @@
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,14 +22,14 @@ class TCachedBlock
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TBlock, Data);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<NNodeTrackerClient::TNodeDescriptor>, Source);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NNodeTrackerClient::TNodeDescriptor>, Source);
 
 public:
     //! Constructs a new block from id and data.
     TCachedBlock(
         const TBlockId& blockId,
         const NChunkClient::TBlock& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source);
 
 };
 
@@ -66,7 +65,7 @@ public:
     void PutCachedBlock(
         const TBlockId& blockId,
         const NChunkClient::TBlock& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source);
 
     //! Starts an asynchronous block load.
     /*!
@@ -86,7 +85,7 @@ public:
      *  Journal chunks, however, will silently ignore it.
      */
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         int firstBlockIndex,
         int blockCount,
         const TBlockReadOptions& options);
@@ -99,7 +98,7 @@ public:
      *  If the whole chunk or some of its blocks does not exist then null block may be returned.
      */
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options);
 
@@ -120,6 +119,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkBlockManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

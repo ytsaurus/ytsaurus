@@ -17,8 +17,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NYPath {
+namespace NYT::NYPath {
 
 using namespace NYTree;
 using namespace NYson;
@@ -358,7 +357,7 @@ T GetAttribute(const TRichYPath& path, const TString& key, const T& defaultValue
 }
 
 template <class T>
-TNullable<T> FindAttribute(const TRichYPath& path, const TString& key)
+std::optional<T> FindAttribute(const TRichYPath& path, const TString& key)
 {
     return RunAttributeAccessor(path, key, [&] () {
         return path.Attributes().Find<T>(key);
@@ -448,7 +447,7 @@ void TRichYPath::SetForeign(bool value)
     Attributes().Set("foreign", value);
 }
 
-TNullable<std::vector<TString>> TRichYPath::GetColumns() const
+std::optional<std::vector<TString>> TRichYPath::GetColumns() const
 {
     if (Attributes().Contains("channel")) {
         THROW_ERROR_EXCEPTION("Deprecated attribute 'channel' in YPath");
@@ -464,22 +463,22 @@ void TRichYPath::SetColumns(const std::vector<TString>& columns)
 std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
 {
     // COMPAT(ignat): top-level "lower_limit" and "upper_limit" are processed for compatibility.
-    auto maybeLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
-    auto maybeUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
-    auto maybeRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
+    auto optionalLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
+    auto optionalUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
+    auto optionalRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
 
-    if (maybeLowerLimit || maybeUpperLimit) {
-        if (maybeRanges) {
+    if (optionalLowerLimit || optionalUpperLimit) {
+        if (optionalRanges) {
             THROW_ERROR_EXCEPTION("YPath cannot be annotated with both multiple (\"ranges\" attribute) "
                 "and single (\"lower_limit\" or \"upper_limit\" attributes) ranges");
         }
         return std::vector<TReadRange>({
             TReadRange(
-                maybeLowerLimit.Get(TReadLimit()),
-                maybeUpperLimit.Get(TReadLimit())
+                optionalLowerLimit.value_or(TReadLimit()),
+                optionalUpperLimit.value_or(TReadLimit())
             )});
     } else {
-        return maybeRanges.Get(std::vector<TReadRange>({TReadRange()}));
+        return optionalRanges.value_or(std::vector<TReadRange>({TReadRange()}));
     }
 }
 
@@ -493,19 +492,19 @@ void TRichYPath::SetRanges(const std::vector<NChunkClient::TReadRange>& value)
 
 bool TRichYPath::HasNontrivialRanges() const
 {
-    auto maybeLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
-    auto maybeUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
-    auto maybeRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
+    auto optionalLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
+    auto optionalUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
+    auto optionalRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
 
-    return maybeUpperLimit || maybeUpperLimit || maybeRanges;
+    return optionalUpperLimit || optionalUpperLimit || optionalRanges;
 }
 
-TNullable<TString> TRichYPath::GetFileName() const
+std::optional<TString> TRichYPath::GetFileName() const
 {
     return FindAttribute<TString>(*this, "file_name");
 }
 
-TNullable<bool> TRichYPath::GetExecutable() const
+std::optional<bool> TRichYPath::GetExecutable() const
 {
     return FindAttribute<bool>(*this, "executable");
 }
@@ -515,7 +514,7 @@ TYsonString TRichYPath::GetFormat() const
     return FindAttributeYson(*this, "format");
 }
 
-TNullable<TTableSchema> TRichYPath::GetSchema() const
+std::optional<TTableSchema> TRichYPath::GetSchema() const
 {
     return RunAttributeAccessor(*this, "schema", [&] () {
         auto schema = FindAttribute<TTableSchema>(*this, "schema");
@@ -526,7 +525,7 @@ TNullable<TTableSchema> TRichYPath::GetSchema() const
     });
 }
 
-TNullable<TColumnRenameDescriptors> TRichYPath::GetColumnRenameDescriptors() const
+std::optional<TColumnRenameDescriptors> TRichYPath::GetColumnRenameDescriptors() const
 {
     return FindAttribute<TColumnRenameDescriptors>(*this, "rename_columns");
 }
@@ -545,27 +544,27 @@ void TRichYPath::SetSortedBy(const TKeyColumns& value)
     }
 }
 
-TNullable<i64> TRichYPath::GetRowCountLimit() const
+std::optional<i64> TRichYPath::GetRowCountLimit() const
 {
     return FindAttribute<i64>(*this, "row_count_limit");
 }
 
-TNullable<NTransactionClient::TTimestamp> TRichYPath::GetTimestamp() const
+std::optional<NTransactionClient::TTimestamp> TRichYPath::GetTimestamp() const
 {
     return FindAttribute<NTransactionClient::TTimestamp>(*this, "timestamp");
 }
 
-TNullable<NTableClient::EOptimizeFor> TRichYPath::GetOptimizeFor() const
+std::optional<NTableClient::EOptimizeFor> TRichYPath::GetOptimizeFor() const
 {
     return FindAttribute<NTableClient::EOptimizeFor>(*this, "optimize_for");
 }
 
-TNullable<NCompression::ECodec> TRichYPath::GetCompressionCodec() const
+std::optional<NCompression::ECodec> TRichYPath::GetCompressionCodec() const
 {
     return FindAttribute<NCompression::ECodec>(*this, "compression_codec");
 }
 
-TNullable<NErasure::ECodec> TRichYPath::GetErasureCodec() const
+std::optional<NErasure::ECodec> TRichYPath::GetErasureCodec() const
 {
     return FindAttribute<NErasure::ECodec>(*this, "erasure_codec");
 }
@@ -575,7 +574,7 @@ bool TRichYPath::GetAutoMerge() const
     return GetAttribute<bool>(*this, "auto_merge", true);
 }
 
-TNullable<NObjectClient::TTransactionId> TRichYPath::GetTransactionId() const
+std::optional<NObjectClient::TTransactionId> TRichYPath::GetTransactionId() const
 {
     return FindAttribute<NObjectClient::TTransactionId>(*this, "transaction_id");
 }
@@ -628,5 +627,4 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYPath
-} // namespace NYT
+} // namespace NYT::NYPath

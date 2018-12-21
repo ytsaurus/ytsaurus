@@ -2,8 +2,7 @@
 
 #include "election_manager.h"
 
-namespace NYT {
-namespace NElection {
+namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,5 +29,4 @@ DEFINE_REFCOUNTED_TYPE(TElectionManagerThunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
-} // namespace NYT
+} // namespace NYT::NElection

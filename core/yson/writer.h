@@ -3,8 +3,7 @@
 #include "public.h"
 #include "consumer.h"
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,6 +166,5 @@ std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson
 

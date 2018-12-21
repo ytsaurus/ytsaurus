@@ -7,8 +7,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,5 +41,4 @@ DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

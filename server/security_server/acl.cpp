@@ -9,8 +9,7 @@
 #include <yt/core/ytree/permission.h>
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -246,6 +245,5 @@ void TAccessControlDescriptor::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

@@ -7,8 +7,7 @@
 
 #include <yt/core/utilex/random.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,5 +225,4 @@ TFuture<void> TPeriodicExecutor::GetExecutedEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

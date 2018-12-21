@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/transaction_client/action.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +17,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTransactionActionData>, Actions);
 
 public:
-    explicit TTransactionBase(const TTransactionId& id);
+    explicit TTransactionBase(TTransactionId id);
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
@@ -31,8 +30,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer
 
 #define TRANSACTION_DETAIL_INL_H_
 #include "transaction_detail-inl.h"

@@ -5,8 +5,7 @@
 #include <util/string/join.h>
 #include <util/stream/str.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +22,16 @@ void TQueryBuilder::SetSource(TString source)
     Source_ = std::move(source);
 }
 
-int TQueryBuilder::AddSelectExpression(TString expression, TNullable<TString> alias)
+int TQueryBuilder::AddSelectExpression(TString expression)
+{
+    SelectEntries_.push_back(TEntryWithAlias{
+        std::move(expression),
+        std::nullopt,
+    });
+    return SelectEntries_.size() - 1;
+}
+
+int TQueryBuilder::AddSelectExpression(TString expression, TString alias)
 {
     SelectEntries_.push_back(TEntryWithAlias{
         std::move(expression),
@@ -32,17 +40,20 @@ int TQueryBuilder::AddSelectExpression(TString expression, TNullable<TString> al
     return SelectEntries_.size() - 1;
 }
 
-int TQueryBuilder::AddSelectExpression(TString expression, TString alias)
-{
-    return AddSelectExpression(expression, TNullable<TString>(std::move(alias)));
-}
-
 void TQueryBuilder::AddWhereConjunct(TString expression)
 {
     WhereConjuncts_.push_back(std::move(expression));
 }
 
-void TQueryBuilder::AddGroupByExpression(TString expression, TNullable<TString> alias)
+void TQueryBuilder::AddGroupByExpression(TString expression)
+{
+    GroupByEntries_.push_back(TEntryWithAlias{
+        std::move(expression),
+        std::nullopt
+    });
+}
+
+void TQueryBuilder::AddGroupByExpression(TString expression, TString alias)
 {
     GroupByEntries_.push_back(TEntryWithAlias{
         std::move(expression),
@@ -50,12 +61,15 @@ void TQueryBuilder::AddGroupByExpression(TString expression, TNullable<TString> 
     });
 }
 
-void TQueryBuilder::AddGroupByExpression(TString expression, TString alias)
+void TQueryBuilder::AddOrderByExpression(TString expression)
 {
-    AddGroupByExpression(expression, TNullable<TString>(std::move(alias)));
+    OrderByEntries_.push_back(TOrderByEntry{
+        std::move(expression),
+        std::nullopt,
+    });
 }
 
-void TQueryBuilder::AddOrderByExpression(TString expression, TNullable<EOrderByDirection> direction)
+void TQueryBuilder::AddOrderByExpression(TString expression, std::optional<EOrderByDirection> direction)
 {
     OrderByEntries_.push_back(TOrderByEntry{
         std::move(expression),
@@ -138,5 +152,4 @@ void AppendToString(TString& dst, const TQueryBuilder::TOrderByEntry& entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

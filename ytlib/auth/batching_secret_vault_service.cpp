@@ -10,8 +10,7 @@
 
 #include <queue>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NConcurrency;
 
@@ -149,5 +148,4 @@ ISecretVaultServicePtr CreateBatchingSecretVaultService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

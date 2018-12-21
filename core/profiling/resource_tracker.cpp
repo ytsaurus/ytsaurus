@@ -18,8 +18,7 @@
     #include <unistd.h>
 #endif
 
-namespace NYT {
-namespace NProfiling {
+namespace NYT::NProfiling {
 
 using namespace NYPath;
 using namespace NYTree;
@@ -160,5 +159,4 @@ void TResourceTracker::EnqueueMemoryUsage()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling

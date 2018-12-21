@@ -6,8 +6,7 @@
 #endif
 #undef NONBLOCKING_QUEUE_INL_H_
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,5 +42,4 @@ TFuture<T> TNonblockingQueue<T>::Dequeue()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

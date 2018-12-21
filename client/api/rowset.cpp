@@ -10,8 +10,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 using namespace NTabletClient;
 using namespace NTableClient;
@@ -126,6 +125,5 @@ std::tuple<ISchemafulWriterPtr, TFuture<IUnversionedRowsetPtr>> CreateSchemafulR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

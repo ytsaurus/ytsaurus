@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NYTree;
 using namespace NTableClient;
@@ -17,9 +16,9 @@ using namespace NTransactionClient;
 
 TDataSource::TDataSource(
     EDataSourceType type,
-    const TNullable<TString>& path,
-    const TNullable<TTableSchema>& schema,
-    const TNullable<std::vector<TString>>& columns,
+    const std::optional<TString>& path,
+    const std::optional<TTableSchema>& schema,
+    const std::optional<std::vector<TString>>& columns,
     TTimestamp timestamp,
     const TColumnRenameDescriptors& columnRenameDescriptors)
     : Type_(type)
@@ -103,9 +102,9 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
 }
 
 TDataSource MakeVersionedDataSource(
-    const TNullable<TString>& path,
+    const std::optional<TString>& path,
     const NTableClient::TTableSchema& schema,
-    const TNullable<std::vector<TString>>& columns,
+    const std::optional<std::vector<TString>>& columns,
     NTransactionClient::TTimestamp timestamp,
     const TColumnRenameDescriptors& columnRenameDescriptors)
 {
@@ -113,17 +112,17 @@ TDataSource MakeVersionedDataSource(
 }
 
 TDataSource MakeUnversionedDataSource(
-    const TNullable<TString>& path,
-    const TNullable<NTableClient::TTableSchema>& schema,
-    const TNullable<std::vector<TString>>& columns,
+    const std::optional<TString>& path,
+    const std::optional<NTableClient::TTableSchema>& schema,
+    const std::optional<std::vector<TString>>& columns,
     const TColumnRenameDescriptors& columnRenameDescriptors)
 {
     return TDataSource(EDataSourceType::UnversionedTable, path, schema, columns, NullTimestamp, columnRenameDescriptors);
 }
 
-TDataSource MakeFileDataSource(const TNullable<TString>& path)
+TDataSource MakeFileDataSource(const std::optional<TString>& path)
 {
-    return TDataSource(EDataSourceType::File, path, Null, Null, NullTimestamp, {});
+    return TDataSource(EDataSourceType::File, path, std::nullopt, std::nullopt, NullTimestamp, {});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,6 +158,5 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

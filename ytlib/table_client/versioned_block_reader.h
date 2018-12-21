@@ -12,8 +12,7 @@
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +79,7 @@ private:
 
     TRef ValueData_;
     TBitmap ValueNullFlags_;
-    TNullable<TBitmap> ValueAggregateFlags_;
+    std::optional<TBitmap> ValueAggregateFlags_;
 
     TRef TimestampsData_;
 
@@ -149,5 +148,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

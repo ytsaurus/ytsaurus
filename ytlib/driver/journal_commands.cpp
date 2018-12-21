@@ -17,8 +17,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYson;
 using namespace NYTree;
@@ -297,5 +296,4 @@ void TWriteJournalCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

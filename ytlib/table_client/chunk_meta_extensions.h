@@ -27,7 +27,11 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumnsExt, 14)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NTableClient {
+} // namespace NYT
+
+namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TOwningBoundaryKeys
 {
@@ -63,7 +67,7 @@ class TCachedBlockMeta
     , public NTableClient::NProto::TBlockMetaExt
 {
 public:
-    TCachedBlockMeta(const NChunkClient::TChunkId& chunkId, NTableClient::NProto::TBlockMetaExt blockMetaExt);
+    TCachedBlockMeta(NChunkClient::TChunkId chunkId, NTableClient::NProto::TBlockMetaExt blockMetaExt);
     i64 GetWeight() const;
 
 private:
@@ -95,5 +99,4 @@ NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTag(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -9,8 +9,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,5 +60,4 @@ DEFINE_REFCOUNTED_TYPE(TEncodingChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

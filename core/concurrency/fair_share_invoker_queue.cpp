@@ -1,8 +1,7 @@
 #include "invoker_queue.h"
 #include "fair_share_invoker_queue.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 using namespace NYPath;
@@ -117,6 +116,5 @@ TFairShareInvokerQueue::TBucket* TFairShareInvokerQueue::GetStarvingBucket()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

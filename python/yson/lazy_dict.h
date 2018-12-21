@@ -15,8 +15,7 @@
 
 #include <Python.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +27,7 @@ struct TPyObjectHasher
 struct TLazyDictValue
 {
     TSharedRef Data;
-    TNullable<Py::Object> Value;
+    std::optional<Py::Object> Value;
 };
 
 class TLazyDict
@@ -36,7 +35,7 @@ class TLazyDict
 public:
     typedef THashMap<Py::Object, TLazyDictValue, TPyObjectHasher> THashMapType;
 
-    TLazyDict(bool alwaysCreateAttributes, const TNullable<TString>& encoding);
+    TLazyDict(bool alwaysCreateAttributes, const std::optional<TString>& encoding);
 
     PyObject* GetItem(const Py::Object& key);
     void SetItem(const Py::Object& key, const TSharedRef& value);
@@ -52,10 +51,9 @@ private:
     THashMapType Data_;
     std::unique_ptr<NYTree::TPythonObjectBuilder> Consumer_;
     bool AlwaysCreateAttributes_;
-    TNullable<TString> Encoding_;
+    std::optional<TString> Encoding_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

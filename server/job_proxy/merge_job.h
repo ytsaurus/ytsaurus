@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,5 +11,4 @@ IJobPtr CreateUnorderedMergeJob(IJobHostPtr host);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYTNYT
+} // namespace NYTNYT::NJobProxy

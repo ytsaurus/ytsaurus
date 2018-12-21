@@ -21,8 +21,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NConcurrency;
 using namespace NCellNode;
@@ -84,7 +83,7 @@ TChunkInfo TJournalChunk::GetInfo() const
 
 TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
     const TBlockReadOptions& /*options*/,
-    const TNullable<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -93,7 +92,7 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
         .Run();
 }
 
-TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const TNullable<std::vector<int>>& extensionTags)
+TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const std::optional<std::vector<int>>& extensionTags)
 {
     UpdateCachedParams();
 
@@ -156,7 +155,7 @@ void TJournalChunk::DoReadBlockRange(
         auto changelog = WaitFor(dispatcher->OpenChangelog(StoreLocation_, Id_))
             .ValueOrThrow();
 
-        LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        YT_LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -185,7 +184,7 @@ void TJournalChunk::DoReadBlockRange(
         i64 bytesRead = GetByteSize(blocks);
         chunkReaderStatistics->DataBytesReadFromDisk += bytesRead;
 
-        LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, "
+        YT_LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, "
             "BytesReadActually: %v, Time: %v)",
             Id_,
             firstBlockIndex,
@@ -220,10 +219,10 @@ void TJournalChunk::SyncRemove(bool force)
 {
     if (Changelog_) {
         try {
-            LOG_DEBUG("Started closing journal chunk (ChunkId: %v)", Id_);
+            YT_LOG_DEBUG("Started closing journal chunk (ChunkId: %v)", Id_);
             WaitFor(Changelog_->Close())
                 .ThrowOnError();
-            LOG_DEBUG("Finished closing journal chunk (ChunkId: %v)", Id_);
+            YT_LOG_DEBUG("Finished closing journal chunk (ChunkId: %v)", Id_);
             Changelog_.Reset();
         } catch (const std::exception& ex) {
             auto error = TError(ex);
@@ -328,5 +327,4 @@ void swap(TJournalChunkChangelogGuard& lhs, TJournalChunkChangelogGuard& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

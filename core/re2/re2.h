@@ -8,8 +8,7 @@
 
 #include <contrib/libs/re2/re2/re2.h>
 
-namespace NYT {
-namespace NRe2 {
+namespace NYT::NRe2 {
 
 using namespace re2;
 
@@ -34,5 +33,4 @@ void Deserialize(TRe2Ptr& re, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRe2
-} // namespace NYT
+} // namespace NYT::NRe2

@@ -5,8 +5,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 
 // See json_writer.h for details on how YSON is mapped to JSON.
 // This implementation of TJsonParser is DOM-based (and is thus suboptimal).
@@ -42,5 +41,4 @@ void ParseJson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

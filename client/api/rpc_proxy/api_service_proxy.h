@@ -7,9 +7,7 @@
 
 #include <yt/core/rpc/client.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +35,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ListNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LockNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnlockNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CopyNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MoveNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LinkNode);
@@ -100,6 +99,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

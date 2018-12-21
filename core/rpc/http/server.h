@@ -4,9 +4,7 @@
 
 #include <yt/core/http/public.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NHttp {
+namespace NYT::NRpc::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,6 +12,4 @@ NRpc::IServerPtr CreateServer(NYT::NHttp::IServerPtr httpServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NHttp

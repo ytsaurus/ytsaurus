@@ -8,8 +8,7 @@
 
 #include <yt/client/table_client/serialize.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +40,5 @@ extern const NLogging::TLogger ChunkPoolLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools
 

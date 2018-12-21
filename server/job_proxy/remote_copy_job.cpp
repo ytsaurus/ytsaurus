@@ -34,8 +34,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_semaphore.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -159,7 +158,7 @@ public:
             WaitFor(Combine(chunkCopyResults))
                 .ThrowOnError();
 
-            LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)", OutputChunkListId_);
+            YT_LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)", OutputChunkListId_);
             AttachChunksToChunkList(outputChunkIds);
         }
     }
@@ -247,7 +246,7 @@ private:
 
     TDataStatistics DataStatistics_;
 
-    TNullable<TChunkId> FailedChunkId_;
+    std::optional<TChunkId> FailedChunkId_;
 
     const TActionQueuePtr RemoteCopyQueue_;
     TAsyncSemaphorePtr CopySemaphore_;
@@ -269,11 +268,11 @@ private:
             Logger);
     }
 
-    void CopyChunk(const TChunkSpec& inputChunkSpec, const NChunkClient::TSessionId& outputSessionId)
+    void CopyChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
     {
         auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
 
-        LOG_INFO("Copying chunk (InputChunkId: %v, OutputChunkId: %v)",
+        YT_LOG_INFO("Copying chunk (InputChunkId: %v, OutputChunkId: %v)",
             inputChunkId, outputSessionId);
 
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
@@ -347,7 +346,7 @@ private:
                 copyResults.push_back(resultFuture);
             }
 
-            LOG_INFO("Waiting for erasure parts data to be copied");
+            YT_LOG_INFO("Waiting for erasure parts data to be copied");
 
             WaitFor(Combine(copyResults))
                 .ThrowOnError();
@@ -407,7 +406,7 @@ private:
                 .AsyncVia(GetRemoteCopyInvoker())
                 .Run(reader, writer, blockSizes, chunkMeta);
 
-            LOG_INFO("Waiting for chunk data to be copied");
+            YT_LOG_INFO("Waiting for chunk data to be copied");
 
             WaitFor(result)
                 .ThrowOnError();
@@ -420,7 +419,7 @@ private:
         DataStatistics_.set_chunk_count(DataStatistics_.chunk_count() + 1);
 
         // Confirm chunk.
-        LOG_INFO("Confirming output chunk (ChunkId: %v)", outputSessionId);
+        YT_LOG_INFO("Confirming output chunk (ChunkId: %v)", outputSessionId);
         ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
 
         TotalSize_ -= totalChunkSize;
@@ -428,7 +427,7 @@ private:
     }
 
     void ConfirmChunkReplicas(
-        const NChunkClient::TSessionId& outputSessionId,
+        NChunkClient::TSessionId outputSessionId,
         const TChunkInfo& chunkInfo,
         const TChunkReplicaList& writtenReplicas,
         const TRefCountedChunkMetaPtr& inputChunkMeta)
@@ -566,5 +565,4 @@ IJobPtr CreateRemoteCopyJob(IJobHostPtr host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

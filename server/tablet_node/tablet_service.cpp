@@ -25,8 +25,7 @@
 
 #include <yt/core/compression/codec.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NYTree;
 using namespace NRpc;
@@ -236,7 +235,7 @@ private:
 
 
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         i64 mountRevision)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
@@ -269,5 +268,4 @@ IServicePtr CreateTabletService(TTabletSlotPtr slot, NCellNode::TBootstrap* boot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

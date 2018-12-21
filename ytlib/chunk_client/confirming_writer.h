@@ -13,8 +13,7 @@
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,8 +21,8 @@ IChunkWriterPtr CreateConfirmingWriter(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     NObjectClient::TCellTag cellTag,
-    const NTransactionClient::TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId,
+    NTransactionClient::TTransactionId transactionId,
+    TChunkListId parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
     IBlockCachePtr blockCache = GetNullBlockCache(),
@@ -32,6 +31,5 @@ IChunkWriterPtr CreateConfirmingWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

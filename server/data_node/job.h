@@ -10,13 +10,12 @@
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NJobAgent::IJobPtr CreateChunkJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
@@ -24,6 +23,5 @@ NJobAgent::IJobPtr CreateChunkJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

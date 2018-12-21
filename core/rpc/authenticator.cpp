@@ -2,8 +2,7 @@
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +63,5 @@ IAuthenticatorPtr CreateNoopAuthenticator()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc
 

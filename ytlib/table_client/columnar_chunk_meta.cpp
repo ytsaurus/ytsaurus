@@ -4,8 +4,7 @@
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/column_rename_descriptor.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NTableClient::NProto;
 using namespace NChunkClient;
@@ -138,5 +137,4 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

@@ -11,8 +11,7 @@
 
 #include <yt/core/alloc/alloc.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 static const auto& Logger = JobProxyLogger;
 
@@ -56,7 +55,7 @@ protected:
         try {
             SafeCreateStderrFile("stderr");
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Job proxy preparation (startup) failed");
+            YT_LOG_ERROR(ex, "Job proxy preparation (startup) failed");
             Exit(static_cast<int>(NJobProxy::EJobProxyExitCode::JobProxyPrepareFailed));
         }
 
@@ -87,8 +86,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy
 
 int main(int argc, const char** argv)
 {

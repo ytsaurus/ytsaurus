@@ -30,9 +30,7 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,8 +59,8 @@ IChannelPtr CreateCredentialsInjectingChannel(
         return CreateCookieInjectingChannel(
             underlying,
             options.PinnedUser,
-            options.SessionId.Get(TString()),
-            options.SslSessionId.Get(TString()));
+            options.SessionId.value_or(TString()),
+            options.SslSessionId.value_or(TString()));
     } else {
         return CreateUserInjectingChannel(underlying, options.PinnedUser);
     }
@@ -138,7 +136,7 @@ IChannelPtr TClient::GetStickyChannel()
 }
 
 ITransactionPtr TClient::AttachTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     const TTransactionAttachOptions& options)
 {
     if (options.Sticky) {
@@ -367,7 +365,7 @@ TFuture<void> TClient::AlterTable(
 }
 
 TFuture<void> TClient::AlterTableReplica(
-    const TTableReplicaId& replicaId,
+    TTableReplicaId replicaId,
     const TAlterTableReplicaOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -614,7 +612,7 @@ TFuture<NYson::TYsonString> TClient::GetOperation(
 
     ToProto(req->mutable_master_read_options(), options);
     if (options.Attributes) {
-        for (const auto& attribute: options.Attributes.Get()) {
+        for (const auto& attribute : *options.Attributes) {
             req->add_attributes(attribute);
         }
     }
@@ -626,7 +624,7 @@ TFuture<NYson::TYsonString> TClient::GetOperation(
 }
 
 TFuture<void> TClient::DumpJobContext(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NYPath::TYPath& path,
     const NApi::TDumpJobContextOptions& options)
 {
@@ -642,8 +640,8 @@ TFuture<void> TClient::DumpJobContext(
 }
 
 TFuture<NYson::TYsonString> TClient::GetJob(
-    const NJobTrackerClient::TOperationId& operationId,
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TOperationId operationId,
+    NJobTrackerClient::TJobId jobId,
     const NApi::TGetJobOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -660,7 +658,7 @@ TFuture<NYson::TYsonString> TClient::GetJob(
 }
 
 TFuture<NYson::TYsonString> TClient::StraceJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NApi::TStraceJobOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -676,7 +674,7 @@ TFuture<NYson::TYsonString> TClient::StraceJob(
 }
 
 TFuture<void> TClient::SignalJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const TString& signalName,
     const NApi::TSignalJobOptions& options)
 {
@@ -692,7 +690,7 @@ TFuture<void> TClient::SignalJob(
 }
 
 TFuture<void> TClient::AbandonJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NApi::TAbandonJobOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -706,7 +704,7 @@ TFuture<void> TClient::AbandonJob(
 }
 
 TFuture<NYson::TYsonString> TClient::PollJobShell(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NYson::TYsonString& parameters,
     const NApi::TPollJobShellOptions& options)
 {
@@ -724,7 +722,7 @@ TFuture<NYson::TYsonString> TClient::PollJobShell(
 }
 
 TFuture<void> TClient::AbortJob(
-    const NJobTrackerClient::TJobId& jobId,
+    NJobTrackerClient::TJobId jobId,
     const NApi::TAbortJobOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());
@@ -734,7 +732,7 @@ TFuture<void> TClient::AbortJob(
 
     ToProto(req->mutable_job_id(), jobId);
     if (options.InterruptTimeout) {
-        req->set_interrupt_timeout(NYT::ToProto<i64>(options.InterruptTimeout.Get()));
+        req->set_interrupt_timeout(NYT::ToProto<i64>(*options.InterruptTimeout));
     }
 
     return req->Invoke().As<void>();
@@ -787,6 +785,4 @@ TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

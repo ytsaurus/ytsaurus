@@ -9,8 +9,7 @@
 #include <yt/core/actions/invoker_util.h>
 #include <yt/core/misc/memory_tag.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,5 +41,4 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

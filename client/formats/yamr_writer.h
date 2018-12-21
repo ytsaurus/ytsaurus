@@ -8,10 +8,9 @@
 #include <yt/client/table_client/public.h>
 
 #include <yt/core/misc/blob_output.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,5 +32,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

@@ -1,8 +1,7 @@
 #include "table_node_proxy.h"
 #include "table_node_proxy_detail.h"
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 using namespace NObjectServer;
 using namespace NCypressServer;
@@ -25,7 +24,6 @@ ICypressNodeProxyPtr CreateReplicatedTableNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 
 

@@ -8,8 +8,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NChunkClient::NProto;
 using namespace NYTree;
@@ -166,5 +165,4 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

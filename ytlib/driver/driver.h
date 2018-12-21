@@ -19,8 +19,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +50,7 @@ struct TDriverRequest
     TString AuthenticatedUser = NSecurityClient::RootUserName;
 
     //! User token.
-    TNullable<TString> UserToken;
+    std::optional<TString> UserToken;
 
     //! Provides means to return arbitrary structured data from any command.
     //! Must be filled before writing data to output stream.
@@ -110,8 +109,8 @@ struct IDriver
     virtual TFuture<void> Execute(const TDriverRequest& request) = 0;
 
     //! Returns a descriptor for the command with a given name or
-    //! |Null| if no command with this name is registered.
-    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const = 0;
+    //! Null if no command with this name is registered.
+    virtual std::optional<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const = 0;
 
     //! Returns a descriptor for then command with a given name.
     //! Fails if no command with this name is registered.
@@ -146,6 +145,5 @@ IDriverPtr CreateDriver(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver
 

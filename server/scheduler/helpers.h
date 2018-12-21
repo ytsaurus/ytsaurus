@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,14 +27,14 @@ EAbortReason GetAbortReason(const TError& resultError);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeOperationCodicilString(const TOperationId& operationId);
-TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId);
+TString MakeOperationCodicilString(TOperationId operationId);
+TCodicilGuard MakeOperationCodicilGuard(TOperationId operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobStatus JobStatusFromError(const TError& error);
 TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
-NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);
+NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +53,7 @@ TListOperationsResult ListOperations(
 
 void ValidateOperationAccess(
     const TString& user,
-    const TOperationId& operationId,
+    TOperationId operationId,
     EAccessType accessType,
     const NYTree::INodePtr& acl,
     const NApi::NNative::IClientPtr& client,
@@ -62,6 +61,5 @@ void ValidateOperationAccess(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

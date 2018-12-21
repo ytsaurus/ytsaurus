@@ -6,8 +6,7 @@
 
 #include <yt/server/object_server/public.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +17,5 @@ NObjectServer::IObjectProxyPtr CreateAccountProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

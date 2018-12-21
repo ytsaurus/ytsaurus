@@ -8,8 +8,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +23,7 @@ struct TTotalNodeStatistics
     TDiskSpaceStatistics TotalSpace;
     std::array<TDiskSpaceStatistics, NChunkClient::MaxMediumCount> SpacePerMedium = {};
 
-    int ChunkReplicaCount = 0;
+    i64 ChunkReplicaCount = 0;
 
     int OnlineNodeCount = 0;
     int OfflineNodeCount = 0;
@@ -44,5 +43,4 @@ TString ToString(const TNodeStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

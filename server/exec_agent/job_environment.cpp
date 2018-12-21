@@ -36,8 +36,7 @@
 
 #include <util/system/execpath.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NCGroup;
 using namespace NCellNode;
@@ -91,8 +90,8 @@ public:
     virtual TFuture<void> RunJobProxy(
         int slotIndex,
         const TString& workingDirectory,
-        const TJobId& jobId,
-        const TOperationId& operationId) override
+        TJobId jobId,
+        TOperationId operationId) override
     {
         ValidateEnabled();
 
@@ -109,7 +108,7 @@ public:
 
             AddArguments(process, slotIndex);
 
-            LOG_INFO("Spawning a job proxy (SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v)",
+            YT_LOG_INFO("Spawning a job proxy (SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v)",
                 slotIndex,
                 jobId,
                 operationId,
@@ -146,14 +145,14 @@ public:
             BasicConfig_->Type);
     }
 
-    virtual TNullable<i64> GetMemoryLimit() const override
+    virtual std::optional<i64> GetMemoryLimit() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
-    virtual TNullable<double> GetCpuLimit() const override
+    virtual std::optional<double> GetCpuLimit() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
     virtual bool ExternalJobMemory() const override
@@ -206,7 +205,7 @@ protected:
 
             // Ensure that job proxy process finished.
             auto error = WaitFor(it->second.Result);
-            LOG_INFO(error, "Job proxy process finished (SlotIndex: %v)", slotIndex);
+            YT_LOG_INFO(error, "Job proxy process finished (SlotIndex: %v)", slotIndex);
             // Drop reference to a process.
             JobProxyProcesses_.erase(it);
         }
@@ -221,7 +220,7 @@ protected:
 
         auto alert = TError("Job environment is disabled") << error;
 
-        LOG_ERROR(alert);
+        YT_LOG_ERROR(alert);
 
         auto masterConnector = Bootstrap_->GetMasterConnector();
         masterConnector->RegisterAlert(alert);
@@ -231,7 +230,7 @@ protected:
     { }
 
 private:
-    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, const TJobId& /* jobId */)
+    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */)
     {
         return New<TSimpleProcess>(JobProxyProgramName);
     }
@@ -472,13 +471,13 @@ public:
 #endif
     }
 
-    virtual TNullable<i64> GetMemoryLimit() const override
+    virtual std::optional<i64> GetMemoryLimit() const override
     {
         auto guard = Guard(LimitsLock_);
         return MemoryLimit_;
     }
 
-    virtual TNullable<double> GetCpuLimit() const override
+    virtual std::optional<double> GetCpuLimit() const override
     {
         auto guard = Guard(LimitsLock_);
         return CpuLimit_;
@@ -486,7 +485,7 @@ public:
 
     virtual bool ExternalJobMemory() const override
     {
-        return Config_->ExternalJobContainer.HasValue();
+        return Config_->ExternalJobContainer.operator bool();
     }
 
 private:
@@ -497,8 +496,8 @@ private:
     THashMap<int, IInstancePtr> JobProxyInstances_;
 
     TSpinLock LimitsLock_;
-    TNullable<double> CpuLimit_;
-    TNullable<i64> MemoryLimit_;
+    std::optional<double> CpuLimit_;
+    std::optional<i64> MemoryLimit_;
 
     TPeriodicExecutorPtr LimitsUpdateExecutor_;
     IVolumeManagerPtr RootVolumeManager_;
@@ -519,7 +518,7 @@ private:
         const auto containers = WaitFor(PortoExecutor_->ListContainers())
             .ValueOrThrow();
 
-        LOG_DEBUG("Destroying all subcontainers (MetaName: %v)", metaName);
+        YT_LOG_DEBUG("Destroying all subcontainers (MetaName: %v)", metaName);
 
         std::vector<TFuture<void>> actions;
         for (const auto& name : containers) {
@@ -533,12 +532,12 @@ private:
                     continue;
                 }
 
-                LOG_DEBUG("Cleaning (Container: %v)", absoluteName);
+                YT_LOG_DEBUG("Cleaning (Container: %v)", absoluteName);
                 actions.push_back(PortoExecutor_->DestroyContainer(name));
             } catch (const TErrorException& ex) {
                 // If container disappeared, we don't care.
                 if (ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
-                    LOG_DEBUG(ex, "Failed to clean container; it vanished");
+                    YT_LOG_DEBUG(ex, "Failed to clean container; it vanished");
                 } else {
                     throw;
                 }
@@ -639,7 +638,7 @@ private:
 #endif
     }
 
-    void InitJobProxyInstance(int slotIndex, const TJobId& jobId)
+    void InitJobProxyInstance(int slotIndex, TJobId jobId)
     {
         if (!JobProxyInstances_[slotIndex]) {
             JobProxyInstances_[slotIndex] = CreatePortoInstance(
@@ -660,7 +659,7 @@ private:
         }
     }
 
-    virtual TProcessBasePtr CreateJobProxyProcess(int slotIndex, const TJobId& jobId) override
+    virtual TProcessBasePtr CreateJobProxyProcess(int slotIndex, TJobId jobId) override
     {
         InitJobProxyInstance(slotIndex, jobId);
         return New<TPortoProcess>(JobProxyProgramName, JobProxyInstances_.at(slotIndex));
@@ -678,17 +677,17 @@ private:
             auto guard = Guard(LimitsLock_);
             auto newCpuLimit = std::max<double>(limits.Cpu - Config_->NodeDedicatedCpu, 0);
             if (!CpuLimit_ || *CpuLimit_ != limits.Cpu) {
-                LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)", CpuLimit_, newCpuLimit);
+                YT_LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)", CpuLimit_, newCpuLimit);
                 CpuLimit_ = newCpuLimit;
             }
 
             if (!MemoryLimit_ || *MemoryLimit_ != limits.Memory) {
-                LOG_INFO("Update porto memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v)", MemoryLimit_, limits.Memory);
+                YT_LOG_INFO("Update porto memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v)", MemoryLimit_, limits.Memory);
                 MemoryLimit_ = limits.Memory;
             }
 
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Failed to update resource limits from porto");
+            YT_LOG_WARNING(ex, "Failed to update resource limits from porto");
         }
     }
 };
@@ -733,5 +732,4 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, TBootstrap* bootstr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

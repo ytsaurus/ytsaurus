@@ -6,9 +6,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Forward declaration, avoid including format.h directly here.
+// Forward declarations, avoid including format.h directly here.
+template <class... TArgs, size_t FormatLength>
+void Format(TStringBuilder* builder, const char (&format)[FormatLength], TArgs&&... args);
 template <class... TArgs>
-void Format(TStringBuilder* builder, const char* format, const TArgs&... args);
+void Format(TStringBuilder* builder, TStringBuf format, TArgs&&... args);
 
 //! A simple helper for constructing strings by a sequence of appends.
 class TStringBuilder
@@ -73,10 +75,16 @@ public:
         AppendString(TStringBuf(str));
     }
 
-    template <class... TArgs>
-    void AppendFormat(const char* format, const TArgs&... args)
+    template <class... TArgs, size_t FormatLength>
+    void AppendFormat(const char (&format)[FormatLength], TArgs&&... args)
     {
-        Format(this, format, args...);
+        Format(this, format, std::forward<TArgs>(args)...);
+    }
+
+    template <class... TArgs>
+    void AppendFormat(TStringBuf format, TArgs&&... args)
+    {
+        Format(this, format, std::forward<TArgs>(args)...);
     }
 
     void Reset()

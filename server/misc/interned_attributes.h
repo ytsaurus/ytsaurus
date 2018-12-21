@@ -240,6 +240,7 @@
     XX(TabletCellBundle, tablet_cell_bundle) \
     XX(TabletCellCount, tablet_cell_count) \
     XX(TabletCellIds, tablet_cell_ids) \
+    XX(TabletCellLifeStage, tablet_cell_life_stage) \
     XX(TabletCount, tablet_count) \
     XX(TabletCountByState, tablet_count_by_state) \
     XX(TabletCountByExpectedState, tablet_count_by_expected_state) \
@@ -255,6 +256,9 @@
     XX(TargetPath, target_path) \
     XX(Timeout, timeout) \
     XX(Title, title) \
+    XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
+    XX(TotalResourceLimits, total_resource_limits) \
+    XX(TotalResourceUsage, total_resource_usage) \
     XX(TotalStatistics, total_statistics) \
     XX(TransactionId, transaction_id) \
     XX(Transient, transient) \

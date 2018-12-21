@@ -12,8 +12,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +39,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    IChunkPtr FindChunk(const TChunkId& chunkId);
+    IChunkPtr FindChunk(TChunkId chunkId);
 
     //! Returns the list of all registered chunks.
     /*!
@@ -87,6 +86,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

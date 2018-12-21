@@ -150,8 +150,8 @@
 %type <TNullableExpressionList> transform-default-expr
 %type <TNullableExpressionList> join-predicate
 
-%type <TNullable<TLiteralValue>> literal-value
-%type <TNullable<TLiteralValue>> const-value
+%type <std::optional<TLiteralValue>> literal-value
+%type <std::optional<TLiteralValue>> const-value
 %type <TLiteralValueList> const-list
 %type <TLiteralValueList> const-tuple
 %type <TLiteralValueTupleList> const-tuple-list

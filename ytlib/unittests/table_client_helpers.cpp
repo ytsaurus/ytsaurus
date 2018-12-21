@@ -3,8 +3,7 @@
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/api/rpc_proxy/api_service_proxy.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,5 +173,4 @@ TEST(TEnvelopeTest, CrashExample)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

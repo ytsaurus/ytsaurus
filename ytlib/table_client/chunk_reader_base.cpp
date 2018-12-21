@@ -7,8 +7,7 @@
 
 #include <algorithm>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -108,7 +107,7 @@ bool TChunkReaderBase::OnBlockEnded()
 int TChunkReaderBase::GetBlockIndexByKey(
     TKey pivotKey,
     const TSharedRange<TKey>& blockIndexKeys,
-    TNullable<int> keyColumnCount) const
+    std::optional<int> keyColumnCount) const
 {
     YCHECK(!blockIndexKeys.Empty());
     TChunkedMemoryPool pool;
@@ -137,7 +136,7 @@ int TChunkReaderBase::GetBlockIndexByKey(
 void TChunkReaderBase::CheckBlockUpperKeyLimit(
     TKey blockLastKey,
     TKey upperLimit,
-    TNullable<int> keyColumnCount)
+    std::optional<int> keyColumnCount)
 {
     TChunkedMemoryPool pool;
     auto wideKey = WidenKey(blockLastKey, keyColumnCount, &pool);
@@ -150,7 +149,7 @@ void TChunkReaderBase::CheckBlockUpperLimits(
     i64 blockChunkRowCount,
     TKey blockLastKey,
     const TReadLimit& upperLimit,
-    TNullable<int> keyColumnCount)
+    std::optional<int> keyColumnCount)
 {
     if (upperLimit.HasRowIndex()) {
         CheckRowLimit_ = upperLimit.GetRowIndex() < blockChunkRowCount;
@@ -171,7 +170,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
     const auto& lastBlock = *(--blockMetaEntries.end());
 
     if (lowerLimit.GetRowIndex() >= lastBlock.chunk_row_count()) {
-        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, RowCount: %v)",
+        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, RowCount: %v)",
             lowerLimit,
             lastBlock.chunk_row_count());
 
@@ -195,7 +194,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
     return (it != rend) ? std::distance(it, rend) : 0;
 }
 
-int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const TReadLimit& lowerLimit, TNullable<int> keyColumnCount) const
+int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const TReadLimit& lowerLimit, std::optional<int> keyColumnCount) const
 {
     if (!lowerLimit.HasKey()) {
         return 0;
@@ -203,7 +202,7 @@ int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKey
 
     int blockIndex = GetBlockIndexByKey(lowerLimit.GetKey(), blockIndexKeys, keyColumnCount);
     if (blockIndex == blockIndexKeys.Size()) {
-        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v)",
+        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v)",
             lowerLimit,
             blockIndexKeys.Back());
     }
@@ -230,7 +229,7 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const T
     return  (it != end) ? std::distance(begin, it) + 1 : blockMeta.blocks_size();
 }
 
-int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const TReadLimit& upperLimit, TNullable<int> keyColumnCount) const
+int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const TReadLimit& upperLimit, std::optional<int> keyColumnCount) const
 {
     YCHECK(!blockIndexKeys.Empty());
     if (!upperLimit.HasKey()) {
@@ -293,10 +292,10 @@ std::vector<TChunkId> TChunkReaderBase::GetFailedChunkIds() const
 
 TKey TChunkReaderBase::WidenKey(
     const TKey& key,
-    TNullable<int> nullableKeyColumnCount,
+    std::optional<int> nullableKeyColumnCount,
     TChunkedMemoryPool* pool) const
 {
-    auto keyColumnCount = nullableKeyColumnCount.Get(key.GetCount());
+    auto keyColumnCount = nullableKeyColumnCount.value_or(key.GetCount());
     YCHECK(keyColumnCount >= key.GetCount());
 
     if (keyColumnCount == key.GetCount()) {
@@ -318,5 +317,4 @@ TKey TChunkReaderBase::WidenKey(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

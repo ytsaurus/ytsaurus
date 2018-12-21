@@ -22,8 +22,7 @@
 
 #include <yt/core/misc/finally.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NConcurrency;
 using namespace NYson;
@@ -51,7 +50,7 @@ TUserJobWriteController::~TUserJobWriteController()
 
 void TUserJobWriteController::Init()
 {
-    LOG_INFO("Opening writers");
+    YT_LOG_INFO("Opening writers");
 
     auto guard = Finally([&] () {
         Initialized_ = true;
@@ -170,5 +169,4 @@ void TUserJobWriteController::PopulateStderrResult(NScheduler::NProto::TSchedule
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

@@ -11,8 +11,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NJournalClient {
+namespace NYT::NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,14 +27,14 @@ TString ToString(const TChunkReplicaDescriptor& replica);
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> AbortSessionsQuorum(
-    const NChunkClient::TChunkId& chunkId,
+    NChunkClient::TChunkId chunkId,
     const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
 TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
-    const NChunkClient::TChunkId& chunkId,
+    NChunkClient::TChunkId chunkId,
     const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,
@@ -43,5 +42,4 @@ TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalClient
-} // namespace NYT
+} // namespace NYT::NJournalClient

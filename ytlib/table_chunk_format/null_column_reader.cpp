@@ -2,8 +2,7 @@
 
 #include "helpers.h"
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
 using namespace NTableClient;
@@ -49,9 +48,9 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual TNullable<int> GetNextBlockIndex() const override
+    virtual std::optional<int> GetNextBlockIndex() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
     virtual std::pair<i64, i64> GetEqualRange(const TUnversionedValue& value, i64 lowerRowIndex, i64 upperRowIndex) override
@@ -101,5 +100,4 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(int 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

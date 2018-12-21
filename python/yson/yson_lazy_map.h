@@ -5,8 +5,7 @@
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,5 +58,4 @@ bool IsYsonLazyMap(PyObject* object);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

@@ -9,8 +9,7 @@
 
 #include <yt/core/compression/codec.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 namespace {
 
 using namespace NTransactionClient;
@@ -226,5 +225,4 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

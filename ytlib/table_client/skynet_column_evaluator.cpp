@@ -7,8 +7,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NCrypto;
 
@@ -67,7 +66,7 @@ void ValidateSkynetSchema(const TTableSchema& schema)
             validationErrors.push_back(TError("Column %Qv has invalid group: expected %Qv, actual %Qv",
                 name,
                 group,
-                columnSchema->Group().Get("<none>")));
+                columnSchema->Group().value_or("<none>")));
         }
     };
 
@@ -219,5 +218,4 @@ bool TSkynetColumnEvaluator::IsKeySwitched(TUnversionedRow fullRow, bool isLastR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

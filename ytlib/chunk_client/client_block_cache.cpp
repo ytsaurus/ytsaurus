@@ -12,8 +12,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/sync_cache.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NNodeTrackerClient;
 
@@ -61,13 +60,13 @@ public:
     {
         auto block = New<TCachedBlock>(id, data);
         if (TryInsert(block)) {
-            LOG_DEBUG("Block is put into cache (BlockId: %v, BlockType: %v, BlockSize: %v)",
+            YT_LOG_DEBUG("Block is put into cache (BlockId: %v, BlockType: %v, BlockSize: %v)",
                 id,
                 Type_,
                 data.Size());
         } else {
             // Already have the block cached, do nothing.
-            LOG_TRACE("Block is already in cache (BlockId: %v, BlockType: %v)",
+            YT_LOG_TRACE("Block is already in cache (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
         }
@@ -77,12 +76,12 @@ public:
     {
         auto block = TSyncSlruCacheBase::Find(id);
         if (block) {
-            LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",
+            YT_LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
             return block->GetData();
         } else {
-            LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
+            YT_LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
             return TBlock();
@@ -132,7 +131,7 @@ public:
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
-        const TNullable<TNodeDescriptor>& /*source*/) override
+        const std::optional<TNodeDescriptor>& /*source*/) override
     {
         auto cache = FindPerTypeCache(type);
         if (cache) {
@@ -184,7 +183,7 @@ public:
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*data*/,
-        const TNullable<TNodeDescriptor>& /*source*/) override
+        const std::optional<TNodeDescriptor>& /*source*/) override
     { }
 
     virtual TBlock Find(
@@ -207,6 +206,5 @@ IBlockCachePtr GetNullBlockCache()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

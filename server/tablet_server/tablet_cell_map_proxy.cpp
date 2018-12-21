@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NYson;
 using namespace NYTree;
@@ -94,5 +93,4 @@ ICypressNodeProxyPtr CreateTabletCellMapProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

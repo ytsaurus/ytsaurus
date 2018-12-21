@@ -4,8 +4,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +39,5 @@ std::unique_ptr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

@@ -3,8 +3,7 @@
 #include "hydra_facade.h"
 #include "world_initializer.h"
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 using namespace NHydra;
 
@@ -43,5 +42,4 @@ void TMasterHydraServiceBase::ValidateClusterInitialized()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

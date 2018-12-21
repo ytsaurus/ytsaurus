@@ -2,8 +2,7 @@
 
 #include "private.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,8 +43,7 @@ static_assert(sizeof(TChunkMetaHeader_2) == 32, "sizeof(TChunkMetaHeader_2) != 3
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 
 Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkMetaHeader_1);
 Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkMetaHeader_2);

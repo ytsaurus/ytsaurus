@@ -5,8 +5,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ const NRpc::IChannelPtr& TControllerAgent::GetChannel() const
     return Channel_;
 }
 
-const TIncarnationId& TControllerAgent::GetIncarnationId() const
+TIncarnationId TControllerAgent::GetIncarnationId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -130,7 +129,7 @@ const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
     return CancelableInvoker_;
 }
 
-TNullable<TControllerAgentMemoryStatistics> TControllerAgent::GetMemoryStatistics()
+std::optional<TControllerAgentMemoryStatistics> TControllerAgent::GetMemoryStatistics()
 {
     auto guard = Guard(MemoryStatisticsLock_);
 
@@ -146,5 +145,4 @@ void TControllerAgent::SetMemoryStatistics(TControllerAgentMemoryStatistics memo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

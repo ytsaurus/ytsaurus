@@ -6,8 +6,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +24,7 @@ TTimestamp GetTimestampFromDataSplit(const TDataSplit& dataSplit);
 
 bool IsSorted(const TDataSplit& dataSplit);
 
-void SetObjectId(TDataSplit* dataSplit, const NObjectClient::TObjectId& objectId);
+void SetObjectId(TDataSplit* dataSplit, NObjectClient::TObjectId objectId);
 
 void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema);
 
@@ -46,6 +45,5 @@ size_t GetSignificantWidth(TRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

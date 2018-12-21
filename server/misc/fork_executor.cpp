@@ -37,7 +37,7 @@ TFuture<void> TForkExecutor::Fork()
     YCHECK(ChildPid_ < 0);
 
     try {
-        LOG_INFO("Going to fork");
+        YT_LOG_INFO("Going to fork");
 
         ChildPid_ = fork();
         if (ChildPid_ < 0) {
@@ -53,7 +53,7 @@ TFuture<void> TForkExecutor::Fork()
         DoRunParent();
         Result_.OnCanceled(BIND(&TForkExecutor::OnCanceled, MakeWeak(this)));
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error executing fork");
+        YT_LOG_ERROR(ex, "Error executing fork");
         DoCleanup();
         Result_.Set(ex);
     }
@@ -76,7 +76,7 @@ void TForkExecutor::DoRunChild()
 
 void TForkExecutor::DoRunParent()
 {
-    LOG_INFO("Fork succeeded (ChildPid: %v)", ChildPid_);
+    YT_LOG_INFO("Fork succeeded (ChildPid: %v)", ChildPid_);
 
     RunParent();
 
@@ -110,7 +110,7 @@ void TForkExecutor::OnWatchdogCheck()
     if (TInstant::Now() > StartTime_ + timeout) {
         auto error = TError("Child process timed out")
             << TErrorAttribute("timeout", timeout);
-        LOG_ERROR(error);
+        YT_LOG_ERROR(error);
         Result_.Set(error);
         DoCancel();
         return;
@@ -122,9 +122,9 @@ void TForkExecutor::OnWatchdogCheck()
 
     auto error = StatusToError(status);
     if (error.IsOK()) {
-        LOG_INFO("Child process finished (ChildPid: %v)", ChildPid_);
+        YT_LOG_INFO("Child process finished (ChildPid: %v)", ChildPid_);
     } else {
-        LOG_ERROR(error, "Child process failed (ChildPid: %v)", ChildPid_);
+        YT_LOG_ERROR(error, "Child process failed (ChildPid: %v)", ChildPid_);
     }
     Result_.Set(error);
 
@@ -145,7 +145,7 @@ void TForkExecutor::DoCleanup()
 
 void TForkExecutor::OnCanceled()
 {
-    LOG_INFO("Fork executor canceled");
+    YT_LOG_INFO("Fork executor canceled");
     GetWatchdogInvoker()->Invoke(
         BIND(&TForkExecutor::DoCancel, MakeStrong(this)));
 }
@@ -155,14 +155,14 @@ void TForkExecutor::DoCancel()
     if (ChildPid_ < 0)
         return;
 
-    LOG_INFO("Killing child process (ChildPid: %v)", ChildPid_);
+    YT_LOG_INFO("Killing child process (ChildPid: %v)", ChildPid_);
 
 #ifdef _unix_
     ::kill(ChildPid_, SIGKILL);
     ::waitpid(ChildPid_, nullptr, 0);
 #endif
 
-    LOG_INFO("Child process killed");
+    YT_LOG_INFO("Child process killed");
 
     Result_.TrySet(TError("Fork executor canceled"));
     DoCleanup();

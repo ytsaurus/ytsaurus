@@ -3,8 +3,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -28,7 +27,7 @@ public:
         Proxy_.SetDefaultTimeout(jobThrottlerConfig->RpcTimeout);
     }
 
-    TFuture<void> Throttle(i64 count, EJobThrottlerType throttleDirection, TWorkloadDescriptor descriptor, const TJobId& jobId)
+    TFuture<void> Throttle(i64 count, EJobThrottlerType throttleDirection, TWorkloadDescriptor descriptor, TJobId jobId)
     {
         auto request = Proxy_.ThrottleJob();
         request->set_throttler_type(static_cast<i32>(throttleDirection));
@@ -204,5 +203,4 @@ IThroughputThrottlerPtr CreateOutJobRpsThrottler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

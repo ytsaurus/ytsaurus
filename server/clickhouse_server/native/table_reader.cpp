@@ -161,7 +161,7 @@ private:
                     TTypedColumnTraits::Decode(value));
             } else {
                 if (columnSchema.IsSorted()) {
-                    THROW_ERROR_EXCEPTION("Null in key column")
+                    THROW_ERROR_EXCEPTION("std::nullopt in key column")
                         << TErrorAttribute("column", columnSchema.Name);
                 }
                 TTypedColumnTraits::Produce(

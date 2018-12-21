@@ -7,8 +7,7 @@
 
 #include <yt/server/hydra/public.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,13 +37,12 @@ private:
     virtual void DoCancel(const TError& error) override;
     virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        TNullable<int> blockCount) override;
+        std::optional<int> blockCount) override;
 
     void OnFinished();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

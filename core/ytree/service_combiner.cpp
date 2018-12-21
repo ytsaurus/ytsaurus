@@ -14,8 +14,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -30,7 +29,7 @@ class TServiceCombiner::TImpl
 public:
     TImpl(
         std::vector<IYPathServicePtr> services,
-        TNullable<TDuration> keysUpdatePeriod)
+        std::optional<TDuration> keysUpdatePeriod)
         : Services_(std::move(services))
     {
         auto workerInvoker = TDispatcher::Get()->GetHeavyInvoker();
@@ -289,7 +288,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, TNullable<TDuration> keysUpdatePeriod)
+TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, std::optional<TDuration> keysUpdatePeriod)
     : Impl_(New<TImpl>(std::move(services), keysUpdatePeriod))
 { }
 
@@ -316,6 +315,5 @@ void TServiceCombiner::Invoke(const NRpc::IServiceContextPtr& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

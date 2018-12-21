@@ -4,8 +4,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NYT::NLogging;
 using namespace NYT::NProfiling;
@@ -17,5 +16,4 @@ const TProfiler SkynetManagerProfiler{"/skynet_manager"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

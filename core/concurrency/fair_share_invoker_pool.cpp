@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/invoker_detail.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/weak_ptr.h>
 
@@ -12,8 +12,7 @@
 
 #include <utility>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,11 +40,11 @@ public:
 
         auto guard = Guard(Lock_);
 
-        auto maybeBucketIndex = GetStarvingBucketIndex();
-        if (!maybeBucketIndex) {
+        auto optionalBucketIndex = GetStarvingBucketIndex();
+        if (!optionalBucketIndex) {
             return false;
         }
-        auto bucketIndex = maybeBucketIndex.Get();
+        auto bucketIndex = *optionalBucketIndex;
 
         TruncateExcessTimes(ExcessTimes_[bucketIndex]);
 
@@ -72,15 +71,15 @@ private:
     TBuckets Buckets_;
     std::vector<NProfiling::TCpuDuration> ExcessTimes_;
 
-    TNullable<int> GetStarvingBucketIndex() const
+    std::optional<int> GetStarvingBucketIndex() const
     {
         auto minExcessTime = std::numeric_limits<NProfiling::TCpuDuration>::max();
-        TNullable<int> minBucketIndex;
+        std::optional<int> minBucketIndex;
         for (int index = 0; index < Buckets_.size(); ++index) {
             if (Buckets_[index].empty()) {
                 continue;
             }
-            if (!minBucketIndex.HasValue() || ExcessTimes_[index] < minExcessTime) {
+            if (!minBucketIndex || ExcessTimes_[index] < minExcessTime) {
                 minExcessTime = ExcessTimes_[index];
                 minBucketIndex = index;
             }
@@ -252,5 +251,4 @@ IInvokerPoolPtr CreateFairShareInvokerPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

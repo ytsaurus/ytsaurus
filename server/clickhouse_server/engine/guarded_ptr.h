@@ -3,9 +3,7 @@
 #include <memory>
 #include <mutex>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +61,4 @@ private:
     std::shared_ptr<T> Ptr;
 };
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

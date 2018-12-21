@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 namespace {
 
 using namespace NAuth;
@@ -59,5 +58,4 @@ TEST(TTestCsrfToken, Sample)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

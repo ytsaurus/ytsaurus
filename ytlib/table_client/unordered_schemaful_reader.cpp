@@ -7,8 +7,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient::NProto;
@@ -285,5 +284,4 @@ ISchemafulReaderPtr CreateFullPrefetchingOrderedSchemafulReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

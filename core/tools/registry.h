@@ -8,8 +8,7 @@
 
 #include <typeinfo>
 
-namespace NYT {
-namespace NTools {
+namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,8 +32,7 @@ TToolRegistry* GetToolRegistry();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTools
-} // namespace NYT
+} // namespace NYT::NTools
 
 #define REGISTRY_INL_H_
 #include "registry-inl.h"

@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ DECLARE_REFCOUNTED_CLASS(TCoreProcessorService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace CoreDump
-} // namespace NYT
+} // namespace NYT::CoreDump

@@ -8,8 +8,7 @@
 #include <yt/server/object_server/public.h>
 #include <yt/server/cell_master/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,5 +43,4 @@ DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

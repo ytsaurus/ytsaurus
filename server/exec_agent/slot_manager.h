@@ -11,11 +11,10 @@
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/fs.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,9 +40,9 @@ public:
 
     bool IsEnabled() const;
 
-    TNullable<i64> GetMemoryLimit() const;
+    std::optional<i64> GetMemoryLimit() const;
 
-    TNullable<i64> GetCpuLimit() const;
+    std::optional<i64> GetCpuLimit() const;
 
     bool ExternalJobMemory() const;
 
@@ -81,5 +80,4 @@ DEFINE_REFCOUNTED_TYPE(TSlotManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

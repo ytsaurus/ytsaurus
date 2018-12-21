@@ -18,8 +18,7 @@
 #include <yt/core/misc/format.h>
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NRpc;
 using namespace NScheduler;
@@ -85,7 +84,7 @@ private:
                         auto error = !subresponse.IsOK()
                             ? static_cast<TError>(subresponse)
                             : TError("Controller returned empty job spec (has controller crashed?)");
-                        LOG_DEBUG(error, "Failed to extract job spec (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG(error, "Failed to extract job spec (OperationId: %v, JobId: %v)",
                             subrequest.OperationId,
                             subrequest.JobId);
 
@@ -108,6 +107,5 @@ IServicePtr CreateJobSpecService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

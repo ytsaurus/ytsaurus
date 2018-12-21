@@ -17,8 +17,7 @@
 #define _MAX_ "<\"type\"=\"max\">#"
 #define _NULL_ "#"
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,11 +27,9 @@ void PrintTo(const TUnversionedRow& value, ::std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using ::testing::_;
 using ::testing::StrictMock;
@@ -178,5 +175,4 @@ TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path, TTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

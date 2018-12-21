@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 namespace {
 
 using namespace NYT::NYTree;
@@ -73,5 +72,4 @@ TEST(TRbTorrentTest, EmptyFiles)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

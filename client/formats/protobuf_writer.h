@@ -8,8 +8,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,5 +30,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForProtobuf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

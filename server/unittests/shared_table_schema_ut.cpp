@@ -5,8 +5,7 @@
 #include <yt/client/table_client/schema.h>
 
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 namespace {
 
 using namespace NTableClient;
@@ -74,5 +73,4 @@ TEST(SharedTableSchema, Simple)
 ////////////////////////////////////////////////////////////////////////////////
 
 }
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer

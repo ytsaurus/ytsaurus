@@ -14,8 +14,7 @@ TChecksum GetChecksum(const TRef& data);
 
 TChecksum CombineChecksums(const std::vector<TChecksum>& blockChecksums);
 
-namespace NDetail {
-namespace NCrcSSE0xE543279765927881 {
+namespace NDetail::NCrcSSE0xE543279765927881 {
 
 ui64 Crc(const void* buf, size_t buflen, ui64 seed);
 
@@ -25,8 +24,7 @@ namespace NCrcTable0xE543279765927881 {
 
 ui64 Crc(const void* buf, size_t buflen, ui64 crcinit);
 
-} // namespace NCrcTable0xE543279765927881
-} // namespace NDetail
+} // namespace NDetail::NCrcTable0xE543279765927881
 
 ////////////////////////////////////////////////////////////////////////////////
 

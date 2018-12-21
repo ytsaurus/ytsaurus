@@ -10,8 +10,7 @@
 
 #include <util/stream/buffer.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,7 +184,7 @@ public:
     void Flush100Continue();
 
     void WriteRequest(EMethod method, const TString& path);
-    TNullable<EStatusCode> GetStatus() const override;
+    std::optional<EStatusCode> GetStatus() const override;
     virtual void SetStatus(EStatusCode status) override;
 
     virtual TFuture<void> Write(const TSharedRef& data) override;
@@ -224,9 +223,9 @@ private:
 
     //! Headers.
     THeadersPtr Headers_;
-    TNullable<EStatusCode> Status_;
-    TNullable<EMethod> Method_;
-    TNullable<TString> HostHeader_;
+    std::optional<EStatusCode> Status_;
+    std::optional<EMethod> Method_;
+    std::optional<TString> HostHeader_;
     TString Path_;
     bool HeadersFlushed_ = false;
     bool MessageFinished_ = false;
@@ -236,7 +235,7 @@ private:
 
     TFuture<void> FinishChunked();
 
-    TSharedRef GetHeadersPart(TNullable<size_t> contentLength);
+    TSharedRef GetHeadersPart(std::optional<size_t> contentLength);
     TSharedRef GetTrailersPart();
 
     static TSharedRef GetChunkHeader(size_t size);
@@ -253,5 +252,4 @@ DEFINE_REFCOUNTED_TYPE(THttpOutput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

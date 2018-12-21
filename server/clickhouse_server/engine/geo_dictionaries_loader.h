@@ -6,9 +6,7 @@
 
 #include <memory>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,6 +15,4 @@ std::unique_ptr<IGeoDictionariesLoader> CreateGeoDictionariesLoader(
     NNative::IAuthorizationTokenPtr authToken,
     const std::string& geodataPath);
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

@@ -11,8 +11,7 @@
 #include <yt/core/ytree/ypath_detail.h>
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYT {
-namespace NMonitoring {
+namespace NYT::NMonitoring {
 
 using namespace NYTree;
 using namespace NYPath;
@@ -107,7 +106,7 @@ private:
 
     void Update()
     {
-        LOG_DEBUG("Started updating monitoring state");
+        YT_LOG_DEBUG("Started updating monitoring state");
         PROFILE_TIMING ("/update_time") {
             auto newRoot = GetEphemeralNodeFactory()->CreateMap();
             for (const auto& pair : PathToProducer_) {
@@ -120,7 +119,7 @@ private:
                 std::swap(Root_, newRoot);
             }
         }
-        LOG_DEBUG("Finished updating monitoring state");
+        YT_LOG_DEBUG("Finished updating monitoring state");
     }
 
     IMapNodePtr GetRoot()
@@ -165,5 +164,4 @@ void TMonitoringManager::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMonitoring
-} // namespace NYT
+} // namespace NYT::NMonitoring

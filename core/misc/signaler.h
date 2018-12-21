@@ -22,7 +22,7 @@ DEFINE_REFCOUNTED_TYPE(TSignalerArg)
 ////////////////////////////////////////////////////////////////////////////////
 
 void SendSignal(const std::vector<int>& pids, const TString& signalName);
-TNullable<int> FindSignalIdBySignalName(const TString& signalName);
+std::optional<int> FindSignalIdBySignalName(const TString& signalName);
 void ValidateSignalName(const TString& signalName);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -34,8 +34,7 @@
 #include <yt/client/table_client/schemaful_writer_adapter.h>
 #include <yt/client/table_client/table_consumer.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -617,5 +616,4 @@ void ConfigureEscapeTables(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

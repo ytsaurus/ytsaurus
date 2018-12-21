@@ -2,8 +2,7 @@
 
 #include <yt/core/concurrency/fls.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,6 +127,5 @@ TEST_F(TFlsTest, TwoFibers)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

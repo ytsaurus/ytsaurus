@@ -78,8 +78,7 @@ Object CreateIterator(const Object& obj)
 
 } // namespace Py
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,7 +160,7 @@ Py::Callable TPythonClassObject::Get()
 TPythonStringCache::TPythonStringCache()
 { }
 
-TPythonStringCache::TPythonStringCache(bool enableCache, const TNullable<TString>& encoding)
+TPythonStringCache::TPythonStringCache(bool enableCache, const std::optional<TString>& encoding)
     : CacheEnabled_(enableCache)
     , Encoding_(encoding)
 {
@@ -185,7 +184,7 @@ PyObject* TPythonStringCache::GetPythonString(TStringBuf string)
 
     auto ownedCachedString = ConvertToStringBuf(Py::Bytes(result));
     if (Encoding_) {
-        auto unicodeObject = PyUnicode_FromEncodedObject(result, Encoding_.Get().data(), "strict");
+        auto unicodeObject = PyUnicode_FromEncodedObject(result, Encoding_->data(), "strict");
         if (!unicodeObject) {
             throw Py::Exception();
         }
@@ -232,5 +231,4 @@ bool WaitForSettingFuture(TFuture<void> future)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
@@ -149,6 +148,5 @@ void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

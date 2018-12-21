@@ -10,8 +10,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/range.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1111,5 +1110,4 @@ bool Compare(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

@@ -4,8 +4,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NSecurityClient {
+namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +56,5 @@ DEFINE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityClient
-} // namespace NYT
+} // namespace NYT::NSecurityClient
 

@@ -14,8 +14,7 @@
 
 #include <yt/core/utilex/random.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -43,7 +42,7 @@ void TSampleKeyList::Load(TLoadContext& context)
 
 TPartition::TPartition(
     TTablet* tablet,
-    const TPartitionId& id,
+    TPartitionId id,
     int index,
     TOwningKey pivotKey,
     TOwningKey nextPivotKey)
@@ -180,6 +179,5 @@ void TPartitionIdFormatter::operator()(TStringBuilder* builder, const std::uniqu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

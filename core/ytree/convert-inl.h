@@ -22,8 +22,7 @@
 #include <type_traits>
 #include <limits>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,5 +201,4 @@ inline TString ConvertTo(const NYson::TYsonString& str)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

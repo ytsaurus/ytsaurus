@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTools {
+namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,8 +29,7 @@ NYson::TYsonString ExecuteTool(const TString& toolName, const NYson::TYsonString
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTools
-} // namespace NYT
+} // namespace NYT::NTools
 
 #define TOOLS_INL_H_
 #include "tools-inl.h"

@@ -19,8 +19,7 @@
 #include <queue>
 #include <array>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +83,7 @@ public:
 
         if (!CurrentBuffer_) {
             if (EmptyBuffers_.empty()) {
-                LOG_DEBUG("Buffer overflown; dropping rows");
+                YT_LOG_DEBUG("Buffer overflown; dropping rows");
                 DroppedRowCount_ += rows.Size();
                 return true;
             }
@@ -209,7 +208,7 @@ private:
 
     void ScheduleBufferFlush(TBuffer* buffer)
     {
-        LOG_DEBUG("Scheduling table chunk flush (BufferIndex: %v)",
+        YT_LOG_DEBUG("Scheduling table chunk flush (BufferIndex: %v)",
             buffer->GetIndex());
 
         NChunkClient::TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
@@ -234,7 +233,7 @@ private:
         }
 
         try {
-            LOG_DEBUG("Started flushing table chunk (BufferIndex: %v, BufferSize: %v)",
+            YT_LOG_DEBUG("Started flushing table chunk (BufferIndex: %v, BufferSize: %v)",
                 buffer->GetIndex(),
                 buffer->GetSize());
 
@@ -256,7 +255,7 @@ private:
             WaitFor(writer->Close())
                 .ThrowOnError();
 
-            LOG_DEBUG("Finished flushing table chunk (BufferIndex: %v)",
+            YT_LOG_DEBUG("Finished flushing table chunk (BufferIndex: %v)",
                 buffer->GetIndex());
 
             buffer->Clear();
@@ -268,7 +267,7 @@ private:
                 --PendingFlushes_;
             }
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Failed to flush table chunk; will retry later (BufferIndex: %v)",
+            YT_LOG_WARNING(ex, "Failed to flush table chunk; will retry later (BufferIndex: %v)",
                 buffer->GetIndex());
 
             ScheduleDelayedRetry(buffer);
@@ -295,5 +294,4 @@ ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

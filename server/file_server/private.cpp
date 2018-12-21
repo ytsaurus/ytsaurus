@@ -1,7 +1,6 @@
 #include "private.h"
 
-namespace NYT {
-namespace NFileServer {
+namespace NYT::NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,6 +8,5 @@ const NLogging::TLogger FileServerLogger("FileServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
-} // namespace NYT
+} // namespace NYT::NFileServer
 

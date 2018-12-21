@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/hive/proto/hive_service.pb.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,5 +19,4 @@ TRefCountedEncapsulatedMessagePtr SerializeMessage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer
