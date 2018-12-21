@@ -17,16 +17,12 @@ namespace NYT::NTableClient {
  *  Useful for: query engine.
  */
 struct IUnversionedRowsetWriter
-    : public virtual TRefCounted
+    : public virtual NChunkClient::IWriterBase
 {
-    virtual TFuture<void> Close() = 0;
-
     /*!
      *  Every row must contain exactly one value for each column in schema, in the same order.
      */
     virtual bool Write(TRange<TUnversionedRow> rows) = 0;
-
-    virtual TFuture<void> GetReadyEvent() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUnversionedRowsetWriter)
@@ -39,7 +35,7 @@ DEFINE_REFCOUNTED_TYPE(IUnversionedRowsetWriter)
  *  Useful for: mapreduce jobs, write command.
  */
 struct IUnversionedWriter
-    : public virtual NChunkClient::IWriterBase
+    : public IUnversionedRowsetWriter
 {
     virtual bool Write(TRange<TUnversionedRow> rows) = 0;
 
