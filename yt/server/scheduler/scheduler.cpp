@@ -631,12 +631,15 @@ public:
         auto runtimeParams = New<TOperationRuntimeParameters>();
         Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, user, type);
 
+        auto annotations = specNode->FindChild("annotations");
+
         auto operation = New<TOperation>(
             operationId,
             type,
             mutationId,
             transactionId,
             specNode,
+            annotations ? annotations->AsMap() : nullptr,
             secureVault,
             runtimeParams,
             user,
