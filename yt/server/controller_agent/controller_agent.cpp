@@ -503,14 +503,14 @@ public:
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
-    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersPtr runtimeParameters)
+    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersUpdatePtr update)
     {
         auto operation = GetOperationOrThrow(operationId);
-        if (runtimeParameters->Owners) {
-            operation->SetOwners(*runtimeParameters->Owners);
+        if (update->Owners) {
+            operation->SetOwners(*update->Owners);
             const auto& controller = operation->GetController();
             if (controller) {
-                return BIND(&IOperationControllerSchedulerHost::UpdateRuntimeParameters, controller, std::move(runtimeParameters))
+                return BIND(&IOperationControllerSchedulerHost::UpdateRuntimeParameters, controller, std::move(update))
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
             }
@@ -1600,9 +1600,9 @@ TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(TOperationId opera
     return Impl_->DisposeAndUnregisterOperation(operationId);
 }
 
-TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersPtr runtimeParameters)
+TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersUpdatePtr update)
 {
-    return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(runtimeParameters));
+    return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(update));
 }
 
 TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(

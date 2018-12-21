@@ -308,7 +308,7 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).As<void>();
     }
 
-    virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersPtr runtimeParameters) override
+    virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         if (!IncarnationId_) {
@@ -317,7 +317,7 @@ public:
 
         auto req = AgentProxy_->UpdateOperationRuntimeParameters();
         ToProto(req->mutable_operation_id(), OperationId_);
-        ToProto(req->mutable_parameters(), ConvertToYsonString(runtimeParameters).GetData());
+        ToProto(req->mutable_parameters(), ConvertToYsonString(update).GetData());
         req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
     }

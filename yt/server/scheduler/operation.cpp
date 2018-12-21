@@ -113,30 +113,31 @@ TOperation::TOperation(
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended)
-    : Type_(type)
-    , MutationId_(mutationId)
+    : MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
-    , RuntimeParameters_(std::move(runtimeParams))
     , RuntimeData_(New<TOperationRuntimeData>())
     , SecureVault_(std::move(secureVault))
     , Events_(events)
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
     , Id_(id)
+    , Type_(type)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)
     , Spec_(spec)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , ControlInvoker_(std::move(controlInvoker))
+    , RuntimeParameters_(std::move(runtimeParams))
 {
     YCHECK(Spec_);
     Restart();
+}
 
-    if (RuntimeParameters_->Owners) {
-        Owners_ = *RuntimeParameters_->Owners;
-    }
+EOperationType TOperation::GetType() const
+{
+    return Type_;
 }
 
 TOperationId TOperation::GetId() const
@@ -248,14 +249,21 @@ const THashMap<TString, int>& TOperation::GetSlotIndices() const
 
 const std::vector<TString>& TOperation::GetOwners() const
 {
-    return Owners_;
+    return RuntimeParameters_->Owners;
 }
 
-void TOperation::SetOwners(std::vector<TString> owners)
+TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 {
-    Owners_ = std::move(owners);
-    ShouldFlush_ = true;
-    ShouldFlushAcl_ = true;
+    return RuntimeParameters_;
+}
+
+void TOperation::SetRuntimeParameters(TOperationRuntimeParametersPtr parameters)
+{
+    if (parameters->Owners != RuntimeParameters_->Owners) {
+        SetShouldFlushAcl(true);
+    }
+    SetShouldFlush(true);
+    RuntimeParameters_ = std::move(parameters);
 }
 
 TYsonString TOperation::BuildAlertsString() const
