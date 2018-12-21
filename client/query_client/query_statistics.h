@@ -4,8 +4,7 @@
 
 #include <yt/core/yson/public.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,5 +37,4 @@ void Serialize(const TQueryStatistics& statistics, NYson::IYsonConsumer* consume
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

@@ -11,8 +11,7 @@
 #include <contrib/libs/gmock/gmock/gmock-matchers.h>
 #include <contrib/libs/gmock/gmock/gmock-actions.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 namespace {
 
 using namespace NControllerAgent;
@@ -50,10 +49,10 @@ struct TSchedulerStrategyHostMock
         return TInstant();
     }
 
-    virtual void ActivateOperation(const TOperationId& operationId) override
+    virtual void ActivateOperation(TOperationId operationId) override
     { }
 
-    virtual void AbortOperation(const TOperationId& /* operationId */, const TError& /* error */) override
+    virtual void AbortOperation(TOperationId /* operationId */, const TError& /* error */) override
     { }
 
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
@@ -92,10 +91,10 @@ struct TSchedulerStrategyHostMock
     { }
 
     virtual TFuture<void> SetOperationAlert(
-        const TOperationId& operationId,
+        TOperationId operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout) override
+        std::optional<TDuration> timeout) override
     {
         return VoidFuture;
     }
@@ -124,7 +123,7 @@ public:
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId));
 
-    MOCK_METHOD2(OnNonscheduledJobAborted, void(const TJobId&, EAbortReason));
+    MOCK_METHOD2(OnNonscheduledJobAborted, void(TJobId, EAbortReason));
 
     virtual TJobResources GetNeededResources() const override
     {
@@ -194,7 +193,7 @@ public:
         return StartTime_;
     }
 
-    virtual TNullable<int> FindSlotIndex(const TString& /* treeId */) const override
+    virtual std::optional<int> FindSlotIndex(const TString& /* treeId */) const override
     {
         return 0;
     }
@@ -212,7 +211,7 @@ public:
         return "root";
     }
 
-    virtual const TOperationId& GetId() const
+    virtual TOperationId GetId() const
     {
         return Id_;
     }
@@ -651,5 +650,4 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

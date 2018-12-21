@@ -4,14 +4,13 @@
 #include "private.h"
 
 #include <yt/core/misc/lock_free.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
 #include <util/datetime/base.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +47,7 @@ struct TDelayedExecutorEntry
     TInstant Deadline;
 
     bool Canceled = false;
-    TNullable<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
+    std::optional<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDelayedExecutorEntry)
@@ -289,7 +288,7 @@ private:
         auto now = TInstant::Now();
 
         if (PrevOnTimerInstant_ != TInstant::Zero() && now - PrevOnTimerInstant_ > PeriodicPrecisionWarningThreshold) {
-            LOG_DEBUG("Delayed executor stall detected (Delta: %v)",
+            YT_LOG_DEBUG("Delayed executor stall detected (Delta: %v)",
                 now - PrevOnTimerInstant_);
         }
 
@@ -300,7 +299,7 @@ private:
                 return;
             }
             if (entry->Deadline + LateWarningThreshold < now) {
-                LOG_DEBUG("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
+                YT_LOG_DEBUG("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);
             }
@@ -318,7 +317,7 @@ private:
             entry->Callback.Reset();
             if (entry->Iterator) {
                 ScheduledEntries_.erase(*entry->Iterator);
-                entry->Iterator.Reset();
+                entry->Iterator.reset();
             }
         });
 
@@ -329,13 +328,13 @@ private:
                 break;
             }
             if (entry->Deadline + LateWarningThreshold < now) {
-                LOG_DEBUG("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
+                YT_LOG_DEBUG("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);
             }
             YCHECK(entry->Callback);
             DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), false));
-            entry->Iterator.Reset();
+            entry->Iterator.reset();
             ScheduledEntries_.erase(it);
         }
     }
@@ -406,5 +405,4 @@ REGISTER_SHUTDOWN_CALLBACK(3, TDelayedExecutor::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

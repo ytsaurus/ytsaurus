@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,5 +81,4 @@ std::vector<TChunk*> EnumerateChunksInChunkTree(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

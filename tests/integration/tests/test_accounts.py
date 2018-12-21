@@ -1086,9 +1086,7 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
         self._replicator_sleep()
 
@@ -1233,6 +1231,93 @@ class TestAccounts(YTEnvSetup):
         assert get("//sys/accounts/tmp/@resource_usage/node_count") == node_count
         assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
 
+    def test_totals(self):
+        self._set_account_zero_limits("chunk_wise_accounting_migration")
+
+        def add_resources(*resources):
+            result = {
+                "disk_space_per_medium": {"default": 0},
+                "disk_space": 0,
+                "chunk_count": 0,
+                "node_count": 0,
+                "tablet_count": 0,
+                "tablet_static_memory": 0
+            }
+            for r in resources:
+                result["disk_space_per_medium"]["default"] += r["disk_space_per_medium"]["default"]
+                result["disk_space"] += r["disk_space"]
+                result["chunk_count"] += r["chunk_count"]
+                result["node_count"] += r["node_count"]
+                result["tablet_count"] += r["tablet_count"]
+                result["tablet_static_memory"] += r["tablet_static_memory"]
+
+            return result
+
+        def resources_equal(a, b):
+            return (a["disk_space_per_medium"]["default"] == b["disk_space_per_medium"]["default"] and
+                    a["disk_space"] == b["disk_space"] and
+                    a["chunk_count"] == b["chunk_count"] and
+                    a["node_count"] == b["node_count"] and
+                    a["tablet_count"] == b["tablet_count"] and
+                    a["tablet_static_memory"] == b["tablet_static_memory"])
+
+        resource_limits = get("//sys/accounts/@total_resource_limits")
+
+        create_account("a1")
+        set("//sys/accounts/a1/@resource_limits", {
+            "disk_space_per_medium": {"default": 1000},
+            "chunk_count": 1,
+            "node_count": 1,
+            "tablet_count": 0,
+            "tablet_static_memory": 0
+        })
+        create_account("a2")
+        set("//sys/accounts/a2/@resource_limits", {
+            "disk_space_per_medium": {"default": 1000},
+            "chunk_count": 1,
+            "node_count": 1,
+            "tablet_count": 0,
+            "tablet_static_memory": 0
+        })
+
+        total_resource_limits = add_resources(
+            resource_limits,
+            {
+                "disk_space_per_medium": {"default": 2000},
+                "disk_space": 2000,
+                "chunk_count": 2,
+                "node_count": 2,
+                "tablet_count": 0,
+                "tablet_static_memory": 0
+            })
+
+        resource_usage = get("//sys/accounts/@total_resource_usage")
+        committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
+
+        multicell_sleep()
+
+        resources_equal(get("//sys/accounts/@total_resource_limits"), total_resource_limits)
+
+        create("table", "//tmp/t1", attributes={"account": "a1"})
+        create("table", "//tmp/t2", attributes={"account": "a2"})
+        write_table("//tmp/t1", {"a" : "b"})
+        write_table("//tmp/t2", {"c" : "d"})
+
+        def totals_match():
+            resource_usage1 = get("//sys/accounts/a1/@resource_usage")
+            committed_resource_usage1 = get("//sys/accounts/a1/@committed_resource_usage")
+
+            resource_usage2 = get("//sys/accounts/a2/@resource_usage")
+            committed_resource_usage2 = get("//sys/accounts/a2/@committed_resource_usage")
+
+            total_resource_usage = add_resources(resource_usage, resource_usage1, resource_usage2)
+            total_committed_resource_usage = add_resources(committed_resource_usage, committed_resource_usage1, committed_resource_usage2)
+
+            return (resources_equal(get("//sys/accounts/@total_resource_usage"), total_resource_usage) and
+                    resources_equal(get("//sys/accounts/@total_committed_resource_usage"), total_committed_resource_usage))
+
+        wait(totals_match)
+
 ##################################################################
 
 class TestAccountsMulticell(TestAccounts):
@@ -1251,9 +1336,7 @@ class TestAccountsMulticell(TestAccounts):
               in_=["//tmp/t1", "//tmp/t1"],
               out="//tmp/t2")
 
-        chunk_ids = get("//tmp/t1/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t1")
 
         self._replicator_sleep()
 

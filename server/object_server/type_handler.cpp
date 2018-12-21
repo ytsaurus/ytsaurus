@@ -1,11 +1,10 @@
 #include "type_handler.h"
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectBase* IObjectTypeHandler::GetObject(const TObjectId& id)
+TObjectBase* IObjectTypeHandler::GetObject(TObjectId id)
 {
     auto* object = FindObject(id);
     YCHECK(object);
@@ -14,6 +13,5 @@ TObjectBase* IObjectTypeHandler::GetObject(const TObjectId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 

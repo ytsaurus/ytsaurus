@@ -76,10 +76,10 @@ private:
         auto result = TryCreateNode(Path_);
         if (result.IsOK()) {
             Backoff_.Reset();
-            LOG_DEBUG("Ephemeral node created");
+            YT_LOG_DEBUG("Ephemeral node created");
             TouchNodeLater(GetNextTouchDelay());
         } else {
-            LOG_WARNING("Cannot create ephemeral node, scheduling retry");
+            YT_LOG_WARNING("Cannot create ephemeral node, scheduling retry");
             CreateNodeLater(Backoff_.GetNextPause());
         }
     }
@@ -127,13 +127,13 @@ private:
         auto result = TryTouchNode();
         if (result.IsOK()) {
             Backoff_.Reset();
-            LOG_DEBUG("Ephemeral node touched");
+            YT_LOG_DEBUG("Ephemeral node touched");
             TouchNodeLater(GetNextTouchDelay());
         } else if (IsNodeNotFound(result)) {
-            LOG_WARNING("Ephemeral node lost, recreating it");
+            YT_LOG_WARNING("Ephemeral node lost, recreating it");
             CreateNode();
         } else {
-            LOG_WARNING(result, "Error while touching node");
+            YT_LOG_WARNING(result, "Error while touching node");
             TouchNodeLater(Backoff_.GetNextPause());
         }
     }

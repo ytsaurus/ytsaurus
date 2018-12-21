@@ -19,8 +19,7 @@
 
 #include <util/stream/output.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,8 +61,8 @@ public:
         NApi::NNative::IClientPtr client,
         TBlobTableWriterConfigPtr blobTableWriterConfig,
         TTableWriterOptionsPtr tableWriterOptions,
-        const NCypressClient::TTransactionId& transactionId,
-        const NChunkClient::TChunkListId& chunkListId,
+        NTransactionClient::TTransactionId transactionId,
+        NChunkClient::TChunkListId chunkListId,
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler);
 
@@ -91,5 +90,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

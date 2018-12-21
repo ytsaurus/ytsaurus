@@ -9,8 +9,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -131,7 +130,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 
 TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     ICypressNodeFactory* factory,
-    const TNodeId& hintId,
+    TNodeId hintId,
     TCellTag externalCellTag)
 {
     auto type = GetObjectType();
@@ -176,6 +175,25 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool TCompositeNodeBase::TAttributes::operator==(const TAttributes& rhs) const
+{
+    if (this == &rhs) {
+        return true;
+    }
+
+#define XX(camelCaseName, snakeCaseName) \
+    && camelCaseName == rhs.camelCaseName
+
+    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+}
+
+bool TCompositeNodeBase::TAttributes::operator!=(const TAttributes& rhs) const
+{
+    return !(*this == rhs);
+}
 
 void TCompositeNodeBase::TAttributes::Persist(NCellMaster::TPersistenceContext& context)
 {
@@ -478,6 +496,15 @@ void TMapNodeTypeHandler::DoClone(
     }
 }
 
+bool TMapNodeTypeHandler::HasBranchedChangesImpl(TMapNode* originatingNode, TMapNode* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return !branchedNode->KeyToChild().empty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ENodeType TListNode::GetNodeType() const
@@ -608,6 +635,15 @@ void TListNodeTypeHandler::DoClone(
     }
 }
 
+bool TListNodeTypeHandler::HasBranchedChangesImpl(TListNode* originatingNode, TListNode* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return branchedNode->IndexToChild() != originatingNode->IndexToChild();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLinkNode::TLinkNode(const TVersionedNodeId& id)
@@ -691,7 +727,7 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
 
     implHolder->SetTargetPath(targetPath);
 
-    LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
+    YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
         id,
         targetPath);
 
@@ -727,6 +763,17 @@ void TLinkNodeTypeHandler::DoClone(
     TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
     clonedNode->SetTargetPath(sourceNode->GetTargetPath());
+}
+
+bool TLinkNodeTypeHandler::HasBranchedChangesImpl(
+    TLinkNode* originatingNode,
+    TLinkNode* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return branchedNode->GetTargetPath() != originatingNode->GetTargetPath();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -817,8 +864,18 @@ void TDocumentNodeTypeHandler::DoClone(
     clonedNode->SetValue(CloneNode(sourceNode->GetValue()));
 }
 
+bool TDocumentNodeTypeHandler::HasBranchedChangesImpl(
+    TDocumentNode* originatingNode,
+    TDocumentNode* branchedNode)
+{
+    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+        return true;
+    }
+
+    return !AreNodesEqual(branchedNode->GetValue(), originatingNode->GetValue());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 

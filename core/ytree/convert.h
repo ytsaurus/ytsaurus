@@ -6,8 +6,7 @@
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,8 +51,7 @@ extern template NYson::TYsonString ConvertToYsonString<TGuid>(const TGuid&);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 #define CONVERT_INL_H_
 #include "convert-inl.h"

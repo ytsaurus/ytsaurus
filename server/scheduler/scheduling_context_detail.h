@@ -5,8 +5,7 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,8 +38,8 @@ public:
 
     virtual void StartJob(
         const TString& treeId,
-        const TOperationId& operationId,
-        const TIncarnationId& incarnationId,
+        TOperationId operationId,
+        TIncarnationId incarnationId,
         const NControllerAgent::TJobStartDescriptor& startDescriptor) override;
 
     virtual void PreemptJob(const TJobPtr& job) override;
@@ -59,5 +58,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

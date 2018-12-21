@@ -14,8 +14,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NApi;
 using namespace NTransactionClient;
@@ -73,7 +72,7 @@ void FromProto(
     std::function<NNative::IClientPtr(const TCellTag&)> getClient,
     TDuration pingPeriod)
 {
-    auto attachTransaction = [&] (const TTransactionId& transactionId) -> ITransactionPtr {
+    auto attachTransaction = [&] (TTransactionId transactionId) -> ITransactionPtr {
         if (!transactionId) {
             return nullptr;
         }
@@ -100,17 +99,17 @@ void FromProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperation::TOperation(
-    const TOperationId& id,
+    TOperationId id,
     EOperationType type,
-    const TMutationId& mutationId,
-    const TTransactionId& userTransactionId,
+    TMutationId mutationId,
+    TTransactionId userTransactionId,
     IMapNodePtr spec,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParams,
     const TString& authenticatedUser,
     TInstant startTime,
     IInvokerPtr controlInvoker,
-    const TNullable<TString>& alias,
+    const std::optional<TString>& alias,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended)
@@ -140,7 +139,7 @@ TOperation::TOperation(
     }
 }
 
-const TOperationId& TOperation::GetId() const
+TOperationId TOperation::GetId() const
 {
     return Id_;
 }
@@ -229,10 +228,10 @@ void TOperation::SetSlotIndex(const TString& treeId, int value)
     TreeIdToSlotIndex_.emplace(treeId, value);
 }
 
-TNullable<int> TOperation::FindSlotIndex(const TString& treeId) const
+std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
 {
     auto it = TreeIdToSlotIndex_.find(treeId);
-    return it != TreeIdToSlotIndex_.end() ? MakeNullable(it->second) : Null;
+    return it != TreeIdToSlotIndex_.end() ? std::make_optional(it->second) : std::nullopt;
 }
 
 int TOperation::GetSlotIndex(const TString& treeId) const
@@ -278,7 +277,7 @@ bool TOperation::HasAlert(EOperationAlertType alertType) const
     return Alerts_.find(alertType) != Alerts_.end();
 }
 
-void TOperation::SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout)
+void TOperation::SetAlert(EOperationAlertType alertType, const TError& error, std::optional<TDuration> timeout)
 {
     auto& alert = Alerts_[alertType];
 
@@ -405,6 +404,5 @@ void TOperationRuntimeData::SetMinNeededJobResources(const TJobResourcesWithQuot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

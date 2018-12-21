@@ -5,8 +5,7 @@
 #include <yt/core/rpc/public.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NCypressClient {
+namespace NYT::NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,10 +16,10 @@ TTransactionId GetTransactionId(const NRpc::IServiceContextPtr& context);
 TTransactionId GetTransactionId(const NRpc::NProto::TRequestHeader& header);
 
 //! Attaches transaction id to the request.
-void SetTransactionId(const NRpc::IClientRequestPtr& request, const TTransactionId& transactionId);
+void SetTransactionId(const NRpc::IClientRequestPtr& request, TTransactionId transactionId);
 
 //! Attaches transaction id to the request.
-void SetTransactionId(NRpc::NProto::TRequestHeader* header, const TTransactionId& transactionId);
+void SetTransactionId(NRpc::NProto::TRequestHeader* header, TTransactionId transactionId);
 
 //! Sets access tracking suppression flag.
 void SetSuppressAccessTracking(const NRpc::IClientRequestPtr& request, bool value);
@@ -42,5 +41,4 @@ bool GetSuppressModificationTracking(const NRpc::NProto::TRequestHeader& header)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressClient
-} // namespace NYT
+} // namespace NYT::NCypressClient

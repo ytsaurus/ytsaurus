@@ -5,12 +5,11 @@
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/intrusive_ptr.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,12 +27,11 @@ DEFINE_REFCOUNTED_TYPE(IShellManager)
 
 IShellManagerPtr CreateShellManager(
     const TString& workingDir,
-    TNullable<int> userId,
-    TNullable<TString> freezerFullPath,
-    TNullable<TString> messageOfTheDay,
+    std::optional<int> userId,
+    std::optional<TString> freezerFullPath,
+    std::optional<TString> messageOfTheDay,
     std::vector<TString> environment);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

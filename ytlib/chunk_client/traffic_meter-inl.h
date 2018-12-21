@@ -5,8 +5,7 @@
 #include "traffic_meter.h"
 #endif
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +18,4 @@ void TTrafficMeter::IncrementByteCountImpl(THashMap<T, i64>& data, const T& key,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

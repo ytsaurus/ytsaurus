@@ -8,8 +8,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/yson/parser.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 namespace {
 
 using ::testing::InSequence;
@@ -94,18 +93,17 @@ TEST(TYsonParserTest, ContextInExceptions_TableConsumer)
         TTableConsumer consumer(&emptyValueConsumer);
         TYsonParser parser(&consumer, EYsonType::ListFragment);
         parser.Read("{foo=bar};");
-        parser.Read("{bar=baz};LOG_IN");
+        parser.Read("{bar=baz};YT_LOG_IN");
         parser.Read("FO something happened");
         parser.Finish();
         GTEST_FAIL() << "Expected exception to be thrown";
     } catch (const std::exception& ex) {
-        EXPECT_THAT(ex.what(), testing::HasSubstr("LOG_INFO something happened"));
+        EXPECT_THAT(ex.what(), testing::HasSubstr("YT_LOG_INFO something happened"));
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NVersionedTableClient
-} // namespace NYT
+} // namespace NYT::NVersionedTableClient
 

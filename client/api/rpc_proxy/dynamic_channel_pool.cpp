@@ -13,9 +13,7 @@
 
 #include <util/random/shuffle.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -154,7 +152,7 @@ void TDynamicChannelPool::Terminate()
     for (auto channel : aliveChannels) {
         auto terminateError = WaitFor(channel->Terminate(error));
         if (!terminateError.IsOK()) {
-            LOG_ERROR(terminateError, "Error while terminating channel pool");
+            YT_LOG_ERROR(terminateError, "Error while terminating channel pool");
         }
     }
 
@@ -162,7 +160,7 @@ void TDynamicChannelPool::Terminate()
     for (auto channel : OpenChannels_) {
         auto terminateError = WaitFor(channel.second->Terminate(error));
         if (!terminateError.IsOK()) {
-            LOG_ERROR(terminateError, "Error while terminating channel pool");
+            YT_LOG_ERROR(terminateError, "Error while terminating channel pool");
         }
     }
     OpenChannels_.clear();
@@ -294,6 +292,4 @@ NRpc::IChannelPtr CreateStickyChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

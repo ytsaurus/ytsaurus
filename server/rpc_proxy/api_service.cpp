@@ -40,8 +40,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 using namespace NApi;
 using namespace NYson;
@@ -114,7 +113,7 @@ public:
 
 private:
     TOnPacket Callback_;
-    std::vector<TNullable<T>> Window_;
+    std::vector<std::optional<T>> Window_;
     size_t NextPacketSequenceNumber_ = 0;
     size_t NextPacketIndex_ = 0;
     int DeferredPacketCount_ = 0;
@@ -156,7 +155,7 @@ private:
             }
 
             Callback_(std::move(*nextSlot));
-            nextSlot.Reset();
+            nextSlot.reset();
             ++NextPacketSequenceNumber_;
             if (++NextPacketIndex_ == Window_.size()) {
                 NextPacketIndex_ = 0;
@@ -185,7 +184,7 @@ public:
     }
 
     void ModifyRows(
-        TNullable<i64> sequenceNumber,
+        std::optional<i64> sequenceNumber,
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<TRowModification> modifications,
@@ -390,6 +389,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SetNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LockNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnlockNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CopyNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MoveNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LinkNode));
@@ -468,7 +468,7 @@ private:
             auto client = connection->CreateNativeClient(TClientOptions(user));
             YCHECK(AuthenticatedClients_.insert(std::make_pair(user, client)).second);
 
-            LOG_DEBUG("Created native client (User: %v)", user);
+            YT_LOG_DEBUG("Created native client (User: %v)", user);
 
             return client;
         }
@@ -507,7 +507,7 @@ private:
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
         if (Bootstrap_->GetConfig()->ApiService->VerboseLogging) {
-            LOG_DEBUG("RequestId: %v, RequestBody: %v",
+            YT_LOG_DEBUG("RequestId: %v, RequestBody: %v",
                 context->GetRequestId(),
                 request->ShortDebugString());
         }
@@ -543,7 +543,7 @@ private:
     ITransactionPtr GetTransactionOrAbortContext(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         const TTransactionAttachOptions& options)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
@@ -566,7 +566,7 @@ private:
         return transaction;
     }
 
-    void OnStickyTransactionFinished(const TTransactionId& transactionId)
+    void OnStickyTransactionFinished(TTransactionId transactionId)
     {
         auto guard = Guard(SpinLock_);
         TransactionToModifyRowsSlidingWindow_.erase(transactionId);
@@ -848,7 +848,7 @@ private:
         CompleteCallWith(
             context,
             client->CreateObject(type, options),
-            [] (const auto& context, const NObjectClient::TObjectId& objectId) {
+            [] (const auto& context, NObjectClient::TObjectId objectId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_object_id(), objectId);
 
@@ -955,7 +955,7 @@ private:
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             if (protoAttributes.all()) {
-                options.Attributes.Reset();
+                options.Attributes.reset();
             } else {
                 options.Attributes = std::vector<TString>();
                 options.Attributes->reserve(protoAttributes.columns_size());
@@ -1007,7 +1007,7 @@ private:
         if (request->has_attributes()) {
             const auto& protoAttributes = request->attributes();
             if (protoAttributes.all()) {
-                options.Attributes.Reset();
+                options.Attributes.reset();
             } else {
                 options.Attributes = std::vector<TString>();
                 options.Attributes->reserve(protoAttributes.columns_size());
@@ -1092,7 +1092,7 @@ private:
         CompleteCallWith(
             context,
             client->CreateNode(path, type, options),
-            [] (const auto& context, const NCypressClient::TNodeId& nodeId) {
+            [] (const auto& context, NCypressClient::TNodeId nodeId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
 
@@ -1221,6 +1221,32 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnlockNode)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        const auto& path = request->path();
+
+        TUnlockNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        context->SetRequestInfo("Path: %v", path);
+
+        CompleteCallWith(context, client->UnlockNode(path, options));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CopyNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
@@ -1265,7 +1291,7 @@ private:
         CompleteCallWith(
             context,
             client->CopyNode(srcPath, dstPath, options),
-            [] (const auto& context, const NCypressClient::TNodeId& nodeId) {
+            [] (const auto& context, NCypressClient::TNodeId nodeId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
 
@@ -1856,7 +1882,7 @@ private:
             FromProto(&options, request->master_read_options());
         }
         if (request->attributes_size() != 0) {
-            options.Attributes.Emplace();
+            options.Attributes.emplace();
             for (auto attribute_index = 0;
                 attribute_index < request->attributes_size();
                 ++attribute_index)
@@ -2219,6 +2245,15 @@ private:
         if (request->has_max_subqueries()) {
             options.MaxSubqueries = request->max_subqueries();
         }
+        if (request->has_allow_full_scan()) {
+            options.AllowFullScan = request->allow_full_scan();
+        }
+        if (request->has_allow_join_without_index()) {
+            options.AllowJoinWithoutIndex = request->allow_join_without_index();
+        }
+        if (request->has_udf_registry_path()) {
+            options.UdfRegistryPath = request->udf_registry_path();
+        }
 
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,
@@ -2364,7 +2399,7 @@ private:
             FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
         }
 
-        TNullable<size_t> sequenceNumber;
+        std::optional<size_t> sequenceNumber;
         if (Bootstrap_->GetConfig()->ApiService->EnableModifyRowsRequestReordering &&
             request->has_sequence_number())
         {
@@ -2637,5 +2672,4 @@ IServicePtr CreateApiService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

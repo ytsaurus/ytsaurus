@@ -12,8 +12,7 @@
 #include <yt/core/concurrency/action_queue.h>
 
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 class TSimulatorNodeShard
     : public NYT::TRefCounted
@@ -66,5 +65,4 @@ private:
 
 int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId, int nodeShardCount);
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

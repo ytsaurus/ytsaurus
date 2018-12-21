@@ -16,8 +16,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,13 +61,12 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     NChunkClient::TMultiChunkWriterOptionsPtr options,
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
-    const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId,
+    NTransactionClient::TTransactionId transactionId,
+    NChunkClient::TChunkListId parentChunkListId,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient

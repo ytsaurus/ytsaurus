@@ -12,8 +12,7 @@
 #include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 #include <yt/ytlib/chunk_client/config.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -94,7 +93,7 @@ TFileChunkWriter::TFileChunkWriter(
 
 bool TFileChunkWriter::Write(const TRef& data)
 {
-    LOG_DEBUG("Writing data (Size: %v)", data.Size());
+    YT_LOG_DEBUG("Writing data (Size: %v)", data.Size());
 
     if (data.Empty()) {
         return true;
@@ -131,7 +130,7 @@ TFuture<void> TFileChunkWriter::GetReadyEvent()
 void TFileChunkWriter::FlushBlock()
 {
     YCHECK(!Buffer_.IsEmpty());
-    LOG_DEBUG("Flushing block (BlockSize: %v)", Buffer_.Size());
+    YT_LOG_DEBUG("Flushing block (BlockSize: %v)", Buffer_.Size());
 
     auto* block = BlocksExt_.add_blocks();
     block->set_size(Buffer_.Size());
@@ -232,8 +231,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     TMultiChunkWriterOptionsPtr options,
     NNative::IClientPtr client,
     TCellTag cellTag,
-    const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId,
+    TTransactionId transactionId,
+    TChunkListId parentChunkListId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -269,5 +268,4 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient

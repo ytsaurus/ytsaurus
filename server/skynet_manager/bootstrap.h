@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,5 +62,4 @@ DEFINE_REFCOUNTED_TYPE(TBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

@@ -7,34 +7,30 @@
 #include <util/string/split.h>
 #include <util/string/iterator.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const int MaxAllowedProfilingTagCount = 200;
 
-TPoolName::TPoolName()
-{ }
-
-TPoolName::TPoolName(TString pool, TNullable<TString> parent)
+TPoolName::TPoolName(TString pool, std::optional<TString> parent)
 {
     if (parent) {
-        Pool = parent.Get() + DELIMITER + pool;
+        Pool = *parent +  Delimiter + pool;
         ParentPool = std::move(parent);
     } else {
         Pool = std::move(pool);
     }
 }
 
-const char TPoolName::DELIMITER = '$';
+const char TPoolName::Delimiter = '$';
 
 const TString& TPoolName::GetPool() const
 {
     return Pool;
 }
 
-const TNullable<TString>& TPoolName::GetParentPool() const
+const std::optional<TString>& TPoolName::GetParentPool() const
 {
     return ParentPool;
 }
@@ -42,15 +38,16 @@ const TNullable<TString>& TPoolName::GetParentPool() const
 TPoolName TPoolName::FromString(const TString& value)
 {
     std::vector<TString> parts;
-    StringSplitter(value).Split(DELIMITER).AddTo(&parts);
+    StringSplitter(value).Split(Delimiter).AddTo(&parts);
     switch (parts.size()) {
         case 1:
-            return TPoolName(value, Null);
+            return TPoolName(value, std::nullopt);
         case 2:
             return TPoolName(parts[1], parts[0]);
         default:
-            THROW_ERROR_EXCEPTION("Cannot parse PoolName from string:"
-                "delimiter found more than once (Delimiter: %Qv, RawValue: %Qv)", TPoolName::DELIMITER, value);
+            THROW_ERROR_EXCEPTION("Malformed pool name: delimiter %Qv is found more than once in %Qv",
+                TPoolName::Delimiter,
+                value);
     }
 }
 
@@ -103,17 +100,17 @@ TJobIOConfig::TJobIOConfig()
 TTestingOperationOptions::TTestingOperationOptions()
 {
     RegisterParameter("scheduling_delay", SchedulingDelay)
-        .Default(Null);
+        .Default();
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
     RegisterParameter("delay_inside_revive", DelayInsideRevive)
-        .Default(Null);
+        .Default();
     RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
-        .Default(Null);
+        .Default();
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
-        .Default(Null);
+        .Default();
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
-        .Default(Null);
+        .Default();
     RegisterParameter("controller_failure", ControllerFailure)
         .Default(EControllerFailureType::None);
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
@@ -125,10 +122,10 @@ TAutoMergeConfig::TAutoMergeConfig()
     RegisterParameter("job_io", JobIO)
         .DefaultNew();
     RegisterParameter("max_intermediate_chunk_count", MaxIntermediateChunkCount)
-        .Default(Null)
+        .Default()
         .GreaterThanOrEqual(1);
     RegisterParameter("chunk_count_per_merge_job", ChunkCountPerMergeJob)
-        .Default(Null)
+        .Default()
         .GreaterThanOrEqual(1);
     RegisterParameter("chunk_size_threshold", ChunkSizeThreshold)
         .Default(128_MB)
@@ -186,10 +183,10 @@ TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
 TSamplingConfig::TSamplingConfig()
 {
     RegisterParameter("sampling_rate", SamplingRate)
-        .Default(Null);
+        .Default();
 
     RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
-        .Default(Null);
+        .Default();
 
     RegisterParameter("io_block_size", IOBlockSize)
         .Default(16_MB);
@@ -337,7 +334,7 @@ TOperationSpecBase::TOperationSpecBase()
         .DefaultNew();
 
     RegisterParameter("alias", Alias)
-        .Default(Null);
+        .Default();
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -415,20 +412,26 @@ TUserJobSpec::TUserJobSpec()
         .Default(5_MB)
         .GreaterThan(0)
         .LessThanOrEqual(1_GB);
+    RegisterParameter("enable_profiling", EnableProfiling)
+        .Default(false);
+    RegisterParameter("max_profile_size", MaxProfileSize)
+        .Default(2_MB)
+        .GreaterThan(0)
+        .LessThanOrEqual(2_MB);
     RegisterParameter("custom_statistics_count_limit", CustomStatisticsCountLimit)
         .Default(128)
         .GreaterThan(0)
         .LessThanOrEqual(1024);
     RegisterParameter("tmpfs_size", TmpfsSize)
-        .Default(Null)
+        .Default()
         .GreaterThan(0);
     RegisterParameter("tmpfs_path", TmpfsPath)
-        .Default(Null);
+        .Default();
     RegisterParameter("disk_space_limit", DiskSpaceLimit)
-        .Default(Null)
+        .Default()
         .GreaterThanOrEqual(0);
     RegisterParameter("inode_limit", InodeLimit)
-        .Default(Null)
+        .Default()
         .GreaterThanOrEqual(0);
     RegisterParameter("copy_files", CopyFiles)
         .Default(false);
@@ -806,7 +809,7 @@ TSortOperationSpec::TSortOperationSpec()
 
     RegisterParameter("data_weight_per_sorted_merge_job", DataWeightPerSortedJob)
         .Alias("data_size_per_sorted_merge_job")
-        .Default(Null);
+        .Default();
 
     RegisterPreprocessor([&] () {
         PartitionJobIO->TableReader->MaxBufferSize = 1_GB;
@@ -837,10 +840,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         .NonEmpty();
     RegisterParameter("reduce_by", ReduceBy)
         .Default();
-    // Mapper can be absent -- leave it Null by default.
+    // Mapper can be absent -- leave it null by default.
     RegisterParameter("mapper", Mapper)
         .Default();
-    // ReduceCombiner can be absent -- leave it Null by default.
+    // ReduceCombiner can be absent -- leave it null by default.
     RegisterParameter("reduce_combiner", ReduceCombiner)
         .Default();
     RegisterParameter("reducer", Reducer)
@@ -874,7 +877,7 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
 
     RegisterParameter("data_weight_per_reduce_job", DataWeightPerSortedJob)
         .Alias("data_size_per_reduce_job")
-        .Default(Null);
+        .Default();
 
     RegisterParameter("force_reduce_combiners", ForceReduceCombiners)
         .Default(false);
@@ -1196,10 +1199,9 @@ TOperationRuntimeParametersPtr TUserFriendlyOperationRuntimeParameters::UpdatePa
         if (Weight) {
             pair.second->Weight = Weight;
         }
-//        TODO(renadeen): fix this when we revive pool change
-//        if (Pool) {
-//            pair.second->Pool = Pool;
-//        }
+        if (Pool) {
+            pair.second->Pool = TPoolName(*Pool, std::nullopt);
+        }
     }
     return result;
 }
@@ -1277,5 +1279,4 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

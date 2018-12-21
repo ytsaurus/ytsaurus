@@ -45,8 +45,7 @@
 
 #include <type_traits>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NYTree;
 using namespace NLogging;
@@ -342,17 +341,17 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
 {
     const auto* node = GetThisImpl();
     if (!node->IsExternal()) {
-        return Null;
+        return std::nullopt;
     }
 
-    auto maybeDescriptor = FindBuiltinAttributeDescriptor(internedKey);
-    if (!maybeDescriptor) {
-        return Null;
+    auto optionalDescriptor = FindBuiltinAttributeDescriptor(internedKey);
+    if (!optionalDescriptor) {
+        return std::nullopt;
     }
 
-    const auto& descriptor = *maybeDescriptor;
+    const auto& descriptor = *optionalDescriptor;
     if (!descriptor.External) {
-        return Null;
+        return std::nullopt;
     }
 
     auto cellTag = node->GetExternalCellTag();
@@ -467,7 +466,7 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
 
             auto* node = GetThisImpl();
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SetExpirationTime(node, Null);
+            cypressManager->SetExpirationTime(node, std::nullopt);
 
             return true;
         }
@@ -525,7 +524,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Key)
         .SetPresent(hasKey));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTime)
-        .SetPresent(trunkNode->GetExpirationTime().HasValue())
+        .SetPresent(trunkNode->GetExpirationTime().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(EInternedAttributeKey::CreationTime);
@@ -626,7 +625,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             }
             static const TString NullKey("?");
             BuildYsonFluently(consumer)
-                .Value(GetParent()->AsMap()->FindChildKey(this).Get(NullKey));
+                .Value(GetParent()->AsMap()->FindChildKey(this).value_or(NullKey));
             return true;
         }
 
@@ -727,6 +726,7 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& 
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     DISPATCH_YPATH_SERVICE_METHOD(Copy);
+    DISPATCH_YPATH_SERVICE_METHOD(Unlock);
 
     if (TNodeBase::DoInvoke(context)) {
         return true;
@@ -751,7 +751,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             TCypressManagerPtr cypressManager,
             TSecurityManagerPtr securityManager,
             TTransaction* transaction,
-            TNullable<std::vector<TString>> attributeKeys)
+            std::optional<std::vector<TString>> attributeKeys)
             : CypressManager_(std::move(cypressManager))
             , SecurityManager_(std::move(securityManager))
             , Transaction_(transaction)
@@ -772,7 +772,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         const TCypressManagerPtr CypressManager_;
         const TSecurityManagerPtr SecurityManager_;
         TTransaction* const Transaction_;
-        const TNullable<std::vector<TString>> AttributeKeys_;
+        const std::optional<std::vector<TString>> AttributeKeys_;
 
         TAsyncYsonWriter Writer_;
 
@@ -862,13 +862,13 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     };
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     // TODO(babenko): make use of limit
     auto limit = request->has_limit()
-        ? MakeNullable(request->limit())
-        : Null;
+        ? std::make_optional(request->limit())
+        : std::nullopt;
 
     context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
         attributeKeys,
@@ -1068,8 +1068,8 @@ void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
 }
 
 void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
-    const TNullable<TChunkReplication>& oldReplication,
-    TNullable<int> primaryMediumIndex,
+    const std::optional<TChunkReplication>& oldReplication,
+    std::optional<int> primaryMediumIndex,
     const TChunkReplication& newReplication)
 {
     if (newReplication == oldReplication) {
@@ -1097,7 +1097,7 @@ void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
 bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
     TMedium* newPrimaryMedium,
     const TChunkReplication& oldReplication,
-    TNullable<int> oldPrimaryMediumIndex,
+    std::optional<int> oldPrimaryMediumIndex,
     TChunkReplication* newReplication)
 {
     auto newPrimaryMediumIndex = newPrimaryMedium->GetIndex();
@@ -1227,6 +1227,23 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 
     context->SetResponseInfo("LockId: %v",
         lockId);
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
+{
+    DeclareMutating();
+
+    context->SetRequestInfo();
+
+    ValidateTransaction();
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    cypressManager->UnlockNode(TrunkNode, Transaction);
+
+    context->SetResponseInfo();
 
     context->Reply();
 }
@@ -1470,27 +1487,27 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
     descriptors->push_back(EInternedAttributeKey::Count);
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
-        .SetPresent(node->GetCompressionCodec().HasValue())
+        .SetPresent(node->GetCompressionCodec().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
-        .SetPresent(node->GetErasureCodec().HasValue())
+        .SetPresent(node->GetErasureCodec().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
-        .SetPresent(node->GetPrimaryMediumIndex().HasValue())
+        .SetPresent(node->GetPrimaryMediumIndex().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
-        .SetPresent(node->GetMedia().HasValue())
+        .SetPresent(node->GetMedia().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Vital)
-        .SetPresent(node->GetVital().HasValue())
+        .SetPresent(node->GetVital().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationFactor)
-        .SetPresent(node->GetReplicationFactor().HasValue())
+        .SetPresent(node->GetReplicationFactor().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
@@ -1498,19 +1515,19 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Atomicity)
-        .SetPresent(node->GetAtomicity().HasValue())
+        .SetPresent(node->GetAtomicity().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CommitOrdering)
-        .SetPresent(node->GetCommitOrdering().HasValue())
+        .SetPresent(node->GetCommitOrdering().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
-        .SetPresent(node->GetInMemoryMode().HasValue())
+        .SetPresent(node->GetInMemoryMode().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeFor)
-        .SetPresent(node->GetOptimizeFor().HasValue())
+        .SetPresent(node->GetOptimizeFor().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
 }
@@ -1751,7 +1768,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
 #define XX(camelCaseName, snakeCaseName) \
         case EInternedAttributeKey::camelCaseName: \
             ValidateNoTransaction(); \
-            node->Set##camelCaseName(Null); \
+            node->Set##camelCaseName(std::nullopt); \
             return true; \
 
         FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
@@ -1760,7 +1777,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
 
         case EInternedAttributeKey::PrimaryMedium:
             ValidateNoTransaction();
-            node->SetPrimaryMediumIndex(Null);
+            node->SetPrimaryMediumIndex(std::nullopt);
             return true;
 
         case EInternedAttributeKey::TabletCellBundle: {
@@ -2081,11 +2098,11 @@ bool TMapNodeProxy::RemoveChild(const TString& key)
 
 void TMapNodeProxy::RemoveChild(const INodePtr& child)
 {
-    auto maybeKey = FindChildKey(child);
-    if (!maybeKey) {
+    auto optionalKey = FindChildKey(child);
+    if (!optionalKey) {
         THROW_ERROR_EXCEPTION("Node is not a child");
     }
-    const auto& key = *maybeKey;
+    const auto& key = *optionalKey;
 
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
@@ -2102,11 +2119,11 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
         return;
     }
 
-    auto maybeKey = FindChildKey(oldChild);
-    if (!maybeKey) {
+    auto optionalKey = FindChildKey(oldChild);
+    if (!optionalKey) {
         THROW_ERROR_EXCEPTION("Node is not a child");
     }
-    const auto& key = *maybeKey;
+    const auto& key = *optionalKey;
 
     auto* oldTrunkChildImpl = ICypressNodeProxy::FromNode(oldChild.Get())->GetTrunkNode();
     auto* oldChildImpl = LockImpl(oldTrunkChildImpl, ELockMode::Exclusive, true);
@@ -2131,7 +2148,7 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
     SetModified();
 }
 
-TNullable<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
+std::optional<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
 {
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
@@ -2146,7 +2163,7 @@ TNullable<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
         }
     }
 
-    return Null;
+    return std::nullopt;
 }
 
 bool TMapNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
@@ -2220,12 +2237,12 @@ void TMapNodeProxy::ListSelf(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
-        : Null;
+        ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
+        : std::nullopt;
 
     auto limit = request->has_limit()
-        ? MakeNullable(request->limit())
-        : Null;
+        ? std::make_optional(request->limit())
+        : std::nullopt;
 
     context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
         attributeKeys,
@@ -2439,14 +2456,14 @@ void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newC
     SetModified();
 }
 
-TNullable<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child)
+std::optional<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child)
 {
     const auto* impl = GetThisImpl();
 
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto it = impl->ChildToIndex().find(trunkChildImpl);
-    return it == impl->ChildToIndex().end() ? Null : MakeNullable(it->second);
+    return it == impl->ChildToIndex().end() ? std::nullopt : std::make_optional(it->second);
 }
 
 void TListNodeProxy::SetChildNode(
@@ -2771,5 +2788,4 @@ void TDocumentNodeProxy::SetImplValue(const TYsonString& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

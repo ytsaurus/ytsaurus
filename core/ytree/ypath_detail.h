@@ -21,8 +21,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +83,7 @@ public:
     virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
     virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override;
     virtual bool ShouldHideAttributes() override;
 
@@ -261,7 +260,7 @@ private:
         const NYson::TYsonString& wholeYson);
     TFuture<NYson::TYsonString> DoGetAttribute(
         const TYPath& path,
-        const TNullable<std::vector<TString>>& attributeKeys);
+        const std::optional<std::vector<TString>>& attributeKeys);
 
     static bool DoExistsAttributeFragment(
         const TString& key,
@@ -559,5 +558,4 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

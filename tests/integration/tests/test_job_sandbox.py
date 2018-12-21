@@ -345,9 +345,7 @@ class TestFilesInSandbox(YTEnvSetup):
         create("file", "//tmp/script", attributes={"replication_factor": 1, "executable": True})
         write_file("//tmp/script", "#!/bin/bash\ncat")
 
-        chunk_ids = get("//tmp/script/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/script")
 
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
         assert len(replicas) == 1

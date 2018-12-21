@@ -9,8 +9,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NConcurrency;
 using namespace NBus;
@@ -228,18 +227,18 @@ TRequestId TServiceContextBase::GetRequestId() const
     return RequestId_;
 }
 
-TNullable<TInstant> TServiceContextBase::GetStartTime() const
+std::optional<TInstant> TServiceContextBase::GetStartTime() const
 {
     return RequestHeader_->has_start_time()
-        ? MakeNullable(FromProto<TInstant>(RequestHeader_->start_time()))
-        : Null;
+        ? std::make_optional(FromProto<TInstant>(RequestHeader_->start_time()))
+        : std::nullopt;
 }
 
-TNullable<TDuration> TServiceContextBase::GetTimeout() const
+std::optional<TDuration> TServiceContextBase::GetTimeout() const
 {
     return RequestHeader_->has_timeout()
-        ? MakeNullable(FromProto<TDuration>(RequestHeader_->timeout()))
-        : Null;
+        ? std::make_optional(FromProto<TDuration>(RequestHeader_->timeout()))
+        : std::nullopt;
 }
 
 bool TServiceContextBase::IsRetry() const
@@ -262,7 +261,7 @@ const TString& TServiceContextBase::GetMethod() const
     return RequestHeader_->method();
 }
 
-const TRealmId& TServiceContextBase::GetRealmId() const
+TRealmId TServiceContextBase::GetRealmId() const
 {
     return RealmId_;
 }
@@ -343,12 +342,12 @@ TRequestId TServiceContextWrapper::GetRequestId() const
     return UnderlyingContext_->GetRequestId();
 }
 
-TNullable<TInstant> TServiceContextWrapper::GetStartTime() const
+std::optional<TInstant> TServiceContextWrapper::GetStartTime() const
 {
     return UnderlyingContext_->GetStartTime();
 }
 
-TNullable<TDuration> TServiceContextWrapper::GetTimeout() const
+std::optional<TDuration> TServiceContextWrapper::GetTimeout() const
 {
     return UnderlyingContext_->GetTimeout();
 }
@@ -373,7 +372,7 @@ const TString& TServiceContextWrapper::GetMethod() const
     return UnderlyingContext_->GetMethod();
 }
 
-const TRealmId& TServiceContextWrapper::GetRealmId() const
+TRealmId TServiceContextWrapper::GetRealmId() const
 {
     return UnderlyingContext_->GetRealmId();
 }
@@ -512,7 +511,7 @@ void TServerBase::RegisterService(IServicePtr service)
         DoRegisterService(service);
     }
 
-    LOG_INFO("RPC service registered (ServiceName: %v, RealmId: %v)",
+    YT_LOG_INFO("RPC service registered (ServiceName: %v, RealmId: %v)",
         serviceId.ServiceName,
         serviceId.RealmId);
 }
@@ -533,7 +532,7 @@ bool TServerBase::UnregisterService(IServicePtr service)
         DoUnregisterService(service);
     }
 
-    LOG_INFO("RPC service unregistered (ServiceName: %v, RealmId: %v)",
+    YT_LOG_INFO("RPC service unregistered (ServiceName: %v, RealmId: %v)",
         serviceId.ServiceName,
         serviceId.RealmId);
     return true;
@@ -570,7 +569,7 @@ void TServerBase::Start()
 
     DoStart();
 
-    LOG_INFO("RPC server started");
+    YT_LOG_INFO("RPC server started");
 }
 
 TFuture<void> TServerBase::Stop(bool graceful)
@@ -579,7 +578,7 @@ TFuture<void> TServerBase::Stop(bool graceful)
         return VoidFuture;
     }
 
-    LOG_INFO("Stopping RPC server (Graceful: %v)",
+    YT_LOG_INFO("Stopping RPC server (Graceful: %v)",
         graceful);
 
     return DoStop(graceful);
@@ -615,7 +614,7 @@ TFuture<void> TServerBase::DoStop(bool graceful)
     }
 
     return Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] () {
-        LOG_INFO("RPC server stopped");
+        YT_LOG_INFO("RPC server stopped");
     }));
 }
 
@@ -639,5 +638,4 @@ std::vector<IServicePtr> TServerBase::DoFindServices(const TString& serviceName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

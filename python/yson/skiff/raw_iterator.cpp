@@ -3,8 +3,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,5 +88,4 @@ void TSkiffRawIterator::InitType()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

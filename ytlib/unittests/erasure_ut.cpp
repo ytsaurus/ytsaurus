@@ -23,8 +23,7 @@
 
 #include <iostream>
 
-namespace NYT {
-namespace NErasure {
+namespace NYT::NErasure {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +38,7 @@ class TTestingFileReader
 public:
     TTestingFileReader(
         const IIOEnginePtr& ioEngine,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TString& fileName,
         bool validateBlocksChecksums = true)
         : TFileReader(ioEngine, chunkId, fileName, validateBlocksChecksums)
@@ -55,7 +54,7 @@ class TFailingFileReader
 public:
     TFailingFileReader(
         const IIOEnginePtr& ioEngine,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TString& fileName,
         int period = 5,
         bool validateBlocksChecksums = true)
@@ -68,7 +67,7 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& estimatedSize) override
+        const std::optional<i64>& estimatedSize) override
     {
         if (TryFail()) {
             return MakeFuture(MakeError());
@@ -80,7 +79,7 @@ public:
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& estimatedSize) override
+        const std::optional<i64>& estimatedSize) override
     {
         if (TryFail()) {
             return MakeFuture(MakeError());
@@ -178,7 +177,7 @@ TEST(TErasureCodingTest, RandomText)
             auto repairIndices = codec->GetRepairIndices(erasedIndices);
             ASSERT_EQ(static_cast<bool>(repairIndices), codec->CanRepair(erasedIndices));
             if (erasedIndices.size() <= guaranteedRepairCount[codecId]) {
-                EXPECT_TRUE(repairIndices.HasValue());
+                EXPECT_TRUE(repairIndices);
             }
 
             if (repairIndices) {
@@ -320,7 +319,7 @@ public:
     static void CheckRepairReader(
         IChunkReaderPtr repairReader,
         const std::vector<TSharedRef>& dataRefs,
-        TNullable<int> maskCount)
+        std::optional<int> maskCount)
     {
         auto check = [&] (std::vector<int> indexes) {
             Shuffle(indexes.begin(), indexes.end());
@@ -536,7 +535,7 @@ TEST_F(TErasureMixture, RepairTest1)
     PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
 
     auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
-    CheckRepairReader(repairReader, dataRefs, Null);
+    CheckRepairReader(repairReader, dataRefs, std::nullopt);
 
     auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, GetBlockReadOptions()).Get();
     EXPECT_TRUE(repairResult.IsOK());
@@ -574,7 +573,7 @@ TEST_F(TErasureMixture, RepairTest2)
     PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
 
     auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
-    CheckRepairReader(repairReader, dataRefs, Null);
+    CheckRepairReader(repairReader, dataRefs, std::nullopt);
 
     auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, GetBlockReadOptions()).Get();
     ASSERT_TRUE(repairResult.IsOK());
@@ -857,5 +856,4 @@ TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NErasure
-} // namespace NYT
+} // namespace NYT::NErasure

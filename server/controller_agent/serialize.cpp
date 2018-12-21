@@ -1,13 +1,12 @@
 #include "serialize.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetCurrentSnapshotVersion()
 {
-    return 300027;
+    return 300028;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -17,5 +16,4 @@ bool ValidateSnapshotVersion(int version)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

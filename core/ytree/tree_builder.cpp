@@ -13,8 +13,7 @@
 
 #include <stack>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,7 +138,7 @@ private:
 
     //! Contains nodes forming the current path in the tree.
     std::stack<INodePtr> NodeStack;
-    TNullable<TString> Key;
+    std::optional<TString> Key;
     INodePtr ResultNode;
     std::unique_ptr<TAttributeConsumer> AttributeConsumer;
     std::unique_ptr<IAttributeDictionary> Attributes;
@@ -159,7 +158,7 @@ private:
                 if (!collectionNode->AsMap()->AddChild(*Key, node)) {
                     THROW_ERROR_EXCEPTION("Duplicate key %Qv", *Key);
                 }
-                Key.Reset();
+                Key.reset();
             } else {
                 collectionNode->AsList()->AddChild(node);
             }
@@ -178,5 +177,4 @@ std::unique_ptr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

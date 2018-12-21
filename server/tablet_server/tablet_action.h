@@ -14,8 +14,7 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +39,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NTableClient::TOwningKey>, PivotKeys);
 
     //! Desired number of tablets (for reshard).
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<int>, TabletCount);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, TabletCount);
 
     //! Skip initial freezing pass while performing tablet action.
     DEFINE_BYVAL_RW_PROPERTY(bool, SkipFreezing);
@@ -55,7 +54,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepFinished);
 
 public:
-    explicit TTabletAction(const TTabletActionId& id);
+    explicit TTabletAction(TTabletActionId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -67,5 +66,4 @@ TString ToString(const TTabletAction& action);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

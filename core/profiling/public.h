@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NProfiling {
+namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,5 +52,4 @@ DEFINE_ENUM(EMetricType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProfiling
-} // namespace NYT
+} // namespace NYT::NProfiling

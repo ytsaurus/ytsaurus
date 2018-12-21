@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NYson;
 using namespace NYTree;
@@ -73,7 +72,7 @@ TUserStatistics operator + (const TUserStatistics& lhs, const TUserStatistics& r
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUser::TUser(const TUserId& id)
+TUser::TUser(TUserId id)
     : TSubject(id)
     , Banned_(false)
     , RequestQueueSizeLimit_(100)
@@ -137,7 +136,36 @@ void TUser::RecomputeClusterStatistics()
     }
 }
 
-int TUser::GetRequestRateLimit(EUserWorkloadType type) {
+const NConcurrency::IReconfigurableThroughputThrottlerPtr TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)
+{
+    switch (workloadType) {
+        case EUserWorkloadType::Read:
+            return ReadRequestRateThrottler_;
+        case EUserWorkloadType::Write:
+            return WriteRequestRateThrottler_;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+void TUser::SetRequestRateThrottler(
+    const NConcurrency::IReconfigurableThroughputThrottlerPtr& throttler,
+    EUserWorkloadType workloadType)
+{
+    switch (workloadType) {
+        case EUserWorkloadType::Read:
+            ReadRequestRateThrottler_ = throttler;
+            break;
+        case EUserWorkloadType::Write:
+            WriteRequestRateThrottler_ = throttler;
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+int TUser::GetRequestRateLimit(EUserWorkloadType type)
+{
     switch (type) {
         case EUserWorkloadType::Read:
             return ReadRequestRateLimit_;
@@ -148,7 +176,8 @@ int TUser::GetRequestRateLimit(EUserWorkloadType type) {
     }
 }
 
-void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type) {
+void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type)
+{
     switch (type) {
         case EUserWorkloadType::Read:
             ReadRequestRateLimit_ = limit;
@@ -164,6 +193,5 @@ void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

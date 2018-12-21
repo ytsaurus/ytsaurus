@@ -13,8 +13,7 @@
 
 #include <util/string/escape.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -539,17 +538,17 @@ private:
 
     void Insert(const char* begin, const char* end)
     {
-        ReserverAndCheckMemoryLimit(end - begin);
+        ReserveAndCheckMemoryLimit(end - begin);
         Buffer_.insert(Buffer_.end(), begin, end);
     }
 
     void PushBack(char ch)
     {
-        ReserverAndCheckMemoryLimit(1);
+        ReserveAndCheckMemoryLimit(1);
         Buffer_.push_back(ch);
     }
 
-    void ReserverAndCheckMemoryLimit(size_t size)
+    void ReserveAndCheckMemoryLimit(size_t size)
     {
         auto minReserveSize = Buffer_.size() + size;
 
@@ -1001,5 +1000,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

@@ -6,8 +6,7 @@
 #include <yt/server/scheduler/public.h>
 #include <yt/server/scheduler/operation.h>
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,13 +23,13 @@ public:
         const TOperationDescription& description,
         const NScheduler::TOperationRuntimeParametersPtr& runtimeParameters);
 
-    virtual const NScheduler::TOperationId& GetId() const override;
+    virtual NScheduler::TOperationId GetId() const override;
     virtual NScheduler::EOperationType GetType() const override;
     virtual bool IsSchedulable() const override;
     virtual TInstant GetStartTime() const override;
     virtual TString GetAuthenticatedUser() const override;
 
-    virtual TNullable<int> FindSlotIndex(const TString& treeId) const override;
+    virtual std::optional<int> FindSlotIndex(const TString& treeId) const override;
     virtual int GetSlotIndex(const TString& treeId) const override;
     virtual void SetSlotIndex(const TString&  treeId, int index) override;
 
@@ -58,5 +57,4 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

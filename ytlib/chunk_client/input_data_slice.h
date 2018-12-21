@@ -4,15 +4,14 @@
 #include "data_source.h"
 #include "input_chunk_slice.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/phoenix.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <yt/client/table_client/schema.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +31,7 @@ public:
         TChunkSliceList chunkSlices,
         TInputSliceLimit lowerLimit = TInputSliceLimit(),
         TInputSliceLimit upperLimit = TInputSliceLimit(),
-        TNullable<i64> tag = Null);
+        std::optional<i64> tag = std::nullopt);
 
     int GetChunkCount() const;
     i64 GetDataWeight() const;
@@ -63,7 +62,7 @@ public:
 
     //! A tag that helps us restore the correspondence between
     //! the unread data slices and the original data slices.
-    TNullable<i64> Tag;
+    std::optional<i64> Tag;
 
     //! An index of an input stream this data slice corresponds to. If this is a data
     //! slice of some input table, it should normally be equal to `GetTableIndex()`.
@@ -96,7 +95,7 @@ TInputDataSlicePtr CreateVersionedInputDataSlice(
 
 void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const NTableClient::TRowBufferPtr& rowBuffer);
 
-TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
+std::optional<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
 bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2);
 i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices);
 i64 GetCumulativeDataWeight(const std::vector<TInputDataSlicePtr>& dataSlices);
@@ -108,5 +107,4 @@ std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

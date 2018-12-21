@@ -1,7 +1,6 @@
 #include "sorted_dynamic_store_ut_helpers.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 namespace {
 
 using namespace NApi;
@@ -1845,6 +1844,5 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, WriteDelete3)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

@@ -8,8 +8,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NControllerAgent{
+namespace NYT::NControllerAgent {
 
 using namespace NChunkPools;
 using namespace NChunkClient;
@@ -130,10 +129,10 @@ void TInputChunkMapping::ValidateSortedChunkConsistency(
     const TInputChunkPtr& oldChunk,
     const TInputChunkPtr& newChunk) const
 {
-    TNullable<TOwningBoundaryKeys> oldBoundaryKeys =
-        oldChunk->BoundaryKeys() ? MakeNullable(*oldChunk->BoundaryKeys()) : Null;
-    TNullable<TOwningBoundaryKeys> newBoundaryKeys =
-        newChunk->BoundaryKeys() ? MakeNullable(*newChunk->BoundaryKeys()) : Null;
+    std::optional<TOwningBoundaryKeys> oldBoundaryKeys =
+        oldChunk->BoundaryKeys() ? std::make_optional(*oldChunk->BoundaryKeys()) : std::nullopt;
+    std::optional<TOwningBoundaryKeys> newBoundaryKeys =
+        newChunk->BoundaryKeys() ? std::make_optional(*newChunk->BoundaryKeys()) : std::nullopt;
     if (oldBoundaryKeys != newBoundaryKeys) {
         // Due to some weird linkage error, I cannot use bare oldBoundaryKeys/newBoundaryKeys
         // as arguments in TErrorAttribute.
@@ -205,6 +204,5 @@ void TInputChunkMapping::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

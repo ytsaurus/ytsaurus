@@ -14,8 +14,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_service.pb.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,11 +26,11 @@ public:
         TChunkTeleporterConfigPtr config,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const NLogging::TLogger& logger);
 
     void RegisterChunk(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         NObjectClient::TCellTag destinationCellTag);
 
     TFuture<void> Run();
@@ -47,7 +46,7 @@ private:
     struct TChunkEntry
     {
         TChunkEntry(
-            const NChunkClient::TChunkId& chunkId,
+            NChunkClient::TChunkId chunkId,
             NObjectClient::TCellTag destinationCellTag)
             : ChunkId(chunkId)
             , DestinationCellTag(destinationCellTag)
@@ -74,5 +73,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkTeleporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

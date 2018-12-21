@@ -10,8 +10,7 @@
 
 #include <yt/core/logging/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +26,7 @@ public:
     void SetRequestData(TSharedRef data, TString type);
     void SetHandler(TCallback<void(TMutationContext*)> handler);
     void SetAllowLeaderForwarding(bool value);
-    void SetMutationId(const NRpc::TMutationId& mutationId, bool retry);
+    void SetMutationId(NRpc::TMutationId mutationId, bool retry);
 
 private:
     const IHydraManagerPtr HydraManager_;
@@ -71,8 +70,7 @@ std::unique_ptr<TMutation> CreateMutation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 
 #define MUTATION_INL_H_
 #include "mutation-inl.h"

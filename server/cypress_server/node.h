@@ -26,8 +26,7 @@
 
 #include <queue>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,7 +105,7 @@ struct TCypressNodeDynamicData
     : public NObjectServer::TObjectDynamicData
 {
     int AccessStatisticsUpdateIndex = -1;
-    TNullable<TCypressNodeExpirationMap::iterator> ExpirationIterator;
+    std::optional<TCypressNodeExpirationMap::iterator> ExpirationIterator;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,7 +134,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
 
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, ExpirationTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, ExpirationTime);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
@@ -157,8 +156,8 @@ public:
     int GetAccessStatisticsUpdateIndex() const;
     void SetAccessStatisticsUpdateIndex(int value);
 
-    TNullable<TCypressNodeExpirationMap::iterator> GetExpirationIterator() const;
-    void SetExpirationIterator(TNullable<TCypressNodeExpirationMap::iterator> value);
+    std::optional<TCypressNodeExpirationMap::iterator> GetExpirationIterator() const;
+    void SetExpirationIterator(std::optional<TCypressNodeExpirationMap::iterator> value);
 
     //! Returns the static type of the node.
     /*!
@@ -221,8 +220,7 @@ NObjectServer::TVersionedObjectId GetObjectId(const TCypressNodeBase* object);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 
 #define NODE_INL_H_
 #include "node-inl.h"

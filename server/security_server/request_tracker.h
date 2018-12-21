@@ -11,8 +11,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,9 +30,10 @@ public:
         TUser* user,
         const TUserWorkload& workload);
 
-    TFuture<void> ThrottleUserReadRequest(
+    TFuture<void> ThrottleUserRequest(
         TUser* user,
-        int requestCount);
+        int requestCount,
+        EUserWorkloadType type);
 
     TFuture<void> ThrottleUserWriteRequest(
         TUser* user,
@@ -77,5 +77,4 @@ DEFINE_REFCOUNTED_TYPE(TRequestTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

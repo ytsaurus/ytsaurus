@@ -4,9 +4,7 @@
 
 #include <Interpreters/IExternalLoaderConfigRepository.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,6 +15,4 @@ std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateExternalLoaderConfigR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

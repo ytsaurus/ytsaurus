@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ TSharedRefArray CreateErrorResponseMessage(
     const NProto::TResponseHeader& header);
 
 TSharedRefArray CreateErrorResponseMessage(
-    const TRequestId& requestId,
+    TRequestId requestId,
     const TError& error);
 
 TSharedRefArray CreateErrorResponseMessage(
@@ -83,5 +82,4 @@ TError CheckBusMessageLimits(const TSharedRefArray& message);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

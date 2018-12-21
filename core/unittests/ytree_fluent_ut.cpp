@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 namespace {
 
 using namespace NYson;
@@ -430,5 +429,4 @@ TEST(TYTreeFluentTest, Complex)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

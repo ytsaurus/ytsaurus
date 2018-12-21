@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,10 +20,10 @@ struct TClusterResources
     TClusterResources();
 
     //! Set node count.
-    TClusterResources&& SetNodeCount(int nodeCount) &&;
+    TClusterResources&& SetNodeCount(i64 nodeCount) &&;
 
     //! Set chunk count.
-    TClusterResources&& SetChunkCount(int chunkCount) &&;
+    TClusterResources&& SetChunkCount(i64 chunkCount) &&;
 
     //! Set tablet count.
     TClusterResources&& SetTabletCount(int tabletCount) &&;
@@ -46,10 +45,10 @@ struct TClusterResources
     /*!
      *  Branched copies are also counted.
      */
-    int NodeCount;
+    i64 NodeCount;
 
     //! Number of chunks created at master.
-    int ChunkCount;
+    i64 ChunkCount;
 
     //! Number of tablets.
     int TabletCount;
@@ -80,8 +79,8 @@ public:
     TClusterResources ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
 
 private:
-    int NodeCount_ = 0;
-    int ChunkCount_ = 0;
+    i64 NodeCount_ = 0;
+    i64 ChunkCount_ = 0;
     int TabletCount_ = 0;
     i64 TabletStaticMemory_ = 0;
     THashMap<TString, i64> DiskSpacePerMedium_;
@@ -115,6 +114,5 @@ TString ToString(const TClusterResources& resources);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

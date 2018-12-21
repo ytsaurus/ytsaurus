@@ -14,8 +14,7 @@
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/algorithm_helpers.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -425,11 +424,11 @@ public:
         return CurrentBlockIndex_;
     }
 
-    virtual TNullable<int> GetNextBlockIndex() const override
+    virtual std::optional<int> GetNextBlockIndex() const override
     {
         return (LastBlockSegmentIndex_ + 1) == ColumnMeta_.segments_size()
-           ? Null
-           : MakeNullable(static_cast<int>(ColumnMeta_.segments(LastBlockSegmentIndex_ + 1).block_index()));
+           ? std::nullopt
+           : std::make_optional(static_cast<int>(ColumnMeta_.segments(LastBlockSegmentIndex_ + 1).block_index()));
     }
 
 protected:
@@ -1104,5 +1103,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

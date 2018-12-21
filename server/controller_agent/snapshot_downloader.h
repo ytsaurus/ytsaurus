@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +19,7 @@ public:
     TSnapshotDownloader(
         TControllerAgentConfigPtr config,
         TBootstrap* bootstrap,
-        const TOperationId& operationId);
+        TOperationId operationId);
 
     std::vector<TSharedRef> Run();
 
@@ -37,5 +36,4 @@ DEFINE_REFCOUNTED_TYPE(TSnapshotDownloader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -88,7 +87,7 @@ TAutoMergeTask::TAutoMergeTask(
         std::numeric_limits<i64>::max() /* primaryMaxDataWeightPerJob */,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
         std::numeric_limits<i64>::max() /* inputSliceRowCount */,
-        Null /* samplingRate */);
+        std::nullopt /* samplingRate */);
 
     TUnorderedChunkPoolOptions options;
     options.Mode = EUnorderedChunkPoolMode::AutoMerge;
@@ -149,9 +148,9 @@ EJobType TAutoMergeTask::GetJobType() const
     return EJobType::UnorderedMerge;
 }
 
-TNullable<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */)
+std::optional<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */)
 {
-    return MakeNullable(!CanScheduleJob_, EScheduleJobFailReason::TaskRefusal);
+    return CanScheduleJob_ ? std::nullopt : std::make_optional(EScheduleJobFailReason::TaskRefusal);
 }
 
 int TAutoMergeTask::GetPendingJobCount() const
@@ -264,5 +263,4 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

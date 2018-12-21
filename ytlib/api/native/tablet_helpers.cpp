@@ -11,9 +11,7 @@
 
 #include <yt/core/rpc/latency_taming_channel.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NObjectClient;
 using namespace NTabletClient;
@@ -234,7 +232,7 @@ TTabletInfoPtr GetSortedTabletForRow(
 TTabletInfoPtr GetOrderedTabletForRow(
     const TTableMountInfoPtr& tableInfo,
     const TTabletInfoPtr& randomTabletInfo,
-    TNullable<int> tabletIndexColumnId,
+    std::optional<int> tabletIndexColumnId,
     TUnversionedRow row,
     bool validateWrite)
 {
@@ -269,6 +267,4 @@ TTabletInfoPtr GetOrderedTabletForRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

@@ -22,8 +22,7 @@ public: \
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,22 +45,30 @@ struct TJobEvent
     { }
 
     DEFINE_BYREF_RO_PROPERTY(TInstant, Timestamp)
-    DEFINE_BYREF_RO_PROPERTY(TNullable<NJobTrackerClient::EJobState>, State)
-    DEFINE_BYREF_RO_PROPERTY(TNullable<NJobTrackerClient::EJobPhase>, Phase)
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobState>, State)
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobPhase>, Phase)
 };
 
 using TJobEvents = std::vector<TJobEvent>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobProfile
+{
+    TString Type;
+    TString Blob;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobStatistics
 {
-public:
     size_t EstimateSize() const;
 
     TJobStatistics ExtractSpec();
     TJobStatistics ExtractStderr();
     TJobStatistics ExtractFailContext();
+    TJobStatistics ExtractProfile();
 
     bool IsEmpty() const;
 
@@ -78,23 +85,26 @@ public:
     void SetEvents(const TJobEvents& events);
     void SetStderr(const TString& stderr);
     void SetFailContext(const TString& failContext);
+    void SetProfile(const TJobProfile& profile);
 
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TJobId, JobId)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Type)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, State)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<i64>, StartTime)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<i64>, FinishTime)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Error)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Spec)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<i64>, SpecVersion)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Statistics)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Events)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Stderr)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, FailContext)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Type)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, State)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<i64>, StartTime)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<i64>, FinishTime)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Error)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Spec)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<i64>, SpecVersion)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Statistics)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Events)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Stderr)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, FailContext)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<TJobProfile>, Profile)
 };
+
+#undef DEFINE_FORWARD_RW_PROPERTY
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

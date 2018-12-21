@@ -6,8 +6,7 @@
 
 #include <queue>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,8 +85,7 @@ using TAsyncLockWriterGuard = TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define ASYNC_RW_LOCK_INL_H_
 #include "async_rw_lock-inl.h"

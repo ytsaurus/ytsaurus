@@ -4,8 +4,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +36,7 @@ private:
 
     int EffectiveKeySize_;
 
-    TNullable<TString> LastFileName_;
+    std::optional<TString> LastFileName_;
     i64 LastDataSize_ = 0;
     i64 NextPartIndex_ = 0;
 
@@ -62,5 +61,4 @@ DEFINE_REFCOUNTED_TYPE(TSkynetColumnEvaluator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

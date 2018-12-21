@@ -4,8 +4,7 @@
 
 #include <util/folder/iterator.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 static const auto& Logger = JobTrackerServerLogger;
 
@@ -30,13 +29,13 @@ int TGpuSlot::GetDeviceNumber() const
 
 static const TString DevNvidia("/dev/nvidia");
 
-TNullable<int> GetDeviceNumber(const TString& deviceName)
+std::optional<int> GetDeviceNumber(const TString& deviceName)
 {
     int deviceNumber;
     if (TryFromString(deviceName.data() + DevNvidia.length(), deviceNumber)) {
         return deviceNumber;
     } else {
-        return Null;
+        return std::nullopt;
     }
 }
 
@@ -73,18 +72,18 @@ TGpuManager::TGpuManager()
         }
 
         if (auto deviceNumber = GetDeviceNumber(deviceName)) {
-            LOG_INFO("Found nvidia GPU device %Qv", deviceName);
+            YT_LOG_INFO("Found nvidia GPU device %Qv", deviceName);
             FreeSlots_.emplace_back(*deviceNumber);
             GpuDevices_.push_back(deviceName);
         }
     }
 
     if (foundMetaDeviceCount == GetMetaGpuDeviceNames().size()) {
-        LOG_INFO("Found %v nvidia GPUs", GpuDevices_.size());
+        YT_LOG_INFO("Found %v nvidia GPUs", GpuDevices_.size());
     } else {
         FreeSlots_.clear();
         GpuDevices_.clear();
-        LOG_INFO("Did not find any nvidia GPU, some meta devices were not found (MetaDevices: %v)", GetMetaGpuDeviceNames());
+        YT_LOG_INFO("Did not find any nvidia GPU, some meta devices were not found (MetaDevices: %v)", GetMetaGpuDeviceNames());
     }
 }
 
@@ -111,7 +110,7 @@ TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
     auto deleter = [this_ = MakeStrong(this)] (TGpuSlot* slot) {
         auto guard = Guard(this_->SpinLock_);
         this_->FreeSlots_.emplace_back(std::move(*slot));
-        LOG_DEBUG("Released GPU slot (DeviceName: %v)", slot->GetDeviceName());
+        YT_LOG_DEBUG("Released GPU slot (DeviceName: %v)", slot->GetDeviceName());
 
         delete slot;
     };
@@ -120,7 +119,7 @@ TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
     TGpuSlotPtr slot(new TGpuSlot(std::move(FreeSlots_.back())), deleter);
     FreeSlots_.pop_back();
 
-    LOG_DEBUG("Acquired GPU slot (DeviceName: %v)", slot->GetDeviceName());
+    YT_LOG_DEBUG("Acquired GPU slot (DeviceName: %v)", slot->GetDeviceName());
     return slot;
 }
 
@@ -137,5 +136,4 @@ TString TGpuManager::GetDeviceName(int deviceNumber)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

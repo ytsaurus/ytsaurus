@@ -29,9 +29,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -107,7 +105,7 @@ private:
 
     void DoOpen()
     {
-        LOG_INFO("Opening journal reader");
+        YT_LOG_INFO("Opening journal reader");
 
         TUserObject userObject;
         userObject.Path = Path_;
@@ -132,7 +130,7 @@ private:
         }
 
         {
-            LOG_INFO("Fetching journal chunks");
+            YT_LOG_INFO("Fetching journal chunks");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
             TObjectServiceProxy proxy(channel);
@@ -140,7 +138,7 @@ private:
             auto req = TJournalYPathProxy::Fetch(objectIdPath);
 
             TReadLimit lowerLimit, upperLimit;
-            i64 firstRowIndex = Options_.FirstRowIndex.Get(0);
+            i64 firstRowIndex = Options_.FirstRowIndex.value_or(0);
             if (Options_.FirstRowIndex) {
                 lowerLimit.SetRowIndex(firstRowIndex);
             }
@@ -168,7 +166,7 @@ private:
                 cellTag,
                 NodeDirectory_,
                 std::numeric_limits<int>::max(), // no foreign chunks are possible anyway
-                Null,
+                std::nullopt,
                 Logger,
                 &ChunkSpecs_);
         }
@@ -177,7 +175,7 @@ private:
             StartListenTransaction(Transaction_);
         }
 
-        LOG_INFO("Journal reader opened");
+        YT_LOG_INFO("Journal reader opened");
     }
 
     std::vector<TSharedRef> DoRead()
@@ -254,6 +252,4 @@ IJournalReaderPtr CreateJournalReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

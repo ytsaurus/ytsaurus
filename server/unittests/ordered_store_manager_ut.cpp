@@ -2,8 +2,7 @@
 
 #include <yt/server/tablet_node/ordered_store_manager.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 namespace {
 
 using namespace NObjectClient;
@@ -89,6 +88,5 @@ TEST_F(TOrderedStoreManagerTest, WriteRows)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

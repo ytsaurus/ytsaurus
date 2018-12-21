@@ -14,7 +14,8 @@ class TestChunkServer(YTEnvSetup):
     NUM_NODES = 21
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
-            "safe_online_node_count": 3
+            "safe_online_node_count": 3,
+            "max_replication_factor": 5
         },
         "node_tracker": {
             "full_node_states_gossip_period": 1000
@@ -24,18 +25,14 @@ class TestChunkServer(YTEnvSetup):
     def test_owning_nodes1(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#" + chunk_id + "/@owning_nodes") == ["//tmp/t"]
 
     def test_owning_nodes2(self):
         create("table", "//tmp/t")
         tx = start_transaction()
         write_table("//tmp/t", {"a" : "b"}, tx=tx)
-        chunk_ids = get("//tmp/t/@chunk_ids", tx=tx)
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t", tx=tx)
         assert get("#" + chunk_id + "/@owning_nodes") == \
             [to_yson_type("//tmp/t", attributes = {"transaction_id" : tx})]
 
@@ -45,18 +42,14 @@ class TestChunkServer(YTEnvSetup):
 
         assert get("//tmp/t/@replication_factor") == 3
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 3)
 
     def _test_decommission(self, path, replica_count, node_to_decommission_count=1):
         assert replica_count >= node_to_decommission_count
 
-        chunk_ids = get(path + "/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id(path)
 
         nodes_to_decommission = self._decommission_chunk_replicas(chunk_id, replica_count, node_to_decommission_count)
 
@@ -94,9 +87,7 @@ class TestChunkServer(YTEnvSetup):
         create("table", "//tmp/t", attributes={"replication_factor": 4})
         write_table("//tmp/t", {"a" : "b"})
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
         self._decommission_chunk_replicas(chunk_id, 4, 2)
         set("//tmp/t/@replication_factor", 3)
@@ -127,7 +118,7 @@ class TestChunkServer(YTEnvSetup):
 
         sync_control_chunk_replicator(False)
 
-        chunk_id = get("//tmp/t/@chunk_ids")[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
         nodes = get("#%s/@stored_replicas" % chunk_id)
 
         for index in (4, 6, 11, 15):
@@ -204,9 +195,7 @@ class TestChunkServer(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
         wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) == 3)
 
         def check_replica_count():
@@ -218,6 +207,22 @@ class TestChunkServer(YTEnvSetup):
             return True
 
         wait(check_replica_count, sleep_backoff=1.0)
+
+    def test_max_replication_factor(self):
+        assert get("//sys/media/default/@config/max_replication_factor") == self.DELTA_MASTER_CONFIG["chunk_manager"]["max_replication_factor"]
+
+        create("table", "//tmp/t", attributes={"replication_factor": 10})
+        assert get("//tmp/t/@replication_factor") == 10
+
+        write_table("//tmp/t", {"a" : "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) >= 5)
+
+        # Make sure RF doesn't go higher.
+        sleep(0.3)
+        assert len(get("#{0}/@stored_replicas".format(chunk_id))) == 5
+
 
 ##################################################################
 
@@ -269,9 +274,7 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
         write_table("//tmp/t", rows)
         assert read_table("//tmp/t") == rows
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
         status = get("#" + chunk_id + "/@replication_status/default")
         assert not status["data_missing"]

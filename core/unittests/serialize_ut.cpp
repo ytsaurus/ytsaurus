@@ -6,8 +6,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 namespace {
 
 using namespace NYson;
@@ -46,18 +45,18 @@ TEST(TCustomTypeSerializationTest, TInstant)
     EXPECT_EQ(value, deserializedValue);
 }
 
-TEST(TCustomTypeSerializationTest, TNullable)
+TEST(TCustomTypeSerializationTest, Optional)
 {
     {
-        TNullable<int> value(10);
+        std::optional<int> value(10);
         auto yson = ConvertToYsonString(value);
-        EXPECT_EQ(10, ConvertTo<TNullable<int>>(yson));
+        EXPECT_EQ(10, ConvertTo<std::optional<int>>(yson));
     }
     {
-        TNullable<int> value = Null;
+        std::optional<int> value;
         auto yson = ConvertToYsonString(value);
         EXPECT_EQ(TString("#"), yson.GetData());
-        EXPECT_EQ(value, ConvertTo<TNullable<int>>(yson));
+        EXPECT_EQ(value, ConvertTo<std::optional<int>>(yson));
     }
 }
 
@@ -224,5 +223,4 @@ TEST(TSerializationTest, MapOnArray)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

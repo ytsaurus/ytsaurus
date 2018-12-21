@@ -7,8 +7,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +32,7 @@ struct TArchiveOperationRequest
     // Archive version >= 22
     NYson::TYsonString RuntimeParameters;
     // Archive version >= 26
-    TNullable<TString> Alias;
+    std::optional<TString> Alias;
     // Archive version >= 27
     NYson::TYsonString SlotIndexPerPoolTree;
 
@@ -106,5 +105,4 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

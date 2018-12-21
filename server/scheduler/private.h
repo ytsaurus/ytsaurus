@@ -9,8 +9,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +55,5 @@ extern const NProfiling::TProfiler SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

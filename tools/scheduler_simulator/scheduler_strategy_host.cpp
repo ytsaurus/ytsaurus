@@ -1,7 +1,6 @@
 #include "scheduler_strategy_host.h"
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
 
@@ -111,12 +110,12 @@ void TSchedulerStrategyHost::ValidatePoolPermission(
     NYTree::EPermission permission) const
 { }
 
-void TSchedulerStrategyHost::ActivateOperation(const TOperationId& operationId)
+void TSchedulerStrategyHost::ActivateOperation(TOperationId operationId)
 {
     // Nothing to do.
 }
 
-void TSchedulerStrategyHost::AbortOperation(const TOperationId& operationId, const TError& error)
+void TSchedulerStrategyHost::AbortOperation(TOperationId operationId, const TError& error)
 {
     YCHECK(false);
 }
@@ -150,18 +149,17 @@ void TSchedulerStrategyHost::LogFinishedJobFluently(ELogEventType eventType, TJo
 void TSchedulerStrategyHost::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
 {
     if (!alert.IsOK()) {
-        LOG_WARNING(alert, "Setting scheduler alert (AlertType: %lv)", alertType);
+        YT_LOG_WARNING(alert, "Setting scheduler alert (AlertType: %lv)", alertType);
     }
 }
 
 TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
-    const TOperationId& operationId,
+    TOperationId operationId,
     EOperationAlertType alertType,
     const TError& alert,
-    TNullable<TDuration> timeout)
+    std::optional<TDuration> timeout)
 {
     return VoidFuture;
 }
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

@@ -4,17 +4,15 @@
 
 #include "serialize.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<TString> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs);
+std::optional<TString> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs);
 
-Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& encoding, TContext* context = nullptr);
+Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>& encoding, TContext* context = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython
 

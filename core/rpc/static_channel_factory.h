@@ -3,8 +3,7 @@
 #include "public.h"
 #include "channel.h"
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,5 +24,4 @@ DEFINE_REFCOUNTED_TYPE(TStaticChannelFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

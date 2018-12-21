@@ -2,8 +2,7 @@
 
 #include <yt/client/hydra/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,5 +19,4 @@ DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

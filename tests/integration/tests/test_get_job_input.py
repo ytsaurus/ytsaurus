@@ -7,6 +7,7 @@ import sys
 import datetime
 import pytest
 import shutil
+import json
 
 FORMAT_LIST = [
     "yson",
@@ -249,6 +250,10 @@ class TestGetJobInput(YTEnvSetup):
                 assert "key" in path.attributes["ranges"][0]["lower_limit"]
 
         assert foreign_path_count == 2
+
+        # Job input paths in JSON format.
+        paths = json.loads(get_job_input_paths(job_ids[0], output_format="json"))
+        assert len(paths) == 4
 
     def test_map_input_paths(self):
         create("table", "//tmp/in1")

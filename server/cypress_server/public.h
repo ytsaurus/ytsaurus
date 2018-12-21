@@ -9,8 +9,7 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,5 +84,4 @@ DEFINE_ENUM(EModificationType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

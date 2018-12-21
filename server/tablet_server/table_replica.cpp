@@ -5,8 +5,7 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NYPath;
 using namespace NTableServer;
@@ -14,7 +13,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReplica::TTableReplica(const TTableReplicaId& id)
+TTableReplica::TTableReplica(TTableReplicaId id)
     : TObjectBase(id)
 { }
 
@@ -82,7 +81,7 @@ TDuration TTableReplica::ComputeReplicationLagTime(TTimestamp latestTimestamp) c
     return result;
 }
 
-std::vector<TError> TTableReplica::GetErrors(TNullable<int> limit) const
+std::vector<TError> TTableReplica::GetErrors(std::optional<int> limit) const
 {
     std::vector<TError> errors;
     errors.reserve(Table_->Tablets().size());
@@ -101,6 +100,5 @@ std::vector<TError> TTableReplica::GetErrors(TNullable<int> limit) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

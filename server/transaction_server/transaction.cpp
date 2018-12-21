@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -32,7 +31,7 @@ void TTransaction::TExportEntry::Persist(NCellMaster::TPersistenceContext& conte
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(const TTransactionId& id)
+TTransaction::TTransaction(TTransactionId id)
     : TTransactionBase(id)
     , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
@@ -132,14 +131,28 @@ void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* 
     AccountResourceUsage_[account] += node->GetDeltaResourceUsage();
 }
 
-TYsonString TTransaction::GetErrorDescription() const
+bool TTransaction::IsDescendantOf(TTransaction* transaction) const
+{
+    YCHECK(transaction);
+    for (auto* current = GetParent(); current; current = current->GetParent()) {
+        if (current == transaction) {
+            return true;
+        }
+    }
+    return false;
+}
+
+namespace {
+
+template <class TFluent>
+void DumpTransaction(TFluent fluent, const TTransaction* transaction, bool dumpParents)
 {
     auto customAttributes = CreateEphemeralAttributes();
     auto copyCustomAttribute = [&] (const TString& key) {
-        if (!Attributes_) {
+        if (!transaction->GetAttributes()) {
             return;
         }
-        const auto& attributeMap = Attributes_->Attributes();
+        const auto& attributeMap = transaction->GetAttributes()->Attributes();
         auto it = attributeMap.find(key);
         if (it == attributeMap.end()) {
             return;
@@ -149,29 +162,46 @@ TYsonString TTransaction::GetErrorDescription() const
     copyCustomAttribute("operation_id");
     copyCustomAttribute("operation_title");
 
-    return BuildYsonStringFluently()
+    fluent
         .BeginMap()
-            .Item("id").Value(Id_)
-            .Item("start_time").Value(StartTime_)
-            .Item("owner").Value(Acd_.GetOwner()->GetName())
-            .DoIf(Timeout_.HasValue(), [&] (TFluentMap fluent) {
+            .Item("id").Value(transaction->GetId())
+            .Item("start_time").Value(transaction->GetStartTime())
+            .Item("owner").Value(transaction->Acd().GetOwner()->GetName())
+            .DoIf(transaction->GetTimeout().operator bool(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("timeout").Value(*Timeout_);
+                    .Item("timeout").Value(*transaction->GetTimeout());
             })
-            .DoIf(Title_.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(transaction->GetTitle().operator bool(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("title").Value(*Title_);
+                    .Item("title").Value(*transaction->GetTitle());
+            }).DoIf(dumpParents, [&] (auto fluent) {
+                std::vector<TTransaction*> parents;
+                auto* parent = transaction->GetParent();
+                while (parent) {
+                    parents.push_back(parent);
+                    parent = parent->GetParent();
+                }
+                fluent.Item("parents").DoListFor(parents, [&] (auto fluent, auto* parent) {
+                    fluent
+                        .Item().Do([&] (auto fluent) {
+                            DumpTransaction(fluent, parent, false);
+                        });
+                });
             })
-            .DoIf(Parent_ != nullptr, [&] (TFluentMap fluent) {
-                fluent
-                    .Item("parent").Value(Parent_->GetErrorDescription());
-            })
-            .Items(*customAttributes)
         .EndMap();
+}
+
+} // namespace
+
+TYsonString TTransaction::GetErrorDescription() const
+{
+    return BuildYsonStringFluently()
+        .Do([&] (auto fluent) {
+            DumpTransaction(fluent, this, true);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer
 

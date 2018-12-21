@@ -2,8 +2,7 @@
 
 #include "chunk_pool.h"
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NNodeTrackerClient;
 using namespace NControllerAgent;
@@ -115,7 +114,7 @@ void TSuspendableStripe::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBernoulliSampler::TBernoulliSampler(TNullable<double> samplingRate)
+TBernoulliSampler::TBernoulliSampler(std::optional<double> samplingRate)
 {
     if (samplingRate) {
         SamplingRate_ = samplingRate;
@@ -157,6 +156,5 @@ void TBernoulliSampler::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools
 

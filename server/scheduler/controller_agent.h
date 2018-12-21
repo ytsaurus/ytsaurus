@@ -15,8 +15,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,12 +25,12 @@ struct TSchedulerToAgentJobEvent
     TOperationId OperationId;
     bool LogAndProfile;
     TInstant StartTime;
-    TNullable<TInstant> FinishTime;
+    std::optional<TInstant> FinishTime;
     std::unique_ptr<NJobTrackerClient::NProto::TJobStatus> Status;
-    TNullable<EAbortReason> AbortReason;
-    TNullable<bool> Abandoned;
-    TNullable<EInterruptReason> InterruptReason;
-    TNullable<bool> AbortedByScheduler;
+    std::optional<EAbortReason> AbortReason;
+    std::optional<bool> Abandoned;
+    std::optional<EInterruptReason> InterruptReason;
+    std::optional<bool> AbortedByScheduler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +109,7 @@ public:
     /*
      * \note Thread affinity: any
      */
-    const TIncarnationId& GetIncarnationId() const;
+    TIncarnationId GetIncarnationId() const;
 
     const NApi::ITransactionPtr& GetIncarnationTransaction() const;
     void SetIncarnationTransaction(NApi::ITransactionPtr transaction);
@@ -126,7 +125,7 @@ public:
     void Cancel();
     const IInvokerPtr& GetCancelableInvoker();
 
-    TNullable<TControllerAgentMemoryStatistics> GetMemoryStatistics();
+    std::optional<TControllerAgentMemoryStatistics> GetMemoryStatistics();
     void SetMemoryStatistics(TControllerAgentMemoryStatistics memoryStatistics);
 
 private:
@@ -148,12 +147,11 @@ private:
     TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
 
     TSpinLock MemoryStatisticsLock_;
-    TNullable<TControllerAgentMemoryStatistics> MemoryStatistics_;
+    std::optional<TControllerAgentMemoryStatistics> MemoryStatistics_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

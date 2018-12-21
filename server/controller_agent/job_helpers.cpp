@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkPools;
 using namespace NYson;
@@ -148,7 +147,7 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     }
     briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, InputPipeIdleTimePath);
     briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
-    briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
+    briefStatistics->Timestamp = statistics.GetTimestamp().value_or(TInstant::Now());
 
     auto outputPipeIdleTimes = GetOutputPipeIdleTimes(statistics);
     if (!outputPipeIdleTimes.empty()) {
@@ -181,7 +180,7 @@ void ParseStatistics(TJobSummary* jobSummary, const TYsonString& lastObservedSta
         statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
         // NB: we should remove timestamp from the statistics as it becomes a YSON-attribute
         // when writing it to the event log, but top-level attributes are disallowed in table rows.
-        statistics->SetTimestamp(Null);
+        statistics->SetTimestamp(std::nullopt);
     } else {
         statistics = NJobTrackerClient::TStatistics();
     }
@@ -210,5 +209,4 @@ DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleJobStatistics, 0x1ba9c7e0);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

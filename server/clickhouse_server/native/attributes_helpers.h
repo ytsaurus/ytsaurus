@@ -5,9 +5,7 @@
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NNative {
+namespace NYT::NClickHouseServer::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +33,4 @@ T GetAttribute(NYTree::INodePtr node, const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NNative

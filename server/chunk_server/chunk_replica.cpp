@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/string.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
 
@@ -71,5 +70,4 @@ TChunkId EncodeChunkId(TChunkPtrWithIndexes chunkWithIndexes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

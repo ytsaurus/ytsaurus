@@ -8,8 +8,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NConcurrency;
 using namespace NBus;
@@ -109,5 +108,4 @@ REGISTER_SHUTDOWN_CALLBACK(7, TDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

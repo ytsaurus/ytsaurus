@@ -7,8 +7,7 @@
 
 #include <yt/core/rpc/authenticator.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NYTree;
 
@@ -52,7 +51,7 @@ private:
         const auto& ticket = credentials.Ticket;
         auto ticketHash = GetCryptoHash(ticket);
 
-        LOG_DEBUG("Validating ticket via Blackbox (TicketHash: %v)",
+        YT_LOG_DEBUG("Validating ticket via Blackbox (TicketHash: %v)",
             ticketHash);
 
         return BlackboxService_->Call(
@@ -69,13 +68,13 @@ private:
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            LOG_DEBUG(result, "Blackbox authentication failed (TicketHash: %v)",
+            YT_LOG_DEBUG(result, "Blackbox authentication failed (TicketHash: %v)",
                 ticketHash);
             THROW_ERROR result
                 << TErrorAttribute("ticket_hash", ticketHash);
         }
 
-        LOG_DEBUG("Blackbox authentication successful (TicketHash: %v, Login: %v, Realm: %v)",
+        YT_LOG_DEBUG("Blackbox authentication successful (TicketHash: %v, Login: %v, Realm: %v)",
             ticketHash,
             result.Value().Login,
             result.Value().Realm);
@@ -125,12 +124,12 @@ public:
         const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            return Null;
+            return std::nullopt;
         }
 
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!ext.has_user_ticket()) {
-            return Null;
+            return std::nullopt;
         }
 
         TTicketCredentials credentials;
@@ -154,5 +153,4 @@ NRpc::IAuthenticatorPtr CreateTicketAuthenticatorWrapper(ITicketAuthenticatorPtr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

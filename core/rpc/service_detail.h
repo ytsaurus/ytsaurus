@@ -31,8 +31,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -292,7 +291,7 @@ public:
         TSharedRefArray message,
         NYT::NBus::IBusPtr replyBus) override;
 
-    virtual void HandleRequestCancelation(const TRequestId& requestId) override;
+    virtual void HandleRequestCancelation(TRequestId requestId) override;
 
 protected:
     using TLiteHandler = TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)>;
@@ -502,7 +501,7 @@ protected:
         IInvokerPtr defaultInvoker,
         const TServiceDescriptor& descriptor,
         const NLogging::TLogger& logger,
-        const TRealmId& realmId = NullRealmId,
+        TRealmId realmId = NullRealmId,
         IAuthenticatorPtr authenticator = nullptr);
 
     //! Registers a method.
@@ -574,7 +573,7 @@ private:
         TSharedRefArray Message;
     };
 
-    void OnRequestTimeout(const TRequestId& requestId, bool aborted);
+    void OnRequestTimeout(TRequestId requestId, bool aborted);
     void OnReplyBusTerminated(NYT::NBus::IBusPtr bus, const TError& error);
 
     void ReplyError(
@@ -594,7 +593,7 @@ private:
 
     void RegisterCancelableRequest(TServiceContext* context);
     void UnregisterCancelableRequest(TServiceContext* context);
-    TServiceContextPtr FindCancelableRequest(const TRequestId& requestId);
+    TServiceContextPtr FindCancelableRequest(TRequestId requestId);
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
@@ -614,5 +613,4 @@ DEFINE_REFCOUNTED_TYPE(TServiceBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

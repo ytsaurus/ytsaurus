@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NScheduler;
 using namespace NYTree;
@@ -77,7 +76,7 @@ void TGetJobInputPathsCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
-    output->Write(TSharedRef::FromString(std::move(inputPaths.GetData())));
+    context->ProduceOutputValue(std::move(inputPaths));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -525,7 +524,7 @@ void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStartOperationCommand::TStartOperationCommand(TNullable<NScheduler::EOperationType> operationType)
+TStartOperationCommand::TStartOperationCommand(std::optional<NScheduler::EOperationType> operationType)
 {
     RegisterParameter("spec", Spec);
     if (operationType) {
@@ -688,5 +687,4 @@ void TGetOperationCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

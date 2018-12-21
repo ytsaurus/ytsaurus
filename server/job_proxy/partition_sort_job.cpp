@@ -13,8 +13,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -109,14 +108,14 @@ public:
     {
         auto total = TotalRowCount_;
         if (total == 0) {
-            LOG_WARNING("GetProgress: empty total");
+            YT_LOG_WARNING("GetProgress: empty total");
             return 0;
         } else {
             // Split progress evenly between reading and writing.
             double progress =
                 0.5 * Reader_->GetDataStatistics().row_count() / total +
                 0.5 * Writer_->GetDataStatistics().row_count() / total;
-            LOG_DEBUG("GetProgress: %lf", progress);
+            YT_LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
         }
     }
@@ -139,5 +138,4 @@ IJobPtr CreatePartitionSortJob(IJobHostPtr host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

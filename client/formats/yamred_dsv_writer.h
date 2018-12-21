@@ -10,8 +10,7 @@
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/small_set.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +32,5 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats
 

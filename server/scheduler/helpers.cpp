@@ -23,8 +23,7 @@
 
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,19 +116,19 @@ EAbortReason GetAbortReason(const TError& resultError)
         return resultError.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
     } catch (const std::exception& ex) {
         // Process unknown abort reason from node.
-        LOG_WARNING(ex, "Found unknown abort_reason in job result");
+        YT_LOG_WARNING(ex, "Found unknown abort_reason in job result");
         return EAbortReason::Unknown;
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeOperationCodicilString(const TOperationId& operationId)
+TString MakeOperationCodicilString(TOperationId operationId)
 {
     return Format("OperationId: %v", operationId);
 }
 
-TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
+TCodicilGuard MakeOperationCodicilGuard(TOperationId operationId)
 {
     return TCodicilGuard(MakeOperationCodicilString(operationId));
 }
@@ -152,7 +151,7 @@ TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId no
         nodeId);
 }
 
-NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId)
+NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId)
 {
     return jobId.Parts32[0];
 }
@@ -267,7 +266,7 @@ EPermission GetPermission(EAccessType accessType)
 
 void ValidateOperationAccess(
     const TString& user,
-    const TOperationId& operationId,
+    TOperationId operationId,
     EAccessType accessType,
     const INodePtr& acl,
     const NNative::IClientPtr& client,
@@ -285,13 +284,13 @@ void ValidateOperationAccess(
         .ValueOrThrow();
 
     if (!result.MissingSubjects.empty()) {
-        LOG_DEBUG("Operation has missing subjects in ACL (OperationId: %v, MissingSubjects: %v)",
+        YT_LOG_DEBUG("Operation has missing subjects in ACL (OperationId: %v, MissingSubjects: %v)",
             operationId,
             result.MissingSubjects);
     }
 
     if (result.Action == ESecurityAction::Allow) {
-        LOG_DEBUG("Operation access successfully validated (OperationId: %v, User: %v, AccessType: %v)",
+        YT_LOG_DEBUG("Operation access successfully validated (OperationId: %v, User: %v, AccessType: %v)",
             operationId,
             user,
             accessType);
@@ -307,6 +306,5 @@ void ValidateOperationAccess(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ public:
     virtual void SetRetry(bool value) override;
 
     virtual NRpc::TMutationId GetMutationId() const override;
-    virtual void SetMutationId(const NRpc::TMutationId& id) override;
+    virtual void SetMutationId(NRpc::TMutationId id) override;
 
     virtual size_t GetHash() const override;
 
@@ -206,13 +205,13 @@ TString SyncYPathGetKey(
 TFuture<NYson::TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys = Null);
+    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
 
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
 NYson::TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys = Null);
+    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
 
 //! Asynchronously executes |Exists| verb.
 TFuture<bool> AsyncYPathExists(
@@ -242,13 +241,13 @@ void SyncYPathRemove(
 std::vector<TString> SyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
-    TNullable<i64> limit = Null);
+    std::optional<i64> limit = std::nullopt);
 
 //! Asynchronously executes |List| verb.
 TFuture<std::vector<TString>> AsyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
-    TNullable<i64> limit = Null);
+    std::optional<i64> limit = std::nullopt);
 
 /*!
  *  Throws exception if the specified node does not exist.
@@ -286,8 +285,7 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 #define YPATH_CLIENT_INL_H_
 #include "ypath_client-inl.h"

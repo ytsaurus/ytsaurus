@@ -11,8 +11,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 namespace {
 
 using namespace NYson;
@@ -58,7 +57,7 @@ public:
     TTestSubconfigPtr Subconfig;
     std::vector<TTestSubconfigPtr> SubconfigList;
     std::unordered_map<TString, TTestSubconfigPtr> SubconfigMap;
-    TNullable<i64> NullableInt;
+    std::optional<i64> NullableInt;
 
     TTestConfig()
     {
@@ -68,7 +67,7 @@ public:
         RegisterParameter("sub", Subconfig).DefaultNew();
         RegisterParameter("sub_list", SubconfigList).Default();
         RegisterParameter("sub_map", SubconfigMap).Default();
-        RegisterParameter("nullable_int", NullableInt).Default(Null);
+        RegisterParameter("nullable_int", NullableInt).Default();
 
         RegisterPreprocessor([&] () {
             MyString = "x";
@@ -504,12 +503,12 @@ class TTestConfigLite
 {
 public:
     TString MyString;
-    TNullable<i64> NullableInt;
+    std::optional<i64> NullableInt;
 
     TTestConfigLite()
     {
         RegisterParameter("my_string", MyString).NonEmpty();
-        RegisterParameter("nullable_int", NullableInt).Default(Null);
+        RegisterParameter("nullable_int", NullableInt).Default();
     }
 };
 
@@ -714,7 +713,7 @@ TEST(TYsonSerializableTest, NullableWithNonNullDefault)
         : public TYsonSerializable
     {
     public:
-        TNullable<int> Value;
+        std::optional<int> Value;
 
         TConfig()
         {
@@ -731,7 +730,7 @@ TEST(TYsonSerializableTest, NullableWithNonNullDefault)
 
     {
         auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString("{value=#}"));
-        EXPECT_FALSE(config->Value.HasValue());
+        EXPECT_FALSE(config->Value);
         EXPECT_EQ(ENodeType::Entity, ConvertToNode(config)->AsMap()->GetChild("value")->GetType());
     }
 }
@@ -739,5 +738,4 @@ TEST(TYsonSerializableTest, NullableWithNonNullDefault)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

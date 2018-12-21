@@ -21,8 +21,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
@@ -68,7 +67,7 @@ public:
             chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Journal node sealed (NodeId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Journal node sealed (NodeId: %v)",
             trunkNode->GetId());
 
         if (trunkNode->IsForeign()) {
@@ -105,5 +104,4 @@ void TJournalManager::SealJournal(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
-} // namespace NYT
+} // namespace NYT::NJournalServer

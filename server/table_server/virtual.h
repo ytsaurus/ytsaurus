@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +43,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         NYT::NYson::IAsyncYsonConsumer* consumer,
-        const NYT::TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override;
 
 private:
@@ -62,5 +61,4 @@ DEFINE_REFCOUNTED_TYPE(TVirtualStaticTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer

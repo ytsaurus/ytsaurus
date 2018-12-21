@@ -13,8 +13,7 @@
 #include <util/string/split.h>
 #include <util/string/iterator.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NYTree;
 using namespace NYPath;
@@ -80,7 +79,7 @@ public:
     {
         auto sessionIdMD5 = TMD5Hasher().Append(credentials.SessionId).GetHexDigestUpper();
         auto sslSessionIdMD5 = TMD5Hasher().Append(credentials.SslSessionId).GetHexDigestUpper();
-        LOG_DEBUG(
+        YT_LOG_DEBUG(
             "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v)",
             sessionIdMD5,
             sslSessionIdMD5);
@@ -108,11 +107,11 @@ private:
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            LOG_DEBUG(result, "Authentication failed (SessionIdMD5: %v, SslSessionIdMD5: %v)", sessionIdMD5, sslSessionIdMD5);
+            YT_LOG_DEBUG(result, "Authentication failed (SessionIdMD5: %v, SslSessionIdMD5: %v)", sessionIdMD5, sslSessionIdMD5);
             result.Attributes().Set("sessionid_md5", sessionIdMD5);
             result.Attributes().Set("sslsessionid_md5", sslSessionIdMD5);
         } else {
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "Authentication successful (SessionIdMD5: %v, SslSessionIdMD5: %v, Login: %v, Realm: %v)",
                 sessionIdMD5,
                 sslSessionIdMD5,
@@ -166,8 +165,11 @@ class TCachingCookieAuthenticator
     , private TAsyncExpiringCache<TCookieCredentials, TAuthenticationResult>
 {
 public:
-    TCachingCookieAuthenticator(TCachingCookieAuthenticatorConfigPtr config, ICookieAuthenticatorPtr underlying)
-        : TAsyncExpiringCache(config->Cache)
+    TCachingCookieAuthenticator(
+        TCachingCookieAuthenticatorConfigPtr config,
+        ICookieAuthenticatorPtr underlying,
+        NProfiling::TProfiler profiler)
+        : TAsyncExpiringCache(config->Cache, std::move(profiler))
         , UnderlyingAuthenticator_(std::move(underlying))
     { }
 
@@ -187,9 +189,13 @@ private:
 
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
     TCachingCookieAuthenticatorConfigPtr config,
-    ICookieAuthenticatorPtr authenticator)
+    ICookieAuthenticatorPtr authenticator,
+    NProfiling::TProfiler profiler)
 {
-    return New<TCachingCookieAuthenticator>(std::move(config), std::move(authenticator));
+    return New<TCachingCookieAuthenticator>(
+        std::move(config),
+        std::move(authenticator),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,16 +212,16 @@ public:
         const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            return Null;
+            return std::nullopt;
         }
 
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!ext.has_session_id() && !ext.has_ssl_session_id()) {
-            return Null;
+            return std::nullopt;
         }
 
         if (!context.UserIP.IsIP4() && !context.UserIP.IsIP6()) {
-            return Null;
+            return std::nullopt;
         }
 
         TCookieCredentials credentials;
@@ -241,5 +247,4 @@ NRpc::IAuthenticatorPtr CreateCookieAuthenticatorWrapper(ICookieAuthenticatorPtr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

@@ -11,8 +11,7 @@
 
 #include <yt/ytlib/scheduler/config.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -146,9 +145,9 @@ private:
         WrapAgentException([&] {
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
 
-            TNullable<TControllerTransactionIds> transactionIds;
+            std::optional<TControllerTransactionIds> transactionIds;
             if (!clean) {
-                transactionIds.Emplace();
+                transactionIds.emplace();
                 *transactionIds = FromProto<TControllerTransactionIds>(request->transaction_ids());
             }
 
@@ -307,7 +306,7 @@ private:
         WrapAgentException([&] {
             auto operation = controllerAgent->FindOperation(operationId);
             if (!operation) {
-                LOG_DEBUG("Operation is missing; ignoring request");
+                YT_LOG_DEBUG("Operation is missing; ignoring request");
                 context->Reply();
                 return;
             }
@@ -388,6 +387,5 @@ IServicePtr CreateControllerAgentService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

@@ -9,8 +9,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYPath;
 
@@ -78,7 +77,7 @@ void ThrowNoSuchBuiltinAttribute(const TString& key)
         ToYPathLiteral(key));
 }
 
-void ThrowMethodNotSupported(const TString& method, const TNullable<TString>& resolveType)
+void ThrowMethodNotSupported(const TString& method, const std::optional<TString>& resolveType)
 {
     auto error = TError(
         NRpc::EErrorCode::NoSuchMethod,
@@ -133,5 +132,4 @@ void ThrowCannotMoveFromAnotherTransaction()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

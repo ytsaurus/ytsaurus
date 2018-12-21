@@ -17,8 +17,7 @@
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/ring_queue.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +25,7 @@ struct TTransactionWriteRecord
 {
     TTransactionWriteRecord() = default;
     TTransactionWriteRecord(
-        const TTabletId& tabletId,
+        TTabletId tabletId,
         TSharedRef data,
         int rowCount,
         size_t byteSize,
@@ -80,7 +79,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, User);
 
 public:
-    explicit TTransaction(const TTransactionId& id);
+    explicit TTransaction(TTransactionId id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -112,5 +111,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/table_client/schema.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,5 +100,4 @@ std::unique_ptr<IOutputSchemaInferer> CreateOutputSchemaInferer()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

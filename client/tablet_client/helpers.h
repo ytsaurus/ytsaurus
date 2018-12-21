@@ -1,14 +1,12 @@
 #pragma once
 #include "public.h"
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateTabletTransaction(const NObjectClient::TTransactionId& transactionId);
+void ValidateTabletTransaction(NObjectClient::TTransactionId transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

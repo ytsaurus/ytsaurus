@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,16 +13,16 @@ struct TShellParameters
 {
     TShellId ShellId;
     EShellOperation Operation;
-    TNullable<TString> Term;
+    std::optional<TString> Term;
     TString Keys;
-    TNullable<ui64> InputOffset;
+    std::optional<ui64> InputOffset;
     int Height;
     int Width;
     //! Timeout for inactive shell after failed or completed job.
     TDuration InactivityTimeout;
     //! Environment variables passed to job shell.
     std::vector<TString> Environment;
-    TNullable<TString> Command;
+    std::optional<TString> Command;
 
     TShellParameters()
     {
@@ -68,8 +67,8 @@ struct TShellResult
     : public NYTree::TYsonSerializableLite
 {
     TShellId ShellId;
-    TNullable<TString> Output;
-    TNullable<ui64> ConsumedOffset;
+    std::optional<TString> Output;
+    std::optional<ui64> ConsumedOffset;
 
     TShellResult()
     {
@@ -81,5 +80,4 @@ struct TShellResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NShell
-} // namespace NYT
+} // namespace NYT::NShell

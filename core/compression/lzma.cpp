@@ -5,8 +5,7 @@ extern "C" {
 #include <contrib/libs/lzmasdk/LzmaDec.h>
 }
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 namespace {
 
@@ -104,7 +103,7 @@ private:
 
 void Check(SRes sres)
 {
-    LOG_FATAL_IF(sres != SZ_OK, "Lzma failed with errorcode %v", sres);
+    YT_LOG_FATAL_IF(sres != SZ_OK, "Lzma failed with errorcode %v", sres);
 }
 
 
@@ -185,5 +184,4 @@ void LzmaDecompress(StreamSource* source, TBlob* output)
     LzmaDec_Free(&handle, &Alloc);
 }
 
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression

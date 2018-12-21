@@ -19,9 +19,22 @@ TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
     out << "debug";
 #endif
 
-    out << "~" << TString(ARCADIA_SOURCE_REVISION).substr(0, 10);
-
+    TString commit = ARCADIA_SOURCE_REVISION;
     TString buildUser = BUILD_USER;
+
+    // When we use `ya make --dist` distbuild makes mess instead of svn revision:
+    //   BUILD_USER == "Unknown user"
+    //   ARCADIA_SOURCE_REVISION = "-1"
+    // When Hermes looks at such horrors it goes crazy.
+    // Here are some hacks to help Hermes keep its saninty.
+    if (commit == "-1") {
+        commit = TString(20, '0');
+    }
+    if (buildUser == "Unknown user") {
+        buildUser = "distbuild";
+    }
+
+    out << "~" << commit.substr(0, 10);
     if (buildUser != "teamcity") {
         out << "+" << buildUser;
     }

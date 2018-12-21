@@ -4,8 +4,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NConcurrency;
 
@@ -57,10 +56,10 @@ void TTransactionLeaseTracker::Stop()
 }
 
 void TTransactionLeaseTracker::RegisterTransaction(
-    const TTransactionId& transactionId,
-    const TTransactionId& parentId,
-    TNullable<TDuration> timeout,
-    TNullable<TInstant> deadline,
+    TTransactionId transactionId,
+    TTransactionId parentId,
+    std::optional<TDuration> timeout,
+    std::optional<TInstant> deadline,
     TTransactionLeaseExpirationHandler expirationHandler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -74,7 +73,7 @@ void TTransactionLeaseTracker::RegisterTransaction(
     });
 }
 
-void TTransactionLeaseTracker::UnregisterTransaction(const TTransactionId& transactionId)
+void TTransactionLeaseTracker::UnregisterTransaction(TTransactionId transactionId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -84,7 +83,7 @@ void TTransactionLeaseTracker::UnregisterTransaction(const TTransactionId& trans
 }
 
 void TTransactionLeaseTracker::SetTimeout(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TDuration timeout)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -96,7 +95,7 @@ void TTransactionLeaseTracker::SetTimeout(
 }
 
 void TTransactionLeaseTracker::PingTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool pingAncestors)
 {
     VERIFY_THREAD_AFFINITY(TrackerThread);
@@ -118,7 +117,7 @@ void TTransactionLeaseTracker::PingTransaction(
             UnregisterDeadline(descriptor);
             RegisterDeadline(descriptor);
 
-            LOG_DEBUG("Transaction lease renewed (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction lease renewed (TransactionId: %v)",
                 currentId);
         }
 
@@ -130,7 +129,7 @@ void TTransactionLeaseTracker::PingTransaction(
     }
 }
 
-TFuture<TInstant> TTransactionLeaseTracker::GetLastPingTime(const TTransactionId& transactionId)
+TFuture<TInstant> TTransactionLeaseTracker::GetLastPingTime(TTransactionId transactionId)
 {
     return
         BIND([=, this_ = MakeStrong(this)] () {
@@ -180,7 +179,7 @@ void TTransactionLeaseTracker::ProcessStartRequest(const TStartRequest& /*reques
 {
     Active_ = true;
 
-    LOG_INFO("Lease Tracker is active");
+    YT_LOG_INFO("Lease Tracker is active");
 }
 
 void TTransactionLeaseTracker::ProcessStopRequest(const TStopRequest& /*request*/)
@@ -189,7 +188,7 @@ void TTransactionLeaseTracker::ProcessStopRequest(const TStopRequest& /*request*
     IdMap_.clear();
     DeadlineMap_.clear();
 
-    LOG_INFO("Lease Tracker is no longer active");
+    YT_LOG_INFO("Lease Tracker is no longer active");
 }
 
 void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& request)
@@ -204,7 +203,7 @@ void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& re
     descriptor.UserDeadline = request.Deadline;
     RegisterDeadline(&descriptor);
 
-    LOG_DEBUG("Transaction lease registered (TransactionId: %v, Timeout: %v, Deadline: %v)",
+    YT_LOG_DEBUG("Transaction lease registered (TransactionId: %v, Timeout: %v, Deadline: %v)",
         request.TransactionId,
         request.Timeout,
         request.Deadline);
@@ -220,7 +219,7 @@ void TTransactionLeaseTracker::ProcessUnregisterRequest(const TUnregisterRequest
     }
     IdMap_.erase(it);
 
-    LOG_DEBUG("Transaction lease unregistered (TransactionId: %v)",
+    YT_LOG_DEBUG("Transaction lease unregistered (TransactionId: %v)",
         request.TransactionId);
 }
 
@@ -233,7 +232,7 @@ void TTransactionLeaseTracker::ProcessSetTimeoutRequest(const TSetTimeoutRequest
     if (auto descriptor = FindDescriptor(request.TransactionId)) {
         descriptor->Timeout = request.Timeout;
 
-        LOG_DEBUG("Transaction timeout set (TransactionId: %v, Timeout: %v)",
+        YT_LOG_DEBUG("Transaction timeout set (TransactionId: %v, Timeout: %v)",
             request.TransactionId,
             request.Timeout);
     }
@@ -251,7 +250,7 @@ void TTransactionLeaseTracker::ProcessDeadlines()
             break;
         }
 
-        LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
+        YT_LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
             descriptor->TransactionId);
 
         descriptor->TimedOut = true;
@@ -260,7 +259,7 @@ void TTransactionLeaseTracker::ProcessDeadlines()
     }
 }
 
-TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::FindDescriptor(const TTransactionId& transactionId)
+TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::FindDescriptor(TTransactionId transactionId)
 {
     VERIFY_THREAD_AFFINITY(TrackerThread);
 
@@ -268,7 +267,7 @@ TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::Find
     return it == IdMap_.end() ? nullptr : &it->second;
 }
 
-TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::GetDescriptorOrThrow(const TTransactionId& transactionId)
+TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::GetDescriptorOrThrow(TTransactionId transactionId)
 {
     VERIFY_THREAD_AFFINITY(TrackerThread);
 
@@ -310,5 +309,4 @@ void TTransactionLeaseTracker::ValidateActive()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

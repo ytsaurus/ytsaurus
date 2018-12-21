@@ -2,16 +2,17 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NAuth {
+#include <yt/core/profiling/profiler.h>
+
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ITvmServicePtr CreateCachingTvmService(
     ITvmServicePtr underlying,
-    TAsyncExpiringCacheConfigPtr config);
+    TAsyncExpiringCacheConfigPtr config,
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

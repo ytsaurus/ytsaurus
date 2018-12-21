@@ -6,8 +6,7 @@
 #include <random>
 
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +86,7 @@ TSharedOperationStatistics::TSharedOperationStatistics(const std::vector<TOperat
     , OperationStorage_(CreateOperationsStorage(OperationDescriptionById_))
 { }
 
-void TSharedOperationStatistics::OnJobStarted(const TOperationId& operationId, TDuration duration)
+void TSharedOperationStatistics::OnJobStarted(TOperationId operationId, TDuration duration)
 {
     auto& stats = OperationStorage_.at(operationId);
     {
@@ -97,7 +96,7 @@ void TSharedOperationStatistics::OnJobStarted(const TOperationId& operationId, T
     }
 }
 
-void TSharedOperationStatistics::OnJobPreempted(const TOperationId& operationId, TDuration duration)
+void TSharedOperationStatistics::OnJobPreempted(TOperationId operationId, TDuration duration)
 {
     auto& stats = OperationStorage_.at(operationId);
     {
@@ -109,7 +108,7 @@ void TSharedOperationStatistics::OnJobPreempted(const TOperationId& operationId,
     }
 }
 
-void TSharedOperationStatistics::OnJobFinished(const TOperationId& operationId, TDuration duration)
+void TSharedOperationStatistics::OnJobFinished(TOperationId operationId, TDuration duration)
 {
     auto& stats = OperationStorage_.at(operationId);
     {
@@ -118,13 +117,13 @@ void TSharedOperationStatistics::OnJobFinished(const TOperationId& operationId, 
     }
 }
 
-void TSharedOperationStatistics::OnOperationStarted(const TOperationId& operationId)
+void TSharedOperationStatistics::OnOperationStarted(TOperationId operationId)
 {
     // Nothing to do.
 }
 
 TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
-    const TOperationId& operationId,
+    TOperationId operationId,
     TDuration startTime,
     TDuration finishTime)
 {
@@ -147,7 +146,7 @@ TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
     }
 }
 
-const TOperationDescription& TSharedOperationStatistics::GetOperationDescription(const TOperationId& operationId) const
+const TOperationDescription& TSharedOperationStatistics::GetOperationDescription(TOperationId operationId) const
 {
     // No synchronization needed.
     auto it = OperationDescriptionById_.find(operationId);
@@ -193,19 +192,19 @@ void TSharedEventQueue::InsertNodeShardEvent(int workerId, TNodeShardEvent event
     NodeShardEvents_[workerId]->insert(event);
 }
 
-TNullable<TNodeShardEvent> TSharedEventQueue::PopNodeShardEvent(int workerId)
+std::optional<TNodeShardEvent> TSharedEventQueue::PopNodeShardEvent(int workerId)
 {
     auto& localEventsSet = NodeShardEvents_[workerId];
     if (localEventsSet->empty()) {
         NodeShardClocks_[workerId]->store(ControlThreadTime_.load() + MaxAllowedOutrunning_);
-        return Null;
+        return std::nullopt;
     }
     auto beginIt = localEventsSet->begin();
     auto event = *beginIt;
 
     NodeShardClocks_[workerId]->store(event.Time);
     if (event.Time > ControlThreadTime_.load() + MaxAllowedOutrunning_) {
-        return Null;
+        return std::nullopt;
     }
 
     localEventsSet->erase(beginIt);
@@ -316,7 +315,7 @@ void TSharedOperationStatisticsOutput::PrintHeader()
         << std::endl;
 }
 
-void TSharedOperationStatisticsOutput::PrintEntry(const TOperationId& id, const TOperationStatistics& stats)
+void TSharedOperationStatisticsOutput::PrintEntry(TOperationId id, const TOperationStatistics& stats)
 {
     auto guard = Guard(Lock_);
     OutputStream_
@@ -377,5 +376,4 @@ void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationSt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

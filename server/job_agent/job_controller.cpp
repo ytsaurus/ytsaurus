@@ -39,8 +39,7 @@
 
 #include <yt/core/net/helpers.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 using namespace NRpc;
 using namespace NObjectClient;
@@ -80,8 +79,8 @@ public:
         EJobType type,
         TJobFactory factory);
 
-    IJobPtr FindJob(const TJobId& jobId) const;
-    IJobPtr GetJobOrThrow(const TJobId& jobId) const;
+    IJobPtr FindJob(TJobId jobId) const;
+    IJobPtr GetJobOrThrow(TJobId jobId) const;
     std::vector<IJobPtr> GetJobs() const;
 
     TNodeResources GetResourceLimits() const;
@@ -123,8 +122,8 @@ private:
 
     TNodeResourceLimitsOverrides ResourceLimitsOverrides_;
 
-    TNullable<TInstant> UserMemoryOverdraftInstant_;
-    TNullable<TInstant> CpuOverdraftInstant_;
+    std::optional<TInstant> UserMemoryOverdraftInstant_;
+    std::optional<TInstant> CpuOverdraftInstant_;
 
     TProfiler ResourceLimitsProfiler_;
     TProfiler ResourceUsageProfiler_;
@@ -142,8 +141,8 @@ private:
 
     //! Starts a new job.
     IJobPtr CreateJob(
-        const TJobId& jobId,
-        const TOperationId& operationId,
+        TJobId jobId,
+        TOperationId operationId,
         const TNodeResources& resourceLimits,
         TJobSpec&& jobSpec);
 
@@ -165,7 +164,7 @@ private:
     /*!
      *  It is illegal to call #Remove before the job is stopped.
      */
-    void RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext);
+    void RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile);
 
     TJobFactory GetFactory(EJobType type) const;
 
@@ -235,7 +234,7 @@ void TJobController::TImpl::Initialize()
     }
 
     if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
-        LOG_INFO("Using external user job memory");
+        YT_LOG_INFO("Using external user job memory");
         ExternalMemoryUsageTracker_ = New<TNodeMemoryTracker>(
             0,
             std::vector<std::pair<EMemoryCategory, i64>>{},
@@ -272,13 +271,13 @@ TJobFactory TJobController::TImpl::GetFactory(EJobType type) const
     return it->second;
 }
 
-IJobPtr TJobController::TImpl::FindJob(const TJobId& jobId) const
+IJobPtr TJobController::TImpl::FindJob(TJobId jobId) const
 {
     auto it = Jobs_.find(jobId);
     return it == Jobs_.end() ? nullptr : it->second;
 }
 
-IJobPtr TJobController::TImpl::GetJobOrThrow(const TJobId& jobId) const
+IJobPtr TJobController::TImpl::GetJobOrThrow(TJobId jobId) const
 {
     auto job = FindJob(jobId);
     if (!job) {
@@ -332,9 +331,9 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
         systemTracker->GetLimit(EMemoryCategory::SystemJobs),
         systemTracker->GetUsed(EMemoryCategory::SystemJobs) + systemTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
 
-    auto maybeCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
-    if (maybeCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
-        result.set_cpu(*maybeCpuLimit);
+    auto optionalCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
+    if (optionalCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
+        result.set_cpu(*optionalCpuLimit);
     }
 
     if (result.has_cpu()) {
@@ -362,10 +361,10 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
 
 void TJobController::TImpl::AdjustResources()
 {
-    auto maybeMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
-    if (maybeMemoryLimit) {
+    auto optionalMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
+    if (optionalMemoryLimit) {
         auto* tracker = GetUserMemoryUsageTracker();
-        tracker->SetTotalLimit(*maybeMemoryLimit);
+        tracker->SetTotalLimit(*optionalMemoryLimit);
     }
 
     auto usage = GetResourceUsage(false);
@@ -381,7 +380,7 @@ void TJobController::TImpl::AdjustResources()
             UserMemoryOverdraftInstant_ = TInstant::Now();
         }
     } else {
-        UserMemoryOverdraftInstant_ = Null;
+        UserMemoryOverdraftInstant_ = std::nullopt;
     }
 
     if (usage.cpu() > limits.cpu()) {
@@ -392,10 +391,10 @@ void TJobController::TImpl::AdjustResources()
             CpuOverdraftInstant_ = TInstant::Now();
         }
     } else {
-        CpuOverdraftInstant_ = Null;
+        CpuOverdraftInstant_ = std::nullopt;
     }
 
-    LOG_DEBUG("Resource adjustment parameters (PreemptMemoryOverdraft: %v, PreemptCpuOverdraft: %v, "
+    YT_LOG_DEBUG("Resource adjustment parameters (PreemptMemoryOverdraft: %v, PreemptCpuOverdraft: %v, "
         "MemoryOverdraftInstant: %v, CpuOverdraftInstant: %v)",
         preemptMemoryOverdraft,
         preemptCpuOverdraft,
@@ -428,8 +427,8 @@ void TJobController::TImpl::AdjustResources()
             schedulerJobs.pop_back();
         }
 
-        UserMemoryOverdraftInstant_ = Null;
-        CpuOverdraftInstant_ = Null;
+        UserMemoryOverdraftInstant_ = std::nullopt;
+        CpuOverdraftInstant_ = std::nullopt;
     }
 }
 
@@ -494,7 +493,7 @@ void TJobController::TImpl::StartWaitingJobs()
         auto jobResources = job->GetResourceUsage();
         auto usedResources = GetResourceUsage();
         if (!HasEnoughResources(jobResources, usedResources)) {
-            LOG_DEBUG("Not enough resources to start waiting job (JobResources: %v, UsedResources: %v)",
+            YT_LOG_DEBUG("Not enough resources to start waiting job (JobResources: %v, UsedResources: %v)",
                 job->GetId(),
                 FormatResources(jobResources),
                 FormatResourceUsage(usedResources, GetResourceLimits()));
@@ -504,14 +503,14 @@ void TJobController::TImpl::StartWaitingJobs()
         if (jobResources.user_memory() > 0) {
             bool reachedWatermark = GetUserMemoryUsageTracker()->GetTotalFree() <= GetUserJobsFreeMemoryWatermark();
             if (reachedWatermark) {
-                LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark (JobId: %v)",
+                YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark (JobId: %v)",
                    job->GetId());
                 continue;
             }
 
             auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Not enough memory to start waiting job");
+                YT_LOG_DEBUG(error, "Not enough memory to start waiting job");
                 continue;
             }
         }
@@ -519,14 +518,14 @@ void TJobController::TImpl::StartWaitingJobs()
         if (jobResources.system_memory() > 0) {
             bool reachedWatermark = GetSystemMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
             if (reachedWatermark) {
-                LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark (JobId: %v)",
+                YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark (JobId: %v)",
                     job->GetId());
                 continue;
             }
 
             auto error = GetSystemMemoryUsageTracker()->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Not enough memory to start waiting job");
+                YT_LOG_DEBUG(error, "Not enough memory to start waiting job");
                 continue;
             }
         }
@@ -534,17 +533,17 @@ void TJobController::TImpl::StartWaitingJobs()
         std::vector<int> ports;
 
         if (portCount > 0) {
-            LOG_INFO("Allocating ports (PortCount: %v)", portCount);
+            YT_LOG_INFO("Allocating ports (PortCount: %v)", portCount);
 
             try {
                 ports = AllocateFreePorts(portCount, FreePorts_, jobLogger);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", portCount);
+                YT_LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", portCount);
                 continue;
             }
 
             if (ports.size() < portCount) {
-                LOG_DEBUG("Not enough bindable free ports to start job (PortCount: %v, FreePortCount: %v)",
+                YT_LOG_DEBUG("Not enough bindable free ports to start job (PortCount: %v, FreePortCount: %v)",
                     portCount,
                     ports.size());
                 continue;
@@ -554,7 +553,7 @@ void TJobController::TImpl::StartWaitingJobs()
                 FreePorts_.erase(port);
             }
             job->SetPorts(ports);
-            LOG_DEBUG("Ports allocated (PortCount: %v, Ports: %v)", ports.size(), ports);
+            YT_LOG_DEBUG("Ports allocated (PortCount: %v, Ports: %v)", ports.size(), ports);
         }
 
         job->SubscribeResourcesUpdated(
@@ -578,8 +577,8 @@ void TJobController::TImpl::StartWaitingJobs()
 }
 
 IJobPtr TJobController::TImpl::CreateJob(
-    const TJobId& jobId,
-    const TOperationId& operationId,
+    TJobId jobId,
+    TOperationId operationId,
     const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec)
 {
@@ -593,7 +592,7 @@ IJobPtr TJobController::TImpl::CreateJob(
         resourceLimits,
         std::move(jobSpec));
 
-    LOG_INFO("Job created (JobId: %v, OperationId: %v, JobType: %v)",
+    YT_LOG_INFO("Job created (JobId: %v, OperationId: %v, JobType: %v)",
         jobId,
         operationId,
         type);
@@ -634,7 +633,7 @@ void TJobController::TImpl::ScheduleStart()
 
 void TJobController::TImpl::AbortJob(const IJobPtr& job)
 {
-    LOG_INFO("Job abort requested (JobId: %v)",
+    YT_LOG_INFO("Job abort requested (JobId: %v)",
         job->GetId());
 
     job->Abort(TError(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler"));
@@ -642,51 +641,56 @@ void TJobController::TImpl::AbortJob(const IJobPtr& job)
 
 void TJobController::TImpl::FailJob(const IJobPtr& job)
 {
-    LOG_INFO("Job fail requested (JobId: %v)",
+    YT_LOG_INFO("Job fail requested (JobId: %v)",
         job->GetId());
 
     try {
         job->Fail();
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Failed to fail job (JobId: %v)", job->GetId());
+        YT_LOG_WARNING(ex, "Failed to fail job (JobId: %v)", job->GetId());
     }
 }
 
 void TJobController::TImpl::InterruptJob(const IJobPtr& job)
 {
-    LOG_INFO("Job interrupt requested (JobId: %v)",
+    YT_LOG_INFO("Job interrupt requested (JobId: %v)",
         job->GetId());
 
     try {
         job->Interrupt();
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Failed to interrupt job (JobId: %v)", job->GetId());
+        YT_LOG_WARNING(ex, "Failed to interrupt job (JobId: %v)", job->GetId());
     }
 }
 
-void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext)
+void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile)
 {
     YCHECK(job->GetPhase() >= EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
 
     if (archiveJobSpec) {
-        LOG_INFO("Job spec archived (JobId: %v)", job->GetId());
+        YT_LOG_INFO("Job spec archived (JobId: %v)", job->GetId());
         job->ReportSpec();
     }
 
     if (archiveStderr) {
-        LOG_INFO("Stderr archived (JobId: %v)", job->GetId());
+        YT_LOG_INFO("Stderr archived (JobId: %v)", job->GetId());
         job->ReportStderr();
     }
 
     if (archiveFailContext) {
-        LOG_INFO("Fail context archived (JobId: %v)", job->GetId());
+        YT_LOG_INFO("Fail context archived (JobId: %v)", job->GetId());
         job->ReportFailContext();
+    }
+
+    if (archiveProfile) {
+        YT_LOG_INFO("Profile archived (JobId: %v)", job->GetId());
+        job->ReportProfile();
     }
 
     YCHECK(Jobs_.erase(job->GetId()) == 1);
 
-    LOG_INFO("Job removed (JobId: %v)", job->GetId());
+    YT_LOG_INFO("Job removed (JobId: %v)", job->GetId());
 }
 
 void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& job, const TNodeResources& resourceDelta)
@@ -713,7 +717,7 @@ void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& job)
     auto job_ = job.Lock();
     if (job_) {
         const auto& ports = job_->GetPorts();
-        LOG_INFO("Releasing ports (JobId: %v, PortCount: %v, Ports: %v)", job_->GetId(), ports.size(), ports);
+        YT_LOG_INFO("Releasing ports (JobId: %v, PortCount: %v, Ports: %v)", job_->GetId(), ports.size(), ports);
         for (auto port : ports) {
             YCHECK(FreePorts_.insert(port).second);
         }
@@ -780,7 +784,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
         auto now = TInstant::Now();
         if (LastStoredJobsSendTime_ + Config_->TotalConfirmationPeriod < now) {
             LastStoredJobsSendTime_ = now;
-            LOG_INFO("Including all stored jobs in heartbeat");
+            YT_LOG_INFO("Including all stored jobs in heartbeat");
             totalConfirmation = true;
         }
     }
@@ -799,7 +803,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
             continue;
         }
         if (job->GetStored() || it != JobIdsToConfirm_.end()) {
-            LOG_DEBUG("Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
+            YT_LOG_DEBUG("Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
                 jobId,
                 job->GetOperationId(),
                 job->GetStored(),
@@ -859,7 +863,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
             }
         }
 
-        LOG_DEBUG("Job statistics prepared (RunningJobsStatisticsSize: %v, CompletedJobsStatisticsSize: %v)",
+        YT_LOG_DEBUG("Job statistics prepared (RunningJobsStatisticsSize: %v, CompletedJobsStatisticsSize: %v)",
             runningJobsStatisticsSize,
             completedJobsStatisticsSize);
 
@@ -883,9 +887,9 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
         }
 
         if (!JobIdsToConfirm_.empty()) {
-            LOG_WARNING("Unconfirmed jobs found (UnconfirmedJobCount: %v)", JobIdsToConfirm_.size());
+            YT_LOG_WARNING("Unconfirmed jobs found (UnconfirmedJobCount: %v)", JobIdsToConfirm_.size());
             for (const auto& jobId : JobIdsToConfirm_) {
-                LOG_DEBUG("Unconfirmed job (JobId: %v)", jobId);
+                YT_LOG_DEBUG("Unconfirmed job (JobId: %v)", jobId);
             }
             ToProto(request->mutable_unconfirmed_jobs(), JobIdsToConfirm_);
         }
@@ -905,9 +909,9 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
         auto job = FindJob(jobId);
         if (job) {
-            RemoveJob(job, jobToRemove.ArchiveJobSpec, jobToRemove.ArchiveStderr, jobToRemove.ArchiveFailContext);
+            RemoveJob(job, jobToRemove.ArchiveJobSpec, jobToRemove.ArchiveStderr, jobToRemove.ArchiveFailContext, jobToRemove.ArchiveProfile);
         } else {
-            LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
+            YT_LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
                 jobId);
         }
     }
@@ -918,7 +922,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         if (job) {
             AbortJob(job);
         } else {
-            LOG_WARNING("Requested to abort a non-existent job (JobId: %v)",
+            YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v)",
                 jobId);
         }
     }
@@ -929,7 +933,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         if (job) {
             InterruptJob(job);
         } else {
-            LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
+            YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
                 jobId);
         }
     }
@@ -940,7 +944,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         if (job) {
             FailJob(job);
         } else {
-            LOG_WARNING("Requested to fail a non-existent job (JobId: %v)",
+            YT_LOG_WARNING("Requested to fail a non-existent job (JobId: %v)",
                 jobId);
         }
     }
@@ -949,11 +953,11 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         auto jobId = FromProto<TJobId>(protoJobId);
         auto job = FindJob(jobId);
         if (job) {
-            LOG_DEBUG("Storing job (JobId: %v)",
+            YT_LOG_DEBUG("Storing job (JobId: %v)",
                 jobId);
             job->SetStored(true);
         } else {
-            LOG_WARNING("Requested to store a non-existent job (JobId: %v)",
+            YT_LOG_WARNING("Requested to store a non-existent job (JobId: %v)",
                 jobId);
         }
     }
@@ -984,24 +988,24 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
         auto jobId = FromProto<TJobId>(startInfo.job_id());
         if (attachmentIndex < response->Attachments().size()) {
             // Start the job right away.
-            LOG_DEBUG("Job spec is passed via attachments (OperationId: %v, JobId: %v)",
+            YT_LOG_DEBUG("Job spec is passed via attachments (OperationId: %v, JobId: %v)",
                 operationId,
                 jobId);
             const auto& attachment = response->Attachments()[attachmentIndex];
             startJob(startInfo, attachment);
         } else {
             auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(startInfo.spec_service_addresses());
-            auto maybeAddress = FindAddress(addresses, Bootstrap_->GetLocalNetworks());
-            if (maybeAddress) {
-                const auto& address = *maybeAddress;
-                LOG_DEBUG("Job spec will be fetched (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
+            auto optionalAddress = FindAddress(addresses, Bootstrap_->GetLocalNetworks());
+            if (optionalAddress) {
+                const auto& address = *optionalAddress;
+                YT_LOG_DEBUG("Job spec will be fetched (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
                     operationId,
                     jobId,
                     address);
                 groupedStartInfos[address].push_back(startInfo);
             } else {
                 YCHECK(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
-                LOG_DEBUG("Job spec cannot be fetched since no suitable network exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
+                YT_LOG_DEBUG("Job spec cannot be fetched since no suitable network exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
                     operationId,
                     jobId,
                     GetValues(addresses));
@@ -1039,14 +1043,14 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
             *subrequest->mutable_job_id() = startInfo.job_id();
         }
 
-        LOG_DEBUG("Getting job specs (SpecServiceAddress: %v, Count: %v)",
+        YT_LOG_DEBUG("Getting job specs (SpecServiceAddress: %v, Count: %v)",
             address,
             startInfos.size());
 
         auto asyncResult = jobSpecRequest->Invoke().Apply(
             BIND([=, this_ = MakeStrong(this)] (const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError) {
                 if (!rspOrError.IsOK()) {
-                    LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
+                    YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
                         address);
                     for (const auto& startInfo : startInfos) {
                         auto jobId = FromProto<TJobId>(startInfo.job_id());
@@ -1056,7 +1060,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                     return;
                 }
 
-                LOG_DEBUG("Job specs received (SpecServiceAddress: %v)",
+                YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)",
                     address);
 
                 const auto& rsp = rspOrError.Value();
@@ -1070,7 +1074,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
                     auto error = FromProto<TError>(subresponse->error());
                     if (!error.IsOK()) {
                         YCHECK(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
-                        LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
                         continue;
@@ -1218,12 +1222,12 @@ void TJobController::RegisterFactory(
     Impl_->RegisterFactory(type, std::move(factory));
 }
 
-IJobPtr TJobController::FindJob(const TJobId& jobId) const
+IJobPtr TJobController::FindJob(TJobId jobId) const
 {
     return Impl_->FindJob(jobId);
 }
 
-IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId) const
+IJobPtr TJobController::GetJobOrThrow(TJobId jobId) const
 {
     return Impl_->GetJobOrThrow(jobId);
 }
@@ -1277,5 +1281,4 @@ DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

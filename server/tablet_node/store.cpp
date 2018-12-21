@@ -3,8 +3,7 @@
 #include "sorted_dynamic_store.h"
 #include "ordered_dynamic_store.h"
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,5 +91,4 @@ void TStoreIdFormatter::operator()(TStringBuilder* builder, const IStorePtr& sto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

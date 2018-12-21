@@ -12,8 +12,7 @@
 #include <yt/contrib/portoapi/rpc.pb.h>
 #include <yt/contrib/portoapi/libporto.hpp>
 
-namespace NYT {
-namespace NContainers {
+namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,5 +77,4 @@ IPortoExecutorPtr CreatePortoExecutor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NContainers
-} // namespce NYT
+} // namespace NYT::NContainers

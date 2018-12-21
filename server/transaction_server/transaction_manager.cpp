@@ -43,8 +43,7 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
@@ -184,11 +183,11 @@ public:
         std::vector<TTransaction*> prerequisiteTransactions,
         const TCellTagList& secondaryCellTags,
         const TCellTagList& replicateToCellTags,
-        TNullable<TDuration> timeout,
-        TNullable<TInstant> deadline,
-        const TNullable<TString>& title,
+        std::optional<TDuration> timeout,
+        std::optional<TInstant> deadline,
+        const std::optional<TString>& title,
         const IAttributeDictionary& attributes,
-        const TTransactionId& hintId)
+        TTransactionId hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -272,7 +271,7 @@ public:
             multicellManager->PostToMasters(startRequest, replicateToCellTags);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "SecondaryCellTags: %v, Timeout: %v, Deadline: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
@@ -297,7 +296,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -322,7 +321,7 @@ public:
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
                 transactionId);
             AbortTransaction(nestedTransaction, true);
@@ -362,7 +361,7 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
             transactionId,
             commitTimestamp);
     }
@@ -436,12 +435,12 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
             force);
     }
 
-    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -556,7 +555,7 @@ public:
 
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp)
     {
@@ -588,7 +587,7 @@ public:
                 ? ETransactionState::PersistentCommitPrepared
                 : ETransactionState::TransientCommitPrepared);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
                 transactionId,
                 persistent,
                 prepareTimestamp);
@@ -605,7 +604,7 @@ public:
         }
     }
 
-    void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+    void PrepareTransactionAbort(TTransactionId transactionId, bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -618,13 +617,13 @@ public:
         if (state == ETransactionState::Active) {
             transaction->SetState(ETransactionState::TransientAbortPrepared);
 
-            LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
                 transactionId);
         }
     }
 
     void CommitTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -634,7 +633,7 @@ public:
     }
 
     void AbortTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -644,7 +643,7 @@ public:
     }
 
     void PingTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool pingAncestors)
     {
         VERIFY_THREAD_AFFINITY(TrackerThread);
@@ -704,10 +703,10 @@ private:
             ? FromProto(request->attributes())
             : CreateEphemeralAttributes();
 
-        auto title = request->has_title() ? MakeNullable(request->title()) : Null;
+        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
 
         auto timeout = FromProto<TDuration>(request->timeout());
-        TNullable<TInstant> deadline;
+        std::optional<TInstant> deadline;
         if (request->has_deadline()) {
             deadline = FromProto<TInstant>(request->deadline());
         }
@@ -762,7 +761,7 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
                 data.Type);
         }
@@ -842,14 +841,14 @@ private:
             if (dependentTransaction->GetPersistentState() != ETransactionState::Active) {
                 continue;
             }
-            LOG_DEBUG("Aborting dependent transaction (DependentTransactionId: %v, PrerequisiteTransactionId: %v)",
+            YT_LOG_DEBUG("Aborting dependent transaction (DependentTransactionId: %v, PrerequisiteTransactionId: %v)",
                 dependentTransaction->GetId(),
                 transaction->GetId());
             AbortTransaction(dependentTransaction, true, false);
         }
         transaction->DependentTransactions().clear();
 
-        transaction->SetDeadline(Null);
+        transaction->SetDeadline(std::nullopt);
 
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
@@ -959,7 +958,7 @@ private:
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
     }
 
-    void OnTransactionExpired(const TTransactionId& transactionId)
+    void OnTransactionExpired(TTransactionId transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -972,7 +971,7 @@ private:
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(transactionId).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
+                YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
                     transactionId);
             }
         }));
@@ -1019,11 +1018,11 @@ TTransaction* TTransactionManager::StartTransaction(
     std::vector<TTransaction*> prerequisiteTransactions,
     const TCellTagList& secondaryCellTags,
     const TCellTagList& replicateToCellTags,
-    TNullable<TDuration> timeout,
-    TNullable<TInstant> deadline,
-    const TNullable<TString>& title,
+    std::optional<TDuration> timeout,
+    std::optional<TInstant> deadline,
+    const std::optional<TString>& title,
     const IAttributeDictionary& attributes,
-    const TTransactionId& hintId)
+    TTransactionId hintId)
 {
     return Impl_->StartTransaction(
         parent,
@@ -1051,7 +1050,7 @@ void TTransactionManager::AbortTransaction(
     Impl_->AbortTransaction(transaction, force);
 }
 
-TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& transactionId)
+TTransaction* TTransactionManager::GetTransactionOrThrow(TTransactionId transactionId)
 {
     return Impl_->GetTransactionOrThrow(transactionId);
 }
@@ -1129,7 +1128,7 @@ std::unique_ptr<TMutation> TTransactionManager::CreateRegisterTransactionActions
 }
 
 void TTransactionManager::PrepareTransactionCommit(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool persistent,
     TTimestamp prepareTimestamp)
 {
@@ -1137,28 +1136,28 @@ void TTransactionManager::PrepareTransactionCommit(
 }
 
 void TTransactionManager::PrepareTransactionAbort(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool force)
 {
     Impl_->PrepareTransactionAbort(transactionId, force);
 }
 
 void TTransactionManager::CommitTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TTimestamp commitTimestamp)
 {
     Impl_->CommitTransaction(transactionId, commitTimestamp);
 }
 
 void TTransactionManager::AbortTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool force)
 {
     Impl_->AbortTransaction(transactionId, force);
 }
 
 void TTransactionManager::PingTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
@@ -1172,5 +1171,4 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, *I
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

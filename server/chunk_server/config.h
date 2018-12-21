@@ -3,14 +3,13 @@
 #include "public.h"
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,14 +43,14 @@ public:
         });
     }
 
-    THashMap<TNullable<TString>, THashMap<TNullable<TString>, i64>> GetCapacities() const
+    THashMap<std::optional<TString>, THashMap<std::optional<TString>, i64>> GetCapacities() const
     {
-        THashMap<TNullable<TString>, THashMap<TNullable<TString>, i64>> result;
+        THashMap<std::optional<TString>, THashMap<std::optional<TString>, i64>> result;
         for (const auto& pair : Capacities) {
-            auto srcDataCenter = MakeNullable(!pair.first.empty(), pair.first);
+            auto srcDataCenter = pair.first.empty() ? std::nullopt : std::make_optional(pair.first);
             auto& srcDataCenterCapacities = result[srcDataCenter];
             for (const auto& pair2 : pair.second) {
-                auto dstDataCenter = MakeNullable(!pair2.first.empty(), pair2.first);
+                auto dstDataCenter = pair2.first.empty() ? std::nullopt : std::make_optional(pair2.first);
                 srcDataCenterCapacities.emplace(dstDataCenter, pair2.second);
             }
         }
@@ -160,7 +159,14 @@ public:
     //! Maximum number of cached replicas to be returned on fetch request.
     int MaxCachedReplicasPerFetch;
 
-    //! Provides an additional bound for the number of replicas per rack for every chunk.
+    //! A default value for an additional bound for the global replication
+    //! factor cap. The value is used when a new medium is created to initialize
+    //! corresponding medium-specific setting.
+    int MaxReplicationFactor;
+
+    //! A default value for an additional bound for the number of replicas per
+    //! rack for every chunk. The value is used when a new medium is created to
+    //! initialize corresponding medium-specific setting.
     //! Currently used to simulate DC awareness.
     int MaxReplicasPerRack;
 
@@ -267,6 +273,10 @@ public:
             .GreaterThan(0)
             .Default(20);
 
+        RegisterParameter("max_replication_factor", MaxReplicationFactor)
+            .GreaterThanOrEqual(NChunkClient::DefaultReplicationFactor)
+            .Default(NChunkClient::MaxReplicationFactor);
+
         RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
             .GreaterThan(0)
             .Default(std::numeric_limits<int>::max());
@@ -320,6 +330,11 @@ class TMediumConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! An additional bound for the global replication factor cap.
+    //! Useful when the number of racks is too low to interoperate meaningfully
+    //! with the default cap.
+    int MaxReplicationFactor;
+
     //! Provides an additional bound for the number of replicas per rack for every chunk.
     //! Currently used to simulate DC awareness.
     int MaxReplicasPerRack;
@@ -335,6 +350,9 @@ public:
 
     TMediumConfig()
     {
+        RegisterParameter("max_replication_factor", MaxReplicationFactor)
+            .GreaterThanOrEqual(NChunkClient::DefaultReplicationFactor)
+            .Default(NChunkClient::MaxReplicationFactor);
         RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
             .GreaterThanOrEqual(0)
             .Default(std::numeric_limits<int>::max());
@@ -377,5 +395,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

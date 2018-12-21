@@ -13,8 +13,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -24,7 +23,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemaObject::TSchemaObject(const TObjectId& id)
+TSchemaObject::TSchemaObject(TObjectId id)
     : TNonversionedObjectBase(id)
     , Acd_(this)
 { }
@@ -68,7 +67,7 @@ public:
         return SchemaTypeFromType(Type_);
     }
 
-    virtual TObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(TObjectId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetSchema(Type_);
@@ -120,5 +119,4 @@ IObjectTypeHandlerPtr CreateSchemaTypeHandler(NCellMaster::TBootstrap* bootstrap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

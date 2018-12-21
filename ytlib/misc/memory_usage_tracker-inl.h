@@ -126,7 +126,7 @@ void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
 
     auto currentFree = TotalFreeCounter_.GetCurrent();
     if (currentFree < 0) {
-        LOG_WARNING("Total memory overcommit by %v after %Qlv request for %v",
+        YT_LOG_WARNING("Total memory overcommit by %v after %Qlv request for %v",
             -currentFree,
             category,
             size);
@@ -135,7 +135,7 @@ void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
     const auto& data = Categories_[category];
     auto currentUsed = data.UsedCounter.GetCurrent();
     if (currentUsed > data.Limit) {
-        LOG_WARNING("Per-category memory overcommit by %v after %Qlv request for %v",
+        YT_LOG_WARNING("Per-category memory overcommit by %v after %Qlv request for %v",
             currentUsed - data.Limit,
             category,
             size);

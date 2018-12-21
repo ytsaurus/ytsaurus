@@ -11,8 +11,7 @@
 
 #include <fstream>
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,20 +69,20 @@ class TSharedOperationStatistics
 public:
     explicit TSharedOperationStatistics(const std::vector<TOperationDescription>& operations);
 
-    void OnJobStarted(const NScheduler::TOperationId& operationId, TDuration duration);
+    void OnJobStarted(NScheduler::TOperationId operationId, TDuration duration);
 
-    void OnJobPreempted(const NScheduler::TOperationId& operationId, TDuration duration);
+    void OnJobPreempted(NScheduler::TOperationId operationId, TDuration duration);
 
-    void OnJobFinished(const NScheduler::TOperationId& operationId, TDuration duration);
+    void OnJobFinished(NScheduler::TOperationId operationId, TDuration duration);
 
-    void OnOperationStarted(const NScheduler::TOperationId& operationId);
+    void OnOperationStarted(NScheduler::TOperationId operationId);
 
     TOperationStatistics OnOperationFinished(
-        const NScheduler::TOperationId& operationId,
+        NScheduler::TOperationId operationId,
         TDuration startTime,
         TDuration finishTime);
 
-    const TOperationDescription& GetOperationDescription(const NScheduler::TOperationId& operationId) const;
+    const TOperationDescription& GetOperationDescription(NScheduler::TOperationId operationId) const;
 
 private:
     const THashMap<NScheduler::TOperationId, TOperationDescription> OperationDescriptionById_;
@@ -103,7 +102,7 @@ public:
 
     void InsertNodeShardEvent(int workerId, TNodeShardEvent event);
 
-    TNullable<TNodeShardEvent> PopNodeShardEvent(int workerId);
+    std::optional<TNodeShardEvent> PopNodeShardEvent(int workerId);
 
     void WaitForStrugglingNodeShards(TInstant timeBarrier);
     void UpdateControlThreadTime(TInstant time);
@@ -160,7 +159,7 @@ public:
 
     void PrintHeader();
 
-    void PrintEntry(const NScheduler::TOperationId& id, const TOperationStatistics& stats);
+    void PrintEntry(NScheduler::TOperationId id, const TOperationStatistics& stats);
 
 private:
     std::ofstream OutputStream_;
@@ -198,5 +197,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

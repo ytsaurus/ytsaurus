@@ -9,7 +9,7 @@
 
 #include <yt/core/compression/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -20,8 +20,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +48,7 @@ struct IClientRequest
     virtual void SetRetry(bool value) = 0;
 
     virtual TMutationId GetMutationId() const = 0;
-    virtual void SetMutationId(const TMutationId& id) = 0;
+    virtual void SetMutationId(TMutationId id) = 0;
 
     virtual EMultiplexingBand GetMultiplexingBand() const = 0;
     virtual void SetMultiplexingBand(EMultiplexingBand band) = 0;
@@ -73,7 +72,7 @@ public:
 
 public:
     TClientContext(
-        const TRequestId& requestId,
+        TRequestId requestId,
         const NTracing::TTraceContext& traceContext,
         const TString& service,
         const TString& method,
@@ -89,7 +88,7 @@ class TClientRequest
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, Heavy, false);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, Codec, NCompression::ECodec::None);
@@ -115,7 +114,7 @@ public:
     virtual void SetRetry(bool value) override;
 
     virtual TMutationId GetMutationId() const override;
-    virtual void SetMutationId(const TMutationId& id) override;
+    virtual void SetMutationId(TMutationId id) override;
 
     virtual size_t GetHash() const override;
 
@@ -127,7 +126,7 @@ protected:
 
     NProto::TRequestHeader Header_;
     mutable TSharedRef SerializedBody_;
-    mutable TNullable<size_t> Hash_;
+    mutable std::optional<size_t> Hash_;
     EMultiplexingBand MultiplexingBand_ = EMultiplexingBand::Default;
     bool FirstTimeSerialization_ = true;
 
@@ -353,7 +352,7 @@ class TProxyBase
 public:
     DEFINE_RPC_PROXY_METHOD(NProto, Discover);
 
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, DefaultTimeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck, true);
 
 protected:
@@ -381,8 +380,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc
 
 #define CLIENT_INL_H_
 #include "client-inl.h"

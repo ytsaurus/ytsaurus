@@ -46,8 +46,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
@@ -356,7 +355,7 @@ protected:
             if (Controller->Spec->EnablePartitionedDataBalancing &&
                 totalDataWeight >= Controller->Spec->MinLocalityInputDataWeight)
             {
-                LOG_INFO("Data balancing enabled (TotalDataWeight: %v)", totalDataWeight);
+                YT_LOG_INFO("Data balancing enabled (TotalDataWeight: %v)", totalDataWeight);
                 DataBalancer_ = New<TDataBalancer>(
                     Controller->Options->DataBalancer,
                     totalDataWeight,
@@ -447,7 +446,7 @@ protected:
             return Controller->Spec->EnableIntermediateOutputRecalculation;
         }
 
-        virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
+        virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
         {
             // We don't have a job at hand here, let's make a guess.
             auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics()[0];
@@ -457,7 +456,7 @@ protected:
                 return EScheduleJobFailReason::DataBalancingViolation;
             }
 
-            return Null;
+            return std::nullopt;
         }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
@@ -504,7 +503,7 @@ protected:
                     Controller->AddTaskPendingHint(partition->SortTask);
                 }
             }
-            LOG_DEBUG("Sort data weight updated: %v -> %v",
+            YT_LOG_DEBUG("Sort data weight updated: %v -> %v",
                 oldSortDataWeight,
                 newSortDataWeight);
             Controller->SortDataWeightCounter->Increment(newSortDataWeight - oldSortDataWeight);
@@ -561,18 +560,18 @@ protected:
 
             // Dump totals.
             // Mark empty partitions are completed.
-            LOG_DEBUG("Partition sizes collected");
+            YT_LOG_DEBUG("Partition sizes collected");
             for (auto partition : Controller->Partitions) {
                 i64 dataWeight = partition->ChunkPoolOutput->GetTotalDataWeight();
                 if (dataWeight == 0) {
-                    LOG_DEBUG("Partition %v is empty", partition->Index);
+                    YT_LOG_DEBUG("Partition %v is empty", partition->Index);
                     // Job restarts may cause the partition task to complete several times.
                     // Thus we might have already marked the partition as completed, let's be careful.
                     if (!partition->Completed) {
                         Controller->OnPartitionCompleted(partition);
                     }
                 } else {
-                    LOG_DEBUG("Partition[%v] = %v",
+                    YT_LOG_DEBUG("Partition[%v] = %v",
                         partition->Index,
                         dataWeight);
 
@@ -663,7 +662,7 @@ protected:
             JobProxyMemoryDigest_ = CreateLogDigest(New<TLogDigestConfig>(
                 1.0, // LowerLimit - we do not want to adjust memory reserve lower limit for sort jobs - we are pretty sure in our initial estimates.
                 Controller->Spec->JobProxyMemoryDigest->UpperBound,
-                Controller->Spec->JobProxyMemoryDigest->DefaultValue.Get(1.0)));
+                Controller->Spec->JobProxyMemoryDigest->DefaultValue.value_or(1.0)));
         }
 
         virtual TTaskGroupPtr GetGroup() const override
@@ -1172,10 +1171,10 @@ protected:
         void AbortAllActiveJoblets(const TError& error)
         {
             if (Finished_) {
-                LOG_INFO(error, "Chunk mapping has been invalidated, but the task has already finished");
+                YT_LOG_INFO(error, "Chunk mapping has been invalidated, but the task has already finished");
                 return;
             }
-            LOG_INFO(error, "Aborting all jobs in task because of chunk mapping invalidation");
+            YT_LOG_INFO(error, "Aborting all jobs in task because of chunk mapping invalidation");
             for (const auto& joblet : ActiveJoblets_) {
                 Controller->Host->AbortJob(
                     joblet->JobId,
@@ -1187,12 +1186,12 @@ protected:
                 YCHECK(jobOutput.JobSummary.Statistics);
                 auto tableIndex = Controller->GetRowCountLimitTableIndex();
                 if (tableIndex) {
-                    auto maybeCount = FindNumericValue(
+                    auto optionalCount = FindNumericValue(
                         *jobOutput.JobSummary.Statistics,
                         Format("/data/output/%v/row_count", *tableIndex));
-                    if (maybeCount) {
+                    if (optionalCount) {
                         // We have to unregister registered output rows.
-                        Controller->RegisterOutputRows(-(*maybeCount), *tableIndex);
+                        Controller->RegisterOutputRows(-(*optionalCount), *tableIndex);
                     }
                 }
             }
@@ -1493,7 +1492,7 @@ protected:
             return lhs->ChunkPoolOutput->GetTotalDataWeight() > rhs->ChunkPoolOutput->GetTotalDataWeight();
         };
 
-        LOG_DEBUG("Examining online nodes");
+        YT_LOG_DEBUG("Examining online nodes");
 
         const auto& nodeDescriptors = GetExecNodeDescriptors();
         auto maxResourceLimits = ZeroJobResources();
@@ -1517,7 +1516,7 @@ protected:
         }
 
         if (nodeHeap.empty()) {
-            LOG_DEBUG("No alive exec nodes to assign partitions");
+            YT_LOG_DEBUG("No alive exec nodes to assign partitions");
             return;
         }
 
@@ -1533,7 +1532,7 @@ protected:
         // This is actually redundant since all values are 0.
         std::make_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
 
-        LOG_DEBUG("Assigning partitions");
+        YT_LOG_DEBUG("Assigning partitions");
 
         for (const auto& partition : partitionsToAssign) {
             auto node = nodeHeap.front();
@@ -1550,7 +1549,7 @@ protected:
             node->AssignedDataWeight += partition->ChunkPoolOutput->GetTotalDataWeight();
             std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
 
-            LOG_DEBUG("Partition assigned (Index: %v, DataWeight: %v, Address: %v)",
+            YT_LOG_DEBUG("Partition assigned (Index: %v, DataWeight: %v, Address: %v)",
                 partition->Index,
                 partition->ChunkPoolOutput->GetTotalDataWeight(),
                 node->Descriptor.Address);
@@ -1558,7 +1557,7 @@ protected:
 
         for (const auto& node : nodeHeap) {
             if (node->AssignedDataWeight > 0) {
-                LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataWeight: %v, AdjustedDataWeight: %v)",
+                YT_LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataWeight: %v, AdjustedDataWeight: %v)",
                     node->Descriptor.Address,
                     node->Weight,
                     node->AssignedDataWeight,
@@ -1566,7 +1565,7 @@ protected:
             }
         }
 
-        LOG_DEBUG("Partitions assigned");
+        YT_LOG_DEBUG("Partitions assigned");
     }
 
     void InitPartitionPool(
@@ -1663,7 +1662,7 @@ protected:
                     if (IsSortedMergeNeeded(partition)) {
                         i64 outputRowCount = partition->SortedMergeTask->GetOutputRowCount();
                         if (inputRowCount != outputRowCount) {
-                            LOG_DEBUG("Input/output row count mismatch in sorted merge task "
+                            YT_LOG_DEBUG("Input/output row count mismatch in sorted merge task "
                                 "(Task: %v, InputRowCount: %v, OutputRowCount: %v)",
                                 partition->SortedMergeTask->GetTitle(),
                                 inputRowCount,
@@ -1671,7 +1670,7 @@ protected:
                         }
                     }
                 }
-                LOG_ERROR_IF(totalInputRowCount != TotalOutputRowCount,
+                YT_LOG_ERROR_IF(totalInputRowCount != TotalOutputRowCount,
                     "Input/output row count mismatch in sort operation (TotalInputRowCount: %v, TotalOutputRowCount: %v)",
                     totalInputRowCount,
                     TotalOutputRowCount);
@@ -1702,7 +1701,7 @@ protected:
 
         ++CompletedPartitionCount;
 
-        LOG_DEBUG("Partition completed (Partition: %v)", partition->Index);
+        YT_LOG_DEBUG("Partition completed (Partition: %v)", partition->Index);
     }
 
     virtual bool IsSortedMergeNeeded(const TPartitionPtr& partition) const
@@ -1729,7 +1728,7 @@ protected:
             }
         }
 
-        LOG_DEBUG("Partition needs sorted merge (Partition: %v)", partition->Index);
+        YT_LOG_DEBUG("Partition needs sorted merge (Partition: %v)", partition->Index);
         partition->CachedSortedMergeNeeded = true;
         partition->SortTask->OnSortedMergeNeeded();
         return true;
@@ -1742,7 +1741,7 @@ protected:
                 PartitionTask->GetTotalDataWeight() * Spec->ShuffleStartThreshold)
                 return;
 
-            LOG_INFO("Sort start threshold reached");
+            YT_LOG_INFO("Sort start threshold reached");
 
             SortStartThresholdReached = true;
         }
@@ -1794,7 +1793,7 @@ protected:
                     return;
             }
 
-            LOG_INFO("Merge start threshold reached");
+            YT_LOG_INFO("Merge start threshold reached");
 
             MergeStartThresholdReached = true;
         }
@@ -1868,7 +1867,7 @@ protected:
             yielder.TryYield();
         }
 
-        LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
+        YT_LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
             unversionedSlices,
             versionedSlices);
     }
@@ -1958,7 +1957,7 @@ protected:
                     result = dataWeightAfterPartition / maxPartitionDataWeight;
                 }
 
-                LOG_DEBUG("Suggesting partition count (UncompressedBlockSize: %v, PartitionDataWeight: %v, "
+                YT_LOG_DEBUG("Suggesting partition count (UncompressedBlockSize: %v, PartitionDataWeight: %v, "
                     "MaxPartitionDataWeight: %v, PartitionCount: %v, MaxPartitionCount: %v)",
                     uncompressedBlockSize,
                     partitionDataWeight,
@@ -2153,7 +2152,7 @@ protected:
         return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
     }
 
-    void AccountRows(const TNullable<NJobTrackerClient::TStatistics>& statistics)
+    void AccountRows(const std::optional<NJobTrackerClient::TStatistics>& statistics)
     {
         YCHECK(statistics);
         TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
@@ -2350,7 +2349,7 @@ private:
     std::vector<const TSample*> SortSamples(const std::vector<TSample>& samples)
     {
         int sampleCount = static_cast<int>(samples.size());
-        LOG_INFO("Sorting %v samples", sampleCount);
+        YT_LOG_INFO("Sorting %v samples", sampleCount);
 
         std::vector<const TSample*> sortedSamples;
         sortedSamples.reserve(sampleCount);
@@ -2378,7 +2377,7 @@ private:
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
         int partitionCount = SuggestPartitionCount();
-        LOG_INFO("Suggested partition count %v, samples count %v", partitionCount, sortedSamples.size());
+        YT_LOG_INFO("Suggested partition count %v, samples count %v", partitionCount, sortedSamples.size());
 
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
@@ -2404,7 +2403,7 @@ private:
                 partitionJobSizeConstraints->GetJobCount(),
                 PartitionJobIOConfig->TableWriter);
 
-            LOG_INFO("Adjusted partition count %v", partitionCount);
+            YT_LOG_INFO("Adjusted partition count %v", partitionCount);
 
             BuildMulitplePartitions(sortedSamples, partitionCount, partitionJobSizeConstraints);
         }
@@ -2434,7 +2433,7 @@ private:
         // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
         SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
 
-        LOG_INFO("Sorting without partitioning (SortJobCount: %v, DataWeightPerJob: %v)",
+        YT_LOG_INFO("Sorting without partitioning (SortJobCount: %v, DataWeightPerJob: %v)",
             jobSizeConstraints->GetJobCount(),
             jobSizeConstraints->GetDataWeightPerJob());
 
@@ -2445,7 +2444,7 @@ private:
     void AddPartition(TKey key)
     {
         int index = static_cast<int>(Partitions.size());
-        LOG_DEBUG("Partition %v has starting key %v",
+        YT_LOG_DEBUG("Partition %v has starting key %v",
             index,
             key);
 
@@ -2458,7 +2457,7 @@ private:
         int partitionCount,
         const IJobSizeConstraintsPtr& partitionJobSizeConstraints)
     {
-        LOG_INFO("Building partition keys");
+        YT_LOG_INFO("Building partition keys");
 
         i64 totalSamplesWeight = 0;
         for (const auto* sample : sortedSamples) {
@@ -2513,7 +2512,7 @@ private:
                 auto lastPartition = Partitions.back();
 
                 if (!lastManiacSample->Incomplete) {
-                    LOG_DEBUG("Partition %v is a maniac, skipped %v samples",
+                    YT_LOG_DEBUG("Partition %v is a maniac, skipped %v samples",
                         lastPartition->Index,
                         skippedCount);
 
@@ -2527,7 +2526,7 @@ private:
                 } else {
                     // If sample keys are incomplete, we cannot use UnorderedMerge,
                     // because full keys may be different.
-                    LOG_DEBUG("Partition %v is oversized, skipped %v samples",
+                    YT_LOG_DEBUG("Partition %v is oversized, skipped %v samples",
                         lastPartition->Index,
                         skippedCount);
                     AddPartition(RowBuffer->Capture(selectedSamples[sampleIndex]->Key));
@@ -2550,7 +2549,7 @@ private:
         ProcessInputs(PartitionTask, partitionJobSizeConstraints);
         FinishTaskInput(PartitionTask);
 
-        LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
+        YT_LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
             partitionCount,
             partitionJobSizeConstraints->GetJobCount(),
             partitionJobSizeConstraints->GetDataWeightPerJob());
@@ -3007,7 +3006,7 @@ private:
                 Spec->SortBy);
         }
 
-        LOG_DEBUG("ReduceColumns: %v, SortColumns: %v",
+        YT_LOG_DEBUG("ReduceColumns: %v, SortColumns: %v",
             Spec->ReduceBy,
             Spec->SortBy);
     }
@@ -3022,7 +3021,7 @@ private:
         return Spec->OutputTablePaths;
     }
 
-    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    virtual std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec->StderrTablePath;
     }
@@ -3032,7 +3031,7 @@ private:
         return Spec->StderrTableWriter;
     }
 
-    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    virtual std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec->CoreTablePath;
     }
@@ -3081,9 +3080,9 @@ private:
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
         int partitionCount = SuggestPartitionCount();
-        LOG_INFO("Suggested partition count %v", partitionCount);
+        YT_LOG_INFO("Suggested partition count %v", partitionCount);
 
-        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
         auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
             Spec,
@@ -3098,7 +3097,7 @@ private:
             partitionCount,
             partitionJobSizeConstraints->GetJobCount(),
             PartitionJobIOConfig->TableWriter);
-        LOG_INFO("Adjusted partition count %v", partitionCount);
+        YT_LOG_INFO("Adjusted partition count %v", partitionCount);
 
         BuildMultiplePartitions(partitionCount, partitionJobSizeConstraints);
     }
@@ -3142,7 +3141,7 @@ private:
         RegisterTask(PartitionTask);
         FinishTaskInput(PartitionTask);
 
-        LOG_INFO("Map-reducing with partitioning (PartitionCount: %v, PartitionJobCount: %v, PartitionDataWeightPerJob: %v)",
+        YT_LOG_INFO("Map-reducing with partitioning (PartitionCount: %v, PartitionJobCount: %v, PartitionDataWeightPerJob: %v)",
             partitionCount,
             partitionJobSizeConstraints->GetJobCount(),
             partitionJobSizeConstraints->GetDataWeightPerJob());
@@ -3533,6 +3532,5 @@ IOperationControllerPtr CreateMapReduceController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

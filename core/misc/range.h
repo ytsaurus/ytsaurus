@@ -5,13 +5,13 @@
 
 #include <vector>
 #include <array>
+#include <optional>
 
 // For size_t.
 #include <stddef.h>
 
 // Forward declarations
-namespace google {
-namespace protobuf {
+namespace google::protobuf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,8 +23,7 @@ class RepeatedPtrField;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace protobuf
-} // namespace google
+} // namespace google::protobuf
 
 // Forward declarations
 namespace NYT {
@@ -33,9 +32,6 @@ namespace NYT {
 
 template <class T>
 class SmallVectorImpl;
-
-template <class T>
-class TNullable;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,10 +110,10 @@ public:
         , Length_(N)
     { }
 
-    //! Constructs a TRange from TNullable.
+    //! Constructs a TRange from std::optional.
     //! Range will contain 0-1 elements.
-    TRange(const TNullable<T>& element)
-        : Data_(element.GetPtr())
+    TRange(const std::optional<T>& element)
+        : Data_(element ? &*element : nullptr)
         , Length_(element ? 1 : 0)
     { }
 
@@ -336,9 +332,9 @@ public:
         : TRange<T>(elements)
     { }
 
-    //! Construct a TMutableRange from an TNullable
+    //! Construct a TMutableRange from an std::optional
     //! Range will contain 0-1 elements.
-    TMutableRange(TNullable<T>& nullable)
+    TMutableRange(std::optional<T>& nullable)
         : TRange<T>(nullable)
     { }
 

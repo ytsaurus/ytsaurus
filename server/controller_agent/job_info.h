@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,8 +89,8 @@ public:
     TFuture<TSharedRef> JobSpecProtoFuture;
 
     NScheduler::TExtendedJobResources EstimatedResourceUsage;
-    TNullable<double> JobProxyMemoryReserveFactor;
-    TNullable<double> UserJobMemoryReserveFactor;
+    std::optional<double> JobProxyMemoryReserveFactor;
+    std::optional<double> UserJobMemoryReserveFactor;
     TJobResources ResourceLimits;
 
     NChunkPools::TChunkStripeListPtr InputStripeList;
@@ -163,5 +162,4 @@ DEFINE_REFCOUNTED_TYPE(TCompletedJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

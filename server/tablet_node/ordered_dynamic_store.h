@@ -9,8 +9,7 @@
 #include <array>
 #include <atomic>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +20,7 @@ class TOrderedDynamicStore
 public:
     TOrderedDynamicStore(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet);
     virtual ~TOrderedDynamicStore();
 
@@ -62,7 +61,7 @@ public:
 private:
     class TReader;
 
-    const TNullable<int> TimestampColumnId_;
+    const std::optional<int> TimestampColumnId_;
 
     std::atomic<i64> StoreRowCount_ = {0};
 
@@ -86,7 +85,7 @@ private:
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        const TNullable<NTableClient::TColumnFilter>& columnFilter);
+        const std::optional<NTableClient::TColumnFilter>& columnFilter);
 
 };
 
@@ -94,5 +93,4 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

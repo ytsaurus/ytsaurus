@@ -18,8 +18,7 @@
 #include <util/system/execpath.h>
 #include <util/system/fs.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 using namespace NYTree;
 using namespace NYson;
@@ -59,9 +58,9 @@ class TShellManager
 public:
     TShellManager(
         const TString& workingDir,
-        TNullable<int> userId,
-        TNullable<TString> freezerFullPath,
-        TNullable<TString> messageOfTheDay,
+        std::optional<int> userId,
+        std::optional<TString> freezerFullPath,
+        std::optional<TString> messageOfTheDay,
         std::vector<TString> environment)
         : WorkingDir_(workingDir)
         , UserId_(userId)
@@ -180,7 +179,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Shell manager is terminating");
+        YT_LOG_INFO("Shell manager is terminating");
         Terminated_ = true;
         for (auto& shell : IdToShell_) {
             shell.second->Terminate(error);
@@ -192,7 +191,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Shell manager is shutting down");
+        YT_LOG_INFO("Shell manager is shutting down");
         std::vector<TFuture<void>> futures;
         for (auto& shell : IdToShell_) {
             futures.push_back(shell.second->Shutdown(error));
@@ -202,9 +201,9 @@ public:
 
 private:
     const TString WorkingDir_;
-    TNullable<int> UserId_;
-    TNullable<TString> FreezerFullPath_;
-    TNullable<TString> MessageOfTheDay_;
+    std::optional<int> UserId_;
+    std::optional<TString> FreezerFullPath_;
+    std::optional<TString> MessageOfTheDay_;
 
     std::vector<TString> Environment_;
     THashMap<TShellId, IShellPtr> IdToShell_;
@@ -219,17 +218,17 @@ private:
     {
         YCHECK(IdToShell_.insert(std::make_pair(shell->GetId(), shell)).second);
 
-        LOG_DEBUG("Shell registered (ShellId: %v)",
+        YT_LOG_DEBUG("Shell registered (ShellId: %v)",
             shell->GetId());
     }
 
-    IShellPtr Find(const TShellId& shellId)
+    IShellPtr Find(TShellId shellId)
     {
         auto it = IdToShell_.find(shellId);
         return it == IdToShell_.end() ? nullptr : it->second;
     }
 
-    IShellPtr GetShellOrThrow(const TShellId& shellId)
+    IShellPtr GetShellOrThrow(TShellId shellId)
     {
         auto shell = Find(shellId);
         if (!shell) {
@@ -243,9 +242,9 @@ private:
 
 IShellManagerPtr CreateShellManager(
     const TString& workingDir,
-    TNullable<int> userId,
-    TNullable<TString> freezerFullPath,
-    TNullable<TString> messageOfTheDay,
+    std::optional<int> userId,
+    std::optional<TString> freezerFullPath,
+    std::optional<TString> messageOfTheDay,
     std::vector<TString> environment)
 {
     return New<TShellManager>(workingDir, userId, freezerFullPath, messageOfTheDay, std::move(environment));
@@ -255,9 +254,9 @@ IShellManagerPtr CreateShellManager(
 
 IShellManagerPtr CreateShellManager(
     const TString& workingDir,
-    TNullable<int> userId,
-    TNullable<TString> freezerFullPath,
-    TNullable<TString> messageOfTheDay,
+    std::optional<int> userId,
+    std::optional<TString> freezerFullPath,
+    std::optional<TString> messageOfTheDay,
     std::vector<TString> environment)
 {
     THROW_ERROR_EXCEPTION("Shell manager is supported only under Unix");
@@ -267,5 +266,4 @@ IShellManagerPtr CreateShellManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NShell
-} // namespace NYT
+} // namespace NYT::NShell

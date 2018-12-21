@@ -5,8 +5,7 @@
 #include <limits>
 #include <vector>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,7 +21,7 @@ TEST(TThresholdSnapshotId, ShortVector)
         {1, 10},
         {2, 11}
     };
-    ASSERT_LE(GetSnapshotThresholdId(snapshots, 3, Null), 0);
+    ASSERT_LE(GetSnapshotThresholdId(snapshots, 3, std::nullopt), 0);
 }
 
 TEST(TThresholdSnapshotId, LongVector)
@@ -32,7 +31,7 @@ TEST(TThresholdSnapshotId, LongVector)
         {2, 11},
         {9, 15}
     };
-    ASSERT_EQ(1, GetSnapshotThresholdId(snapshots, 2, Null));
+    ASSERT_EQ(1, GetSnapshotThresholdId(snapshots, 2, std::nullopt));
 }
 
 TEST(TThresholdSnapshotId, SmallSize)
@@ -42,7 +41,7 @@ TEST(TThresholdSnapshotId, SmallSize)
         {2, 3},
         {3, 7}
     };
-    ASSERT_LE(GetSnapshotThresholdId(snapshots, Null, 30), 0);
+    ASSERT_LE(GetSnapshotThresholdId(snapshots, std::nullopt, 30), 0);
 }
 
 TEST(TThresholdSnapshotId, BigSize)
@@ -53,7 +52,7 @@ TEST(TThresholdSnapshotId, BigSize)
         {3, 15},
         {4, 7}
     };
-    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, Null, 25));
+    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, std::nullopt, 25));
 }
 
 TEST(TThresholdSnapshotId, AccurateSize)
@@ -64,7 +63,7 @@ TEST(TThresholdSnapshotId, AccurateSize)
         {3, 13},
         {4, 14}
     };
-    ASSERT_EQ(1, GetSnapshotThresholdId(snapshots, Null, 38));
+    ASSERT_EQ(1, GetSnapshotThresholdId(snapshots, std::nullopt, 38));
 }
 
 TEST(TThresholdSnapshotId, CountStronger)
@@ -96,7 +95,7 @@ TEST(TThresholdSnapshotId, ZeroCount)
         {2, 11},
         {3, 13}
     };
-    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, 0, Null));
+    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, 0, std::nullopt));
 }
 
 TEST(TThresholdSnapshotId, ZeroSize)
@@ -106,11 +105,10 @@ TEST(TThresholdSnapshotId, ZeroSize)
         {2, 11},
         {3, 13}
     };
-    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, Null, 0));
+    ASSERT_EQ(2, GetSnapshotThresholdId(snapshots, std::nullopt, 0));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

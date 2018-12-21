@@ -12,12 +12,11 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +26,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
     IBlockCachePtr blockCache = GetNullBlockCache(),
     TTrafficMeterPtr trafficMeter = nullptr,
@@ -36,5 +35,4 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

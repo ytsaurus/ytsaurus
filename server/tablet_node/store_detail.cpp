@@ -36,8 +36,7 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -65,7 +64,7 @@ static const auto LocalChunkRecheckPeriod = TDuration::Seconds(15);
 
 TStoreBase::TStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : Config_(std::move(config))
     , ReaderConfig_(tablet->GetReaderConfig())
@@ -242,7 +241,7 @@ struct TDynamicStoreBufferTag
 
 TDynamicStoreBase::TDynamicStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : TStoreBase(std::move(config), id, tablet)
     , Atomicity_(Tablet_->GetAtomicity())
@@ -272,7 +271,7 @@ i64 TDynamicStoreBase::Lock()
     Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
     auto result = ++StoreLockCount_;
-    LOG_TRACE("Store locked (Count: %v)",
+    YT_LOG_TRACE("Store locked (Count: %v)",
         result);
     return result;
 }
@@ -283,7 +282,7 @@ i64 TDynamicStoreBase::Unlock()
     Y_ASSERT(StoreLockCount_ > 0);
 
     auto result = --StoreLockCount_;
-    LOG_TRACE("Store unlocked (Count: %v)",
+    YT_LOG_TRACE("Store unlocked (Count: %v)",
         result);
     return result;
 }
@@ -446,7 +445,7 @@ public:
     TPreloadedBlockCache(
         TIntrusivePtr<TChunkStoreBase> owner,
         TInMemoryChunkDataPtr chunkData,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         IBlockCachePtr underlyingCache)
         : Owner_(owner)
         , ChunkData_(chunkData)
@@ -458,7 +457,7 @@ public:
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source) override
     {
         UnderlyingCache_->Put(id, type, data, source);
     }
@@ -495,7 +494,7 @@ DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 
 TChunkStoreBase::TChunkStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
@@ -632,7 +631,7 @@ EStorePreloadState TChunkStoreBase::GetPreloadState() const
 
 void TChunkStoreBase::SetPreloadState(EStorePreloadState state)
 {
-    LOG_INFO("Set preload state (Current: %v, New: %v)", PreloadState_, state);
+    YT_LOG_INFO("Set preload state (Current: %v, New: %v)", PreloadState_, state);
     PreloadState_ = state;
 }
 
@@ -814,7 +813,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
     TWriterGuard guard(SpinLock_);
 
     if (InMemoryMode_ != mode) {
-        LOG_INFO("Changed in-memory mode (CurrentMode: %v, NewMode: %v)",
+        YT_LOG_INFO("Changed in-memory mode (CurrentMode: %v, NewMode: %v)",
             InMemoryMode_,
             mode);
 
@@ -825,7 +824,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
         ChunkReader_.Reset();
 
         if (PreloadFuture_) {
-            LOG_INFO("Cancelling current preload");
+            YT_LOG_INFO("Cancelling current preload");
             PreloadFuture_.Cancel();
             PreloadFuture_.Reset();
         }
@@ -902,7 +901,7 @@ TInstant TChunkStoreBase::GetCreationTime() const
 
 TSortedStoreBase::TSortedStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : TStoreBase(std::move(config), id, tablet)
 { }
@@ -931,7 +930,7 @@ ISortedStorePtr TSortedStoreBase::AsSorted()
 
 TOrderedStoreBase::TOrderedStoreBase(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet)
     : TStoreBase(std::move(config), id, tablet)
 { }
@@ -975,6 +974,5 @@ void TOrderedStoreBase::Load(TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

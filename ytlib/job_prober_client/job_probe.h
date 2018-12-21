@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NJobProberClient {
+namespace NYT::NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,9 +24,8 @@ DEFINE_REFCOUNTED_TYPE(IJobProbe)
 
 IJobProbePtr CreateJobProbe(
     NBus::TTcpBusClientConfigPtr config,
-    const NJobTrackerClient::TJobId& jobId);
+    NJobTrackerClient::TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProberClient
-} // namespace NYT
+} // namespace NYT::NJobProberClient

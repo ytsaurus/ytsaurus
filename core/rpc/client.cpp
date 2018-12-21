@@ -9,8 +9,7 @@
 
 #include <iterator>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYTree;
@@ -23,7 +22,7 @@ static const auto RequestIdAnnotation = TString("request_id");
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientContext::TClientContext(
-    const TRequestId& requestId,
+    TRequestId requestId,
     const NTracing::TTraceContext& traceContext,
     const TString& service,
     const TString& method,
@@ -165,7 +164,7 @@ TMutationId TClientRequest::GetMutationId() const
     return FromProto<TMutationId>(Header_.mutation_id());
 }
 
-void TClientRequest::SetMutationId(const TMutationId& id)
+void TClientRequest::SetMutationId(TMutationId id)
 {
     if (id) {
         ToProto(Header_.mutable_mutation_id(), id);
@@ -420,5 +419,4 @@ TGenericProxy::TGenericProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

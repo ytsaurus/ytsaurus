@@ -9,8 +9,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +21,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
 public:
-    explicit TDataCenter(const TDataCenterId& id);
+    explicit TDataCenter(TDataCenterId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -31,5 +30,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

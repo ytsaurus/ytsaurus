@@ -12,8 +12,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NConcurrency;
 using namespace NHydra;
@@ -35,7 +34,7 @@ void TExpirationTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LOG_INFO("Started registering node expiration (Count: %v)",
+    YT_LOG_INFO("Started registering node expiration (Count: %v)",
         ExpiredNodes_.size());
     for (auto* trunkNode : ExpiredNodes_) {
         Y_ASSERT(!trunkNode->GetExpirationIterator());
@@ -45,7 +44,7 @@ void TExpirationTracker::Start()
         }
     }
     ExpiredNodes_.clear();
-    LOG_INFO("Finished registering node expiration");
+    YT_LOG_INFO("Finished registering node expiration");
 
     YCHECK(!CheckExecutor_);
     CheckExecutor_ = New<TPeriodicExecutor>(
@@ -82,12 +81,12 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode
 
     if (trunkNode->GetExpirationTime()) {
         auto expirationTime = *trunkNode->GetExpirationTime();
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time set (NodeId: %v, ExpirationTime: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time set (NodeId: %v, ExpirationTime: %v)",
             trunkNode->GetId(),
             expirationTime);
         RegisterNodeExpiration(trunkNode, expirationTime);
     } else {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time reset (NodeId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time reset (NodeId: %v)",
             trunkNode->GetId());
     }
 }
@@ -136,7 +135,7 @@ void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TIn
 void TExpirationTracker::UnregisterNodeExpiration(TCypressNodeBase* trunkNode)
 {
     ExpirationMap_.erase(*trunkNode->GetExpirationIterator());
-    trunkNode->SetExpirationIterator(Null);
+    trunkNode->SetExpirationIterator(std::nullopt);
 }
 
 void TExpirationTracker::OnCheck()
@@ -171,7 +170,7 @@ void TExpirationTracker::OnCheck()
         return;
     }
 
-    LOG_DEBUG("Starting removal commit for expired nodes (Count: %v)",
+    YT_LOG_DEBUG("Starting removal commit for expired nodes (Count: %v)",
         request.node_ids_size());
 
     CreateMutation(hydraManager, request)
@@ -185,5 +184,4 @@ bool TExpirationTracker::IsRecovery()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

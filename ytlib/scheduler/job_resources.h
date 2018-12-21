@@ -8,8 +8,7 @@
 #include <yt/core/misc/fixed_point_number.h>
 #include <yt/core/misc/small_vector.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,5 +198,4 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

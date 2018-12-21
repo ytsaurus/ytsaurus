@@ -76,10 +76,10 @@ public:
                 ResolveAlias();
             }
 
-            LOG_INFO("Clique id parsed (CliqueId: %v)", CliqueId_);
+            YT_LOG_INFO("Clique id parsed (CliqueId: %v)", CliqueId_);
 
             PickRandomInstance();
-            LOG_INFO("Forwarding query to a randomly chosen instance (InstanceId: %v, Host: %v, HttpPort: %v)",
+            YT_LOG_INFO("Forwarding query to a randomly chosen instance (InstanceId: %v, Host: %v, HttpPort: %v)",
                 InstanceId_,
                 InstanceHost_,
                 InstanceHttpPort_);
@@ -100,7 +100,7 @@ public:
                 InstanceHttpPort_,
                 Req_->GetUrl().Path,
                 CgiParameters_.Print());
-            LOG_INFO("Querying instance (Url: %v)", url);
+            YT_LOG_INFO("Querying instance (Url: %v)", url);
             response = WaitFor(HttpClient_->Post(url, body, headers))
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
@@ -109,11 +109,11 @@ public:
             return;
         }
 
-        LOG_INFO("Got response from instance (StatusCode: %v)", response->GetStatusCode());
+        YT_LOG_INFO("Got response from instance (StatusCode: %v)", response->GetStatusCode());
         Rsp_->SetStatus(response->GetStatusCode());
         Rsp_->GetHeaders()->MergeFrom(response->GetHeaders());
         PipeInputToOutput(response, Rsp_);
-        LOG_INFO("Request handled");
+        YT_LOG_INFO("Request handled");
         Client_->GetConnection()->Terminate();
     }
 
@@ -135,7 +135,7 @@ private:
 
     void ReplyWithError(EStatusCode statusCode, TError error) const
     {
-        LOG_INFO(error, "Request failed during preparation");
+        YT_LOG_INFO(error, "Request failed during preparation");
         Rsp_->SetStatus(statusCode);
         WaitFor(Rsp_->WriteBody(TSharedRef::FromString(ToString(error))))
             .ThrowOnError();
@@ -147,7 +147,7 @@ private:
     void ResolveAlias()
     {
         auto alias = CliqueId_;
-        LOG_INFO("Resolving alias (Alias: %v)", alias);
+        YT_LOG_INFO("Resolving alias (Alias: %v)", alias);
         try {
             auto operationId = ConvertTo<TGuid>(WaitFor(
                 Client_->GetNode(
@@ -160,12 +160,12 @@ private:
                 << ex;
         }
 
-        LOG_INFO("Alias resolved (Alias: %v, CliqueId: %v)", alias, CliqueId_);
+        YT_LOG_INFO("Alias resolved (Alias: %v, CliqueId: %v)", alias, CliqueId_);
         CgiParameters_.ReplaceUnescaped("database", CliqueId_);
     }
 
     void ParseTokenFromAuthorizationHeader(const TString& authorization) {
-        LOG_INFO("Parsing token from Authorization header");
+        YT_LOG_INFO("Parsing token from Authorization header");
         // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
         auto authorizationTypeAndCredentials = SplitString(authorization, " ", 2);
         const auto& authorizationType = authorizationTypeAndCredentials[0];
@@ -191,7 +191,7 @@ private:
                        authorizationTypeAndCredentials.size()));
             return;
         }
-        LOG_INFO("Token parsed (AuthorizationType: %v)", authorizationType);
+        YT_LOG_INFO("Token parsed (AuthorizationType: %v)", authorizationType);
 
     }
 
@@ -231,7 +231,7 @@ private:
             return;
         }
 
-        LOG_INFO("Handling HTTP request (Host: %v)", *host);
+        YT_LOG_INFO("Handling HTTP request (Host: %v)", *host);
 
         auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
         connectionConfig->ClusterUrl = host->substr(11 /* length of "clickhouse." */);
@@ -240,7 +240,7 @@ private:
         clientOptions.Token = Token_;
         Client_ = connection->CreateClient(clientOptions);
 
-        LOG_INFO("RPC proxy client created");
+        YT_LOG_INFO("RPC proxy client created");
     }
 
     void Authenticate()
@@ -250,7 +250,7 @@ private:
         User_ = WaitFor(TokenAuthenticator_->Authenticate(credentials))
             .ValueOrThrow()
             .Login;
-        LOG_INFO("User authenticated (User: %v)", User_);
+        YT_LOG_INFO("User authenticated (User: %v)", User_);
     }
 
     void PickRandomInstance()

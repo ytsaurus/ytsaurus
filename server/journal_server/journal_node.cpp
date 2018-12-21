@@ -13,8 +13,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-namespace NYT {
-namespace NJournalServer {
+namespace NYT::NJournalServer {
 
 using namespace NCellMaster;
 using namespace NCypressServer;
@@ -142,6 +141,14 @@ public:
         return ENodeType::Entity;
     }
 
+    virtual bool HasBranchedChangesImpl(
+        TJournalNode* originatingNode,
+        TJournalNode* branchedNode) override
+    {
+        // Forbid explicitly unlocking journal nodes.
+        return true;
+    }
+
 protected:
     typedef TChunkOwnerTypeHandler<TJournalNode> TBase;
 
@@ -203,7 +210,7 @@ protected:
     virtual void DoBranch(
         const TJournalNode* originatingNode,
         TJournalNode* branchedNode,
-        const TLockRequest& lockRequest) override
+        const TLockRequest& /*lockRequest*/) override
     {
         // NB: Don't call TBase::DoBranch.
 
@@ -230,7 +237,7 @@ protected:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
-        LOG_DEBUG_UNLESS(
+        YT_LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
             "PrimaryMedium: %v, Replication: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v, LockTimestamp: %llx)",
@@ -268,7 +275,7 @@ protected:
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        LOG_DEBUG_UNLESS(
+        YT_LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
             originatingNode->GetVersionedId(),
@@ -291,7 +298,7 @@ protected:
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        LOG_DEBUG_UNLESS(
+        YT_LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node unbranched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
             originatingNode->GetVersionedId(),
@@ -329,7 +336,7 @@ protected:
         if (!trunkNode->IsExternal()) {
             auto* trailingChunk = trunkNode->GetTrailingChunk();
             if (trailingChunk && !trailingChunk->IsSealed()) {
-                LOG_DEBUG_UNLESS(
+                YT_LOG_DEBUG_UNLESS(
                     IsRecovery(),
                     "Waiting for the trailing journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
                     trunkNode->GetId(),
@@ -351,6 +358,5 @@ INodeTypeHandlerPtr CreateJournalTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
-} // namespace NYT
+} // namespace NYT::NJournalServer
 

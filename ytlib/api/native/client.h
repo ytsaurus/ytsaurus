@@ -6,9 +6,7 @@
 
 #include <yt/ytlib/query_client/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,13 +33,13 @@ struct IClient
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual NRpc::IChannelPtr GetCellChannelOrThrow(
-        const NElection::TCellId& cellId) = 0;
+        NElection::TCellId cellId) = 0;
 
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual ITransactionPtr AttachNativeTransaction(
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
 };
 
@@ -55,7 +53,5 @@ IClientPtr CreateClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

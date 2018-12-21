@@ -19,8 +19,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,10 +53,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TString>, Tags);
 
     //! Last time when logging of jobs on node took place.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastJobsLogTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastJobsLogTime);
 
     //! Last time when missing jobs were checked on this node.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastCheckMissingJobsTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastCheckMissingJobsTime);
 
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
@@ -193,5 +192,4 @@ DEFINE_REFCOUNTED_TYPE(TRefCountedExecNodeDescriptorMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

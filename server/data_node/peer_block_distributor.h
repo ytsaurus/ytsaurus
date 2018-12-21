@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/lock_free.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,5 +110,4 @@ DEFINE_REFCOUNTED_TYPE(TPeerBlockDistributor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

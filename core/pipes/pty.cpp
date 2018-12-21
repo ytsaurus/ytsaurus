@@ -7,8 +7,7 @@
 
 #include <yt/core/net/connection.h>
 
-namespace NYT {
-namespace NPipes {
+namespace NYT::NPipes {
 
 using namespace NNet;
 
@@ -62,5 +61,4 @@ int TPty::GetSlaveFD() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPipes
-} // namespace NYT
+} // namespace NYT::NPipes

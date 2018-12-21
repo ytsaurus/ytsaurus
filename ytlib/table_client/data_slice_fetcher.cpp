@@ -7,8 +7,7 @@
 
 #include <tuple>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 
@@ -55,6 +54,5 @@ std::vector<TInputDataSlicePtr> TDataSliceFetcher::GetDataSlices()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

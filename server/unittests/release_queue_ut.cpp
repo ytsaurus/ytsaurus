@@ -1,7 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/misc/guid.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/server/misc/release_queue.h>
 
@@ -18,7 +18,7 @@ class TReleaseQueueTest
 public:
     void Reset()
     {
-        Queue_.Emplace();
+        Queue_.emplace();
     }
 
     TGuid Push()
@@ -49,7 +49,7 @@ public:
     }
 
 protected:
-    TNullable<TReleaseQueue<TGuid>> Queue_;
+    std::optional<TReleaseQueue<TGuid>> Queue_;
 
 private:
     THashSet<TGuid> InQueue_;

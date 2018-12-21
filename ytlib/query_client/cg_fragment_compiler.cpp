@@ -23,8 +23,7 @@
 //    It is possible to do better memory management here.
 //  - TBAA is a king
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 using namespace NConcurrency;
@@ -1902,7 +1901,7 @@ TCodegenExpression MakeCodegenBetweenExpr(
 
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
-    TNullable<size_t> defaultExprId,
+    std::optional<size_t> defaultExprId,
     int arrayIndex,
     int hashtableIndex,
     EValueType resultType,
@@ -3201,6 +3200,5 @@ TCGAggregateCallbacks CodegenAggregate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

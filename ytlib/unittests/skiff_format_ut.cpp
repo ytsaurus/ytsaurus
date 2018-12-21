@@ -51,7 +51,7 @@ TString ConvertToYsonTextStringStable(const INodePtr& node)
 {
     TStringStream out;
     TYsonWriter writer(&out, EYsonFormat::Text);
-    VisitTree(node, &writer, true, Null);
+    VisitTree(node, &writer, true, std::nullopt);
     writer.Flush();
     return out.Str();
 }
@@ -219,7 +219,7 @@ TEST(TSkiffSchemaDescription, TestKeySwitchColumn)
 
         auto tableDescriptionList = CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
         EXPECT_EQ(tableDescriptionList.size(), 1);
-        EXPECT_EQ(tableDescriptionList[0].KeySwitchFieldIndex, TNullable<size_t>(1));
+        EXPECT_EQ(tableDescriptionList[0].KeySwitchFieldIndex, std::optional<size_t>(1));
     }
     {
         auto schema = CreateTupleSchema({
@@ -1225,10 +1225,10 @@ TEST(TSkiffParser, TestSparse)
 
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "int64")), -42);
     ASSERT_EQ(GetUint64(collectedRows.GetRowValue(0, "uint64")), 54);
-    ASSERT_EQ(collectedRows.FindRowValue(0, "string32").HasValue(), false);
+    ASSERT_FALSE(collectedRows.FindRowValue(0, "string32"));
 
-    ASSERT_EQ(collectedRows.FindRowValue(1, "int64").HasValue(), false);
-    ASSERT_EQ(collectedRows.FindRowValue(1, "uint64").HasValue(), false);
+    ASSERT_FALSE(collectedRows.FindRowValue(1, "int64"));
+    ASSERT_FALSE(collectedRows.FindRowValue(1, "uint64"));
     ASSERT_EQ(GetString(collectedRows.GetRowValue(1, "string32")), "foo");
 }
 

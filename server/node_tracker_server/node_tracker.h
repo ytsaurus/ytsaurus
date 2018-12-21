@@ -6,6 +6,8 @@
 
 #include <yt/server/hydra/entity_map.h>
 
+#include <yt/server/node_tracker_server/node_tracker.pb.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/ytlib/hydra/public.h>
@@ -16,8 +18,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,6 +157,10 @@ public:
     //! Sets the user tags for the node.
     void SetNodeUserTags(TNode* node, const std::vector<TString>& tags);
 
+    //! Creates a mutation that updates node's resource usage and limits.
+    std::unique_ptr<NHydra::TMutation> CreateUpdateNodeResourcesMutation(
+        const NProto::TReqUpdateNodeResources& request);
+
     //! Sets the flag disabling write sessions at the node.
     void SetDisableWriteSessions(TNode* node, bool value);
 
@@ -217,5 +222,4 @@ DEFINE_REFCOUNTED_TYPE(TNodeTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

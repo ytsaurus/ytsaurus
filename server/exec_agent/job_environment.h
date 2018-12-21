@@ -17,8 +17,7 @@
 
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,8 +29,8 @@ struct IJobEnvironment
     virtual TFuture<void> RunJobProxy(
         int slotIndex,
         const TString& workingDirectory,
-        const TJobId& jobId,
-        const TOperationId& operationId) = 0;
+        TJobId jobId,
+        TOperationId operationId) = 0;
 
     virtual void CleanProcesses(int slotIndex) = 0;
 
@@ -44,9 +43,9 @@ struct IJobEnvironment
 
     virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(const std::vector<NDataNode::TArtifactKey>& layers) = 0;
 
-    virtual TNullable<i64> GetMemoryLimit() const = 0;
+    virtual std::optional<i64> GetMemoryLimit() const = 0;
 
-    virtual TNullable<double> GetCpuLimit() const = 0;
+    virtual std::optional<double> GetCpuLimit() const = 0;
 
     virtual bool ExternalJobMemory() const = 0;
 };
@@ -61,5 +60,4 @@ IJobEnvironmentPtr CreateJobEnvironment(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

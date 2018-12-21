@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/misc/public.h>
 
-namespace NYT {
-namespace NAdmin {
+namespace NYT::NAdmin {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +16,4 @@ NRpc::IServicePtr CreateAdminService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAdmin
-} // namespace NYT
+} // namespace NYT::NAdmin

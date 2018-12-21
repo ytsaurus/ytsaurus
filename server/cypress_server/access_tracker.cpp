@@ -13,8 +13,7 @@
 
 #include <yt/server/transaction_server/transaction.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NConcurrency;
 using namespace NHydra;
@@ -128,13 +127,11 @@ void TAccessTracker::OnFlush()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    if (NodesWithAccessStatisticsUpdate_.empty() ||
-        !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
-    {
+    if (NodesWithAccessStatisticsUpdate_.empty() || !hydraManager->IsActive()) {
         return;
     }
 
-    LOG_DEBUG("Starting access statistics commit (NodeCount: %v)",
+    YT_LOG_DEBUG("Starting access statistics commit (NodeCount: %v)",
         UpdateAccessStatisticsRequest_.updates_size());
 
     auto mutation = CreateMutation(hydraManager, UpdateAccessStatisticsRequest_);
@@ -148,5 +145,4 @@ void TAccessTracker::OnFlush()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

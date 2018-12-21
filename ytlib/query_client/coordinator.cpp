@@ -16,8 +16,7 @@
 
 #include <numeric>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -113,7 +112,7 @@ TRowRanges GetPrunedRanges(
     const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
-    const TObjectId& tableId,
+    TObjectId tableId,
     const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
@@ -121,7 +120,7 @@ TRowRanges GetPrunedRanges(
     const TQueryOptions& options,
     const NLogging::TLogger& Logger)
 {
-    LOG_DEBUG("Inferring ranges from predicate");
+    YT_LOG_DEBUG("Inferring ranges from predicate");
 
     auto rangeInferrer = CreateRangeInferrer(
         predicate,
@@ -137,7 +136,7 @@ TRowRanges GetPrunedRanges(
             range.second);
     };
 
-    LOG_DEBUG("Splitting %v sources according to ranges", ranges.Size());
+    YT_LOG_DEBUG("Splitting %v sources according to ranges", ranges.Size());
 
     TRowRanges result;
     for (const auto& originalRange : ranges) {
@@ -145,7 +144,7 @@ TRowRanges GetPrunedRanges(
         result.insert(result.end(), inferred.begin(), inferred.end());
 
         for (const auto& range : inferred) {
-            LOG_DEBUG_IF(options.VerboseLogging, "Narrowing source %v key range from %v to %v",
+            YT_LOG_DEBUG_IF(options.VerboseLogging, "Narrowing source %v key range from %v to %v",
                 tableId,
                 keyRangeFormatter(originalRange),
                 keyRangeFormatter(range));
@@ -157,7 +156,7 @@ TRowRanges GetPrunedRanges(
 
 TRowRanges GetPrunedRanges(
     const TConstQueryPtr& query,
-    const TObjectId& tableId,
+    TObjectId tableId,
     const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
@@ -187,13 +186,13 @@ TQueryStatistics CoordinateAndExecute(
 {
     auto Logger = MakeQueryLogger(query);
 
-    LOG_DEBUG("Begin coordinating query");
+    YT_LOG_DEBUG("Begin coordinating query");
 
     TConstFrontQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
     std::tie(topQuery, subqueries) = CoordinateQuery(query, refiners);
 
-    LOG_DEBUG("Finished coordinating query");
+    YT_LOG_DEBUG("Finished coordinating query");
 
     std::vector<ISchemafulReaderPtr> splitReaders;
 
@@ -231,12 +230,12 @@ TQueryStatistics CoordinateAndExecute(
         auto subqueryStatisticsOrError = WaitFor(subqueryHolders[index].Get());
         if (subqueryStatisticsOrError.IsOK()) {
             const auto& subqueryStatistics = subqueryStatisticsOrError.ValueOrThrow();
-            LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v)",
+            YT_LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v)",
                 subqueries[index]->Id,
                 subqueryStatistics);
             queryStatistics.AddInnerStatistics(subqueryStatistics);
         } else {
-            LOG_DEBUG(subqueryStatisticsOrError, "Subquery failed (SubqueryId: %v)",
+            YT_LOG_DEBUG(subqueryStatisticsOrError, "Subquery failed (SubqueryId: %v)",
                 subqueries[index]->Id);
         }
     }
@@ -246,6 +245,5 @@ TQueryStatistics CoordinateAndExecute(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

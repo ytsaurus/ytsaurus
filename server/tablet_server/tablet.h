@@ -19,14 +19,13 @@
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/misc/enum.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,7 +262,7 @@ public:
     std::vector<TError> GetErrors() const;
 
 public:
-    explicit TTablet(const TTabletId& id);
+    explicit TTablet(TTabletId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -296,5 +295,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

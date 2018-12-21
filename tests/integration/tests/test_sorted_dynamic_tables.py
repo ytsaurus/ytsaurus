@@ -485,7 +485,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_overflow_row_data_weight(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@enable_store_rotation", False)
         set("//tmp/t/@max_dynamic_store_row_data_weight", 100)
         sync_mount_table("//tmp/t")
         rows = [{"key": 0, "value": "A" * 100}]
@@ -1558,9 +1558,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             verify()
 
-    def test_stress_versioned_lookup(self):
+    @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for):
         # This test checks that versioned lookup gives the same result for scan and lookup versioned formats.
         random.seed(12345)
+
+        if in_memory_mode == "none" and optimize_for == "lookup":
+            return
 
         schema = [
             {"name": "k1", "type": "int64", "sort_order": "ascending"},
@@ -1590,31 +1595,32 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             return {"k1": random.randint(1, 10), "k2": random.randint(1, 10)}
 
         sync_create_cells(1)
-        self._create_simple_table("//tmp/lookup", schema=schema, optimize_for="lookup")
-        sync_mount_table("//tmp/lookup")
+        self._create_simple_table("//tmp/expected", schema=schema, optimize_for="lookup")
+        sync_mount_table("//tmp/expected")
 
         for i in range(read_iters):
             keys = [random_key() for i in range(5)]
             if random.randint(0, 99) < delete_probability:
-                delete_rows("//tmp/lookup", keys)
+                delete_rows("//tmp/expected", keys)
             else:
-                random_write("//tmp/lookup", keys)
+                random_write("//tmp/expected", keys)
             timestamps += [generate_timestamp()]
 
-        sync_unmount_table("//tmp/lookup")
-        copy("//tmp/lookup", "//tmp/scan")
-        set("//tmp/scan/@optimize_for", "scan")
-        sync_mount_table("//tmp/lookup")
-        sync_mount_table("//tmp/scan")
-        sync_compact_table("//tmp/scan")
+        sync_unmount_table("//tmp/expected")
+        copy("//tmp/expected", "//tmp/actual")
+        set("//tmp/actual/@optimize_for", optimize_for)
+        set("//tmp/actual/@in_memory_mode", in_memory_mode)
+        sync_mount_table("//tmp/expected")
+        sync_mount_table("//tmp/actual")
+        sync_compact_table("//tmp/actual")
 
         for i in range(lookup_iters):
             keys = [random_key() for i in range(5)]
             ts = random.choice(timestamps)
             for versioned in True, False:
-                res_lookup = lookup_rows("//tmp/lookup", keys, versioned=versioned, timestamp=ts)
-                res_scan = lookup_rows("//tmp/scan", keys, versioned=versioned, timestamp=ts)
-                assert res_scan == res_lookup
+                expected = lookup_rows("//tmp/expected", keys, versioned=versioned, timestamp=ts)
+                actual = lookup_rows("//tmp/actual", keys, versioned=versioned, timestamp=ts)
+                assert expected == actual
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @skip_if_rpc_driver_backend
@@ -1738,9 +1744,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
         assert get("#" + chunk_id + "/@erasure_codec") == "lrc_12_2_2"
 
@@ -2241,10 +2245,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": i, "value": "A"*1024} for i in xrange(10)])
         sync_unmount_table("//tmp/t")
 
-        chunks = get("//tmp/t/@chunk_ids")
-        assert len(chunks) == 1
-        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
-        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
     def test_reshard_with_uncovered_chunk_fails(self):
         sync_create_cells(1)
@@ -2255,7 +2258,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         sync_unmount_table("//tmp/t")
 
-        chunk_id = get("//tmp/t/@chunk_ids")[0]
+        chunk_id = get_first_chunk_id("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [1], [2]])
 
         def get_tablet_chunk_lists():

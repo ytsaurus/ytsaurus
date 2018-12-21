@@ -8,8 +8,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +66,7 @@ public:
 public:
     TPartition(
         TTablet* tablet,
-        const TPartitionId& id,
+        TPartitionId id,
         int index,
         TOwningKey pivotKey = TOwningKey(),
         TOwningKey nextPivotKey = TOwningKey());
@@ -104,5 +103,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

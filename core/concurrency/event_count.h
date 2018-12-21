@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #ifndef _linux_
     #include <util/system/mutex.h>
@@ -12,8 +12,7 @@
 #include <limits>
 #include <atomic>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,12 +91,12 @@ public:
 
     TCookie PrepareWait();
     void CancelWait();
-    bool Wait(TCookie cookie, TNullable<TInstant> deadline = Null);
+    bool Wait(TCookie cookie, std::optional<TInstant> deadline = std::nullopt);
 
     //! Wait for |condition()| to become |true|.
     //! Will clean up appropriately if |condition()| throws, and then rethrow.
     template <class TCondition>
-    bool Await(TCondition condition, TNullable<TInstant> deadline = Null);
+    bool Await(TCondition condition, std::optional<TInstant> deadline = std::nullopt);
 
 private:
     void DoNotify(int n);
@@ -134,7 +133,7 @@ public:
     void NotifyAll();
 
     bool Test() const;
-    bool Wait(TNullable<TInstant> deadline = Null);
+    bool Wait(std::optional<TInstant> deadline = std::nullopt);
 
 private:
     std::atomic<bool> Set_ = {false};
@@ -143,8 +142,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define EVENT_COUNT_INL_H_
 #include "event_count-inl.h"

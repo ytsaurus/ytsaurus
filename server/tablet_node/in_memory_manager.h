@@ -17,8 +17,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,11 +79,11 @@ IInMemoryManagerPtr CreateInMemoryManager(
 TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
-    const NChunkClient::TReadSessionId& readSessionId,
+    NChunkClient::TReadSessionId readSessionId,
     NNodeTrackerClient::TNodeMemoryTracker* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
-    const NProfiling::TTagId& preloadTag = {});
+    NProfiling::TTagId preloadTag = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,5 +120,4 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

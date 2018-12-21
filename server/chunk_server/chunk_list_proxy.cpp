@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -181,5 +180,4 @@ IObjectProxyPtr CreateChunkListProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

@@ -17,8 +17,7 @@
 
 #include <yt/core/profiling/public.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +41,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagId, ProfilingTag);
 
 public:
-    explicit TTabletCellBundle(const TTabletCellBundleId& id);
+    explicit TTabletCellBundle(TTabletCellBundleId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -56,5 +55,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

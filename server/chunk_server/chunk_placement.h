@@ -7,13 +7,12 @@
 
 #include <yt/server/node_tracker_server/node.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/small_set.h>
 
 #include <util/generic/map.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,9 +36,9 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        TNullable<int> replicationFactorOverride,
+        std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const TNullable<TString>& preferredHostName,
+        const std::optional<TString>& preferredHostName,
         NChunkClient::ESessionType sessionType);
 
     TNodeList AllocateWriteTargets(
@@ -47,7 +46,7 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        TNullable<int> replicationFactorOverride,
+        std::optional<int> replicationFactorOverride,
         const TDataCenterSet& dataCenters,
         NChunkClient::ESessionType sessionType);
 
@@ -69,11 +68,11 @@ public:
     int GetMaxReplicasPerRack(
         const TMedium* medium,
         TChunk* chunk,
-        TNullable<int> replicationFactorOverride = Null);
+        std::optional<int> replicationFactorOverride = std::nullopt);
     int GetMaxReplicasPerRack(
         int mediumIndex,
         TChunk* chunk,
-        TNullable<int> replicationFactorOverride = Null);
+        std::optional<int> replicationFactorOverride = std::nullopt);
 
 private:
     class TTargetCollector;
@@ -101,10 +100,10 @@ private:
         int desiredCount,
         int minCount,
         bool forceRackAwareness,
-        TNullable<int> replicationFactorOverride,
+        std::optional<int> replicationFactorOverride,
         const TDataCenterSet* dataCenters,
         const TNodeList* forbiddenNodes = nullptr,
-        const TNullable<TString>& preferredHostName = Null);
+        const std::optional<TString>& preferredHostName = std::nullopt);
 
     TNode* GetBalancingTarget(
         TMedium* medium,
@@ -147,5 +146,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkPlacement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

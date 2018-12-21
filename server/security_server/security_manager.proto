@@ -6,8 +6,8 @@ import "yt/core/misc/proto/guid.proto";
 
 message TClusterResources
 {
-    required int32 chunk_count = 2;
-    required int32 node_count = 3;
+    required int64 chunk_count = 2;
+    required int64 node_count = 3;
     required int32 tablet_count = 5;
     required int64 tablet_static_memory_size = 6;
 

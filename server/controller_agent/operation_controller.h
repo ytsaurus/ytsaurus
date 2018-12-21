@@ -27,8 +27,7 @@
 
 #include <yt/core/yson/public.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,7 +139,7 @@ struct TStartedJobSummary
 struct TJobSummary
 {
     TJobSummary() = default;
-    TJobSummary(const TJobId& id, EJobState state);
+    TJobSummary(TJobId id, EJobState state);
     explicit TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
     virtual ~TJobSummary() = default;
 
@@ -150,13 +149,13 @@ struct TJobSummary
     TJobId Id;
     EJobState State = EJobState::None;
 
-    TNullable<TInstant> FinishTime;
-    TNullable<TDuration> PrepareDuration;
-    TNullable<TDuration> DownloadDuration;
-    TNullable<TDuration> ExecDuration;
+    std::optional<TInstant> FinishTime;
+    std::optional<TDuration> PrepareDuration;
+    std::optional<TDuration> DownloadDuration;
+    std::optional<TDuration> ExecDuration;
 
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
-    TNullable<NJobTrackerClient::TStatistics> Statistics;
+    std::optional<NJobTrackerClient::TStatistics> Statistics;
     NYson::TYsonString StatisticsYson;
 
     bool LogAndProfile = false;
@@ -164,6 +163,7 @@ struct TJobSummary
     bool ArchiveJobSpec = false;
     bool ArchiveStderr = false;
     bool ArchiveFailContext = false;
+    bool ArchiveProfile = false;
 };
 
 struct TCompletedJobSummary
@@ -186,7 +186,7 @@ struct TCompletedJobSummary
 struct TAbortedJobSummary
     : public TJobSummary
 {
-    TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
+    TAbortedJobSummary(TJobId id, EAbortReason abortReason);
     TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
     explicit TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
 
@@ -210,9 +210,9 @@ struct TRunningJobSummary
 struct IOperationControllerHost
     : public virtual TRefCounted
 {
-    virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) = 0;
-    virtual void AbortJob(const TJobId& jobId, const TError& error) = 0;
-    virtual void FailJob(const TJobId& jobId) = 0;
+    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
+    virtual void AbortJob(TJobId jobId, const TError& error) = 0;
+    virtual void FailJob(TJobId jobId) = 0;
     virtual void ReleaseJobs(const std::vector<NScheduler::TJobToRelease>& jobsToRelease) = 0;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() = 0;
@@ -223,8 +223,8 @@ struct IOperationControllerHost
     virtual void CreateJobNode(const TCreateJobNodeRequest& request) = 0;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
-        const NTransactionClient::TTransactionId& transactionId,
-        const NCypressClient::TNodeId& tableId,
+        NTransactionClient::TTransactionId transactionId,
+        NCypressClient::TNodeId tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds) = 0;
     virtual void AddChunkTreesToUnstageList(
         const std::vector<NChunkClient::TChunkId>& chunkTreeIds,
@@ -243,7 +243,7 @@ struct IOperationControllerHost
     virtual int GetExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
-    virtual const NScheduler::TIncarnationId& GetIncarnationId() = 0;
+    virtual NScheduler::TIncarnationId GetIncarnationId() = 0;
 
     virtual void OnOperationCompleted() = 0;
     virtual void OnOperationAborted(const TError& error) = 0;
@@ -263,7 +263,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
 struct TJobStartDescriptor
 {
     TJobStartDescriptor(
-        const TJobId& id,
+        TJobId id,
         EJobType type,
         const TJobResources& resourceLimits,
         bool interruptible);
@@ -283,7 +283,7 @@ struct TScheduleJobResult
     bool IsBackoffNeeded() const;
     bool IsScheduleStopNeeded() const;
 
-    TNullable<TJobStartDescriptor> StartDescriptor;
+    std::optional<TJobStartDescriptor> StartDescriptor;
     TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
     TDuration Duration;
     TIncarnationId IncarnationId;
@@ -589,7 +589,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: cancelable Controller invoker with EOperationControllerQueue::GetJobSpec index.
      */
-    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const = 0;
+    virtual TSharedRef ExtractJobSpec(TJobId jobId) const = 0;
 
     //! Builds operation alerts.
     /*!
@@ -620,7 +620,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker.
      */
-    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
+    virtual NYson::TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const = 0;
 
     //! Return a YPath service representing this controller in controller agent Orchid.
     /*!
@@ -632,7 +632,7 @@ struct IOperationController
 
     virtual void RegisterOutputRows(i64 count, int tableIndex) = 0;
 
-    virtual TNullable<int> GetRowCountLimitTableIndex() = 0;
+    virtual std::optional<int> GetRowCountLimitTableIndex() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)
@@ -645,5 +645,4 @@ IOperationControllerPtr CreateControllerForOperation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

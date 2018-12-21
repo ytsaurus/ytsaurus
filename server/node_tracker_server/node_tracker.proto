@@ -1,5 +1,7 @@
 package NYT.NNodeTrackerServer.NProto;
 
+import "yt/client/node_tracker_client/proto/node.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqUnregisterNode
@@ -43,6 +45,15 @@ message TReqSetCellNodeDescriptors
 
     required int32 cell_tag = 1;
     repeated TEntry entries = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateNodeResources
+{
+    required int32 node_id = 1;
+    required NYT.NNodeTrackerClient.NProto.TNodeResources resource_usage = 2;
+    required NYT.NNodeTrackerClient.NProto.TNodeResources resource_limits = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,9 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,13 +26,13 @@ public:
         TConnectionPtr connection,
         TClientPtr client,
         NRpc::IChannelPtr channel,
-        const NTransactionClient::TTransactionId& id,
+        NTransactionClient::TTransactionId id,
         NTransactionClient::TTimestamp startTimestamp,
         NTransactionClient::ETransactionType type,
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::EDurability durability,
         TDuration timeout,
-        TNullable<TDuration> pingPeriod,
+        std::optional<TDuration> pingPeriod,
         bool sticky);
 
     // ITransaction implementation
@@ -42,7 +40,7 @@ public:
     virtual NApi::IClientPtr GetClient() const override;
 
     virtual NTransactionClient::ETransactionType GetType() const override;
-    virtual const NTransactionClient::TTransactionId& GetId() const override;
+    virtual NTransactionClient::TTransactionId GetId() const override;
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const override;
     virtual NTransactionClient::EAtomicity GetAtomicity() const override;
     virtual NTransactionClient::EDurability GetDurability() const override;
@@ -139,6 +137,10 @@ public:
         NCypressClient::ELockMode mode,
         const NApi::TLockNodeOptions& options) override;
 
+    virtual TFuture<void> UnlockNode(
+        const NYPath::TYPath& path,
+        const NApi::TUnlockNodeOptions& options) override;
+
     virtual TFuture<NCypressClient::TNodeId> CopyNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
@@ -193,7 +195,7 @@ private:
     const NTransactionClient::EAtomicity Atomicity_;
     const NTransactionClient::EDurability Durability_;
     const TDuration Timeout_;
-    const TNullable<TDuration> PingPeriod_;
+    const std::optional<TDuration> PingPeriod_;
     const bool Sticky_;
 
     TSpinLock InFlightModifyRowsRequestsLock_;
@@ -240,9 +242,7 @@ DEFINE_REFCOUNTED_TYPE(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy
 
 #define TRANSACTION_IMPL_INL_H_
 #include "transaction_impl-inl.h"

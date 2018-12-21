@@ -15,8 +15,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NTabletServer;
 using namespace NObjectServer;
@@ -80,7 +79,7 @@ private:
         }
 
         try {
-            LOG_DEBUG("Started synchronizing cell directory");
+            YT_LOG_DEBUG("Started synchronizing cell directory");
 
             THashMap<TCellId, int> idToVersion;
             for (const auto& info : CellDirectory_->GetRegisteredCells()) {
@@ -112,9 +111,9 @@ private:
                 }
             }
 
-            LOG_DEBUG("Finished synchronizing cell directory");
+            YT_LOG_DEBUG("Finished synchronizing cell directory");
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Error synchronizing cell directory");
+            YT_LOG_DEBUG(ex, "Error synchronizing cell directory");
         }
     }
 };
@@ -149,5 +148,4 @@ void TCellDirectorySynchronizer::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

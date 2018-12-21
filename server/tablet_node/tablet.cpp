@@ -34,8 +34,7 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/tls_cache.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -156,13 +155,13 @@ std::vector<ISortedStorePtr> TTabletSnapshot::GetEdenStores()
     return stores;
 }
 
-TTableReplicaSnapshotPtr TTabletSnapshot::FindReplicaSnapshot(const TTableReplicaId& replicaId)
+TTableReplicaSnapshotPtr TTabletSnapshot::FindReplicaSnapshot(TTableReplicaId replicaId)
 {
     auto it = Replicas.find(replicaId);
     return it == Replicas.end() ? nullptr : it->second;
 }
 
-void TTabletSnapshot::ValidateCellId(const TCellId& cellId)
+void TTabletSnapshot::ValidateCellId(TCellId cellId)
 {
     if (CellId != cellId) {
         THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, got %v",
@@ -310,7 +309,7 @@ void TTableReplicaInfo::MergeFromStatistics(const TTableReplicaStatistics& stati
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(
-    const TTabletId& tabletId,
+    TTabletId tabletId,
     ITabletContext* context)
     : TObjectBase(tabletId)
     , Config_(New<TTableMountConfig>())
@@ -336,9 +335,9 @@ TTablet::TTablet(
     TTabletChunkReaderConfigPtr readerConfig,
     TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions,
-    const TTabletId& tabletId,
+    TTabletId tabletId,
     i64 mountRevision,
-    const TObjectId& tableId,
+    TObjectId tableId,
     const TYPath& path,
     ITabletContext* context,
     const TTableSchema& schema,
@@ -346,7 +345,7 @@ TTablet::TTablet(
     TOwningKey nextPivotKey,
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
-    const TTableReplicaId& upstreamReplicaId)
+    TTableReplicaId upstreamReplicaId)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -696,14 +695,14 @@ void TTablet::CreateInitialPartition()
     PartitionList_.push_back(std::move(partition));
 }
 
-TPartition* TTablet::FindPartition(const TPartitionId& partitionId)
+TPartition* TTablet::FindPartition(TPartitionId partitionId)
 {
     YCHECK(IsPhysicallySorted());
     const auto& it = PartitionMap_.find(partitionId);
     return it == PartitionMap_.end() ? nullptr : it->second;
 }
 
-TPartition* TTablet::GetPartition(const TPartitionId& partitionId)
+TPartition* TTablet::GetPartition(TPartitionId partitionId)
 {
     YCHECK(IsPhysicallySorted());
     auto* partition = FindPartition(partitionId);
@@ -894,20 +893,20 @@ void TTablet::RemoveStore(IStorePtr store)
     }
 }
 
-IStorePtr TTablet::FindStore(const TStoreId& id)
+IStorePtr TTablet::FindStore(TStoreId id)
 {
     auto it = StoreIdMap_.find(id);
     return it == StoreIdMap_.end() ? nullptr : it->second;
 }
 
-IStorePtr TTablet::GetStore(const TStoreId& id)
+IStorePtr TTablet::GetStore(TStoreId id)
 {
     auto store = FindStore(id);
     YCHECK(store);
     return store;
 }
 
-IStorePtr TTablet::GetStoreOrThrow(const TStoreId& id)
+IStorePtr TTablet::GetStoreOrThrow(TStoreId id)
 {
     auto store = FindStore(id);
     if (!store) {
@@ -916,13 +915,13 @@ IStorePtr TTablet::GetStoreOrThrow(const TStoreId& id)
     return store;
 }
 
-TTableReplicaInfo* TTablet::FindReplicaInfo(const TTableReplicaId& id)
+TTableReplicaInfo* TTablet::FindReplicaInfo(TTableReplicaId id)
 {
     auto it = Replicas_.find(id);
     return it == Replicas_.end() ? nullptr : &it->second;
 }
 
-TTableReplicaInfo* TTablet::GetReplicaInfoOrThrow(const TTableReplicaId& id)
+TTableReplicaInfo* TTablet::GetReplicaInfoOrThrow(TTableReplicaId id)
 {
     auto* info = FindReplicaInfo(id);
     if (!info) {
@@ -1198,7 +1197,7 @@ void TTablet::Initialize()
     StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
 }
 
-void TTablet::FillProfilerTags(const TCellId& cellId)
+void TTablet::FillProfilerTags(TCellId cellId)
 {
     ProfilerTags_.clear();
 
@@ -1314,7 +1313,7 @@ void TTablet::UpdateOverlappingStoreCount()
     overlappingStoreCount += Eden_->Stores().size();
 
     if (OverlappingStoreCount_ != overlappingStoreCount) {
-        LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",
+        YT_LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",
             overlappingStoreCount);
     }
 
@@ -1371,6 +1370,5 @@ i64 TTablet::GetTabletLockCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

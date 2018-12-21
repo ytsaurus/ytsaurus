@@ -8,8 +8,7 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 namespace {
 
 using namespace NYTree;
@@ -314,5 +313,4 @@ TEST(TTskvWriterTest, Escaping)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

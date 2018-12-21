@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +25,7 @@ struct TDataSliceDescriptor
 
     const NProto::TChunkSpec& GetSingleChunk() const;
 
-    TNullable<i64> GetTag() const;
+    std::optional<i64> GetTag() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,5 +74,4 @@ i64 GetDataSliceDescriptorReaderMemoryEstimate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

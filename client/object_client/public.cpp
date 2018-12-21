@@ -4,8 +4,7 @@
 
 #include <util/string/vector.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,13 +16,13 @@ const TTransactionId NullTransactionId;
 TVersionedObjectId::TVersionedObjectId()
 { }
 
-TVersionedObjectId::TVersionedObjectId(const TObjectId& objectId)
+TVersionedObjectId::TVersionedObjectId(TObjectId objectId)
     : ObjectId(objectId)
 { }
 
 TVersionedObjectId::TVersionedObjectId(
-    const TObjectId& objectId,
-    const TTransactionId& transactionId)
+    TObjectId objectId,
+    TTransactionId transactionId)
     : ObjectId(objectId)
     , TransactionId(transactionId)
 { }
@@ -73,6 +72,5 @@ bool operator < (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient
 

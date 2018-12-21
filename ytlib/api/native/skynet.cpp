@@ -21,9 +21,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
 using namespace NYson;
@@ -71,7 +69,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     int chunkCount;
 
     {
-        LOG_INFO("Requesting chunk count");
+        YT_LOG_INFO("Requesting chunk count");
 
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
@@ -95,7 +93,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
 
     auto skynetShareLocations = New<TSkynetSharePartsLocations>();
 
-    LOG_INFO("Fetching table chunks");
+    YT_LOG_INFO("Fetching table chunks");
 
     FetchChunkSpecs(
         client,
@@ -129,6 +127,4 @@ TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

@@ -4,16 +4,14 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderPtr CreateCacheReader(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     IBlockCachePtr blockCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

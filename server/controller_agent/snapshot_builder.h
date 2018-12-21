@@ -15,8 +15,7 @@
 
 #include <util/system/file.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +44,7 @@ public:
         TControllerAgentConfigPtr config,
         NApi::IClientPtr client,
         IInvokerPtr ioInvoker,
-        const TIncarnationId& incarnationId);
+        TIncarnationId incarnationId);
 
     TFuture<void> Run(const TOperationIdToWeakControllerMap& controllers);
 
@@ -78,5 +77,4 @@ DEFINE_REFCOUNTED_TYPE(TSnapshotBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

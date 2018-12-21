@@ -261,7 +261,7 @@ void TError::CaptureOriginAttributes()
     }
 }
 
-TNullable<TError> TError::FindMatching(TErrorCode code) const
+std::optional<TError> TError::FindMatching(TErrorCode code) const
 {
     if (Code_ == code) {
         return *this;
@@ -274,7 +274,7 @@ TNullable<TError> TError::FindMatching(TErrorCode code) const
         }
     }
 
-    return Null;
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -380,6 +380,11 @@ bool operator == (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
 bool operator != (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
 {
     return !(lhs == rhs);
+}
+
+void FormatValue(TStringBuilder* builder, const TError& error, TStringBuf /*spec*/)
+{
+    AppendError(builder, error, 0);
 }
 
 TString ToString(const TError& error)

@@ -7,8 +7,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NNodeTrackerServer;
 using namespace NHydra;
@@ -128,7 +127,7 @@ public:
         auto* node = TryAllocateNode(cell);
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            LOG_DEBUG("Tablet tracker assigning peer (CellId: %v, PeerId: %v, AllocatedNode: %v)",
+            YT_LOG_DEBUG("Tablet tracker assigning peer (CellId: %v, PeerId: %v, AllocatedNode: %v)",
                 cell->GetId(),
                 peerId,
                 node ? node->GetNode()->GetDefaultAddress() : "None");
@@ -147,7 +146,7 @@ public:
 
         if (Provider_->IsVerboseLoggingEnabled()) {
             auto* node = cell->Peers()[peerId].Node;
-            LOG_DEBUG("Tablet tracker revoking peer (CellId: %v, PeerId: %v, Node: %v, DescriptorAddress: %v)",
+            YT_LOG_DEBUG("Tablet tracker revoking peer (CellId: %v, PeerId: %v, Node: %v, DescriptorAddress: %v)",
                 cell->GetId(),
                 peerId,
                 node ? node->GetDefaultAddress() : "None",
@@ -173,7 +172,7 @@ public:
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            LOG_DEBUG("Tablet cells distribution before balancing: %v",
+            YT_LOG_DEBUG("Tablet cells distribution before balancing: %v",
                 StateToString());
         }
 
@@ -182,12 +181,12 @@ public:
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            LOG_DEBUG("Tablet cells distribution after balancing: %v",
+            YT_LOG_DEBUG("Tablet cells distribution after balancing: %v",
                 StateToString());
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            LOG_DEBUG("Tablet cell balancer request moves (before filter): %v",
+            YT_LOG_DEBUG("Tablet cell balancer request moves (before filter): %v",
                 MakeFormattableRange(TabletCellMoveDescriptors_, [] (TStringBuilder* builder, const TTabletCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
@@ -200,7 +199,7 @@ public:
         FilterActions();
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            LOG_DEBUG("Tablet cell balancer request moves: %v",
+            YT_LOG_DEBUG("Tablet cell balancer request moves: %v",
                 MakeFormattableRange(TabletCellMoveDescriptors_, [] (TStringBuilder* builder, const TTabletCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
@@ -519,7 +518,7 @@ private:
         });
 
         if (aboveCeil > 0 || belowFloor > 0) {
-            LOG_DEBUG("Tablet cell balancer need to smooth bundle (Bundle: %v, Ceil: %v, Floor: %v, AboveCeilCount: %v, BelowFloorCount: %v)",
+            YT_LOG_DEBUG("Tablet cell balancer need to smooth bundle (Bundle: %v, Ceil: %v, Floor: %v, AboveCeilCount: %v, BelowFloorCount: %v)",
                 bundle->GetName(),
                 ceil,
                 floor,
@@ -555,6 +554,5 @@ std::unique_ptr<ITabletCellBalancer> CreateTabletCellBalancer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

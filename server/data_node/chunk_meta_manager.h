@@ -8,12 +8,11 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +25,7 @@ public:
 
 public:
     TCachedChunkMeta(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         NChunkClient::TRefCountedChunkMetaPtr meta,
         NCellNode::TNodeMemoryTracker* memoryTracker);
 
@@ -86,5 +85,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkMetaManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

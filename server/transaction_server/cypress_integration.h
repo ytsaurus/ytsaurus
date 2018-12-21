@@ -4,8 +4,7 @@
 
 #include <yt/server/cypress_server/public.h>
 
-namespace NYT {
-namespace NTransactionServer {
+namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +16,4 @@ NCypressServer::INodeTypeHandlerPtr CreateTransactionMapTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
-} // namespace NYT
+} // namespace NYT::NTransactionServer

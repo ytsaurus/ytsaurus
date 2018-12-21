@@ -13,8 +13,7 @@
 #include <yt/client/table_client/schemaful_reader_adapter.h>
 #include <yt/client/table_client/schemaful_writer_adapter.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +33,8 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual TString GetStderr() override;
-    virtual TNullable<TString> GetFailContext() override;
+    virtual std::optional<TString> GetFailContext() override;
+    virtual std::optional<NJobAgent::TJobProfile> GetProfile() override;
     virtual NYson::TYsonString StraceJob() override;
     virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
@@ -95,5 +95,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

@@ -5,8 +5,7 @@
 #include "protobuf_interop.h"
 #endif
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,5 +21,4 @@ const TProtobufMessageType* ReflectProtobufMessageType()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

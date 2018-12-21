@@ -7,7 +7,7 @@
 
 #include "node.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/collection_helpers.h>
@@ -18,8 +18,7 @@
 
 #include <numeric>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,14 +43,14 @@ bool CanOmitValue(const TIntrusivePtr<T>* parameter, const TIntrusivePtr<T>* def
     return false;
 }
 
-// TNullable
+// std::optional
 template <class T>
-bool CanOmitValue(const TNullable<T>* parameter, const TNullable<T>* defaultValue)
+bool CanOmitValue(const std::optional<T>* parameter, const std::optional<T>* defaultValue)
 {
     if (!defaultValue) {
-        return !parameter->HasValue();
+        return !*parameter;
     }
-    if (!parameter->HasValue() && !defaultValue->HasValue()) {
+    if (!*parameter && !*defaultValue) {
         return true;
     }
     return false;
@@ -314,9 +313,9 @@ void Serialize(
     consumer->OnStringScalar(FormatEnum(value));
 }
 
-// TNullable
+// std::optional
 template <class T>
-void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
+void Serialize(const std::optional<T>& value, NYson::IYsonConsumer* consumer)
 {
     if (value) {
         Serialize(*value, consumer);
@@ -459,12 +458,12 @@ void Deserialize(
     value = ParseEnum<T>(stringValue);
 }
 
-// TNullable
+// std::optional
 template <class T>
-void Deserialize(TNullable<T>& value, INodePtr node)
+void Deserialize(std::optional<T>& value, INodePtr node)
 {
     if (node->GetType() == ENodeType::Entity) {
-        value = Null;
+        value = std::nullopt;
     } else {
         if (!value) {
             value = T();
@@ -558,5 +557,4 @@ void Deserialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

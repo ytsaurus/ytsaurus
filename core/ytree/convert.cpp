@@ -2,8 +2,7 @@
 
 #include <yt/core/yson/tokenizer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NYson;
 
@@ -56,6 +55,5 @@ const TToken& SkipAttributes(TTokenizer* tokenizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

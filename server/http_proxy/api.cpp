@@ -9,14 +9,13 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
 using namespace NHttp;
 using namespace NProfiling;
 
-static auto& Logger = HttpProxyLogger;
+static const auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +79,7 @@ void TApi::PutUserIntoBanCache(const TString& user)
     BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
 }
 
-TNullable<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const TString& command)
+std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const TString& command)
 {
     auto value = GlobalSemaphore_.load();
     do {
@@ -164,7 +163,7 @@ void TApi::DoIncrementHttpCode(
 void TApi::IncrementProfilingCounters(
     const TString& user,
     const TString& command,
-    TNullable<EStatusCode> httpStatusCode,
+    std::optional<EStatusCode> httpStatusCode,
     TErrorCode apiErrorCode,
     TDuration duration,
     i64 bytesIn,
@@ -222,7 +221,7 @@ void TApi::HandleRequest(
         context->Run();
     } catch (const std::exception& ex) {
         context->SetError(TError(ex));
-        LOG_ERROR(ex, "Command failed");
+        YT_LOG_ERROR(ex, "Command failed");
     }
 
     context->Finalize();
@@ -230,5 +229,4 @@ void TApi::HandleRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

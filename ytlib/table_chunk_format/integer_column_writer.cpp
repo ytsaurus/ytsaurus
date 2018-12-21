@@ -8,8 +8,7 @@
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/bitmap.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NProto;
@@ -513,5 +512,4 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedUint64ColumnWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

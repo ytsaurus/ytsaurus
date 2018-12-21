@@ -7,8 +7,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +38,7 @@ inline T* TEntityBase::GetTypedDynamicData() const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
-auto TReadOnlyEntityMap<TValue>::TIterator::operator*() const -> std::pair<const TKey, TValue*>
+auto TReadOnlyEntityMap<TValue>::TIterator::operator*() const -> const std::pair<const TKey, TValue*>&
 {
     return *Iterator_;
 }
@@ -162,6 +161,12 @@ template <class TValue>
 size_t TReadOnlyEntityMap<TValue>::size() const
 {
     return GetSize();
+}
+
+template <class TValue>
+bool TReadOnlyEntityMap<TValue>::empty() const
+{
+    return Map_.empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -375,5 +380,4 @@ void TEntityMap<TValue, TTraits>::FreeDynamicData(TDynamicData* data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

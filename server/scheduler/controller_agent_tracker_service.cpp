@@ -5,8 +5,7 @@
 
 #include <yt/server/scheduler/controller_agent_tracker_service_proxy.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NRpc;
 
@@ -54,6 +53,5 @@ IServicePtr CreateControllerAgentTrackerService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

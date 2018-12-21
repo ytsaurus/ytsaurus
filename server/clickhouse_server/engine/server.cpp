@@ -2,7 +2,6 @@
 
 #include "auth_token.h"
 #include "cluster_tracker.h"
-#include "config_manager.h"
 #include "database.h"
 #include "http_handler.h"
 #include "logger.h"
@@ -14,6 +13,8 @@
 #include "tcp_handler.h"
 
 #include <yt/server/clickhouse_server/native/storage.h>
+#include <yt/server/clickhouse_server/helpers/poco_config.h>
+#include <yt/server/clickhouse_server/native/config.h>
 
 #include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Common/Exception.h>
@@ -96,21 +97,15 @@ private:
     const NNative::IStoragePtr Storage;
     const NNative::ICoordinationServicePtr CoordinationService;
     const NNative::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager_;
-    const std::string ConfigFile;
+    const NNative::TConfigPtr NativeConfig_;
     const std::string CliqueId_;
     const std::string InstanceId_;
     ui16 TcpPort_;
     ui16 HttpPort_;
 
-    IConfigPtr StaticBootstrapConfig;
-
     NNative::IAuthorizationTokenPtr ServerAuthToken;
 
-    IConfigManagerPtr ConfigManager;
-
-    Poco::AutoPtr<Poco::Util::LayeredConfiguration> Config;
-    Poco::AutoPtr<Poco::Util::LayeredConfiguration> UsersConfig;
-    Poco::AutoPtr<Poco::Util::LayeredConfiguration> ClustersConfig;
+    Poco::AutoPtr<Poco::Util::LayeredConfiguration> EngineConfig_;
 
     Poco::AutoPtr<Poco::Channel> LogChannel;
 
@@ -133,7 +128,7 @@ public:
         NNative::IStoragePtr storage,
         NNative::ICoordinationServicePtr coordinationService,
         NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-        std::string configFile,
+        NNative::TConfigPtr nativeConfig,
         std::string cliqueId,
         std::string instanceId,
         ui16 tcpPort,
@@ -142,7 +137,7 @@ public:
         , Storage(std::move(storage))
         , CoordinationService(std::move(coordinationService))
         , CliqueAuthorizationManager_(std::move(cliqueAuthorizationManager))
-        , ConfigFile(std::move(configFile))
+        , NativeConfig_(std::move(nativeConfig))
         , CliqueId_(std::move(cliqueId))
         , InstanceId_(std::move(instanceId))
         , TcpPort_(tcpPort)
@@ -152,9 +147,9 @@ public:
     void Start()
     {
         SetupRootLogger();
-        LoadStaticBootstrapConfig();
         CreateServerAuthToken();
-        SetupConfigurationManager();
+        EngineConfig_ = new Poco::Util::LayeredConfiguration();
+        EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(NativeConfig_->Engine)));
         SetupLoggers();
         SetupExecutionClusterNodeTracker();
         SetupContext();
@@ -182,8 +177,6 @@ public:
         AsynchronousMetrics.reset();
         SessionCleaner.reset();
 
-        ConfigManager.reset();
-
         // Ask to cancel background jobs all table engines, and also query_log.
         // It is important to do early, not in destructor of Context, because
         // table engines could use Context on destroy.
@@ -207,7 +200,7 @@ public:
 
     Poco::Util::LayeredConfiguration& config() const override
     {
-        return *const_cast<Poco::Util::LayeredConfiguration*>(Config.get());
+        return *const_cast<Poco::Util::LayeredConfiguration*>(EngineConfig_.get());
     }
 
     DB::Context& context() const override
@@ -233,37 +226,16 @@ private:
         rootLogger.setLevel("information");
     }
 
-    void LoadStaticBootstrapConfig()
-    {
-        StaticBootstrapConfig = LoadConfigFromLocalFile(ConfigFile);
-    }
-
     void CreateServerAuthToken()
     {
-        auto serverUser = StaticBootstrapConfig->getString("auth.server_user");
+        auto serverUser = NativeConfig_->User;
         auto* auth = Storage->AuthTokenService();
         ServerAuthToken = CreateAuthToken(*auth, serverUser);
     }
 
-    void SetupConfigurationManager()
-    {
-        ConfigManager = CreateConfigManager(StaticBootstrapConfig, Storage, ServerAuthToken);
-
-        Config = ConfigManager->LoadServerConfig();
-        UsersConfig = ConfigManager->LoadUsersConfig();
-        ClustersConfig = ConfigManager->LoadClustersConfig();
-    }
-
     void SetupLoggers()
     {
-        logger().setLevel(Config->getString("logger.level", "trace"));
-
-        Poco::Util::AbstractConfiguration::Keys levels;
-        Config->keys("logger.levels", levels);
-
-        for (auto it = levels.begin(); it != levels.end(); ++it) {
-            Logger::get(*it).setLevel(Config->getString("logger.levels." + *it, "trace"));
-        }
+        logger().setLevel(NativeConfig_->Engine->LogLevel);
     }
 
     void SetupExecutionClusterNodeTracker()
@@ -273,7 +245,7 @@ private:
         ExecutionClusterNodeTracker = CreateClusterNodeTracker(
             CoordinationService,
             ServerAuthToken,
-            Config->getString("cluster_discovery.directory_path"),
+            NativeConfig_->Engine->CypressRootPath + "/cliques",
             TcpPort_);
     }
 
@@ -281,7 +253,7 @@ private:
     {
         Poco::Logger* log = &logger();
 
-        auto storageHomePath = Config->getString("storage_home_path");
+        auto storageHomePath = NativeConfig_->Engine->CypressRootPath;
 
         // Context contains all that query execution is dependent:
         // settings, available functions, data types, aggregate functions, databases...
@@ -296,10 +268,9 @@ private:
         Context->setGlobalContext(*Context);
         Context->setApplicationType(Context::ApplicationType::SERVER);
 
-        Context->setConfig(Config);
-        Context->setUsersConfig(UsersConfig);
-        Context->setClustersConfig(ClustersConfig);
-        ConfigManager->SubscribeToUpdates(Context.get());
+        Context->setConfig(EngineConfig_);
+
+        Context->setUsersConfig(ConvertToPocoConfig(ConvertToNode(NativeConfig_->Engine->Users)));
 
         registerFunctions();
         registerAggregateFunctions();
@@ -316,27 +287,24 @@ private:
         LOG_TRACE(log, "Initialized DateLUT with time zone `" << DateLUT::instance().getTimeZone() << "'.");
 
         // Limit on total number of concurrently executed queries.
-        Context->getProcessList().setMaxSize(Config->getInt("max_concurrent_queries", 0));
+        Context->getProcessList().setMaxSize(EngineConfig_->getInt("max_concurrent_queries", 0));
 
         // Size of cache for uncompressed blocks. Zero means disabled.
-        size_t uncompressedCacheSize = Config->getUInt64("uncompressed_cache_size", 0);
+        size_t uncompressedCacheSize = EngineConfig_->getUInt64("uncompressed_cache_size", 0);
         if (uncompressedCacheSize) {
             Context->setUncompressedCache(uncompressedCacheSize);
         }
 
-        // Load global settings from default profile.
-        //std::string defaultProfileName = Config->getString("default_profile", "default");
-        //Context->setDefaultProfileName(defaultProfileName);
-        //Context->setSetting("profile", defaultProfileName);
-        Context->setDefaultProfiles(*Config);
+        Context->setDefaultProfiles(*EngineConfig_);
 
-        std::string path = GetCanonicalPath(Config->getString("path"));
+        std::string path = GetCanonicalPath(NativeConfig_->Engine->DataPath);
         Poco::File(path).createDirectories();
         Context->setPath(path);
 
         // Directory with temporary data for processing of hard queries.
         {
-            std::string tmpPath = Config->getString("tmp_path", path + "tmp/");
+            // TODO(max42): tmpfs here?
+            std::string tmpPath = EngineConfig_->getString("tmp_path", path + "tmp/");
             Poco::File(tmpPath).createDirectories();
             Context->setTemporaryPath(tmpPath);
 
@@ -378,7 +346,7 @@ private:
             Context->addDatabase(CliqueId_, defaultDatabase);
         }
 
-        std::string defaultDatabase = Config->getString("default_database", "default");
+        std::string defaultDatabase = EngineConfig_->getString("default_database", "default");
         Context->setCurrentDatabase(defaultDatabase);
     }
 
@@ -394,9 +362,9 @@ private:
 
         const auto& settings = Context->getSettingsRef();
 
-        ServerPool = std::make_unique<Poco::ThreadPool>(3, Config->getInt("max_connections", 1024));
+        ServerPool = std::make_unique<Poco::ThreadPool>(3, EngineConfig_->getInt("max_connections", 1024));
 
-        auto listenHosts = DB::getMultipleValuesFromConfig(*Config, "", "listen_host");
+        auto listenHosts = NativeConfig_->Engine->ListenHosts;
 
         bool tryListen = false;
         if (listenHosts.empty()) {
@@ -438,7 +406,7 @@ private:
                     socket.setReceiveTimeout(settings.receive_timeout);
                     socket.setSendTimeout(settings.send_timeout);
 
-                    Poco::Timespan keepAliveTimeout(Config->getInt("keep_alive_timeout", 10), 0);
+                    Poco::Timespan keepAliveTimeout(EngineConfig_->getInt("keep_alive_timeout", 10), 0);
 
                     Poco::Net::HTTPServerParams::Ptr httpParams = new Poco::Net::HTTPServerParams();
                     httpParams->setTimeout(settings.receive_timeout);
@@ -493,7 +461,7 @@ private:
     {
         ClusterNodeTicket = ExecutionClusterNodeTracker->EnterCluster(
             InstanceId_,
-            Config->getString("interconnect_hostname", GetFQDNHostName()),
+            EngineConfig_->getString("interconnect_hostname", GetFQDNHostName()),
             TcpPort_,
             HttpPort_);
 
@@ -508,7 +476,7 @@ TServer::TServer(
     NNative::IStoragePtr storage,
     NNative::ICoordinationServicePtr coordinationService,
     NNative::ICliqueAuthorizationManagerPtr cliqueAuthorizationManager,
-    std::string configFile,
+    NNative::TConfigPtr nativeConfig,
     std::string cliqueId,
     std::string instanceId,
     ui16 tcpPort,
@@ -518,7 +486,7 @@ TServer::TServer(
         std::move(storage),
         std::move(coordinationService),
         std::move(cliqueAuthorizationManager),
-        std::move(configFile),
+        std::move(nativeConfig),
         std::move(cliqueId),
         std::move(instanceId),
         tcpPort,

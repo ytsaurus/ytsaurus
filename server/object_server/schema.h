@@ -6,8 +6,7 @@
 
 #include <yt/server/security_server/acl.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,7 +15,7 @@ class TSchemaObject
     : public TNonversionedObjectBase
 {
 public:
-    explicit TSchemaObject(const TObjectId& id);
+    explicit TSchemaObject(TObjectId id);
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
@@ -33,5 +32,4 @@ IObjectTypeHandlerPtr CreateSchemaTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

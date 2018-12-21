@@ -12,9 +12,7 @@
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 #include <contrib/libs/grpc/include/grpc/byte_buffer_reader.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +24,7 @@ TString ToString(const grpc_slice& slice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, void(*Deletor)(T*)>
+template <class T, void(*Dtor)(T*)>
 class TGrpcObjectPtr
 {
 public:
@@ -62,24 +60,39 @@ using TGrpcAuthContextPtr = TGrpcObjectPtr<grpc_auth_context, grpc_auth_context_
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGrpcMetadataArray
+template <class T, void(*Ctor)(T*), void(*Dtor)(T*)>
+class TGrpcObject
 {
 public:
-    TGrpcMetadataArray();
-    ~TGrpcMetadataArray();
+    TGrpcObject();
+    ~TGrpcObject();
 
-    TGrpcMetadataArray(const TGrpcMetadataArray&) = delete;
-    TGrpcMetadataArray(TGrpcMetadataArray&&) = delete;
-    TGrpcMetadataArray& operator =(const TGrpcMetadataArray& other) = delete;
-    TGrpcMetadataArray& operator =(TGrpcMetadataArray&& other) = delete;
+    TGrpcObject(const TGrpcObject&) = delete;
+    TGrpcObject(TGrpcObject&&) = delete;
+    TGrpcObject& operator =(const TGrpcObject& other) = delete;
+    TGrpcObject& operator =(TGrpcObject&& other) = delete;
 
-    grpc_metadata_array* Unwrap();
+    T* Unwrap();
+    T* operator->();
 
+protected:
+    T Native_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGrpcMetadataArray
+    : public TGrpcObject<grpc_metadata_array, grpc_metadata_array_init, grpc_metadata_array_destroy>
+{
+public:
     TStringBuf Find(const char* key) const;
 
-private:
-    grpc_metadata_array Native_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TGrpcCallDetails = TGrpcObject<grpc_call_details, grpc_call_details_init, grpc_call_details_destroy>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,27 +108,6 @@ private:
     static constexpr size_t TypicalSize = 4;
     SmallVector<grpc_metadata, TypicalSize> NativeMetadata_;
     SmallVector<TString, TypicalSize> Strings_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TGrpcCallDetails
-{
-public:
-    TGrpcCallDetails();
-    ~TGrpcCallDetails();
-
-    TGrpcCallDetails(const TGrpcCallDetails&) = delete;
-    TGrpcCallDetails(TGrpcCallDetails&&) = delete;
-
-    TGrpcCallDetails& operator=(const TGrpcCallDetails&) = delete;
-    TGrpcCallDetails& operator=(TGrpcCallDetails&&) = delete;
-
-    grpc_call_details* Unwrap();
-    grpc_call_details* operator->();
-
-private:
-    grpc_call_details Native_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,10 +138,9 @@ public:
 private:
     grpc_byte_buffer_reader Reader_;
 
-    grpc_slice Slice_;
-    bool Started_ = false;
-    ui32 AvailableBytes_ = 0;
-    ui32 RemainingBytes_;
+    grpc_slice CurrentSlice_;
+    size_t AvailableBytes_ = 0;
+    size_t RemainingBytes_;
 
     virtual size_t DoRead(void* buf, size_t len) override;
 
@@ -183,7 +174,7 @@ struct TMessageWithAttachments
 
 TMessageWithAttachments ByteBufferToMessageWithAttachments(
     grpc_byte_buffer* buffer,
-    TNullable<ui32> messageBodySize);
+    std::optional<ui32> messageBodySize);
 
 TGrpcByteBufferPtr MessageWithAttachmentsToByteBuffer(
     const TMessageWithAttachments& messageWithAttachments);
@@ -198,13 +189,11 @@ TError DeserializeError(TStringBuf serializedError);
 TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config);
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config);
 TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config);
-TNullable<TString> ParseIssuerFromX509(TStringBuf x509String);
+std::optional<TString> ParseIssuerFromX509(TStringBuf x509String);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

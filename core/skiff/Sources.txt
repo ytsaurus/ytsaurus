@@ -1,6 +1,0 @@
-SET(YT_SRCS
-  skiff.cpp
-  skiff_schema.cpp
-  skiff_validator.cpp
-  schema_match.cpp
-)

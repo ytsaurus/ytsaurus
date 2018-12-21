@@ -7,8 +7,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 using namespace NYson;
 using namespace NYTree;
@@ -62,7 +61,7 @@ TAccountStatistics operator + (const TAccountStatistics& lhs, const TAccountStat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccount::TAccount(const TAccountId& id)
+TAccount::TAccount(TAccountId id)
     : TNonversionedObjectBase(id)
     , LocalStatisticsPtr_(nullptr)
     , Acd_(this)
@@ -153,6 +152,5 @@ void TAccount::RecomputeClusterStatistics()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer
 

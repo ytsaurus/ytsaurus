@@ -3,8 +3,7 @@
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NFormats;
 using namespace NYson;
@@ -49,7 +48,7 @@ static const std::vector<TString> OutputMimeTypePriorityForTabularType = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<TFormat> MimeTypeToFormat(const TString& mimeType)
+std::optional<TFormat> MimeTypeToFormat(const TString& mimeType)
 {
     auto format = MimeTypeToFormatTable.find(mimeType);
     if (format == MimeTypeToFormatTable.end()) {
@@ -144,7 +143,7 @@ NYTree::INodePtr ConvertBytesToNode(
         &stream));
 }
 
-TNullable<TString> GetBestAcceptedType(
+std::optional<TString> GetBestAcceptedType(
     NFormats::EDataType outputType,
     const TString& clientAcceptHeader)
 {
@@ -183,6 +182,5 @@ TNullable<TString> GetBestAcceptedType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy
 

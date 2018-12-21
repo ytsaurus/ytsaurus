@@ -3,8 +3,7 @@
 #include "master.h"
 #include "master_proxy.h"
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 using namespace NCellMaster;
 
@@ -23,7 +22,7 @@ public:
         return EObjectType::Master;
     }
 
-    virtual TObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(TObjectId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetMasterObject();
@@ -56,5 +55,4 @@ IObjectTypeHandlerPtr CreateMasterTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

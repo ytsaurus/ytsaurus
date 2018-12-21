@@ -4,8 +4,7 @@
 
 #include <yt/server/scheduler/config.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NJobTrackerClient;
 
@@ -26,7 +25,7 @@ TTentativeTreeEligibility::TTentativeTreeEligibility()
 { }
 
 void TTentativeTreeEligibility::Initialize(
-    const TOperationId& operationId,
+    TOperationId operationId,
     const TString& taskTitle)
 {
     Logger.AddTag("OperationId: %v", operationId);
@@ -133,7 +132,7 @@ void TTentativeTreeEligibility::UpdateDurations(
     const TString& treeId,
     bool tentative)
 {
-    auto totalDuration = jobSummary.PrepareDuration.Get({}) + jobSummary.ExecDuration.Get({});
+    auto totalDuration = jobSummary.PrepareDuration.value_or(TDuration()) + jobSummary.ExecDuration.value_or(TDuration());
     auto& durationSummary = tentative ? Durations_[treeId] : NonTentativeTreeDuration_;
     durationSummary.AddSample(totalDuration);
 }
@@ -203,9 +202,9 @@ void TTentativeTreeEligibility::BanTree(const TString& treeId)
 
     auto tentativeDurationAvg = GetTentativeTreeAverageJobDuration(treeId);
     auto nonTentativeDurationAvg = NonTentativeTreeDuration_.GetAvg();
-    YCHECK(nonTentativeDurationAvg.HasValue());
+    YCHECK(nonTentativeDurationAvg);
 
-    LOG_DEBUG("Tentative tree banned for the task as average tentative job duration is much longer than average job duration "
+    YT_LOG_DEBUG("Tentative tree banned for the task as average tentative job duration is much longer than average job duration "
         "(TreeId: %v, TentativeJobDuration: %v, NonTentativeJobDuration: %v, MaxTentativeJobDurationRatio: %v)",
         treeId,
         tentativeDurationAvg,
@@ -220,5 +219,4 @@ bool TTentativeTreeEligibility::IsTreeBanned(const TString& treeId) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NCrypto {
+namespace NYT::NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,8 +13,8 @@ class TPemBlobConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<TString> FileName;
-    TNullable<TString> Value;
+    std::optional<TString> FileName;
+    std::optional<TString> Value;
 
     TPemBlobConfig();
 
@@ -26,5 +25,4 @@ DEFINE_REFCOUNTED_TYPE(TPemBlobConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCrypto
-} // namespace NYT
+} // namespace NYT::NCrypto

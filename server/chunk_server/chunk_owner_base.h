@@ -19,8 +19,7 @@
 
 #include <yt/core/misc/property.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,9 +51,9 @@ public:
         const NChunkClient::NProto::TDataStatistics* statistics,
         const NTableServer::TSharedTableSchemaPtr& schema,
         NTableClient::ETableSchemaMode schemaMode,
-        TNullable<NTableClient::EOptimizeFor> optimizeFor,
-        const TNullable<NCrypto::TMD5Hasher>& md5Hasher);
-    virtual void GetUploadParams(TNullable<NCrypto::TMD5Hasher>* md5Hasher);
+        std::optional<NTableClient::EOptimizeFor> optimizeFor,
+        const std::optional<NCrypto::TMD5Hasher>& md5Hasher);
+    virtual void GetUploadParams(std::optional<NCrypto::TMD5Hasher>* md5Hasher);
     virtual bool IsSorted() const;
 
     virtual NYTree::ENodeType GetNodeType() const override;
@@ -77,5 +76,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

@@ -5,8 +5,7 @@
 #include "key_trie.h"
 #include "functions_common.h"
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +67,7 @@ public:
     size_t GetNormalizedConstraints(
         std::vector<TTypeSet>* typeConstraints,
         std::vector<size_t>* formalArguments,
-        TNullable<std::pair<size_t, bool>>* repeatedType) const;
+        std::optional<std::pair<size_t, bool>>* repeatedType) const;
 
 private:
     const std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
@@ -94,8 +93,8 @@ public:
 
     void GetNormalizedConstraints(
         TTypeSet* constraint,
-        TNullable<EValueType>* stateType,
-        TNullable<EValueType>* resultType,
+        std::optional<EValueType>* stateType,
+        std::optional<EValueType>* resultType,
         TStringBuf name) const;
 
 private:
@@ -154,5 +153,4 @@ bool IsUserCastFunction(const TString& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

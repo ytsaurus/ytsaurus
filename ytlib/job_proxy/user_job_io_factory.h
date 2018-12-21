@@ -17,8 +17,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,8 +35,8 @@ struct IUserJobIOFactory
         NApi::NNative::IClientPtr client,
         NTableClient::TTableWriterConfigPtr config,
         NTableClient::TTableWriterOptionsPtr options,
-        const NChunkClient::TChunkListId& chunkListId,
-        const NTransactionClient::TTransactionId& transactionId,
+        NChunkClient::TChunkListId chunkListId,
+        NTransactionClient::TTransactionId transactionId,
         const NTableClient::TTableSchema& tableSchema,
         const NTableClient::TChunkTimestamps& chunkTimestamps) = 0;
 };
@@ -59,8 +58,8 @@ struct TUserJobIOFactoryBase
         NApi::NNative::IClientPtr client,
         NTableClient::TTableWriterConfigPtr config,
         NTableClient::TTableWriterOptionsPtr options,
-        const NChunkClient::TChunkListId& chunkListId,
-        const NTransactionClient::TTransactionId& transactionId,
+        NChunkClient::TChunkListId chunkListId,
+        NTransactionClient::TTransactionId transactionId,
         const NTableClient::TTableSchema& tableSchema,
         const NTableClient::TChunkTimestamps& chunkTimestamps) override;
 
@@ -85,5 +84,4 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

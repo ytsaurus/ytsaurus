@@ -1,7 +1,6 @@
 #include "config.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,9 +188,9 @@ TTestingOptions::TTestingOptions()
     RegisterParameter("random_master_disconnection_max_backoff", RandomMasterDisconnectionMaxBackoff)
         .Default(TDuration::Seconds(5));
     RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
-        .Default(Null);
+        .Default();
     RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
-        .Default(Null);
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -351,6 +350,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(false);
     RegisterParameter("enable_job_stderr_reporter", EnableJobStderrReporter)
         .Default(false);
+    RegisterParameter("enable_job_profile_reporter", EnableJobProfileReporter)
+        .Default(true);
     RegisterParameter("enable_job_fail_context_reporter", EnableJobFailContextReporter)
         .Default(false);
 
@@ -407,6 +408,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("operation_transaction_ping_period", OperationTransactionPingPeriod)
         .Default(TDuration::Seconds(30));
 
+    RegisterParameter("pool_change_is_allowed", PoolChangeIsAllowed)
+        .Default(false);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
@@ -425,5 +429,4 @@ TSchedulerConfig::TSchedulerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

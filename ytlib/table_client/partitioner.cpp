@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/blob_output.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 
@@ -26,7 +25,7 @@ public:
 
     explicit TOrderedPartitioner(const TSharedRef& wirePartitionKeys)
     {
-        KeySetReader_.Emplace(wirePartitionKeys);
+        KeySetReader_.emplace(wirePartitionKeys);
         Keys_ = KeySetReader_->GetKeys();
     }
 
@@ -52,7 +51,7 @@ private:
     const std::vector<TOwningKey> OwningKeys_;
     std::vector<TKey> KeyHolder_;
 
-    TNullable<TKeySetReader> KeySetReader_;
+    std::optional<TKeySetReader> KeySetReader_;
 
     TRange<TKey> Keys_;
 
@@ -102,5 +101,4 @@ IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

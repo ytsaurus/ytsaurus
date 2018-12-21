@@ -9,8 +9,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NRpc;
 using namespace NChunkClient;
@@ -24,7 +23,7 @@ using namespace NConcurrency;
 TSessionBase::TSessionBase(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     const TSessionOptions& options,
     TStoreLocationPtr location,
     TLease lease)
@@ -47,12 +46,12 @@ TSessionBase::TSessionBase(
     VERIFY_THREAD_AFFINITY(ControlThread);
 }
 
-const TChunkId& TSessionBase::GetChunkId() const&
+TChunkId TSessionBase::GetChunkId() const&
 {
     return SessionId_.ChunkId;
 }
 
-const TSessionId& TSessionBase::GetId() const&
+TSessionId TSessionBase::GetId() const&
 {
     return SessionId_;
 }
@@ -85,13 +84,13 @@ TFuture<void> TSessionBase::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_DEBUG("Starting session");
+    YT_LOG_DEBUG("Starting session");
 
     return DoStart().Apply(BIND([=, this_ = MakeStrong(this)] {
         YCHECK(!Active_);
         Active_ = true;
 
-        LOG_DEBUG("Session started");
+        YT_LOG_DEBUG("Session started");
     }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
@@ -113,7 +112,7 @@ void TSessionBase::Cancel(const TError& error)
         return;
     }
 
-    LOG_DEBUG(error, "Canceling session");
+    YT_LOG_DEBUG(error, "Canceling session");
 
     TLeaseManager::CloseLease(Lease_);
     Active_ = false;
@@ -122,14 +121,14 @@ void TSessionBase::Cancel(const TError& error)
     DoCancel(error);
 }
 
-TFuture<IChunkPtr> TSessionBase::Finish(const TRefCountedChunkMetaPtr& chunkMeta, TNullable<int> blockCount)
+TFuture<IChunkPtr> TSessionBase::Finish(const TRefCountedChunkMetaPtr& chunkMeta, std::optional<int> blockCount)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     try {
         ValidateActive();
 
-        LOG_INFO("Finishing session");
+        YT_LOG_INFO("Finishing session");
 
         TLeaseManager::CloseLease(Lease_);
         Active_ = false;
@@ -199,5 +198,4 @@ void TSessionBase::ValidateActive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

@@ -15,8 +15,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -231,10 +230,10 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
 
     if (foreignKeyPrefix > 0) {
         if (foreignKeyPrefix == foreignEquations.size()) {
-            LOG_DEBUG("Using join via source ranges");
+            YT_LOG_DEBUG("Using join via source ranges");
             dataSource.Keys = MakeSharedRange(std::move(keys), std::move(permanentBuffer));
         } else {
-            LOG_DEBUG("Using join via prefix ranges");
+            YT_LOG_DEBUG("Using join via prefix ranges");
             std::vector<TRow> prefixKeys;
             for (auto key : keys) {
                 prefixKeys.push_back(permanentBuffer->Capture(key.Begin(), foreignKeyPrefix, false));
@@ -253,7 +252,7 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
     } else {
         TRowRanges ranges;
 
-        LOG_DEBUG("Using join via IN clause");
+        YT_LOG_DEBUG("Using join via IN clause");
         ranges.emplace_back(
             permanentBuffer->Capture(NTableClient::MinKey().Get()),
             permanentBuffer->Capture(NTableClient::MaxKey().Get()));
@@ -308,5 +307,4 @@ TValue* TCGVariables::GetLiteralValues() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

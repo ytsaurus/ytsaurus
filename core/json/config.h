@@ -2,8 +2,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +28,7 @@ public:
     bool EncodeUtf8;
     i64 MemoryLimit;
 
-    TNullable<int> StringLengthLimit;
+    std::optional<int> StringLengthLimit;
 
     bool BooleanAsString;
 
@@ -79,5 +78,4 @@ DEFINE_REFCOUNTED_TYPE(TJsonFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

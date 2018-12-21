@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NRpc;
 using namespace NElection;
@@ -20,7 +19,7 @@ class TLocalSnapshotService
 {
 public:
     TLocalSnapshotService(
-        const NElection::TCellId& cellId,
+        TCellId cellId,
         TFileSnapshotStorePtr fileStore)
         : TServiceBase(
             GetHydraIOInvoker(),
@@ -109,7 +108,7 @@ private:
 };
 
 IServicePtr CreateLocalSnapshotService(
-    const NElection::TCellId& cellId,
+    TCellId cellId,
     TFileSnapshotStorePtr fileStore)
 {
     return New<TLocalSnapshotService>(
@@ -119,5 +118,4 @@ IServicePtr CreateLocalSnapshotService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

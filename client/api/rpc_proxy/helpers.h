@@ -9,9 +9,7 @@
 
 #include <yt/client/api/rpc_proxy/proto/api_service.pb.h>
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +142,4 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

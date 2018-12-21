@@ -321,7 +321,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
       // literal-value
       // const-value
-      char dummy9[sizeof(TNullable<TLiteralValue>)];
+      char dummy9[sizeof(std::optional<TLiteralValue>)];
 
       // join-predicate
       // transform-default-expr
@@ -483,7 +483,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const std::optional<TLiteralValue> v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNullableExpressionList v, const location_type& l);
 

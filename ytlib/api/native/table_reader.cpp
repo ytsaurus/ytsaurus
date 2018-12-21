@@ -49,9 +49,7 @@
 
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -255,15 +253,15 @@ class TBlobTableReader
 public:
     TBlobTableReader(
         ITableReaderPtr reader,
-        const TNullable<TString>& partIndexColumnName,
-        const TNullable<TString>& dataColumnName,
+        const std::optional<TString>& partIndexColumnName,
+        const std::optional<TString>& dataColumnName,
         i64 startPartIndex,
-        const TNullable<i64>& offset,
-        const TNullable<i64>& partSize)
+        const std::optional<i64>& offset,
+        const std::optional<i64>& partSize)
         : Reader_(std::move(reader))
         , PartIndexColumnName_(partIndexColumnName ? *partIndexColumnName : TBlobTableSchema::PartIndexColumn)
         , DataColumnName_(dataColumnName ? *dataColumnName : TBlobTableSchema::DataColumn)
-        , Offset_(offset.Get(0))
+        , Offset_(offset.value_or(0))
         , PartSize_(partSize)
         , PreviousPartSize_(partSize)
         , NextPartIndex_(startPartIndex)
@@ -294,14 +292,14 @@ private:
     const TString DataColumnName_;
 
     i64 Offset_;
-    TNullable<i64> PartSize_;
-    TNullable<i64> PreviousPartSize_;
+    std::optional<i64> PartSize_;
+    std::optional<i64> PreviousPartSize_;
 
     std::vector<TUnversionedRow> Rows_;
     i64 Index_ = 0;
     i64 NextPartIndex_;
 
-    TEnumIndexedVector<TNullable<size_t>, EColumnType> ColumnIndex_;
+    TEnumIndexedVector<std::optional<size_t>, EColumnType> ColumnIndex_;
 
     TSharedRef ProcessRow()
     {
@@ -379,13 +377,13 @@ private:
 
         auto value = GetAndValidateValue(row, DataColumnName_, EColumnType::Data, EValueType::String);
 
-        auto isPreviousPartWrong = PartSize_ && PreviousPartSize_.Get() != PartSize_.Get();
-        auto isCurrentPartWrong = PartSize_ && value.Length > PartSize_.Get();
+        auto isPreviousPartWrong = PartSize_ && *PreviousPartSize_ != *PartSize_;
+        auto isCurrentPartWrong = PartSize_ && value.Length > *PartSize_;
         if (isPreviousPartWrong || isCurrentPartWrong) {
             i64 actualSize;
             i64 wrongPartIndex;
             if (isPreviousPartWrong) {
-                actualSize = PreviousPartSize_.Get();
+                actualSize = *PreviousPartSize_;
                 wrongPartIndex = partIndex - 1;
             } else {
                 actualSize = value.Length;
@@ -393,7 +391,7 @@ private:
             }
 
             THROW_ERROR_EXCEPTION("Inconsistent part size")
-                << TErrorAttribute("expected_size", PartSize_.Get())
+                << TErrorAttribute("expected_size", *PartSize_)
                 << TErrorAttribute("actual_size", actualSize)
                 << TErrorAttribute("part_index", wrongPartIndex);
         }
@@ -404,11 +402,11 @@ private:
 
 IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     ITableReaderPtr reader,
-    const TNullable<TString>& partIndexColumnName,
-    const TNullable<TString>& dataColumnName,
+    const std::optional<TString>& partIndexColumnName,
+    const std::optional<TString>& dataColumnName,
     i64 startPartIndex,
-    const TNullable<i64>& offset,
-    const TNullable<i64>& partSize)
+    const std::optional<i64>& offset,
+    const std::optional<i64>& partSize)
 {
     return New<TBlobTableReader>(
         std::move(reader),
@@ -439,7 +437,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
         options.TransactionId,
         readSessionId);
 
-    LOG_INFO("Opening table reader");
+    YT_LOG_INFO("Opening table reader");
 
     TUserObject userObject;
     userObject.Path = path;
@@ -467,7 +465,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
                 userObject.Type);
         }
     } else {
-        LOG_INFO("Table is virtual, performing further operations with its original path rather with its object id");
+        YT_LOG_INFO("Table is virtual, performing further operations with its original path rather with its object id");
         objectIdPath = path;
     }
 
@@ -477,7 +475,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     auto timestamp = richPath.GetTimestamp();
 
     {
-        LOG_INFO("Requesting table schema");
+        YT_LOG_INFO("Requesting table schema");
 
         auto channel = client->GetMasterChannelOrThrow(
             EMasterChannelKind::Follower,
@@ -516,7 +514,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
     std::vector<TChunkSpec> chunkSpecs;
 
     {
-        LOG_INFO("Fetching table chunks");
+        YT_LOG_INFO("Fetching table chunks");
 
         FetchChunkSpecs(
             client,
@@ -562,7 +560,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             path,
             schema,
             richPath.GetColumns(),
-            timestamp.Get(AsyncLastCommittedTimestamp)));
+            timestamp.value_or(AsyncLastCommittedTimestamp)));
 
         auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
 
@@ -615,7 +613,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             blockReadOptions,
             columnFilter,
             schema.GetKeyColumns(),
-            /* partitionTag */ Null,
+            /* partitionTag */ std::nullopt,
             /* trafficMeter */ nullptr,
             bandwidthThrottler,
             rpsThrottler);
@@ -627,7 +625,5 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
         }));
 }
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

@@ -26,9 +26,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NRpc {
-namespace NBus {
+namespace NYT::NRpc::NBus {
 
 using namespace NYT::NBus;
 using namespace NYPath;
@@ -295,7 +293,7 @@ private:
             // NB: Requests without timeout are rare but may occur.
             // For these requests we still need to register a timeout cookie with TDelayedExecutor
             // since this also provides proper cleanup and cancelation when global shutdown happens.
-            auto effectiveTimeout = options.Timeout.Get(TDuration::Hours(24));
+            auto effectiveTimeout = options.Timeout.value_or(TDuration::Hours(24));
             auto timeoutCookie = TDelayedExecutor::Submit(
                 BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
                 effectiveTimeout);
@@ -339,13 +337,13 @@ private:
 
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
-                    LOG_DEBUG("Attempt to cancel an unknown request, ignored (RequestId: %v)",
+                    YT_LOG_DEBUG("Attempt to cancel an unknown request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }
 
                 if (requestControl != it->second) {
-                    LOG_DEBUG("Attempt to cancel a resent request, ignored (RequestId: %v)",
+                    YT_LOG_DEBUG("Attempt to cancel a resent request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -404,7 +402,7 @@ private:
                 if (it != ActiveRequestMap_.end() && requestControl == it->second) {
                     ActiveRequestMap_.erase(it);
                 } else {
-                    LOG_DEBUG("Timeout occurred for an unknown or resent request (RequestId: %v)",
+                    YT_LOG_DEBUG("Timeout occurred for an unknown or resent request (RequestId: %v)",
                         requestId);
                 }
 
@@ -427,7 +425,7 @@ private:
 
             NProto::TResponseHeader header;
             if (!ParseResponseHeader(message, &header)) {
-                LOG_ERROR("Error parsing response header");
+                YT_LOG_ERROR("Error parsing response header");
                 return;
             }
 
@@ -439,7 +437,7 @@ private:
                 auto guard = Guard(SpinLock_);
 
                 if (Terminated_) {
-                    LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
+                    YT_LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -447,7 +445,7 @@ private:
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
                     // This may happen when the other party responds to an already timed-out request.
-                    LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %v)",
+                    YT_LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -471,7 +469,7 @@ private:
                         std::move(message));
                 } else {
                     if (error.GetCode() == EErrorCode::PoisonPill) {
-                        LOG_FATAL(error, "Poison pill received");
+                        YT_LOG_FATAL(error, "Poison pill received");
                     }
                     NotifyError(
                         requestControl,
@@ -637,7 +635,7 @@ private:
 
             requestControl->ProfileRequest(requestMessage);
 
-            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
+            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
                 "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, AttachmentSize: %v)",
                 requestId,
                 requestControl->GetService(),
@@ -650,7 +648,7 @@ private:
                 GetTotalMessageAttachmentSize(requestMessage));
         }
 
-        void OnAcknowledgement(bool requestAck, const TRequestId& requestId, const TError& error)
+        void OnAcknowledgement(bool requestAck, TRequestId requestId, const TError& error)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
@@ -666,7 +664,7 @@ private:
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
                     // This one may easily get the actual response before the acknowledgment.
-                    LOG_DEBUG(error, "Acknowledgment received for an unknown request, ignored (RequestId: %v)",
+                    YT_LOG_DEBUG(error, "Acknowledgment received for an unknown request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -713,7 +711,7 @@ private:
                     << TErrorAttribute("timeout", *requestControl->GetTimeout());
             }
 
-            LOG_DEBUG(detailedError, "%v (RequestId: %v)",
+            YT_LOG_DEBUG(detailedError, "%v (RequestId: %v)",
                 reason,
                 requestControl->GetRequestId());
 
@@ -721,21 +719,21 @@ private:
         }
 
         void NotifyAcknowledgement(
-            const TRequestId& requestId,
+            TRequestId requestId,
             const IClientResponseHandlerPtr& responseHandler)
         {
-            LOG_DEBUG("Request acknowledged (RequestId: %v)", requestId);
+            YT_LOG_DEBUG("Request acknowledged (RequestId: %v)", requestId);
 
             responseHandler->HandleAcknowledgement();
         }
 
         void NotifyResponse(
-            const TRequestId& requestId,
+            TRequestId requestId,
             const TClientRequestControlPtr& requestControl,
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message)
         {
-            LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
+            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
@@ -753,7 +751,7 @@ private:
         TClientRequestControl(
             TSessionPtr session,
             IClientRequestPtr request,
-            TNullable<TDuration> timeout,
+            std::optional<TDuration> timeout,
             IClientResponseHandlerPtr responseHandler)
             : Session_(std::move(session))
             , RealmId_(request->GetRealmId())
@@ -770,7 +768,7 @@ private:
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
         }
 
-        const TRealmId& GetRealmId() const
+        TRealmId GetRealmId() const
         {
             return RealmId_;
         }
@@ -785,12 +783,12 @@ private:
             return Method_;
         }
 
-        const TRequestId& GetRequestId() const
+        TRequestId GetRequestId() const
         {
             return RequestId_;
         }
 
-        TNullable<TDuration> GetTimeout() const
+        std::optional<TDuration> GetTimeout() const
         {
             return Timeout_;
         }
@@ -875,7 +873,7 @@ private:
         const TString Service_;
         const TString Method_;
         const TRequestId RequestId_;
-        const TNullable<TDuration> Timeout_;
+        const std::optional<TDuration> Timeout_;
         TSession::TMethodMetadata* const MethodMetadata_;
 
         TDelayedExecutorCookie TimeoutCookie_;
@@ -930,6 +928,4 @@ IChannelFactoryPtr CreateBusChannelFactory(TTcpBusConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NBus

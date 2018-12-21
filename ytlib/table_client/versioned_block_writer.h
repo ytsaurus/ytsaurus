@@ -11,8 +11,7 @@
 #include <yt/core/misc/bitmap.h>
 #include <yt/core/misc/chunked_output_stream.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +56,7 @@ private:
 
     TChunkedOutputStream ValueStream_;
     TBitmap ValueNullFlags_;
-    TNullable<TBitmap> ValueAggregateFlags_;
+    std::optional<TBitmap> ValueAggregateFlags_;
 
     TChunkedOutputStream TimestampStream_;
 
@@ -70,12 +69,11 @@ private:
     void WriteValue(
         TChunkedOutputStream& stream,
         TBitmap& nullFlags,
-        TNullable<TBitmap>& aggregateFlags,
+        std::optional<TBitmap>& aggregateFlags,
         const TUnversionedValue& value);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

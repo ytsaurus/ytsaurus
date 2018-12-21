@@ -18,8 +18,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +111,7 @@ public:
             ->AsMap());
 
         RegisterPostprocessor([&] {
-            ClusterConnection->ThreadPoolSize = Null;
+            ClusterConnection->ThreadPoolSize = std::nullopt;
 
             if (GrpcServer && GrpcServer->Addresses.size() > 1) {
                 THROW_ERROR_EXCEPTION("Multiple GRPC addresses are not supported");
@@ -125,5 +124,4 @@ DEFINE_REFCOUNTED_TYPE(TCellProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

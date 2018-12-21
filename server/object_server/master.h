@@ -6,8 +6,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,11 +14,10 @@ class TMasterObject
     : public TNonversionedObjectBase
 {
 public:
-    explicit TMasterObject(const TObjectId& id);
+    explicit TMasterObject(TObjectId id);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

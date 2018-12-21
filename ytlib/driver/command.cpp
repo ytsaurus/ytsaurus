@@ -5,8 +5,7 @@
 
 #include <yt/core/ypath/tokenizer.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYPath;
 
@@ -95,7 +94,7 @@ void TCommandBase::ProduceResponseParameters(
 ////////////////////////////////////////////////////////////////////////////////
 
 // Keep sync with yt/ytlib/scheduler/helpers.cpp.
-TYPath GetNewOperationPath(const TGuid& operationId)
+TYPath GetNewOperationPath(TGuid operationId)
 {
     int hashByte = operationId.Parts32[0] & 0xff;
     return
@@ -148,5 +147,4 @@ TYPath RewritePath(const TYPath& path, bool rewriteOperationPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

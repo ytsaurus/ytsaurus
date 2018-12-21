@@ -5,8 +5,7 @@
 
 #include <yt/server/hydra/public.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +29,7 @@ public:
 
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TBlockReadOptions& options,
-        const TNullable<std::vector<int>>& extensionTags) override;
+        const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
@@ -66,7 +65,7 @@ private:
     mutable bool Sealed_ = false;
 
 
-    NChunkClient::TRefCountedChunkMetaPtr DoReadMeta(const TNullable<std::vector<int>>& extensionTags);
+    NChunkClient::TRefCountedChunkMetaPtr DoReadMeta(const std::optional<std::vector<int>>& extensionTags);
 
     void UpdateCachedParams() const;
 
@@ -103,6 +102,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

@@ -1,11 +1,10 @@
 #include "session_id.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilder* builder, const TSessionId& id, TStringBuf /*format*/)
+void FormatValue(TStringBuilder* builder, TSessionId id, TStringBuf /*format*/)
 {
     if (id.MediumIndex == AllMediaIndex) {
         builder->AppendFormat("%v@*", id.ChunkId);
@@ -14,12 +13,11 @@ void FormatValue(TStringBuilder* builder, const TSessionId& id, TStringBuf /*for
     }
 }
 
-TString ToString(const TSessionId& id)
+TString ToString(TSessionId id)
 {
     return ToStringViaBuilder(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

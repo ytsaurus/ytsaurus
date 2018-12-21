@@ -2,10 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -66,8 +65,7 @@ DEFINE_REFCOUNTED_TYPE(TTrafficMeter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 
 #define TRAFFIC_METER_INL_H_
 #include "traffic_meter-inl.h"

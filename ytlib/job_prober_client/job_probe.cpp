@@ -9,8 +9,7 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-namespace NYT {
-namespace NJobProberClient {
+namespace NYT::NJobProberClient {
 
 using NBus::TTcpBusClientConfigPtr;
 using NChunkClient::TChunkId;
@@ -25,7 +24,7 @@ class TJobProberClient
     : public IJobProbe
 {
 public:
-    TJobProberClient(TTcpBusClientConfigPtr config, const TJobId& jobId)
+    TJobProberClient(TTcpBusClientConfigPtr config, TJobId jobId)
         : TcpBusClientConfig_(config)
         , JobId_(jobId)
     { }
@@ -117,14 +116,14 @@ public:
 private:
     const TTcpBusClientConfigPtr TcpBusClientConfig_;
     const TJobId JobId_;
-    TNullable<TJobProberServiceProxy> JobProberProxy_;
+    std::optional<TJobProberServiceProxy> JobProberProxy_;
 
     void EnsureJobProberProxy()
     {
         if (!JobProberProxy_) {
             auto client = CreateTcpBusClient(TcpBusClientConfig_);
             auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
-            JobProberProxy_.Emplace(std::move(channel));
+            JobProberProxy_.emplace(std::move(channel));
         }
     }
 };
@@ -133,12 +132,11 @@ private:
 
 IJobProbePtr CreateJobProbe(
     NBus::TTcpBusClientConfigPtr config,
-    const TJobId& jobId)
+    TJobId jobId)
 {
     return New<TJobProberClient>(config, jobId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NJobProberClient
+} // namespace NJobProberClient::NYT

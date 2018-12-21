@@ -1,7 +1,6 @@
 #include "config.h"
 
-namespace NYT {
-namespace NHttps {
+namespace NYT::NHttps {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,10 +33,10 @@ TClientCredentialsConfig::TClientCredentialsConfig()
 
 TClientConfig::TClientConfig()
 {
-    RegisterParameter("credentials", Credentials);
+    RegisterParameter("credentials", Credentials)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttps
-} // namespace NYT
+} // namespace NYT::NHttps

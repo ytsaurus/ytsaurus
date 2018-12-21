@@ -10,8 +10,7 @@
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,5 +204,4 @@ void PipeInputToOutput(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

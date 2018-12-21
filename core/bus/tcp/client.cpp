@@ -20,8 +20,7 @@
     #include <sys/socket.h>
 #endif
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 using namespace NNet;
 using namespace NYson;
@@ -144,7 +143,7 @@ public:
 
         auto id = TConnectionId::Create();
 
-        LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v)",
+        YT_LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v)",
             EndpointDescription_,
             id);
 
@@ -186,5 +185,4 @@ IBusClientPtr CreateTcpBusClient(TTcpBusClientConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

@@ -13,8 +13,7 @@
 
 #include <yt/ytlib/tablet_client/master_tablet_service.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
@@ -106,7 +105,7 @@ private:
         auto path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table mount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table mount (TableId: %v, TransactionId: %v, User: %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
@@ -158,7 +157,7 @@ private:
         auto path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Committing table mount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table mount (TableId: %v, TransactionId: %v, User: %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
@@ -199,7 +198,7 @@ private:
         bool force = request->force();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unmount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unmount (TableId: %v, TransactionId: %v, User: %v, "
             "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -232,7 +231,7 @@ private:
         bool force = request->force();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unmount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unmount (TableId: %v, TransactionId: %v, User: %v, "
             "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -264,7 +263,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table freeze (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table freeze (TableId: %v, TransactionId: %v, User: %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -294,7 +293,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Committing table freeze (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table freeze (TableId: %v, TransactionId: %v, User: %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -324,7 +323,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unfreeze (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unfreeze (TableId: %v, TransactionId: %v, User: %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -354,7 +353,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unfreeze (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unfreeze (TableId: %v, TransactionId: %v, User: %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -385,7 +384,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table remount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table remount (TableId: %v, TransactionId: %v, User: %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -415,7 +414,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Committing table remount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table remount (TableId: %v, TransactionId: %v, User: %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -445,7 +444,7 @@ private:
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table reshard (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table reshard (TableId: %v, TransactionId: %v, User: %v, "
             "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -485,7 +484,7 @@ private:
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Committing table reshard (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table reshard (TableId: %v, TransactionId: %v, User: %v, "
             "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -546,6 +545,5 @@ void TTabletService::Initialize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

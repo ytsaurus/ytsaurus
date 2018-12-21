@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "property.h"
-#include "nullable.h"
+#include "optional.h"
 
 #include <yt/core/yson/string.h>
 
@@ -94,7 +94,7 @@ public:
 
     void ThrowOnError() const;
 
-    TNullable<TError> FindMatching(TErrorCode code) const;
+    std::optional<TError> FindMatching(TErrorCode code) const;
 
     template <class... TArgs>
     TError Wrap(TArgs&&... args) const;
@@ -134,6 +134,7 @@ void Serialize(
     const std::function<void(NYson::IYsonConsumer*)>* valueProducer = nullptr);
 void Deserialize(TError& error, NYTree::INodePtr node);
 
+void FormatValue(TStringBuilder* builder, const TError& error, TStringBuf spec);
 TString ToString(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,10 +279,12 @@ public:
     T&& ValueOrThrow() &&;
 
 private:
-    TNullable<T> Value_;
+    std::optional<T> Value_;
 
 };
 
+template <class T>
+void FormatValue(TStringBuilder* builder, const TErrorOr<T>& error, TStringBuf spec);
 template <class T>
 TString ToString(const TErrorOr<T>& valueOrError);
 

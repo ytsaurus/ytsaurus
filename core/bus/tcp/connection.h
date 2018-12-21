@@ -24,8 +24,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,13 +46,13 @@ public:
         TTcpBusConfigPtr config,
         EConnectionType connectionType,
         const TString& networkName,
-        const TConnectionId& id,
+        TConnectionId id,
         SOCKET socket,
         const TString& endpointDescription,
         const NYTree::IAttributeDictionary& endpointAttributes,
         const NNet::TNetworkAddress& endpointAddress,
-        const TNullable<TString>& address,
-        const TNullable<TString>& unixDomainName,
+        const std::optional<TString>& address,
+        const std::optional<TString>& unixDomainName,
         IMessageHandlerPtr handler,
         NConcurrency::IPollerPtr poller);
 
@@ -62,7 +61,7 @@ public:
     void Start();
     void Check();
 
-    const TConnectionId& GetId() const;
+    TConnectionId GetId() const;
 
     // IPollable implementation.
     virtual const TString& GetLoggingId() const override;
@@ -88,7 +87,7 @@ private:
         TQueuedMessage() = default;
 
         TQueuedMessage(TSharedRefArray message, const TSendOptions& options)
-            : Promise(options.TrackingLevel != EDeliveryTrackingLevel::None ? NewPromise<void>() : Null)
+            : Promise(options.TrackingLevel != EDeliveryTrackingLevel::None ? NewPromise<void>() : std::nullopt)
             , Message(std::move(message))
             , PayloadSize(GetByteSize(Message))
             , Options(options)
@@ -108,7 +107,7 @@ private:
             EPacketType type,
             EPacketFlags flags,
             int checksummedPartCount,
-            const TPacketId& packetId,
+            TPacketId packetId,
             TSharedRefArray message,
             size_t payloadSize,
             size_t packetSize)
@@ -134,7 +133,7 @@ private:
     {
         TUnackedMessage() = default;
 
-        TUnackedMessage(const TPacketId& packetId, TPromise<void> promise)
+        TUnackedMessage(TPacketId packetId, TPromise<void> promise)
             : PacketId(packetId)
             , Promise(std::move(promise))
         { }
@@ -149,8 +148,8 @@ private:
     const TString EndpointDescription_;
     const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
     const NNet::TNetworkAddress EndpointAddress_;
-    const TNullable<TString> Address_;
-    const TNullable<TString> UnixDomainName_;
+    const std::optional<TString> Address_;
+    const std::optional<TString> UnixDomainName_;
     const IMessageHandlerPtr Handler_;
     const NConcurrency::IPollerPtr Poller_;
 
@@ -245,7 +244,7 @@ private:
         EPacketType type,
         EPacketFlags flags,
         int checksummedPartCount,
-        const TPacketId& packetId,
+        TPacketId packetId,
         TSharedRefArray message = TSharedRefArray(),
         size_t payloadSize = 0);
     void OnSocketWrite();
@@ -279,5 +278,4 @@ DEFINE_REFCOUNTED_TYPE(TTcpConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

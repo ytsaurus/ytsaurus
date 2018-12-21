@@ -69,8 +69,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -192,7 +191,7 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual TObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(TObjectId id) override
     {
         return Map_->Find(DecodeChunkId(id).Id);
     }
@@ -307,7 +306,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -558,9 +557,9 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        TNullable<int> replicationFactorOverride,
+        std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const TNullable<TString>& preferredHostName)
+        const std::optional<TString>& preferredHostName)
     {
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
@@ -582,7 +581,7 @@ public:
         const auto& id = chunk->GetId();
 
         if (chunk->IsConfirmed()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk is already confirmed (ChunkId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk is already confirmed (ChunkId: %v)",
                 id);
             return;
         }
@@ -598,7 +597,7 @@ public:
             auto nodeId = replica.GetNodeId();
             auto* node = nodeTracker->FindNode(nodeId);
             if (!IsObjectAlive(node)) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at an unknown node (ChunkId: %v, NodeId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at an unknown node (ChunkId: %v, NodeId: %v)",
                     id,
                     replica.GetNodeId());
                 continue;
@@ -607,7 +606,7 @@ public:
             auto mediumIndex = replica.GetMediumIndex();
             const auto* medium = GetMediumByIndex(mediumIndex);
             if (medium->GetCache()) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at a cache medium (ChunkId: %v, Medium: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at a cache medium (ChunkId: %v, Medium: %v)",
                     id,
                     medium->GetName());
                 continue;
@@ -617,7 +616,7 @@ public:
             auto chunkWithIndexes = TChunkPtrWithIndexes(chunk, replicaIndex, replica.GetMediumIndex());
 
             if (node->GetLocalState() != ENodeState::Online) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
                     id,
                     node->GetDefaultAddress(),
                     node->GetLocalState());
@@ -684,7 +683,7 @@ public:
         }
 
         if (chunk->IsSealed()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk is already sealed (ChunkId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk is already sealed (ChunkId: %v)",
                 chunk->GetId());
             return;
         }
@@ -698,7 +697,7 @@ public:
     TChunkList* CreateChunkList(EChunkListKind kind)
     {
         auto* chunkList = DoCreateChunkList(kind);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list created (Id: %v, Kind: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list created (Id: %v, Kind: %v)",
             chunkList->GetId(),
             chunkList->GetKind());
         return chunkList;
@@ -780,10 +779,10 @@ public:
             return;
 
         PROFILE_AGGREGATED_TIMING (ChunkTreeRebalacnceTimeCounter) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %v)",
                 chunkList->GetId());
             ChunkTreeBalancer_.Rebalance(chunkList);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
         }
     }
 
@@ -890,7 +889,7 @@ public:
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
 
         if (!chunk->IsExportedToCell(cellIndex)) {
-            LOG_ERROR("Unexpected error: chunk is not exported and cannot be unexported "
+            YT_LOG_ERROR("Unexpected error: chunk is not exported and cannot be unexported "
                 "(ChunkId: %v, CellTag: %v, CellIndex: %v, ImportRefCounter: %v)",
                 chunk->GetId(),
                 destinationCellTag,
@@ -937,12 +936,14 @@ public:
         chunkList->Children().clear();
         ResetChunkListStatistics(chunkList);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %v)", chunkList->GetId());
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %v)", chunkList->GetId());
     }
 
 
     void ScheduleJobs(
         TNode* node,
+        const TNodeResources& resourceUsage,
+        const TNodeResources& resourceLimits,
         const std::vector<TJobPtr>& currentJobs,
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort,
@@ -950,6 +951,8 @@ public:
     {
         ChunkReplicator_->ScheduleJobs(
             node,
+            resourceUsage,
+            resourceLimits,
             currentJobs,
             jobsToStart,
             jobsToAbort,
@@ -1025,7 +1028,7 @@ public:
 
         ChunkListsAwaitingRequisitionTraverse_.insert(chunkList);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list is awaiting requisition traverse (ChunkListId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list is awaiting requisition traverse (ChunkListId: %v)",
             chunkList->GetId());
 
         if (ChunkReplicator_) {
@@ -1048,7 +1051,7 @@ public:
     }
 
 
-    TChunk* GetChunkOrThrow(const TChunkId& id)
+    TChunk* GetChunkOrThrow(TChunkId id)
     {
         auto* chunk = FindChunk(id);
         if (!IsObjectAlive(chunk)) {
@@ -1060,7 +1063,7 @@ public:
         return chunk;
     }
 
-    TChunkList* GetChunkListOrThrow(const TChunkListId& id)
+    TChunkList* GetChunkListOrThrow(TChunkListId id)
     {
         auto* chunkList = FindChunkList(id);
         if (!IsObjectAlive(chunkList)) {
@@ -1074,10 +1077,10 @@ public:
 
     TMedium* CreateMedium(
         const TString& name,
-        TNullable<bool> transient,
-        TNullable<bool> cache,
-        TNullable<int> priority,
-        const TObjectId& hintId)
+        std::optional<bool> transient,
+        std::optional<bool> cache,
+        std::optional<int> priority,
+        TObjectId hintId)
     {
         ValidateMediumName(name);
 
@@ -1189,7 +1192,7 @@ public:
         return medium;
     }
 
-    TChunkTree* FindChunkTree(const TChunkTreeId& id)
+    TChunkTree* FindChunkTree(TChunkTreeId id)
     {
         auto type = TypeFromId(id);
         switch (type) {
@@ -1204,14 +1207,14 @@ public:
         }
     }
 
-    TChunkTree* GetChunkTree(const TChunkTreeId& id)
+    TChunkTree* GetChunkTree(TChunkTreeId id)
     {
         auto* chunkTree = FindChunkTree(id);
         YCHECK(chunkTree);
         return chunkTree;
     }
 
-    TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id)
+    TChunkTree* GetChunkTreeOrThrow(TChunkTreeId id)
     {
         auto* chunkTree = FindChunkTree(id);
         if (!IsObjectAlive(chunkTree)) {
@@ -1315,7 +1318,8 @@ private:
 
     bool NeedToRecomputeStatistics_ = false;
     bool NeedResetDataWeight_ = false;
-    bool NeedInitializeMediumConfig_ = false;
+    bool NeedInitializeMediumMaxReplicasPerRack_ = false;
+    bool NeedInitializeMediumMaxReplicationFactor_ = false;
     bool NeedRecomputeRequisitionRefCounts_ = false;
     bool NeedToFixExportRequisitionIndexes_ = false;
     bool NeedToInitializeAggregatedRequisitionIndexes_ = false;
@@ -1380,7 +1384,7 @@ private:
         return DoCreateChunk(id);
     }
 
-    TChunk* DoCreateChunk(const TChunkId& chunkId)
+    TChunk* DoCreateChunk(TChunkId chunkId)
     {
         auto chunkHolder = std::make_unique<TChunk>(chunkId);
         auto* chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
@@ -1712,21 +1716,21 @@ private:
     {
         auto chunkListIds = FromProto<std::vector<TChunkListId>>(request->chunk_list_ids());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Confirming finished chunk lists requisition traverse (ChunkListIds: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Confirming finished chunk lists requisition traverse (ChunkListIds: %v)",
             chunkListIds);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto chunkListId : chunkListIds) {
             auto* chunkList = FindChunkList(chunkListId);
             if (!chunkList) {
-                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
 
             auto it = ChunkListsAwaitingRequisitionTraverse_.find(chunkList);
             if (it == ChunkListsAwaitingRequisitionTraverse_.end()) {
-                LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
@@ -1811,7 +1815,7 @@ private:
             auto& request = pair.second;
             FillChunkRequisitionDict(&request, ChunkRequisitionRegistry_);
             multicellManager->PostToMaster(request, cellTag);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to update requisition of imported chunks (CellTag: %v, Count: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to update requisition of imported chunks (CellTag: %v, Count: %v)",
                 cellTag,
                 request.updates_size());
         }
@@ -1911,7 +1915,7 @@ private:
             chunkIds.push_back(chunk->GetId());
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunks exported (TransactionId: %v, ChunkIds: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunks exported (TransactionId: %v, ChunkIds: %v)",
             transactionId,
             chunkIds);
     }
@@ -1947,7 +1951,7 @@ private:
             chunkIds.push_back(chunk->GetId());
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunks imported (TransactionId: %v, ChunkIds: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunks imported (TransactionId: %v, ChunkIds: %v)",
             transactionId,
             chunkIds);
     }
@@ -1965,7 +1969,7 @@ private:
                 try {
                     (this->*handler)(&subrequest, subresponse);
                 } catch (const std::exception& ex) {
-                    LOG_DEBUG_UNLESS(IsRecovery(), ex, errorMessage);
+                    YT_LOG_DEBUG_UNLESS(IsRecovery(), TError(errorMessage) << ex);
                     if (subresponse) {
                         ToProto(subresponse->mutable_error(), TError(ex));
                     }
@@ -2085,7 +2089,7 @@ private:
             ToProto(subresponse->mutable_session_id(), sessionId);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(),
+        YT_LOG_DEBUG_UNLESS(IsRecovery(),
             "Chunk created "
             "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, "
             "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
@@ -2120,7 +2124,7 @@ private:
             *subresponse->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v, Replicas: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v, Replicas: %v)",
             chunkId,
             replicas);
     }
@@ -2138,7 +2142,7 @@ private:
             chunk,
             miscExt);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed "
             "(ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             chunk->GetId(),
             miscExt.row_count(),
@@ -2166,7 +2170,7 @@ private:
             chunkListIds.push_back(chunkList->GetId());
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(),
+        YT_LOG_DEBUG_UNLESS(IsRecovery(),
             "Chunk lists created (ChunkListIds: %v, TransactionId: %v)",
             chunkListIds,
             transaction->GetId());
@@ -2183,7 +2187,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->UnstageObject(chunkTree->GetStagingTransaction(), chunkTree, recursive);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree unstaged (ChunkTreeId: %v, Recursive: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree unstaged (ChunkTreeId: %v, Recursive: %v)",
             chunkTreeId,
             recursive);
     }
@@ -2220,7 +2224,7 @@ private:
             *subresponse->mutable_statistics() = parent->Statistics().ToDataStatistics();
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk trees attached (ParentId: %v, ChildIds: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk trees attached (ParentId: %v, ChildIds: %v)",
             parentId,
             MakeFormattableRange(children, TObjectIdFormatter()));
     }
@@ -2275,7 +2279,10 @@ private:
         }
 
         //COMPAT(savrus)
-        NeedInitializeMediumConfig_ = context.GetVersion() < 629;
+        NeedInitializeMediumMaxReplicasPerRack_ = context.GetVersion() < 629;
+
+        // COMPAT(shakurov)
+        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < 817;
 
         // COMPAT(shakurov)
         NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 710;
@@ -2293,7 +2300,8 @@ private:
 
         NeedToRecomputeStatistics_ = false;
         NeedResetDataWeight_ = false;
-        NeedInitializeMediumConfig_ = false;
+        NeedInitializeMediumMaxReplicasPerRack_ = false;
+        NeedInitializeMediumMaxReplicationFactor_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2319,7 +2327,7 @@ private:
         // Populate nodes' chunk replica sets.
         // Compute chunk replica count.
 
-        LOG_INFO("Started initializing chunks");
+        YT_LOG_INFO("Started initializing chunks");
 
         for (const auto& pair : ChunkMap_) {
             auto* chunk = pair.second;
@@ -2359,15 +2367,23 @@ private:
             NeedToRecomputeStatistics_ = false;
         }
 
-        if (NeedInitializeMediumConfig_) {
+        if (NeedInitializeMediumMaxReplicasPerRack_) {
             for (const auto& pair : MediumMap_) {
                 auto* medium = pair.second;
-                InitializeMediumConfig(medium);
+                InitializeMediumMaxReplicasPerRack(medium);
             }
-            NeedInitializeMediumConfig_ = false;
+            NeedInitializeMediumMaxReplicasPerRack_ = false;
         }
 
-        LOG_INFO("Finished initializing chunks");
+        if (NeedInitializeMediumMaxReplicationFactor_) {
+            for (const auto& pair : MediumMap_) {
+                auto* medium = pair.second;
+                InitializeMediumMaxReplicationFactor(medium);
+            }
+            NeedInitializeMediumMaxReplicationFactor_ = false;
+        }
+
+        YT_LOG_INFO("Finished initializing chunks");
     }
 
 
@@ -2452,7 +2468,7 @@ private:
 
     bool EnsureBuiltinMediumInitialized(
         TMedium*& medium,
-        const TMediumId& id,
+        TMediumId id,
         int mediumIndex,
         const TString& name,
         bool cache)
@@ -2464,7 +2480,7 @@ private:
         if (medium) {
             return false;
         }
-        medium = DoCreateMedium(id, mediumIndex, name, false, cache, Null);
+        medium = DoCreateMedium(id, mediumIndex, name, false, cache, std::nullopt);
         return true;
     }
 
@@ -2476,7 +2492,7 @@ private:
 
     void RecomputeStatistics()
     {
-        LOG_INFO("Started recomputing statistics");
+        YT_LOG_INFO("Started recomputing statistics");
 
         auto visitMark = TChunkList::GenerateVisitMark();
 
@@ -2560,14 +2576,14 @@ private:
             ++statistics.ChunkListCount;
 
             if (statistics != oldStatistics) {
-                LOG_DEBUG("Chunk list statistics changed (ChunkList: %v, OldStatistics: %v, NewStatistics: %v)",
+                YT_LOG_DEBUG("Chunk list statistics changed (ChunkList: %v, OldStatistics: %v, NewStatistics: %v)",
                     chunkList->GetId(),
                     oldStatistics,
                     statistics);
             }
         }
 
-        LOG_INFO("Finished recomputing statistics");
+        YT_LOG_INFO("Finished recomputing statistics");
     }
 
     virtual void OnRecoveryStarted() override
@@ -2614,7 +2630,7 @@ private:
                 ToProto(request.add_chunk_list_ids(), chunkList->GetId());
             }
 
-            LOG_INFO("Scheduling chunk lists requisition traverse confirmation (Count: %v)",
+            YT_LOG_INFO("Scheduling chunk lists requisition traverse confirmation (Count: %v)",
                 request.chunk_list_ids_size());
 
             CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request)
@@ -2678,7 +2694,7 @@ private:
         chunk->AddReplica(nodeWithIndexes, medium);
 
         if (!IsRecovery()) {
-            LOG_EVENT(
+            YT_LOG_EVENT(
                 Logger,
                 reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
                 "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v)",
@@ -2737,7 +2753,7 @@ private:
         }
 
         if (!IsRecovery()) {
-            LOG_EVENT(
+            YT_LOG_EVENT(
                 Logger,
                 reason == ERemoveReplicaReason::NodeDisposed ||
                 reason == ERemoveReplicaReason::ChunkDestroyed
@@ -2790,7 +2806,7 @@ private:
 
         auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
         if (!IsObjectAlive(medium)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Cannot add chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Cannot add chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkIdWithIndexes);
@@ -2807,7 +2823,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkIdWithIndexes);
@@ -2824,7 +2840,7 @@ private:
         TNodePtrWithIndexes nodeWithIndexes(node, indexes.first, indexes.second);
 
         if (!cached && node->HasUnapprovedReplica(chunkWithIndexes)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkWithIndexes);
@@ -2851,7 +2867,7 @@ private:
 
         auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
         if (!IsObjectAlive(medium)) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Cannot remove chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
+            YT_LOG_WARNING_UNLESS(IsRecovery(), "Cannot remove chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkIdWithIndexes);
@@ -2861,7 +2877,7 @@ private:
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
                 chunkIdWithIndexes,
                 node->GetDefaultAddress(),
                 nodeId);
@@ -3000,12 +3016,12 @@ private:
     }
 
     TMedium* DoCreateMedium(
-        const TMediumId& id,
+        TMediumId id,
         int mediumIndex,
         const TString& name,
-        TNullable<bool> transient,
-        TNullable<bool> cache,
-        TNullable<int> priority)
+        std::optional<bool> transient,
+        std::optional<bool> cache,
+        std::optional<int> priority)
     {
         auto mediumHolder = std::make_unique<TMedium>(id);
         mediumHolder->SetName(name);
@@ -3063,10 +3079,23 @@ private:
 
     void InitializeMediumConfig(TMedium* medium)
     {
+        InitializeMediumMaxReplicasPerRack(medium);
+        InitializeMediumMaxReplicationFactor(medium);
+    }
+
+    // COMPAT(savrus)
+    void InitializeMediumMaxReplicasPerRack(TMedium* medium)
+    {
         medium->Config()->MaxReplicasPerRack = Config_->MaxReplicasPerRack;
         medium->Config()->MaxRegularReplicasPerRack = Config_->MaxRegularReplicasPerRack;
         medium->Config()->MaxJournalReplicasPerRack = Config_->MaxJournalReplicasPerRack;
         medium->Config()->MaxErasureReplicasPerRack = Config_->MaxErasureReplicasPerRack;
+    }
+
+    // COMPAT(shakurov)
+    void InitializeMediumMaxReplicationFactor(TMedium* medium)
+    {
+        medium->Config()->MaxReplicationFactor = Config_->MaxReplicationFactor;
     }
 
     static void ValidateMediumName(const TString& name)
@@ -3186,7 +3215,7 @@ IObjectProxyPtr TChunkManager::TMediumTypeHandler::DoGetProxy(
 }
 
 TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
@@ -3224,27 +3253,27 @@ void TChunkManager::Initialize()
     Impl_->Initialize();
 }
 
-TChunk* TChunkManager::GetChunkOrThrow(const TChunkId& id)
+TChunk* TChunkManager::GetChunkOrThrow(TChunkId id)
 {
     return Impl_->GetChunkOrThrow(id);
 }
 
-TChunkList* TChunkManager::GetChunkListOrThrow(const TChunkListId& id)
+TChunkList* TChunkManager::GetChunkListOrThrow(TChunkListId id)
 {
     return Impl_->GetChunkListOrThrow(id);
 }
 
-TChunkTree* TChunkManager::FindChunkTree(const TChunkTreeId& id)
+TChunkTree* TChunkManager::FindChunkTree(TChunkTreeId id)
 {
     return Impl_->FindChunkTree(id);
 }
 
-TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
+TChunkTree* TChunkManager::GetChunkTree(TChunkTreeId id)
 {
     return Impl_->GetChunkTree(id);
 }
 
-TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
+TChunkTree* TChunkManager::GetChunkTreeOrThrow(TChunkTreeId id)
 {
     return Impl_->GetChunkTreeOrThrow(id);
 }
@@ -3254,9 +3283,9 @@ TNodeList TChunkManager::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
-    const TNullable<TString>& preferredHostName)
+    const std::optional<TString>& preferredHostName)
 {
     return Impl_->AllocateWriteTargets(
         medium,
@@ -3381,6 +3410,8 @@ void TChunkManager::ClearChunkList(TChunkList* chunkList)
 
 void TChunkManager::ScheduleJobs(
     TNode* node,
+    const TNodeResources& resourceUsage,
+    const TNodeResources& resourceLimits,
     const std::vector<TJobPtr>& currentJobs,
     std::vector<TJobPtr>* jobsToStart,
     std::vector<TJobPtr>* jobsToAbort,
@@ -3388,6 +3419,8 @@ void TChunkManager::ScheduleJobs(
 {
     Impl_->ScheduleJobs(
         node,
+        resourceUsage,
+        resourceLimits,
         currentJobs,
         jobsToStart,
         jobsToAbort,
@@ -3498,5 +3531,4 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, ForeignChunks, *Imp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

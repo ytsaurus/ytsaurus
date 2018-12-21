@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,8 +29,7 @@ MakeEmptyTransactionActionHandler();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

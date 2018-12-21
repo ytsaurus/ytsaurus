@@ -6,8 +6,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NObjectServer;
@@ -18,7 +17,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellBundle::TTabletCellBundle(const TTabletCellBundleId& id)
+TTabletCellBundle::TTabletCellBundle(TTabletCellBundleId id)
     : TNonversionedObjectBase(id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
@@ -72,7 +71,7 @@ void TTabletCellBundle::Load(TLoadContext& context)
         if (context.GetVersion() >= 600) {
             Load(context, NodeTagFilter_);
         } else {
-            if (auto filter = Load<TNullable<TString>>(context)) {
+            if (auto filter = Load<std::optional<TString>>(context)) {
                 NodeTagFilter_ = MakeBooleanFormula(*filter);
             }
         }
@@ -138,6 +137,5 @@ void TTabletCellBundle::FillProfilingTag()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer
 

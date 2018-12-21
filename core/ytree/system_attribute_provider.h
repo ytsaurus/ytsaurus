@@ -8,12 +8,11 @@
 #include <yt/core/yson/string.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,9 +141,9 @@ struct ISystemAttributeProvider
     //! Populates the list of all builtin attributes supported by this object.
     void ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors);
 
-    //! Returns an instance of TAttributeDescriptor matching a given #key or |Null| if no such
+    //! Returns an instance of TAttributeDescriptor matching a given #key or null if no such
     //! builtin attribute is known.
-    TNullable<TAttributeDescriptor> FindBuiltinAttributeDescriptor(TInternedAttributeKey key);
+    std::optional<TAttributeDescriptor> FindBuiltinAttributeDescriptor(TInternedAttributeKey key);
 
     //! Wraps #GetBuiltinAttribute and returns the YSON string instead
     //! of writing it into a consumer.
@@ -153,5 +152,4 @@ struct ISystemAttributeProvider
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

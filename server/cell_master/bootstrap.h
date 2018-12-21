@@ -42,8 +42,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,11 +58,11 @@ public:
     bool IsSecondaryMaster() const;
     bool IsMulticell() const;
 
-    const NObjectClient::TCellId& GetCellId() const;
+    NObjectClient::TCellId GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NObjectClient::TCellTag GetCellTag() const;
 
-    const NObjectClient::TCellId& GetPrimaryCellId() const;
+    NObjectClient::TCellId GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
     const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
@@ -156,5 +155,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

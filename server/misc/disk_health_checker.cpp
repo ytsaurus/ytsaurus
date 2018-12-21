@@ -64,14 +64,14 @@ void TDiskHealthChecker::OnCheckCompleted(const TError& error)
     auto actualError = error.GetCode() == NYT::EErrorCode::Timeout
         ? TError("Disk health check timed out at %v", Path_)
         : error;
-    LOG_ERROR(actualError);
+    YT_LOG_ERROR(actualError);
 
     Failed_.Fire(actualError);
 }
 
 void TDiskHealthChecker::DoRunCheck()
 {
-    LOG_DEBUG("Disk health check started");
+    YT_LOG_DEBUG("Disk health check started");
 
     if (NFS::Exists(NFS::CombinePaths(Path_, DisabledLockFileName))) {
         THROW_ERROR_EXCEPTION("Lock file is found");
@@ -114,7 +114,7 @@ void TDiskHealthChecker::DoRunCheck()
             << ex;
     }
 
-    LOG_DEBUG("Disk health check finished");
+    YT_LOG_DEBUG("Disk health check finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

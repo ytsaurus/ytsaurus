@@ -2,8 +2,7 @@
 
 #include "token.h"
 
-namespace NYT {
-namespace NYPath {
+namespace NYT::NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,6 +16,7 @@ public:
     ETokenType GetType() const;
     TStringBuf GetToken() const;
     TStringBuf GetPrefix() const;
+    TStringBuf GetPrefixPlusToken() const;
     TStringBuf GetSuffix() const;
     TStringBuf GetInput() const;
     const TString& GetLiteralValue() const;
@@ -46,5 +46,4 @@ bool HasPrefix(const TYPath& fullPath, const TYPath& prefixPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYPath
-} // namespace NYT
+} // namespace NYT::NYPath

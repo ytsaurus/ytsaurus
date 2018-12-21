@@ -1,8 +1,6 @@
 #include "config.h"
 
-namespace NYT {
-namespace NApi {
-namespace NRpcProxy {
+namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,13 +57,11 @@ TConnectionConfig::TConnectionConfig()
                 THROW_ERROR_EXCEPTION("\"addresses\" must be specified");
             }
 
-            ClusterUrl.Reset();
+            ClusterUrl.reset();
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NRpcProxy

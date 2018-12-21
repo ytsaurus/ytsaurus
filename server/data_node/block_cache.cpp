@@ -12,8 +12,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
@@ -44,7 +43,7 @@ public:
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
-        const TNullable<TNodeDescriptor>& source) override
+        const std::optional<TNodeDescriptor>& source) override
     {
         if (type == EBlockType::CompressedData) {
             const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
@@ -94,5 +93,4 @@ IBlockCachePtr CreateServerBlockCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

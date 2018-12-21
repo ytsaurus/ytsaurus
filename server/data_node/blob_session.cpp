@@ -22,8 +22,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NProfiling;
 using namespace NRpc;
@@ -47,7 +46,7 @@ TFuture<void> TBlobSession::DoStart()
 
 TFuture<IChunkPtr> TBlobSession::DoFinish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    TNullable<int> blockCount)
+    std::optional<int> blockCount)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(chunkMeta);
@@ -138,7 +137,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             if (TRef::AreBitwiseEqual(slot.Block.Data, block.Data)) {
-                LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
+                YT_LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
                 continue;
             }
 
@@ -157,7 +156,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         slot.MemoryTrackerGuard = std::move(memoryTrackerGuards[localIndex]);
 
         if (enableCaching) {
-            chunkBlockManager->PutCachedBlock(blockId, block, Null);
+            chunkBlockManager->PutCachedBlock(blockId, block, std::nullopt);
         }
 
         Location_->UpdateUsedSpace(block.Size());
@@ -167,7 +166,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
     auto totalSize = GetByteSize(blocks);
     Size_ += totalSize;
 
-    LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
+    YT_LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
         receivedBlockIndexes,
         totalSize);
 
@@ -283,7 +282,7 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
         const auto& block = blocks[index];
         int blockIndex = beginBlockIndex + index;
 
-        LOG_DEBUG("Started writing block (BlockIndex: %v, BlockSize: %v)",
+        YT_LOG_DEBUG("Started writing block (BlockIndex: %v, BlockSize: %v)",
             blockIndex,
             block.Size());
 
@@ -313,7 +312,7 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
 
         auto writeTime = timer.GetElapsedTime();
 
-        LOG_DEBUG("Finished writing block (BlockIndex: %v, Time: %v)",
+        YT_LOG_DEBUG("Finished writing block (BlockIndex: %v, Time: %v)",
             blockIndex,
             writeTime);
 
@@ -353,7 +352,7 @@ TFuture<void> TBlobSession::DoFlushBlocks(int blockIndex)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!IsInWindow(blockIndex)) {
-        LOG_DEBUG("Blocks are already flushed (BlockIndex: %v)", blockIndex);
+        YT_LOG_DEBUG("Blocks are already flushed (BlockIndex: %v)", blockIndex);
         return VoidFuture;
     }
 
@@ -404,7 +403,7 @@ void TBlobSession::DoOpenWriter()
 {
     // Thread affinity: WriterThread
 
-    LOG_DEBUG("Started opening blob chunk writer");
+    YT_LOG_DEBUG("Started opening blob chunk writer");
 
     PROFILE_TIMING ("/blob_chunk_open_time") {
         try {
@@ -423,7 +422,7 @@ void TBlobSession::DoOpenWriter()
         }
     }
 
-    LOG_DEBUG("Finished opening blob chunk writer");
+    YT_LOG_DEBUG("Finished opening blob chunk writer");
 }
 
 TFuture<void> TBlobSession::AbortWriter()
@@ -441,7 +440,7 @@ void TBlobSession::DoAbortWriter()
 
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
-    LOG_DEBUG("Started aborting chunk writer");
+    YT_LOG_DEBUG("Started aborting chunk writer");
 
     PROFILE_TIMING ("/blob_chunk_abort_time") {
         try {
@@ -456,7 +455,7 @@ void TBlobSession::DoAbortWriter()
         Writer_.Reset();
     }
 
-    LOG_DEBUG("Finished aborting chunk writer");
+    YT_LOG_DEBUG("Finished aborting chunk writer");
 
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 }
@@ -465,7 +464,7 @@ void TBlobSession::OnWriterAborted(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO(error, "Session canceled");
+    YT_LOG_INFO(error, "Session canceled");
 
     ReleaseSpace();
     Finished_.Fire(error);
@@ -488,7 +487,7 @@ void TBlobSession::DoCloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
 
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
-    LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
+    YT_LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
         Writer_->GetDataSize());
 
     PROFILE_TIMING ("/blob_chunk_close_time") {
@@ -504,7 +503,7 @@ void TBlobSession::DoCloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
         }
     }
 
-    LOG_DEBUG("Finished closing chunk writer");
+    YT_LOG_DEBUG("Finished closing chunk writer");
 
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 }
@@ -516,7 +515,7 @@ IChunkPtr TBlobSession::OnWriterClosed(const TError& error)
     ReleaseSpace();
 
     if (!error.IsOK()) {
-        LOG_WARNING(error, "Session has failed to finish");
+        YT_LOG_WARNING(error, "Session has failed to finish");
         Finished_.Fire(error);
         THROW_ERROR(error);
     }
@@ -553,7 +552,7 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         ++WindowStartBlockIndex_;
     }
 
-    LOG_DEBUG("Released blocks (WindowStart: %v)",
+    YT_LOG_DEBUG("Released blocks (WindowStart: %v)",
         WindowStartBlockIndex_);
 }
 
@@ -613,7 +612,7 @@ TBlock TBlobSession::GetBlock(int blockIndex)
             blockIndex);
     }
 
-    LOG_DEBUG("Block retrieved (Block: %v)", blockIndex);
+    YT_LOG_DEBUG("Block retrieved (Block: %v)", blockIndex);
 
     return slot.Block;
 }
@@ -674,5 +673,4 @@ void TBlobSession::OnFinishCanceled()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

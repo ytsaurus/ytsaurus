@@ -4,8 +4,7 @@
 
 #include <yt/server/tablet_node/in_memory_service.pb.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using TInMemorySessionId = TGuid;
 
@@ -30,5 +29,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

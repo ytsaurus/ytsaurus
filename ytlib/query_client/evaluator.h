@@ -7,8 +7,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +38,5 @@ DEFINE_REFCOUNTED_TYPE(TEvaluator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 

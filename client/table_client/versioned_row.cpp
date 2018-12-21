@@ -6,8 +6,7 @@
 
 #include <numeric>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NTransactionClient;
 
@@ -170,7 +169,7 @@ bool AreRowsIdentical(TVersionedRow lhs, TVersionedRow rhs)
 TString ToString(TVersionedRow row)
 {
     if (!row) {
-        return "<Null>";
+        return "<std::nullopt>";
     }
 
     TStringBuilder builder;
@@ -534,5 +533,4 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

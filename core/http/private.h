@@ -5,8 +5,7 @@
 #include <yt/core/logging/log.h>
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,5 +19,4 @@ DECLARE_REFCOUNTED_CLASS(THttpOutput);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

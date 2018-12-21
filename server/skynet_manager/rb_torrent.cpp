@@ -9,8 +9,7 @@
 
 #include <util/string/hex.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 using namespace NCrypto;
 using namespace NYson;
@@ -341,7 +340,7 @@ bool operator < (const TRowRangeLocation& rhs, const TRowRangeLocation& lhs)
 
 TString MakeFileUrl(
     const TString& node,
-    const NChunkClient::TChunkId& chunkId,
+    NChunkClient::TChunkId chunkId,
     i64 lowerRowIndex,
     i64 upperRowIndex,
     i64 partIndex)
@@ -390,7 +389,7 @@ INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRang
 
             i64 endRow = std::min(
                 file.start_row() + file.row_count(),
-                it->RowIndex + it->RowCount + it->LowerLimit.Get(0));
+                it->RowIndex + it->RowCount + it->LowerLimit.value_or(0));
             if (endRow == startRow) {
                 THROW_ERROR_EXCEPTION("Inconsistent file")
                     << TErrorAttribute("file", file.filename())
@@ -437,5 +436,4 @@ INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRang
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

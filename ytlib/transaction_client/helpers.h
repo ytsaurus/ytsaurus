@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,23 +34,22 @@ TTransactionId MakeTabletTransactionId(
 
 //! Extracts the (start) timestamp from transaction id.
 //! #id represent a well-formed tablet transaction id.
-TTimestamp TimestampFromTransactionId(const TTransactionId& id);
+TTimestamp TimestampFromTransactionId(TTransactionId id);
 
 //! Computes atomicity level for a given transaction.
-EAtomicity AtomicityFromTransactionId(const TTransactionId& id);
+EAtomicity AtomicityFromTransactionId(TTransactionId id);
 
 //! Checks if #id represents a valid transaction accepted by tablets:
 //! the type of #id must be either
 //! #EObjectType::Transaction, #EObjectType::AtomicTabletTransaction,
 //! or #EObjectType::NonAtomicTabletTransaction.
-void ValidateTabletTransactionId(const TTransactionId& id);
+void ValidateTabletTransactionId(TTransactionId id);
 
 //! Checks if #id represents a valid transaction accepted by masters:
 //! the type of #id must be either
 //! #EObjectType::Transaction or #EObjectType::NestedTransaction.
-void ValidateMasterTransactionId(const TTransactionId& id);
+void ValidateMasterTransactionId(TTransactionId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

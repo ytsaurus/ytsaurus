@@ -10,8 +10,7 @@
 
 #include <yt/core/misc/serialize.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +37,7 @@ public:
     // For persistence only.
     TTentativeTreeEligibility();
 
-    void Initialize(const TOperationId& operationId, const TString& taskTitle);
+    void Initialize(TOperationId operationId, const TString& taskTitle);
 
     void Persist(const TPersistenceContext& context);
 
@@ -97,5 +96,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

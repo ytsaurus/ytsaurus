@@ -2,21 +2,21 @@
 #include "private.h"
 #include "log.h"
 #include "log_manager.h"
+#include "random_access_gzip.h"
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TRateLimitCounter::TRateLimitCounter(
-    TNullable<size_t> limit,
+    std::optional<size_t> limit,
     const TMonotonicCounter& bytesCounter,
     const TMonotonicCounter& skippedEventsCounter)
     : LastUpdate_(TInstant::Now())
@@ -25,7 +25,7 @@ TRateLimitCounter::TRateLimitCounter(
     , SkippedEventsCounter_(skippedEventsCounter)
 { }
 
-void TRateLimitCounter::SetRateLimit(TNullable<size_t> rateLimit)
+void TRateLimitCounter::SetRateLimit(std::optional<size_t> rateLimit)
 {
     RateLimit_ = rateLimit;
     LastUpdate_ = TInstant::Now();
@@ -90,7 +90,7 @@ TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> format
     : LogFormatter(std::move(formatter))
     , Name_(std::move(name))
     , RateLimit_(
-        Null,
+        std::nullopt,
         TMonotonicCounter(),
         TMonotonicCounter("/log_events_skipped", {TProfileManager::Get()->RegisterTag("skipped_by", Name_)})
     )
@@ -161,7 +161,7 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
     std::terminate();
 }
 
-void TStreamLogWriterBase::SetRateLimit(TNullable<size_t> limit)
+void TStreamLogWriterBase::SetRateLimit(std::optional<size_t> limit)
 {
     RateLimit_.SetRateLimit(limit);
 }
@@ -182,7 +182,7 @@ TRateLimitCounter* TStreamLogWriterBase::GetCategoryRateLimitCounter(const TStri
         auto skippedTagId = TProfileManager::Get()->RegisterTag("skipped_by", Name_ + "/" + category);
         TMonotonicCounter bytesCounter("/bytes_written", {tagId});
         TMonotonicCounter skippedEventsCounter("/log_events_skipped", {skippedTagId});
-        it = CategoryToRateLimit_.insert({category, TRateLimitCounter(Null, bytesCounter, skippedEventsCounter)}).first;
+        it = CategoryToRateLimit_.insert({category, TRateLimitCounter(std::nullopt, bytesCounter, skippedEventsCounter)}).first;
     }
     return &it->second;
 }
@@ -214,9 +214,14 @@ IOutputStream* TStdoutLogWriter::GetOutputStream() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileLogWriter::TFileLogWriter(std::unique_ptr<ILogFormatter> formatter, TString writerName, TString fileName)
+TFileLogWriter::TFileLogWriter(
+    std::unique_ptr<ILogFormatter> formatter,
+    TString writerName,
+    TString fileName,
+    bool enableCompression)
     : TStreamLogWriterBase(std::move(formatter), std::move(writerName))
     , FileName_(std::move(fileName))
+    , EnableCompression_(enableCompression)
 {
     Open();
 }
@@ -226,6 +231,10 @@ TFileLogWriter::~TFileLogWriter() = default;
 IOutputStream* TFileLogWriter::GetOutputStream() const noexcept
 {
     if (Y_LIKELY(!Disabled_.load(std::memory_order_acquire))) {
+        if (Compressed_) {
+            return Compressed_.get();
+        }
+
         return FileOutput_.get();
     } else {
         return nullptr;
@@ -235,7 +244,7 @@ IOutputStream* TFileLogWriter::GetOutputStream() const noexcept
 void TFileLogWriter::OnException(const std::exception& ex)
 {
     Disabled_ = true;
-    LOG_ERROR(ex, "Disabled log file (FileName: %v)", FileName_);
+    YT_LOG_ERROR(ex, "Disabled log file (FileName: %v)", FileName_);
 
     Close();
 }
@@ -248,7 +257,7 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
         if (statistics.AvailableSpace < minSpace) {
             if (!Disabled_.load(std::memory_order_acquire)) {
                 Disabled_ = true;
-                LOG_ERROR("Log file disabled: not enough space available (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
+                YT_LOG_ERROR("Log file disabled: not enough space available (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
                     directoryName,
                     statistics.AvailableSpace,
                     minSpace);
@@ -259,13 +268,13 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
             if (Disabled_.load(std::memory_order_acquire)) {
                 Reload(); // Reinitialize all descriptors.
 
-                LOG_INFO("Log file enabled: space check passed (FileName: %v)", FileName_);
+                YT_LOG_INFO("Log file enabled: space check passed (FileName: %v)", FileName_);
                 Disabled_ = false;
             }
         }
     } catch (const std::exception& ex) {
         Disabled_ = true;
-        LOG_ERROR(ex, "Log file disabled: space check failed (FileName: %v)", FileName_);
+        YT_LOG_ERROR(ex, "Log file disabled: space check failed (FileName: %v)", FileName_);
 
         Close();
     }
@@ -275,19 +284,23 @@ void TFileLogWriter::Open()
 {
     try {
         NFS::MakeDirRecursive(NFS::GetDirectoryName(FileName_));
-        File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
-        FileOutput_.reset(new TFixedBufferFileOutput(*File_, BufferSize));
-        FileOutput_->SetFinishPropagateMode(true);
+        if (!EnableCompression_) {
+            File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+            FileOutput_.reset(new TFixedBufferFileOutput(*File_, BufferSize));
+            FileOutput_->SetFinishPropagateMode(true);
 
-        // Emit a delimiter for ease of navigation.
-        if (File_->GetLength() > 0) {
-            *FileOutput_ << Endl;
+            // Emit a delimiter for ease of navigation.
+            if (File_->GetLength() > 0) {
+                *GetOutputStream() << Endl;
+            }
+        } else {
+            Compressed_.reset(new TRandomAccessGZipFile(FileName_));
         }
 
         LogFormatter->WriteLogStartEvent(GetOutputStream());
     } catch (const std::exception& ex) {
         Disabled_ = true;
-        LOG_ERROR(ex, "Failed to open log file (FileName: %v)", FileName_);
+        YT_LOG_ERROR(ex, "Failed to open log file (FileName: %v)", FileName_);
 
         Close();
     } catch (...) {
@@ -298,21 +311,27 @@ void TFileLogWriter::Open()
 void TFileLogWriter::Close()
 {
     try {
-        if (FileOutput_) {
-            FileOutput_->Flush();
-            FileOutput_->Finish();
+        if (!EnableCompression_) {
+            if (FileOutput_) {
+                FileOutput_->Flush();
+                FileOutput_->Finish();
+            }
+            if (File_) {
+                File_->Close();
+            }
+        } else {
+            Compressed_->Finish();
         }
-        if (File_) {
-            File_->Close();
-        }
+
     } catch (const std::exception& ex) {
         Disabled_ = true;
-        LOG_ERROR(ex, "Failed to close log file %v", FileName_);
+        YT_LOG_ERROR(ex, "Failed to close log file %v", FileName_);
     } catch (...) {
         Y_UNREACHABLE();
     }
 
     try {
+        Compressed_.reset();
         FileOutput_.reset();
         File_.reset();
     } catch (...) {
@@ -328,5 +347,4 @@ void TFileLogWriter::Reload()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

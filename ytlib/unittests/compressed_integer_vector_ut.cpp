@@ -2,8 +2,7 @@
 
 #include <yt/ytlib/table_chunk_format/compressed_integer_vector.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,5 +111,4 @@ TEST(TCompressedIntegerVectorTest, TestOdd)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

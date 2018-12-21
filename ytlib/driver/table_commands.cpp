@@ -29,8 +29,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/misc/finally.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYson;
 using namespace NYTree;
@@ -50,7 +49,7 @@ TReadTableCommand::TReadTableCommand()
 {
     RegisterParameter("path", Path);
     RegisterParameter("table_reader", TableReader)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("control_attributes", ControlAttributes)
         .DefaultNew();
     RegisterParameter("unordered", Unordered)
@@ -65,7 +64,7 @@ TReadTableCommand::TReadTableCommand()
 
 void TReadTableCommand::DoExecute(ICommandContextPtr context)
 {
-    LOG_DEBUG("Executing \"read_table\" command (Path: %v, Unordered: %v, StartRowIndexOnly: %v)",
+    YT_LOG_DEBUG("Executing \"read_table\" command (Path: %v, Unordered: %v, StartRowIndexOnly: %v)",
         Path,
         Unordered,
         StartRowIndexOnly);
@@ -112,7 +111,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
 
     auto finally = Finally([&] () {
         auto dataStatistics = reader->GetDataStatistics();
-        LOG_DEBUG("Command statistics (RowCount: %v, WrittenSize: %v, "
+        YT_LOG_DEBUG("Command statistics (RowCount: %v, WrittenSize: %v, "
             "ReadUncompressedDataSize: %v, ReadCompressedDataSize: %v)",
             dataStatistics.row_count(),
             writer->GetWrittenSize(),
@@ -135,7 +134,7 @@ TReadBlobTableCommand::TReadBlobTableCommand()
     RegisterParameter("path", Path);
     RegisterParameter("part_size", PartSize);
     RegisterParameter("table_reader", TableReader)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("part_index_column_name", PartIndexColumnName)
         .Default();
     RegisterParameter("data_column_name", DataColumnName)
@@ -234,7 +233,7 @@ TWriteTableCommand::TWriteTableCommand()
 {
     RegisterParameter("path", Path);
     RegisterParameter("table_writer", TableWriter)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("max_row_buffer_size", MaxRowBufferSize)
         .Default(1_MB);
     RegisterPostprocessor([&] {
@@ -354,7 +353,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
                                         .Item(columns[index]).Value(statistics.ColumnDataWeights[index]);
                                 }
                             })
-                            .DoIf(statistics.TimestampTotalWeight.HasValue(), [&] (TFluentMap fluent) {
+                            .DoIf(statistics.TimestampTotalWeight.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("timestamp_total_weight").Value(statistics.TimestampTotalWeight);
                             })
                             .Item("legacy_chunks_data_weight").Value(statistics.LegacyChunkDataWeight)
@@ -539,6 +538,8 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("allow_join_without_index", Options.AllowJoinWithoutIndex)
         .Optional();
+    RegisterParameter("udf_registry_path", Options.UdfRegistryPath)
+        .Default();
 }
 
 void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
@@ -559,7 +560,7 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
     WaitFor(writer->Close())
         .ThrowOnError();
 
-    LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
+    YT_LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
         "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
         statistics.RowsRead,
         statistics.RowsWritten,
@@ -707,15 +708,15 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
     if (ColumnNames) {
         TColumnFilter::TIndexes columnFilterIndexes;
         for (const auto& name : *ColumnNames) {
-            auto maybeIndex = nameTable->FindId(name);
-            if (!maybeIndex) {
+            auto optionalIndex = nameTable->FindId(name);
+            if (!optionalIndex) {
                 if (!tableInfo->Schemas[ETableSchemaKind::Primary].FindColumn(name)) {
                     THROW_ERROR_EXCEPTION("No such column %Qv",
                         name);
                 }
-                maybeIndex = nameTable->GetIdOrRegisterName(name);
+                optionalIndex = nameTable->GetIdOrRegisterName(name);
             }
-            columnFilterIndexes.push_back(*maybeIndex);
+            columnFilterIndexes.push_back(*optionalIndex);
         }
         Options.ColumnFilter = TColumnFilter(std::move(columnFilterIndexes));
     }
@@ -941,5 +942,4 @@ void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

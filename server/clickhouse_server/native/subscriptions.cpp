@@ -297,7 +297,7 @@ void TNodePoller::CheckNode()
         ResetBackoff();
 
         auto revision = result.ValueOrThrow();
-        LOG_DEBUG("Current revision of target node %Qv: %v", Path, revision);
+        YT_LOG_DEBUG("Current revision of target node %Qv: %v", Path, revision);
 
         if (revision != ExpectedRevision) {
             if (revision == NonexistingNodeRevision) {
@@ -310,11 +310,11 @@ void TNodePoller::CheckNode()
         }
     } else if (IsTransientError(result)) {
         // Backoff
-        LOG_WARNING("Failed to get revision of target node %Qv: %v", Path, result);
+        YT_LOG_WARNING("Failed to get revision of target node %Qv: %v", Path, result);
         CheckNodeLater(Backoff.GetNextPause());
     } else {
         // Stop polling and report error to subscriber
-        LOG_ERROR(result);
+        YT_LOG_ERROR(result);
         NotifyOnError(result.GetMessage());
     }
 }
@@ -450,7 +450,7 @@ void TSubscriptionManager::Subscribe(
 {
     auto id = GenerateSubscriptionId();
 
-    LOG_DEBUG("Subscribe to node %Qv, expected revision %v", path, expectedRevision);
+    YT_LOG_DEBUG("Subscribe to node %Qv, expected revision %v", path, expectedRevision);
 
     auto pollFrequency = DEFAULT_POLL_FREQUENCY;
 
@@ -480,7 +480,7 @@ void TSubscriptionManager::Register(
 {
     auto guard = Guard(SubscriptionsMutex);
 
-    LOG_DEBUG("Register subscription %Qv", subscriptionId);
+    YT_LOG_DEBUG("Register subscription %Qv", subscriptionId);
 
     // Hold strong reference to node poller
     Subscriptions.emplace(subscriptionId, poller);
@@ -492,7 +492,7 @@ void TSubscriptionManager::UnRegister(const TNotificationList& notifications)
 
     for (const auto& notification : notifications) {
         auto id = notification->GetSubscriptionId();
-        LOG_DEBUG("Unregister subscription %Qv", id);
+        YT_LOG_DEBUG("Unregister subscription %Qv", id);
         Subscriptions.erase(id); // Release node poller
     }
 }
@@ -502,7 +502,7 @@ void TSubscriptionManager::Execute(const TNotificationPtr& notification)
     try {
         notification->Execute();
     } catch (...) {
-        LOG_ERROR("Event handler of subscription %Qv raised error: %v",
+        YT_LOG_ERROR("Event handler of subscription %Qv raised error: %v",
             notification->GetSubscriptionId(), CurrentExceptionMessage());
         throw; // TODO
     }

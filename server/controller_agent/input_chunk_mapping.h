@@ -4,8 +4,7 @@
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 
-namespace NYT {
-namespace NControllerAgent{
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,5 +73,4 @@ extern TInputChunkMappingPtr IdentityChunkMapping;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

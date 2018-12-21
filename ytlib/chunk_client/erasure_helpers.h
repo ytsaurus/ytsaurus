@@ -9,9 +9,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-namespace NYT {
-namespace NChunkClient {
-namespace NErasureHelpers {
+namespace NYT::NChunkClient::NErasureHelpers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,8 +183,8 @@ public:
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags) override;
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TChunkId GetChunkId() const override;
 
@@ -205,7 +203,5 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NErasureHelpers
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient::NErasureHelpers
 

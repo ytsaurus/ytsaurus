@@ -14,15 +14,14 @@
 
 #include <yt/core/erasure/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/format.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/intrusive_linked_list.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +86,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Movable);
 
 public:
-    explicit TChunk(const TChunkId& id);
+    explicit TChunk(TChunkId id);
 
     TChunkDynamicData* GetDynamicData() const;
 
@@ -243,7 +242,7 @@ public:
      */
     int GetMaxReplicasPerRack(
         int mediumIndex,
-        TNullable<int> replicationFactorOverride,
+        std::optional<int> replicationFactorOverride,
         const TChunkRequisitionRegistry* registry) const;
 
     //! Returns the export data w.r.t. to a cell with a given #index.
@@ -326,8 +325,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 #define CHUNK_INL_H_
 #include "chunk-inl.h"

@@ -15,8 +15,7 @@
 #include <yt/core/json/json_writer.h>
 #include <yt/core/json/config.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -87,7 +86,7 @@ private:
 class TWebJsonColumnFilter
 {
 public:
-    TWebJsonColumnFilter(int maxSelectedColumnCount, TNullable<THashSet<TString>> names)
+    TWebJsonColumnFilter(int maxSelectedColumnCount, std::optional<THashSet<TString>> names)
         : MaxSelectedColumnCount_(maxSelectedColumnCount)
         , Names_(std::move(names))
     { }
@@ -102,7 +101,7 @@ public:
 
 private:
     const int MaxSelectedColumnCount_;
-    TNullable<THashSet<TString>> Names_;
+    std::optional<THashSet<TString>> Names_;
 
     THashSet<ui16> AcceptedColumnIds_;
 
@@ -125,9 +124,9 @@ private:
 
 TWebJsonColumnFilter CreateWebJsonColumnFilter(const TSchemalessWebJsonFormatConfigPtr& webJsonConfig)
 {
-    TNullable<THashSet<TString>> columnNames;
+    std::optional<THashSet<TString>> columnNames;
     if (webJsonConfig->ColumnNames) {
-        columnNames.Emplace();
+        columnNames.emplace();
         for (const auto& columnName : *webJsonConfig->ColumnNames) {
             if (!columnNames->insert(columnName).second) {
                 THROW_ERROR_EXCEPTION("Duplicate column name %Qv in \"column_names\" parameter of web_json format config",
@@ -410,5 +409,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

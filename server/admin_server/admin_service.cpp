@@ -9,8 +9,7 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NAdmin {
+namespace NYT::NAdmin {
 
 using namespace NLogging;
 using namespace NRpc;
@@ -80,5 +79,4 @@ IServicePtr CreateAdminService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NAdmin
-} // NYT
+} // namespace NYT::NAdmin

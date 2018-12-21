@@ -23,8 +23,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +34,7 @@ class TSortedDynamicStore
 public:
     TSortedDynamicStore(
         TTabletManagerConfigPtr config,
-        const TStoreId& id,
+        TStoreId id,
         TTablet* tablet,
         NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
     virtual ~TSortedDynamicStore();
@@ -238,8 +237,7 @@ DEFINE_REFCOUNTED_TYPE(TSortedDynamicStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 
 #define SORTED_DYNAMIC_STORE_INL_H_
 #include "sorted_dynamic_store-inl.h"

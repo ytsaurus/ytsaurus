@@ -17,8 +17,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -44,7 +43,7 @@ public:
         TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
         IUserJobIOFactoryPtr userJobIOFactory,
-        TNullable<TString> udfDirectory)
+        std::optional<TString> udfDirectory)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , Client_(std::move(client))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
@@ -107,18 +106,18 @@ public:
         return Initialized_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();
     }
 
-    virtual TNullable<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const override
+    virtual std::optional<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const override
     {
         if (!Initialized_) {
-            return Null;
+            return std::nullopt;
         }
         return Reader_->GetDataStatistics();
     }
 
-    virtual TNullable<TCodecStatistics> GetDecompressionStatistics() const override
+    virtual std::optional<TCodecStatistics> GetDecompressionStatistics() const override
     {
         if (!Initialized_) {
-            return Null;
+            return std::nullopt;
         }
         return Reader_->GetDecompressionStatistics();
     }
@@ -245,7 +244,7 @@ private:
     const IUserJobIOFactoryPtr UserJobIOFactory_;
     ISchemalessMultiChunkReaderPtr Reader_;
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
-    TNullable<TString> UdfDirectory_;
+    std::optional<TString> UdfDirectory_;
     std::atomic<bool> Initialized_ = {false};
     std::atomic<bool> Interrupted_ = {false};
 
@@ -280,14 +279,14 @@ public:
         return {};
     }
 
-    TNullable<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const override
+    std::optional<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
-    TNullable<TCodecStatistics> GetDecompressionStatistics() const override
+    std::optional<TCodecStatistics> GetDecompressionStatistics() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
     void InterruptReader() override
@@ -309,7 +308,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     IInvokerPtr invoker,
     TNodeDescriptor nodeDescriptor,
     TClosure onNetworkRelease,
-    TNullable<TString> udfDirectory,
+    std::optional<TString> udfDirectory,
     TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -337,5 +336,4 @@ IUserJobReadControllerPtr CreateUserJobReadController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

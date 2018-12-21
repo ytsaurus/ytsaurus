@@ -17,8 +17,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NControllerAgent;
@@ -107,7 +106,7 @@ public:
         }
 
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
-            LOG_DEBUG(
+            YT_LOG_DEBUG(
                 "Building jobs with sampling "
                 "(SamplingRate: %v, SamplingDataWeightPerJob: %v)",
                 *JobSizeConstraints_->GetSamplingRate(),
@@ -672,7 +671,7 @@ private:
                 }
             }
 
-            LOG_TRACE("Slicing unversioned chunk (ChunkId: %v, DataWeight: %v, SliceDataWeight: %v, SliceRowCount: %v, "
+            YT_LOG_TRACE("Slicing unversioned chunk (ChunkId: %v, DataWeight: %v, SliceDataWeight: %v, SliceRowCount: %v, "
                 "SliceCount: %v)",
                 chunk->ChunkId(),
                 chunk->GetDataWeight(),
@@ -964,5 +963,4 @@ std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

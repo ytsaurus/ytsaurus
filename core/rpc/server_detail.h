@@ -11,8 +11,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,14 +24,14 @@ public:
 
     virtual TRequestId GetRequestId() const override;
 
-    virtual TNullable<TInstant> GetStartTime() const override;
-    virtual TNullable<TDuration> GetTimeout() const override;
+    virtual std::optional<TInstant> GetStartTime() const override;
+    virtual std::optional<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
     virtual TMutationId GetMutationId() const override;
 
     virtual const TString& GetService() const override;
     virtual const TString& GetMethod() const override;
-    virtual const TRealmId& GetRealmId() const override;
+    virtual TRealmId GetRealmId() const override;
     virtual const TString& GetUser() const override;
 
     virtual bool IsReplied() const override;
@@ -135,14 +134,14 @@ public:
     virtual NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
-    virtual TNullable<TInstant> GetStartTime() const override;
-    virtual TNullable<TDuration> GetTimeout() const override;
+    virtual std::optional<TInstant> GetStartTime() const override;
+    virtual std::optional<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
     virtual TMutationId GetMutationId() const override;
 
     virtual const TString& GetService() const override;
     virtual const TString& GetMethod() const override;
-    virtual const TRealmId& GetRealmId() const override;
+    virtual TRealmId GetRealmId() const override;
     virtual const TString& GetUser() const override;
 
     virtual bool IsReplied() const override;
@@ -225,5 +224,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

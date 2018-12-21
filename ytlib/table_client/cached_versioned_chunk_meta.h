@@ -22,8 +22,7 @@
 
 #include <memory>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +39,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, Schema);
 
     static TCachedVersionedChunkMetaPtr Create(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TTableSchema& schema,
         const TColumnRenameDescriptors& renameDescriptors = {},
@@ -61,7 +60,7 @@ private:
     TCachedVersionedChunkMeta();
 
     void Init(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TTableSchema& schema,
         const TColumnRenameDescriptors& renameDescriptors,
@@ -77,5 +76,4 @@ DEFINE_REFCOUNTED_TYPE(TCachedVersionedChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

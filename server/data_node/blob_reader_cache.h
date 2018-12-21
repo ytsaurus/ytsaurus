@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +54,5 @@ DEFINE_REFCOUNTED_TYPE(TBlobReaderCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

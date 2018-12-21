@@ -8,19 +8,17 @@
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NJobAgent::IJobPtr CreateUserJob(
-    const NJobTrackerClient::TJobId& jobId,
-    const NJobTrackerClient::TOperationId& operationId,
+    NJobTrackerClient::TJobId jobId,
+    NJobTrackerClient::TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

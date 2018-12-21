@@ -20,8 +20,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 namespace {
 
 using namespace NHydra::NProto;
@@ -420,5 +419,4 @@ TEST_F(TSyncFileChangelogTest, SealEmptyChangelog)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

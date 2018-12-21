@@ -10,8 +10,7 @@
 
 #include <yt/core/misc/arithmetic_formula.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +133,9 @@ class TTabletCellDecommissionerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    bool EnableTabletCellDecommission;
+    bool EnableTabletCellRemoval;
+
     TDuration DecommissionCheckPeriod;
     TDuration OrphansCheckPeriod;
 
@@ -142,6 +144,10 @@ public:
 
     TTabletCellDecommissionerConfig()
     {
+        RegisterParameter("enable_tablet_cell_decommission", EnableTabletCellDecommission)
+            .Default(true);
+        RegisterParameter("enable_tablet_cell_removal", EnableTabletCellRemoval)
+            .Default(true);
         RegisterParameter("decommission_check_period", DecommissionCheckPeriod)
             .Default(TDuration::Seconds(30));
         RegisterParameter("orphans_check_period", OrphansCheckPeriod)
@@ -201,10 +207,10 @@ public:
     TDuration LeaderReassignmentTimeout;
 
     //! Maximum number of snapshots to keep for a tablet cell.
-    TNullable<int> MaxSnapshotCountToKeep;
+    std::optional<int> MaxSnapshotCountToKeep;
 
     //! Maximum total size of snapshots to keep for a tablet cell.
-    TNullable<i64> MaxSnapshotSizeToKeep;
+    std::optional<i64> MaxSnapshotSizeToKeep;
 
     //! Maximum number of snapshots to remove per a single check.
     int MaxSnapshotCountToRemovePerCheck;
@@ -416,5 +422,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

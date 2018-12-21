@@ -20,9 +20,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NRpc {
-namespace NGrpc {
+namespace NYT::NRpc::NGrpc {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -139,7 +137,7 @@ private:
         {
             Ref();
 
-            LOG_DEBUG("Sending request (RequestId: %v, Method: %v:%v, Timeout: %v)",
+            YT_LOG_DEBUG("Sending request (RequestId: %v, Method: %v:%v, Timeout: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),
@@ -252,7 +250,7 @@ private:
             auto result = grpc_call_cancel(Call_.Unwrap(), nullptr);
             YCHECK(result == GRPC_CALL_OK);
 
-            LOG_DEBUG("Request canceled (RequestId: %v)", Request_->GetRequestId());
+            YT_LOG_DEBUG("Request canceled (RequestId: %v)", Request_->GetRequestId());
 
             NotifyError(
                 AsStringBuf("Request canceled"),
@@ -324,7 +322,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v)",
+            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod());
@@ -351,7 +349,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Initial response metadata received (RequestId: %v)",
+            YT_LOG_DEBUG("Initial response metadata received (RequestId: %v)",
                 Request_->GetRequestId());
 
             Stage_ = EClientCallStage::ReceivingResponse;
@@ -404,7 +402,7 @@ private:
                 return;
             }
 
-            TNullable<ui32> messageBodySize;
+            std::optional<ui32> messageBodySize;
 
             auto messageBodySizeString = ResponseFinalMetadata_.Find(MessageBodySizeMetadataKey);
             if (messageBodySizeString) {
@@ -470,7 +468,7 @@ private:
                     << TErrorAttribute("timeout", Options_.Timeout);
             }
 
-            LOG_DEBUG(detailedError, "%v (RequestId: %v)",
+            YT_LOG_DEBUG(detailedError, "%v (RequestId: %v)",
                 reason,
                 Request_->GetRequestId());
 
@@ -483,7 +481,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
+            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),
@@ -522,6 +520,4 @@ IChannelFactoryPtr GetGrpcChannelFactory()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NGrpc
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NGrpc

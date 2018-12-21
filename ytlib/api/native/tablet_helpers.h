@@ -16,9 +16,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,12 +62,10 @@ NTabletClient::TTabletInfoPtr GetSortedTabletForRow(
 NTabletClient::TTabletInfoPtr GetOrderedTabletForRow(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const NTabletClient::TTabletInfoPtr& randomTabletInfo,
-    TNullable<int> tabletIndexColumnId,
+    std::optional<int> tabletIndexColumnId,
     NTableClient::TKey key,
     bool validateWrite = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

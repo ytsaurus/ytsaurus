@@ -5,8 +5,7 @@
 #include "bootstrap.h"
 #include "private.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -33,7 +32,7 @@ TOperationControllerHost::TOperationControllerHost(
     , IncarnationId_(Bootstrap_->GetControllerAgent()->GetIncarnationId())
 { }
 
-void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReason reason)
+void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Interrupted,
@@ -43,12 +42,12 @@ void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReaso
         {},
         {}
     });
-    LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
+    YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
         jobId);
 }
 
-void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error)
+void TOperationControllerHost::AbortJob(TJobId jobId, const TError& error)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Aborted,
@@ -58,12 +57,12 @@ void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error
         {},
         {}
     });
-    LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
+    YT_LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
 }
 
-void TOperationControllerHost::FailJob(const TJobId& jobId)
+void TOperationControllerHost::FailJob(TJobId jobId)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Failed,
@@ -73,7 +72,7 @@ void TOperationControllerHost::FailJob(const TJobId& jobId)
         {},
         {}
     });
-    LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
+    YT_LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
 }
@@ -90,11 +89,12 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
             {},
             jobToRelease.ArchiveJobSpec,
             jobToRelease.ArchiveStderr,
-            jobToRelease.ArchiveFailContext
+            jobToRelease.ArchiveFailContext,
+            jobToRelease.ArchiveProfile,
         });
     }
     JobEventsOutbox_->Enqueue(std::move(events));
-    LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
+    YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
         jobsToRelease.size());
 }
@@ -137,8 +137,8 @@ void TOperationControllerHost::CreateJobNode(const TCreateJobNodeRequest& reques
 }
 
 TFuture<void> TOperationControllerHost::AttachChunkTreesToLivePreview(
-    const NTransactionClient::TTransactionId& transactionId,
-    const NCypressClient::TNodeId& tableId,
+    NTransactionClient::TTransactionId transactionId,
+    NCypressClient::TNodeId tableId,
     const std::vector<TChunkTreeId>& childIds)
 {
     return BIND(&NControllerAgent::TMasterConnector::AttachToLivePreview, Bootstrap_->GetControllerAgent()->GetMasterConnector())
@@ -214,7 +214,7 @@ TInstant TOperationControllerHost::GetConnectionTime()
     return Bootstrap_->GetControllerAgent()->GetConnectionTime();
 }
 
-const TIncarnationId& TOperationControllerHost::GetIncarnationId()
+TIncarnationId TOperationControllerHost::GetIncarnationId()
 {
     return IncarnationId_;
 }
@@ -231,7 +231,7 @@ void TOperationControllerHost::OnOperationCompleted()
         OperationId_,
         {}
     });
-    LOG_DEBUG("Operation completion notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG("Operation completion notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
@@ -242,7 +242,7 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG(error, "Operation abort notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG(error, "Operation abort notification enqueued (OperationId: %v)",
         OperationId_,
         error);
 }
@@ -254,7 +254,7 @@ void TOperationControllerHost::OnOperationFailed(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG(error, "Operation failure notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG(error, "Operation failure notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
@@ -265,7 +265,7 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
@@ -278,7 +278,7 @@ void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& t
         treeId,
         jobIds
     });
-    LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
+    YT_LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
         OperationId_,
         treeId);
 }
@@ -298,5 +298,4 @@ void TOperationControllerHost::ValidateOperationAccess(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

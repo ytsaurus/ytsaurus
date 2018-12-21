@@ -19,8 +19,7 @@
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/retrying_channel.h>
 
-namespace NYT {
-namespace NOrchid {
+namespace NYT::NOrchid {
 
 using namespace NRpc;
 using namespace NYT::NBus;
@@ -88,7 +87,7 @@ public:
         outerRequest->SetMultiplexingBand(EMultiplexingBand::Heavy);
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
-        LOG_DEBUG("Sending request to remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
+        YT_LOG_DEBUG("Sending request to remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
             GetDefaultAddress(manifest->RemoteAddresses),
             path,
             method,
@@ -104,7 +103,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<TString>>& /*attributeKeys*/,
+        const std::optional<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
         Y_UNREACHABLE();
@@ -141,7 +140,7 @@ private:
         const TOrchidServiceProxy::TErrorOrRspExecutePtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
-            LOG_DEBUG("Orchid request succeeded");
+            YT_LOG_DEBUG("Orchid request succeeded");
             const auto& rsp = rspOrError.Value();
             auto innerResponseMessage = TSharedRefArray(rsp->Attachments());
             context->Reply(innerResponseMessage);
@@ -174,5 +173,4 @@ INodeTypeHandlerPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NOrchid
-} // namespace NYT
+} // namespace NYT::NOrchid

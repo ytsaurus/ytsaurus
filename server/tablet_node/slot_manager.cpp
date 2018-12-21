@@ -26,8 +26,7 @@
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -116,7 +115,7 @@ public:
         return Slots_;
     }
 
-    TTabletSlotPtr FindSlot(const TCellId& id)
+    TTabletSlotPtr FindSlot(TCellId id)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -176,7 +175,7 @@ public:
         return snapshots;
     }
 
-    TTabletSnapshotPtr FindTabletSnapshot(const TTabletId& tabletId)
+    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -192,7 +191,7 @@ public:
         return nullptr;
     }
 
-    TTabletSnapshotPtr GetTabletSnapshotOrThrow(const TTabletId& tabletId)
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -242,7 +241,7 @@ public:
                     guard.Release();
                     // This is were deadSnapshot dies. It's also nice to have logging moved outside
                     // of a critical section.
-                    LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
+                    YT_LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
                         tablet->GetId(),
                         slot->GetCellId());
                     return;
@@ -251,7 +250,7 @@ public:
             TabletIdToSnapshot_.emplace(tablet->GetId(), newSnapshot);
         }
 
-        LOG_DEBUG("Tablet snapshot registered (TabletId: %v, CellId: %v)",
+        YT_LOG_DEBUG("Tablet snapshot registered (TabletId: %v, CellId: %v)",
             tablet->GetId(),
             slot->GetCellId());
     }
@@ -270,7 +269,7 @@ public:
                 guard.Release();
                 // This is were deadSnapshot dies. It's also nice to have logging moved outside
                 // of a critical section.
-                LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
+                YT_LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     slot->GetCellId());
                 return;
@@ -301,7 +300,7 @@ public:
         // This is were deadSnapshots die. It's also nice to have logging moved outside
         // of a critical section.
         for (const auto& snapshot : deadSnapshots) {
-            LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
+            YT_LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
                 snapshot->TabletId,
                 snapshot->CellId);
         }
@@ -416,7 +415,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_DEBUG("Slot scan started");
+        YT_LOG_DEBUG("Slot scan started");
 
         BeginSlotScan_.Fire();
 
@@ -439,7 +438,7 @@ private:
 
         EndSlotScan_.Fire();
 
-        LOG_DEBUG("Slot scan completed");
+        YT_LOG_DEBUG("Slot scan completed");
     }
 
 
@@ -504,7 +503,7 @@ const std::vector<TTabletSlotPtr>& TSlotManager::Slots() const
     return Impl_->Slots();
 }
 
-TTabletSlotPtr TSlotManager::FindSlot(const TCellId& id)
+TTabletSlotPtr TSlotManager::FindSlot(TCellId id)
 {
     return Impl_->FindSlot(id);
 }
@@ -529,12 +528,12 @@ std::vector<TTabletSnapshotPtr> TSlotManager::GetTabletSnapshots()
     return Impl_->GetTabletSnapshots();
 }
 
-TTabletSnapshotPtr TSlotManager::FindTabletSnapshot(const TTabletId& tabletId)
+TTabletSnapshotPtr TSlotManager::FindTabletSnapshot(TTabletId tabletId)
 {
     return Impl_->FindTabletSnapshot(tabletId);
 }
 
-TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(const TTabletId& tabletId)
+TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(TTabletId tabletId)
 {
     return Impl_->GetTabletSnapshotOrThrow(tabletId);
 }
@@ -578,5 +577,4 @@ DELEGATE_SIGNAL(TSlotManager, void(), EndSlotScan, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTabletNode
+} // namespace NTabletNode::NYT

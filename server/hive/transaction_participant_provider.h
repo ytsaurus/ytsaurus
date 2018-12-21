@@ -10,8 +10,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,7 +18,7 @@ struct ITransactionParticipantProvider
     : public virtual TRefCounted
 {
     virtual NHiveClient::ITransactionParticipantPtr TryCreate(
-        const TCellId& cellId,
+        TCellId cellId,
         const NApi::TTransactionParticipantOptions& options) = 0;
 };
 
@@ -40,5 +39,4 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

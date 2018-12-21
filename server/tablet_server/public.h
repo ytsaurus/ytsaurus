@@ -10,8 +10,7 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,5 +130,4 @@ using TTabletCellSet = SmallVector<std::pair<const TTabletCell*, int>, NTabletCl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

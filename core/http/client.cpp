@@ -10,8 +10,7 @@
 
 #include <yt/core/concurrency/poller.h>
 
-namespace NYT {
-namespace NHttp {
+namespace NYT::NHttp {
 
 using namespace NConcurrency;
 using namespace NNet;
@@ -114,7 +113,7 @@ private:
                 .ValueOrThrow();
         }
 
-        return TNetworkAddress(address, parsedUrl.Port.Get(DefaultHttpPort));
+        return TNetworkAddress(address, parsedUrl.Port.value_or(DefaultHttpPort));
     }
 
     std::pair<THttpOutputPtr, THttpInputPtr> OpenHttp(const TNetworkAddress& address)
@@ -173,5 +172,4 @@ IClientPtr CreateClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NYT
+} // namespace NYT::NHttp

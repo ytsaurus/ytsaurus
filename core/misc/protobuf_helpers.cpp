@@ -30,7 +30,7 @@ void SerializeProtoToRefImpl(
 {
 #ifdef YT_VALIDATE_REQUIRED_PROTO_FIELDS
     if (!partial && !message.IsInitialized()) {
-        LOG_FATAL("Missing required fields: %v", message.InitializationErrorString());
+        YT_LOG_FATAL("Missing required fields: %v", message.InitializationErrorString());
     }
 #endif
     auto* begin = reinterpret_cast<google::protobuf::uint8*>(ref.begin());

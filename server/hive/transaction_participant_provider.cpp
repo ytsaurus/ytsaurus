@@ -11,8 +11,7 @@
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 using namespace NApi;
 using namespace NHiveClient;
@@ -35,7 +34,7 @@ public:
     { }
 
     virtual ITransactionParticipantPtr TryCreate(
-        const TCellId& cellId,
+        TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {
         if (std::find(CellTags_.begin(), CellTags_.end(), CellTagFromId(cellId)) == CellTags_.end()) {
@@ -91,7 +90,7 @@ public:
     { }
 
     virtual ITransactionParticipantPtr TryCreate(
-        const TCellId& cellId,
+        TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {
         auto connection = ClusterDirectory_->FindConnection(CellTagFromId(cellId));
@@ -115,5 +114,4 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

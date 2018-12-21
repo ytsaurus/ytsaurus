@@ -43,8 +43,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/service_combiner.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
 using namespace NConcurrency;
@@ -198,7 +197,7 @@ public:
         return ConnectionTime_.load();
     }
 
-    const TIncarnationId& GetIncarnationId() const
+    TIncarnationId GetIncarnationId() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -216,7 +215,7 @@ public:
         }
     }
 
-    void ValidateIncarnation(const TIncarnationId& incarnationId) const
+    void ValidateIncarnation(TIncarnationId incarnationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -336,7 +335,7 @@ public:
         return EventLogWriter_;
     }
 
-    TOperationPtr FindOperation(const TOperationId& operationId) const
+    TOperationPtr FindOperation(TOperationId operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -345,7 +344,7 @@ public:
         return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
-    TOperationPtr GetOperation(const TOperationId& operationId) const
+    TOperationPtr GetOperation(TOperationId operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -356,27 +355,26 @@ public:
         return operation;
     }
 
-    TOperationPtr GetOperationOrThrow(const TOperationId& operationId) const
+    TOperationPtr GetOperationOrThrow(TOperationId operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
         auto operation = FindOperation(operationId);
         if (!operation) {
-            THROW_ERROR_EXCEPTION("No such operation %v", operationId);
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchOperation,
+                "No such operation %v",
+                operationId);
         }
         return operation;
     }
 
-    INodePtr FindOperationAcl(const TOperationId& operationId, EAccessType accessType) const
+    INodePtr FindOperationAcl(TOperationId operationId, EAccessType accessType) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operation = FindOperation(operationId);
-
-        if (!operation) {
-            return nullptr;
-        }
+        auto operation = GetOperationOrThrow(operationId);
 
         switch (accessType) {
             case EAccessType::Ownership:
@@ -407,7 +405,7 @@ public:
         }
     }
 
-    INodePtr GetOperationAclFromCypress(const TOperationId& operationId, EAccessType accessType) const
+    INodePtr GetOperationAclFromCypress(TOperationId operationId, EAccessType accessType) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -458,10 +456,10 @@ public:
 
         MasterConnector_->RegisterOperation(operationId);
 
-        LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
+        YT_LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    void DoDisposeAndUnregisterOperation(const TOperationId& operationId)
+    void DoDisposeAndUnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -480,14 +478,14 @@ public:
         UnregisterOperation(operationId);
     }
 
-    TFuture<void> DisposeAndUnregisterOperation(const TOperationId& operationId)
+    TFuture<void> DisposeAndUnregisterOperation(TOperationId operationId)
     {
         return BIND(&TImpl::DoDisposeAndUnregisterOperation, MakeStrong(this), operationId)
             .AsyncVia(CancelableControlInvoker_)
             .Run();
     }
 
-    void UnregisterOperation(const TOperationId& operationId)
+    void UnregisterOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -502,10 +500,10 @@ public:
 
         MasterConnector_->UnregisterOperation(operationId);
 
-        LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
+        YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
-    TFuture<void> UpdateOperationRuntimeParameters(const TOperationId& operationId, TOperationRuntimeParametersPtr runtimeParameters)
+    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersPtr runtimeParameters)
     {
         auto operation = GetOperationOrThrow(operationId);
         if (runtimeParameters->Owners) {
@@ -522,7 +520,7 @@ public:
 
     TFuture<TOperationControllerInitializeResult> InitializeOperation(
         const TOperationPtr& operation,
-        const TNullable<TControllerTransactionIds>& transactions)
+        const std::optional<TControllerTransactionIds>& transactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -623,7 +621,7 @@ public:
 
         const auto& controller = operation->GetController();
         if (!controller) {
-            LOG_DEBUG("No controller to abort (OperationId: %v)",
+            YT_LOG_DEBUG("No controller to abort (OperationId: %v)",
                 operation->GetId());
             return VoidFuture;
         }
@@ -641,7 +639,7 @@ public:
 
         std::vector<TFuture<TSharedRef>> asyncJobSpecs;
         for (const auto& request : requests) {
-            LOG_DEBUG("Extracting job spec (OperationId: %v, JobId: %v)",
+            YT_LOG_DEBUG("Extracting job spec (OperationId: %v, JobId: %v)",
                 request.OperationId,
                 request.JobId);
 
@@ -665,7 +663,7 @@ public:
         return CombineAll(asyncJobSpecs);
     }
 
-    TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId)
+    TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -678,8 +676,8 @@ public:
     }
 
     TFuture<TYsonString> BuildJobInfo(
-        const TOperationId& operationId,
-        const TJobId& jobId)
+        TOperationId operationId,
+        TJobId jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -720,7 +718,7 @@ public:
 
     void ValidateOperationAccess(
         const TString& user,
-        const TOperationId& operationId,
+        TOperationId operationId,
         EAccessType accessType)
     {
 
@@ -827,7 +825,7 @@ private:
             FetchOperationsEffectiveAcl();
             OnConnected();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error connecting to scheduler");
+            YT_LOG_WARNING(ex, "Error connecting to scheduler");
             SchedulerDisconnected_.Fire();
             DoCleanup();
             ScheduleConnect(false);
@@ -842,7 +840,7 @@ private:
         // fiber cancelation.
         DoCleanup();
 
-        LOG_INFO("Connecting to scheduler");
+        YT_LOG_INFO("Connecting to scheduler");
 
         YCHECK(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
@@ -855,7 +853,7 @@ private:
 
     void SyncClusterDirectory()
     {
-        LOG_INFO("Synchronizing cluster directory");
+        YT_LOG_INFO("Synchronizing cluster directory");
 
         WaitFor(Bootstrap_
             ->GetMasterClient()
@@ -864,22 +862,22 @@ private:
             ->Sync(/* force */ true))
             .ThrowOnError();
 
-        LOG_INFO("Cluster directory synchronized");
+        YT_LOG_INFO("Cluster directory synchronized");
     }
 
     void UpdateConfig()
     {
-        LOG_INFO("Updating config");
+        YT_LOG_INFO("Updating config");
 
         WaitFor(MasterConnector_->UpdateConfig())
             .ThrowOnError();
 
-        LOG_INFO("Config updates");
+        YT_LOG_INFO("Config updates");
     }
 
     void PerformHandshake()
     {
-        LOG_INFO("Sending handshake");
+        YT_LOG_INFO("Sending handshake");
 
         auto req = SchedulerProxy_.Handshake();
         req->SetTimeout(Config_->SchedulerHandshakeRpcTimeout);
@@ -889,14 +887,14 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        LOG_DEBUG("Handshake succeeded");
+        YT_LOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
     }
 
     void FetchOperationsEffectiveAcl()
     {
-        LOG_INFO("Fetching operations effective acl");
+        YT_LOG_INFO("Fetching operations effective acl");
 
         OperationsEffectiveAcl_ = ConvertToNode(
             WaitFor(Bootstrap_->GetMasterClient()->GetNode("//sys/operations/@effective_acl"))
@@ -908,7 +906,7 @@ private:
         Connected_ = true;
         ConnectionTime_.store(TInstant::Now());
 
-        LOG_INFO("Controller agent connected (IncarnationId: %v)",
+        YT_LOG_INFO("Controller agent connected (IncarnationId: %v)",
             IncarnationId_);
 
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
@@ -947,11 +945,11 @@ private:
         TForbidContextSwitchGuard contextSwitchGuard;
 
         if (Connected_) {
-            LOG_WARNING(error, "Disconnecting scheduler");
+            YT_LOG_WARNING(error, "Disconnecting scheduler");
 
             SchedulerDisconnected_.Fire();
 
-            LOG_WARNING("Scheduler disconnected");
+            YT_LOG_WARNING("Scheduler disconnected");
         }
 
         DoCleanup();
@@ -1049,13 +1047,16 @@ private:
                     ToProto(protoEvent->mutable_error(), event.Error);
                 }
                 if (event.ArchiveJobSpec) {
-                    protoEvent->set_archive_job_spec(event.ArchiveJobSpec.Get());
+                    protoEvent->set_archive_job_spec(*event.ArchiveJobSpec);
                 }
                 if (event.ArchiveStderr) {
-                    protoEvent->set_archive_stderr(event.ArchiveStderr.Get());
+                    protoEvent->set_archive_stderr(*event.ArchiveStderr);
                 }
                 if (event.ArchiveFailContext) {
-                    protoEvent->set_archive_fail_context(event.ArchiveFailContext.Get());
+                    protoEvent->set_archive_fail_context(*event.ArchiveFailContext);
+                }
+                if (event.ArchiveProfile) {
+                    protoEvent->set_archive_profile(*event.ArchiveProfile);
                 }
             });
 
@@ -1158,7 +1159,7 @@ private:
     {
         auto preparedRequest = PrepareHeartbeatRequest();
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
+        YT_LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
             "OperationEventCount: %v, JobEventCount: %v, ScheduleJobResponseCount: %v)",
             preparedRequest.ExecNodesRequested,
             preparedRequest.OperationsSent,
@@ -1171,7 +1172,7 @@ private:
         auto rspOrError = WaitFor(preparedRequest.RpcRequest->Invoke());
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
-                LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
+                YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
                 Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->SchedulerHeartbeatFailureBackoff)));
             } else {
                 Disconnect(rspOrError);
@@ -1179,7 +1180,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Heartbeat succeeded");
+        YT_LOG_DEBUG("Heartbeat succeeded");
         const auto& rsp = rspOrError.Value();
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
@@ -1201,14 +1202,14 @@ private:
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
             }
-            LOG_DEBUG("Exec node descriptors updated");
+            YT_LOG_DEBUG("Exec node descriptors updated");
         }
 
         for (const auto& protoOperationId : rsp->operation_ids_to_unregister()) {
             auto operationId = FromProto<TOperationId>(protoOperationId);
             auto operation = FindOperation(operationId);
             if (!operation) {
-                LOG_DEBUG("Requested to unregister an unknown operation; ignored (OperationId: %v)",
+                YT_LOG_DEBUG("Requested to unregister an unknown operation; ignored (OperationId: %v)",
                     operationId);
                 continue;
             }
@@ -1293,7 +1294,7 @@ private:
     {
         auto outbox = ScheduleJobResposesOutbox_;
 
-        auto replyWithFailure = [=] (const TOperationId& operationId, const TJobId& jobId, EScheduleJobFailReason reason) {
+        auto replyWithFailure = [=] (TOperationId operationId, TJobId jobId, EScheduleJobFailReason reason) {
             TAgentToSchedulerScheduleJobResponse response;
             response.JobId = jobId;
             response.OperationId = operationId;
@@ -1307,14 +1308,14 @@ private:
             [&] (auto* protoRequest) {
                 auto jobId = FromProto<TJobId>(protoRequest->job_id());
                 auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
-                LOG_DEBUG("Processing schedule job request (OperationId: %v, JobId: %v)",
+                YT_LOG_DEBUG("Processing schedule job request (OperationId: %v, JobId: %v)",
                     operationId,
                     jobId);
 
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
                     replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
-                    LOG_DEBUG("Failed to schedule job due to unknown operation (OperationId: %v, JobId: %v)",
+                    YT_LOG_DEBUG("Failed to schedule job due to unknown operation (OperationId: %v, JobId: %v)",
                         operationId,
                         jobId);
                     return;
@@ -1328,7 +1329,7 @@ private:
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
                         if (descriptorIt == execNodeDescriptors->end()) {
                             replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownNode);
-                            LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
+                            YT_LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
                                 operationId,
                                 jobId,
                                 nodeId);
@@ -1355,13 +1356,13 @@ private:
                         }
 
                         outbox->Enqueue(std::move(response));
-                        LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
                     }),
                     BIND([=, this_ = MakeStrong(this)] {
                         replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
-                        LOG_DEBUG("Failed to schedule job due to operation cancelation (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG("Failed to schedule job due to operation cancelation (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
                     }));
@@ -1385,7 +1386,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Exec nodes filtered (Formula: %v, MatchingNodeCount: %v)",
+        YT_LOG_DEBUG("Exec nodes filtered (Formula: %v, MatchingNodeCount: %v)",
             filter.GetBooleanFormula().GetFormula(),
             result->size());
 
@@ -1509,7 +1510,7 @@ bool TControllerAgent::IsConnected() const
     return Impl_->IsConnected();
 }
 
-const TIncarnationId& TControllerAgent::GetIncarnationId() const
+TIncarnationId TControllerAgent::GetIncarnationId() const
 {
     return Impl_->GetIncarnationId();
 }
@@ -1524,7 +1525,7 @@ void TControllerAgent::ValidateConnected() const
     Impl_->ValidateConnected();
 }
 
-void TControllerAgent::ValidateIncarnation(const TIncarnationId& incarnationId) const
+void TControllerAgent::ValidateIncarnation(TIncarnationId incarnationId) const
 {
     Impl_->ValidateIncarnation(incarnationId);
 }
@@ -1569,17 +1570,17 @@ TMemoryTagQueue* TControllerAgent::GetMemoryTagQueue()
     return Impl_->GetMemoryTagQueue();
 }
 
-TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)
+TOperationPtr TControllerAgent::FindOperation(TOperationId operationId)
 {
     return Impl_->FindOperation(operationId);
 }
 
-TOperationPtr TControllerAgent::GetOperation(const TOperationId& operationId)
+TOperationPtr TControllerAgent::GetOperation(TOperationId operationId)
 {
     return Impl_->GetOperation(operationId);
 }
 
-TOperationPtr TControllerAgent::GetOperationOrThrow(const TOperationId& operationId)
+TOperationPtr TControllerAgent::GetOperationOrThrow(TOperationId operationId)
 {
     return Impl_->GetOperationOrThrow(operationId);
 }
@@ -1594,19 +1595,19 @@ void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& des
     Impl_->RegisterOperation(descriptor);
 }
 
-TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(const TOperationId& operationId)
+TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(TOperationId operationId)
 {
     return Impl_->DisposeAndUnregisterOperation(operationId);
 }
 
-TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(const TOperationId& operationId, TOperationRuntimeParametersPtr runtimeParameters)
+TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersPtr runtimeParameters)
 {
     return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(runtimeParameters));
 }
 
 TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(
     const TOperationPtr& operation,
-    const TNullable<TControllerTransactionIds>& transactions)
+    const std::optional<TControllerTransactionIds>& transactions)
 {
     return Impl_->InitializeOperation(
         operation,
@@ -1649,14 +1650,14 @@ TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(
     return Impl_->ExtractJobSpecs(requests);
 }
 
-TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(const TOperationId& operationId)
+TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(TOperationId operationId)
 {
     return Impl_->BuildOperationInfo(operationId);
 }
 
 TFuture<TYsonString> TControllerAgent::BuildJobInfo(
-    const TOperationId& operationId,
-    const TJobId& jobId)
+    TOperationId operationId,
+    TJobId jobId)
 {
     return Impl_->BuildJobInfo(operationId, jobId);
 }
@@ -1678,7 +1679,7 @@ const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() cons
 
 void TControllerAgent::ValidateOperationAccess(
     const TString& user,
-    const TOperationId& operationId,
+    TOperationId operationId,
     EAccessType accessType)
 {
     return Impl_->ValidateOperationAccess(user, operationId, accessType);
@@ -1691,5 +1692,4 @@ DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerDisconnected, *Impl_);
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

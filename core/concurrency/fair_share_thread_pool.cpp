@@ -10,8 +10,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 
@@ -301,7 +300,7 @@ public:
         Profiler_.Update(TotalTimeCounter_, DurationToValue(timeFromEnqueue));
 
         if (timeFromStart > LogDurationThreshold) {
-            LOG_DEBUG("Long execution time (Wait: %v, Execution: %v, Total: %v)",
+            YT_LOG_DEBUG("Long execution time (Wait: %v, Execution: %v, Total: %v)",
                 CpuDurationToDuration(action->StartedAt - action->EnqueuedAt),
                 timeFromStart,
                 timeFromEnqueue);
@@ -310,7 +309,7 @@ public:
         auto waitTime = CpuDurationToDuration(action->StartedAt - action->EnqueuedAt);
 
         if (waitTime > LogDurationThreshold) {
-            LOG_DEBUG("Long wait time (Wait: %v, Execution: %v, Total: %v)",
+            YT_LOG_DEBUG("Long wait time (Wait: %v, Execution: %v, Total: %v)",
                 waitTime,
                 timeFromStart,
                 timeFromEnqueue);
@@ -578,6 +577,5 @@ IFairShareThreadPoolPtr CreateFairShareThreadPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

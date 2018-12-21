@@ -24,8 +24,7 @@
 
 #include <cmath>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NBus;
 using namespace NRpc;
@@ -111,7 +110,7 @@ TMutationId TYPathRequest::GetMutationId() const
     return FromProto<TMutationId>(Header_.mutation_id());
 }
 
-void TYPathRequest::SetMutationId(const TMutationId& id)
+void TYPathRequest::SetMutationId(TMutationId id)
 {
     if (id) {
         ToProto(Header_.mutable_mutation_id(), id);
@@ -370,7 +369,7 @@ void ExecuteVerb(
 TFuture<TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys)
+    const std::optional<std::vector<TString>>& attributeKeys)
 {
     auto request = TYPathProxy::Get(path);
     if (attributeKeys) {
@@ -393,7 +392,7 @@ TString SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
 TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<TString>>& attributeKeys)
+    const std::optional<std::vector<TString>>& attributeKeys)
 {
     return
         AsyncYPathGet(
@@ -455,7 +454,7 @@ void SyncYPathRemove(
 std::vector<TString> SyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
-    TNullable<i64> limit)
+    std::optional<i64> limit)
 {
     return AsyncYPathList(service, path, limit)
         .Get()
@@ -465,7 +464,7 @@ std::vector<TString> SyncYPathList(
 TFuture<std::vector<TString>> AsyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
-    TNullable<i64> limit)
+    std::optional<i64> limit)
 {
     auto request = TYPathProxy::List(path);
     if (limit) {
@@ -838,5 +837,4 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

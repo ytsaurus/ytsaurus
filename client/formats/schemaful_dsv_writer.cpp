@@ -13,8 +13,7 @@
 
 #include <limits>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -65,7 +64,7 @@ protected:
     void WriteColumnNamesHeader(TFunction writeCallback)
     {
         if (Config_->EnableColumnNamesHeader && *Config_->EnableColumnNamesHeader) {
-            auto columns = Config_->Columns.Get();
+            const auto& columns = *Config_->Columns;
             for (size_t index = 0; index < columns.size(); ++index) {
                 writeCallback(
                     columns[index],
@@ -300,7 +299,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     }
 
     std::vector<int> idToIndexInRow;
-    auto columns = config->Columns.Get();
+    auto columns = *config->Columns;
 
     if (config->EnableTableIndex && controlAttributesConfig->EnableTableIndex) {
         columns.insert(columns.begin(), TableIndexColumnName);
@@ -386,5 +385,4 @@ ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
 ////////////////////////////////////////////////////////////////////////////////
 
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

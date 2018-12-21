@@ -6,7 +6,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/core_dumper.h>
 
 #include <util/system/mutex.h>
@@ -17,8 +17,7 @@
 
 #include <util/system/getpid.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 
 using namespace NConcurrency;
 
@@ -37,7 +36,7 @@ public:
     virtual TCoreDump WriteCoreDump(const std::vector<TString>& notes) override
     {
         auto id = TGuid::Create();
-        LOG_INFO("Writing core dump (Id: %v, Notes: %v)", id, notes);
+        YT_LOG_INFO("Writing core dump (Id: %v, Notes: %v)", id, notes);
 #ifdef _linux_
             try {
         CoreDumpParameters parameters;
@@ -82,7 +81,7 @@ public:
 
         return {corePath, asyncResult};
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Error creating core dump (Id: %v)", id);
+        YT_LOG_WARNING(ex, "Error creating core dump (Id: %v)", id);
         THROW_ERROR_EXCEPTION("Error creating core dump")
             << ex;
     }
@@ -103,9 +102,9 @@ private:
         TUnbufferedFileOutput&& coreOutput,
         TGuid id)
     {
-        LOG_INFO("Started transferring core dump data (Id: %v)", id);
+        YT_LOG_INFO("Started transferring core dump data (Id: %v)", id);
         auto size = TransferData(&coreInput, &coreOutput);
-        LOG_INFO("Finished transferring core dump data (Id: %v, Size: %v)", id, size);
+        YT_LOG_INFO("Finished transferring core dump data (Id: %v, Size: %v)", id, size);
     }
 };
 
@@ -116,5 +115,4 @@ ICoreDumperPtr CreateCoreDumper(TCoreDumperConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

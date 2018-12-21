@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/chunk_client/medium_directory.pb.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,5 +84,4 @@ void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

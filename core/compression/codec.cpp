@@ -9,8 +9,7 @@
 #include "zstd_legacy.h"
 #include "brotli.h"
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -467,6 +466,5 @@ ICodec* GetCodec(ECodec id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCompression
-} // namespace NYT
+} // namespace NYT::NCompression
 

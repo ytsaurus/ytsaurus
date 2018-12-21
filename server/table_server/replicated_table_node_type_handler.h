@@ -6,8 +6,7 @@
 
 #include <yt/server/cypress_server/public.h>
 
-namespace NYT {
-namespace NTableServer {
+namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +14,5 @@ NCypressServer::INodeTypeHandlerPtr CreateReplicatedTableTypeHandler(NCellMaster
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
-} // namespace NYT
+} // namespace NYT::NTableServer
 

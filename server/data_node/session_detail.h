@@ -13,8 +13,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,13 +24,13 @@ public:
     TSessionBase(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap,
-        const TSessionId& sessionId,
+        TSessionId sessionId,
         const TSessionOptions& options,
         TStoreLocationPtr location,
         NConcurrency::TLease lease);
 
-    virtual const TChunkId& GetChunkId() const& override;
-    virtual const TSessionId& GetId() const& override;
+    virtual TChunkId GetChunkId() const& override;
+    virtual TSessionId GetId() const& override;
     virtual ESessionType GetType() const override;
     virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const override;
     TStoreLocationPtr GetStoreLocation() const override;
@@ -44,7 +43,7 @@ public:
 
     virtual TFuture<IChunkPtr> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        TNullable<int> blockCount) override;
+        std::optional<int> blockCount) override;
 
     virtual TFuture<void> PutBlocks(
         int startBlockIndex,
@@ -83,7 +82,7 @@ protected:
     virtual void DoCancel(const TError& error) = 0;
     virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        TNullable<int> blockCount) = 0;
+        std::optional<int> blockCount) = 0;
     virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
@@ -99,6 +98,5 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

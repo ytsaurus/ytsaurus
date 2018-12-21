@@ -7,8 +7,7 @@
 #define ZSTD_STATIC_LINKING_ONLY
 #include <contrib/libs/zstd/zstd.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +53,7 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
     {
         size_t headerSize = ZSTD_compressBegin(context, level);
 
-        LOG_FATAL_IF(
+        YT_LOG_FATAL_IF(
             ZSTD_isError(headerSize),
             ZSTD_getErrorName(headerSize));
 
@@ -74,7 +73,7 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
             buffer,
             size);
 
-        LOG_FATAL_IF(
+        YT_LOG_FATAL_IF(
             ZSTD_isError(compressedSize),
             ZSTD_getErrorName(compressedSize));
 
@@ -134,7 +133,7 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
             nullptr,
             0);
 
-        LOG_FATAL_IF(
+        YT_LOG_FATAL_IF(
             ZSTD_isError(compressedSize),
             ZSTD_getErrorName(compressedSize));
 
@@ -164,7 +163,7 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
     size_t decompressedSize = ZSTD_decompress(outputPtr, outputSize, inputPtr, inputSize);
 
     // ZSTD_decompress returns error code instead of decompressed size if it fails.
-    LOG_FATAL_IF(
+    YT_LOG_FATAL_IF(
         ZSTD_isError(decompressedSize),
         ZSTD_getErrorName(decompressedSize));
 
@@ -173,6 +172,5 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NCompression
+} // namespace NCompression::NYT
 

@@ -22,8 +22,7 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYPath;
@@ -175,7 +174,7 @@ public:
     virtual void Cancel() override
     {
         if (Canceled_.Fire()) {
-            LOG_DEBUG("Request canceled (RequestId: %v)",
+            YT_LOG_DEBUG("Request canceled (RequestId: %v)",
                 RequestId_);
             Profiler.Increment(PerformanceCounters_->CanceledRequestCounter);
         }
@@ -192,7 +191,7 @@ public:
             return;
         }
 
-        LOG_DEBUG("Request timed out, canceling (RequestId: %v)",
+        YT_LOG_DEBUG("Request timed out, canceling (RequestId: %v)",
             RequestId_);
         Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
         Canceled_.Fire();
@@ -323,7 +322,7 @@ private:
         auto timeout = GetTimeout();
         if (timeout && NProfiling::GetCpuInstant() > ArrivalInstant_ + NProfiling::DurationToCpuDuration(*timeout)) {
             if (!TimedOutLatch_.test_and_set()) {
-                LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
+                YT_LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
                     RequestId_);
                 Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
             }
@@ -333,7 +332,7 @@ private:
         if (Cancelable_) {
             auto canceler = GetCurrentFiberCanceler();
             if (canceler && !Canceled_.TrySubscribe(std::move(canceler))) {
-                LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
+                YT_LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
                     RequestId_);
                 return;
             }
@@ -429,7 +428,7 @@ private:
             delimitedBuilder->AppendFormat("Cancelable: %v", Cancelable_);
         }
 
-        LOG_EVENT(Logger, LogLevel_, builder.Flush());
+        YT_LOG_EVENT(Logger, LogLevel_, builder.Flush());
     }
 
     virtual void LogResponse() override
@@ -460,7 +459,7 @@ private:
             ExecutionTime_,
             TotalTime_);
 
-        LOG_EVENT(Logger, LogLevel_, builder.Flush());
+        YT_LOG_EVENT(Logger, LogLevel_, builder.Flush());
     }
 };
 
@@ -470,7 +469,7 @@ TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceDescriptor& descriptor,
     const NLogging::TLogger& logger,
-    const TRealmId& realmId,
+    TRealmId realmId,
     IAuthenticatorPtr authenticator)
     : Logger(logger)
     , DefaultInvoker_(std::move(defaultInvoker))
@@ -634,7 +633,7 @@ void TServiceBase::ReplyError(
         code == NRpc::EErrorCode::NoSuchMethod || code == NRpc::EErrorCode::ProtocolError
         ? NLogging::ELogLevel::Warning
         : NLogging::ELogLevel::Debug;
-    LOG_EVENT(Logger, logLevel, richError);
+    YT_LOG_EVENT(Logger, logLevel, richError);
 
     auto errorMessage = CreateErrorResponseMessage(requestId, richError);
     replyBus->Send(errorMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None));
@@ -650,7 +649,7 @@ void TServiceBase::OnRequestAuthenticated(
     if (authResultOrError.IsOK()) {
         const auto& authResult = authResultOrError.Value();
         const auto& Logger = RpcServerLogger;
-        LOG_DEBUG("Request authenticated (RequestId: %v, User: %v, Realm: %v)",
+        YT_LOG_DEBUG("Request authenticated (RequestId: %v, User: %v, Realm: %v)",
             acceptedRequest.RequestId,
             authResult.User,
             authResult.Realm);
@@ -700,11 +699,11 @@ void TServiceBase::HandleAuthenticatedRequest(
     ScheduleRequests(runtimeInfo);
 }
 
-void TServiceBase::HandleRequestCancelation(const TRequestId& requestId)
+void TServiceBase::HandleRequestCancelation(TRequestId requestId)
 {
     auto context = FindCancelableRequest(requestId);
     if (!context) {
-        LOG_DEBUG("Received cancelation for an unknown request, ignored (RequestId: %v)",
+        YT_LOG_DEBUG("Received cancelation for an unknown request, ignored (RequestId: %v)",
             requestId);
         return;
     }
@@ -712,7 +711,7 @@ void TServiceBase::HandleRequestCancelation(const TRequestId& requestId)
     context->Cancel();
 }
 
-void TServiceBase::OnRequestTimeout(const TRequestId& requestId, bool /*aborted*/)
+void TServiceBase::OnRequestTimeout(TRequestId requestId, bool /*aborted*/)
 {
     auto context = FindCancelableRequest(requestId);
     if (!context) {
@@ -742,7 +741,7 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
     }
 
     for (auto context : contexts) {
-        LOG_DEBUG(error, "Reply bus terminated, canceling request (RequestId: %v)",
+        YT_LOG_DEBUG(error, "Reply bus terminated, canceling request (RequestId: %v)",
             context->GetRequestId());
         context->Cancel();
     }
@@ -857,7 +856,7 @@ void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
     }
 }
 
-TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(const TRequestId& requestId)
+TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(TRequestId requestId)
 {
     TGuard<TSpinLock> guard(CancelableRequestLock_);
     auto it = IdToContext_.find(requestId);
@@ -1084,5 +1083,4 @@ DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

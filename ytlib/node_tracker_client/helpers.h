@@ -12,8 +12,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +74,7 @@ const NProto::TNodeResources& ZeroNodeResources();
 const NProto::TNodeResources& InfiniteNodeResources();
 
 NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId, NObjectClient::TCellTag);
-TNodeId NodeIdFromObjectId(const NObjectClient::TObjectId& objectId);
+TNodeId NodeIdFromObjectId(NObjectClient::TObjectId objectId);
 
 void ValidateNodeTags(const std::vector<TString>& tags);
 
@@ -121,5 +120,4 @@ void Deserialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

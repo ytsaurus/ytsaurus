@@ -29,8 +29,7 @@
 
 #include <yt/core/misc/phoenix.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +107,7 @@ void ValidateKeyColumns(
     const TKeyColumns& chunkKeyColumns,
     bool requireUniqueKeys,
     bool validateColumnNames);
-TColumnFilter CreateColumnFilter(const TNullable<std::vector<TString>>& columns, TNameTablePtr nameTable);
+TColumnFilter CreateColumnFilter(const std::optional<std::vector<TString>>& columns, TNameTablePtr nameTable);
 int GetSystemColumnCount(TChunkReaderOptionsPtr options);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +154,7 @@ std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
     const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NChunkClient::TFetchChunkSpecConfigPtr& config,
-    const NObjectClient::TTransactionId& transactionId,
+    NObjectClient::TTransactionId transactionId,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,8 +169,7 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<NChu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

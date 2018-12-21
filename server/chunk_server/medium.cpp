@@ -3,12 +3,11 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMedium::TMedium(const TMediumId& id)
+TMedium::TMedium(TMediumId id)
     : TObjectBase(id)
     , Index_(-1)
     , Config_(New<TMediumConfig>())
@@ -53,5 +52,4 @@ void TMedium::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

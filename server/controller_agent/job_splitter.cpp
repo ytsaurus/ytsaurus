@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NChunkPools;
 using namespace NProfiling;
@@ -27,7 +26,7 @@ public:
     //! Used only for persistence.
     TJobSplitter() = default;
 
-    TJobSplitter(const TJobSplitterConfigPtr& config, const TOperationId& operationId)
+    TJobSplitter(const TJobSplitterConfigPtr& config, TOperationId operationId)
         : Config_(config)
         , Statistics_(config)
         , OperationId_(operationId)
@@ -37,7 +36,7 @@ public:
         YCHECK(Config_);
     }
 
-    virtual bool IsJobSplittable(const TJobId& jobId) const override
+    virtual bool IsJobSplittable(TJobId jobId) const override
     {
         auto it = RunningJobs_.find(jobId);
         YCHECK(it != RunningJobs_.end());
@@ -45,7 +44,7 @@ public:
         auto residual = IsResidual();
         auto interruptHint = Statistics_.GetInterruptHint(jobId);
         auto isSplittable = job.IsSplittable(Config_);
-        LOG_TRACE("Checking if job is splittable (Residual: %v, GetInterruptHint: %v, IsSplittable: %v)",
+        YT_LOG_TRACE("Checking if job is splittable (Residual: %v, GetInterruptHint: %v, IsSplittable: %v)",
             residual,
             interruptHint,
             isSplittable);
@@ -53,7 +52,7 @@ public:
     }
 
     virtual void OnJobStarted(
-        const TJobId& jobId,
+        TJobId jobId,
         const TChunkStripeListPtr& inputStripeList) override
     {
         RunningJobs_.emplace(jobId, TRunningJob(inputStripeList, this));
@@ -87,14 +86,14 @@ public:
         const TCompletedJobSummary& summary,
         i64 unreadRowCount) const override
     {
-        double execDuration = summary.ExecDuration.Get(TDuration()).SecondsFloat();
+        double execDuration = summary.ExecDuration.value_or(TDuration()).SecondsFloat();
         YCHECK(summary.Statistics);
         i64 processedRowCount = GetNumericValue(*summary.Statistics, "/data/input/row_count");
         if (unreadRowCount <= 1 || processedRowCount == 0 || execDuration == 0.0) {
             return 1;
         }
-        double prepareDuration = summary.PrepareDuration.Get(TDuration()).SecondsFloat() -
-            summary.DownloadDuration.Get(TDuration()).SecondsFloat();
+        double prepareDuration = summary.PrepareDuration.value_or(TDuration()).SecondsFloat() -
+            summary.DownloadDuration.value_or(TDuration()).SecondsFloat();
         double expectedExecDuration = execDuration / processedRowCount * unreadRowCount;
 
         auto getMedianCompletionDuration = [&] () {
@@ -119,7 +118,7 @@ public:
             1,
             Config_->MaxJobsPerSplit);
 
-        LOG_DEBUG("Estimated optimal job count for unread data slices "
+        YT_LOG_DEBUG("Estimated optimal job count for unread data slices "
             "(JobCount: %v, JobId: %v, PrepareDuration: %.6g, ExecDuration: %.6g, "
             "ProcessedRowCount: %v, MedianCompletionDuration: %.6g, MinJobTime: %v, "
             "ExecToPrepareTimeRatio: %v, UnreadRowCount: %v, ExpectedExecDuration: %.6g)",
@@ -186,12 +185,12 @@ private:
             : Config_(config)
         { }
 
-        void SetSample(TInstant completionTime, const TJobId& jobId)
+        void SetSample(TInstant completionTime, TJobId jobId)
         {
             JobIdToCompletionTime_[jobId] = completionTime;
         }
 
-        void RemoveSample(const TJobId& jobId)
+        void RemoveSample(TJobId jobId)
         {
             JobIdToCompletionTime_.erase(jobId);
         }
@@ -238,7 +237,7 @@ private:
             return MedianCompletionTime_;
         }
 
-        bool GetInterruptHint(const TJobId& jobId) const
+        bool GetInterruptHint(TJobId jobId) const
         {
             return InterruptCandidateSet_.find(jobId) != InterruptCandidateSet_.end();
         }
@@ -284,15 +283,15 @@ private:
 
         void UpdateCompletionTime(TStatistics* statistics, const TJobSummary& summary)
         {
-            PrepareWithoutDownloadDuration_ = summary.PrepareDuration.Get(TDuration()) - summary.DownloadDuration.Get(TDuration());
+            PrepareWithoutDownloadDuration_ = summary.PrepareDuration.value_or(TDuration()) - summary.DownloadDuration.value_or(TDuration());
             if (!summary.ExecDuration) {
                 return;
             }
 
-            ExecDuration_ = summary.ExecDuration.Get(TDuration());
+            ExecDuration_ = summary.ExecDuration.value_or(TDuration());
             YCHECK(summary.Statistics);
 
-            RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").Get(0);
+            RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").value_or(0);
             if (RowCount_ == 0) {
                 return;
             }
@@ -313,7 +312,7 @@ private:
                 config->MinJobTime,
                 PrepareWithoutDownloadDuration_ * config->ExecToPrepareTimeRatio);
             const auto& Logger = Owner_->Logger;
-            LOG_TRACE("Checking if job is splittable (IsSplittable: %v, RowCount: %v, ExecDuration: %v, "
+            YT_LOG_TRACE("Checking if job is splittable (IsSplittable: %v, RowCount: %v, ExecDuration: %v, "
                 "RemainingDuration: %v, MinJobTime: %v, TotalDataWeight: %v, MinTotalDataWeight: %v)",
                 IsSplittable_,
                 RowCount_,
@@ -412,13 +411,12 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IJobSplitter> CreateJobSplitter(const TJobSplitterConfigPtr& config, const TOperationId& operationId)
+std::unique_ptr<IJobSplitter> CreateJobSplitter(const TJobSplitterConfigPtr& config, TOperationId operationId)
 {
     return std::unique_ptr<IJobSplitter>(new TJobSplitter(config, operationId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

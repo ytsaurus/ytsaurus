@@ -4,9 +4,7 @@
 
 #include <yt/core/http/config.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NHttp {
+namespace NYT::NRpc::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +16,4 @@ DEFINE_REFCOUNTED_CLASS(TServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NHttp

@@ -9,8 +9,7 @@
 
 #include <yt/core/concurrency/coroutine.h>
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 using namespace NConcurrency;
 
@@ -243,5 +242,4 @@ ui64 TSkiffMultiTableParser<TConsumer>::GetReadBytesCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff

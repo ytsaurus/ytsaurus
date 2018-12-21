@@ -18,8 +18,7 @@
 
 #include <yt/core/concurrency/scheduler-inl.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 using namespace NJobAgent;
 using namespace NNodeTrackerClient;
@@ -111,6 +110,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
         job->SetFailContext(request->fail_context());
     }
 
+    if (request->has_profile_type() && request->has_profile_blob()) {
+        job->SetProfile({request->profile_type(), request->profile_blob()});
+    }
+
     context->Reply();
 }
 
@@ -172,6 +175,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
 
     job->SetResourceUsage(resourceUsage);
 
+    if (job->GetPhase() >= EJobPhase::WaitingAbort) {
+        THROW_ERROR_EXCEPTION("Cannot update resource usage for job in %Qlv phase", job->GetPhase());
+    }
+
     context->Reply();
 }
 
@@ -213,7 +220,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, ThrottleJob)
             TDelayedExecutor::Submit(BIND([throttlingRequestId, this_] () {
                     const auto& Logger = ExecAgentLogger;
 
-                    LOG_DEBUG("Evict outstanding throttling request (ThrottlingRequestId: %v)", throttlingRequestId);
+                    YT_LOG_DEBUG("Evict outstanding throttling request (ThrottlingRequestId: %v)", throttlingRequestId);
                     YCHECK(this_->OutstandingThrottlingRequests_.erase(throttlingRequestId) == 1);
                 }).Via(this_->Bootstrap->GetControlInvoker()),
                 Bootstrap->GetConfig()->JobThrottler->MaxBackoffTime * 2);
@@ -254,5 +261,4 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, PollThrottlingRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

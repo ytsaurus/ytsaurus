@@ -21,8 +21,7 @@
 #include <yt/core/ytree/system_attribute_provider.h>
 #include <yt/core/ytree/ypath_detail.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,14 +38,14 @@ public:
     virtual bool ShouldHideAttributes() override;
 
     // IObjectProxy members
-    virtual const TObjectId& GetId() const override;
+    virtual TObjectId GetId() const override;
     virtual TObjectBase* GetObject() const override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
     virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
     virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override;
 
 protected:
@@ -220,8 +219,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 
 #define OBJECT_DETAIL_INL_H_
 #include "object_detail-inl.h"

@@ -9,8 +9,7 @@
 
 #include <random>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,14 +62,14 @@ class TBernoulliSampler
 public:
     TBernoulliSampler() = default;
 
-    explicit TBernoulliSampler(TNullable<double> samplingRate);
+    explicit TBernoulliSampler(std::optional<double> samplingRate);
 
     bool Sample();
 
     void Persist(const TPersistenceContext& context);
 
 private:
-    TNullable<double> SamplingRate_;
+    std::optional<double> SamplingRate_;
     std::mt19937 Generator_;
     std::bernoulli_distribution Distribution_;
 };
@@ -79,6 +78,5 @@ DEFINE_REFCOUNTED_TYPE(TBernoulliSampler);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT;
+} // namespace NYT;::NChunkPools
 

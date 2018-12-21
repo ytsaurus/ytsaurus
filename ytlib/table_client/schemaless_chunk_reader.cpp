@@ -42,8 +42,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -71,7 +70,7 @@ using NYT::TRange;
 TColumnarChunkMetaPtr DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
     const TClientBlockReadOptions& blockReadOptions,
-    TNullable<int> partitionTag)
+    std::optional<int> partitionTag)
 {
     // Download chunk meta.
     std::vector<int> extensionTags = {
@@ -103,7 +102,7 @@ public:
         const TChunkStatePtr& chunkState,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
@@ -127,8 +126,8 @@ public:
         if (Config_->SamplingRate) {
             RowSampler_ = CreateChunkRowSampler(
                 chunkId,
-                Config_->SamplingRate.Get(),
-                Config_->SamplingSeed.Get(std::random_device()()));
+                *Config_->SamplingRate,
+                Config_->SamplingSeed.value_or(std::random_device()()));
         }
     }
 
@@ -292,7 +291,7 @@ public:
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
-        TNullable<int> partitionTag);
+        std::optional<int> partitionTag);
 
     virtual TDataStatistics GetDataStatistics() const override;
 
@@ -302,7 +301,7 @@ protected:
 
     int ChunkKeyColumnCount_ = 0;
 
-    TNullable<int> PartitionTag_;
+    std::optional<int> PartitionTag_;
 
     int CurrentBlockIndex_ = 0;
 
@@ -319,7 +318,7 @@ protected:
 
     virtual void DoInitializeBlockSequence() = 0;
 
-    void DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag = Null);
+    void DownloadChunkMeta(std::vector<int> extensionTags, std::optional<int> partitionTag = std::nullopt);
 
     TFuture<void> InitializeBlockSequence();
 };
@@ -336,7 +335,7 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
-    TNullable<int> partitionTag)
+    std::optional<int> partitionTag)
     : TChunkReaderBase(
         config,
         underlyingReader,
@@ -363,7 +362,7 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 
     DoInitializeBlockSequence();
 
-    LOG_DEBUG("Reading %v blocks", BlockIndexes_.size());
+    YT_LOG_DEBUG("Reading %v blocks", BlockIndexes_.size());
 
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     for (int blockIndex : BlockIndexes_) {
@@ -379,7 +378,7 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
     return DoOpen(std::move(blocks), ChunkMeta_->Misc());
 }
 
-void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag)
+void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> extensionTags, std::optional<int> partitionTag)
 {
     YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal);
 
@@ -409,7 +408,7 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
             auto name = NameTable_->GetName(id);
             auto chunkNameId = chunkNameTable->FindId(name);
             if (chunkNameId) {
-                IdMapping_[chunkNameId.Get()] = {chunkNameId.Get(), id};
+                IdMapping_[*chunkNameId] = {*chunkNameId, id};
             }
         }
     }
@@ -440,7 +439,7 @@ public:
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange,
-        TNullable<int> partitionTag);
+        std::optional<int> partitionTag);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override;
@@ -475,7 +474,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
-    TNullable<int> partitionTag)
+    std::optional<int> partitionTag)
     : THorizontalSchemalessChunkReaderBase(
         chunkState,
         chunkMeta,
@@ -489,7 +488,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         std::move(partitionTag))
     , ReadRange_(readRange)
 {
-    LOG_DEBUG("Reading range %v", ReadRange_);
+    YT_LOG_DEBUG("Reading range %v", ReadRange_);
 
     // Initialize to lowest reasonable value.
     RowIndex_ = ReadRange_.LowerLimit().HasRowIndex()
@@ -552,7 +551,7 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
         KeyColumns_ = chunkKeyColumns;
     }
 
-    TNullable<int> keyColumnCount;
+    std::optional<int> keyColumnCount;
     if (Options_->DynamicTable) {
         keyColumnCount = KeyColumns_.size();
     } else {
@@ -735,7 +734,7 @@ public:
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters,
-        TNullable<int> partitionTag = Null);
+        std::optional<int> partitionTag = std::nullopt);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
@@ -767,7 +766,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    TNullable<int> partitionTag)
+    std::optional<int> partitionTag)
     : THorizontalSchemalessChunkReaderBase(
         chunkState,
         chunkMeta,
@@ -968,7 +967,7 @@ public:
             chunkState->BlockCache,
             blockReadOptions)
     {
-        LOG_DEBUG("Reading range %v", readRange);
+        YT_LOG_DEBUG("Reading range %v", readRange);
 
         LowerLimit_ = readRange.LowerLimit();
         UpperLimit_ = readRange.UpperLimit();
@@ -1254,7 +1253,7 @@ private:
         InitLowerRowIndex();
         InitUpperRowIndex();
 
-        LOG_DEBUG("Initialized row index limits (LowerRowIndex: %v, SafeUpperRowIndex: %v, HardUpperRowIndex: %v)",
+        YT_LOG_DEBUG("Initialized row index limits (LowerRowIndex: %v, SafeUpperRowIndex: %v, HardUpperRowIndex: %v)",
             LowerRowIndex_,
             SafeUpperRowIndex_,
             HardUpperRowIndex_);
@@ -1271,7 +1270,7 @@ private:
             RowIndex_ = LowerRowIndex_;
             LowerKeyLimitReached_ = !LowerLimit_.HasKey();
 
-            LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
+            YT_LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
                 LowerKeyLimitReached_,
                 RowIndex_);
 
@@ -1649,7 +1648,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
-    TNullable<int> partitionTag)
+    std::optional<int> partitionTag)
 {
     YCHECK(chunkMeta->GetChunkType() == EChunkType::Table);
 
@@ -1700,7 +1699,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    TNullable<int> partitionTag)
+    std::optional<int> partitionTag)
 {
     YCHECK(chunkMeta->GetChunkType() == EChunkType::Table);
 
@@ -1769,7 +1768,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
-    TNullable<int> partitionTag,
+    std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -1894,7 +1893,7 @@ public:
         const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns,
-        TNullable<int> partitionTag,
+        std::optional<int> partitionTag,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler);
@@ -1950,7 +1949,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
-    TNullable<int> partitionTag,
+    std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -2101,7 +2100,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
-    TNullable<int> partitionTag,
+    std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -2143,7 +2142,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
-    TNullable<int> partitionTag,
+    std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -2563,7 +2562,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         boundaries.push_back(minKey);
     }
 
-    LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Chunks: %v, ColumnFilter: %v)",
+    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Chunks: %v, ColumnFilter: %v)",
         boundaries,
         MakeFormattableRange(chunkSpecs, [] (TStringBuilder* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
@@ -2613,7 +2612,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             THROW_ERROR_EXCEPTION("Row index limit is not supported");
         }
 
-        LOG_DEBUG("Create versioned chunk reader (ChunkId: %v, Range: <%v : %v>)",
+        YT_LOG_DEBUG("Create versioned chunk reader (ChunkId: %v, Range: <%v : %v>)",
             chunkId,
             lowerLimit,
             upperLimit);
@@ -2731,5 +2730,4 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

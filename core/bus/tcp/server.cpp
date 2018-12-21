@@ -22,8 +22,7 @@
 
 #include <cerrno>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -157,7 +156,7 @@ protected:
     {
         auto guard = Guard(ControlSpinLock_);
 
-        LOG_DEBUG("Opening server socket");
+        YT_LOG_DEBUG("Opening server socket");
 
         CreateServerSocket();
 
@@ -168,7 +167,7 @@ protected:
             throw;
         }
 
-        LOG_DEBUG("Server socket opened");
+        YT_LOG_DEBUG("Server socket opened");
     }
 
     void CloseServerSocket()
@@ -176,7 +175,7 @@ protected:
         if (ServerSocket_ != INVALID_SOCKET) {
             close(ServerSocket_);
             ServerSocket_ = INVALID_SOCKET;
-            LOG_DEBUG("Server socket closed");
+            YT_LOG_DEBUG("Server socket closed");
         }
     }
 
@@ -192,7 +191,7 @@ protected:
                         break;
                     }
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Error accepting client connection");
+                    YT_LOG_WARNING(ex, "Error accepting client connection");
                     break;
                 }
             }
@@ -204,14 +203,14 @@ protected:
             auto connectionCount = TTcpDispatcher::TImpl::Get()->GetCounters(clientNetwork)->ServerConnections.load();
             auto connectionLimit = Config_->MaxSimultaneousConnections;
             if (connectionCount >= connectionLimit) {
-                LOG_WARNING("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                YT_LOG_WARNING("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                     ToString(clientAddress, false),
                     connectionCount,
                     connectionLimit);
                 close(clientSocket);
                 continue;
             } else {
-                LOG_DEBUG("Connection accepted (ConnectionId: %v, Address: %v, Network: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                YT_LOG_DEBUG("Connection accepted (ConnectionId: %v, Address: %v, Network: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                     connectionId,
                     ToString(clientAddress, false),
                     clientNetwork,
@@ -239,7 +238,7 @@ protected:
                 *endpointAttributes,
                 clientAddress,
                 address,
-                Null,
+                std::nullopt,
                 Handler_,
                 TTcpDispatcher::TImpl::Get()->GetXferPoller());
 
@@ -270,7 +269,7 @@ protected:
                     THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, errorMessage)
                         << ex;
                 } else {
-                    LOG_WARNING(ex, "Error binding socket, starting %v retry", attempt + 1);
+                    YT_LOG_WARNING(ex, "Error binding socket, starting %v retry", attempt + 1);
                     Sleep(Config_->BindRetryBackoff);
                 }
             }
@@ -343,7 +342,7 @@ private:
     {
         ServerSocket_ = CreateTcpServerSocket();
 
-        auto serverAddress = TNetworkAddress::CreateIPv6Any(Config_->Port.Get());
+        auto serverAddress = TNetworkAddress::CreateIPv6Any(*Config_->Port);
         BindSocket(serverAddress, Format("Failed to bind a server socket to port %v", Config_->Port));
     }
 
@@ -351,12 +350,12 @@ private:
     {
         if (Config_->EnableNoDelay) {
             if (!TrySetSocketNoDelay(clientSocket)) {
-                LOG_DEBUG("Failed to set socket no delay option");
+                YT_LOG_DEBUG("Failed to set socket no delay option");
             }
         }
 
         if (!TrySetSocketKeepAlive(clientSocket)) {
-            LOG_DEBUG("Failed to set socket keep alive option");
+            YT_LOG_DEBUG("Failed to set socket keep alive option");
         }
     }
 };
@@ -383,9 +382,9 @@ private:
         {
             TNetworkAddress netAddress;
             if (Config_->UnixDomainName) {
-                netAddress = TNetworkAddress::CreateUnixDomainAddress(Config_->UnixDomainName.Get());
+                netAddress = TNetworkAddress::CreateUnixDomainAddress(*Config_->UnixDomainName);
             } else {
-                netAddress = GetLocalBusAddress(Config_->Port.Get());
+                netAddress = GetLocalBusAddress(*Config_->Port);
             }
             BindSocket(netAddress, "Failed to bind a local server socket");
         }
@@ -501,6 +500,5 @@ IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus
 

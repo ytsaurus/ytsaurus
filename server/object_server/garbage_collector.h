@@ -15,8 +15,7 @@
 
 #include <set>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +48,7 @@ public:
     void UnregisterZombie(TObjectBase* object);
     void DestroyZombie(TObjectBase* object);
 
-    TObjectBase* GetWeakGhostObject(const TObjectId& id);
+    TObjectBase* GetWeakGhostObject(TObjectId id);
 
     void Reset();
 
@@ -102,5 +101,4 @@ DEFINE_REFCOUNTED_TYPE(TGarbageCollector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

@@ -4,9 +4,7 @@
 
 #include <yt/core/bus/public.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NBus {
+namespace NYT::NRpc::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,6 +12,4 @@ IServerPtr CreateBusServer(NYT::NBus::IBusServerPtr busServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBus
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NBus

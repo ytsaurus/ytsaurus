@@ -2,8 +2,7 @@
 
 #include "column_writer.h"
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 
@@ -62,5 +61,4 @@ i32 TDataBlockWriter::GetCurrentSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

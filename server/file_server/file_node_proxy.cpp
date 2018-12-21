@@ -12,8 +12,7 @@
 
 #include <yt/ytlib/file_client/file_chunk_writer.h>
 
-namespace NYT {
-namespace NFileServer {
+namespace NYT::NFileServer {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
@@ -59,7 +58,7 @@ private:
             .SetCustom(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MD5)
-            .SetPresent(node->GetMD5Hasher().HasValue())
+            .SetPresent(node->GetMD5Hasher().operator bool())
             .SetReplicated(true));
     }
 
@@ -146,5 +145,4 @@ ICypressNodeProxyPtr CreateFileNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
-} // namespace NYT
+} // namespace NYT::NFileServer

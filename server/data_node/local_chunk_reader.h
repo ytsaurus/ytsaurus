@@ -8,8 +8,7 @@
 
 #include <yt/core/actions/callback.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +27,5 @@ NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

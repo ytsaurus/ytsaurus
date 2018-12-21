@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/phoenix.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +44,7 @@ struct IJobSizeConstraints
     virtual i64 GetPrimaryDataWeightPerJob() const = 0;
 
     //! A sampling rate if it was specified in a job spec, otherwise null.
-    virtual TNullable<double> GetSamplingRate() const = 0;
+    virtual std::optional<double> GetSamplingRate() const = 0;
     //! When sampling is on, we initially create jobs of this data weight, sample them according to a given rate
     //! and join them together to fulfill data weight per job of `GetDataWeightPerJob()`.
     virtual i64 GetSamplingDataWeightPerJob() const = 0;
@@ -129,7 +128,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 maxPrimaryDataWeightPerJob,
     i64 inputSliceDataWeight,
     i64 inputSliceRowCount,
-    TNullable<double> samplingRate,
+    std::optional<double> samplingRate,
     i64 samplingDataWeightPerJob = -1,
     i64 samplingPrimaryDataWeightPerJob = -1,
     i64 maxBuildRetryCount = 5,
@@ -137,5 +136,4 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

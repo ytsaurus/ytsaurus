@@ -10,8 +10,7 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ struct INodeTypeHandler
      *  This is called during |Create| verb.
      */
     virtual std::unique_ptr<TCypressNodeBase> Create(
-        const TNodeId& hintId,
+        TNodeId hintId,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* inheritedAttributes,
@@ -86,11 +85,20 @@ struct INodeTypeHandler
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode) = 0;
 
+    //! Returns #true iff the branched node differs from (contains changes to) the originating node.
+    /*!
+     *  \note
+     *  Called prior to unlocking a node (by an explicit request) to make sure no changes will be lost.
+     */
+    virtual bool HasBranchedChanges(
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode) = 0;
+
     //! Constructs a deep copy of the node.
     virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactory* factory,
-        const TNodeId& hintId,
+        TNodeId hintId,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) = 0;
 
@@ -102,5 +110,4 @@ DEFINE_REFCOUNTED_TYPE(INodeTypeHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

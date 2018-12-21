@@ -6,8 +6,7 @@
 
 #include <Python.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +17,7 @@ public:
 
     TLazyListFragmentParser(
         IInputStream* stream,
-        const TNullable<TString>& encoding,
+        const std::optional<TString>& encoding,
         bool alwaysCreateAttributes,
         TPythonStringCache* keyCacher);
 
@@ -33,5 +32,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

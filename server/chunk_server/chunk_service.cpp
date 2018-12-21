@@ -24,8 +24,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NHydra;
 using namespace NChunkClient;
@@ -125,7 +124,7 @@ private:
         }
 
         if (leaderRequest->subrequests_size() > 0) {
-            LOG_DEBUG("Touching chunks at leader (Count: %v)",
+            YT_LOG_DEBUG("Touching chunks at leader (Count: %v)",
                 leaderRequest->subrequests_size());
             leaderRequest->Invoke();
         }
@@ -173,11 +172,11 @@ private:
             int desiredTargetCount = subrequest.desired_target_count();
             int minTargetCount = subrequest.min_target_count();
             auto replicationFactorOverride = subrequest.has_replication_factor_override()
-                ? MakeNullable(subrequest.replication_factor_override())
-                : Null;
+                ? std::make_optional(subrequest.replication_factor_override())
+                : std::nullopt;
             auto preferredHostName = subrequest.has_preferred_host_name()
-                ? MakeNullable(subrequest.preferred_host_name())
-                : Null;
+                ? std::make_optional(subrequest.preferred_host_name())
+                : std::nullopt;
             const auto& forbiddenAddresses = subrequest.forbidden_addresses();
 
             auto* subresponse = response->add_subresponses();
@@ -210,7 +209,7 @@ private:
                     subresponse->add_replicas(ToProto<ui32>(replica));
                 }
 
-                LOG_DEBUG("Write targets allocated "
+                YT_LOG_DEBUG("Write targets allocated "
                     "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
                     "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
                     sessionId,
@@ -222,7 +221,7 @@ private:
                     MakeFormattableRange(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
-                LOG_DEBUG(error, "Error allocating write targets "
+                YT_LOG_DEBUG(error, "Error allocating write targets "
                     "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
                     "PreferredHostName: %v, ForbiddenAddresses: %v, MediumIndex: %v)",
                     sessionId,
@@ -340,5 +339,4 @@ IServicePtr CreateChunkService(TBootstrap* boostrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

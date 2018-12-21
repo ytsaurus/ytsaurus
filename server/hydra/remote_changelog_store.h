@@ -10,8 +10,7 @@
 
 #include <yt/core/profiling/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,11 +23,10 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreOptionsPtr options,
     const NYPath::TYPath& path,
     NApi::IClientPtr client,
-    const NTransactionClient::TTransactionId& prerequisiteTransactionId =
+    NTransactionClient::TTransactionId prerequisiteTransactionId =
         NTransactionClient::NullTransactionId,
     const NProfiling::TTagIdList& profilerTags = NProfiling::EmptyTagIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

@@ -23,9 +23,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +85,7 @@ public:
         const TWriteCoreDumpOptions& options),
         (address, options))
     IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
-        const TOperationId& operationId),
+        TOperationId operationId),
         (operationId))
 
 private:
@@ -102,12 +100,12 @@ private:
     {
         return BIND([=, this_ = MakeStrong(this)] () {
                 try {
-                    LOG_DEBUG("Command started (Command: %v)", commandName);
+                    YT_LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
-                    LOG_DEBUG("Command completed (Command: %v)", commandName);
+                    YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
                     return result.Unwrap();
                 } catch (const std::exception& ex) {
-                    LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
+                    YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
                     throw;
                 }
             })
@@ -170,12 +168,12 @@ private:
         return rsp->path();
     }
 
-    TString DoWriteOperationControllerCoreDump(const TOperationId& operationId) {
+    TString DoWriteOperationControllerCoreDump(TOperationId operationId) {
         auto address = GetControllerAgentAddressFromCypress(
             operationId,
             Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
-        if (!address.HasValue()) {
+        if (!address) {
             THROW_ERROR_EXCEPTION("Cannot find the address of the controller agent for the operation %v", operationId);
         }
 
@@ -189,7 +187,7 @@ private:
         return rsp->path();
     }
 
-    IChannelPtr GetCellChannelOrThrow(const TCellId& cellId)
+    IChannelPtr GetCellChannelOrThrow(TCellId cellId)
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->FindChannel(cellId);
@@ -215,6 +213,4 @@ IAdminPtr CreateAdmin(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

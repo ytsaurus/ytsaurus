@@ -2,18 +2,19 @@
 
 #include "public.h"
 
-#include <yt/core/actions/public.h>
+#include <yt/core/concurrency/public.h>
 
-namespace NYT {
-namespace NAuth {
+#include <yt/core/profiling/public.h>
+
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ITvmServicePtr CreateDefaultTvmService(
     TDefaultTvmServiceConfigPtr config,
-    IInvokerPtr invoker);
+    NConcurrency::IPollerPtr poller,
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

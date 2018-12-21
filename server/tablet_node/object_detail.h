@@ -4,8 +4,7 @@
 
 #include <yt/server/hydra/entity_map.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,10 +12,10 @@ class TObjectBase
     : public NHydra::TEntityBase
 {
 public:
-    const NObjectClient::TObjectId& GetId() const;
+    NObjectClient::TObjectId GetId() const;
 
 protected:
-    explicit TObjectBase(const NObjectClient::TObjectId& id);
+    explicit TObjectBase(NObjectClient::TObjectId id);
 
     const NObjectClient::TObjectId Id_;
 
@@ -24,5 +23,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

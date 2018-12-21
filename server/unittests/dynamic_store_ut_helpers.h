@@ -37,10 +37,9 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 namespace {
 
 using namespace NHydra;
@@ -83,7 +82,7 @@ protected:
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
-        const TStoreId& storeId,
+        TStoreId storeId,
         const NTabletNode::NProto::TAddStoreDescriptor* /*descriptor*/) override
     {
         switch (type) {
@@ -391,6 +390,5 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

@@ -11,8 +11,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -100,7 +99,7 @@ public:
             return;
         }
 
-        LOG_DEBUG_IF(backup, "Request acknowledged by backup (RequestId: %v)",
+        YT_LOG_DEBUG_IF(backup, "Request acknowledged by backup (RequestId: %v)",
             Request_->GetRequestId());
         ResponseHandler_->HandleAcknowledgement();
     }
@@ -112,7 +111,7 @@ public:
             return;
         }
 
-        LOG_DEBUG_IF(backup, "Response received from backup (RequestId: %v)",
+        YT_LOG_DEBUG_IF(backup, "Response received from backup (RequestId: %v)",
             Request_->GetRequestId());
         ResponseHandler_->HandleResponse(std::move(message));
         Cleanup();
@@ -125,7 +124,7 @@ public:
             return;
         }
 
-        LOG_DEBUG_IF(backup, "Request failed at backup (RequestId: %v)",
+        YT_LOG_DEBUG_IF(backup, "Request failed at backup (RequestId: %v)",
             Request_->GetRequestId());
         ResponseHandler_->HandleError(error);
         Cleanup();
@@ -173,10 +172,10 @@ private:
         TDelayedExecutor::CancelAndClear(DeadlineCookie_);
     }
 
-    TNullable<TDuration> GetBackupTimeout()
+    std::optional<TDuration> GetBackupTimeout()
     {
         if (!Options_.Timeout) {
-            return Null;
+            return std::nullopt;
         }
 
         auto timeout = *Options_.Timeout;
@@ -199,7 +198,7 @@ private:
         }
 
         auto backupTimeout = GetBackupTimeout();
-        if (backupTimeout == MakeNullable(TDuration())) {
+        if (backupTimeout == std::make_optional(TDuration())) {
             // Makes no sense to send the request anyway.
             return;
         }
@@ -207,7 +206,7 @@ private:
         auto backupOptions = Options_;
         backupOptions.Timeout = backupTimeout;
 
-        LOG_DEBUG("Resending request to backup (RequestId: %v)",
+        YT_LOG_DEBUG("Resending request to backup (RequestId: %v)",
             Request_->GetRequestId());
 
         auto responseHandler = New<TLatencyTamingResponseHandler>(this, true);
@@ -327,5 +326,4 @@ IChannelPtr CreateLatencyTamingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

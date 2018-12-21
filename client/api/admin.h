@@ -10,8 +10,7 @@
 
 #include <yt/core/actions/future.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,13 +55,12 @@ struct IAdmin
         const TWriteCoreDumpOptions& options = TWriteCoreDumpOptions()) = 0;
 
     virtual TFuture<TString> WriteOperationControllerCoreDump(
-        const NJobTrackerClient::TOperationId& operationId) = 0;
+        NJobTrackerClient::TOperationId operationId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAdmin)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

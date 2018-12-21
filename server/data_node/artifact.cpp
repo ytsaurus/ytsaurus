@@ -6,8 +6,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NObjectClient;
@@ -15,7 +14,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TArtifactKey::TArtifactKey(const TChunkId& chunkId)
+TArtifactKey::TArtifactKey(TChunkId chunkId)
 {
     mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
     NChunkClient::NProto::TChunkSpec chunkSpec;
@@ -192,6 +191,4 @@ TString ToString(const TArtifactKey& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespaca NYT
-
+} // namespace NYT::NDataNode

@@ -30,7 +30,7 @@
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/timing.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/variant.h>
@@ -38,8 +38,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -110,7 +109,7 @@ public:
         const std::function<void(TVersionedRow)>& onPartialRow,
         const std::function<std::pair<bool, size_t>()>& onRow)
     {
-        LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v, ReadSessionId: %v)",
+        YT_LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v, ReadSessionId: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             LookupKeys_.Size(),
@@ -158,7 +157,7 @@ public:
             counters.ChunkReaderStatisticsCounters.Increment(TabletNodeProfiler, BlockReadOptions_.ChunkReaderStatistics);
         }
 
-        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, "
+        YT_LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, "
             "FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v, ReadSessionId: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
@@ -258,9 +257,9 @@ private:
                 ColumnFilter_,
                 BlockReadOptions_);
             auto future = reader->Open();
-            auto maybeError = future.TryGet();
-            if (maybeError) {
-                maybeError->ThrowOnError();
+            auto optionalError = future.TryGet();
+            if (optionalError) {
+                optionalError->ThrowOnError();
             } else {
                 asyncFutures.emplace_back(std::move(future));
             }
@@ -419,5 +418,4 @@ void VersionedLookupRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

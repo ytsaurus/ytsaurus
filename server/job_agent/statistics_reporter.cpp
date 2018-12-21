@@ -28,8 +28,7 @@
 
 #include <yt/core/utilex/random.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
@@ -57,6 +56,9 @@ struct TJobSpecTag
 struct TJobStderrTag
 { };
 
+struct TJobProfileTag
+{ };
+
 struct TJobFailContextTag
 { };
 
@@ -65,6 +67,7 @@ namespace {
 static const TProfiler JobProfiler("/statistics_reporter/jobs");
 static const TProfiler JobSpecProfiler("/statistics_reporter/job_specs");
 static const TProfiler JobStderrProfiler("/statistics_reporter/stderrs");
+static const TProfiler JobProfileProfiler("/statistics_reporter/profiles");
 static const TProfiler JobFailContextProfiler("/statistics_reporter/fail_contexts");
 static const TLogger ReporterLogger("JobReporter");
 
@@ -72,7 +75,7 @@ static const TLogger ReporterLogger("JobReporter");
 
 bool IsSpecEntry(const TJobStatistics& stat)
 {
-    return stat.Spec().HasValue();
+    return stat.Spec().operator bool();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -269,7 +272,7 @@ private:
         while (IsEnabled()) {
             auto dropped = DroppedCount_.exchange(0);
             if (dropped) {
-                LOG_WARNING("Maximum items reached, dropping job statistics (DroppedItems: %v)", dropped);
+                YT_LOG_WARNING("Maximum items reached, dropping job statistics (DroppedItems: %v)", dropped);
             }
             try {
                 TryHandleBatch(batch);
@@ -282,7 +285,7 @@ private:
             } catch (const std::exception& ex) {
                 WriteFailuresCount_.fetch_add(1, std::memory_order_relaxed);
                 Profiler_.Increment(WriteFailuresCounter_);
-                LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v, PendingItems: %v)",
+                YT_LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v, PendingItems: %v)",
                     delay.Seconds(),
                     GetPendingCount());
             }
@@ -296,7 +299,7 @@ private:
 
     void TryHandleBatch(const TBatch& batch)
     {
-        LOG_DEBUG("Job statistics transaction starting (Items: %v, PendingItems: %v, ArchiveVersion: %v)",
+        YT_LOG_DEBUG("Job statistics transaction starting (Items: %v, PendingItems: %v, ArchiveVersion: %v)",
             batch.size(),
             GetPendingCount(),
             Data_->GetOperationArchiveVersion());
@@ -305,7 +308,7 @@ private:
         auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet, transactionOptions);
         auto transactionOrError = WaitFor(asyncTransaction);
         auto transaction = transactionOrError.ValueOrThrow();
-        LOG_DEBUG("Job statistics transaction started (TransactionId: %v, Items: %v)",
+        YT_LOG_DEBUG("Job statistics transaction started (TransactionId: %v, Items: %v)",
             transaction->GetId(),
             batch.size());
 
@@ -317,7 +320,7 @@ private:
         Profiler_.Increment(CommittedCounter_, batch.size());
         Profiler_.Increment(CommittedDataWeightCounter_, dataWeight);
 
-        LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
+        YT_LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
             "CommittedItems: %v, CommittedDataWeight: %v)",
             transaction->GetId(),
             batch.size(),
@@ -332,7 +335,7 @@ private:
     void DoEnable()
     {
         EnableSemaphore_.Release();
-        LOG_INFO("Job statistics reporter enabled");
+        YT_LOG_INFO("Job statistics reporter enabled");
     }
 
     void DoDisable()
@@ -343,7 +346,7 @@ private:
         DroppedCount_.store(0, std::memory_order_relaxed);
         Profiler_.Update(PendingCounter_, 0);
         Profiler_.Update(QueueIsTooLargeCounter_, 0);
-        LOG_INFO("Job statistics reporter disabled");
+        YT_LOG_INFO("Job statistics reporter disabled");
     }
 
     bool IsEnabled()
@@ -356,10 +359,10 @@ private:
         if (IsEnabled()) {
             return;
         }
-        LOG_INFO("Waiting for job statistics reporter to become enabled");
+        YT_LOG_INFO("Waiting for job statistics reporter to become enabled");
         auto event = EnableSemaphore_.GetReadyEvent();
         WaitFor(event).ThrowOnError();
-        LOG_INFO("Job statistics reporter became enabled, resuming statistics writing");
+        YT_LOG_INFO("Job statistics reporter became enabled, resuming statistics writing");
     }
 };
 
@@ -436,13 +439,13 @@ private:
                 builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), Table_.Index.UpdateTime));
             }
             if (GetSharedData()->GetOperationArchiveVersion() >= 20 && statistics.Spec()) {
-                builder.AddValue(MakeUnversionedBooleanValue(statistics.Spec().HasValue(), Table_.Index.HasSpec));
+                builder.AddValue(MakeUnversionedBooleanValue(statistics.Spec().operator bool(), Table_.Index.HasSpec));
             }
             if (statistics.FailContext()) {
                 if (GetSharedData()->GetOperationArchiveVersion() >= 23) {
                     builder.AddValue(MakeUnversionedUint64Value(statistics.FailContext()->Size(), Table_.Index.FailContextSize));
                 } else if (GetSharedData()->GetOperationArchiveVersion() >= 21) {
-                    builder.AddValue(MakeUnversionedBooleanValue(statistics.FailContext().HasValue(), Table_.Index.HasFailContext));
+                    builder.AddValue(MakeUnversionedBooleanValue(statistics.FailContext().operator bool(), Table_.Index.HasFailContext));
                 }
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
@@ -540,7 +543,7 @@ private:
     virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) override
     {
         std::vector<TUnversionedRow> rows;
-        auto rowBuffer = New<TRowBuffer>(TJobStderrTag());
+        auto rowBuffer = New<TRowBuffer>(TJobProfileTag());
 
         size_t dataWeight = 0;
         for (auto&& statistics : batch) {
@@ -559,6 +562,65 @@ private:
 
         transaction.WriteRows(
             GetOperationsArchiveJobStderrsPath(),
+            Table_.NameTable,
+            MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+
+        return dataWeight;
+    }
+};
+
+class TJobProfileHandler
+    : public THandlerBase
+{
+public:
+    TJobProfileHandler(
+        TSharedDataPtr data,
+        const TStatisticsReporterConfigPtr& config,
+        NNative::IClientPtr client,
+        IInvokerPtr invoker)
+        : THandlerBase(
+            std::move(data),
+            config,
+            "profiles",
+            std::move(client),
+            invoker,
+            JobProfileProfiler,
+            config->MaxInProgressJobStderrDataSize)
+    { }
+
+private:
+    const TJobProfileTableDescriptor Table_;
+
+    virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) override
+    {
+        if (GetSharedData()->GetOperationArchiveVersion() < 27) {
+            return 0;
+        }
+
+        std::vector<TUnversionedRow> rows;
+        auto rowBuffer = New<TRowBuffer>(TJobStderrTag());
+
+        size_t dataWeight = 0;
+        for (auto&& statistics : batch) {
+            TUnversionedRowBuilder builder;
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
+            builder.AddValue(MakeUnversionedInt64Value(0, Table_.Index.PartIndex));
+
+            auto profile = statistics.Profile();
+            if (profile) {
+                builder.AddValue(MakeUnversionedStringValue(profile->Type, Table_.Index.ProfileType));
+                builder.AddValue(MakeUnversionedStringValue(profile->Blob, Table_.Index.ProfileBlob));
+            }
+
+            rows.push_back(rowBuffer->Capture(builder.GetRow()));
+            dataWeight += GetDataWeight(rows.back());
+        }
+
+        transaction.WriteRows(
+            GetOperationsArchiveJobProfilesPath(),
             Table_.NameTable,
             MakeSharedRange(std::move(rows), std::move(rowBuffer)));
 
@@ -604,7 +666,7 @@ private:
             builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
             builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
             builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
-            if (statistics.FailContext()) {
+            if (statistics.FailContext() && statistics.FailContext()->Size() <= MaxStringValueLength) {
                 builder.AddValue(MakeUnversionedStringValue(*statistics.FailContext(), Table_.Index.FailContext));
             }
 
@@ -659,6 +721,12 @@ public:
                 reporterConfig,
                 Client_,
                 Reporter_->GetInvoker()))
+        , JobProfileHandler_(
+            New<TJobProfileHandler>(
+                Data_,
+                reporterConfig,
+                Client_,
+                Reporter_->GetInvoker()))
     { }
 
     void ReportStatistics(TJobStatistics&& statistics)
@@ -671,6 +739,9 @@ public:
         }
         if (statistics.FailContext()) {
             JobFailContextHandler_->Enqueue(statistics.ExtractFailContext());
+        }
+        if (statistics.Profile()) {
+            JobProfileHandler_->Enqueue(statistics.ExtractProfile());
         }
         if (!statistics.IsEmpty()) {
             JobHandler_->Enqueue(std::move(statistics));
@@ -692,9 +763,19 @@ public:
         JobStderrHandler_->SetEnabled(enable);
     }
 
+    void SetProfileEnabled(bool enable)
+    {
+        JobProfileHandler_->SetEnabled(enable);
+    }
+
     void SetFailContextEnabled(bool enable)
     {
         JobFailContextHandler_->SetEnabled(enable);
+    }
+
+    void SetJobProfileEnabled(bool enable)
+    {
+        JobProfileHandler_->SetEnabled(enable);
     }
 
     void SetOperationArchiveVersion(int version)
@@ -708,16 +789,18 @@ public:
             JobHandler_->ExtractWriteFailuresCount() +
             JobSpecHandler_->ExtractWriteFailuresCount() +
             JobStderrHandler_->ExtractWriteFailuresCount() +
-            JobFailContextHandler_->ExtractWriteFailuresCount();
+            JobFailContextHandler_->ExtractWriteFailuresCount() +
+            JobProfileHandler_->ExtractWriteFailuresCount();
     }
 
     bool GetQueueIsTooLarge()
     {
         return
             JobHandler_->QueueIsTooLarge() ||
-            JobSpecHandler_->QueueIsTooLarge() +
-            JobStderrHandler_->QueueIsTooLarge() +
-            JobFailContextHandler_->QueueIsTooLarge();
+            JobSpecHandler_->QueueIsTooLarge() ||
+            JobStderrHandler_->QueueIsTooLarge() ||
+            JobFailContextHandler_->QueueIsTooLarge() ||
+            JobProfileHandler_->QueueIsTooLarge();
     }
 
 private:
@@ -728,6 +811,7 @@ private:
     const THandlerBasePtr JobSpecHandler_;
     const THandlerBasePtr JobStderrHandler_;
     const THandlerBasePtr JobFailContextHandler_;
+    const THandlerBasePtr JobProfileHandler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -769,6 +853,13 @@ void TStatisticsReporter::SetStderrEnabled(bool enable)
     }
 }
 
+void TStatisticsReporter::SetProfileEnabled(bool enable)
+{
+    if (Impl_) {
+        Impl_->SetProfileEnabled(enable);
+    }
+}
+
 void TStatisticsReporter::SetFailContextEnabled(bool enable)
 {
     if (Impl_) {
@@ -801,5 +892,4 @@ bool TStatisticsReporter::GetQueueIsTooLarge()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

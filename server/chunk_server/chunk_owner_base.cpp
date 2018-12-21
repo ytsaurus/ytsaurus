@@ -10,8 +10,7 @@
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NCrypto;
 using namespace NYTree;
@@ -160,10 +159,10 @@ void TChunkOwnerBase::EndUpload(
     const TDataStatistics* statistics,
     const NTableServer::TSharedTableSchemaPtr& /*sharedSchema*/,
     NTableClient::ETableSchemaMode /*schemaMode*/,
-    TNullable<NTableClient::EOptimizeFor> /*optimizeFor*/,
-    const TNullable<TMD5Hasher>& /*md5Hasher*/)
+    std::optional<NTableClient::EOptimizeFor> /*optimizeFor*/,
+    const std::optional<TMD5Hasher>& /*md5Hasher*/)
 {
-    TNullable<TDataStatistics> updateStatistics;
+    std::optional<TDataStatistics> updateStatistics;
 
     if (!IsExternal()) {
         updateStatistics = ComputeUpdateStatistics();
@@ -189,7 +188,7 @@ void TChunkOwnerBase::EndUpload(
     }
 }
 
-void TChunkOwnerBase::GetUploadParams(TNullable<TMD5Hasher>* /*md5Hasher*/)
+void TChunkOwnerBase::GetUploadParams(std::optional<TMD5Hasher>* /*md5Hasher*/)
 { }
 
 bool TChunkOwnerBase::IsSorted() const
@@ -268,5 +267,4 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

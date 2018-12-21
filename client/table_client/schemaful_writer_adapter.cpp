@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,5 +51,4 @@ ISchemafulWriterPtr CreateSchemafulWriterAdapter(ISchemalessWriterPtr underlying
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

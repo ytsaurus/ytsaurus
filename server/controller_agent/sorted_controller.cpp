@@ -30,8 +30,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NYPath;
@@ -278,7 +277,7 @@ protected:
 
     void CalculateSizes()
     {
-        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
         switch (OperationType) {
             case EOperationType::Merge:
@@ -311,7 +310,7 @@ protected:
 
         InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
-        LOG_INFO(
+        YT_LOG_INFO(
             "Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
@@ -362,7 +361,7 @@ protected:
     void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
+            YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
@@ -391,7 +390,7 @@ protected:
                 }
             }
 
-            LOG_INFO("Processed inputs (PrimaryUnversionedSlices: %v, PrimaryVersionedSlices: %v, ForeignSlices: %v)",
+            YT_LOG_INFO("Processed inputs (PrimaryUnversionedSlices: %v, PrimaryVersionedSlices: %v, ForeignSlices: %v)",
                 primaryUnversionedSlices,
                 primaryVersionedSlices,
                 foreignSlices);
@@ -404,7 +403,7 @@ protected:
         InitJobSpecTemplate();
     }
 
-    virtual TNullable<int> GetOutputTeleportTableIndex() const = 0;
+    virtual std::optional<int> GetOutputTeleportTableIndex() const = 0;
 
     //! Initializes #JobIOConfig.
     void InitJobIOConfig()
@@ -491,7 +490,7 @@ protected:
         }
 
         for (const auto& teleportChunk : SortedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
-            // If teleport chunks were found, then teleport table index should be non-Null.
+            // If teleport chunks were found, then teleport table index should be non-null.
             RegisterTeleportChunk(teleportChunk, 0, *GetOutputTeleportTableIndex());
         }
 
@@ -680,10 +679,10 @@ public:
     virtual void AdjustKeyColumns() override
     {
         const auto& specKeyColumns = Spec_->MergeBy;
-        LOG_INFO("Spec key columns are %v", specKeyColumns);
+        YT_LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         PrimaryKeyColumns_ = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are %v", PrimaryKeyColumns_);
+        YT_LOG_INFO("Adjusted key columns are %v", PrimaryKeyColumns_);
     }
 
     virtual bool IsKeyGuaranteeEnabled() override
@@ -724,9 +723,9 @@ public:
         ToProto(mergeJobSpecExt->mutable_key_columns(), PrimaryKeyColumns_);
     }
 
-    virtual TNullable<int> GetOutputTeleportTableIndex() const override
+    virtual std::optional<int> GetOutputTeleportTableIndex() const override
     {
-        return MakeNullable(0);
+        return std::make_optional(0);
     }
 
     virtual void PrepareOutputTables() override
@@ -869,7 +868,7 @@ public:
         return Spec_->OutputTablePaths;
     }
 
-    virtual TNullable<int> GetOutputTeleportTableIndex() const override
+    virtual std::optional<int> GetOutputTeleportTableIndex() const override
     {
         return OutputTeleportTableIndex_;
     }
@@ -948,7 +947,7 @@ public:
         return true;
     }
 
-    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    virtual std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec_->StderrTablePath;
     }
@@ -958,7 +957,7 @@ public:
         return Spec_->StderrTableWriter;
     }
 
-    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    virtual std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec_->CoreTablePath;
     }
@@ -992,7 +991,7 @@ private:
 
     i64 StartRowIndex_ = 0;
 
-    TNullable<int> OutputTeleportTableIndex_;
+    std::optional<int> OutputTeleportTableIndex_;
 };
 
 class TSortedReduceController
@@ -1032,7 +1031,7 @@ public:
     virtual void AdjustKeyColumns() override
     {
         auto specKeyColumns = Spec_->SortBy.empty() ? Spec_->ReduceBy : Spec_->SortBy;
-        LOG_INFO("Spec key columns are %v", specKeyColumns);
+        YT_LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         SortKeyColumns_ = CheckInputTablesSorted(specKeyColumns, &TInputTable::IsPrimary);
 
@@ -1046,7 +1045,7 @@ public:
         PrimaryKeyColumns_ = Spec_->ReduceBy;
         ForeignKeyColumns_ = Spec_->JoinBy;
         if (!ForeignKeyColumns_.empty()) {
-            LOG_INFO("Foreign key columns are %v", ForeignKeyColumns_);
+            YT_LOG_INFO("Foreign key columns are %v", ForeignKeyColumns_);
 
             CheckInputTablesSorted(ForeignKeyColumns_, &TInputTable::IsForeign);
 
@@ -1205,7 +1204,7 @@ public:
 
     virtual void AdjustKeyColumns() override
     {
-        LOG_INFO("Spec key columns are %v", Spec_->JoinBy);
+        YT_LOG_INFO("Spec key columns are %v", Spec_->JoinBy);
         SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_ = CheckInputTablesSorted(Spec_->JoinBy);
     }
 
@@ -1324,7 +1323,7 @@ public:
 
     virtual void AdjustKeyColumns() override
     {
-        LOG_INFO("Adjusting key columns (EnableKeyGuarantee: %v, ReduceBy: %v, SortBy: %v, JoinBy: %v)",
+        YT_LOG_INFO("Adjusting key columns (EnableKeyGuarantee: %v, ReduceBy: %v, SortBy: %v, JoinBy: %v)",
             *Spec_->EnableKeyGuarantee,
             Spec_->ReduceBy,
             Spec_->SortBy,
@@ -1375,7 +1374,7 @@ public:
                 return table->IsPrimary();
             });
         }
-        LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
+        YT_LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
             PrimaryKeyColumns_,
             ForeignKeyColumns_,
             SortKeyColumns_);
@@ -1499,7 +1498,7 @@ IOperationControllerPtr CreateAppropriateReduceController(
     auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TNewReduceOperationSpec>(mergedSpec);
     if (spec->UseNewController) {
-        if (!spec->EnableKeyGuarantee.HasValue()) {
+        if (!spec->EnableKeyGuarantee) {
             spec->EnableKeyGuarantee = !isJoinReduce;
         }
         return New<TNewReduceController>(spec, config, options, host, operation);
@@ -1513,5 +1512,4 @@ IOperationControllerPtr CreateAppropriateReduceController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

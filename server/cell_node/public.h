@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT {
-namespace NCellNode {
+namespace NYT::NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,5 +21,4 @@ using TNodeMemoryTrackerGuard = NNodeTrackerClient::TNodeMemoryTrackerGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
-} // namespace NYT
+} // namespace NYT::NCellNode

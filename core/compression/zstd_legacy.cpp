@@ -7,8 +7,7 @@
 
 #include <yt/contrib/zstd-legacy/lib/zstd_static.h>
 
-namespace NYT {
-namespace NCompression {
+namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +58,7 @@ void ZstdLegacyCompress(StreamSource* source, TBlob* output)
             outputPtr,
             output->Size() - curOutputPos);
 
-        LOG_FATAL_IF(
+        YT_LOG_FATAL_IF(
             ZSTD_LEGACY_isError(compressedSize),
             ZSTD_LEGACY_getErrorName(compressedSize));
 
@@ -79,7 +78,7 @@ void ZstdLegacyCompress(StreamSource* source, TBlob* output)
             buffer,
             size);
 
-        LOG_FATAL_IF(
+        YT_LOG_FATAL_IF(
             ZSTD_LEGACY_isError(compressedSize),
             ZSTD_LEGACY_getErrorName(compressedSize));
 
@@ -137,7 +136,7 @@ void ZstdLegacyCompress(StreamSource* source, TBlob* output)
             outputPtr,
             output->Size() - curOutputPos);
 
-        LOG_FATAL_IF(
+        YT_LOG_FATAL_IF(
             ZSTD_LEGACY_isError(compressedSize),
             ZSTD_LEGACY_getErrorName(compressedSize));
 
@@ -167,7 +166,7 @@ void ZstdLegacyDecompress(StreamSource* source, TBlob* output)
     size_t decompressedSize = ZSTD_LEGACY_decompress(outputPtr, outputSize, inputPtr, inputSize);
 
     // ZSTD_LEGACY_decompress returns error code instead of decompressed size if it fails.
-    LOG_FATAL_IF(
+    YT_LOG_FATAL_IF(
         ZSTD_LEGACY_isError(decompressedSize),
         ZSTD_LEGACY_getErrorName(decompressedSize));
 
@@ -176,5 +175,4 @@ void ZstdLegacyDecompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NCompression
+} // namespace NCompression::NYT

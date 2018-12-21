@@ -4,8 +4,7 @@
 
 #include <yt/client/formats/dsv_parser.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 namespace {
 
 using namespace NYson;
@@ -363,5 +362,4 @@ TEST_F(TTskvParserTest, WrongLinePrefix)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

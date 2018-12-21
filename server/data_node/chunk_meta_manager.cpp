@@ -8,8 +8,7 @@
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
@@ -22,7 +21,7 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedChunkMeta::TCachedChunkMeta(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     TRefCountedChunkMetaPtr meta,
     TNodeMemoryTracker* memoryTracker)
     : TAsyncCacheValueBase(chunkId)
@@ -75,10 +74,10 @@ public:
                 Bootstrap_->GetMemoryUsageTracker());
             cookie.EndInsert(cachedMeta);
 
-            LOG_DEBUG("Chunk meta is put into cache (ChunkId: %v)",
+            YT_LOG_DEBUG("Chunk meta is put into cache (ChunkId: %v)",
                 chunkId);
         } else {
-            LOG_DEBUG("Failed to cache chunk meta due to concurrent read (ChunkId: %v)",
+            YT_LOG_DEBUG("Failed to cache chunk meta due to concurrent read (ChunkId: %v)",
                 chunkId);
         }
     }
@@ -130,5 +129,4 @@ TCachedChunkMetaCookie TChunkMetaManager::BeginInsertCachedMeta(TChunkId chunkId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

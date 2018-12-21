@@ -21,8 +21,7 @@
 
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NApi;
@@ -106,7 +105,7 @@ private:
     {
         auto path = GetChangelogPath(Path_, id);
         try {
-            LOG_DEBUG("Creating remote changelog (ChangelogId: %v)",
+            YT_LOG_DEBUG("Creating remote changelog (ChangelogId: %v)",
                 id);
 
             if (!PrerequisiteTransaction_) {
@@ -145,7 +144,7 @@ private:
                     .ThrowOnError();
             }
 
-            LOG_DEBUG("Remote changelog created (ChangelogId: %v)",
+            YT_LOG_DEBUG("Remote changelog created (ChangelogId: %v)",
                 id);
 
             return CreateRemoteChangelog(
@@ -170,7 +169,7 @@ private:
             int recordCount;
             i64 dataSize;
 
-            LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
+            YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
                 id);
             {
                 TGetNodeOptions options;
@@ -191,7 +190,7 @@ private:
                 dataSize = attributes.Get<i64>("uncompressed_data_size");
                 recordCount = attributes.Get<int>("quorum_row_count");
             }
-            LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
+            YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
                 id);
 
             return CreateRemoteChangelog(
@@ -349,7 +348,7 @@ public:
         TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
         IClientPtr client,
-        const TTransactionId& prerequisiteTransactionId,
+        TTransactionId prerequisiteTransactionId,
         const NProfiling::TTagIdList& profilerTags)
         : Config_(config)
         , Options_(options)
@@ -390,6 +389,30 @@ private:
                 reachableVersion = ComputeReachableVersion();
             }
 
+            {
+                auto asyncRsp = MasterClient_->GetNode(Format(
+                    "//sys/accounts/%v/@violated_resource_limits",
+                    ToYPathLiteral(Options_->ChangelogAccount)));
+
+                auto rspOrError = WaitFor(asyncRsp);
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    rspOrError,
+                    "Error requesting resource limits for account %Qv",
+                    Options_->ChangelogAccount);
+
+                auto rsp = rspOrError.Value();
+
+                auto attributes = ConvertToAttributes(rsp);
+                auto chunkCount = attributes->Get<bool>("chunk_count");
+                auto diskSpace = attributes->Get<bool>("disk_space");
+
+                if (chunkCount || diskSpace) {
+                    THROW_ERROR_EXCEPTION(
+                        "Resource limits for changelog account %Qv are violated",
+                        Options_->ChangelogAccount);
+                }
+            }
+
             return New<TRemoteChangelogStore>(
                 Config_,
                 Options_,
@@ -426,10 +449,10 @@ private:
 
     int GetLatestChangelogId()
     {
-        LOG_DEBUG("Requesting changelog list from remote store");
+        YT_LOG_DEBUG("Requesting changelog list from remote store");
         auto result = WaitFor(MasterClient_->ListNode(Path_))
             .ValueOrThrow();
-        LOG_DEBUG("Changelog list received");
+        YT_LOG_DEBUG("Changelog list received");
 
         auto keys = ConvertTo<std::vector<TString>>(result);
         int latestId = InvalidSegmentId;
@@ -438,7 +461,7 @@ private:
             try {
                 id = FromString<int>(key);
             } catch (const std::exception&) {
-                LOG_WARNING("Unrecognized item %Qv in remote changelog store",
+                YT_LOG_WARNING("Unrecognized item %Qv in remote changelog store",
                     key);
                 continue;
             }
@@ -461,7 +484,7 @@ private:
         auto path = GetChangelogPath(Path_, latestId);
 
         int recordCount;
-        LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
+        YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
             latestId);
         {
             TGetNodeOptions options;
@@ -476,7 +499,7 @@ private:
             }
             recordCount = attributes.Get<int>("quorum_row_count");
         }
-        LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
+        YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
             latestId);
 
         return TVersion(latestId, recordCount);
@@ -491,7 +514,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreOptionsPtr options,
     const TYPath& path,
     IClientPtr client,
-    const TTransactionId& prerequisiteTransactionId,
+    TTransactionId prerequisiteTransactionId,
     const NProfiling::TTagIdList& profilerTags)
 {
     return New<TRemoteChangelogStoreFactory>(
@@ -505,5 +528,4 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

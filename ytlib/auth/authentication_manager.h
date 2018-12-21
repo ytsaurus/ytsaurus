@@ -8,8 +8,11 @@
 
 #include <yt/core/actions/public.h>
 
-namespace NYT {
-namespace NAuth {
+#include <yt/core/concurrency/public.h>
+
+#include <yt/core/profiling/profiler.h>
+
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,8 +22,9 @@ class TAuthenticationManager
 public:
     TAuthenticationManager(
         TAuthenticationManagerConfigPtr config,
-        IInvokerPtr invoker,
-        NApi::IClientPtr client);
+        NConcurrency::IPollerPtr poller,
+        NApi::IClientPtr client,
+        NProfiling::TProfiler profiler = AuthProfiler);
 
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
@@ -37,5 +41,4 @@ DEFINE_REFCOUNTED_TYPE(TAuthenticationManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

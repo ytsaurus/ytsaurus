@@ -28,8 +28,7 @@
 #include <yt/core/ytree/tree_builder.h>
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +63,7 @@ protected:
 
     TCypressNodeBase* CloneCorePrologue(
         ICypressNodeFactory* factory,
-        const TNodeId& hintId,
+        TNodeId hintId,
         NObjectClient::TCellTag externalCellTag);
 
     void CloneCoreEpilogue(
@@ -107,7 +106,7 @@ public:
     }
 
     virtual std::unique_ptr<TCypressNodeBase> Create(
-        const TNodeId& hintId,
+        TNodeId hintId,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* inheritedAttributes,
@@ -207,7 +206,7 @@ public:
     virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactory* factory,
-        const TNodeId& hintId,
+        TNodeId hintId,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override
     {
@@ -230,6 +229,15 @@ public:
             mode);
 
         return clonedNode;
+    }
+
+    virtual bool HasBranchedChanges(
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode) override
+    {
+        return HasBranchedChangesImpl(
+            originatingNode->template As<TImpl>(),
+            branchedNode->template As<TImpl>());
     }
 
 protected:
@@ -284,7 +292,7 @@ protected:
         const TLockRequest& lockRequest)
     {
         const auto& Logger = CypressServerLogger;
-        LOG_DEBUG_UNLESS(
+        YT_LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v, LockTimestamp: %llx)",
             originatingNode->GetVersionedId(),
@@ -306,7 +314,7 @@ protected:
         TImpl* branchedNode)
     {
         const auto& Logger = CypressServerLogger;
-        LOG_DEBUG_UNLESS(
+        YT_LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
             originatingNode->GetVersionedId(),
@@ -335,6 +343,12 @@ protected:
         securityManager->SetAccount(clonedNode, nullptr /* oldAccount */, account, transaction);
     }
 
+    virtual bool HasBranchedChangesImpl(
+        TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/)
+    {
+        return false;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -501,56 +515,59 @@ public:
     // NB: the list of inheritable attributes doesn't include the "account"
     // attribute because that's already present on every Cypress node.
 
-    TNullable<NCompression::ECodec> GetCompressionCodec() const;
-    void SetCompressionCodec(TNullable<NCompression::ECodec> compressionCodec);
+    std::optional<NCompression::ECodec> GetCompressionCodec() const;
+    void SetCompressionCodec(std::optional<NCompression::ECodec> compressionCodec);
 
-    TNullable<NErasure::ECodec> GetErasureCodec() const;
-    void SetErasureCodec(TNullable<NErasure::ECodec> erasureCodec);
+    std::optional<NErasure::ECodec> GetErasureCodec() const;
+    void SetErasureCodec(std::optional<NErasure::ECodec> erasureCodec);
 
-    TNullable<int> GetPrimaryMediumIndex() const;
-    void SetPrimaryMediumIndex(TNullable<int> primaryMediumIndex);
+    std::optional<int> GetPrimaryMediumIndex() const;
+    void SetPrimaryMediumIndex(std::optional<int> primaryMediumIndex);
 
-    TNullable<NChunkServer::TChunkReplication> GetMedia() const;
-    void SetMedia(TNullable<NChunkServer::TChunkReplication> media);
+    std::optional<NChunkServer::TChunkReplication> GetMedia() const;
+    void SetMedia(std::optional<NChunkServer::TChunkReplication> media);
 
     // Although both Vital and ReplicationFactor can be deduced from Media, it's
     // important to be able to specify just the ReplicationFactor (or the Vital
     // flag) while leaving Media null.
 
-    TNullable<int> GetReplicationFactor() const;
-    void SetReplicationFactor(TNullable<int> replicationFactor);
+    std::optional<int> GetReplicationFactor() const;
+    void SetReplicationFactor(std::optional<int> replicationFactor);
 
-    TNullable<bool> GetVital() const;
-    void SetVital(TNullable<bool> vital);
+    std::optional<bool> GetVital() const;
+    void SetVital(std::optional<bool> vital);
 
     NTabletServer::TTabletCellBundle* GetTabletCellBundle() const;
     void SetTabletCellBundle(NTabletServer::TTabletCellBundle* tabletCellBundle);
 
-    TNullable<NTransactionClient::EAtomicity> GetAtomicity() const;
-    void SetAtomicity(TNullable<NTransactionClient::EAtomicity> atomicity);
+    std::optional<NTransactionClient::EAtomicity> GetAtomicity() const;
+    void SetAtomicity(std::optional<NTransactionClient::EAtomicity> atomicity);
 
-    TNullable<NTransactionClient::ECommitOrdering> GetCommitOrdering() const;
-    void SetCommitOrdering(TNullable<NTransactionClient::ECommitOrdering> commitOrdering);
+    std::optional<NTransactionClient::ECommitOrdering> GetCommitOrdering() const;
+    void SetCommitOrdering(std::optional<NTransactionClient::ECommitOrdering> commitOrdering);
 
-    TNullable<NTabletClient::EInMemoryMode> GetInMemoryMode() const;
-    void SetInMemoryMode(TNullable<NTabletClient::EInMemoryMode> inMemoryMode);
+    std::optional<NTabletClient::EInMemoryMode> GetInMemoryMode() const;
+    void SetInMemoryMode(std::optional<NTabletClient::EInMemoryMode> inMemoryMode);
 
-    TNullable<NTableClient::EOptimizeFor> GetOptimizeFor() const;
-    void SetOptimizeFor(TNullable<NTableClient::EOptimizeFor> optimizeFor);
+    std::optional<NTableClient::EOptimizeFor> GetOptimizeFor() const;
+    void SetOptimizeFor(std::optional<NTableClient::EOptimizeFor> optimizeFor);
 
     struct TAttributes
     {
-        TNullable<NCompression::ECodec> CompressionCodec;
-        TNullable<NErasure::ECodec> ErasureCodec;
-        TNullable<int> PrimaryMediumIndex;
-        TNullable<NChunkServer::TChunkReplication> Media;
-        TNullable<int> ReplicationFactor;
-        TNullable<bool> Vital;
+        std::optional<NCompression::ECodec> CompressionCodec;
+        std::optional<NErasure::ECodec> ErasureCodec;
+        std::optional<int> PrimaryMediumIndex;
+        std::optional<NChunkServer::TChunkReplication> Media;
+        std::optional<int> ReplicationFactor;
+        std::optional<bool> Vital;
         NTabletServer::TTabletCellBundle* TabletCellBundle = nullptr;
-        TNullable<NTransactionClient::EAtomicity> Atomicity;
-        TNullable<NTransactionClient::ECommitOrdering> CommitOrdering;
-        TNullable<NTabletClient::EInMemoryMode> InMemoryMode;
-        TNullable<NTableClient::EOptimizeFor> OptimizeFor;
+        std::optional<NTransactionClient::EAtomicity> Atomicity;
+        std::optional<NTransactionClient::ECommitOrdering> CommitOrdering;
+        std::optional<NTabletClient::EInMemoryMode> InMemoryMode;
+        std::optional<NTableClient::EOptimizeFor> OptimizeFor;
+
+        bool operator==(const TAttributes& rhs) const;
+        bool operator!=(const TAttributes& rhs) const;
 
         void Persist(NCellMaster::TPersistenceContext& context);
 
@@ -666,6 +683,30 @@ protected:
 
         originatingNode->SetAttributes(branchedNode->Attributes());
     }
+
+    virtual bool HasBranchedChangesImpl(
+        TImpl* originatingNode,
+        TImpl* branchedNode) override
+    {
+        if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+            return true;
+        }
+
+        auto* originatingAttributes = originatingNode->Attributes();
+        auto* branchedAttributes = originatingNode->Attributes();
+
+        if (!originatingAttributes && !branchedAttributes) {
+            return false;
+        }
+
+        if (originatingAttributes && !branchedAttributes ||
+            !originatingAttributes && branchedAttributes)
+        {
+            return true;
+        }
+
+        return *originatingAttributes != *branchedAttributes;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -728,6 +769,10 @@ private:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
+
+    virtual bool HasBranchedChangesImpl(
+        TMapNode* originatingNode,
+        TMapNode* branchedNode) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -789,6 +834,10 @@ private:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
+
+    virtual bool HasBranchedChangesImpl(
+        TListNode* originatingNode,
+        TListNode* branchedNode) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -850,6 +899,10 @@ private:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
+
+    virtual bool HasBranchedChangesImpl(
+        TLinkNode* originatingNode,
+        TLinkNode* branchedNode) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -904,9 +957,11 @@ private:
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
 
+    virtual bool HasBranchedChangesImpl(
+        TDocumentNode* originatingNode,
+        TDocumentNode* branchedNode) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

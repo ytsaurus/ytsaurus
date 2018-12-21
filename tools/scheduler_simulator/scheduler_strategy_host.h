@@ -15,8 +15,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/size_literals.h>
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,9 +48,9 @@ public:
         const TString& user,
         NYTree::EPermission permission) const override;
 
-    virtual void ActivateOperation(const NScheduler::TOperationId& operationId) override;
+    virtual void ActivateOperation(NScheduler::TOperationId operationId) override;
 
-    virtual void AbortOperation(const NScheduler::TOperationId& operationId, const TError& error) override;
+    virtual void AbortOperation(NScheduler::TOperationId operationId, const TError& error) override;
 
     void PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent);
 
@@ -62,10 +61,10 @@ public:
     virtual void SetSchedulerAlert(NScheduler::ESchedulerAlertType alertType, const TError& alert) override;
 
     virtual TFuture<void> SetOperationAlert(
-        const NScheduler::TOperationId& operationId,
+        NScheduler::TOperationId operationId,
         NScheduler::EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout) override;
+        std::optional<TDuration> timeout) override;
 
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
@@ -77,5 +76,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

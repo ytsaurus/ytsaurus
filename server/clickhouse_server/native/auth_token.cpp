@@ -2,7 +2,7 @@
 
 #include <yt/client/api/connection.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 namespace NYT {
 namespace NClickHouseServer {
@@ -14,7 +14,7 @@ using namespace NApi;
 
 namespace {
 
-TNullable<TString> GetValue(const THashMap<TString, TString>& attrs, TStringBuf name)
+std::optional<TString> GetValue(const THashMap<TString, TString>& attrs, TStringBuf name)
 {
     auto it = attrs.find(name);
     if (it != attrs.end()) {
@@ -55,6 +55,7 @@ const TClientOptions& UnwrapAuthToken(const IAuthorizationToken& token)
 class TAuthTokenService
     : public IAuthorizationTokenService
 {
+public:
     IAuthorizationTokenPtr CreateToken(const THashMap<TString, TString>& attrs) override
     {
         auto user = GetValue(attrs, "user");
@@ -63,7 +64,7 @@ class TAuthTokenService
         }
 
         TClientOptions options;
-        options.PinnedUser = user.Get();
+        options.PinnedUser = *user;
         options.Token = GetValue(attrs, "token");
         options.SessionId = GetValue(attrs, "sessionId");
         options.SslSessionId = GetValue(attrs, "sessionId2");

@@ -10,9 +10,7 @@
 
 #include <yt/ytlib/hive/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +21,7 @@ struct IConnection
 
     virtual const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const = 0;
 
-    virtual const NObjectClient::TCellId& GetPrimaryMasterCellId() const = 0;
+    virtual NObjectClient::TCellId GetPrimaryMasterCellId() const = 0;
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
     virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;
 
@@ -44,7 +42,7 @@ struct IConnection
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
-        const NObjectClient::TCellId& cellId) = 0;
+        NObjectClient::TCellId cellId) = 0;
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
@@ -74,7 +72,5 @@ IConnectionPtr CreateConnection(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

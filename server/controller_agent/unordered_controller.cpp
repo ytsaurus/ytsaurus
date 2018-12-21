@@ -27,8 +27,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
@@ -243,7 +242,7 @@ protected:
 
     void InitJobSizeConstraints()
     {
-        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.Get(Config->MaxTotalSliceCount);
+        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
         switch (OperationType) {
             case EOperationType::Merge:
@@ -273,7 +272,7 @@ protected:
                 Y_UNREACHABLE();
         }
 
-        LOG_INFO(
+        YT_LOG_INFO(
             "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
             "InputSliceDataWeight: %v, IsExplicitJobCount: %v)",
             JobSizeConstraints_->GetJobCount(),
@@ -300,7 +299,7 @@ protected:
     void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
+            YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
@@ -320,7 +319,7 @@ protected:
                 yielder.TryYield();
             }
 
-            LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
+            YT_LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
                 unversionedSlices,
                 versionedSlices);
         }
@@ -553,7 +552,7 @@ private:
         return Spec->OutputTablePaths;
     }
 
-    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    virtual std::optional<TRichYPath> GetStderrTablePath() const override
     {
         return Spec->StderrTablePath;
     }
@@ -563,7 +562,7 @@ private:
         return Spec->StderrTableWriter;
     }
 
-    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    virtual std::optional<TRichYPath> GetCoreTablePath() const override
     {
         return Spec->CoreTablePath;
     }
@@ -799,6 +798,5 @@ IOperationControllerPtr CreateUnorderedMergeController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent
 

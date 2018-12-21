@@ -1,11 +1,10 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <yt/core/yson/lexer.h>
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 namespace {
 
 using ::ToString;
@@ -189,5 +188,4 @@ TEST_F(TStatelessLexerTest, IncorrectFinish)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

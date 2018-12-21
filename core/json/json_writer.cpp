@@ -8,8 +8,7 @@
 
 #include <iostream>
 
-namespace NYT {
-namespace NJson {
+namespace NYT::NJson {
 
 using namespace NYTree;
 using namespace NYson;
@@ -79,8 +78,8 @@ public:
 
     virtual void SetAnnotateWithTypesParameter(bool value) override;
 
-    virtual void OnStringScalarWeightLimited(TStringBuf value, TNullable<i64> weightLimit) override;
-    virtual void OnNodeWeightLimited(TStringBuf yson, TNullable<i64> weightLimit) override;
+    virtual void OnStringScalarWeightLimited(TStringBuf value, std::optional<i64> weightLimit) override;
+    virtual void OnNodeWeightLimited(TStringBuf yson, std::optional<i64> weightLimit) override;
 
     virtual void Flush() override;
 
@@ -522,7 +521,7 @@ void TJsonConsumer::SetAnnotateWithTypesParameter(bool value)
     Config->AnnotateWithTypes = value;
 }
 
-void TJsonConsumer::OnStringScalarWeightLimited(TStringBuf value, TNullable<i64> weightLimit)
+void TJsonConsumer::OnStringScalarWeightLimited(TStringBuf value, std::optional<i64> weightLimit)
 {
     TStringBuf writeValue = value;
     bool incomplete = false;
@@ -534,7 +533,7 @@ void TJsonConsumer::OnStringScalarWeightLimited(TStringBuf value, TNullable<i64>
     WriteStringScalarWithAttributes(writeValue, "string", incomplete);
 }
 
-void TJsonConsumer::OnNodeWeightLimited(TStringBuf yson, TNullable<i64> weightLimit)
+void TJsonConsumer::OnNodeWeightLimited(TStringBuf yson, std::optional<i64> weightLimit)
 {
     if (CheckLimit && weightLimit && yson.Size() > *weightLimit) {
         WriteStringScalarWithAttributes("", "any", true);
@@ -554,5 +553,4 @@ std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJson
-} // namespace NYT
+} // namespace NYT::NJson

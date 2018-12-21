@@ -12,8 +12,7 @@
 
 #include <util/stream/buffer.h>
 
-namespace NYT {
-namespace NSkynetManager {
+namespace NYT::NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +39,7 @@ struct TRowRangeLocation
     i64 RowIndex;
     i64 RowCount = 0;
 
-    TNullable<i64> LowerLimit;
+    std::optional<i64> LowerLimit;
 
     NChunkClient::TChunkId ChunkId;
 
@@ -55,5 +54,4 @@ NYTree::INodePtr MakeLinks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkynetManager
-} // namespace NYT
+} // namespace NYT::NSkynetManager

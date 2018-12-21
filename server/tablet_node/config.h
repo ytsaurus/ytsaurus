@@ -26,8 +26,7 @@
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,11 +95,11 @@ public:
 
     int MaxStoresPerTablet;
 
-    TNullable<ui64> ForcedCompactionRevision;
+    std::optional<ui64> ForcedCompactionRevision;
 
-    TNullable<TDuration> DynamicStoreAutoFlushPeriod;
+    std::optional<TDuration> DynamicStoreAutoFlushPeriod;
     TDuration DynamicStoreFlushPeriodSplay;
-    TNullable<TDuration> AutoCompactionPeriod;
+    std::optional<TDuration> AutoCompactionPeriod;
 
     bool EnableLookupHashTable;
 
@@ -116,11 +115,12 @@ public:
     TString ProfilingTag;
 
     bool EnableCompactionAndPartitioning;
+    bool EnableStoreRotation;
 
     bool MergeRowsOnFlush;
 
-    TNullable<i64> MaxUnversionedBlockSize;
-    TNullable<int> CriticalOverlappingStoreCount;
+    std::optional<i64> MaxUnversionedBlockSize;
+    std::optional<int> CriticalOverlappingStoreCount;
 
     TTableMountConfig()
     {
@@ -229,14 +229,14 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("dynamic_store_auto_flush_period", DynamicStoreAutoFlushPeriod)
             .Default(TDuration::Minutes(15));
         RegisterParameter("dynamic_store_flush_period_splay", DynamicStoreFlushPeriodSplay)
             .Default(TDuration::Minutes(1));
         RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
             .Default(false);
@@ -262,6 +262,9 @@ public:
             .Optional();
 
         RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
+            .Default(true);
+
+        RegisterParameter("enable_store_rotation", EnableStoreRotation)
             .Default(true);
 
         RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
@@ -366,6 +369,8 @@ public:
     TDuration ReplicatorSoftBackoffTime;
     TDuration ReplicatorHardBackoffTime;
 
+    TDuration TabletCellDecommissionCheckPeriod;
+
     TTabletManagerConfig()
     {
         RegisterParameter("pool_chunk_size", PoolChunkSize)
@@ -395,6 +400,9 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("replicator_hard_backoff_time", ReplicatorHardBackoffTime)
             .Default(TDuration::Seconds(60));
+
+        RegisterParameter("tablet_cell_decommission_check_period", TabletCellDecommissionCheckPeriod)
+            .Default(TDuration::Seconds(10));
     }
 };
 
@@ -721,5 +729,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

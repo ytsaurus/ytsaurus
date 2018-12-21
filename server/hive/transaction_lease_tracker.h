@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/callback.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/variant.h>
 
@@ -12,12 +12,11 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTransactionLeaseExpirationHandler = TCallback<void(const TTransactionId&)>;
+using TTransactionLeaseExpirationHandler = TCallback<void(TTransactionId)>;
 
 //! Offloads the automaton thread by handling transaction pings and leases
 //! in a separate thread.
@@ -53,10 +52,10 @@ public:
      *  Thread affinity: any
      */
     void RegisterTransaction(
-        const TTransactionId& transactionId,
-        const TTransactionId& parentId,
-        TNullable<TDuration> timeout,
-        TNullable<TInstant> deadline,
+        TTransactionId transactionId,
+        TTransactionId parentId,
+        std::optional<TDuration> timeout,
+        std::optional<TInstant> deadline,
         TTransactionLeaseExpirationHandler expirationHandler);
 
     //! Unregisters a transaction.
@@ -65,7 +64,7 @@ public:
      *
      *  Thread affinity: any
      */
-    void UnregisterTransaction(const TTransactionId& transactionId);
+    void UnregisterTransaction(TTransactionId transactionId);
 
     //! Sets the transaction timeout. Current lease is not renewed.
     /*!
@@ -73,7 +72,7 @@ public:
      *
      *  Thread affinity: any
      */
-    void SetTimeout(const TTransactionId& transactionId, TDuration timeout);
+    void SetTimeout(TTransactionId transactionId, TDuration timeout);
 
     //! Pings a transaction, i.e. renews its lease.
     /*!
@@ -84,7 +83,7 @@ public:
      *
      *  Thread affinity: TrackerThread
      */
-    void PingTransaction(const TTransactionId& transactionId, bool pingAncestors = false);
+    void PingTransaction(TTransactionId transactionId, bool pingAncestors = false);
 
     //! Asynchronously returns the (approximate) moment when transaction with
     //! a given #transactionId was last pinged.
@@ -93,7 +92,7 @@ public:
      *
      *  Thread affinity: any
      */
-    TFuture<TInstant> GetLastPingTime(const TTransactionId& transactionId);
+    TFuture<TInstant> GetLastPingTime(TTransactionId transactionId);
 
 private:
     const IInvokerPtr TrackerInvoker_;
@@ -111,8 +110,8 @@ private:
     {
         TTransactionId TransactionId;
         TTransactionId ParentId;
-        TNullable<TDuration> Timeout;
-        TNullable<TInstant> Deadline;
+        std::optional<TDuration> Timeout;
+        std::optional<TInstant> Deadline;
         TTransactionLeaseExpirationHandler ExpirationHandler;
     };
 
@@ -148,8 +147,8 @@ private:
     {
         TTransactionId TransactionId;
         TTransactionId ParentId;
-        TNullable<TDuration> Timeout;
-        TNullable<TInstant> UserDeadline;
+        std::optional<TDuration> Timeout;
+        std::optional<TInstant> UserDeadline;
         TTransactionLeaseExpirationHandler ExpirationHandler;
         TInstant Deadline;
         TInstant LastPingTime;
@@ -170,8 +169,8 @@ private:
     void ProcessSetTimeoutRequest(const TSetTimeoutRequest& request);
     void ProcessDeadlines();
 
-    TTransactionDescriptor* FindDescriptor(const TTransactionId& transactionId);
-    TTransactionDescriptor* GetDescriptorOrThrow(const TTransactionId& transactionId);
+    TTransactionDescriptor* FindDescriptor(TTransactionId transactionId);
+    TTransactionDescriptor* GetDescriptorOrThrow(TTransactionId transactionId);
 
     void RegisterDeadline(TTransactionDescriptor* descriptor);
     void UnregisterDeadline(TTransactionDescriptor* descriptor);
@@ -186,5 +185,4 @@ DEFINE_REFCOUNTED_TYPE(TTransactionLeaseTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

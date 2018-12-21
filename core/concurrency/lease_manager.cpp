@@ -2,8 +2,7 @@
 #include "delayed_executor.h"
 #include "thread_affinity.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +45,7 @@ public:
         return lease;
     }
 
-    static bool RenewLease(TLease lease, TNullable<TDuration> timeout)
+    static bool RenewLease(TLease lease, std::optional<TDuration> timeout)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Y_ASSERT(lease);
@@ -57,7 +56,7 @@ public:
 
         TDelayedExecutor::CancelAndClear(lease->Cookie);
         if (timeout) {
-            lease->Timeout = timeout.Get();
+            lease->Timeout = *timeout;
         }
         lease->Cookie = TDelayedExecutor::Submit(
             BIND(&TImpl::OnLeaseExpired, lease),
@@ -114,7 +113,7 @@ TLease TLeaseManager::CreateLease(TDuration timeout, TClosure onExpired)
     return TImpl::CreateLease(timeout, std::move(onExpired));
 }
 
-bool TLeaseManager::RenewLease(TLease lease, TNullable<TDuration> timeout)
+bool TLeaseManager::RenewLease(TLease lease, std::optional<TDuration> timeout)
 {
     return TImpl::RenewLease(std::move(lease), timeout);
 }
@@ -126,7 +125,6 @@ bool TLeaseManager::CloseLease(TLease lease)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NConcurrency
+} // namespace NConcurrency::NYT
 
 

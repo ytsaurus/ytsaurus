@@ -75,8 +75,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/helpers.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -148,7 +147,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    void SetEpochId(const TEpochId& epochId)
+    void SetEpochId(TEpochId epochId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -179,7 +178,7 @@ private:
 
         DoAbandon();
 
-        LOG_INFO("Starting election epoch");
+        YT_LOG_INFO("Starting election epoch");
 
         EpochContext_ = New<TEpochContext>();
         EpochContext_->LeaderId = GetLeaderId();
@@ -201,7 +200,7 @@ private:
             return;
         }
 
-        LOG_INFO("Abandoning election epoch");
+        YT_LOG_INFO("Abandoning election epoch");
 
         EpochContext_->CancelableContext->Cancel();
 
@@ -222,7 +221,7 @@ private:
             return;
         }
 
-        LOG_INFO("Peer reconfigured (PeerId: %v)",
+        YT_LOG_INFO("Peer reconfigured (PeerId: %v)",
             peerId);
 
         auto selfId = CellManager_->GetSelfPeerId();
@@ -301,7 +300,7 @@ public:
         return SlotIndex_;
     }
 
-    const TCellId& GetCellId() const
+    TCellId GetCellId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -436,7 +435,7 @@ public:
 
         Initialized_ = true;
 
-        LOG_INFO("Slot initialized");
+        YT_LOG_INFO("Slot initialized");
     }
 
 
@@ -462,7 +461,7 @@ public:
         auto updateVersion = updateInfo.dynamic_config_version();
 
         if (DynamicConfigVersion_ >= updateVersion) {
-            LOG_DEBUG("Received outdated dynamic config update (DynamicConfigVersion: %v, UpdateVersion: %v)",
+            YT_LOG_DEBUG("Received outdated dynamic config update (DynamicConfigVersion: %v, UpdateVersion: %v)",
                 DynamicConfigVersion_,
                 updateVersion);
             return;
@@ -483,15 +482,18 @@ public:
                 }
             }
 
-            DynamicOptions_ = std::move(dynamicOptions);
             DynamicConfigVersion_ = updateInfo.dynamic_config_version();
+            {
+                TGuard<TSpinLock> guard(DynamicOptionsLock);
+                DynamicOptions_ = std::move(dynamicOptions);
+            }
 
-            LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
+            YT_LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
                 DynamicConfigVersion_);
 
         } catch (const std::exception& ex) {
             // TODO(savrus): Write this to tablet cell errors once we have them.
-            LOG_ERROR(ex, "Error while updating dynamic config");
+            YT_LOG_ERROR(ex, "Error while updating dynamic config");
         }
     }
 
@@ -506,7 +508,7 @@ public:
 
         auto newPrerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
         if (newPrerequisiteTransactionId != PrerequisiteTransactionId_) {
-            LOG_INFO("Prerequisite transaction updated (TransactionId: %v -> %v)",
+            YT_LOG_INFO("Prerequisite transaction updated (TransactionId: %v -> %v)",
                 PrerequisiteTransactionId_,
                 newPrerequisiteTransactionId);
             PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
@@ -518,7 +520,7 @@ public:
             TTransactionAttachOptions attachOptions;
             attachOptions.Ping = false;
             PrerequisiteTransaction_ = client->AttachTransaction(PrerequisiteTransactionId_, attachOptions);
-            LOG_INFO("Prerequisite transaction attached (TransactionId: %v)",
+            YT_LOG_INFO("Prerequisite transaction attached (TransactionId: %v)",
                 PrerequisiteTransactionId_);
         }
 
@@ -545,7 +547,7 @@ public:
             ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
             CellManager_->Reconfigure(cellConfig);
 
-            LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
+            YT_LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
         } else {
             auto channelFactory = Bootstrap_
@@ -670,7 +672,7 @@ public:
 
             OrchidService_ = CreateOrchidService();
 
-            LOG_INFO("Slot configured (ConfigVersion: %v)",
+            YT_LOG_INFO("Slot configured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
         }
     }
@@ -683,7 +685,7 @@ public:
             return FinalizeResult_;
         }
 
-        LOG_INFO("Finalizing slot");
+        YT_LOG_INFO("Finalizing slot");
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshots(Owner_);
@@ -720,7 +722,17 @@ public:
 
     double GetUsedCpu(double cpuPerTabletSlot) const
     {
-        return DynamicOptions_->CpuPerTabletSlot.Get(cpuPerTabletSlot);
+        return GetDynamicOptions()->CpuPerTabletSlot.value_or(cpuPerTabletSlot);
+    }
+
+    const TDynamicTabletCellOptionsPtr GetDynamicOptions() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(DynamicOptionsLock);
+        auto options = DynamicOptions_;
+        guard.Release();
+        return options;
     }
 
 private:
@@ -745,6 +757,8 @@ private:
 
     const TYsonString OptionsString_;
     TTabletCellOptionsPtr Options_;
+
+    TSpinLock DynamicOptionsLock;
     TDynamicTabletCellOptionsPtr DynamicOptions_ = New<TDynamicTabletCellOptions>();
 
     int DynamicConfigVersion_ = -1;
@@ -811,13 +825,17 @@ private:
             ->AddChild("memory_usage", IYPathService::FromMethod(
                 &TImpl::GetMemoryUsage,
                 MakeWeak(this)))
+            ->AddChild("life_stage", IYPathService::FromMethod(
+                &TTabletManager::GetTabletCellLifeStage,
+                MakeWeak(TabletManager_))
+                ->Via(GetAutomatonInvoker()))
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("tablets", TabletManager_->GetOrchidService())
             ->AddChild("hive", HiveManager_->GetOrchidService())
             ->Via(Bootstrap_->GetControlInvoker());
     }
 
-    const TTransactionId& GetPrerequisiteTransactionId() const
+    TTransactionId GetPrerequisiteTransactionId() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -829,13 +847,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Options_;
-    }
-
-    const TDynamicTabletCellOptionsPtr& GetDynamicOptions() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return DynamicOptions_;
     }
 
     TYsonString GetMemoryUsage() const
@@ -899,7 +910,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (PrerequisiteTransaction_) {
-            LOG_DEBUG("Checking prerequisite transaction");
+            YT_LOG_DEBUG("Checking prerequisite transaction");
             return PrerequisiteTransaction_->Ping();
         } else {
             return MakeFuture<void>(TError("No prerequisite transaction is attached"));
@@ -983,7 +994,7 @@ int TTabletSlot::GetIndex() const
     return Impl_->GetIndex();
 }
 
-const TCellId& TTabletSlot::GetCellId() const
+TCellId TTabletSlot::GetCellId() const
 {
     return Impl_->GetCellId();
 }
@@ -1108,6 +1119,11 @@ double TTabletSlot::GetUsedCpu(double cpuPerTabletSlot) const
     return Impl_->GetUsedCpu(cpuPerTabletSlot);
 }
 
+TDynamicTabletCellOptionsPtr TTabletSlot::GetDynamicOptions() const
+{
+    return Impl_->GetDynamicOptions();
+}
+
 int TTabletSlot::GetDynamicConfigVersion() const
 {
     return Impl_->GetDynamicConfigVersion();
@@ -1120,5 +1136,4 @@ void TTabletSlot::UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTablet
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTabletNode
+} // namespace NTabletNode::NYT

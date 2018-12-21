@@ -8,8 +8,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,5 +143,4 @@ DEFINE_REFCOUNTED_TYPE(IChangelogStoreFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

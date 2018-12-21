@@ -2,8 +2,7 @@
 #include "fiber.h"
 #include "fls.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,5 +125,4 @@ TForbidContextSwitchGuard::TForbidContextSwitchGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

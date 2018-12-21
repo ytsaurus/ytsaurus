@@ -32,8 +32,7 @@
     #include <shlobj.h>
 #endif
 
-namespace NYT {
-namespace NFS {
+namespace NYT::NFS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -215,14 +214,14 @@ TString GetFileNameWithoutExtension(const TString& path)
 
 void CleanTempFiles(const TString& path)
 {
-    LOG_INFO("Cleaning temp files in %v", path);
+    YT_LOG_INFO("Cleaning temp files in %v", path);
 
     // TODO(ignat): specify suffix in EnumerateFiles.
     auto entries = EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& entry : entries) {
         if (entry.EndsWith(TempFileSuffix)) {
             auto fileName = NFS::CombinePaths(path, entry);
-            LOG_INFO("Removing file %v", fileName);
+            YT_LOG_INFO("Removing file %v", fileName);
             NFS::Remove(fileName);
         }
     }
@@ -676,8 +675,8 @@ TString GetFilesystemName(TStringBuf path)
 void SetQuota(
     int userId,
     TStringBuf path,
-    TNullable<i64> diskSpaceLimit,
-    TNullable<i64> inodeLimit)
+    std::optional<i64> diskSpaceLimit,
+    std::optional<i64> inodeLimit)
 {
 #ifdef _linux_
     dqblk info;
@@ -704,8 +703,8 @@ void SetQuota(
     if (result < 0) {
         THROW_ERROR_EXCEPTION("Failed to set FS quota for user")
             << TErrorAttribute("user_id", userId)
-            << TErrorAttribute("disk_space_limit", diskSpaceLimit.Get(0))
-            << TErrorAttribute("inode_limit", inodeLimit.Get(0))
+            << TErrorAttribute("disk_space_limit", diskSpaceLimit.value_or(0))
+            << TErrorAttribute("inode_limit", inodeLimit.value_or(0))
             << TErrorAttribute("path", path)
             << TError::FromSystem();
     }
@@ -727,10 +726,10 @@ void ExpectIOErrors(std::function<void()> func)
             throw;
         }
         TError error(ex);
-        LOG_FATAL(error,"Unexpected exception thrown during IO operation");
+        YT_LOG_FATAL(error,"Unexpected exception thrown during IO operation");
     } catch (...) {
         TError error(CurrentExceptionMessage());
-        LOG_FATAL(error, "Unexpected exception thrown during IO operation");
+        YT_LOG_FATAL(error, "Unexpected exception thrown during IO operation");
     }
 }
 
@@ -820,7 +819,10 @@ TError AttachFindOutput(TError error, const TString& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFS
+} // namespace NYT::NFS
+
+
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 

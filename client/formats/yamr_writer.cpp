@@ -9,8 +9,7 @@
 
 #include <yt/core/yson/format.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -85,9 +84,9 @@ private:
 
             WriteControlAttributes(row);
 
-            TNullable<TStringBuf> key;
-            TNullable<TStringBuf> subkey;
-            TNullable<TStringBuf> value;
+            std::optional<TStringBuf> key;
+            std::optional<TStringBuf> subkey;
+            std::optional<TStringBuf> value;
 
             for (const auto* item = row.Begin(); item != row.End(); ++item) {
                 if (item->Id == KeyId_) {
@@ -199,5 +198,4 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

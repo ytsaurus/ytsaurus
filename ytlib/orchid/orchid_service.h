@@ -4,8 +4,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NOrchid {
+namespace NYT::NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +14,5 @@ NRpc::IServicePtr CreateOrchidService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NOrchid
-} // namespace NYT
+} // namespace NYT::NOrchid
 

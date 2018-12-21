@@ -11,8 +11,7 @@
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 #include <yt/client/hydra/version.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 using namespace NElection;
 using namespace NConcurrency;
@@ -46,7 +45,7 @@ public:
         Owner_->EpochContext_->LeaderCommitter->Flush();
         Owner_->EpochContext_->LeaderCommitter->SuspendLogging();
 
-        LOG_INFO("Starting distributed changelog rotation (Version: %v)",
+        YT_LOG_INFO("Starting distributed changelog rotation (Version: %v)",
             Version_);
 
         Owner_->EpochContext_->LeaderCommitter->GetQuorumFlushResult()
@@ -77,7 +76,7 @@ private:
     TVersion Version_;
     TPromise<TRemoteSnapshotParams> SnapshotPromise_ = NewPromise<TRemoteSnapshotParams>();
     TPromise<void> ChangelogPromise_ = NewPromise<void>();
-    std::vector<TNullable<TChecksum>> SnapshotChecksums_;
+    std::vector<std::optional<TChecksum>> SnapshotChecksums_;
 
 
     void OnQuorumFlushed(const TError& error)
@@ -98,7 +97,7 @@ private:
 
     void RequestSnapshotCreation()
     {
-        LOG_INFO("Sending snapshot creation requests (SetReadOnly: %v)",
+        YT_LOG_INFO("Sending snapshot creation requests (SetReadOnly: %v)",
             SetReadOnly_);
 
         SnapshotChecksums_.resize(Owner_->CellManager_->GetTotalPeerCount());
@@ -113,7 +112,7 @@ private:
                 if (!channel)
                     continue;
 
-                LOG_DEBUG("Requesting follower to build a snapshot (PeerId: %v)",
+                YT_LOG_DEBUG("Requesting follower to build a snapshot (PeerId: %v)",
                     peerId);
 
                 THydraServiceProxy proxy(channel);
@@ -144,12 +143,12 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error building snapshot at follower (PeerId: %v)",
+            YT_LOG_WARNING(rspOrError, "Error building snapshot at follower (PeerId: %v)",
                 id);
             return;
         }
 
-        LOG_INFO("Remote snapshot built by follower (PeerId: %v)",
+        YT_LOG_INFO("Remote snapshot built by follower (PeerId: %v)",
             id);
 
         const auto& rsp = rspOrError.Value();
@@ -163,11 +162,11 @@ private:
         SnapshotPromise_.Set(paramsOrError);
 
         if (!paramsOrError.IsOK()) {
-            LOG_WARNING(paramsOrError, "Error building local snapshot");
+            YT_LOG_WARNING(paramsOrError, "Error building local snapshot");
             return;
         }
 
-        LOG_INFO("Local snapshot built");
+        YT_LOG_INFO("Local snapshot built");
 
         const auto& params = paramsOrError.Value();
         SnapshotChecksums_[Owner_->CellManager_->GetSelfPeerId()] = params.Checksum;
@@ -179,7 +178,7 @@ private:
 
         int successCount = 0;
         bool checksumMismatch = false;
-        TNullable<TChecksum> canonicalChecksum;
+        std::optional<TChecksum> canonicalChecksum;
         for (TPeerId id = 0; id < SnapshotChecksums_.size(); ++id) {
             auto checksum = SnapshotChecksums_[id];
             if (checksum) {
@@ -192,14 +191,14 @@ private:
             }
         }
 
-        LOG_INFO("Distributed snapshot creation finished (SuccessCount: %v)",
+        YT_LOG_INFO("Distributed snapshot creation finished (SuccessCount: %v)",
             successCount);
 
         if (checksumMismatch) {
             for (TPeerId id = 0; id < SnapshotChecksums_.size(); ++id) {
                 auto checksum = SnapshotChecksums_[id];
                 if (checksum) {
-                    LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %llx)",
+                    YT_LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %llx)",
                         Version_.SegmentId + 1,
                         id,
                         *checksum);
@@ -225,7 +224,7 @@ private:
             if (!channel)
                 continue;
 
-            LOG_DEBUG("Requesting follower to rotate the changelog (PeerId: %v)", peerId);
+            YT_LOG_DEBUG("Requesting follower to rotate the changelog (PeerId: %v)", peerId);
 
             THydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Owner_->Config_->ControlRpcTimeout);
@@ -254,11 +253,11 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error rotating changelog at follower (PeerId: %v)", id);
+            YT_LOG_WARNING(rspOrError, "Error rotating changelog at follower (PeerId: %v)", id);
             return;
         }
 
-        LOG_INFO("Remote changelog rotated by follower (PeerId: %v)", id);
+        YT_LOG_INFO("Remote changelog rotated by follower (PeerId: %v)", id);
 
         ++RemoteRotationSuccessCount_;
         CheckRotationQuorum();
@@ -276,7 +275,7 @@ private:
             return;
         }
 
-        LOG_INFO("Local changelog rotated");
+        YT_LOG_INFO("Local changelog rotated");
 
         YCHECK(!LocalRotationSuccessFlag_);
         LocalRotationSuccessFlag_ = true;
@@ -337,7 +336,8 @@ TCheckpointer::TCheckpointer(
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , EpochContext_(epochContext)
-    , Logger(HydraLogger)
+    , Logger(NLogging::TLogger(HydraLogger)
+        .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
@@ -345,8 +345,6 @@ TCheckpointer::TCheckpointer(
     YCHECK(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
-
-    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
 TCheckpointer::TRotateChangelogResult TCheckpointer::RotateChangelog()
@@ -388,5 +386,4 @@ bool TCheckpointer::CanRotateChangelogs() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

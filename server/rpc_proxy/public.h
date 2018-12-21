@@ -5,8 +5,7 @@
 
 #include <yt/client/api/rpc_proxy/public.h>
 
-namespace NYT {
-namespace NRpcProxy {
+namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,5 +20,4 @@ DECLARE_REFCOUNTED_CLASS(TDiscoveryServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpcProxy
-} // namespace NYT
+} // namespace NYT::NRpcProxy

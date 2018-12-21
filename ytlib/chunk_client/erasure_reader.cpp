@@ -25,8 +25,7 @@
 
 #include <numeric>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NApi;
 using namespace NErasure;
@@ -44,7 +43,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TRemoteReaderOptionsPtr options,
     NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TChunkReplicaList& replicas,
     const ICodec* codec,
     int partCount,
@@ -108,7 +107,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TRemoteReaderOptionsPtr options,
     NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     const ICodec* codec,
     IBlockCachePtr blockCache,
@@ -133,6 +132,5 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

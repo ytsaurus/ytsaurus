@@ -4,8 +4,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-namespace NYT {
-namespace NChunkPools {
+namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,5 +64,4 @@ TString ToString(const TOutputOrder::TEntry& entry);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkPools
-} // namespace NYT
+} // namespace NYT::NChunkPools

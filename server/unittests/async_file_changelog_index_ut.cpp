@@ -18,8 +18,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 namespace {
 
 using namespace NHydra::NProto;
@@ -123,5 +122,4 @@ INSTANTIATE_TEST_CASE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

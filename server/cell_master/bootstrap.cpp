@@ -112,8 +112,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_service.h>
 
-namespace NYT {
-namespace NCellMaster {
+namespace NYT::NCellMaster {
 
 using namespace NApi;
 using namespace NAdmin;
@@ -182,7 +181,7 @@ bool TBootstrap::IsMulticell() const
     return Multicell_;
 }
 
-const TCellId& TBootstrap::GetCellId() const
+TCellId TBootstrap::GetCellId() const
 {
     return CellId_;
 }
@@ -199,7 +198,7 @@ TCellTag TBootstrap::GetCellTag() const
     return CellTag_;
 }
 
-const TCellId& TBootstrap::GetPrimaryCellId() const
+TCellId TBootstrap::GetPrimaryCellId() const
 {
     return PrimaryCellId_;
 }
@@ -462,13 +461,13 @@ void TBootstrap::DoInitialize()
     }
 
     if (PrimaryMaster_) {
-        LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, SecondaryCellTags: %v, PeerId: %v)",
+        YT_LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, SecondaryCellTags: %v, PeerId: %v)",
             CellId_,
             CellTag_,
             SecondaryCellTags_,
             localPeerId);
     } else if (SecondaryMaster_) {
-        LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
+        YT_LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
             CellId_,
             CellTag_,
             PrimaryCellTag_,
@@ -709,12 +708,12 @@ void TBootstrap::DoRun()
 
     MonitoringManager_->Start();
 
-    LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
     HttpServer_->AddHandler("/orchid/", OrchidHttpHandler_);
     HttpServer_->Start();
 
-    LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Start();
 }
 
@@ -726,5 +725,4 @@ void TBootstrap::DoLoadSnapshot(const TString& fileName, bool dump)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellMaster
-} // namespace NYT
+} // namespace NYT::NCellMaster

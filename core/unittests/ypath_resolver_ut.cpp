@@ -2,19 +2,18 @@
 
 #include <yt/core/ytree/ypath_resolver.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define EXPECT_NULL(NULLABLE) \
-    EXPECT_FALSE(NULLABLE.HasValue())
+#define EXPECT_NULL(optional) \
+    EXPECT_FALSE(optional)
 
-#define EXPECT_VALUE(VALUE, NULLABLE) \
+#define EXPECT_VALUE(value, optional) \
     do { \
-        EXPECT_TRUE(NULLABLE.HasValue()); \
-        if (NULLABLE.HasValue()) { \
-            EXPECT_EQ(VALUE, NULLABLE.Get()); \
+        EXPECT_TRUE(optional); \
+        if (optional) { \
+            EXPECT_EQ(value, *optional); \
         } \
     } while (false)
 
@@ -89,5 +88,4 @@ TEST(TYPathResolver, InvalidYson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree

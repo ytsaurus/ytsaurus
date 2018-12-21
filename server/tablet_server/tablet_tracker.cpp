@@ -22,8 +22,7 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT {
-namespace NTabletServer {
+namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
@@ -56,7 +55,7 @@ private:
 
     TInstant StartTime_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-    TNullable<bool> LastEnabled_;
+    std::optional<bool> LastEnabled_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -117,7 +116,7 @@ bool TTabletTracker::TImpl::IsEnabled()
 
     if (gotOnline < needOnline) {
         if (!LastEnabled_ || *LastEnabled_) {
-            LOG_INFO("Tablet tracker disabled: too few online nodes, needed >= %v but got %v",
+            YT_LOG_INFO("Tablet tracker disabled: too few online nodes, needed >= %v but got %v",
                 needOnline,
                 gotOnline);
             LastEnabled_ = false;
@@ -126,7 +125,7 @@ bool TTabletTracker::TImpl::IsEnabled()
     }
 
     if (!LastEnabled_ || !*LastEnabled_) {
-        LOG_INFO("Tablet tracker enabled");
+        YT_LOG_INFO("Tablet tracker enabled");
         LastEnabled_ = true;
     }
 
@@ -171,5 +170,4 @@ void TTabletTracker::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletServer
-} // namespace NYT
+} // namespace NYT::NTabletServer

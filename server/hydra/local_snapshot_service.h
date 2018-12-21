@@ -4,16 +4,14 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateLocalSnapshotService(
-    const NElection::TCellId& cellId,
+    NElection::TCellId cellId,
     TFileSnapshotStorePtr fileStore);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

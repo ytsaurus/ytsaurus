@@ -15,8 +15,7 @@
 #include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/farm_hash.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NProfiling;
 using namespace NChunkClient;
@@ -148,5 +147,4 @@ void ProfileDynamicMemoryUsage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

@@ -5,14 +5,10 @@
 #include <Poco/AutoPtr.h>
 #include <Poco/Logger.h>
 
-namespace NYT {
-namespace NClickHouseServer {
-namespace NEngine {
+namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Poco::AutoPtr<Poco::Channel> WrapToLogChannel(NNative::ILoggerPtr logger);
 
-} // namespace NEngine
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer::NEngine

@@ -16,8 +16,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +34,8 @@ struct TClientOptions
 
     const TString& GetUser() const
     {
-        return PinnedUser.Get(NSecurityClient::GuestUserName);
+        // NB: value_or returns value, not const-ref.
+        return PinnedUser ? *PinnedUser : NSecurityClient::GuestUserName;
     }
 
     //! This field is not required for authentication.
@@ -43,11 +43,11 @@ struct TClientOptions
     //! When not specified, user is derived from credentials. When
     //! specified, server additionally checks that PinnedUser is
     //! matching user derived from credentials.
-    TNullable<TString> PinnedUser;
+    std::optional<TString> PinnedUser;
 
-    TNullable<TString> Token;
-    TNullable<TString> SessionId;
-    TNullable<TString> SslSessionId;
+    std::optional<TString> Token;
+    std::optional<TString> SessionId;
+    std::optional<TString> SslSessionId;
 };
 
 struct TTransactionParticipantOptions
@@ -74,7 +74,7 @@ struct IConnection
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options = TAdminOptions()) = 0;
     virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;
     virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
-        const NHiveClient::TCellId& cellId,
+        NHiveClient::TCellId cellId,
         const TTransactionParticipantOptions& options = TTransactionParticipantOptions()) = 0;
 
     virtual void ClearMetadataCaches() = 0;
@@ -86,6 +86,5 @@ DEFINE_REFCOUNTED_TYPE(IConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

@@ -25,8 +25,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/range.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NTableClient;
@@ -109,7 +108,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
             << TErrorAttribute("fan_in_limit", tabletSnapshot->Config->MaxReadFanIn);
     }
 
-    LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, "
+    YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, "
         "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v, BoundCount: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -247,7 +246,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         }
     }
 
-    LOG_DEBUG("Creating schemaful ordered tablet reader (TabletId: %v, CellId: %v, "
+    YT_LOG_DEBUG("Creating schemaful ordered tablet reader (TabletId: %v, CellId: %v, "
         "LowerRowIndex: %v, UpperRowIndex: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -328,7 +327,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     takeStores(tabletSnapshot->GetEdenStores());
     takeStores(paritionSnapshot->Stores);
 
-    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, WorkloadDescriptor: %v, "
+    YT_LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, WorkloadDescriptor: %v, "
         " ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -445,7 +444,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
             tabletSnapshot->TableId);
     }
 
-    LOG_DEBUG(
+    YT_LOG_DEBUG(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
         "CurrentTimestamp: %llx, MajorTimestamp: %llx, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
@@ -503,6 +502,5 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

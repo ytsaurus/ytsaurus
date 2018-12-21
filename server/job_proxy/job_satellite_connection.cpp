@@ -7,8 +7,7 @@
 
 #include <util/system/fs.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using NJobTrackerClient::TJobId;
 using NYson::EYsonFormat;
@@ -19,7 +18,7 @@ using namespace NBus;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobSatelliteConnection::TJobSatelliteConnection(
-    const TJobId& jobId,
+    TJobId jobId,
     TTcpBusServerConfigPtr jobProxyRpcServerConfig,
     EJobEnvironmentType environmentType,
     bool enableSecureVaultVariablesInJobShell)
@@ -40,10 +39,10 @@ TString TJobSatelliteConnection::GetConfigPath() const
 
 TTcpBusClientConfigPtr TJobSatelliteConnection::GetRpcClientConfig() const
 {
-    return TTcpBusClientConfig::CreateUnixDomain(ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName.Get());
+    return TTcpBusClientConfig::CreateUnixDomain(*ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName);
 }
 
-const NJobTrackerClient::TJobId& TJobSatelliteConnection::GetJobId() const
+NJobTrackerClient::TJobId TJobSatelliteConnection::GetJobId() const
 {
     return JobId_;
 }
@@ -64,5 +63,4 @@ void TJobSatelliteConnection::MakeConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+} // namespace NYT::NJobProxy

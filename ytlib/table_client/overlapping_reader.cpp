@@ -14,8 +14,7 @@
 
 #include <tuple>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
@@ -780,6 +779,5 @@ IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

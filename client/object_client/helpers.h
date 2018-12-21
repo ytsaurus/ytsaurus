@@ -8,8 +8,7 @@
 
 #include <yt/client/hydra/version.h>
 
-namespace NYT {
-namespace NObjectClient {
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +16,7 @@ namespace NObjectClient {
 extern const TStringBuf ObjectIdPathPrefix;
 
 //! Creates the YPath pointing to an object with a given #id.
-NYPath::TYPath FromObjectId(const TObjectId& id);
+NYPath::TYPath FromObjectId(TObjectId id);
 
 //! Checks if the given type is versioned, i.e. represents a Cypress node.
 bool IsVersionedType(EObjectType type);
@@ -26,13 +25,13 @@ bool IsVersionedType(EObjectType type);
 bool IsUserType(EObjectType type);
 
 //! Extracts the type component from #id.
-EObjectType TypeFromId(const TObjectId& id);
+EObjectType TypeFromId(TObjectId id);
 
 //! Extracts the cell id component from #id.
-TCellTag CellTagFromId(const TObjectId& id);
+TCellTag CellTagFromId(TObjectId id);
 
 //! Extracts the counter component from #id.
-ui64 CounterFromId(const TObjectId& id);
+ui64 CounterFromId(TObjectId id);
 
 //! Returns |true| iff a given regular #type has an associated schema type.
 bool HasSchema(EObjectType type);
@@ -59,7 +58,7 @@ TObjectId MakeRandomId(
 /*
  *  This method checks the highest bit of counter part.
  */
-bool IsWellKnownId(const TObjectId& id);
+bool IsWellKnownId(TObjectId id);
 
 //! Constructs the id for a regular object.
 TObjectId MakeRegularId(
@@ -84,12 +83,12 @@ TObjectId MakeSchemaObjectId(
 
 //! Constructs a new object id by replacing type component in a given one.
 TObjectId ReplaceTypeInId(
-    const TObjectId& id,
+    TObjectId id,
     EObjectType type);
 
 //! Constructs a new object id by replacing cell tag component in a given one.
 TObjectId ReplaceCellTagInId(
-    const TObjectId& id,
+    TObjectId id,
     TCellTag cellTag);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +97,7 @@ TObjectId ReplaceCellTagInId(
 //! cf. TObjectManager::GenerateId.
 struct TDirectObjectIdHash
 {
-    size_t operator()(const TObjectId& id) const;
+    size_t operator()(TObjectId id) const;
 };
 
 //! Cf. TDirectObjectIdHash
@@ -109,8 +108,7 @@ struct TDirectVersionedObjectIdHash
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectClient
-} // namespace NYT
+} // namespace NYT::NObjectClient
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

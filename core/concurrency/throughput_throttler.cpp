@@ -10,8 +10,7 @@
 
 #include <queue>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +69,7 @@ public:
         }
 
         // Enqueue request to be executed later.
-        LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
+        YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
         TRequest request{count, NewPromise<void>()};
         Requests_.push(request);
         QueueTotalCount_ += count;
@@ -164,7 +163,7 @@ public:
         TGuard<TSpinLock> guard(SpinLock_);
 
         Limit_ = config->Limit;
-        HasLimit_ = Limit_.HasValue();
+        HasLimit_ = Limit_.operator bool();
         if (Limit_) {
             ThroughputPerPeriod_ = static_cast<i64>(config->Period.SecondsFloat() * (*Limit_));
             Available_ = ThroughputPerPeriod_;
@@ -201,7 +200,7 @@ private:
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
-    TNullable<i64> Limit_;
+    std::optional<i64> Limit_;
     i64 ThroughputPerPeriod_ = 0;
     TPeriodicExecutorPtr PeriodicExecutor_;
 
@@ -235,7 +234,7 @@ private:
 
         while (!Requests_.empty() && (!Limit_ || Available_ > 0)) {
             auto& request = Requests_.front();
-            LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
+            YT_LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
             if (request.Promise.IsCanceled()) {
                 canceledList.push_back(std::move(request.Promise));
             } else {
@@ -444,5 +443,4 @@ IThroughputThrottlerPtr CreateCombinedThrottler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

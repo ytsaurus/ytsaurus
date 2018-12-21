@@ -6,8 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,12 +32,12 @@ ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
 
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
     TCachingCookieAuthenticatorConfigPtr config,
-    ICookieAuthenticatorPtr authenticator);
+    ICookieAuthenticatorPtr authenticator,
+    NProfiling::TProfiler profiler = {});
 
 NRpc::IAuthenticatorPtr CreateCookieAuthenticatorWrapper(
     ICookieAuthenticatorPtr underlying);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

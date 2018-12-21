@@ -2,8 +2,7 @@
 
 #include <yt/core/yson/building_consumer.h>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,8 +11,7 @@ void CreateBuildingYsonConsumer(std::unique_ptr<NYson::IBuildingYsonConsumer<T>>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 
 #define DEFAULT_BUILDING_CONSUMER_INL_H_
 #include "default_building_consumer-inl.h"

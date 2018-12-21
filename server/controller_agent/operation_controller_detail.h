@@ -66,7 +66,7 @@
 #include <yt/core/misc/histogram.h>
 #include <yt/core/misc/id_generator.h>
 #include <yt/core/misc/memory_tag.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/safe_assert.h>
 
@@ -74,8 +74,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,14 +163,14 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         void,
         OnInputChunkLocated,
-        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
         (chunkId, replicas, missing),
         false)
 
     //! Called by #IntermediateChunkScraper.
     IMPLEMENT_SAFE_METHOD(
         void, OnIntermediateChunkLocated,
-        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
         (chunkId, replicas, missing),
         false)
 
@@ -235,7 +234,7 @@ public:
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
 
-    virtual TSharedRef ExtractJobSpec(const TJobId& jobId) const override;
+    virtual TSharedRef ExtractJobSpec(TJobId jobId) const override;
 
     virtual NYson::TYsonString GetSuspiciousJobsYson() const override;
 
@@ -252,8 +251,8 @@ public:
 
     virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
-    virtual TNullable<NYPath::TRichYPath> GetStderrTablePath() const override;
-    virtual TNullable<NYPath::TRichYPath> GetCoreTablePath() const override;
+    virtual std::optional<NYPath::TRichYPath> GetStderrTablePath() const override;
+    virtual std::optional<NYPath::TRichYPath> GetCoreTablePath() const override;
 
     virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
     virtual void AddTaskLocalityHint(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
@@ -314,7 +313,7 @@ public:
 
     virtual IJobSplitter* GetJobSplitter() override;
 
-    virtual const TNullable<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
+    virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
 
@@ -336,7 +335,7 @@ public:
 
     virtual TOperationInfo BuildOperationInfo() override;
 
-    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
+    virtual NYson::TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override;
 
     virtual NYTree::IYPathServicePtr GetOrchid() const override;
 
@@ -345,7 +344,7 @@ public:
     //! Needed for row_count_limit.
     virtual void RegisterOutputRows(i64 count, int tableIndex) override;
 
-    virtual TNullable<int> GetRowCountLimitTableIndex() override;
+    virtual std::optional<int> GetRowCountLimitTableIndex() override;
 
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
@@ -444,7 +443,7 @@ protected:
         NQueryClient::TExternalCGInfoPtr ExternalCGInfo;
     };
 
-    TNullable<TInputQuery> InputQuery;
+    std::optional<TInputQuery> InputQuery;
 
     //! All tasks declared by calling #RegisterTask, mostly for debugging purposes.
     std::vector<TTaskPtr> Tasks;
@@ -467,8 +466,8 @@ protected:
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::NNative::IClientPtr client,
-        const NTransactionClient::TTransactionId& parentTransactionId = {},
-        const NTransactionClient::TTransactionId& prerequisiteTransactionId = {});
+        NTransactionClient::TTransactionId parentTransactionId = {},
+        NTransactionClient::TTransactionId prerequisiteTransactionId = {});
 
     void RegisterTask(TTaskPtr task);
     void RegisterTaskGroup(TTaskGroupPtr group);
@@ -527,9 +526,9 @@ protected:
         TScheduleJobResult* scheduleJobResult);
 
 
-    TJobletPtr FindJoblet(const TJobId& jobId) const;
-    TJobletPtr GetJoblet(const TJobId& jobId) const;
-    TJobletPtr GetJobletOrThrow(const TJobId& jobId) const;
+    TJobletPtr FindJoblet(TJobId jobId) const;
+    TJobletPtr GetJoblet(TJobId jobId) const;
+    TJobletPtr GetJobletOrThrow(TJobId jobId) const;
 
     void UnregisterJoblet(const TJobletPtr& joblet);
 
@@ -579,7 +578,7 @@ protected:
 
     void ParseInputQuery(
         const TString& queryString,
-        const TNullable<NQueryClient::TTableSchema>& schema);
+        const std::optional<NQueryClient::TTableSchema>& schema);
     void WriteInputQueryToJobSpec(
         NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
     virtual void PrepareInputQuery();
@@ -653,7 +652,7 @@ protected:
     virtual void OnChunksReleased(int chunkCount);
 
     //! Called when a job is unable to read a chunk.
-    void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
+    void OnChunkFailed(NChunkClient::TChunkId chunkId);
 
     //! Gets the list of all intermediate chunks that are not lost.
     THashSet<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
@@ -661,10 +660,10 @@ protected:
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).
     //! Returns false if the chunk was already considered lost.
-    bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
+    bool OnIntermediateChunkUnavailable(NChunkClient::TChunkId chunkId);
 
     void OnIntermediateChunkAvailable(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         const NChunkClient::TChunkReplicaList& replicas);
 
     //! Return a pointer to `YsonSerializable` object that represents
@@ -707,11 +706,11 @@ protected:
     //! Called when a job is unable to read an input chunk or
     //! chunk scraper has encountered unavailable chunk.
     void OnInputChunkUnavailable(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         TInputChunkDescriptor* descriptor);
 
     void OnInputChunkAvailable(
-        const NChunkClient::TChunkId& chunkId,
+        NChunkClient::TChunkId chunkId,
         const NChunkClient::TChunkReplicaList& replicas,
         TInputChunkDescriptor* descriptor);
 
@@ -777,12 +776,12 @@ protected:
         const NTableClient::TKeyColumns& prefixColumns);
 
     NApi::ITransactionPtr AttachTransaction(
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const NApi::NNative::IClientPtr& client,
         bool ping = false);
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
-    virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
+    virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
 
     void AttachToLivePreview(
         NChunkClient::TChunkTreeId chunkTreeId,
@@ -876,7 +875,7 @@ protected:
     virtual void InitOutputTables();
 
     //! One output table can have row_count_limit attribute in operation.
-    TNullable<int> RowCountLimitTableIndex;
+    std::optional<int> RowCountLimitTableIndex;
     i64 RowCountLimit = std::numeric_limits<i64>::max();
 
     // Current row count in table with attribute row_count_limit.
@@ -972,7 +971,7 @@ private:
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
 
-    TNullable<TJobResources> CachedMaxAvailableExecNodeResources_;
+    std::optional<TJobResources> CachedMaxAvailableExecNodeResources_;
 
     const std::unique_ptr<NYson::IYsonConsumer> EventLogConsumer_;
 
@@ -1032,7 +1031,7 @@ private:
     //! Number of times `OnSnapshotStarted()` was called up to this moment.
     int SnapshotIndex_ = 0;
     //! Index of a snapshot that is building right now.
-    TNullable<int> RecentSnapshotIndex_ = Null;
+    std::optional<int> RecentSnapshotIndex_ = std::nullopt;
     //! Timestamp of last successfull uploaded snapshot.
     TInstant LastSuccessfulSnapshotTime_ = TInstant::Zero();
 
@@ -1087,7 +1086,7 @@ private:
 
     TControllerTransactionIds GetTransactionIds();
 
-    TNullable<TDuration> GetTimeLimit() const;
+    std::optional<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;
 
     //! Sets finish time and other timing statistics.
@@ -1176,5 +1175,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

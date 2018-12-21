@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,13 +83,13 @@ public:
 
     void Disconnect(const TError& error);
 
-    TOperationPtr FindOperation(const TOperationId& id) const;
+    TOperationPtr FindOperation(TOperationId id) const;
     TOperationPtr GetOperationOrThrow(const TOperationIdOrAlias& idOrAlias) const;
 
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
-        const NTransactionClient::TTransactionId& transactionId,
-        const NRpc::TMutationId& mutationId,
+        NTransactionClient::TTransactionId transactionId,
+        NRpc::TMutationId mutationId,
         NYTree::IMapNodePtr spec,
         const TString& user);
 
@@ -114,12 +113,12 @@ public:
     void OnOperationAgentUnregistered(const TOperationPtr& operation);
     void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds);
 
-    TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
-    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);
-    TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user);
-    TFuture<void> SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
-    TFuture<void> AbandonJob(const TJobId& jobId, const TString& user);
-    TFuture<void> AbortJob(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
+    TFuture<NYson::TYsonString> Strace(TJobId jobId, const TString& user);
+    TFuture<void> DumpInputContext(TJobId jobId, const NYPath::TYPath& path, const TString& user);
+    TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(TJobId jobId, const TString& user);
+    TFuture<void> SignalJob(TJobId jobId, const TString& signalName, const TString& user);
+    TFuture<void> AbandonJob(TJobId jobId, const TString& user);
+    TFuture<void> AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
     using TCtxNodeHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
@@ -139,6 +138,5 @@ DEFINE_REFCOUNTED_TYPE(TScheduler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

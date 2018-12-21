@@ -22,8 +22,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +50,7 @@ public:
 
     void Write(
         TTabletSnapshotPtr tabletSnapshot,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         NTransactionClient::TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature signature,
@@ -79,9 +78,10 @@ public:
     i64 GetStaticStoresMemoryUsage() const;
     i64 GetWriteLogsMemoryUsage() const;
 
+    NTabletClient::ETabletCellLifeStage GetTabletCellLifeStage() const;
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
-    TTablet* GetTabletOrThrow(const TTabletId& id);
+    TTablet* GetTabletOrThrow(TTabletId id);
 
 private:
     class TImpl;
@@ -93,5 +93,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

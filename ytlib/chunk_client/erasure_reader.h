@@ -15,8 +15,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +24,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TRemoteReaderOptionsPtr options,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     const NErasure::ICodec* codec,
     IBlockCachePtr blockCache = GetNullBlockCache(),
@@ -35,6 +34,5 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

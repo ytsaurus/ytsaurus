@@ -6,8 +6,7 @@
 
 #include <yt/ytlib/file_client/file_chunk_output.h>
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +42,7 @@ public:
         NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
         NApi::NNative::IClientPtr client,
-        const NObjectClient::TTransactionId& transactionId,
+        NObjectClient::TTransactionId transactionId,
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler);
 
@@ -60,12 +59,31 @@ private:
     const size_t PartLimit_;
 
     TBlobOutput Head_;
-    TNullable<TTailBuffer> Tail_;
+    std::optional<TTailBuffer> Tail_;
 
     NChunkClient::TChunkId ChunkId_ = NChunkClient::NullChunkId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+class TProfileWriter
+    : public IOutputStream
+{
+public:
+    explicit TProfileWriter(size_t sizeLimit);
+
+    bool IsTruncated() const;
+    std::pair<TString, TString> GetProfile() const;
+
+private:
+    virtual void DoWrite(const void* buf, size_t len) override;
+
+    const size_t Limit_;
+    TString Buffer_;
+
+    bool Truncated_ = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NJobProxy

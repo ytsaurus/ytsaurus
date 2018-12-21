@@ -22,8 +22,7 @@
 
 #include <yt/core/re2/re2.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,7 +142,7 @@ public:
     TDuration TentativeTreeSaturationDeactivationPeriod;
 
     //! Enables infer of weight from effective min share ratios (if weight is not implicitly specified); inferred weight is this number mupltiplied by min share ratio.
-    TNullable<double> InferWeightFromMinShareRatioMultiplier;
+    std::optional<double> InferWeightFromMinShareRatioMultiplier;
 
     TFairShareStrategyTreeConfig();
 };
@@ -201,10 +200,10 @@ public:
     TDuration RandomMasterDisconnectionMaxBackoff;
 
     // Testing option that enables sleeping during master disconnect.
-    TNullable<TDuration> MasterDisconnectDelay;
+    std::optional<TDuration> MasterDisconnectDelay;
 
     // Testing option that enables sleeping between intermediate and final states of operation.
-    TNullable<TDuration> FinishOperationTransitionDelay;
+    std::optional<TDuration> FinishOperationTransitionDelay;
 
     TTestingOptions();
 };
@@ -365,7 +364,7 @@ public:
     TDuration OperationToAgentAssignmentBackoff;
 
     //! Maximum number of jobs to start within a single heartbeat.
-    TNullable<int> MaxStartedJobsPerHeartbeat;
+    std::optional<int> MaxStartedJobsPerHeartbeat;
 
     //! Timeout to store cached value of exec nodes information
     //! for scheduling tag filter without access.
@@ -392,6 +391,9 @@ public:
 
     // Enables job reporter to send job stderrs.
     bool EnableJobStderrReporter;
+
+    // Enables job reporter to send job profiles.
+    bool EnableJobProfileReporter;
 
     // Enables job reporter to send job fail contexts.
     bool EnableJobFailContextReporter;
@@ -440,6 +442,8 @@ public:
     // Operations cleaner config.
     TOperationsCleanerConfigPtr OperationsCleaner;
 
+    bool PoolChangeIsAllowed;
+
     TSchedulerConfig();
 };
 
@@ -486,5 +490,4 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

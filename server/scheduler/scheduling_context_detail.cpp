@@ -6,8 +6,7 @@
 #include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NObjectClient;
 using namespace NControllerAgent;
@@ -54,8 +53,8 @@ bool TSchedulingContextBase::CanStartMoreJobs() const
         return false;
     }
 
-    auto maxJobStarts = Config_->MaxStartedJobsPerHeartbeat;
-    return !maxJobStarts.HasValue() || StartedJobs_.size() < maxJobStarts.Get();
+    auto limit = Config_->MaxStartedJobsPerHeartbeat;
+    return !limit || StartedJobs_.size() < *limit;
 }
 
 bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) const
@@ -65,8 +64,8 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
 
 void TSchedulingContextBase::StartJob(
     const TString& treeId,
-    const TOperationId& operationId,
-    const TIncarnationId& incarnationId,
+    TOperationId operationId,
+    TIncarnationId incarnationId,
     const TJobStartDescriptor& startDescriptor)
 {
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
@@ -101,5 +100,4 @@ TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -30,9 +30,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +54,7 @@ class TConnectionConfig
     , public NChunkClient::TChunkTeleporterConfig
 {
 public:
-    TNullable<NNodeTrackerClient::TNetworkPreferenceList> Networks;
+    std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
     TMasterConnectionConfigPtr PrimaryMaster;
     std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
     TMasterConnectionConfigPtr MasterCache;
@@ -92,7 +90,7 @@ public:
     TAsyncExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
 
-    TNullable<int> ThreadPoolSize;
+    std::optional<int> ThreadPoolSize;
 
     int MaxConcurrentRequests;
 
@@ -117,7 +115,5 @@ DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

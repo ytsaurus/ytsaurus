@@ -37,8 +37,7 @@
 #include <atomic>
 #include <deque>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -102,9 +101,9 @@ struct TNode
         return Error.IsOK();
     }
 
-    void SendPing(const TDuration& rpcTimeout, const TSessionId& sessionId)
+    void SendPing(const TDuration& rpcTimeout, TSessionId sessionId)
     {
-        LOG_DEBUG("Sending ping (Address: %v)",
+        YT_LOG_DEBUG("Sending ping (Address: %v)",
             Descriptor.GetDefaultAddress());
 
         TDataNodeServiceProxy proxy(Channel);
@@ -177,7 +176,7 @@ public:
     TReplicationWriter(
         TReplicationWriterConfigPtr config,
         TRemoteWriterOptionsPtr options,
-        const TSessionId& sessionId,
+        TSessionId sessionId,
         const TChunkReplicaList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
         NNative::IClientPtr client,
@@ -212,7 +211,7 @@ public:
             return;
         }
 
-        LOG_INFO("Writer canceled");
+        YT_LOG_INFO("Writer canceled");
         StateError_.TrySet(TError("Writer canceled"));
 
         CancelWriter();
@@ -263,7 +262,7 @@ public:
         State_.store(EReplicationWriterState::Closing);
         ChunkMeta_ = chunkMeta;
 
-        LOG_DEBUG("Requesting writer to close");
+        YT_LOG_DEBUG("Requesting writer to close");
 
         TDispatcher::Get()->GetWriterInvoker()->Invoke(
             BIND(&TReplicationWriter::DoClose, MakeWeak(this)));
@@ -380,7 +379,7 @@ private:
                 StartSessions(AllocateTargets());
             }
 
-            LOG_INFO("Writer opened (Addresses: %v, PopulateCache: %v, Workload: %v, Networks: %v)",
+            YT_LOG_INFO("Writer opened (Addresses: %v, PopulateCache: %v, Workload: %v, Networks: %v)",
                 Nodes_,
                 Config_->PopulateCache,
                 Config_->WorkloadDescriptor,
@@ -401,7 +400,7 @@ private:
         VERIFY_THREAD_AFFINITY(WriterThread);
         YCHECK(!CloseRequested_);
 
-        LOG_DEBUG("Writer close requested");
+        YT_LOG_DEBUG("Writer close requested");
 
         if (StateError_.IsSet()) {
             return;
@@ -495,7 +494,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Block group added (Blocks: %v-%v)",
+        YT_LOG_DEBUG("Block group added (Blocks: %v-%v)",
             CurrentGroup_->GetStartBlockIndex(),
             CurrentGroup_->GetEndBlockIndex());
 
@@ -516,7 +515,7 @@ private:
         auto wrappedError = TError("Node %v failed",
             node->Descriptor.GetDefaultAddress())
             << error;
-        LOG_ERROR(wrappedError);
+        YT_LOG_ERROR(wrappedError);
 
         if (Config_->BanFailedNodes) {
             BannedNodeAddresses_.push_back(node->Descriptor.GetDefaultAddress());
@@ -535,7 +534,7 @@ private:
                     cumulativeError.InnerErrors().push_back(node->Error);
                 }
             }
-            LOG_WARNING(cumulativeError, "Chunk writer failed");
+            YT_LOG_WARNING(cumulativeError, "Chunk writer failed");
             CancelWriter();
             StateError_.TrySet(cumulativeError);
         } else {
@@ -590,7 +589,7 @@ private:
         VERIFY_THREAD_AFFINITY(WriterThread);
 
         if (!error.IsOK()) {
-            LOG_WARNING(error, "Chunk writer failed");
+            YT_LOG_WARNING(error, "Chunk writer failed");
             CancelWriter();
             StateError_.TrySet(error);
             return;
@@ -609,7 +608,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Window shifted (Blocks: %v-%v, Size: %v)",
+            YT_LOG_DEBUG("Window shifted (Blocks: %v-%v, Size: %v)",
                 group->GetStartBlockIndex(),
                 group->GetEndBlockIndex(),
                 group->GetSize());
@@ -631,7 +630,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Flushing block (Block: %v, Address: %v)",
+        YT_LOG_DEBUG("Flushing block (Block: %v, Address: %v)",
             blockIndex,
             node->Descriptor.GetDefaultAddress());
 
@@ -643,12 +642,12 @@ private:
 
         auto rspOrError = WaitFor(req->Invoke());
         if (rspOrError.IsOK()) {
-            LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
+            YT_LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
                 blockIndex,
                 node->Descriptor.GetDefaultAddress());
 
             if (rspOrError.Value()->location_sick()) {
-                LOG_DEBUG("Found sick replica (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+                YT_LOG_DEBUG("Found sick replica (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
                 HasSickReplicas_ = true;
             }
 
@@ -670,13 +669,13 @@ private:
 
         auto nodeDescriptor = NodeDirectory_->GetDescriptor(target);
         auto address = nodeDescriptor.GetAddressOrThrow(Networks_);
-        LOG_DEBUG("Starting write session (Address: %v)", address);
+        YT_LOG_DEBUG("Starting write session (Address: %v)", address);
 
         auto channel = CreateRetryingChannel(
             Config_->NodeChannel,
             Client_->GetChannelFactory()->CreateChannel(address),
             BIND([] (const TError& error) {
-                return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
+                return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
             }));
 
         TDataNodeServiceProxy proxy(channel);
@@ -693,11 +692,11 @@ private:
             if (Config_->BanFailedNodes) {
                 BannedNodeAddresses_.push_back(address);
             }
-            LOG_WARNING(rspOrError, "Failed to start write session on node %v", address);
+            YT_LOG_WARNING(rspOrError, "Failed to start write session on node %v", address);
             return;
         }
 
-        LOG_DEBUG("Write session started (Address: %v)", address);
+        YT_LOG_DEBUG("Write session started (Address: %v)", address);
 
         auto node = New<TNode>(
             Nodes_.size(),
@@ -721,7 +720,7 @@ private:
         VERIFY_THREAD_AFFINITY(WriterThread);
         YCHECK(CloseRequested_);
 
-        LOG_INFO("Closing writer");
+        YT_LOG_INFO("Closing writer");
 
         for (const auto& node : Nodes_) {
             BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), node)
@@ -739,7 +738,7 @@ private:
         }
 
         node->IsClosing = true;
-        LOG_DEBUG("Finishing chunk (Address: %v)",
+        YT_LOG_DEBUG("Finishing chunk (Address: %v)",
             node->Descriptor.GetDefaultAddress());
 
         TDataNodeServiceProxy proxy(node->Channel);
@@ -757,7 +756,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
         const auto& chunkInfo = rsp->chunk_info();
-        LOG_DEBUG("Chunk finished (Address: %v, DiskSpace: %v)",
+        YT_LOG_DEBUG("Chunk finished (Address: %v, DiskSpace: %v)",
             node->Descriptor.GetDefaultAddress(),
             chunkInfo.disk_space());
 
@@ -788,7 +787,7 @@ private:
             State_ = EReplicationWriterState::Closed;
             ClosePromise_.TrySet();
             CancelWriter();
-            LOG_INFO("Writer closed");
+            YT_LOG_INFO("Writer closed");
         }
     }
 
@@ -833,7 +832,7 @@ private:
             EnsureCurrentGroup();
 
             auto blockId = TBlockId(SessionId_.ChunkId, currentBlockIndex);
-            BlockCache_->Put(blockId, EBlockType::CompressedData, block, Null);
+            BlockCache_->Put(blockId, EBlockType::CompressedData, block, std::nullopt);
 
             CurrentGroup_->AddBlock(block);
 
@@ -847,7 +846,7 @@ private:
 
         int lastBlockIndex = BlockCount_ - 1;
 
-        LOG_DEBUG("Blocks added (Blocks: %v-%v, Size: %v)",
+        YT_LOG_DEBUG("Blocks added (Blocks: %v-%v, Size: %v)",
             firstBlockIndex,
             lastBlockIndex,
             GetByteSize(blocks));
@@ -934,7 +933,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    TNullable<int> selectedIndex;
+    std::optional<int> selectedIndex;
     for (int index = 0; index < writer->Nodes_.size(); ++index) {
         const auto& node = writer->Nodes_[index];
 
@@ -966,7 +965,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 
     SetRpcAttachedBlocks(req, Blocks_);
 
-    LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
+    YT_LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
         GetStartBlockIndex(),
         GetEndBlockIndex(),
         node->Descriptor.GetDefaultAddress(),
@@ -979,14 +978,14 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
                 NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                 "Failed to throttle bandwidth in writer")
                 << throttleResult;
-            LOG_WARNING(error, "Chunk writer failed");
+            YT_LOG_WARNING(error, "Chunk writer failed");
             writer->CancelWriter();
             writer->StateError_.TrySet(error);
             return;
         }
     }
 
-    LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
+    YT_LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
         FirstBlockIndex_,
         GetEndBlockIndex(),
         node->Descriptor.GetDefaultAddress());
@@ -994,14 +993,14 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
     auto rspOrError = WaitFor(req->Invoke());
     if (rspOrError.IsOK()) {
         if (rspOrError.Value()->location_sick()) {
-            LOG_DEBUG("Found sick replica (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+            YT_LOG_DEBUG("Found sick replica (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
             writer->HasSickReplicas_ = true;
         }
         SentTo_[node->Index] = true;
 
         writer->AccountTraffic(Size_, node->Descriptor);
 
-        LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
+        YT_LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
             node->Descriptor.GetDefaultAddress());
@@ -1025,7 +1024,7 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcN
     }
 
     if (dstNode) {
-        LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
+        YT_LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
             srcNode->Descriptor.GetDefaultAddress(),
@@ -1043,14 +1042,14 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcN
         auto rspOrError = WaitFor(req->Invoke());
         if (rspOrError.IsOK()) {
             if (rspOrError.Value()->location_sick()) {
-                LOG_DEBUG("Found sick replica (NodeAddress: %v)", dstNode->Descriptor.GetDefaultAddress());
+                YT_LOG_DEBUG("Found sick replica (NodeAddress: %v)", dstNode->Descriptor.GetDefaultAddress());
                 writer->HasSickReplicas_ = true;
             }
             SentTo_[dstNode->Index] = true;
 
             writer->AccountTraffic(Size_, srcNode->Descriptor, dstNode->Descriptor);
 
-            LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
+            YT_LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
                 FirstBlockIndex_,
                 GetEndBlockIndex(),
                 srcNode->Descriptor.GetDefaultAddress(),
@@ -1101,7 +1100,7 @@ void TGroup::Process()
     YCHECK(writer->State_.load() == EReplicationWriterState::Open ||
         writer->State_.load() == EReplicationWriterState::Closing);
 
-    LOG_DEBUG("Processing blocks (Blocks: %v-%v)",
+    YT_LOG_DEBUG("Processing blocks (Blocks: %v-%v)",
         FirstBlockIndex_,
         GetEndBlockIndex());
 
@@ -1132,7 +1131,7 @@ void TGroup::Process()
 IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TSessionId& sessionId,
+    TSessionId sessionId,
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
     NNative::IClientPtr client,
@@ -1154,6 +1153,5 @@ IChunkWriterPtr CreateReplicationWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
 

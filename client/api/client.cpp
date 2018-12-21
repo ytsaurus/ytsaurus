@@ -1,7 +1,6 @@
 #include "client.h"
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 using namespace NYTree;
 
@@ -111,6 +110,5 @@ TError TCheckPermissionResult::ToError(const TString& user, EPermission permissi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi
 

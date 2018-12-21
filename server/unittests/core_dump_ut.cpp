@@ -5,8 +5,7 @@
 #include <util/system/tempfile.h>
 #include <util/stream/file.h>
 
-namespace NYT {
-namespace NCoreDump {
+namespace NYT::NCoreDump {
 namespace {
 
 TEST(TCoreDumpTest, WriteSparseFile)
@@ -39,5 +38,4 @@ TEST(TCoreDumpTest, WriteSparseFile)
 }
 
 } // namespace
-} // namespace NCoreDump
-} // namespace NYT
+} // namespace NYT::NCoreDump

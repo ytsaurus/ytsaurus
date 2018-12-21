@@ -11,8 +11,7 @@
 #include <yt/core/yson/public.h>
 
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
 using namespace NLogging;
@@ -143,7 +142,7 @@ TFuture<void> TSimulatorControlThread::AsyncRun()
 
 void TSimulatorControlThread::Run()
 {
-    LOG_INFO("Simulation started (ThreadCount: %v)", Config_->ThreadCount);
+    YT_LOG_INFO("Simulation started (ThreadCount: %v)", Config_->ThreadCount);
     OperationStatisticsOutput_.PrintHeader();
 
     std::vector<TFuture<void>> asyncWorkerResults;
@@ -155,7 +154,7 @@ void TSimulatorControlThread::Run()
     while (JobAndOperationCounter_.HasUnfinishedOperations()) {
         iter += 1;
         if (iter % Config_->CyclesPerFlush == 0) {
-            LOG_INFO(
+            YT_LOG_INFO(
                 "Simulated %v cycles (FinishedOperations: %v, RunningOperation: %v, "
                 "TotalOperations: %v, RunningJobs: %v)",
                 iter,
@@ -166,7 +165,7 @@ void TSimulatorControlThread::Run()
 
             RunningOperationsMap_.ApplyRead([this] (const auto& pair) {
                 const auto& operation = pair.second;
-                LOG_INFO("%v, (OperationId: %v)",
+                YT_LOG_INFO("%v, (OperationId: %v)",
                     operation->GetController()->GetLoggingProgress(),
                     operation->GetId());
             });
@@ -181,7 +180,7 @@ void TSimulatorControlThread::Run()
 
     SchedulerStrategy_->OnMasterDisconnected();
 
-    LOG_INFO("Simulation finished");
+    YT_LOG_INFO("Simulation finished");
 }
 
 
@@ -224,7 +223,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
 
     RunningOperationsMap_.Insert(operation->GetId(), operation);
     OperationStatistics_.OnOperationStarted(operation->GetId());
-    LOG_INFO("Operation started (VirtualTimestamp: %v, OperationId: %v)", event.Time, operation->GetId());
+    YT_LOG_INFO("Operation started (VirtualTimestamp: %v, OperationId: %v)", event.Time, operation->GetId());
 
     // Notify scheduler.
     SchedulerStrategy_->RegisterOperation(operation.Get());
@@ -237,9 +236,9 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
 {
     auto updateTime = event.Time;
 
-    LOG_INFO("Started waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
+    YT_LOG_INFO("Started waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
     NodeShardEventQueue_.WaitForStrugglingNodeShards(updateTime);
-    LOG_INFO("Finished waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
+    YT_LOG_INFO("Finished waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
 
     SchedulerStrategy_->OnFairShareUpdateAt(updateTime);
     if (Config_->EnableFullEventLog) {
@@ -254,7 +253,7 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
 
 void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
 {
-    LOG_INFO("Started logging nodes info (VirtualTimestamp: %v)", event.Time);
+    YT_LOG_INFO("Started logging nodes info (VirtualTimestamp: %v)", event.Time);
 
     std::vector<TFuture<TYsonString>> nodeListFutures;
     for (const auto& nodeShard : NodeShards_) {
@@ -278,7 +277,7 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
         });
 
     InsertControlThreadEvent(TControlThreadEvent::LogNodes(event.Time + NodesInfoLoggingPeriod_));
-    LOG_INFO("Finished logging nodes info (VirtualTimestamp: %v)", event.Time);
+    YT_LOG_INFO("Finished logging nodes info (VirtualTimestamp: %v)", event.Time);
 }
 
 void TSimulatorControlThread::InsertControlThreadEvent(TControlThreadEvent event)
@@ -297,6 +296,5 @@ TControlThreadEvent TSimulatorControlThread::PopControlThreadEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator
 

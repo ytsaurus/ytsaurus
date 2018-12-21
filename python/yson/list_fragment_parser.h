@@ -2,7 +2,7 @@
 
 #include <yt/python/common/stream.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
 #include <yt/core/yson/consumer.h>
@@ -14,11 +14,9 @@
 #include <queue>
 #include <stack>
 
-namespace NYT {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NPython {
 
 class TListFragmentConsumer
     : public NYson::IYsonConsumer
@@ -123,5 +121,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NPython

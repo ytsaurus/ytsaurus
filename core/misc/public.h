@@ -6,8 +6,7 @@
 #include "intrusive_ptr.h"
 
 // Google Protobuf forward declarations.
-namespace google {
-namespace protobuf {
+namespace google::protobuf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,8 +28,7 @@ class ZeroCopyOutputStream;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace protobuf
-} // namespace google
+} // namespace google::protobuf
 
 namespace NYT {
 

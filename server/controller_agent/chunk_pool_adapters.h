@@ -6,8 +6,7 @@
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,5 +50,4 @@ std::unique_ptr<NChunkPools::IChunkPoolInput> CreateHintAddingAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

@@ -8,9 +8,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,12 +17,10 @@ NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
     NHiveClient::TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
     IConnectionPtr connection,
-    const NObjectClient::TCellId& cellId,
+    NObjectClient::TCellId cellId,
     const TTransactionParticipantOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative
 

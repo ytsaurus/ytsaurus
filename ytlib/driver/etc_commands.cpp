@@ -14,8 +14,7 @@
 
 #include <yt/core/yson/async_writer.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 using namespace NYPath;
 using namespace NYTree;
@@ -98,13 +97,13 @@ void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
             .DoIf(result.ObjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("object_id").Value(result.ObjectId);
             })
-            .DoIf(result.ObjectName.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(result.ObjectName.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("object_name").Value(result.ObjectName);
             })
             .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_id").Value(result.SubjectId);
             })
-            .DoIf(result.SubjectName.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(result.SubjectName.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_name").Value(result.SubjectName);
             })
         .EndMap());
@@ -135,7 +134,7 @@ void TCheckPermissionByAclCommand::DoExecute(ICommandContextPtr context)
             .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_id").Value(result.SubjectId);
             })
-            .DoIf(result.SubjectName.HasValue(), [&] (TFluentMap fluent) {
+            .DoIf(result.SubjectName.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_name").Value(result.SubjectName);
             })
         .EndMap());
@@ -158,7 +157,7 @@ public:
     TRequestExecutor(
         ICommandContextPtr context,
         TRequestPtr request,
-        const NRpc::TMutationId& mutationId,
+        NRpc::TMutationId mutationId,
         bool retry)
         : Context_(std::move(context))
         , Request_(std::move(request))
@@ -337,5 +336,4 @@ void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

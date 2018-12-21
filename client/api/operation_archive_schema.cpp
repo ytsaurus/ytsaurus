@@ -1,7 +1,6 @@
 #include "operation_archive_schema.h"
 
-namespace NYT {
-namespace NApi {
+namespace NYT::NApi {
 
 using namespace NTableClient;
 
@@ -116,6 +115,23 @@ TJobStderrTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobProfileTableDescriptor::TJobProfileTableDescriptor()
+    : NameTable(New<TNameTable>())
+    , Index(NameTable)
+{ }
+
+TJobProfileTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
+    : OperationIdHi(n->RegisterName("operation_id_hi"))
+    , OperationIdLo(n->RegisterName("operation_id_lo"))
+    , JobIdHi(n->RegisterName("job_id_hi"))
+    , JobIdLo(n->RegisterName("job_id_lo"))
+    , PartIndex(n->RegisterName("part_index"))
+    , ProfileType(n->RegisterName("profile_type"))
+    , ProfileBlob(n->RegisterName("profile_blob"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobFailContextTableDescriptor::TJobFailContextTableDescriptor()
     : NameTable(New<TNameTable>())
     , Index(NameTable)
@@ -145,5 +161,4 @@ TOperationAliasesTableDescriptor::TIndex::TIndex(const NTableClient::TNameTableP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi

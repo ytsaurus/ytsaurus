@@ -6,8 +6,7 @@
     #include <sys/eventfd.h>
 #endif
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,5 +75,4 @@ int TNotificationHandle::GetFD() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

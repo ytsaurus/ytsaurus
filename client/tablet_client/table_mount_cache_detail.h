@@ -6,15 +6,14 @@
 
 #include <yt/core/misc/async_expiring_cache.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletCache
 {
 public:
-    TTabletInfoPtr Find(const TTabletId& tabletId);
+    TTabletInfoPtr Find(TTabletId tabletId);
     TTabletInfoPtr Insert(TTabletInfoPtr tabletInfo);
 
 private:
@@ -30,13 +29,13 @@ private:
 struct TTableMountCacheKey
 {
     NYPath::TYPath Path;
-    TNullable<i64> RefreshPrimaryRevision;
-    TNullable<i64> RefreshSecondaryRevision;
+    std::optional<i64> RefreshPrimaryRevision;
+    std::optional<i64> RefreshSecondaryRevision;
 
     TTableMountCacheKey(
         const NYPath::TYPath& path,
-        TNullable<i64> refreshPrimaryRevision = Null,
-        TNullable<i64> refreshSecondaryRevision = Null);
+        std::optional<i64> refreshPrimaryRevision = std::nullopt,
+        std::optional<i64> refreshSecondaryRevision = std::nullopt);
 
     operator size_t() const;
     bool operator == (const TTableMountCacheKey& other) const;
@@ -55,7 +54,7 @@ public:
     TTableMountCacheBase(TTableMountCacheConfigPtr config, const NLogging::TLogger& logger);
 
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) override;
-    virtual TTabletInfoPtr FindTablet(const TTabletId& tabletId) override;
+    virtual TTabletInfoPtr FindTablet(TTabletId tabletId) override;
     virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) override;
     virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) override;
     virtual void Clear();
@@ -70,5 +69,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

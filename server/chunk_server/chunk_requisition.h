@@ -21,8 +21,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,7 +191,7 @@ void ValidateReplicationFactor(int replicationFactor);
 void ValidateChunkReplication(
     const TChunkManagerPtr& chunkManager,
     const TChunkReplication& replication,
-    TNullable<int> primaryMediumIndex);
+    std::optional<int> primaryMediumIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,8 +376,7 @@ void Deserialize(TSerializableChunkRequisition& serializer, NYTree::INodePtr nod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 template <>
 struct THash<NYT::NChunkServer::TRequisitionEntry>
@@ -398,8 +396,7 @@ struct THash<NYT::NChunkServer::TChunkRequisition>
     }
 };
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -438,8 +435,8 @@ public:
         const TChunkRequisition& requisition,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
-    //! Returns specified requisition's index or Null if no such requisition is registered.
-    TNullable<TChunkRequisitionIndex> Find(const TChunkRequisition& requisition) const;
+    //! Returns specified requisition's index or null if no such requisition is registered.
+    std::optional<TChunkRequisitionIndex> Find(const TChunkRequisition& requisition) const;
 
     // NB: even though items are refcounted, items with zero RC may be
     // intermittently present in the registry.
@@ -523,8 +520,7 @@ void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request, const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 #define CHUNK_REQUISITION_INL_H_
 #include "chunk_requisition-inl.h"

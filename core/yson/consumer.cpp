@@ -2,8 +2,7 @@
 #include "string.h"
 #include "parser.h"
 
-namespace NYT {
-namespace NYson {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,5 +20,4 @@ void TYsonConsumerBase::OnRaw(TStringBuf str, EYsonType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYson
-} // namespace NYT
+} // namespace NYT::NYson

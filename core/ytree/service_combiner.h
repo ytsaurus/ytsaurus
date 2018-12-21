@@ -2,8 +2,7 @@
 
 #include "ypath_detail.h"
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,7 +12,7 @@ class TServiceCombiner
 public:
     explicit TServiceCombiner(
         std::vector<IYPathServicePtr> services,
-        TNullable<TDuration> keysUpdatePeriod = Null);
+        std::optional<TDuration> keysUpdatePeriod = std::nullopt);
 
     void SetUpdatePeriod(TDuration period);
 
@@ -27,6 +26,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

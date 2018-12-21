@@ -7,8 +7,7 @@
     #include <pmmintrin.h>
 #endif
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,5 +118,4 @@ void FormatMessage(TMessageBuffer* out, const TString& message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

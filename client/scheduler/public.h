@@ -4,8 +4,7 @@
 
 #include <yt/client/job_tracker_client/public.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,5 +117,4 @@ DEFINE_ENUM(EAutoMergeMode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

@@ -30,8 +30,7 @@
 
 #include <yt/core/rpc/helpers.h>
 
-namespace NYT {
-namespace NFileClient {
+namespace NYT::NFileClient {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -47,7 +46,7 @@ TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     NNative::IClientPtr client,
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     i64 sizeLimit)
@@ -67,7 +66,7 @@ TFileChunkOutput::TFileChunkOutput(
         ? connection->GetPrimaryMasterCellTag()
         : secondaryCellTags[RandomNumber(secondaryCellTags.size())];
 
-    LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, "
+    YT_LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, "
         "MediumName: %v, CellTag: %v)",
         TransactionId_,
         Options_->Account,
@@ -108,13 +107,13 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 void TFileChunkOutput::DoFinish()
 {
     if (GetSize() > 0) {
-        LOG_INFO("Closing file writer");
+        YT_LOG_INFO("Closing file writer");
 
         WaitFor(FileChunkWriter_->Close())
             .ThrowOnError();
     }
 
-    LOG_INFO("File writer closed");
+    YT_LOG_INFO("File writer closed");
 }
 
 TChunkId TFileChunkOutput::GetChunkId() const
@@ -129,5 +128,4 @@ i64 TFileChunkOutput::GetSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileClient
-} // namespace NYT
+} // namespace NYT::NFileClient

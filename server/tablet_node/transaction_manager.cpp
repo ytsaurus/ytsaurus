@@ -42,8 +42,7 @@
 
 #include <set>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -70,7 +69,7 @@ public:
         : MaxSize_(maxSize)
     { }
 
-    void Register(const TTransactionId& id)
+    void Register(TTransactionId id)
     {
         if (IdSet_.insert(id).second) {
             IdQueue_.push(id);
@@ -83,7 +82,7 @@ public:
         }
     }
 
-    bool IsRegistered(const TTransactionId& id) const
+    bool IsRegistered(TTransactionId id) const
     {
         return IdSet_.find(id) != IdSet_.end();
     }
@@ -167,17 +166,17 @@ public:
         return CreateMutation(HydraManager_, std::move(context));
     }
 
-    TTransaction* FindPersistentTransaction(const TTransactionId& transactionId)
+    TTransaction* FindPersistentTransaction(TTransactionId transactionId)
     {
         return PersistentTransactionMap_.Find(transactionId);
     }
 
-    TTransaction* GetPersistentTransaction(const TTransactionId& transactionId)
+    TTransaction* GetPersistentTransaction(TTransactionId transactionId)
     {
         return PersistentTransactionMap_.Get(transactionId);
     }
 
-    TTransaction* GetPersistentTransactionOrThrow(const TTransactionId& transactionId)
+    TTransaction* GetPersistentTransactionOrThrow(TTransactionId transactionId)
     {
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
             return transaction;
@@ -188,7 +187,7 @@ public:
             transactionId);
     }
 
-    TTransaction* FindTransaction(const TTransactionId& transactionId)
+    TTransaction* FindTransaction(TTransactionId transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             return transaction;
@@ -199,7 +198,7 @@ public:
         return nullptr;
     }
 
-    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
     {
         auto* transaction = FindTransaction(transactionId);
         if (!transaction) {
@@ -212,7 +211,7 @@ public:
     }
 
     TTransaction* GetOrCreateTransaction(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
@@ -235,6 +234,8 @@ public:
                 transactionId);
         }
 
+        ValidateNotDecommissioned();
+
         if (fresh) {
             *fresh = true;
         }
@@ -254,7 +255,7 @@ public:
             CreateLease(transaction);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %llx, StartTime: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %llx, StartTime: %v, "
             "Timeout: %v, Transient: %v)",
             transactionId,
             startTimestamp,
@@ -265,16 +266,18 @@ public:
         return transaction;
     }
 
-    TTransaction* MakeTransactionPersistent(const TTransactionId& transactionId)
+    TTransaction* MakeTransactionPersistent(TTransactionId transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
+            ValidateNotDecommissioned();
+
             transaction->SetTransient(false);
             if (IsLeader()) {
                 CreateLease(transaction);
             }
             auto transactionHolder = TransientTransactionMap_.Release(transactionId);
             PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction became persistent (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction became persistent (TransactionId: %v)",
                 transactionId);
             return transaction;
         }
@@ -298,7 +301,7 @@ public:
         auto transactionId = transaction->GetId();
         TransientTransactionMap_.Remove(transactionId);
 
-        LOG_DEBUG("Transaction dropped (TransactionId: %v)",
+        YT_LOG_DEBUG("Transaction dropped (TransactionId: %v)",
             transactionId);
     }
 
@@ -322,7 +325,7 @@ public:
 
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp)
     {
@@ -366,7 +369,7 @@ public:
             TransactionPrepared_.Fire(transaction, persistent);
             RunPrepareTransactionActions(transaction, persistent);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
                 "PrepareTimestamp: %llx)",
                 transactionId,
                 persistent,
@@ -374,7 +377,7 @@ public:
         }
     }
 
-    void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+    void PrepareTransactionAbort(TTransactionId transactionId, bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -389,12 +392,12 @@ public:
         if (transaction->IsActive()) {
             transaction->SetState(ETransactionState::TransientAbortPrepared);
 
-            LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
                 transactionId);
         }
     }
 
-    void CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
+    void CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -402,7 +405,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -423,7 +426,7 @@ public:
         TransactionCommitted_.Fire(transaction);
         RunCommitTransactionActions(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
             transactionId,
             commitTimestamp);
 
@@ -435,13 +438,13 @@ public:
             AdjustHeapBack(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
             UpdateMinCommitTimestamp(heap);
         } else {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction removed without serialization (TransactionId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction removed without serialization (TransactionId: %v)",
                 transactionId);
             PersistentTransactionMap_.Remove(transactionId);
         }
     }
 
-    void AbortTransaction(const TTransactionId& transactionId, bool force)
+    void AbortTransaction(TTransactionId transactionId, bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -461,7 +464,7 @@ public:
         TransactionAborted_.Fire(transaction);
         RunAbortTransactionActions(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
             force);
 
@@ -469,7 +472,7 @@ public:
         PersistentTransactionMap_.Remove(transactionId);
     }
 
-    void PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
+    void PingTransaction(TTransactionId transactionId, bool pingAncestors)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -489,7 +492,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return MinCommitTimestamp_.Get(GetLatestTimestamp());
+        return MinCommitTimestamp_.value_or(GetLatestTimestamp());
+    }
+
+    void Decommission()
+    {
+        YT_LOG_DEBUG("Decommission transaction manager");
+
+        Decommissioned_ = true;
+    }
+
+    bool IsDecommissioned() const
+    {
+        return Decommissioned_ && PersistentTransactionMap_.empty();
     }
 
 private:
@@ -509,7 +524,9 @@ private:
     THashMap<TCellTag, std::vector<TTransaction*>> SerializingTransactionHeaps_;
     THashMap<TCellTag, TTimestamp> LastSerializedCommitTimestamps_;
     TTimestamp TransientBarrierTimestamp_ = MinTimestamp;
-    TNullable<TTimestamp> MinCommitTimestamp_;
+    std::optional<TTimestamp> MinCommitTimestamp_;
+
+    bool Decommissioned_ = false;
 
     IYPathServicePtr OrchidService_;
 
@@ -560,7 +577,7 @@ private:
             transaction->GetId(),
             NullTransactionId,
             transaction->GetTimeout(),
-            /* deadline */ Null,
+            /* deadline */ std::nullopt,
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
                 .Via(invoker));
         transaction->SetHasLease(true);
@@ -578,7 +595,7 @@ private:
     }
 
 
-    void OnTransactionExpired(const TTransactionId& id)
+    void OnTransactionExpired(TTransactionId id)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -594,13 +611,13 @@ private:
         const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
+                YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
                     id);
             }
         }));
     }
 
-    void OnTransactionTimedOut(const TTransactionId& id)
+    void OnTransactionTimedOut(TTransactionId id)
     {
         auto* transaction = FindTransaction(id);
         if (!transaction) {
@@ -611,13 +628,13 @@ private:
             return;
         }
 
-        LOG_DEBUG("Transaction timed out (TransactionId: %v)",
+        YT_LOG_DEBUG("Transaction timed out (TransactionId: %v)",
             id);
 
         const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
-                LOG_DEBUG(error, "Error aborting timed out transaction (TransactionId: %v)",
+                YT_LOG_DEBUG(error, "Error aborting timed out transaction (TransactionId: %v)",
                     id);
             }
         }));
@@ -745,6 +762,7 @@ private:
         using NYT::Save;
         PersistentTransactionMap_.SaveValues(context);
         Save(context, LastSerializedCommitTimestamps_);
+        Save(context, Decommissioned_);
     }
 
     TCallback<void(TSaveContext&)> SaveAsync()
@@ -787,6 +805,12 @@ private:
         } else {
             Load(context, LastSerializedCommitTimestamps_[NativeCellTag_]);
         }
+        // COMPAT(savrus)
+        if (context.GetVersion() >= 100010) {
+            Load(context, Decommissioned_);
+        } else {
+            Decommissioned_ = false;
+        }
     }
 
     void LoadAsync(TLoadContext& context)
@@ -818,7 +842,7 @@ private:
         SerializingTransactionHeaps_.clear();
         PreparedTransactions_.clear();
         LastSerializedCommitTimestamps_.clear();
-        MinCommitTimestamp_.Reset();
+        MinCommitTimestamp_.reset();
     }
 
 
@@ -844,7 +868,7 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
                 data.Type);
         }
@@ -856,7 +880,7 @@ private:
     {
         auto barrierTimestamp = request->timestamp();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %llx)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %llx)",
             barrierTimestamp);
 
         for (auto& pair : SerializingTransactionHeaps_) {
@@ -872,7 +896,7 @@ private:
                 UpdateLastSerializedCommitTimestamp(transaction);
 
                 const auto& transactionId = transaction->GetId();
-                LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
                     transaction->GetId(),
                     commitTimestamp);
 
@@ -886,7 +910,7 @@ private:
             }
         }
 
-        MinCommitTimestamp_.Reset();
+        MinCommitTimestamp_.reset();
         for (const auto& heap : SerializingTransactionHeaps_) {
             UpdateMinCommitTimestamp(heap.second);
         }
@@ -930,7 +954,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %llx, MinPrepareTimestamp: %llx)",
+        YT_LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %llx, MinPrepareTimestamp: %llx)",
             TransientBarrierTimestamp_,
             GetMinPrepareTimestamp());
 
@@ -948,7 +972,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Committing transaction barrier (Timestamp: %llx -> %llx)",
+        YT_LOG_DEBUG("Committing transaction barrier (Timestamp: %llx -> %llx)",
             TransientBarrierTimestamp_,
             minPrepareTimestamp);
 
@@ -1008,7 +1032,14 @@ private:
         }
 
         auto timestamp = heap.front()->GetCommitTimestamp();
-        MinCommitTimestamp_ = std::min(timestamp, MinCommitTimestamp_.Get(timestamp));
+        MinCommitTimestamp_ = std::min(timestamp, MinCommitTimestamp_.value_or(timestamp));
+    }
+
+    void ValidateNotDecommissioned()
+    {
+        if (Decommissioned_) {
+            THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
+        }
     }
 
     static bool SerializingTransactionHeapComparer(
@@ -1047,7 +1078,7 @@ IYPathServicePtr TTransactionManager::GetOrchidService()
 }
 
 TTransaction* TTransactionManager::GetOrCreateTransaction(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     TTimestamp startTimestamp,
     TDuration timeout,
     bool transient,
@@ -1063,7 +1094,7 @@ TTransaction* TTransactionManager::GetOrCreateTransaction(
         fresh);
 }
 
-TTransaction* TTransactionManager::MakeTransactionPersistent(const TTransactionId& transactionId)
+TTransaction* TTransactionManager::MakeTransactionPersistent(TTransactionId transactionId)
 {
     return Impl_->MakeTransactionPersistent(transactionId);
 }
@@ -1090,29 +1121,29 @@ void TTransactionManager::RegisterTransactionActionHandlers(
 }
 
 void TTransactionManager::PrepareTransactionCommit(
-    const TTransactionId& transactionId,
+    TTransactionId transactionId,
     bool persistent,
     TTimestamp prepareTimestamp)
 {
     Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
 }
 
-void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+void TTransactionManager::PrepareTransactionAbort(TTransactionId transactionId, bool force)
 {
     Impl_->PrepareTransactionAbort(transactionId, force);
 }
 
-void TTransactionManager::CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
+void TTransactionManager::CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp)
 {
     Impl_->CommitTransaction(transactionId, commitTimestamp);
 }
 
-void TTransactionManager::AbortTransaction(const TTransactionId& transactionId, bool force)
+void TTransactionManager::AbortTransaction(TTransactionId transactionId, bool force)
 {
     Impl_->AbortTransaction(transactionId, force);
 }
 
-void TTransactionManager::PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
+void TTransactionManager::PingTransaction(TTransactionId transactionId, bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
 }
@@ -1127,6 +1158,16 @@ TTimestamp TTransactionManager::GetMinCommitTimestamp()
     return Impl_->GetMinCommitTimestamp();
 }
 
+void TTransactionManager::Decommission()
+{
+    Impl_->Decommission();
+}
+
+bool TTransactionManager::IsDecommissioned() const
+{
+    return Impl_->IsDecommissioned();
+}
+
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*, bool), TransactionPrepared, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
@@ -1136,5 +1177,4 @@ DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionTransientRe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

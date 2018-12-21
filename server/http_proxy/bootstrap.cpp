@@ -36,8 +36,7 @@
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
-namespace NYT {
-namespace NHttpProxy {
+namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -112,11 +111,9 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     driverV4Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(4));
     DriverV4_ = CreateDriver(Connection_, ConvertTo<TDriverConfigPtr>(driverV4Config));
 
-    BlackboxThreadPool_ = New<TThreadPool>(16, "Blackbox");
-    
     auto authenticationManager = New<NAuth::TAuthenticationManager>(
         Config_->Auth,
-        BlackboxThreadPool_->GetInvoker(),
+        Poller_,
         Client_);
     TokenAuthenticator_ = authenticationManager->GetTokenAuthenticator();
     CookieAuthenticator_ = authenticationManager->GetCookieAuthenticator();
@@ -243,5 +240,4 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttpProxy
-} // namespace NYT
+} // namespace NYT::NHttpProxy

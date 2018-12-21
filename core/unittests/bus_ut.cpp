@@ -10,8 +10,7 @@
 
 #include <yt/core/concurrency/event_count.h>
 
-namespace NYT {
-namespace NBus {
+namespace NYT::NBus {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,14 +152,14 @@ TEST(TBusTest, ConfigDefaultConstructor)
 TEST(TBusTest, CreateTcpBusClientConfig)
 {
     auto config = TTcpBusClientConfig::CreateTcp("localhost:2000");
-    EXPECT_EQ("localhost:2000", config->Address.Get());
+    EXPECT_EQ("localhost:2000", *config->Address);
     EXPECT_FALSE(config->UnixDomainName);
 }
 
 TEST(TBusTest, CreateUnixDomainBusClientConfig)
 {
     auto config = TTcpBusClientConfig::CreateUnixDomain("unix-socket");
-    EXPECT_EQ("unix-socket", config->UnixDomainName.Get());
+    EXPECT_EQ("unix-socket", *config->UnixDomainName);
 }
 
 TEST(TBusTest, OK)
@@ -209,5 +208,4 @@ TEST(TBusTest, ManyReplies)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NBus
-} // namespace NYT
+} // namespace NYT::NBus

@@ -11,8 +11,7 @@
 
 #include <algorithm>
 
-namespace NYT {
-namespace NYTree {
+namespace NYT::NYTree {
 
 using namespace NRpc;
 using namespace NYson;
@@ -52,7 +51,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override
     {
         if (!HasAttributes()) {
@@ -277,12 +276,12 @@ public:
         YCHECK(ChildToKey_.insert(std::make_pair(newChild, key)).second);
     }
 
-    virtual TNullable<TString> FindChildKey(const IConstNodePtr& child) override
+    virtual std::optional<TString> FindChildKey(const IConstNodePtr& child) override
     {
         Y_ASSERT(child);
 
         auto it = ChildToKey_.find(const_cast<INode*>(child.Get()));
-        return it == ChildToKey_.end() ? Null : MakeNullable(it->second);
+        return it == ChildToKey_.end() ? std::nullopt : std::make_optional(it->second);
     }
 
 private:
@@ -406,12 +405,12 @@ public:
         YCHECK(RemoveChild(index));
     }
 
-    virtual TNullable<int> FindChildIndex(const IConstNodePtr& child) override
+    virtual std::optional<int> FindChildIndex(const IConstNodePtr& child) override
     {
         Y_ASSERT(child);
 
         auto it = ChildToIndex_.find(const_cast<INode*>(child.Get()));
-        return it == ChildToIndex_.end() ? Null : MakeNullable(it->second);
+        return it == ChildToIndex_.end() ? std::nullopt : std::make_optional(it->second);
     }
 
 private:
@@ -514,6 +513,5 @@ INodeFactory* GetEphemeralNodeFactory(bool shouldHideAttributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
-} // namespace NYT
+} // namespace NYT::NYTree
 

@@ -22,8 +22,7 @@
 
 using namespace llvm;
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 using NCodegen::MangleSymbol;
 using NCodegen::DemangleSymbol;
@@ -854,5 +853,4 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient

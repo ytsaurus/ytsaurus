@@ -7,8 +7,7 @@
 
 #include <yt/server/hydra/entity_map.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ class TObjectBase
     : public NHydra::TEntityBase
 {
 public:
-    explicit TObjectBase(const TObjectId& id);
+    explicit TObjectBase(TObjectId id);
     virtual ~TObjectBase();
 
     TObjectDynamicData* GetDynamicData() const;
@@ -53,7 +52,7 @@ public:
     void SetForeign();
 
     //! Returns the object id.
-    const TObjectId& GetId() const;
+    TObjectId GetId() const;
 
     //! Returns the object type.
     EObjectType GetType() const;
@@ -240,7 +239,7 @@ class TNonversionedObjectBase
     : public TObjectBase
 {
 public:
-    explicit TNonversionedObjectBase(const TObjectId& id);
+    explicit TNonversionedObjectBase(TObjectId id);
 
 };
 
@@ -253,8 +252,7 @@ struct TObjectIdFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer
 
 #define OBJECT_INL_H_
 #include "object-inl.h"

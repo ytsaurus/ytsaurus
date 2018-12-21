@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/checksum.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,5 +75,4 @@ TChecksum TBlock::GetOrComputeChecksum() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

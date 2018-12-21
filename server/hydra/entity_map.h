@@ -9,8 +9,7 @@
 
 #include <type_traits>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +77,7 @@ public:
     class TIterator
     {
     public:
-        std::pair<const TKey, TValue*> operator*() const;
+        const std::pair<const TKey, TValue*>& operator*() const;
 
         TIterator& operator++();
         TIterator& operator--();
@@ -114,6 +113,7 @@ public:
     TIterator begin() const;
     TIterator end() const;
     size_t size() const;
+    bool empty() const;
 
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
@@ -235,8 +235,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra
 
 #define ENTITY_MAP_INL_H_
 #include "entity_map-inl.h"

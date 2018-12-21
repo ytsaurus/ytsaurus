@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +91,7 @@ public:
     TCheckPermissionByAclCommand();
 
 private:
-    TNullable<TString> User;
+    std::optional<TString> User;
     NYTree::EPermission Permission;
     NYTree::INodePtr Acl;
 
@@ -153,12 +152,11 @@ public:
 
 private:
     EProxyType Type;
-    TNullable<TString> Role;
+    std::optional<TString> Role;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver

@@ -17,8 +17,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,8 +68,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     NTableClient::TOwningKey lastKey,
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
-    const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
+    NTransactionClient::TTransactionId transactionId,
+    NChunkClient::TChunkListId parentChunkListId = NChunkClient::NullChunkListId,
     const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
@@ -83,8 +82,8 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     const TTableSchema& schema,
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
-    const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId,
+    NTransactionClient::TTransactionId transactionId,
+    NChunkClient::TChunkListId parentChunkListId,
     IPartitionerPtr partitioner,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
@@ -104,5 +103,4 @@ TFuture<ISchemalessWriterPtr> CreateSchemalessTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

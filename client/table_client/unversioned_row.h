@@ -15,8 +15,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -406,7 +405,7 @@ void ValidateClientDataRow(
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
-    TNullable<int> tabletIndexColumnId = TNullable<int>());
+    std::optional<int> tabletIndexColumnId = std::optional<int>());
 
 //! Checks that #row contains no duplicate non-key columns and that all required columns are present. Skip values that map to negative ids via #idMapping.
 /*! It is assumed that ValidateClientDataRow was called before. */
@@ -849,8 +848,7 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TKey lowerBound, TKey upperBound);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 
 //! A hasher for TUnversionedValue.
 template <>

@@ -3,12 +3,11 @@
 
 #include <yt/server/cell_master/serialize.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRack::TRack(const TRackId& id)
+TRack::TRack(TRackId id)
     : TObjectBase(id)
     , Index_(-1)
 { }
@@ -38,6 +37,5 @@ void TRack::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer
 

@@ -45,8 +45,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
@@ -76,7 +75,7 @@ public:
 
 public:
     TChunkJobBase(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -124,12 +123,12 @@ public:
         THROW_ERROR_EXCEPTION("Fail not implemented");
     }
 
-    virtual const TJobId& GetId() const override
+    virtual TJobId GetId() const override
     {
         return JobId_;
     }
 
-    virtual const TOperationId& GetOperationId() const override
+    virtual TOperationId GetOperationId() const override
     {
         return NullOperationId;
     }
@@ -219,6 +218,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual void SetProfile(const TJobProfile& value) override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         return TYsonString();
@@ -234,19 +238,19 @@ public:
         return StartTime_;
     }
 
-    virtual TNullable<TDuration> GetPrepareDuration() const override
+    virtual std::optional<TDuration> GetPrepareDuration() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
-    virtual TNullable<TDuration> GetDownloadDuration() const override
+    virtual std::optional<TDuration> GetDownloadDuration() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
-    virtual TNullable<TDuration> GetExecDuration() const override
+    virtual std::optional<TDuration> GetExecDuration() const override
     {
-        return Null;
+        return std::nullopt;
     }
 
     virtual TInstant GetStatisticsLastSendTime() const override
@@ -269,7 +273,7 @@ public:
         THROW_ERROR_EXCEPTION("Getting stderr is not supported");
     }
 
-    virtual TNullable<TString> GetFailContext() override
+    virtual std::optional<TString> GetFailContext() override
     {
         THROW_ERROR_EXCEPTION("Getting fail context is not supported");
     }
@@ -319,6 +323,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual void ReportProfile() override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual bool GetStored() const override
     {
         return false;
@@ -358,7 +367,7 @@ protected:
 
     void GuardedRun()
     {
-        LOG_INFO("Job started");
+        YT_LOG_INFO("Job started");
         try {
             DoRun();
         } catch (const std::exception& ex) {
@@ -370,24 +379,24 @@ protected:
 
     void SetCompleted()
     {
-        LOG_INFO("Job completed");
+        YT_LOG_INFO("Job completed");
         Progress_ = 1.0;
         DoSetFinished(EJobState::Completed, TError());
     }
 
     void SetFailed(const TError& error)
     {
-        LOG_ERROR(error, "Job failed");
+        YT_LOG_ERROR(error, "Job failed");
         DoSetFinished(EJobState::Failed, error);
     }
 
     void SetAborted(const TError& error)
     {
-        LOG_INFO(error, "Job aborted");
+        YT_LOG_INFO(error, "Job aborted");
         DoSetFinished(EJobState::Aborted, error);
     }
 
-    IChunkPtr GetLocalChunkOrThrow(const TChunkId& chunkId, int mediumIndex)
+    IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
     {
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
@@ -416,7 +425,7 @@ class TChunkRemovalJob
 {
 public:
     TChunkRemovalJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -439,7 +448,7 @@ private:
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int mediumIndex = JobSpecExt_.medium_index();
 
-        LOG_INFO("Chunk removal job started (ChunkId: %v, MediumIndex: %v)",
+        YT_LOG_INFO("Chunk removal job started (ChunkId: %v, MediumIndex: %v)",
             chunkId,
             mediumIndex);
 
@@ -452,7 +461,7 @@ private:
         // Cf. YT-6532.
         // Once we switch from push replication to pull, this code is likely
         // to appear in TReplicateChunkJob as well.
-        LOG_INFO("Waiting for heartbeat barrier");
+        YT_LOG_INFO("Waiting for heartbeat barrier");
         const auto& masterConnector = Bootstrap_->GetMasterConnector();
         WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(chunkId)))
             .ThrowOnError();
@@ -466,7 +475,7 @@ class TChunkReplicationJob
 {
 public:
     TChunkReplicationJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -491,7 +500,7 @@ private:
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
 
-        LOG_INFO("Chunk replication job started (ChunkId: %v, SourceMediumIndex: %v, TargetReplicas: %v)",
+        YT_LOG_INFO("Chunk replication job started (ChunkId: %v, SourceMediumIndex: %v, TargetReplicas: %v)",
             chunkId,
             sourceMediumIndex,
             MakeFormattableRange(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
@@ -508,13 +517,13 @@ private:
         blockReadOptions.BlockCache = Bootstrap_->GetBlockCache();
         blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-        LOG_INFO("Fetching chunk meta");
+        YT_LOG_INFO("Fetching chunk meta");
 
         auto asyncMeta = chunk->ReadMeta(blockReadOptions);
         auto meta = WaitFor(asyncMeta)
             .ValueOrThrow();
 
-        LOG_INFO("Chunk meta fetched");
+        YT_LOG_INFO("Chunk meta fetched");
 
         auto options = New<TRemoteWriterOptions>();
         options->AllowAllocatingNewTargetNodes = false;
@@ -554,7 +563,7 @@ private:
                 writeBlocks.push_back(block);
             }
 
-            LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
+            YT_LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
                 currentBlockIndex,
                 currentBlockIndex + writeBlocks.size() - 1);
 
@@ -567,13 +576,13 @@ private:
             currentBlockIndex += writeBlocks.size();
         }
 
-        LOG_DEBUG("All blocks are enqueued for replication");
+        YT_LOG_DEBUG("All blocks are enqueued for replication");
 
         WaitFor(writer->Close(meta))
             .ThrowOnError();
     }
 
-    static int GetBlockCount(const TChunkId& chunkId, const TChunkMeta& meta)
+    static int GetBlockCount(TChunkId chunkId, const TChunkMeta& meta)
     {
         switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
             case EObjectType::Chunk:
@@ -605,7 +614,7 @@ class TChunkRepairJob
 {
 public:
     TChunkRepairJob(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -648,7 +657,7 @@ private:
             THROW_ERROR_EXCEPTION("Codec is unable to repair the chunk");
         }
 
-        LOG_INFO("Chunk repair job started (ChunkId: %v, CodecId: %v, ErasedPartIndexes: %v, RepairPartIndexes: %v, SourceReplicas: %v, TargetReplicas: %v)",
+        YT_LOG_INFO("Chunk repair job started (ChunkId: %v, CodecId: %v, ErasedPartIndexes: %v, RepairPartIndexes: %v, SourceReplicas: %v, TargetReplicas: %v)",
             chunkId,
             codecId,
             erasedPartIndexes,
@@ -738,7 +747,7 @@ class TSealChunkJob
 {
 public:
     TSealChunkJob(
-        const TJobId& jobId,
+        TJobId jobId,
         TJobSpec&& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
@@ -763,7 +772,7 @@ private:
         auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
         i64 sealRowCount = JobSpecExt_.row_count();
 
-        LOG_INFO("Chunk seal job started (ChunkId: %v, MediumIndex: %v, SourceReplicas: %v, RowCount: %v)",
+        YT_LOG_INFO("Chunk seal job started (ChunkId: %v, MediumIndex: %v, SourceReplicas: %v, RowCount: %v)",
             chunkId,
             mediumIndex,
             sourceReplicas,
@@ -799,14 +808,14 @@ private:
         }
 
         if (journalChunk->IsSealed()) {
-            LOG_INFO("Chunk is already sealed");
+            YT_LOG_INFO("Chunk is already sealed");
             return;
         }
 
         TJournalChunkChangelogGuard changelogGuard(journalChunk, changelog);
         i64 currentRowCount = changelog->GetRecordCount();
         if (currentRowCount < sealRowCount) {
-            LOG_INFO("Started downloading missing journal chunk rows (Rows: %v-%v)",
+            YT_LOG_INFO("Started downloading missing journal chunk rows (Rows: %v-%v)",
                 currentRowCount,
                 sealRowCount - 1);
 
@@ -846,7 +855,7 @@ private:
                         chunkId);
                 }
 
-                LOG_INFO("Journal chunk rows downloaded (Rows: %v-%v)",
+                YT_LOG_INFO("Journal chunk rows downloaded (Rows: %v-%v)",
                     currentRowCount,
                     currentRowCount + blockCount - 1);
 
@@ -860,16 +869,16 @@ private:
             WaitFor(changelog->Flush())
                 .ThrowOnError();
 
-            LOG_INFO("Finished downloading missing journal chunk rows");
+            YT_LOG_INFO("Finished downloading missing journal chunk rows");
         }
 
-        LOG_INFO("Started sealing journal chunk (RowCount: %v)",
+        YT_LOG_INFO("Started sealing journal chunk (RowCount: %v)",
             sealRowCount);
 
         WaitFor(journalChunk->Seal())
             .ThrowOnError();
 
-        LOG_INFO("Finished sealing journal chunk");
+        YT_LOG_INFO("Finished sealing journal chunk");
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(chunk);
@@ -879,7 +888,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobPtr CreateChunkJob(
-    const TJobId& jobId,
+    TJobId jobId,
     TJobSpec&& jobSpec,
     const TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
@@ -926,6 +935,5 @@ IJobPtr CreateChunkJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

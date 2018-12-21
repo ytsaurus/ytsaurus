@@ -29,8 +29,7 @@
 
 #include <yt/server/misc/object_helpers.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -86,7 +85,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<TString>>& attributeKeys,
+        const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override
     {
         GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, stable);
@@ -215,7 +214,7 @@ private:
                         YCHECK(false);
                 }
                 BuildYsonFluently(consumer)
-                    .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<const TObjectId&, TNode*>& pair) {
+                    .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<TObjectId, TNode*>& pair) {
                         auto* node = pair.second;
                         if (node->GetAggregatedState() == state) {
                             fluent.Item().Value(node->GetDefaultAddress());
@@ -237,7 +236,7 @@ private:
             case EInternedAttributeKey::AvailableSpacePerMedium:
                 BuildYsonFluently(consumer)
                     .DoMapFor(chunkManager->Media(),
-                        [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                        [&] (TFluentMap fluent, const std::pair<TMediumId, TMedium*>& pair) {
                             const auto* medium = pair.second;
                             if (medium->GetCache()) {
                                 return;
@@ -250,7 +249,7 @@ private:
             case EInternedAttributeKey::UsedSpacePerMedium:
                 BuildYsonFluently(consumer)
                     .DoMapFor(chunkManager->Media(),
-                        [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                        [&] (TFluentMap fluent, const std::pair<TMediumId, TMedium*>& pair) {
                             const auto* medium = pair.second;
                             fluent
                                 .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Used);
@@ -449,5 +448,4 @@ INodeTypeHandlerPtr CreateDataCenterMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

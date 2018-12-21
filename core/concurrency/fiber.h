@@ -12,8 +12,7 @@
 #include <atomic>
 #include <forward_list>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -207,6 +206,5 @@ void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

@@ -1,7 +1,6 @@
 #include "chunk_meta_extensions.h"
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 
@@ -9,7 +8,7 @@ using namespace NChunkClient::NProto;
 
 TChunkMeta FilterChunkMetaByExtensionTags(
     const TChunkMeta& chunkMeta,
-    const TNullable<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags)
 {
     if (!extensionTags) {
         return chunkMeta;
@@ -29,5 +28,4 @@ TChunkMeta FilterChunkMetaByExtensionTags(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

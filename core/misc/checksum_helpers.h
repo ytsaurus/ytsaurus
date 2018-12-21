@@ -8,8 +8,7 @@
     #include <wmmintrin.h>
 #endif
 
-namespace NYT {
-namespace NCrc {
+namespace NYT::NCrc {
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef YT_USE_CRC_PCLMUL
@@ -125,5 +124,4 @@ static ui64 DivXPow_64(size_t pow, ui64 p) // (x ^ pow) div p(x), where pow >= 6
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-} // namespace NCrc
-} // namespace NYT
+} // namespace NYT::NCrc

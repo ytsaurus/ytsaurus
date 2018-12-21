@@ -15,9 +15,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NRpc {
-namespace NHttp {
+namespace NYT::NRpc::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +47,7 @@ TString ToHttpContentType(EMessageFormat format)
     }
 }
 
-TNullable<EMessageFormat> FromHttpContentType(TStringBuf contentType)
+std::optional<EMessageFormat> FromHttpContentType(TStringBuf contentType)
 {
     if (contentType == "application/x-protobuf") {
         return EMessageFormat::Protobuf;
@@ -377,6 +375,4 @@ NRpc::IServerPtr CreateServer(NYT::NHttp::IServerPtr httpServer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHttp
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc::NHttp

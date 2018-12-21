@@ -39,8 +39,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NYTree;
@@ -64,7 +63,7 @@ using NChunkClient::TReadLimit;
 
 TSortedChunkStore::TSortedChunkStore(
     TTabletManagerConfigPtr config,
-    const TStoreId& id,
+    TStoreId id,
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
@@ -86,12 +85,12 @@ TSortedChunkStore::TSortedChunkStore(
     , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
 {
-    LOG_DEBUG("Sorted chunk store created");
+    YT_LOG_DEBUG("Sorted chunk store created");
 }
 
 TSortedChunkStore::~TSortedChunkStore()
 {
-    LOG_DEBUG("Sorted chunk store destroyed");
+    YT_LOG_DEBUG("Sorted chunk store destroyed");
 }
 
 TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
@@ -364,6 +363,5 @@ ISortedStorePtr TSortedChunkStore::GetSortedBackingStore()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode
 

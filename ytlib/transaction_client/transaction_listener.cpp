@@ -3,8 +3,7 @@
 
 #include <yt/client/api/transaction.h>
 
-namespace NYT {
-namespace NTransactionClient {
+namespace NYT::NTransactionClient {
 
 using namespace NApi;
 
@@ -16,7 +15,7 @@ static const auto& Logger = TransactionClientLogger;
 
 void TTransactionListener::StartListenTransaction(const ITransactionPtr& transaction)
 {
-    LOG_DEBUG("Started listening for transaction (TransactionId: %v)",
+    YT_LOG_DEBUG("Started listening for transaction (TransactionId: %v)",
         transaction->GetId());
 
     transaction->SubscribeAborted(
@@ -25,7 +24,7 @@ void TTransactionListener::StartListenTransaction(const ITransactionPtr& transac
 
 void TTransactionListener::StopListenTransaction(const ITransactionPtr& transaction)
 {
-    LOG_DEBUG("Stopped listening for transaction (TransactionId: %v)",
+    YT_LOG_DEBUG("Stopped listening for transaction (TransactionId: %v)",
         transaction->GetId());
 
     auto guard = Guard(SpinLock_);
@@ -58,7 +57,7 @@ void TTransactionListener::ValidateAborted() const
     }
 }
 
-void TTransactionListener::OnTransactionAborted(const TTransactionId& id)
+void TTransactionListener::OnTransactionAborted(TTransactionId id)
 {
     auto guard = Guard(SpinLock_);
     if (std::find(IgnoredTransactionIds_.begin(), IgnoredTransactionIds_.end(), id) != IgnoredTransactionIds_.end()) {
@@ -70,5 +69,4 @@ void TTransactionListener::OnTransactionAborted(const TTransactionId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
-} // namespace NYT
+} // namespace NYT::NTransactionClient

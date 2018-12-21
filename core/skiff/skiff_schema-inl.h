@@ -7,8 +7,7 @@
 #endif
 #undef SKIFF_SCHEMA_H
 
-namespace NYT {
-namespace NSkiff {
+namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,5 +48,4 @@ TSkiffSchemaList TComplexSchema<WireType>::GetChildren() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSkiff
-} // namespace NYT
+} // namespace NYT::NSkiff

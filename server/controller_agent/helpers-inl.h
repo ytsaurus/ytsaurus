@@ -5,8 +5,7 @@
 #include "helpers.h"
 #endif
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,9 +36,9 @@ TAvgSummary<T>::TAvgSummary(T sum, i64 count)
 { }
 
 template <class T>
-TNullable<T> TAvgSummary<T>::CalcAvg()
+std::optional<T> TAvgSummary<T>::CalcAvg()
 {
-    return Count_ == 0 ? TNullable<T>() : Sum_ / Count_;
+    return Count_ == 0 ? std::optional<T>() : Sum_ / Count_;
 }
 
 template <class T>
@@ -63,5 +62,4 @@ void TAvgSummary<T>::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

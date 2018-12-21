@@ -33,9 +33,7 @@
 
 #include <yt/core/compression/codec.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NYPath;
 using namespace NTransactionClient;
@@ -93,7 +91,7 @@ public:
         return Transaction_->GetType();
     }
 
-    virtual const TTransactionId& GetId() const override
+    virtual TTransactionId GetId() const override
     {
         return Transaction_->GetId();
     }
@@ -176,7 +174,7 @@ public:
                 State_));
         }
 
-        LOG_DEBUG("Preparing transaction");
+        YT_LOG_DEBUG("Preparing transaction");
         State_ = ETransactionState::Prepare;
         return BIND(&TTransaction::DoPrepare, MakeStrong(this))
             .AsyncVia(GetThreadPoolInvoker())
@@ -193,14 +191,14 @@ public:
                 State_));
         }
 
-        LOG_DEBUG("Flushing transaction");
+        YT_LOG_DEBUG("Flushing transaction");
         State_ = ETransactionState::Flush;
         return BIND(&TTransaction::DoFlush, MakeStrong(this))
             .AsyncVia(GetThreadPoolInvoker())
             .Run();
     }
 
-    virtual void AddAction(const TCellId& cellId, const TTransactionActionData& data) override
+    virtual void AddAction(TCellId cellId, const TTransactionActionData& data) override
     {
         auto guard = Guard(SpinLock_);
 
@@ -221,7 +219,7 @@ public:
         auto session = GetOrCreateCellCommitSession(cellId);
         session->RegisterAction(data);
 
-        LOG_DEBUG("Transaction action added (CellId: %v, ActionType: %v)",
+        YT_LOG_DEBUG("Transaction action added (CellId: %v, ActionType: %v)",
             cellId,
             data.Type);
     }
@@ -375,7 +373,7 @@ public:
                 State_);
         }
 
-        LOG_DEBUG("Buffering client row modifications (Count: %v)",
+        YT_LOG_DEBUG("Buffering client row modifications (Count: %v)",
             modifications.Size());
 
         EnqueueModificationRequest(std::make_unique<TModificationRequest>(
@@ -462,6 +460,10 @@ public:
         NCypressClient::ELockMode mode,
         const TLockNodeOptions& options),
         (path, mode, options))
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, UnlockNode, (
+        const TYPath& path,
+        const TUnlockNodeOptions& options),
+        (path, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TNodeId>, CopyNode, (
         const TYPath& srcPath,
         const TYPath& dstPath,
@@ -600,7 +602,7 @@ private:
                 auto replicaOptions = Options_;
                 replicaOptions.UpstreamReplicaId = replicaData.ReplicaInfo->ReplicaId;
                 if (replicaData.Transaction) {
-                    LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
+                    YT_LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
                         Modifications_.Size());
                     replicaData.Transaction->ModifyRows(
                         replicaData.ReplicaInfo->ReplicaPath,
@@ -611,7 +613,7 @@ private:
                     // YT-7551: Local sync replicas must be handled differenly.
                     // We cannot add more modifications via ITransactions interface since
                     // the transaction is already committing.
-                    LOG_DEBUG("Bufferring local sync replication modifications (Count: %v)",
+                    YT_LOG_DEBUG("Bufferring local sync replication modifications (Count: %v)",
                         Modifications_.Size());
                     Transaction_->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
                         Transaction_,
@@ -623,7 +625,7 @@ private:
                 }
             }
 
-            TNullable<int> tabletIndexColumnId;
+            std::optional<int> tabletIndexColumnId;
             if (!tableInfo->IsSorted()) {
                 tabletIndexColumnId = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
             }
@@ -790,7 +792,7 @@ private:
         TTableCommitSession(
             TTransaction* transaction,
             TTableMountInfoPtr tableInfo,
-            const TTableReplicaId& upstreamReplicaId)
+            TTableReplicaId upstreamReplicaId)
             : Transaction_(transaction)
             , TableInfo_(std::move(tableInfo))
             , UpstreamReplicaId_(upstreamReplicaId)
@@ -803,7 +805,7 @@ private:
             return TableInfo_;
         }
 
-        const TTableReplicaId& GetUpstreamReplicaId() const
+        TTableReplicaId GetUpstreamReplicaId() const
         {
             return UpstreamReplicaId_;
         }
@@ -821,7 +823,7 @@ private:
                     continue;
                 }
 
-                LOG_DEBUG("Sync table replica registered (ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
+                YT_LOG_DEBUG("Sync table replica registered (ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
                     replicaInfo->ReplicaId,
                     replicaInfo->ClusterName,
                     replicaInfo->ReplicaPath);
@@ -920,7 +922,7 @@ private:
             return InvokePromise_;
         }
 
-        const TCellId& GetCellId() const
+        TCellId GetCellId() const
         {
             return TabletInfo_->CellId;
         }
@@ -1146,7 +1148,7 @@ private:
             }
             req->Attachments().push_back(batch->RequestData);
 
-            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, "
+            YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, "
                 "Versioned: %v, UpstreamReplicaId: %v)",
                 InvokeBatchIndex_,
                 Batches_.size(),
@@ -1169,7 +1171,7 @@ private:
             if (!rspOrError.IsOK()) {
                 auto error = TError("Error sending transaction rows")
                     << rspOrError;
-                LOG_DEBUG(error);
+                YT_LOG_DEBUG(error);
                 TableMountCache_->InvalidateOnError(error);
                 InvokePromise_.Set(error);
                 return;
@@ -1180,7 +1182,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
+            YT_LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
                 InvokeBatchIndex_,
                 Batches_.size());
 
@@ -1241,7 +1243,7 @@ private:
                 return MakeFuture(TError("Transaction is no longer available"));
             }
 
-            LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
+            YT_LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
                 Actions_.size());
 
             TFuture<void> asyncResult;
@@ -1298,7 +1300,7 @@ private:
             if (!result.IsOK()) {
                 auto error = TError("Error sending transaction actions")
                     << result;
-                LOG_DEBUG(error);
+                YT_LOG_DEBUG(error);
                 THROW_ERROR(error);
             }
 
@@ -1311,7 +1313,7 @@ private:
                 transaction->Transaction_->ConfirmParticipant(CellId_);
             }
 
-            LOG_DEBUG("Transaction actions sent successfully");
+            YT_LOG_DEBUG("Transaction actions sent successfully");
         }
     };
 
@@ -1357,7 +1359,7 @@ private:
         auto connection = clusterDirectory->FindConnection(replicaInfo->ClusterName);
         if (!connection) {
             if (!*clusterDirectorySynced) {
-                LOG_DEBUG("Replica cluster is not known; synchronizing cluster directory");
+                YT_LOG_DEBUG("Replica cluster is not known; synchronizing cluster directory");
                 WaitFor(Client_->GetNativeConnection()->GetClusterDirectorySynchronizer()->Sync())
                     .ThrowOnError();
                 *clusterDirectorySynced = true;
@@ -1378,7 +1380,7 @@ private:
 
         YCHECK(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
 
-        LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
+        YT_LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
             replicaInfo->ClusterName);
 
         return transaction;
@@ -1390,7 +1392,7 @@ private:
         Requests_.push_back(std::move(request));
     }
 
-    TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, const TTableReplicaId& upstreamReplicaId)
+    TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, TTableReplicaId upstreamReplicaId)
     {
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {
@@ -1628,7 +1630,7 @@ private:
     }
 
 
-    TCellCommitSessionPtr GetOrCreateCellCommitSession(const TCellId& cellId)
+    TCellCommitSessionPtr GetOrCreateCellCommitSession(TCellId cellId)
     {
         auto it = CellIdToSession_.find(cellId);
         if (it == CellIdToSession_.end()) {
@@ -1637,7 +1639,7 @@ private:
         return it->second;
     }
 
-    TCellCommitSessionPtr GetCommitSession(const TCellId& cellId)
+    TCellCommitSessionPtr GetCommitSession(TCellId cellId)
     {
         auto it = CellIdToSession_.find(cellId);
         YCHECK(it != CellIdToSession_.end());
@@ -1686,6 +1688,4 @@ ITransactionPtr CreateTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

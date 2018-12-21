@@ -6,12 +6,11 @@
 
 #include <yt/server/transaction_server/transaction.h>
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStagedObject::TStagedObject(const TObjectId& id)
+TStagedObject::TStagedObject(TObjectId id)
     : TNonversionedObjectBase(id)
     , StagingTransaction_(nullptr)
     , StagingAccount_(nullptr)
@@ -42,5 +41,4 @@ bool TStagedObject::IsStaged() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

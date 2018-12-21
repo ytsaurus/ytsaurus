@@ -20,14 +20,13 @@
 #include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
 #include <array>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,8 +80,9 @@ public:
     using TPerMediumArray = NChunkServer::TPerMediumArray<T>;
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
-    // Transient properties.
     DEFINE_BYREF_RW_PROPERTY(TPerMediumArray<double>, IOWeights);
+
+    // Transient property.
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
 
     ui64 GetVisitMark(int mediumIndex);
@@ -105,12 +105,14 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Version);
 
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
-    void SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statistics);
+    void SetStatistics(
+        NNodeTrackerClient::NProto::TNodeStatistics&& statistics,
+        const NChunkServer::TChunkManagerPtr& chunkManager);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, Alerts);
 
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
     DEFINE_BYVAL_RO_PROPERTY(TRack*, Rack);
@@ -124,10 +126,10 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(bool, Decommissioned);
 
-    using TFillFactorIterator = TNullable<NChunkServer::TFillFactorToNodeIterator>;
+    using TFillFactorIterator = std::optional<NChunkServer::TFillFactorToNodeIterator>;
     using TFillFactorIterators = TPerMediumArray<TFillFactorIterator>;
 
-    using TLoadFactorIterator = TNullable<NChunkServer::TLoadFactorToNodeIterator>;
+    using TLoadFactorIterator = std::optional<NChunkServer::TLoadFactorToNodeIterator>;
     using TLoadFactorIterators = TPerMediumArray<TLoadFactorIterator>;
 
     DEFINE_BYREF_RW_PROPERTY(TFillFactorIterators, FillFactorIterators);
@@ -193,7 +195,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
 public:
-    explicit TNode(const NObjectServer::TObjectId& objectId);
+    explicit TNode(NObjectServer::TObjectId objectId);
 
     TNodeId GetId() const;
 
@@ -211,11 +213,15 @@ public:
      */
     TDataCenter* GetDataCenter() const;
 
-    bool HasTag(const TNullable<TString>& tag) const;
+    bool HasTag(const std::optional<TString>& tag) const;
 
     //! Prepares per-cell state map.
     //! Inserts new entries into the map, fills missing onces with ENodeState::Offline value.
     void InitializeStates(NObjectClient::TCellTag cellTag, const NObjectClient::TCellTagList& secondaryCellTags);
+
+    //! Recomputes node IO weights from statistics.
+    void RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager);
+
     //! Gets the local state by dereferencing local state pointer.
     ENodeState GetLocalState() const;
     //! Sets the local state by dereferencing local state pointer.
@@ -231,7 +237,7 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    TJobPtr FindJob(const TJobId& jobId);
+    TJobPtr FindJob(TJobId jobId);
     void RegisterJob(const TJobPtr& job);
     void UnregisterJob(const TJobPtr& job);
 
@@ -273,9 +279,9 @@ public:
     bool HasMedium(int mediumIndex) const;
 
     //! Returns null if there's no storage of specified medium on this node.
-    TNullable<double> GetFillFactor(int mediumIndex) const;
+    std::optional<double> GetFillFactor(int mediumIndex) const;
     //! Returns null if there's no storage of specified medium on this node.
-    TNullable<double> GetLoadFactor(int mediumIndex) const;
+    std::optional<double> GetLoadFactor(int mediumIndex) const;
 
     bool IsWriteEnabled(int mediumIndex) const;
 
@@ -316,8 +322,8 @@ private:
 
     TPerMediumArray<ui64> VisitMarks_{};
 
-    TPerMediumArray<TNullable<double>> FillFactors_;
-    TPerMediumArray<TNullable<int>> SessionCount_;
+    TPerMediumArray<std::optional<double>> FillFactors_;
+    TPerMediumArray<std::optional<int>> SessionCount_;
 
     ENodeState* LocalStatePtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;
@@ -346,6 +352,8 @@ private:
     void SetUserTags(const std::vector<TString>& tags);
     void RebuildTags();
 
+    void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
+    void SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& resourceLimits);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -357,5 +365,4 @@ struct TNodePtrAddressFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

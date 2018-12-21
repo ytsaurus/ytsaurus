@@ -6,8 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NProto;
 
@@ -103,7 +102,7 @@ TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, const TCac
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedBlockMeta::TCachedBlockMeta(const NChunkClient::TChunkId& chunkId, NTableClient::NProto::TBlockMetaExt blockMeta)
+TCachedBlockMeta::TCachedBlockMeta(NChunkClient::TChunkId chunkId, NTableClient::NProto::TBlockMetaExt blockMeta)
     : TSyncCacheValueBase<NChunkClient::TChunkId, TCachedBlockMeta>(chunkId)
     , NTableClient::NProto::TBlockMetaExt(std::move(blockMeta))
 {
@@ -128,5 +127,4 @@ i64 TBlockMetaCache::GetWeight(const TCachedBlockMetaPtr& value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

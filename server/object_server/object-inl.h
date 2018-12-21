@@ -7,12 +7,11 @@
 #include "object.h"
 #endif
 
-namespace NYT {
-namespace NObjectServer {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TObjectBase::TObjectBase(const TObjectId& id)
+inline TObjectBase::TObjectBase(TObjectId id)
     : Id_(id)
 {
     // This is reset to false in TCypressNodeBase ctor for non-trunk nodes.
@@ -41,7 +40,7 @@ inline void TObjectBase::SetForeign()
     Flags_.Foreign = true;
 }
 
-inline const TObjectId& TObjectBase::GetId() const
+inline TObjectId TObjectBase::GetId() const
 {
     return Id_;
 }
@@ -173,7 +172,7 @@ const TDerived* TObjectBase::As() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TNonversionedObjectBase::TNonversionedObjectBase(const TObjectId& id)
+inline TNonversionedObjectBase::TNonversionedObjectBase(TObjectId id)
     : TObjectBase(id)
 { }
 
@@ -257,5 +256,4 @@ std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByK
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
-} // namespace NYT
+} // namespace NYT::NObjectServer

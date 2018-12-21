@@ -1,14 +1,13 @@
 #include <yt/core/misc/ref.h>
 #include "abort.h"
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TAbort::TAbort(
-    const TTransactionId& transactionId,
-    const NRpc::TMutationId& mutationId)
+    TTransactionId transactionId,
+    NRpc::TMutationId mutationId)
     : TransactionId_(transactionId)
     , MutationId_(mutationId)
 { }
@@ -25,5 +24,4 @@ void TAbort::SetResponseMessage(TSharedRefArray message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

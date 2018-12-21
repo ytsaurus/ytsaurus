@@ -31,9 +31,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NApi {
-namespace NNative {
+namespace NYT::NApi::NNative {
 
 using namespace NRpc;
 using namespace NYTree;
@@ -124,7 +122,7 @@ private:
 
     void DoOpen()
     {
-        LOG_INFO("Opening file reader");
+        YT_LOG_INFO("Opening file reader");
 
         TUserObject userObject;
         userObject.Path = Path_;
@@ -177,7 +175,7 @@ private:
 
         bool isEmptyRead = Options_.Length && *Options_.Length == 0;
         if (!isEmptyRead) {
-            LOG_INFO("Fetching file chunks");
+            YT_LOG_INFO("Fetching file chunks");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
             TObjectServiceProxy proxy(channel);
@@ -185,7 +183,7 @@ private:
             auto req = TFileYPathProxy::Fetch(objectIdPath);
 
             TReadLimit lowerLimit, upperLimit;
-            i64 offset = Options_.Offset.Get(0);
+            i64 offset = Options_.Offset.value_or(0);
             if (Options_.Offset) {
                 lowerLimit.SetOffset(offset);
             }
@@ -213,7 +211,7 @@ private:
                 cellTag,
                 nodeDirectory,
                 Config_->MaxChunksPerLocateRequest,
-                Null,
+                std::nullopt,
                 Logger,
                 &chunkSpecs);
         }
@@ -232,7 +230,7 @@ private:
             StartListenTransaction(Transaction_);
         }
 
-        LOG_INFO("File reader opened");
+        YT_LOG_INFO("File reader opened");
     }
 
 };
@@ -251,6 +249,4 @@ TFuture<IFileReaderPtr> CreateFileReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNative
-} // namespace NApi
-} // namespace NYT
+} // namespace NYT::NApi::NNative

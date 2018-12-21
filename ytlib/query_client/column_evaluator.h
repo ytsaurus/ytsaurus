@@ -5,8 +5,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT {
-namespace NQueryClient {
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,8 +107,7 @@ DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NYT::NQueryClient
 
 #define COLUMN_EVALUATOR_INL_H_
 #include "column_evaluator-inl.h"

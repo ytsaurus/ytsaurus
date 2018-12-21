@@ -15,8 +15,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NHiveClient {
+namespace NYT::NHiveClient {
 
 using namespace NRpc;
 using namespace NApi;
@@ -80,7 +79,7 @@ void TClusterDirectory::RemoveCluster(const TString& name)
     cluster.Connection->Terminate();
     NameToCluster_.erase(it);
     YCHECK(CellTagToCluster_.erase(cellTag) == 1);
-    LOG_DEBUG("Remote cluster unregistered (Name: %v)",
+    YT_LOG_DEBUG("Remote cluster unregistered (Name: %v)",
         name);
 }
 
@@ -107,7 +106,7 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
         auto cluster = CreateCluster(name, config);
         TGuard<TSpinLock> guard(Lock_);
         addNewCluster(cluster);
-        LOG_DEBUG("Remote cluster registered (Name: %v, CellTag: %v)",
+        YT_LOG_DEBUG("Remote cluster registered (Name: %v, CellTag: %v)",
             name,
             cluster.Connection->GetCellTag());
     } else if (!AreNodesEqual(it->second.Config, config)) {
@@ -117,7 +116,7 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
         CellTagToCluster_.erase(GetCellTag(it->second));
         NameToCluster_.erase(it);
         addNewCluster(cluster);
-        LOG_DEBUG("Remote cluster updated (Name: %v, CellTag: %v)",
+        YT_LOG_DEBUG("Remote cluster updated (Name: %v, CellTag: %v)",
             name,
             cluster.Connection->GetCellTag());
     }
@@ -164,6 +163,5 @@ TCellTag TClusterDirectory::GetCellTag(const TClusterDirectory::TCluster& cluste
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveClient
-} // namespace NYT
+} // namespace NYT::NHiveClient
 

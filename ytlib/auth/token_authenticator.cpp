@@ -10,8 +10,7 @@
 
 #include <yt/core/rpc/authenticator.h>
 
-namespace NYT {
-namespace NAuth {
+namespace NYT::NAuth {
 
 using namespace NYTree;
 using namespace NYson;
@@ -26,15 +25,18 @@ static const TString LocalUserIP = "127.0.0.1";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): used passed profiler
 class TBlackboxTokenAuthenticator
     : public ITokenAuthenticator
 {
 public:
     TBlackboxTokenAuthenticator(
         TBlackboxTokenAuthenticatorConfigPtr config,
-        IBlackboxServicePtr blackboxService)
+        IBlackboxServicePtr blackboxService,
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , Blackbox_(std::move(blackboxService))
+        , Profiler_(std::move(profiler))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
@@ -51,7 +53,7 @@ public:
         }
 
         auto tokenHash = GetCryptoHash(token);
-        LOG_DEBUG("Authenticating user with token via Blackbox (TokenHash: %v, UserIP: %v)",
+        YT_LOG_DEBUG("Authenticating user with token via Blackbox (TokenHash: %v, UserIP: %v)",
             tokenHash,
             userIP);
         return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIP}})
@@ -64,6 +66,7 @@ public:
 private:
     const TBlackboxTokenAuthenticatorConfigPtr Config_;
     const IBlackboxServicePtr Blackbox_;
+    const NProfiling::TProfiler Profiler_;
 
     TMonotonicCounter RejectedTokens_{"/blackbox_token_authenticator/rejected_tokens"};
     TMonotonicCounter InvalidBlackboxResponces_{"/blackbox_token_authenticator/invalid_responces"};
@@ -74,13 +77,13 @@ private:
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            LOG_DEBUG(result, "Blackbox authentication failed (TokenHash: %v)",
+            YT_LOG_DEBUG(result, "Blackbox authentication failed (TokenHash: %v)",
                 tokenHash);
             THROW_ERROR result
                 << TErrorAttribute("token_hash", tokenHash);
         }
 
-        LOG_DEBUG("Blackbox authentication successful (TokenHash: %v, Login: %v, Realm: %v)",
+        YT_LOG_DEBUG("Blackbox authentication successful (TokenHash: %v, Login: %v, Realm: %v)",
             tokenHash,
             result.Value().Login,
             result.Value().Realm);
@@ -149,9 +152,13 @@ private:
 
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TBlackboxTokenAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackboxService)
+    IBlackboxServicePtr blackboxService,
+    NProfiling::TProfiler profiler)
 {
-    return New<TBlackboxTokenAuthenticator>(std::move(config), std::move(blackboxService));
+    return New<TBlackboxTokenAuthenticator>(
+        std::move(config),
+        std::move(blackboxService),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,7 +180,7 @@ public:
         const auto& token = credentials.Token;
         const auto& userIP = credentials.UserIP;
         auto tokenHash = GetCryptoHash(token);
-        LOG_DEBUG("Authenticating user with token via Cypress (TokenHash: %v, UserIP: %v)",
+        YT_LOG_DEBUG("Authenticating user with token via Cypress (TokenHash: %v, UserIP: %v)",
             tokenHash,
             userIP);
 
@@ -194,11 +201,11 @@ private:
     {
         if (!callResult.IsOK()) {
             if (callResult.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                LOG_DEBUG(callResult, "Token is missing in Cypress (TokenHash: %v)",
+                YT_LOG_DEBUG(callResult, "Token is missing in Cypress (TokenHash: %v)",
                     tokenHash);
                 THROW_ERROR_EXCEPTION("Token is missing in Cypress");
             } else {
-                LOG_DEBUG(callResult, "Cypress authentication failed (TokenHash: %v)",
+                YT_LOG_DEBUG(callResult, "Cypress authentication failed (TokenHash: %v)",
                     tokenHash);
                 THROW_ERROR_EXCEPTION("Cypress authentication failed")
                     << TErrorAttribute("token_hash", tokenHash)
@@ -211,12 +218,12 @@ private:
             TAuthenticationResult authResult;
             authResult.Login = ConvertTo<TString>(ysonString);
             authResult.Realm = Config_->Realm;
-            LOG_DEBUG("Cypress authentication successful (TokenHash: %v, Login: %v)",
+            YT_LOG_DEBUG("Cypress authentication successful (TokenHash: %v, Login: %v)",
                 tokenHash,
                 authResult.Login);
             return authResult;
         } catch (const std::exception& ex) {
-            LOG_DEBUG(callResult, "Cypress contains malformed authentication entry (TokenHash: %v)",
+            YT_LOG_DEBUG(callResult, "Cypress contains malformed authentication entry (TokenHash: %v)",
                 tokenHash);
             THROW_ERROR_EXCEPTION("Malformed Cypress authentication entry")
                 << TErrorAttribute("token_hash", tokenHash);
@@ -238,8 +245,11 @@ class TCachingTokenAuthenticator
     , public TAsyncExpiringCache<TTokenCredentials, TAuthenticationResult>
 {
 public:
-    TCachingTokenAuthenticator(TCachingTokenAuthenticatorConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
-        : TAsyncExpiringCache(config->Cache)
+    TCachingTokenAuthenticator(
+        TCachingTokenAuthenticatorConfigPtr config,
+        ITokenAuthenticatorPtr tokenAuthenticator,
+        NProfiling::TProfiler profiler)
+        : TAsyncExpiringCache(config->Cache, std::move(profiler))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
 
@@ -259,9 +269,13 @@ private:
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     TCachingTokenAuthenticatorConfigPtr config,
-    ITokenAuthenticatorPtr authenticator)
+    ITokenAuthenticatorPtr authenticator,
+    NProfiling::TProfiler profiler)
 {
-    return New<TCachingTokenAuthenticator>(std::move(config), std::move(authenticator));
+    return New<TCachingTokenAuthenticator>(
+        std::move(config),
+        std::move(authenticator),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -371,12 +385,12 @@ public:
         const NRpc::TAuthenticationContext& context) override
     {
         if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            return Null;
+            return std::nullopt;
         }
 
         const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!ext.has_token()) {
-            return Null;
+            return std::nullopt;
         }
 
         TTokenCredentials credentials;
@@ -401,5 +415,4 @@ NRpc::IAuthenticatorPtr CreateTokenAuthenticatorWrapper(ITokenAuthenticatorPtr u
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAuth
-} // namespace NYT
+} // namespace NYT::NAuth

@@ -35,8 +35,7 @@
 
 #include <util/datetime/base.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -121,7 +120,7 @@ private:
             if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
                 WaitFor(RequestTableAttributes(PrimaryRevision_))
                     .ThrowOnError();
-                mountInfoOrError = WaitFor(RequestMountInfo(Null));
+                mountInfoOrError = WaitFor(RequestMountInfo(std::nullopt));
             }
 
             if (!mountInfoOrError.IsOK() && SecondaryRevision_) {
@@ -132,7 +131,7 @@ private:
                 auto wrappedError = TError("Error getting mount info for %v",
                     Key_.Path)
                     << mountInfoOrError;
-                LOG_WARNING(wrappedError);
+                YT_LOG_WARNING(wrappedError);
                 THROW_ERROR wrappedError;
             }
 
@@ -146,14 +145,14 @@ private:
 
         TTableId TableId_;
         TCellTag CellTag_;
-        TNullable<i64> PrimaryRevision_;
-        TNullable<i64> SecondaryRevision_;
+        std::optional<i64> PrimaryRevision_;
+        std::optional<i64> SecondaryRevision_;
 
         NLogging::TLogger Logger;
 
-        TFuture<void> RequestTableAttributes(TNullable<i64> refreshPrimaryRevision)
+        TFuture<void> RequestTableAttributes(std::optional<i64> refreshPrimaryRevision)
         {
-            LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
+            YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
                 refreshPrimaryRevision);
 
             auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
@@ -209,9 +208,9 @@ private:
             }
         }
 
-        TFuture<TTableMountInfoPtr> RequestMountInfo(TNullable<i64> refreshSecondaryRevision)
+        TFuture<TTableMountInfoPtr> RequestMountInfo(std::optional<i64> refreshSecondaryRevision)
         {
-            LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
+            YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
                 TableId_,
                 CellTag_,
                 refreshSecondaryRevision);
@@ -283,8 +282,8 @@ private:
 
                 // COMPAT(savrus)
                 tabletInfo->InMemoryMode = protoTabletInfo.has_in_memory_mode()
-                    ? MakeNullable(EInMemoryMode(protoTabletInfo.in_memory_mode()))
-                    : Null;
+                    ? std::make_optional(EInMemoryMode(protoTabletInfo.in_memory_mode()))
+                    : std::nullopt;
 
                 if (tableInfo->IsSorted()) {
                     // Take the actual pivot from master response.
@@ -337,7 +336,7 @@ private:
                 tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
             }
 
-            LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
+            YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
                 tableInfo->TableId,
                 tableInfo->Tablets.size(),
                 tableInfo->Dynamic,
@@ -374,6 +373,5 @@ ITableMountCachePtr CreateNativeTableMountCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient
 

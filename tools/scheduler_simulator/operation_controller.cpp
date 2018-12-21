@@ -5,8 +5,7 @@
 
 #include <yt/server/controller_agent/scheduling_context.h>
 
-namespace NYT {
-namespace NSchedulerSimulator {
+namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,7 +177,7 @@ public:
 
     virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override;
 
-    virtual void OnNonscheduledJobAborted(const TJobId&, EAbortReason) override;
+    virtual void OnNonscheduledJobAborted(TJobId, EAbortReason) override;
 
     virtual bool IsOperationCompleted() const override ;
 
@@ -360,7 +359,7 @@ void TSimulatorOperationController::OnJobCompleted(std::unique_ptr<TCompletedJob
     }
 }
 
-void TSimulatorOperationController::OnNonscheduledJobAborted(const TJobId& jobId, EAbortReason)
+void TSimulatorOperationController::OnNonscheduledJobAborted(TJobId jobId, EAbortReason)
 {
     const auto& jobDescription = IdToDescription_.Get(jobId);
 
@@ -436,7 +435,7 @@ TFuture<TScheduleJobResultPtr> TSimulatorOperationController::ScheduleJob(
     }
 
     auto jobId = TJobId::Create();
-    scheduleJobResult->StartDescriptor.Emplace(
+    scheduleJobResult->StartDescriptor.emplace(
         jobId,
         jobToSchedule.Type,
         jobToSchedule.ResourceLimits,
@@ -477,5 +476,4 @@ TString TSimulatorOperationController::GetLoggingProgress() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSchedulerSimulator
-} // namespace NYT
+} // namespace NYT::NSchedulerSimulator

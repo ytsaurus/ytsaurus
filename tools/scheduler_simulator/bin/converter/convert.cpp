@@ -66,7 +66,7 @@ private:
         OnEntryExtracted_(ConvertTo<T>(node));
         ++ExtractedCount_;
         if (ExtractedCount_ % 1000 == 0) {
-            LOG_INFO("Records extracted: %v", ExtractedCount_);
+            YT_LOG_INFO("Records extracted: %v", ExtractedCount_);
         }
     }
 

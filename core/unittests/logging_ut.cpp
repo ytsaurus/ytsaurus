@@ -3,6 +3,7 @@
 #include <yt/core/logging/log.h>
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/writer.h>
+#include <yt/core/logging/random_access_gzip.h>
 
 #include <yt/core/json/json_parser.h>
 
@@ -12,12 +13,13 @@
 
 #include <util/system/fs.h>
 
+#include <util/stream/zlib.h>
+
 #ifdef _unix_
 #include <unistd.h>
 #endif
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 using namespace NYTree;
 using namespace NYson;
@@ -70,14 +72,21 @@ protected:
         writer->Flush();
     }
 
-    std::vector<TString> ReadFile(const TString& fileName)
+    std::vector<TString> ReadFile(const TString& fileName, bool compressed = false)
     {
         std::vector<TString> lines;
 
         TString line;
         auto input = TUnbufferedFileInput(fileName);
-        while (input.ReadLine(line)) {
-            lines.push_back(line + "\n");
+        if (!compressed) {
+            while (input.ReadLine(line)) {
+                lines.push_back(line + "\n");
+            }
+        } else {
+            TZLibDecompress decompressor(&input);
+            while (decompressor.ReadLine(line)) {
+                lines.push_back(line + "\n");
+            }
         }
 
         return lines;
@@ -88,14 +97,14 @@ protected:
 
 TEST_F(TLoggingTest, ReloadsOnSigHup)
 {
-    LOG_INFO("Preparing logging thread");
+    YT_LOG_INFO("Preparing logging thread");
     Sleep(TDuration::MilliSeconds(100)); // In sleep() we trust.
 
     int version = TLogManager::Get()->GetVersion();
 
     kill(getpid(), SIGHUP);
 
-    LOG_INFO("Awaking logging thread");
+    YT_LOG_INFO("Awaking logging thread");
     Sleep(TDuration::Seconds(1)); // In sleep() we trust.
 
     int newVersion = TLogManager::Get()->GetVersion();
@@ -110,7 +119,7 @@ TEST_F(TLoggingTest, FileWriter)
     NFs::Remove("test.log");
 
     TIntrusivePtr<TFileLogWriter> writer;
-    writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log");
+    writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log", false);
     WritePlainTextEvent(writer.Get());
 
     {
@@ -134,6 +143,26 @@ TEST_F(TLoggingTest, FileWriter)
     }
 
     NFs::Remove("test.log");
+}
+
+TEST_F(TLoggingTest, Compression)
+{
+    NFs::Remove("test.log.gz");
+
+    TIntrusivePtr<TFileLogWriter> writer;
+    writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log.gz", true);
+    WritePlainTextEvent(writer.Get());
+
+    writer->Reload();
+
+    {
+        auto lines = ReadFile("test.log.gz", true);
+        EXPECT_EQ(2, lines.size());
+        EXPECT_TRUE(lines[0].find("Logging started") != -1);
+        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
+    }
+
+    NFs::Remove("test.log.gz");
 }
 
 TEST_F(TLoggingTest, StreamWriter)
@@ -200,9 +229,9 @@ TEST_F(TLoggingTest, LogManager)
 
     TLogManager::Get()->Configure(config);
 
-    LOG_DEBUG("Debug message");
-    LOG_INFO("Info message");
-    LOG_ERROR("Error message");
+    YT_LOG_DEBUG("Debug message");
+    YT_LOG_INFO("Info message");
+    YT_LOG_ERROR("Error message");
 
     Sleep(TDuration::Seconds(1));
 
@@ -248,7 +277,58 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
     NFs::Remove("test.log");
 }
 
-// This test is for manual check of LOG_FATAL
+TEST(TRandomAccessGZipTest, Write)
+{
+    NFs::Remove("test.txt.gz");
+
+    {
+        TRandomAccessGZipFile file("test.txt.gz");
+        file << "foo\n";
+        file.Flush();
+        file << "bar\n";
+        file.Finish();
+    }
+    {
+        TRandomAccessGZipFile file("test.txt.gz");
+        file << "zog\n";
+        file.Finish();
+    }
+
+    auto input = TUnbufferedFileInput("test.txt.gz");
+    TZLibDecompress decompress(&input);
+    EXPECT_EQ("foo\nbar\nzog\n", decompress.ReadAll());
+
+    NFs::Remove("test.txt.gz");
+}
+
+TEST(TRandomAccessGZipTest, RepairIncompleteBlocks)
+{
+    NFs::Remove("test.txt.gz");
+    {
+        TRandomAccessGZipFile file("test.txt.gz");
+        file << "foo\n";
+        file.Flush();
+        file << "bar\n";
+        file.Finish();
+    }
+
+    i64 fullSize;
+    {
+        TFile file("test.txt.gz", OpenAlways|RdWr);
+        fullSize = file.GetLength();
+        file.Resize(fullSize-1);
+    }
+
+    {
+        TRandomAccessGZipFile gzip("test.txt.gz");
+        TFile file("test.txt.gz", OpenAlways|RdWr);
+        EXPECT_LE(file.GetLength(), fullSize-1);
+    }
+
+    NFs::Remove("test.txt.gz");
+}
+
+// This test is for manual check of YT_LOG_FATAL
 TEST_F(TLoggingTest, DISABLED_LogFatal)
 {
     NFs::Remove("test.log");
@@ -275,12 +355,12 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
     TLogManager::Get()->Configure(config);
 
-    LOG_INFO("Info message");
+    YT_LOG_INFO("Info message");
 
     Sleep(TDuration::MilliSeconds(100));
 
-    LOG_INFO("Info message");
-    LOG_FATAL("FATAL");
+    YT_LOG_INFO("Info message");
+    YT_LOG_FATAL("FATAL");
 
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");
@@ -288,5 +368,4 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLogging
-} // namespace NYT
+} // namespace NYT::NLogging

@@ -8,8 +8,7 @@
 
 #include <util/system/yield.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,5 +67,4 @@ inline bool TReaderWriterSpinLock::TryAcquireWriter()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

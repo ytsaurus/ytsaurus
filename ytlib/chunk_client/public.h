@@ -9,10 +9,9 @@
 #include <yt/client/chunk_client/public.h>
 
 #include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,11 +159,10 @@ struct TClientBlockReadOptions;
 
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
-using TDataCenterName = TNullable<TString>;
+using TDataCenterName = std::optional<TString>;
 
 struct IBlocksExtCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

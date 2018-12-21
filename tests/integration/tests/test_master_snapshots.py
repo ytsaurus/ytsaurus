@@ -64,9 +64,7 @@ def check_removed_account():
         copy(table, "//tmp/a2_table{0}".format(i), attributes={"account": "a2"})
 
     for i in xrange(0, 5):
-        chunk_ids = get("//tmp/a2_table{0}/@chunk_ids".format(i))
-        assert(len(chunk_ids) == 1)
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/a2_table{0}".format(i))
         wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 2)
 
     for i in xrange(0, 5):
@@ -77,9 +75,7 @@ def check_removed_account():
     yield
 
     for i in xrange(0, 5):
-        chunk_ids = get("//tmp/a2_table{0}/@chunk_ids".format(i))
-        assert(len(chunk_ids) == 1)
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/a2_table{0}".format(i))
         wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 1)
 
 class TestSnapshot(YTEnvSetup):

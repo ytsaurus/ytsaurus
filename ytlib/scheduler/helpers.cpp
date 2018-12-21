@@ -27,8 +27,7 @@
 
 #include <util/string/ascii.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -51,7 +50,7 @@ TYPath GetOperationsPath()
     return "//sys/operations";
 }
 
-TYPath GetOperationPath(const TOperationId& operationId)
+TYPath GetOperationPath(TOperationId operationId)
 {
     int hashByte = operationId.Parts32[0] & 0xff;
     return
@@ -61,35 +60,35 @@ TYPath GetOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
-TYPath GetJobsPath(const TOperationId& operationId)
+TYPath GetJobsPath(TOperationId operationId)
 {
     return
         GetOperationPath(operationId) +
         "/jobs";
 }
 
-TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
+TYPath GetJobPath(TOperationId operationId, TJobId jobId)
 {
     return
         GetJobsPath(operationId) + "/" +
         ToYPathLiteral(ToString(jobId));
 }
 
-TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId)
+TYPath GetStderrPath(TOperationId operationId, TJobId jobId)
 {
     return
         GetJobPath(operationId, jobId)
         + "/stderr";
 }
 
-TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId)
+TYPath GetFailContextPath(TOperationId operationId, TJobId jobId)
 {
     return
         GetJobPath(operationId, jobId)
         + "/fail_context";
 }
 
-TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId)
+TYPath GetSchedulerOrchidOperationPath(TOperationId operationId)
 {
     return
         "//sys/scheduler/orchid/scheduler/operations/" +
@@ -105,7 +104,7 @@ TYPath GetSchedulerOrchidAliasPath(const TString& alias)
 
 TYPath GetControllerAgentOrchidOperationPath(
     const TString& controllerAgentAddress,
-    const TOperationId& operationId)
+    TOperationId operationId)
 {
     return
         "//sys/controller_agents/instances/" +
@@ -114,8 +113,8 @@ TYPath GetControllerAgentOrchidOperationPath(
         ToYPathLiteral(ToString(operationId));
 }
 
-TNullable<TString> GetControllerAgentAddressFromCypress(
-    const TOperationId& operationId,
+std::optional<TString> GetControllerAgentAddressFromCypress(
+    TOperationId operationId,
     const IChannelPtr& channel)
 {
     using NYT::ToProto;
@@ -137,21 +136,21 @@ TNullable<TString> GetControllerAgentAddressFromCypress(
 
     auto responseOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_agent_address");
     if (responseOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-        return Null;
+        return std::nullopt;
     }
 
     const auto& response = responseOrError.ValueOrThrow();
     return ConvertTo<TString>(TYsonString(response->value()));
 }
 
-TYPath GetSnapshotPath(const TOperationId& operationId)
+TYPath GetSnapshotPath(TOperationId operationId)
 {
     return
         GetOperationPath(operationId)
         + "/snapshot";
 }
 
-TYPath GetSecureVaultPath(const TOperationId& operationId)
+TYPath GetSecureVaultPath(TOperationId operationId)
 {
     return
         GetOperationPath(operationId)
@@ -159,8 +158,8 @@ TYPath GetSecureVaultPath(const TOperationId& operationId)
 }
 
 NYPath::TYPath GetJobPath(
-    const TOperationId& operationId,
-    const TJobId& jobId,
+    TOperationId operationId,
+    TJobId jobId,
     const TString& resourceName)
 {
     TString suffix;
@@ -216,6 +215,12 @@ const TYPath& GetOperationsArchiveJobSpecsPath()
 const TYPath& GetOperationsArchiveJobStderrsPath()
 {
     static TYPath path = "//sys/operations_archive/stderrs";
+    return path;
+}
+
+const TYPath& GetOperationsArchiveJobProfilesPath()
+{
+    static TYPath path = "//sys/operations_archive/job_profiles";
     return path;
 }
 
@@ -315,7 +320,7 @@ TError GetSchedulerTransactionsAbortedError(const std::vector<TTransactionId>& t
         transactionIds);
 }
 
-TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
+TError GetUserTransactionAbortedError(TTransactionId transactionId)
 {
     return TError(
         NTransactionClient::EErrorCode::NoSuchTransaction,
@@ -325,7 +330,7 @@ TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SaveJobFiles(NNative::IClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files)
+void SaveJobFiles(NNative::IClientPtr client, TOperationId operationId, const std::vector<TJobFile>& files)
 {
     using NYT::FromProto;
     using NYT::ToProto;
@@ -508,7 +513,7 @@ void SaveJobFiles(NNative::IClientPtr client, const TOperationId& operationId, c
 
 void ValidateOperationPermission(
     const TString& user,
-    const TOperationId& operationId,
+    TOperationId operationId,
     const IClientPtr& client,
     EPermission permission,
     const TLogger& logger,
@@ -516,7 +521,7 @@ void ValidateOperationPermission(
 {
     const auto& Logger = logger;
 
-    LOG_DEBUG("Validating operation permission (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
+    YT_LOG_DEBUG("Validating operation permission (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
         permission,
         user,
         operationId,
@@ -533,7 +538,7 @@ void ValidateOperationPermission(
 
     const auto& result = resultOrError.Value();
     if (result.Action == ESecurityAction::Allow) {
-        LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
+        YT_LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
             permission,
             user,
             operationId,
@@ -569,6 +574,5 @@ void BuildOperationAce(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

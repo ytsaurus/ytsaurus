@@ -2,8 +2,7 @@
 
 #include "operation_controller.h"
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NConcurrency;
 using namespace NControllerAgent;
@@ -62,7 +61,7 @@ bool TFairShareStrategyOperationController::IsBlocked(
 {
     auto concurrentScheduleJobCalls = ConcurrentScheduleJobCalls_.load();
     if (concurrentScheduleJobCalls >= maxConcurrentScheduleJobCalls) {
-        LOG_DEBUG_UNLESS(Blocked_,
+        YT_LOG_DEBUG_UNLESS(Blocked_,
             "Operation blocked in fair share strategy due to violation of maximum concurrent schedule job calls (ConcurrentScheduleJobCalls: %v)",
             concurrentScheduleJobCalls);
         Blocked_.store(true);
@@ -70,17 +69,17 @@ bool TFairShareStrategyOperationController::IsBlocked(
     }
 
     if (LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now) {
-        LOG_DEBUG_UNLESS(Blocked_, "Operation blocked in fair share strategy due to schedule job failure");
+        YT_LOG_DEBUG_UNLESS(Blocked_, "Operation blocked in fair share strategy due to schedule job failure");
         Blocked_.store(true);
         return true;
     }
 
-    LOG_DEBUG_UNLESS(!Blocked_, "Operation unblocked in fair share strategy");
+    YT_LOG_DEBUG_UNLESS(!Blocked_, "Operation unblocked in fair share strategy");
     Blocked_.store(false);
     return false;
 }
 
-void TFairShareStrategyOperationController::AbortJob(const TJobId& jobId, EAbortReason abortReason)
+void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason)
 {
     Controller_->OnNonscheduledJobAborted(jobId, abortReason);
 }
@@ -112,7 +111,7 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
                     const auto& scheduleJobResult = scheduleJobResultOrError.Value();
                     if (scheduleJobResult->StartDescriptor) {
                         const auto& jobId = scheduleJobResult->StartDescriptor->Id;
-                        LOG_WARNING("Aborting late job (JobId: %v)",
+                        YT_LOG_WARNING("Aborting late job (JobId: %v)",
                             jobId);
                         AbortJob(jobId, EAbortReason::SchedulingTimeout);
                     }
@@ -156,5 +155,4 @@ bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(NProfilin
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler

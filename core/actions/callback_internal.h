@@ -20,8 +20,7 @@ $$==============================================================================
 
 #include <yt/core/tracing/trace_context.h>
 
-namespace NYT {
-namespace NDetail {
+namespace NYT::NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,8 +109,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */
-} // namespace NDetail
-} // namespace NY
+} // namespace NYT::NDetail
 
 #define CALLBACK_INTERNAL_INL_H_
 #include "callback_internal-inl.h"

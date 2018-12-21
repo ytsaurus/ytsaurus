@@ -5,8 +5,7 @@
 #include "node.h"
 #endif
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,12 +24,12 @@ inline void TCypressNodeBase::SetAccessStatisticsUpdateIndex(int value)
     GetDynamicData()->AccessStatisticsUpdateIndex = value;
 }
 
-inline TNullable<TCypressNodeExpirationMap::iterator> TCypressNodeBase::GetExpirationIterator() const
+inline std::optional<TCypressNodeExpirationMap::iterator> TCypressNodeBase::GetExpirationIterator() const
 {
     return GetDynamicData()->ExpirationIterator;
 }
 
-inline void TCypressNodeBase::SetExpirationIterator(TNullable<TCypressNodeExpirationMap::iterator> value)
+inline void TCypressNodeBase::SetExpirationIterator(std::optional<TCypressNodeExpirationMap::iterator> value)
 {
     GetDynamicData()->ExpirationIterator = value;
 }
@@ -115,5 +114,4 @@ void TVersionedBuiltinAttribute<T>::Persist(NCellMaster::TPersistenceContext& co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer

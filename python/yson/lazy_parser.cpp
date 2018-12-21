@@ -1,8 +1,7 @@
 #include "lazy_parser.h"
 #include "lazy_yson_consumer.h"
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 using namespace NYTree;
 
@@ -10,7 +9,7 @@ using namespace NYTree;
 
 Py::Object ParseLazyYson(
     IInputStream* inputStream,
-    const TNullable<TString>& encoding,
+    const std::optional<TString>& encoding,
     bool alwaysCreateAttributes,
     NYson::EYsonType ysonType)
 {
@@ -62,5 +61,4 @@ Py::Object ParseLazyYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

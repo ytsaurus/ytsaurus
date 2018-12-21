@@ -4,28 +4,27 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NShell {
+namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TShellOptions
 {
     TString ExePath = "/bin/bash";
-    TNullable<int> Uid;
+    std::optional<int> Uid;
     TString Term = "xterm";
     int Height = 24;
     int Width = 80;
     TString WorkingDir = "/";
-    TNullable<TString> CGroupBasePath;
+    std::optional<TString> CGroupBasePath;
     std::vector<TString> Environment;
-    TNullable<TString> Bashrc;
-    TNullable<TString> MessageOfTheDay;
+    std::optional<TString> Bashrc;
+    std::optional<TString> MessageOfTheDay;
     TDuration InactivityTimeout;
-    TNullable<TString> Command;
+    std::optional<TString> Command;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +33,7 @@ struct TShellOptions
 struct IShell
     : public virtual TRefCounted
 {
-    virtual const TShellId& GetId() = 0;
+    virtual TShellId GetId() = 0;
     virtual void ResizeWindow(int height, int width) = 0;
     //! Inserts keys into input sequence at specified offset.
     //! Returns consumed offset of the input sequence.
@@ -55,5 +54,4 @@ IShellPtr CreateShell(std::unique_ptr<TShellOptions> options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NShell
-} // namespace NYT
+} // namespace NYT::NShell

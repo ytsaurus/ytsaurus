@@ -15,8 +15,7 @@
 
 #include <util/string/escape.h>
 
-namespace NYT {
-namespace NFormats {
+namespace NYT::NFormats {
 
 using namespace NYTree;
 using namespace NTableClient;
@@ -453,5 +452,4 @@ const char* TYamrLenvalBaseParser::ConsumeData(const char* begin, const char* en
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
-} // namespace NYT
+} // namespace NYT::NFormats

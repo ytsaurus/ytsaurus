@@ -21,8 +21,6 @@
 
 #include <yt/server/cypress_server/cypress_manager.h>
 
-#include <yt/server/node_tracker_server/node_tracker.pb.h>
-
 #include <yt/server/object_server/attribute_set.h>
 #include <yt/server/object_server/object_manager.h>
 #include <yt/server/object_server/type_handler_detail.h>
@@ -55,8 +53,7 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NNodeTrackerServer {
+namespace NYT::NNodeTrackerServer {
 
 using namespace NConcurrency;
 using namespace NNet;
@@ -150,7 +147,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -195,7 +192,7 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override;
 
 private:
@@ -238,6 +235,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetCellNodeDescriptors, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateNodeResources, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -315,7 +313,7 @@ public:
             ++group->PendingRegisterNodeMutationCount;
         }
 
-        LOG_DEBUG("Node register mutation scheduled (Address: %v, NodeGroups: %v)",
+        YT_LOG_DEBUG("Node register mutation scheduled (Address: %v, NodeGroups: %v)",
             address,
             MakeFormattableRange(groups, [] (auto* builder, const auto* group) {
                 builder->AppendFormat("%v", group->Id);
@@ -486,7 +484,7 @@ public:
         if (node->GetBanned() != value) {
             node->SetBanned(value);
             if (value) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
                 if (Bootstrap_->IsPrimaryMaster()) {
@@ -496,7 +494,7 @@ public:
                     }
                 }
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer banned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Node is no longer banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -509,11 +507,11 @@ public:
         if (node->GetDecommissioned() != value) {
             node->SetDecommissioned(value);
             if (value) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -526,11 +524,11 @@ public:
         if (node->GetDisableWriteSessions() != value) {
             node->SetDisableWriteSessions(value);
             if (value) {
-                LOG_INFO_UNLESS(IsRecovery(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -542,11 +540,11 @@ public:
         if (node->GetDisableTabletCells() != value) {
             node->SetDisableTabletCells(value);
             if (value) {
-                LOG_INFO_UNLESS(IsRecovery(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Enabled tablet cells on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_UNLESS(IsRecovery(), "Enabled tablet cells on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -560,10 +558,10 @@ public:
             auto* oldRack = node->GetRack();
             UpdateNodeCounters(node, -1);
             node->SetRack(rack);
-            LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
-                rack ? MakeNullable(rack->GetName()) : Null);
+                rack ? std::make_optional(rack->GetName()) : std::nullopt);
             NodeRackChanged_.Fire(node, oldRack);
             NodeTagsChanged_.Fire(node);
             UpdateNodeCounters(node, +1);
@@ -578,8 +576,16 @@ public:
         UpdateNodeCounters(node, +1);
     }
 
+    std::unique_ptr<TMutation> CreateUpdateNodeResourcesMutation(const NProto::TReqUpdateNodeResources& request)
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            &TImpl::HydraUpdateNodeResources,
+            this);
+    }
 
-    TRack* CreateRack(const TString& name, const TObjectId& hintId)
+    TRack* CreateRack(const TString& name, TObjectId hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Rack name cannot be empty");
@@ -684,9 +690,9 @@ public:
                 UpdateNodeCounters(node, +1);
             }
 
-            LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
-                MakeNullable(rack->GetName()),
-                dataCenter ? MakeNullable(dataCenter->GetName()) : Null);
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
+                std::make_optional(rack->GetName()),
+                dataCenter ? std::make_optional(dataCenter->GetName()) : std::nullopt);
 
             for (auto* node : nodes) {
                 NodeDataCenterChanged_.Fire(node, oldDataCenter);
@@ -695,7 +701,7 @@ public:
     }
 
 
-    TDataCenter* CreateDataCenter(const TString& name, const TObjectId& hintId)
+    TDataCenter* CreateDataCenter(const TString& name, TObjectId hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Data center name cannot be empty");
@@ -921,7 +927,8 @@ private:
 
     static TYPath GetNodePath(const TString& address)
     {
-        return GetClusterNodesPath() + "/" + ToYPathLiteral(address);
+        // TODO(babenko): use GetClusterNodesPath 
+        return "//sys/nodes/" + ToYPathLiteral(address);
     }
 
     static TYPath GetNodePath(TNode* node)
@@ -932,7 +939,8 @@ private:
     IMapNodePtr GetNodeMap()
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return cypressManager->ResolvePathToNodeProxy(GetClusterNodesPath())->AsMap();
+        // TODO(babenko): use GetClusterNodesPath
+        return cypressManager->ResolvePathToNodeProxy("//sys/nodes")->AsMap();
     }
 
     void HydraRegisterNode(
@@ -974,7 +982,7 @@ private:
             if (Bootstrap_->IsPrimaryMaster()) {
                 auto localState = node->GetLocalState();
                 if (localState == ENodeState::Registered || localState == ENodeState::Online) {
-                    LOG_INFO_UNLESS(IsRecovery(), "Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
+                    YT_LOG_INFO_UNLESS(IsRecovery(), "Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
                         node->GetId(),
                         address,
                         localState);
@@ -997,7 +1005,7 @@ private:
             node = CreateNode(nodeId, nodeAddresses);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
             node->GetId(),
             address,
             tags,
@@ -1008,7 +1016,7 @@ private:
         node->SetNodeTags(tags);
         UpdateNodeCounters(node, +1);
 
-        node->SetStatistics(std::move(statistics));
+        node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
 
         if (request->has_cypress_annotations()) {
             node->SetAnnotations(TYsonString(request->cypress_annotations(), EYsonType::Node));
@@ -1085,7 +1093,7 @@ private:
         }
 
         PROFILE_AGGREGATED_TIMING (FullHeartbeatTimeCounter) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
@@ -1095,11 +1103,11 @@ private:
             node->SetLocalState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
 
-            node->SetStatistics(std::move(statistics));
+            node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
 
             UpdateLastSeenTime(node);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
                 nodeId,
                 node->GetDefaultAddress());
 
@@ -1124,13 +1132,13 @@ private:
         }
 
         PROFILE_AGGREGATED_TIMING (IncrementalHeartbeatTimeCounter) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
                 statistics);
 
-            node->SetStatistics(std::move(statistics));
+            node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
             node->Alerts() = FromProto<std::vector<TError>>(request->alerts());
 
             UpdateLastSeenTime(node);
@@ -1160,12 +1168,12 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Received cell node descriptor gossip message (CellTag: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Received cell node descriptor gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -1178,6 +1186,20 @@ private:
             node->SetCellDescriptor(cellTag, newDescriptor);
             UpdateNodeCounters(node, +1);
         }
+    }
+
+    void HydraUpdateNodeResources(NProto::TReqUpdateNodeResources* request)
+    {
+        auto* node = FindNode(request->node_id());
+        if (!node) {
+            YT_LOG_ERROR_UNLESS(IsRecovery(),
+                "Error updating cluster node resource usage and limits: node not found (NodeId: %v)",
+                request->node_id());
+            return;
+        }
+
+        node->SetResourceUsage(request->resource_usage());
+        node->SetResourceLimits(request->resource_limits());
     }
 
 
@@ -1257,6 +1279,7 @@ private:
 
             node->RebuildTags();
             InitializeNodeStates(node);
+            InitializeNodeIOWeights(node);
             InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
@@ -1360,6 +1383,11 @@ private:
         node->InitializeStates(Bootstrap_->GetCellTag(), Bootstrap_->GetSecondaryCellTags());
     }
 
+    void InitializeNodeIOWeights(TNode* node)
+    {
+        node->RecomputeIOWeights(Bootstrap_->GetChunkManager());
+    }
+
     void UpdateNodeCounters(TNode* node, int delta)
     {
         if (node->GetLocalState() == ENodeState::Registered) {
@@ -1412,7 +1440,7 @@ private:
             return;
 
         auto* node = it->second;
-        LOG_INFO_UNLESS(IsRecovery(), "Node lease transaction finished (NodeId: %v, Address: %v, TransactionId: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Node lease transaction finished (NodeId: %v, Address: %v, TransactionId: %v)",
             node->GetId(),
             node->GetDefaultAddress(),
             transaction->GetId());
@@ -1457,7 +1485,7 @@ private:
                 SyncExecuteVerb(rootService, req);
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
+            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
         }
 
         UpdateNode(node, nodeAddresses);
@@ -1480,7 +1508,7 @@ private:
             req->set_value(ConvertToYsonString(node->GetAddressesOrThrow(EAddressType::InternalRpc)).GetData());
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");
+            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");
         }
     }
 
@@ -1508,7 +1536,7 @@ private:
                 }
             }
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
         }
@@ -1520,7 +1548,7 @@ private:
             node->SetLocalState(ENodeState::Offline);
             NodeDisposed_.Fire(node);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
         }
@@ -1571,7 +1599,7 @@ private:
             return;
         }
 
-        LOG_INFO("Sending node states gossip message (Incremental: %v)",
+        YT_LOG_INFO("Sending node states gossip message (Incremental: %v)",
             incremental);
         multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
     }
@@ -1933,6 +1961,12 @@ void TNodeTracker::SetNodeUserTags(TNode* node, const std::vector<TString>& tags
     Impl_->SetNodeUserTags(node, tags);
 }
 
+std::unique_ptr<TMutation> TNodeTracker::CreateUpdateNodeResourcesMutation(
+    const NProto::TReqUpdateNodeResources& request)
+{
+    return Impl_->CreateUpdateNodeResourcesMutation(request);
+}
+
 TRack* TNodeTracker::CreateRack(const TString& name)
 {
     return Impl_->CreateRack(name, NullObjectId);
@@ -2064,7 +2098,7 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
@@ -2093,7 +2127,7 @@ TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
-    const TObjectId& hintId,
+    TObjectId hintId,
     IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<TString>("name");
@@ -2117,5 +2151,4 @@ void TNodeTracker::TDataCenterTypeHandler::DoZombifyObject(TDataCenter* dc)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
-} // namespace NYT
+} // namespace NYT::NNodeTrackerServer

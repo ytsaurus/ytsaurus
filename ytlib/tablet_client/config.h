@@ -10,8 +10,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NTabletClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,11 +40,14 @@ class TDynamicTabletCellOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<double> CpuPerTabletSlot;
+    std::optional<double> CpuPerTabletSlot;
+    std::optional<bool> SuppressTabletCellDecommission;
 
     TDynamicTabletCellOptions()
     {
         RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
+            .Optional();
+        RegisterParameter("suppress_tablet_cell_decommission", SuppressTabletCellDecommission)
             .Optional();
     }
 };
@@ -58,7 +60,7 @@ class TTabletCellConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    std::vector<TNullable<TString>> Addresses;
+    std::vector<std::optional<TString>> Addresses;
 
     TTabletCellConfig()
     {
@@ -70,5 +72,4 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletClient
-} // namespace NYT
+} // namespace NYT::NTabletClient

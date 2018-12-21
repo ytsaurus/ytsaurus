@@ -19,8 +19,7 @@
 
 #include <yt/core/tracing/public.h>
 
-namespace NYT {
-namespace NHiveServer {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +63,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, PostBatchingCookie);
 
 public:
-    explicit TMailbox(const TCellId& cellId);
+    explicit TMailbox(TCellId cellId);
 
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);
@@ -72,5 +71,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
-} // namespace NYT
+} // namespace NYT::NHiveServer

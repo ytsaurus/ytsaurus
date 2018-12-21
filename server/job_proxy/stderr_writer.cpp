@@ -2,8 +2,7 @@
 
 #include "private.h"
 
-namespace NYT {
-namespace NJobProxy {
+namespace NYT::NJobProxy {
 
 using namespace NFileClient;
 
@@ -108,7 +107,7 @@ void TStderrWriter::DoWrite(const void* buf_, size_t len)
     }
 
     if (!Tail_) {
-        Tail_.Emplace(PartLimit_);
+        Tail_.emplace(PartLimit_);
     }
     Tail_->Write(buf, len);
 }
@@ -147,7 +146,7 @@ void TStderrWriter::Upload(
     NApi::TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
     NApi::NNative::IClientPtr client,
-    const NObjectClient::TTransactionId& transactionId,
+    NObjectClient::TTransactionId transactionId,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
@@ -163,11 +162,41 @@ void TStderrWriter::Upload(
         fileChunkOutput.Finish();
         ChunkId_ = fileChunkOutput.GetChunkId();
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Writing stderr data to chunk failed");
+        YT_LOG_WARNING(ex, "Writing stderr data to chunk failed");
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
-} // namespace NYT
+TProfileWriter::TProfileWriter(size_t sizeLimit)
+    : Limit_(sizeLimit)
+{ }
+
+bool TProfileWriter::IsTruncated() const
+{
+    return Truncated_;
+}
+
+std::pair<TString, TString> TProfileWriter::GetProfile() const
+{
+    constexpr int MaxTypeLength = 256;
+    auto pos = Buffer_.find('\n');
+    if (pos == TString::npos || pos > MaxTypeLength) {
+        THROW_ERROR_EXCEPTION("Incorrect profile format");
+    }
+
+    return {Buffer_.substr(0, pos), Buffer_.substr(pos + 1)};
+}
+
+void TProfileWriter::DoWrite(const void* buf, size_t len)
+{
+    auto size = std::min(len, Limit_ - Buffer_.size());
+    if (size != len) {
+        Truncated_ = true;
+    }
+    Buffer_ += TString(reinterpret_cast<const char*>(buf), size);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NJobProxy

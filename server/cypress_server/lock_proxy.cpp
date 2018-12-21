@@ -11,8 +11,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NCypressServer {
+namespace NYT::NCypressServer {
 
 using namespace NYson;
 using namespace NYTree;
@@ -118,6 +117,5 @@ IObjectProxyPtr CreateLockProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
-} // namespace NYT
+} // namespace NYT::NCypressServer
 

@@ -17,10 +17,9 @@
 
 #include <yt/core/misc/error.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NJobAgent {
+namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,8 +37,8 @@ struct IJob
     virtual void Abort(const TError& error) = 0;
     virtual void Fail() = 0;
 
-    virtual const TJobId& GetId() const = 0;
-    virtual const TOperationId& GetOperationId() const = 0;
+    virtual TJobId GetId() const = 0;
+    virtual TOperationId GetOperationId() const = 0;
 
     virtual EJobType GetType() const = 0;
 
@@ -68,6 +67,7 @@ struct IJob
 
     virtual void SetStderr(const TString& value) = 0;
     virtual void SetFailContext(const TString& value) = 0;
+    virtual void SetProfile(const TJobProfile& value) = 0;
 
     virtual NYson::TYsonString GetStatistics() const = 0;
     virtual void SetStatistics(const NYson::TYsonString& statistics) = 0;
@@ -75,16 +75,16 @@ struct IJob
     virtual void OnJobPrepared() = 0;
 
     virtual TInstant GetStartTime() const = 0;
-    virtual TNullable<TDuration> GetPrepareDuration() const = 0;
-    virtual TNullable<TDuration> GetDownloadDuration() const = 0;
-    virtual TNullable<TDuration> GetExecDuration() const = 0;
+    virtual std::optional<TDuration> GetPrepareDuration() const = 0;
+    virtual std::optional<TDuration> GetDownloadDuration() const = 0;
+    virtual std::optional<TDuration> GetExecDuration() const = 0;
 
     virtual TInstant GetStatisticsLastSendTime() const = 0;
     virtual void ResetStatisticsLastSendTime() = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual TString GetStderr() = 0;
-    virtual TNullable<TString> GetFailContext() = 0;
+    virtual std::optional<TString> GetFailContext() = 0;
     virtual NYson::TYsonString StraceJob() = 0;
     virtual void SignalJob(const TString& signalName) = 0;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
@@ -96,6 +96,7 @@ struct IJob
     virtual void ReportSpec() = 0;
     virtual void ReportStderr() = 0;
     virtual void ReportFailContext() = 0;
+    virtual void ReportProfile() = 0;
 
     virtual void Interrupt() = 0;
 };
@@ -103,8 +104,8 @@ struct IJob
 DEFINE_REFCOUNTED_TYPE(IJob)
 
 using TJobFactory = TCallback<IJobPtr(
-    const TJobId& jobId,
-    const TOperationId& operationId,
+    TJobId jobId,
+    TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
 
@@ -114,5 +115,4 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobAgent
-} // namespace NYT
+} // namespace NYT::NJobAgent

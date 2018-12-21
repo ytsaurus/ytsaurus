@@ -9,8 +9,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,5 +83,4 @@ DEFINE_REFCOUNTED_TYPE(TInvokerQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

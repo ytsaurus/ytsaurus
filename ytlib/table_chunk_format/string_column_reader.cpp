@@ -12,8 +12,7 @@
 #include <yt/core/misc/bitmap.h>
 #include <yt/core/misc/zigzag.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NProto;
@@ -505,5 +504,4 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

@@ -17,8 +17,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,16 +270,16 @@ private:
     NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag);
 
     //! Updates the rack of the local node.
-    void UpdateRack(const TNullable<TString>& rack);
+    void UpdateRack(const std::optional<TString>& rack);
 
     //! Updates the data center of the local node.
-    void UpdateDataCenter(const TNullable<TString>& dc);
+    void UpdateDataCenter(const std::optional<TString>& dc);
 
     //! Updates the tags of the local node.
     void UpdateTags(std::vector<TString> tags);
 
     TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
-    TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);
+    TChunksDelta* GetChunksDelta(NObjectClient::TObjectId id);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -290,5 +289,4 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

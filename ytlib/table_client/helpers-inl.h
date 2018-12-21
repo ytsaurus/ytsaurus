@@ -5,8 +5,7 @@
 #include "helpers.h"
 #endif
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +36,4 @@ inline void GetValue(TStringBuf* result, const TUnversionedValue& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NTableClient
+} // namespace NTableClient::NYT

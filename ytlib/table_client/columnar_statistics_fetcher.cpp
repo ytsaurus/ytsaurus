@@ -9,8 +9,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 using namespace NApi;
@@ -63,7 +62,7 @@ void TColumnarStatisticsFetcher::OnResponse(
     const TDataNodeServiceProxy::TErrorOrRspGetColumnarStatisticsPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        LOG_INFO(rspOrError, "Failed to get columnar statistics from node (Address: %v, NodeId: %v)",
+        YT_LOG_INFO(rspOrError, "Failed to get columnar statistics from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
         OnNodeFailed(nodeId, chunkIndexes);
@@ -119,7 +118,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
             {
                 // Default value of sizeof(TTimestamp) = 8 is used for versioned chunks that were written before
                 // we started to save the timestamp statistics to columnar statistics extension.
-                totalColumnDataWeight += statistics.TimestampTotalWeight.Get(sizeof(TTimestamp));
+                totalColumnDataWeight += statistics.TimestampTotalWeight.value_or(sizeof(TTimestamp));
             } else {
                 THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an old table format")
                     << TErrorAttribute("chunk_id", chunk->ChunkId())
@@ -154,5 +153,4 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

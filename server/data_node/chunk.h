@@ -9,8 +9,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +30,7 @@ struct TBlockReadOptions
 struct IChunk
     : public virtual TRefCounted
 {
-    virtual const TChunkId& GetId() const = 0;
+    virtual TChunkId GetId() const = 0;
     virtual TLocationPtr GetLocation() const = 0;
     virtual NChunkClient::NProto::TChunkInfo GetInfo() const = 0;
 
@@ -62,7 +61,7 @@ struct IChunk
      */
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TBlockReadOptions& options,
-        const TNullable<std::vector<int>>& extensionTags = Null) = 0;
+        const std::optional<std::vector<int>>& extensionTags = std::nullopt) = 0;
 
     //! Asynchronously reads a set of blocks.
     /*!
@@ -169,6 +168,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

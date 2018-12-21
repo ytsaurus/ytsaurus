@@ -16,8 +16,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -33,7 +32,7 @@ const TChunk::TReplicasData TChunk::EmptyReplicasData = {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunk::TChunk(const TChunkId& id)
+TChunk::TChunk(TChunkId id)
     : TChunkTree(id)
     , AggregatedRequisitionIndex_(IsErasure()
         ? MigrationErasureChunkRequisitionIndex
@@ -502,7 +501,7 @@ void TChunk::Seal(const TMiscExt& info)
 
 int TChunk::GetMaxReplicasPerRack(
     int mediumIndex,
-    TNullable<int> replicationFactorOverride,
+    std::optional<int> replicationFactorOverride,
     const TChunkRequisitionRegistry* registry) const
 {
     switch (GetType()) {
@@ -608,8 +607,7 @@ void TChunk::FixExportRequisitionIndexes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer
 
 Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore400);
 Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore619);

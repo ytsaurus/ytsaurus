@@ -79,7 +79,7 @@ Poco::Timestamp TExternalLoaderConfigRepository::getLastModificationTime(
 Poco::AutoPtr<Poco::Util::AbstractConfiguration> TExternalLoaderConfigRepository::load(
     const std::string& configFile) const
 {
-    return ConfigRepository->Load(configFile);
+    return new Poco::Util::LayeredConfiguration();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

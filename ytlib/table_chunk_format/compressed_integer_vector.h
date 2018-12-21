@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/ref.h>
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,8 +61,7 @@ void PrepareDiffFromExpected(std::vector<ui32>* values, ui32* expected, ui32* ma
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat
 
 #define INCLUDE_COMPRESSED_INTEGER_VECTOR_INL_H
 #include "compressed_integer_vector-inl.h"

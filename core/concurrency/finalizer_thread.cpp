@@ -6,8 +6,7 @@
 
 #include <yt/core/misc/ref_counted_tracker.h>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,6 +198,5 @@ REGISTER_SHUTDOWN_CALLBACK(1, ShutdownFinalizerThread);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 

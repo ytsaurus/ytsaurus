@@ -4,8 +4,7 @@
 
 #include <yt/core/misc/raw_formatter.h>
 
-namespace NYT {
-namespace NLogging {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,5 +17,4 @@ void FormatLevel(TMessageBuffer* out, ELogLevel level);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
-} // namespace NLogging
+} // namespace NLogging::NYT

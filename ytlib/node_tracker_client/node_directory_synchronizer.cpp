@@ -14,8 +14,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NNodeTrackerClient {
+namespace NYT::NNodeTrackerClient {
 
 using namespace NConcurrency;
 using namespace NApi;
@@ -66,7 +65,7 @@ private:
     void DoSync()
     {
         try {
-            LOG_DEBUG("Started updating node directory");
+            YT_LOG_DEBUG("Started updating node directory");
 
             TGetClusterMetaOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;
@@ -76,7 +75,7 @@ private:
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);
 
-            LOG_DEBUG("Finished updating node directory");
+            YT_LOG_DEBUG("Finished updating node directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating node directory")
                 << ex;
@@ -88,7 +87,7 @@ private:
         try {
             DoSync();
         } catch (const std::exception& ex) {
-            LOG_DEBUG(TError(ex));
+            YT_LOG_DEBUG(TError(ex));
         }
     }
 };
@@ -119,5 +118,4 @@ void TNodeDirectorySynchronizer::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerClient
-} // namespace NYT
+} // namespace NYT::NNodeTrackerClient

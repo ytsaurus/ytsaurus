@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/async_cache.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NHydra;
 using namespace NHydra::NProto;
@@ -66,11 +65,11 @@ public:
 
     TFuture<IChangelogPtr> OpenChangelog(
         const TStoreLocationPtr& location,
-        const TChunkId& chunkId);
+        TChunkId chunkId);
 
     TFuture<IChangelogPtr> CreateChangelog(
         const TStoreLocationPtr& location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         bool enableMultiplexing,
         const TWorkloadDescriptor& workloadDescriptor);
 
@@ -80,7 +79,7 @@ public:
 
     TFuture<bool> IsChangelogSealed(
         const TStoreLocationPtr& location,
-        const TChunkId& chunkId);
+        TChunkId chunkId);
 
     TFuture<void> SealChangelog(TJournalChunkPtr chunk);
 
@@ -92,7 +91,7 @@ private:
 
     IChangelogPtr OnChangelogOpenedOrCreated(
         TStoreLocationPtr location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         bool enableMultiplexing,
         TInsertCookie cookie,
         const TErrorOr<IChangelogPtr>& changelogOrError);
@@ -112,7 +111,7 @@ public:
     TCachedChangelog(
         TImplPtr owner,
         TStoreLocationPtr location,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         IChangelogPtr underlyingChangelog,
         bool enableMultiplexing)
         : TAsyncCacheValueBase({location, chunkId})
@@ -125,7 +124,7 @@ public:
 
     ~TCachedChangelog()
     {
-        LOG_DEBUG("Cached changelog destroyed (LocationId: %v, ChunkId: %v)",
+        YT_LOG_DEBUG("Cached changelog destroyed (LocationId: %v, ChunkId: %v)",
             Location_->GetId(),
             ChunkId_);
     }
@@ -203,7 +202,7 @@ private:
 
 TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId)
+    TChunkId chunkId)
 {
     auto cookie = BeginInsert({location, chunkId});
     if (!cookie.IsActive()) {
@@ -222,7 +221,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
 
 IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
     TStoreLocationPtr location,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     bool enableMultiplexing,
     TInsertCookie cookie,
     const TErrorOr<IChangelogPtr>& changelogOrError)
@@ -244,7 +243,7 @@ IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
 
 TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     bool enableMultiplexing,
     const TWorkloadDescriptor& workloadDescriptor)
 {
@@ -286,7 +285,7 @@ TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
 
 TFuture<bool> TJournalDispatcher::TImpl::IsChangelogSealed(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId)
+    TChunkId chunkId)
 {
     const auto& journalManager = location->GetJournalManager();
     return journalManager->IsChangelogSealed(chunkId);
@@ -306,7 +305,7 @@ void TJournalDispatcher::TImpl::OnAdded(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnAdded(changelog);
 
     auto key = changelog->GetKey();
-    LOG_TRACE("Journal chunk added to cache (LocationId: %v, ChunkId: %v)",
+    YT_LOG_TRACE("Journal chunk added to cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }
@@ -318,7 +317,7 @@ void TJournalDispatcher::TImpl::OnRemoved(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnRemoved(changelog);
 
     auto key = changelog->GetKey();
-    LOG_TRACE("Journal chunk removed from cache (LocationId: %v, ChunkId: %v)",
+    YT_LOG_TRACE("Journal chunk removed from cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }
@@ -333,14 +332,14 @@ TJournalDispatcher::~TJournalDispatcher() = default;
 
 TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId)
+    TChunkId chunkId)
 {
     return Impl_->OpenChangelog(location, chunkId);
 }
 
 TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     bool enableMultiplexing,
     const TWorkloadDescriptor& workloadDescriptor)
 {
@@ -356,7 +355,7 @@ TFuture<void> TJournalDispatcher::RemoveChangelog(
 
 TFuture<bool> TJournalDispatcher::IsChangelogSealed(
     const TStoreLocationPtr& location,
-    const TChunkId& chunkId)
+    TChunkId chunkId)
 {
     return Impl_->IsChangelogSealed(location, chunkId);
 }
@@ -368,5 +367,4 @@ TFuture<void> TJournalDispatcher::SealChangelog(TJournalChunkPtr chunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

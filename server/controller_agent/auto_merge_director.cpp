@@ -1,7 +1,6 @@
 #include "auto_merge_director.h"
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 using namespace NLogging;
 
@@ -26,7 +25,7 @@ TAutoMergeDirector::TAutoMergeDirector(
 bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
 {
     if (intermediateChunkCount + CurrentIntermediateChunkCount_ <= MaxIntermediateChunkCount_) {
-        LOG_DEBUG("Allowing scheduling of task job "
+        YT_LOG_DEBUG("Allowing scheduling of task job "
             "(IntermediateChunkCountEstimate: %v, CurrentIntermediateChunkCount: %v, MaxIntermediateChunkCount: %v)",
             intermediateChunkCount,
             CurrentIntermediateChunkCount_,
@@ -36,14 +35,14 @@ bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
         // First, check for marginal case. If the job produces more than `MaxIntermediateChunkCount_`
         // chunks itself, there is no way we can stay under limit, so just let it go.
         if (intermediateChunkCount > MaxIntermediateChunkCount_) {
-            LOG_DEBUG("Allowing scheduling of a marginally large task job "
+            YT_LOG_DEBUG("Allowing scheduling of a marginally large task job "
                 "(IntermediateChunkCountEstimate: %v, MaxIntermediateChunkCount: %v)",
                 intermediateChunkCount,
                 MaxIntermediateChunkCount_);
             return true;
         }
 
-        LOG_DEBUG("Disallowing scheduling of a task job "
+        YT_LOG_DEBUG("Disallowing scheduling of a task job "
             "(IntermediateChunkCountEstimate: %v, CurrentIntermediateChunkCount: %v, MaxIntermediateChunkCount: %v, "
             "RunningMergeJobCount: %v)",
             intermediateChunkCount,
@@ -54,7 +53,7 @@ bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
         // If there are already some auto-merge jobs running, we should just wait for them.
         // Otherwise, we enable force-flush mode.
         if (RunningMergeJobCount_ == 0 && RunningTaskJobCount_ == 0 && !ForceScheduleMergeJob_) {
-            LOG_DEBUG("Force flush mode enabled");
+            YT_LOG_DEBUG("Force flush mode enabled");
             ForceScheduleMergeJob_ = true;
             StateChanged_.Fire();
         }
@@ -65,7 +64,7 @@ bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
 bool TAutoMergeDirector::CanScheduleMergeJob(int intermediateChunkCount) const
 {
     if (intermediateChunkCount >= ChunkCountPerMergeJob_ || ForceScheduleMergeJob_ || TaskCompleted_) {
-        LOG_DEBUG("Allowing scheduling of a merge job "
+        YT_LOG_DEBUG("Allowing scheduling of a merge job "
             "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v)",
             intermediateChunkCount,
             ChunkCountPerMergeJob_,
@@ -73,7 +72,7 @@ bool TAutoMergeDirector::CanScheduleMergeJob(int intermediateChunkCount) const
             TaskCompleted_);
         return true;
     } else {
-        LOG_DEBUG("Disallowing scheduling of a merge job "
+        YT_LOG_DEBUG("Disallowing scheduling of a merge job "
             "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v)",
             intermediateChunkCount,
             ChunkCountPerMergeJob_,
@@ -108,7 +107,7 @@ void TAutoMergeDirector::OnMergeJobStarted()
     ++RunningMergeJobCount_;
 
     if (ForceScheduleMergeJob_) {
-        LOG_DEBUG("Force flush mode disabled");
+        YT_LOG_DEBUG("Force flush mode disabled");
         ForceScheduleMergeJob_ = false;
     }
 
@@ -155,5 +154,4 @@ void TAutoMergeDirector::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NY::NControllerAgent

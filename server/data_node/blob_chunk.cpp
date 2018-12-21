@@ -21,8 +21,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NConcurrency;
 using namespace NCellNode;
@@ -69,7 +68,7 @@ bool TBlobChunkBase::IsActive() const
 
 TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     const TBlockReadOptions& options,
-    const TNullable<std::vector<int>>& extensionTags)
+    const std::optional<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -121,14 +120,14 @@ TFuture<void> TBlobChunkBase::ReadBlocksExt(const TBlockReadOptions& options)
 {
     // Shortcut.
     if (HasCachedBlocksExt_.load(std::memory_order_relaxed)) {
-        return Null;
+        return std::nullopt;
     }
 
     TPromise<void> promise;
     {
         TWriterGuard guard(CachedBlocksExtLock_);
         if (HasCachedBlocksExt_) {
-            return Null;
+            return std::nullopt;
         }
         if (CachedBlocksExtPromise_) {
             return CachedBlocksExtPromise_;
@@ -177,7 +176,7 @@ void TBlobChunkBase::DoReadMeta(
     TCachedChunkMetaCookie cookie,
     const TBlockReadOptions& options)
 {
-    LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
+    YT_LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
         Id_,
         Location_->GetId(),
         options.WorkloadDescriptor,
@@ -200,7 +199,7 @@ void TBlobChunkBase::DoReadMeta(
     auto& performanceCounters = Location_->GetPerformanceCounters();
     locationProfiler.Update(performanceCounters.BlobChunkMetaReadTime, NProfiling::DurationToValue(readTime));
 
-    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v, ReadTime: %v)",
+    YT_LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v, ReadTime: %v)",
         Id_,
         Location_->GetId(),
         options.ReadSessionId,
@@ -249,7 +248,7 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(const TReadBlockSetSessionPtr& s
     const auto& outThrottler = Location_->GetOutThrottler(session->Options.WorkloadDescriptor);
     auto throttleFuture = VoidFuture;
     if (!outThrottler->TryAcquire(pendingDataSize)) {
-        LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)", 
+        YT_LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)", 
             pendingDataSize, 
             session->Options.WorkloadDescriptor);
         throttleFuture = outThrottler->Throttle(pendingDataSize);
@@ -300,7 +299,7 @@ void TBlobChunkBase::DoReadBlockSet(
 
         int blocksToRead = endIndex - beginIndex;
 
-        LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
+        YT_LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
             Id_,
             firstBlockIndex + beginIndex,
             firstBlockIndex + endIndex - 1,
@@ -313,7 +312,7 @@ void TBlobChunkBase::DoReadBlockSet(
             session->Options,
             firstBlockIndex,
             blocksToRead,
-            Null));
+            std::nullopt));
         auto readTime = readTimer.GetElapsedTime();
 
         if (!blocksOrError.IsOK()) {
@@ -347,17 +346,17 @@ void TBlobChunkBase::DoReadBlockSet(
 
                 // NB: Prevent cache from holding the whole block sequence.
                 if (blocks.size() > 1) {
-                    data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data);
+                    data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data, /* dumpable */ false);
                 }
 
                 auto blockId = TBlockId(Id_, entry.BlockIndex);
-                auto cachedBlock = New<TCachedBlock>(blockId, std::move(data), Null);
+                auto cachedBlock = New<TCachedBlock>(blockId, std::move(data), std::nullopt);
                 entry.Cookie.EndInsert(cachedBlock);
             }
         }
         auto populateCacheTime = populateCacheTimer.GetElapsedTime();
 
-        LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, "
+        YT_LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, "
             "ReadTime: %v, PopulateCacheTime: %v, ReadSessionId: %v)",
             Id_,
             firstBlockIndex + beginIndex,
@@ -525,5 +524,4 @@ TCachedBlobChunk::~TCachedBlobChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

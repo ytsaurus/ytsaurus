@@ -14,8 +14,7 @@
 
 #include "public.h"
 
-namespace NYT {
-namespace NClickHouseProxy {
+namespace NYT::NClickHouseProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +37,7 @@ private:
 
     const NConcurrency::TActionQueuePtr ControlQueue_;
     const NConcurrency::TThreadPoolPtr WorkerPool_;
+    const NConcurrency::IPollerPtr HttpPoller_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr MonitoringHttpServer_;
@@ -52,5 +52,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseProxy
-} // namespace NYT
+} // namespace NYT::NClickHouseProxy

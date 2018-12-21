@@ -10,8 +10,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT {
-namespace NControllerAgent {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,13 +22,13 @@ public:
         TControllerAgentConfigPtr config,
         NApi::NNative::IClientPtr clientPtr,
         IInvokerPtr controlInvoker,
-        const TOperationId& operationId,
-        const NTransactionClient::TTransactionId& transactionId);
+        TOperationId operationId,
+        NTransactionClient::TTransactionId transactionId);
 
     bool HasEnough(NObjectClient::TCellTag cellTag, int requestedCount);
     NChunkClient::TChunkListId Extract(NObjectClient::TCellTag cellTag);
 
-    void Reinstall(const NChunkClient::TChunkListId& id);
+    void Reinstall(NChunkClient::TChunkListId id);
 
 private:
     const TControllerAgentConfigPtr Config_;
@@ -60,5 +59,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkListPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
-} // namespace NYT
+} // namespace NYT::NControllerAgent

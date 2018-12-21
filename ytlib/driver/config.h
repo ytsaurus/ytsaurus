@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NDriver {
+namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ public:
 
     TSlruCacheConfigPtr ClientCache;
 
-    TNullable<TString> Token;
+    std::optional<TString> Token;
 
     TDriverConfig()
     {
@@ -82,6 +81,5 @@ DEFINE_REFCOUNTED_TYPE(TDriverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
-} // namespace NYT
+} // namespace NYT::NDriver
 

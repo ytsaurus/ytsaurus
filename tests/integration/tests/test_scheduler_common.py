@@ -1024,10 +1024,9 @@ class TestSchedulerCommon(YTEnvSetup):
             out="//tmp/t_out",
             spec={"job_count": 1})
 
-        chunks = get("//tmp/t_out/@chunk_ids")
-        assert len(chunks) == 1
-        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
-        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+        chunk_id = get_singular_chunk_id("//tmp/t_out")
+        assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
     def test_invalid_schema_in_path(self):
         create("table", "//tmp/input")
@@ -1734,6 +1733,36 @@ class TestSchedulerRevive(YTEnvSetup):
         release_breakpoint()
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
+
+    def test_brief_spec(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": 0}])
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1})
+
+        wait_breakpoint()
+
+        snapshot_index_path = op.get_path() + "/controller_orchid/progress/snapshot_index"
+        wait(lambda: get(snapshot_index_path) > 1)
+
+        brief_spec = get(op.get_path() + "/@brief_spec")
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        release_breakpoint()
+
+        wait(lambda: op.get_state() == "completed")
+
+        assert brief_spec == get(op.get_path() + "/@brief_spec")
 
 ################################################################################
 

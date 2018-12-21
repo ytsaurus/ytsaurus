@@ -5,8 +5,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +44,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient
 

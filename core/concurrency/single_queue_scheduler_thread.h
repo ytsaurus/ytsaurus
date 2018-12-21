@@ -4,8 +4,7 @@
 #include "scheduler_thread.h"
 #include "invoker_queue.h"
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,5 +37,4 @@ DEFINE_REFCOUNTED_TYPE(TSingleQueueSchedulerThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency

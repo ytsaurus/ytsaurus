@@ -16,8 +16,7 @@
 
 #include <array>
 
-namespace NYT {
-namespace NNet {
+namespace NYT::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,8 +204,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NYT
+} // namespace NYT::NNet
 
 template <>
 struct THash<NYT::NNet::TNetworkAddress>

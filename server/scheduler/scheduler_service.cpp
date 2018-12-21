@@ -17,8 +17,7 @@
 
 #include <yt/core/ytree/permission.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 using namespace NRpc;
 using namespace NApi;
@@ -236,6 +235,5 @@ IServicePtr CreateSchedulerService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 

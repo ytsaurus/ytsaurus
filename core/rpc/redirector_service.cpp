@@ -9,8 +9,7 @@
 
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NRpc {
+namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NRpc::NProto;
@@ -119,7 +118,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual void SetMutationId(const TMutationId& /*id*/) override
+    virtual void SetMutationId(TMutationId /*id*/) override
     {
         Y_UNREACHABLE();
     }
@@ -164,13 +163,13 @@ public:
 
     virtual void HandleAcknowledgement() override
     {
-        LOG_DEBUG("Redirected request acknowledged (RequestId: %v)",
+        YT_LOG_DEBUG("Redirected request acknowledged (RequestId: %v)",
             Request_->GetRequestId());
     }
 
     virtual void HandleResponse(TSharedRefArray message) override
     {
-        LOG_DEBUG("Response for redirected request received (RequestId: %v)",
+        YT_LOG_DEBUG("Response for redirected request received (RequestId: %v)",
             Request_->GetRequestId());
 
         ResponseMessageHandler_.Run(std::move(message));
@@ -178,7 +177,7 @@ public:
 
     virtual void HandleError(const TError& error) override
     {
-        LOG_DEBUG(error, "Redirected request failed (RequestId: %v)",
+        YT_LOG_DEBUG(error, "Redirected request failed (RequestId: %v)",
             Request_->GetRequestId());
 
         auto message = CreateErrorResponseMessage(Request_->GetRequestId(), error);
@@ -200,8 +199,8 @@ IClientRequestControlPtr DoRedirectServiceRequest(
     IChannelPtr channel)
 {
     auto timeout = requestHeader->has_timeout()
-        ? MakeNullable(FromProto<TDuration>(requestHeader->timeout()))
-        : Null;
+        ? std::make_optional(FromProto<TDuration>(requestHeader->timeout()))
+        : std::nullopt;
 
     auto request = New<TRedirectedRequest>(
         std::move(requestHeader),
@@ -211,7 +210,7 @@ IClientRequestControlPtr DoRedirectServiceRequest(
         request,
         std::move(responseMessageHandler));
 
-    LOG_DEBUG("Request redirected (RequestId: %v, Method: %v:%v, RealmId: %v, Timeout: %v)",
+    YT_LOG_DEBUG("Request redirected (RequestId: %v, Method: %v:%v, RealmId: %v, Timeout: %v)",
         request->GetRequestId(),
         request->GetService(),
         request->GetMethod(),
@@ -272,12 +271,12 @@ public:
         requestControlThunk->SetUnderlying(std::move(requestControl));
     }
 
-    virtual void HandleRequestCancelation(const TRequestId& requestId) override
+    virtual void HandleRequestCancelation(TRequestId requestId) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
         auto it = ActiveRequestMap_.find(requestId);
         if (it == ActiveRequestMap_.end()) {
-            LOG_DEBUG("Attempt to cancel an unknown request, ignored (RequestId: %v)",
+            YT_LOG_DEBUG("Attempt to cancel an unknown request, ignored (RequestId: %v)",
                 requestId);
             return;
         }
@@ -313,7 +312,7 @@ private:
 
 
     void OnResponse(
-        const TRequestId& requestId,
+        TRequestId requestId,
         const IBusPtr& replyBus,
         TSharedRefArray message)
     {
@@ -339,5 +338,4 @@ IServicePtr CreateRedirectorService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
-} // namespace NYT
+} // namespace NYT::NRpc

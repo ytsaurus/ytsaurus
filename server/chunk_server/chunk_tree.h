@@ -5,8 +5,7 @@
 #include <yt/server/object_server/staged_object.h>
 
 
-namespace NYT {
-namespace NChunkServer {
+namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,7 +14,7 @@ class TChunkTree
     : public NObjectServer::TStagedObject
 {
 public:
-    explicit TChunkTree(const TChunkTreeId& id);
+    explicit TChunkTree(TChunkTreeId id);
 
     TChunkList* AsChunkList();
     const TChunkList* AsChunkList() const;
@@ -30,5 +29,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT
+} // namespace NYT::NChunkServer

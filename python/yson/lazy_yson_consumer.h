@@ -11,8 +11,7 @@
 
 #include <Python.h>
 
-namespace NYT {
-namespace NPython {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +22,7 @@ public:
     TLazyYsonConsumer(
         TCallback<TSharedRef()> extractPrefixCallback_,
         TPythonStringCache* keyCacher,
-        const TNullable<TString>& encoding,
+        const std::optional<TString>& encoding,
         bool alwaysCreateAttributes);
 
     void OnListItem();
@@ -66,5 +65,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NPython
-} // namespace NYT
+} // namespace NYT::NPython

@@ -5,8 +5,7 @@
 #include "sorted_dynamic_store.h"
 #endif
 
-namespace NYT {
-namespace NTabletNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +16,4 @@ TTimestamp TSortedDynamicStore::TimestampFromRevision(ui32 revision) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
-} // namespace NYT
+} // namespace NYT::NTabletNode

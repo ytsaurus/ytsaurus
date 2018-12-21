@@ -6,8 +6,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NConcurrency {
+namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,8 +74,7 @@ typedef TGuard<TReaderWriterSpinLock, TWriterSpinlockTraits> TWriterGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConcurrency
-} // namespace NYT
+} // namespace NYT::NConcurrency
 
 #define RW_SPINLOCK_INL_H_
 #include "rw_spinlock-inl.h"

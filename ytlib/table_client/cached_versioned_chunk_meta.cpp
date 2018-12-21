@@ -15,8 +15,7 @@
 
 #include <yt/core/misc/bloom_filter.h>
 
-namespace NYT {
-namespace NTableClient {
+namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NTableClient::NProto;
@@ -34,7 +33,7 @@ using NChunkClient::TChunkReaderStatistics;
 TCachedVersionedChunkMeta::TCachedVersionedChunkMeta() = default;
 
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchema& schema,
     const TColumnRenameDescriptors& renameDescriptors,
@@ -66,7 +65,7 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
 }
 
 void TCachedVersionedChunkMeta::Init(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchema& schema,
     const TColumnRenameDescriptors& renameDescriptors,
@@ -188,5 +187,4 @@ i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
+} // namespace NYT::NTableClient

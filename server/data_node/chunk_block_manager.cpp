@@ -19,8 +19,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -37,7 +36,7 @@ static const auto& Logger = DataNodeLogger;
 TCachedBlock::TCachedBlock(
     const TBlockId& blockId,
     const TBlock& data,
-    const TNullable<TNodeDescriptor>& source)
+    const std::optional<TNodeDescriptor>& source)
     : TAsyncCacheValueBase<TBlockId, TCachedBlock>(blockId)
     , Data_(data)
     , Source_(source)
@@ -68,9 +67,9 @@ public:
         auto cachedBlock = TAsyncSlruCacheBase::Find(blockId);
 
         if (cachedBlock) {
-            LOG_TRACE("Block cache hit (BlockId: %v)", blockId);
+            YT_LOG_TRACE("Block cache hit (BlockId: %v)", blockId);
         } else {
-            LOG_TRACE("Block cache miss (BlockId: %v)", blockId);
+            YT_LOG_TRACE("Block cache miss (BlockId: %v)", blockId);
         }
 
         return cachedBlock;
@@ -79,7 +78,7 @@ public:
     void PutCachedBlock(
         const TBlockId& blockId,
         const TBlock& data,
-        const TNullable<TNodeDescriptor>& source)
+        const std::optional<TNodeDescriptor>& source)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -98,7 +97,7 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlockRange(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         int firstBlockIndex,
         int blockCount,
         const TBlockReadOptions& options)
@@ -124,7 +123,7 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlockSet(
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options)
     {
@@ -210,7 +209,7 @@ TCachedBlockPtr TChunkBlockManager::FindCachedBlock(const TBlockId& blockId)
 void TChunkBlockManager::PutCachedBlock(
     const TBlockId& blockId,
     const TBlock& data,
-    const TNullable<TNodeDescriptor>& source)
+    const std::optional<TNodeDescriptor>& source)
 {
     Impl_->PutCachedBlock(blockId, data, source);
 }
@@ -221,7 +220,7 @@ TCachedBlockCookie TChunkBlockManager::BeginInsertCachedBlock(const TBlockId& bl
 }
 
 TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockRange(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     int firstBlockIndex,
     int blockCount,
     const TBlockReadOptions& options)
@@ -234,7 +233,7 @@ TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockRange(
 }
 
 TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockSet(
-    const TChunkId& chunkId,
+    TChunkId chunkId,
     const std::vector<int>& blockIndexes,
     const TBlockReadOptions& options)
 {
@@ -256,5 +255,4 @@ IPrioritizedInvokerPtr TChunkBlockManager::GetReaderInvoker() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode

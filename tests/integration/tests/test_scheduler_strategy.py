@@ -277,11 +277,16 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         create("map_node", "//sys/pools/parent_pool/subpool1", attributes={"min_share_ratio": 1})
         create("map_node", "//sys/pools/parent_pool/subpool2", attributes={"min_share_ratio": 1})
 
-        time.sleep(0.2)
-        ratio_path = "//sys/scheduler/orchid/scheduler/pools/{0}/recursive_min_share_ratio"
+        def check():
+            ratio_path = "//sys/scheduler/orchid/scheduler/pools/{0}/recursive_min_share_ratio"
+            try:
+                return \
+                    get(ratio_path.format("subpool1")) == 0.05 and \
+                    get(ratio_path.format("subpool2")) == 0.05
+            except:
+                return False
 
-        assert get(ratio_path.format("subpool1")) == 0.05
-        assert get(ratio_path.format("subpool2")) == 0.05
+        wait(check)
 
     def test_fractional_cpu_usage(self):
         self._create_table("//tmp/t_in")
@@ -319,8 +324,7 @@ class TestStrategies(YTEnvSetup):
         set("//tmp/t_out/@replication_factor", 1)
 
     def _get_table_chunk_node(self, table):
-        chunk_ids = get(table + "/@chunk_ids")
-        chunk_id = chunk_ids[0]
+        chunk_id = get_first_chunk_id(table)
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
         assert len(replicas) == 1
 
@@ -1651,9 +1655,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             in_="//tmp/t",
             out="//tmp/d")
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
         chunk_store_path = self.Env.configs["node"][0]["data_node"]["store_locations"][0]["path"]
         chunk_path = os.path.join(chunk_store_path, chunk_id[-2:], chunk_id)

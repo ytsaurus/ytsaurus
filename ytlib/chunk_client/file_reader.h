@@ -11,8 +11,7 @@
 
 #include <atomic>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +39,7 @@ public:
      */
     TFileReader(
         const IIOEnginePtr& ioEngine,
-        const TChunkId& chunkId,
+        TChunkId chunkId,
         const TString& fileName,
         bool validateBlocksChecksums = true,
         IBlocksExtCache* blocksExtCache = nullptr);
@@ -49,18 +48,18 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
-        const TNullable<i64>& estimatedSize) override;
+        const std::optional<i64>& estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TNullable<i64>& estimatedSize) override;
+        const std::optional<i64>& estimatedSize) override;
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
-        TNullable<int> partitionTag = Null,
-        const TNullable<std::vector<int>>& extensionTags = Null) override;
+        std::optional<int> partitionTag = std::nullopt,
+        const std::optional<std::vector<int>>& extensionTags = std::nullopt) override;
 
     virtual TChunkId GetChunkId() const override;
 
@@ -92,8 +91,8 @@ private:
         const TSharedMutableRef& data);
     TFuture<TRefCountedChunkMetaPtr> DoReadMeta(
         const TClientBlockReadOptions& options,
-        TNullable<int> partitionTag,
-        const TNullable<std::vector<int>>& extensionTags);
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags);
     TRefCountedChunkMetaPtr OnMetaDataBlock(
         const TString& metaFileName,
         TChunkReaderStatisticsPtr chunkReaderStatistics,
@@ -112,5 +111,4 @@ DEFINE_REFCOUNTED_TYPE(TFileReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

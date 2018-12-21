@@ -94,7 +94,7 @@ TError TError::Wrap(TArgs&&... args) const
 template <class T>
 TErrorOr<T>::TErrorOr()
 {
-    Value_.Emplace();
+    Value_.emplace();
 }
 
 template <class T>
@@ -229,6 +229,12 @@ const T& TErrorOr<T>::Value() const &
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void FormatValue(TStringBuilder* builder, const TErrorOr<T>& error, TStringBuf spec)
+{
+    FormatValue(builder, static_cast<const TError&>(error), spec);
+}
 
 template <class T>
 TString ToString(const TErrorOr<T>& valueOrError)

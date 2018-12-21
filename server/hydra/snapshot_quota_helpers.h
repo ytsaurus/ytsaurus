@@ -2,10 +2,9 @@
 
 #include <vector>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
-namespace NYT {
-namespace NHydra {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,10 +20,9 @@ struct TSnapshotInfo
 //! could be safely deleted.
 int GetSnapshotThresholdId(
     std::vector<TSnapshotInfo> snapshots,
-    TNullable<int> maxSnapshotCountToKeep,
-    TNullable<i64> maxSnapshotSizeToKeep);
+    std::optional<int> maxSnapshotCountToKeep,
+    std::optional<i64> maxSnapshotSizeToKeep);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+} // namespace NYT::NHydra

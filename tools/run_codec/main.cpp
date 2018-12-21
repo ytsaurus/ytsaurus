@@ -1,5 +1,5 @@
 #include <yt/core/compression/codec.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 
 #include <util/string/cast.h>
 #include <util/string/type.h>
@@ -11,7 +11,7 @@
 
 using namespace NYT;
 
-std::vector<TSharedRef> Read(std::istream& in, TNullable<std::vector<size_t>> sizes, const size_t blockSize = 16752344)
+std::vector<TSharedRef> Read(std::istream& in, std::optional<std::vector<size_t>> sizes, const size_t blockSize = 16752344)
 {
     std::vector<TSharedRef> refs;
     size_t index = 0;
@@ -41,7 +41,7 @@ int main(int argc, char** argv)
     const TString action = argv[1];
     const TString codecName = argv[2];
 
-    TNullable<std::vector<size_t>> sizes;
+    std::optional<std::vector<size_t>> sizes;
     if (argc == 4) {
         sizes = std::vector<size_t>();
         const TString sizesFilename = argv[3];

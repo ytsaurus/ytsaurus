@@ -10,8 +10,7 @@
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT {
-namespace NDataNode {
+namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,19 +34,19 @@ public:
     /*!
      *  Chunk files are opened asynchronously, however the call returns immediately.
      */
-    ISessionPtr StartSession(const TSessionId& sessionId, const TSessionOptions& options);
+    ISessionPtr StartSession(TSessionId sessionId, const TSessionOptions& options);
 
     //! Finds session by session ID. Returns |nullptr| if no session is found.
     //! Session ID must not specify AllMediaIndex as medium index.
-    ISessionPtr FindSession(const TSessionId& sessionId);
+    ISessionPtr FindSession(TSessionId sessionId);
 
     //! Finds session by session ID. Throws if no session is found.
     //! Session ID must not specify AllMediaIndex as medium index.
-    ISessionPtr GetSessionOrThrow(const TSessionId& sessionId);
+    ISessionPtr GetSessionOrThrow(TSessionId sessionId);
 
     //! Finds all sessions pertaining to the specified chunk.
     //! Throws if no session is found. (Thus, never returns an empty list.)
-    TSessionPtrList GetSessionsOrThrow(const TChunkId& chunkId);
+    TSessionPtrList GetSessionsOrThrow(TChunkId chunkId);
 
     //! Returns the number of currently active sessions of a given type.
     int GetSessionCount(ESessionType type);
@@ -58,9 +57,9 @@ private:
 
     THashMap<TSessionId, ISessionPtr> SessionMap_;
 
-    ISessionPtr CreateSession(const TSessionId& sessionId, const TSessionOptions& options);
+    ISessionPtr CreateSession(TSessionId sessionId, const TSessionOptions& options);
 
-    void OnSessionLeaseExpired(const TSessionId& sessionId);
+    void OnSessionLeaseExpired(TSessionId sessionId);
     void OnSessionFinished(const TWeakPtr<ISession>& session, const TError& error);
 
     void RegisterSession(const ISessionPtr& session);
@@ -74,6 +73,5 @@ DEFINE_REFCOUNTED_TYPE(TSessionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
-} // namespace NYT
+} // namespace NYT::NDataNode
 

@@ -14,8 +14,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
-namespace NExecAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,9 +94,9 @@ public:
     TDuration BlockIOWatchdogPeriod;
     bool UseResourceLimits;
 
-    TNullable<TDuration> ResourceLimitsUpdatePeriod;
-    TNullable<TString> ExternalJobContainer;
-    TNullable<TString> ExternalJobRootVolume;
+    std::optional<TDuration> ResourceLimitsUpdatePeriod;
+    std::optional<TString> ExternalJobContainer;
+    std::optional<TString> ExternalJobRootVolume;
 
     THashMap<TString, TString> ExternalBinds;
     
@@ -116,11 +115,11 @@ public:
             .Default(false);
 
         RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
-            .Default(Null);
+            .Default();
         RegisterParameter("external_job_container", ExternalJobContainer)
-            .Default(Null);
+            .Default();
         RegisterParameter("external_job_root_volume", ExternalJobRootVolume)
-            .Default(Null);
+            .Default();
         RegisterParameter("external_binds", ExternalBinds)
             .Default();
 
@@ -140,13 +139,13 @@ class TSlotLocationConfig
     : public TDiskLocationConfig
 {
 public:
-    TNullable<i64> DiskQuota;
+    std::optional<i64> DiskQuota;
     i64 DiskUsageWatermark;
 
     TSlotLocationConfig()
     {
         RegisterParameter("disk_quota", DiskQuota)
-            .Default(Null)
+            .Default()
             .GreaterThan(0);
         RegisterParameter("disk_usage_watermark", DiskUsageWatermark)
             .Default(10_GB)
@@ -183,7 +182,7 @@ public:
 
     //! A directory that contains files defining the correspondence between slot user id
     //! and its job proxy RPC Unix Domain Socket name.
-    TNullable<TString> JobProxySocketNameDirectory;
+    std::optional<TString> JobProxySocketNameDirectory;
 
     TDuration DiskInfoUpdatePeriod;
 
@@ -205,7 +204,7 @@ public:
             .Default(10_MB);
 
         RegisterParameter("job_proxy_socket_name_directory", JobProxySocketNameDirectory)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("disk_info_update_period", DiskInfoUpdatePeriod)
             .Default(TDuration::Seconds(5));
@@ -360,5 +359,4 @@ DEFINE_REFCOUNTED_TYPE(TExecAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
-} // namespace NYT
+} // namespace NYT::NExecAgent

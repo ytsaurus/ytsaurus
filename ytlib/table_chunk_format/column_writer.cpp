@@ -5,8 +5,7 @@
 #include "string_column_writer.h"
 #include "boolean_column_writer.h"
 
-namespace NYT {
-namespace NTableChunkFormat {
+namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 
@@ -92,5 +91,4 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormat
-} // namespace NYT
+} // namespace NYT::NTableChunkFormat

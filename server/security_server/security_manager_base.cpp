@@ -1,13 +1,12 @@
 #include "security_manager_base.h"
 
-namespace NYT {
-namespace NSecurityServer {
+namespace NYT::NSecurityServer {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TAuthenticatedUserGuardBase::TAuthenticatedUserGuardBase(
     ISecurityManagerPtr securityManager,
-    const TNullable<TString>& user)
+    const std::optional<TString>& user)
 {
     if (user) {
         securityManager->SetAuthenticatedUserByNameOrThrow(*user);
@@ -24,5 +23,4 @@ TAuthenticatedUserGuardBase::~TAuthenticatedUserGuardBase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityServer
-} // namespace NYT
+} // namespace NYT::NSecurityServer

@@ -13,8 +13,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-namespace NYT {
-namespace NScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,7 +114,7 @@ protected:
 
     TCompositeSchedulerElement* Parent_ = nullptr;
 
-    TNullable<TInstant> BelowFairShareSince_;
+    std::optional<TInstant> BelowFairShareSince_;
     bool Starving_ = false;
 
     TJobResources TotalResourceLimits_;
@@ -226,7 +225,7 @@ public:
 
     virtual TString GetId() const = 0;
 
-    virtual TNullable<double> GetSpecifiedWeight() const = 0;
+    virtual std::optional<double> GetSpecifiedWeight() const = 0;
     virtual double GetWeight() const;
 
     virtual double GetMinShareRatio() const = 0;
@@ -316,10 +315,10 @@ protected:
         TInstant now);
 
     void SetOperationAlert(
-        const TOperationId& operationId,
+        TOperationId operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        TNullable<TDuration> timeout);
+        std::optional<TDuration> timeout);
 
     TString GetLoggingAttributesString(const TDynamicAttributesList& dynamicAttributesList) const;
 
@@ -458,7 +457,7 @@ protected:
 
     const TString Id_;
     bool DefaultConfigured_ = true;
-    TNullable<TString> UserName_;
+    std::optional<TString> UserName_;
 };
 
 class TPool
@@ -481,8 +480,8 @@ public:
 
     bool IsDefaultConfigured() const;
 
-    void SetUserName(const TNullable<TString>& userName);
-    const TNullable<TString>& GetUserName() const;
+    void SetUserName(const std::optional<TString>& userName);
+    const std::optional<TString>& GetUserName() const;
 
     TPoolConfigPtr GetConfig();
     void SetConfig(TPoolConfigPtr config);
@@ -495,7 +494,7 @@ public:
 
     virtual TString GetId() const override;
 
-    virtual TNullable<double> GetSpecifiedWeight() const override;
+    virtual std::optional<double> GetSpecifiedWeight() const override;
     virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
@@ -571,7 +570,7 @@ public:
     explicit TOperationElementSharedState(int updatePreemptableJobsListLoggingPeriod);
 
     TJobResources IncreaseJobResourceUsage(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobResources& resourcesDelta);
 
     void UpdatePreemptableJobsList(
@@ -581,9 +580,9 @@ public:
         double aggressivePreemptionSatisfactionThreshold,
         int* moveCount);
 
-    bool IsJobKnown(const TJobId& jobId) const;
+    bool IsJobKnown(TJobId jobId) const;
 
-    bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
+    bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
 
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
@@ -591,8 +590,8 @@ public:
 
     int GetScheduledJobCount() const;
 
-    TNullable<TJobResources> AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
-    TNullable<TJobResources> RemoveJob(const TJobId& jobId);
+    std::optional<TJobResources> AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force);
+    std::optional<TJobResources> RemoveJob(TJobId jobId);
 
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
@@ -740,8 +739,8 @@ private:
 
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
 
-    TJobProperties* GetJobProperties(const TJobId& jobId);
-    const TJobProperties* GetJobProperties(const TJobId& jobId) const;
+    TJobProperties* GetJobProperties(TJobId jobId);
+    const TJobProperties* GetJobProperties(TJobId jobId) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
@@ -791,7 +790,7 @@ public:
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
-    virtual TNullable<double> GetSpecifiedWeight() const override;
+    virtual std::optional<double> GetSpecifiedWeight() const override;
     virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
@@ -806,11 +805,11 @@ public:
 
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
-    void IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta);
+    void IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta);
 
-    bool IsJobKnown(const TJobId& jobId) const;
+    bool IsJobKnown(TJobId jobId) const;
 
-    bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
+    bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
 
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
@@ -828,11 +827,11 @@ public:
     TString GetUserName() const;
 
     bool OnJobStarted(
-        const TJobId& jobId,
+        TJobId jobId,
         const TJobResources& resourceUsage,
         const TJobResources& precommittedResources,
         bool force = false);
-    void OnJobFinished(const TJobId& jobId);
+    void OnJobFinished(TJobId jobId);
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
@@ -842,7 +841,7 @@ public:
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasons() const;
     TEnumIndexedVector<int, EDeactivationReason> GetDeactivationReasonsFromLastNonStarvingTime() const;
 
-    TNullable<NProfiling::TTagId> GetCustomProfilingTag();
+    std::optional<NProfiling::TTagId> GetCustomProfilingTag();
 
     void Disable();
     void Enable();
@@ -866,7 +865,7 @@ private:
 
     TJobResources GetHierarchicalAvailableResources(const TFairShareContext& context) const;
 
-    TNullable<EDeactivationReason> TryStartScheduleJob(
+    std::optional<EDeactivationReason> TryStartScheduleJob(
         NProfiling::TCpuInstant now,
         const TJobResources& minNeededResources,
         const TFairShareContext& context,
@@ -922,7 +921,7 @@ public:
 
     virtual TString GetId() const override;
 
-    virtual TNullable<double> GetSpecifiedWeight() const override;
+    virtual std::optional<double> GetSpecifiedWeight() const override;
     virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
@@ -957,8 +956,7 @@ inline TJobResources ComputeAvailableResources(
     return resourceLimits - resourceUsage + resourceDiscount;
 }
 
-} // namespace NScheduler
-} // namespace NYT
+} // namespace NYT::NScheduler
 
 #define FAIR_SHARE_TREE_ELEMENT_INL_H_
 #include "fair_share_tree_element-inl.h"
