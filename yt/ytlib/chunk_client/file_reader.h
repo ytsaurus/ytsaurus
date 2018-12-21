@@ -100,8 +100,8 @@ private:
     void DumpBrokenBlock(
         int blockIndex,
         const NProto::TBlockInfo& blockInfo,
-        const TRef& block) const;
-    void DumpBrokenMeta(const TRef& block) const;
+        TRef block) const;
+    void DumpBrokenMeta(TRef block) const;
 
     TFuture<TRefCountedBlocksExtPtr> ReadBlocksExt(const TClientBlockReadOptions& options);
     const std::shared_ptr<TFileHandle>& GetDataFile();

@@ -151,7 +151,7 @@ void TBlob::Append(const void* data, size_t size)
     }
 }
 
-void TBlob::Append(const TRef& ref)
+void TBlob::Append(TRef ref)
 {
     Append(ref.Begin(), ref.Size());
 }

@@ -152,7 +152,7 @@ public:
     void Append(const void* data, size_t size);
 
     //! Appends a chunk of memory to the end.
-    void Append(const TRef& ref);
+    void Append(TRef ref);
 
     //! Appends a single char to the end.
     void Append(char ch);

@@ -23,7 +23,7 @@ namespace NYT::NFileClient {
 struct IFileWriter
     : public virtual NChunkClient::IWriterBase
 {
-    virtual bool Write(const TRef& data) = 0;
+    virtual bool Write(TRef data) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileWriter)

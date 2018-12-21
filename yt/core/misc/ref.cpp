@@ -81,7 +81,7 @@ TSharedRef::TStringHolder::~TStringHolder()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TRef& ref)
+TString ToString(TRef ref)
 {
     return TString(ref.Begin(), ref.End());
 }

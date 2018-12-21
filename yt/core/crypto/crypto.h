@@ -24,7 +24,7 @@ public:
     explicit TMD5Hasher(const TMD5State& data);
 
     TMD5Hasher& Append(TStringBuf data);
-    TMD5Hasher& Append(const TRef& data);
+    TMD5Hasher& Append(TRef data);
 
     TMD5Hash GetDigest();
     TString GetHexDigestLower();

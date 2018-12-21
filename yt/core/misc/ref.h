@@ -60,7 +60,7 @@ public:
     }
 
     //! Compares the content for bitwise equality.
-    static bool AreBitwiseEqual(const TRef& lhs, const TRef& rhs)
+    static bool AreBitwiseEqual(TRef lhs, TRef rhs)
     {
         if (lhs.Size() != rhs.Size()) {
             return false;
@@ -152,7 +152,7 @@ public:
     { }
 
     //! Creates a TSharedRef with a given holder.
-    TSharedRef(const TRef& ref, THolderPtr holder)
+    TSharedRef(TRef ref, THolderPtr holder)
         : TSharedRange<char>(ref, std::move(holder))
     { }
 
@@ -210,7 +210,7 @@ public:
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
-    static TSharedRef MakeCopy(const TRef& ref, TRefCountedTypeCookie tagCookie, bool dumpable)
+    static TSharedRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie, bool dumpable)
     {
         auto blob = TBlob(tagCookie, ref.Size(), false, 1, dumpable);
         ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
@@ -220,7 +220,7 @@ public:
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedRef MakeCopy(const TRef& ref, bool dumpable = true)
+    static TSharedRef MakeCopy(TRef ref, bool dumpable = true)
     {
         return MakeCopy(ref, GetRefCountedTypeCookie<TTag>(), dumpable);
     }
@@ -366,7 +366,7 @@ public:
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
-    static TSharedMutableRef MakeCopy(const TRef& ref, TRefCountedTypeCookie tagCookie, bool dumpable)
+    static TSharedMutableRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie, bool dumpable)
     {
         auto blob = TBlob(tagCookie, ref.Size(), false, dumpable);
         ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
@@ -376,7 +376,7 @@ public:
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedMutableRef MakeCopy(const TRef& ref, bool dumpable = true)
+    static TSharedMutableRef MakeCopy(TRef ref, bool dumpable = true)
     {
         return MakeCopy(ref, GetRefCountedTypeCookie<TTag>(), dumpable);
     }
@@ -482,7 +482,7 @@ inline const TSharedRef* end(const TSharedRefArray& array)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TRef& ref);
+TString ToString(TRef ref);
 TString ToString(const TMutableRef& ref);
 TString ToString(const TSharedRef& ref);
 TString ToString(const TSharedMutableRef& ref);
@@ -500,7 +500,7 @@ size_t GetByteSize(const std::vector<T>& parts)
     return size;
 }
 
-inline size_t GetByteSize(const TRef& ref)
+inline size_t GetByteSize(TRef ref)
 {
     return ref.Size();
 }
