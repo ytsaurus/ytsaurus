@@ -12,7 +12,7 @@ namespace NYT::NHydra {
 
 TSharedRef SerializeMutationRecord(
     const NProto::TMutationHeader& mutationHeader,
-    const TRef& mutationData);
+    TRef mutationData);
 
 void DeserializeMutationRecord(
     const TSharedRef& recordData,

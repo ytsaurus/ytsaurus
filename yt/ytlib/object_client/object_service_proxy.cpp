@@ -336,7 +336,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
     Promise_.Reset();
 }
 
-void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
+void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(TRef data)
 {
     NProto::TRspExecute body;
     DeserializeProtoWithEnvelope(&body, data);

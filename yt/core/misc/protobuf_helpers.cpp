@@ -60,7 +60,7 @@ TString SerializeProtoToString(
     return data;
 }
 
-bool TryDeserializeProto(google::protobuf::MessageLite* message, const TRef& data)
+bool TryDeserializeProto(google::protobuf::MessageLite* message, TRef data)
 {
     // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
     // to find out more about protobuf message size limits.
@@ -77,7 +77,7 @@ bool TryDeserializeProto(google::protobuf::MessageLite* message, const TRef& dat
     return message->ParsePartialFromCodedStream(&codedInputStream);
 }
 
-void DeserializeProto(google::protobuf::MessageLite* message, const TRef& data)
+void DeserializeProto(google::protobuf::MessageLite* message, TRef data)
 {
     YCHECK(TryDeserializeProto(message, data));
 }
@@ -155,7 +155,7 @@ TString SerializeProtoToStringWithEnvelope(
 
 bool TryDeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
-    const TRef& data)
+    TRef data)
 {
     if (data.Size() < sizeof (TEnvelopeFixedHeader)) {
         return false;
@@ -189,7 +189,7 @@ bool TryDeserializeProtoWithEnvelope(
 
 void DeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
-    const TRef& data)
+    TRef data)
 {
     YCHECK(TryDeserializeProtoWithEnvelope(message, data));
 }

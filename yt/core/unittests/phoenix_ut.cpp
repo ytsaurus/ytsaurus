@@ -26,7 +26,7 @@ TSharedRef Serialize(const T& value)
 }
 
 template <class T>
-void Deserialize(T& value, const TRef& ref)
+void Deserialize(T& value, TRef ref)
 {
     TMemoryInput input(ref.Begin(), ref.Size());
     TLoadContext context;
@@ -35,7 +35,7 @@ void Deserialize(T& value, const TRef& ref)
 }
 
 template <class T>
-void InplaceDeserialize(TIntrusivePtr<T> value, const TRef& ref)
+void InplaceDeserialize(TIntrusivePtr<T> value, TRef ref)
 {
     TMemoryInput input(ref.Begin(), ref.Size());
     TLoadContext context;

@@ -918,7 +918,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         }
     };
 
-    auto coalesce = [&] (const TRef& fragment) {
+    auto coalesce = [&] (TRef fragment) {
         if (buffer->Size() + fragment.Size() > buffer->Capacity()) {
             // Make sure we never reallocate.
             flushCoalesced();

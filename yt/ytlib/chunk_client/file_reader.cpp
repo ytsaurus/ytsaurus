@@ -150,7 +150,7 @@ void TFileReader::SetSlownessChecker(TCallback<TError(i64, TDuration)>)
 void TFileReader::DumpBrokenBlock(
     int blockIndex,
     const TBlockInfo& blockInfo,
-    const TRef& block) const
+    TRef block) const
 {
     auto fileName = FileName_ + ".broken." +
         ToString(blockIndex) + "." +
@@ -247,7 +247,7 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
         .Apply(BIND(&TFileReader::OnDataBlock, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
 }
 
-void TFileReader::DumpBrokenMeta(const TRef& block) const
+void TFileReader::DumpBrokenMeta(TRef block) const
 {
     auto fileName = FileName_ + ".broken.meta";
     TFile file(fileName, CreateAlways | WrOnly);

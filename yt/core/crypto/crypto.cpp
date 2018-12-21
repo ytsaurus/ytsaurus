@@ -46,7 +46,7 @@ TMD5Hasher& TMD5Hasher::Append(TStringBuf data)
     return *this;
 }
 
-TMD5Hasher& TMD5Hasher::Append(const TRef& data)
+TMD5Hasher& TMD5Hasher::Append(TRef data)
 {
     MD5_Update(reinterpret_cast<MD5_CTX*>(State_.data()), data.Begin(), data.Size());
     return *this;
