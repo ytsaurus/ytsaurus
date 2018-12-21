@@ -167,7 +167,7 @@ private:
             IsObjectAlive(tablet) &&
             !tablet->GetAction() &&
             IsObjectAlive(tablet->GetTable()) &&
-            tablet->GetTable()->GetEnableTabletBalancer().value_or(true) &&
+            tablet->GetTable()->TabletBalancerConfig()->EnableAutoReshard &&
             tablet->GetTable()->IsSorted() &&
             IsObjectAlive(tablet->GetCell()) &&
             IsObjectAlive(tablet->GetCell()->GetCellBundle()) &&
@@ -418,6 +418,10 @@ private:
                     continue;
                 }
 
+                if (!tablet->GetTable()->TabletBalancerConfig()->EnableAutoTabletMove) {
+                    continue;
+                }
+
                 if (queue.empty() || cellSize <= mean) {
                     break;
                 }
@@ -655,6 +659,9 @@ private:
             }
             for (const auto* tablet : cell->Tablets()) {
                 const auto* table = tablet->GetTable();
+                if (!table->TabletBalancerConfig()->EnableAutoTabletMove) {
+                    continue;
+                }
                 if (table->GetInMemoryMode() == EInMemoryMode::None) {
                     tabletsByTable[table].push_back(tablet);
                 }
