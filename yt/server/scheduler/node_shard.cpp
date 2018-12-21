@@ -537,7 +537,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             "StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
             "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
-            "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingNodes: %v",
+            "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingElements: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
             schedulingContext->StartedJobs().size(),
@@ -548,7 +548,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             statistics.ControllerScheduleJobCount,
             statistics.NonPreemptiveScheduleJobAttempts,
             statistics.PreemptiveScheduleJobAttempts,
-            statistics.HasAggressivelyStarvingNodes);
+            statistics.HasAggressivelyStarvingElements);
 
         node->SetResourceUsage(schedulingContext->ResourceUsage());
 
