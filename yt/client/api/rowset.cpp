@@ -3,7 +3,7 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/client/table_client/wire_protocol.h>
@@ -62,7 +62,7 @@ IVersionedRowsetPtr CreateRowset(
 
 class TSchemafulRowsetWriter
     : public IUnversionedRowset
-    , public ISchemafulWriter
+    , public IUnversionedRowsetWriter
 {
 public:
     explicit TSchemafulRowsetWriter(const TTableSchema& schema)
@@ -117,7 +117,7 @@ private:
 
 };
 
-std::tuple<ISchemafulWriterPtr, TFuture<IUnversionedRowsetPtr>> CreateSchemafulRowsetWriter(const TTableSchema& schema)
+std::tuple<IUnversionedRowsetWriterPtr, TFuture<IUnversionedRowsetPtr>> CreateSchemafulRowsetWriter(const TTableSchema& schema)
 {
     auto writer = New<TSchemafulRowsetWriter>(schema);
     return std::make_tuple(writer, writer->GetResult());

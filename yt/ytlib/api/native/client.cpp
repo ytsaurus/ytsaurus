@@ -2066,7 +2066,7 @@ private:
         blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         blockReadOptions.ReadSessionId = queryOptions.ReadSessionId;
 
-        ISchemafulWriterPtr writer;
+        IUnversionedRowsetWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
         std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
 

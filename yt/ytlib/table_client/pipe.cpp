@@ -2,7 +2,7 @@
 
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/core/misc/ring_queue.h>
 
@@ -131,7 +131,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulPipe::TWriter
-    : public ISchemafulWriter
+    : public IUnversionedRowsetWriter
 {
 public:
     explicit TWriter(TDataPtr data)
@@ -229,7 +229,7 @@ public:
         return Reader_;
     }
 
-    ISchemafulWriterPtr  GetWriter() const
+    IUnversionedRowsetWriterPtr  GetWriter() const
     {
         return Writer_;
     }
@@ -260,7 +260,7 @@ ISchemafulReaderPtr TSchemafulPipe::GetReader() const
     return Impl_->GetReader();
 }
 
-ISchemafulWriterPtr TSchemafulPipe::GetWriter() const
+IUnversionedRowsetWriterPtr TSchemafulPipe::GetWriter() const
 {
     return Impl_->GetWriter();
 }

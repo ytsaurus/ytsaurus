@@ -16,7 +16,7 @@ namespace NYT::NQueryClient {
 using TExecuteQueryCallback = std::function<TFuture<void>(
     const TQueryPtr& query,
     TDataRanges dataRanges,
-    ISchemafulWriterPtr writer)>;
+    IUnversionedRowsetWriterPtr writer)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +28,7 @@ struct IExecutor
         const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
-        ISchemafulWriterPtr writer,
+        IUnversionedRowsetWriterPtr writer,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) = 0;
 
@@ -44,7 +44,7 @@ struct ISubexecutor
         const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
-        ISchemafulWriterPtr writer,
+        IUnversionedRowsetWriterPtr writer,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) = 0;
 

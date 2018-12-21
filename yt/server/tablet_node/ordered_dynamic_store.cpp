@@ -27,7 +27,7 @@
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schemaful_writer_adapter.h>
 #include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/name_table.h>
 
 namespace NYT::NTabletNode {

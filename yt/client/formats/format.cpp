@@ -250,16 +250,16 @@ TIntrusivePtr<TWriter> CreateAdaptedWriterForJson(
     });
 }
 
-ISchemafulWriterPtr CreateSchemafulWriterForFormat(
+IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& format,
     const TTableSchema& schema,
     IAsyncOutputStreamPtr output)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
-            return CreateAdaptedWriterForYson<ISchemafulWriter, TSchemafulWriter>(format.Attributes(), schema, std::move(output));
+            return CreateAdaptedWriterForYson<IUnversionedRowsetWriter, TSchemafulWriter>(format.Attributes(), schema, std::move(output));
         case EFormatType::Json:
-            return CreateAdaptedWriterForJson<ISchemafulWriter, TSchemafulWriter>(format.Attributes(), schema, std::move(output));
+            return CreateAdaptedWriterForJson<IUnversionedRowsetWriter, TSchemafulWriter>(format.Attributes(), schema, std::move(output));
         case EFormatType::SchemafulDsv:
             return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), schema, std::move(output));
         case EFormatType::WebJson: {

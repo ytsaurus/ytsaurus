@@ -243,7 +243,7 @@ typedef TRowBuffer TExpressionContext;
 struct TExecutionContext
 {
     ISchemafulReaderPtr Reader;
-    ISchemafulWriterPtr Writer;
+    IUnversionedRowsetWriterPtr Writer;
 
     TQueryStatistics* Statistics;
 

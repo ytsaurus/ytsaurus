@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "schemaless_writer_adapter.h"
 
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/core/concurrency/async_stream.h>
 
@@ -35,12 +35,12 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
+NTableClient::IUnversionedRowsetWriterPtr CreateSchemafulWriterForSchemafulDsv(
     TSchemafulDsvFormatConfigPtr config,
     const NTableClient::TTableSchema& schema,
     NConcurrency::IAsyncOutputStreamPtr stream);
 
-NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
+NTableClient::IUnversionedRowsetWriterPtr CreateSchemafulWriterForSchemafulDsv(
     const NYTree::IAttributeDictionary& attributes,
     const NTableClient::TTableSchema& schema,
     NConcurrency::IAsyncOutputStreamPtr stream);

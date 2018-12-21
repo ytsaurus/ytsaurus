@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/core/actions/future.h>
 
@@ -17,7 +17,7 @@ namespace NYT::NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulWriter
-    : public NTableClient::ISchemafulWriter
+    : public NTableClient::IUnversionedRowsetWriter
 {
 public:
     TSchemafulWriter(

@@ -124,8 +124,8 @@ typedef std::vector<TDataSplit> TDataSplits;
 
 using NTableClient::ISchemafulReader;
 using NTableClient::ISchemafulReaderPtr;
-using NTableClient::ISchemafulWriter;
-using NTableClient::ISchemafulWriterPtr;
+using NTableClient::IUnversionedRowsetWriter;
+using NTableClient::IUnversionedRowsetWriterPtr;
 using NTableClient::EValueType;
 using NTableClient::TTableSchema;
 using NTableClient::TColumnSchema;

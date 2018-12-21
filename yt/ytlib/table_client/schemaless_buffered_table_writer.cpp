@@ -39,7 +39,7 @@ struct TSchemalessBufferedTableWriterBufferTag
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessBufferedTableWriter
-    : public ISchemalessWriter
+    : public IUnversionedWriter
 {
 public:
     TSchemalessBufferedTableWriter(
@@ -277,7 +277,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
+IUnversionedWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     NNative::IClientPtr client,
