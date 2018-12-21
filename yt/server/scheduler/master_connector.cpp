@@ -914,6 +914,7 @@ private:
                 attributes.Get<TMutationId>("mutation_id"),
                 attributes.Get<TTransactionId>("user_transaction_id"),
                 specNode,
+                attributes.Find<IMapNodePtr>("annotations"),
                 secureVault,
                 runtimeParams,
                 user,
@@ -1400,6 +1401,13 @@ private:
                 auto req = multisetReq->add_subrequests();
                 req->set_key("alerts");
                 req->set_value(operation->BuildAlertsString().GetData());
+            }
+
+            // Set annottaions.
+            if (operation->Annotations()) {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("annotations");
+                req->set_value(ConvertToYsonString(operation->Annotations()).GetData());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");

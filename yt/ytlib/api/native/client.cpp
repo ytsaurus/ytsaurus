@@ -3838,6 +3838,7 @@ private:
         "operation_type",
         "progress",
         "spec",
+        "annotations",
         "full_spec",
         "unrecognized_spec",
         "brief_progress",
@@ -3890,6 +3891,10 @@ private:
                 result.push_back("id_lo");
             } else if (attribute == "type") {
                 result.push_back("operation_type");
+            } else if (attribute == "annotations") {
+                if (DoGetOperationsArchiveVersion() >= 29) {
+                    result.push_back(attribute);
+                }
             } else {
                 result.push_back(attribute);
             }
@@ -4937,6 +4942,9 @@ private:
         if (operation.Type) {
             textFactors.push_back(ToString(*operation.Type));
         }
+        if (operation.Annotations) {
+            textFactors.push_back(ConvertToYsonString(operation.Annotations, EYsonFormat::Text).GetData());
+        }
 
         if (operation.BriefSpec) {
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
@@ -5118,6 +5126,10 @@ private:
             operation.SlotIndexPerPoolTree = nodeAttributes.FindYson("slot_index_per_pool_tree");
         }
 
+        if (!attributes || attributes->contains("annotations")) {
+            operation.Annotations = nodeAttributes.FindYson("annotations");
+        }
+
         return operation;
     }
 
@@ -5208,7 +5220,11 @@ private:
             auto hashStr = Format("%02x", hash);
             auto req = TYPathProxy::List("//sys/operations/" + hashStr);
             SetCachingHeader(req, options);
-            ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(LightAttributes));
+            auto attributes = LightAttributes;
+            if (options.SubstrFilter) {
+                attributes.emplace("annotations");
+            }
+            ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(attributes));
             listBatchReq->AddRequest(req, "list_operations_" + hashStr);
         }
 

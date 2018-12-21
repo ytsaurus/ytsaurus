@@ -22,11 +22,13 @@ class ListOperationsSetup(YTEnvSetup):
     _archive_version = None # Latest
 
     @classmethod
-    def _create_operation(cls, op_type, user, state=None, can_fail=False, pool_trees=None, title=None, abort=False, owners=None, **kwargs):
+    def _create_operation(cls, op_type, user, state=None, can_fail=False, pool_trees=None, title=None, abort=False, owners=None, annotations=None, **kwargs):
         if title is not None:
             set_branch(kwargs, ["spec", "title"], title)
         if owners is not None:
             set_branch(kwargs, ["spec", "owners"], owners)
+        if annotations is not None:
+            set_branch(kwargs, ["spec", "annotations"], annotations)
 
         before_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
 
@@ -53,7 +55,7 @@ class ListOperationsSetup(YTEnvSetup):
 
     @classmethod
     def _create_operations(cls):
-        cls.op1 = cls._create_operation("map", command="exit 0", user="user1")
+        cls.op1 = cls._create_operation("map", command="exit 0", user="user1", annotations={"key": ["annotation1", "annotation2"]})
         cls.op2 = cls._create_operation("map", command="exit 0", user="user2", owners=["group1", "user3"])
         cls.op3 = cls._create_operation(
             "map_reduce",
@@ -148,13 +150,13 @@ class _TestListOperationsBase(ListOperationsSetup):
 
     # The following tests expect five operations to be present
     # in Cypress (and/or in the archive if |self.include_archive| is |True|):
-    #     TYPE       -    STATE   - USER  -   POOLS            - FAILED JOBS - OWNERS
-    #  1. map        - completed  - user1 -   user1            - False       -  []
-    #  2. map        - completed  - user2 -   user2            - False       - [group1, user3]
-    #  3. map_reduce - failed     - user3 -   user3            - True        - [group2]
-    #  4. reduce     - aborted    - user3 - [user3, some_pool] - False       - [large_group]
-    #  5. sort       - completed  - user4 -   user4            - False       -  []
-    #  6. sort       - pending    - user5 -  pool_no_running   - False       -  []
+    #     TYPE       -    STATE   - USER  -   POOLS            - FAILED JOBS - OWNERS          - ANNOTATIONS
+    #  1. map        - completed  - user1 -  user1             - False       - []              - {key=[annotation1;annotation2]}
+    #  2. map        - completed  - user2 -  user2             - False       - [group1, user3] - {}
+    #  3. map_reduce - failed     - user3 -  user3             - True        - [group2]        - {}
+    #  4. reduce     - aborted    - user3 - [user3, some_pool] - False       - [large_group]   - {}
+    #  5. sort       - completed  - user4 -  user4             - False       - []              - {}
+    #  6. sort       - pending    - user5 -  pool_no_running   - False       - []              - {}
     # Moreover, |self.op3| is expected to have title "op3 title".
 
     def test_invalid_arguments(self):
@@ -292,6 +294,10 @@ class _TestListOperationsBase(ListOperationsSetup):
         # Pool filter.
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="some_pool", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id]
+
+        # Annotations filter.
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="notation2", read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op1.id]
 
     def test_pool_filter(self, read_from):
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, pool="user3", read_from=read_from)
