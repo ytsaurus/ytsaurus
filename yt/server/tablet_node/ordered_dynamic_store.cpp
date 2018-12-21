@@ -25,7 +25,6 @@
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schemaful_writer_adapter.h>
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/name_table.h>
@@ -297,12 +296,11 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         auto tableWriterOptions = New<TChunkWriterOptions>();
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
 
-        auto schemalessTableWriter = CreateSchemalessChunkWriter(
+        auto tableWriter = CreateSchemalessChunkWriter(
             tableWriterConfig,
             tableWriterOptions,
             Schema_,
             chunkWriter);
-        auto tableWriter = CreateSchemafulWriterAdapter(schemalessTableWriter);
 
         std::vector<TUnversionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
