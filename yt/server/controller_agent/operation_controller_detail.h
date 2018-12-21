@@ -327,7 +327,7 @@ public:
 
     virtual void Dispose() override;
 
-    virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersPtr& runtimeParameters) override;
+    virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override;
 
     virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() override;
 

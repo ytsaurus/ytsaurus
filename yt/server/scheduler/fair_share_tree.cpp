@@ -576,13 +576,12 @@ TError TFairShareTree::CheckOperationUnschedulable(
 
 void TFairShareTree::UpdateOperationRuntimeParameters(
     TOperationId operationId,
-    const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams)
+    const TOperationFairShareTreeRuntimeParametersPtr& newParams)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-    const auto& element = FindOperationElement(operationId);
-    if (element) {
-        element->SetRuntimeParams(runtimeParams);
+    if (const auto& element = FindOperationElement(operationId)) {
+        element->SetRuntimeParams(newParams);
     }
 }
 

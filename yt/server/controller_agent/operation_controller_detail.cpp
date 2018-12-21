@@ -6158,10 +6158,10 @@ void TOperationControllerBase::Dispose()
     ReleaseJobs(jobIdsToRelease);
 }
 
-void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimeParametersPtr& runtimeParameters)
+void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update)
 {
-    if (runtimeParameters->Owners) {
-        Owners = *runtimeParameters->Owners;
+    if (update->Owners) {
+        Owners = *update->Owners;
     }
 }
 

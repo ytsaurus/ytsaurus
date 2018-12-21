@@ -886,41 +886,8 @@ public:
 
     void DoUpdateOperationParameters(
         TOperationPtr operation,
-        const TOperationRuntimeParametersPtr& runtimeParams)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto codicilGuard = operation->MakeCodicilGuard();
-
-        Strategy_->ValidateOperationRuntimeParameters(operation.Get(), runtimeParams);
-
-        if (runtimeParams->Owners && operation->GetOwners() != *runtimeParams->Owners) {
-            operation->SetOwners(*runtimeParams->Owners);
-        }
-        operation->SetRuntimeParameters(runtimeParams);
-        Strategy_->ApplyOperationRuntimeParameters(operation.Get());
-
-        // Updating ACL and other attributes.
-        WaitFor(MasterConnector_->FlushOperationNode(operation))
-            .ThrowOnError();
-
-        auto controller = operation->GetController();
-        if (controller) {
-            WaitFor(controller->UpdateRuntimeParameters(runtimeParams))
-                .ThrowOnError();
-        }
-
-        WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams))
-            .ThrowOnError();
-
-        LogEventFluently(ELogEventType::RuntimeParametersInfo)
-            .Item("runtime_params").Value(runtimeParams);
-
-        YT_LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
-            operation->GetId());
-    }
-
-    TFuture<void> UpdateOperationParameters(TOperationPtr operation, const TString& user, INodePtr parameters)
+        const TString& user,
+        INodePtr parameters)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -928,28 +895,54 @@ public:
 
         ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
 
-        auto userRuntimeParams = New<TUserFriendlyOperationRuntimeParameters>();
-        Deserialize(userRuntimeParams, parameters);
+        auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(parameters);
 
         // TODO(renadeen): remove this someday
         if (!Config_->PoolChangeIsAllowed) {
-            if (userRuntimeParams->Pool) {
+            if (update->Pool) {
                 THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
             }
-            for (const auto& pair : userRuntimeParams->SchedulingOptionsPerPoolTree) {
+            for (const auto& pair : update->SchedulingOptionsPerPoolTree) {
                 if (pair.second->Pool) {
                     THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
                 }
             }
         }
 
-        auto newRuntimeParams = userRuntimeParams->UpdateParameters(operation->GetRuntimeParameters());
+        auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
 
-        auto updateFuture = BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this))
+        Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams);
+
+        operation->SetRuntimeParameters(newParams);
+        Strategy_->ApplyOperationRuntimeParameters(operation.Get());
+
+        // Updating ACL and other attributes.
+        WaitFor(MasterConnector_->FlushOperationNode(operation))
+            .ThrowOnError();
+
+        if (auto controller = operation->GetController()) {
+            WaitFor(controller->UpdateRuntimeParameters(update))
+                .ThrowOnError();
+        }
+
+        WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, newParams))
+            .ThrowOnError();
+
+        LogEventFluently(ELogEventType::RuntimeParametersInfo)
+            .Item("runtime_params").Value(newParams);
+
+        YT_LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
+            operation->GetId());
+    }
+
+    TFuture<void> UpdateOperationParameters(
+        const TOperationPtr& operation,
+        const TString& user,
+        INodePtr parameters)
+    {
+        return BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this), operation, user, std::move(parameters))
             .AsyncVia(operation->GetCancelableControlInvoker())
-            .Run(operation, newRuntimeParams);
-
-        return updateFuture;
+            .Run();
     }
 
     TFuture<TYsonString> Strace(TJobId jobId, const TString& user)

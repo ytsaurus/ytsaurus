@@ -900,7 +900,7 @@ private:
     {
         THashMap<TString, TPoolName> pools;
         for (const auto& pair : runtimeParams->SchedulingOptionsPerPoolTree) {
-            pools.emplace(pair.first, *pair.second->Pool);
+            pools.emplace(pair.first, pair.second->Pool);
         }
         return pools;
     }
