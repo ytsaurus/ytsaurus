@@ -2236,6 +2236,7 @@ public:
             Y_ENSURE(attributes.State.Defined());
             bool operationHasLockedFiles =
                 *attributes.State != "starting" &&
+                *attributes.State != "pending" &&
                 *attributes.State != "orphaned" &&
                 *attributes.State != "waiting_for_agent" &&
                 *attributes.State != "initializing";
