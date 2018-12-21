@@ -2017,32 +2017,32 @@ class TestTabletActions(TestDynamicTablesBase):
         assert len(get("//tmp/t/@chunk_ids")) > 1
 
         wait_for_tablet_state("//tmp/t", "mounted")
-        set("//tmp/t/@min_tablet_size", 512)
-        set("//tmp/t/@max_tablet_size", 2048)
-        set("//tmp/t/@desired_tablet_size", 1024)
+        set("//tmp/t/@tablet_balancer_config/min_tablet_size", 512)
+        set("//tmp/t/@tablet_balancer_config/max_tablet_size", 2048)
+        set("//tmp/t/@tablet_balancer_config/desired_tablet_size", 1024)
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
         wait_for_tablet_state("//tmp/t", "mounted")
-        remove("//tmp/t/@min_tablet_size")
-        remove("//tmp/t/@max_tablet_size")
-        remove("//tmp/t/@desired_tablet_size")
+        remove("//tmp/t/@tablet_balancer_config/min_tablet_size")
+        remove("//tmp/t/@tablet_balancer_config/max_tablet_size")
+        remove("//tmp/t/@tablet_balancer_config/desired_tablet_size")
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
 
         wait_for_tablet_state("//tmp/t", "mounted")
-        set("//tmp/t/@desired_tablet_count", 1)
+        set("//tmp/t/@tablet_balancer_config/desired_tablet_count", 1)
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
     def test_tablet_balancer_disabled(self):
         self._configure_bundle("default")
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
-        set("//tmp/t/@enable_tablet_balancer", False)
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
-        remove("//tmp/t/@enable_tablet_balancer")
+        remove("//tmp/t/@tablet_balancer_config/enable_auto_reshard")
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", True)
@@ -2206,6 +2206,71 @@ class TestTabletActions(TestDynamicTablesBase):
         wait_for_tablet_state("//tmp/t", "mounted")
         assert get("//tmp/t/@tablets/0/cell_id") == cells[0]
         assert len(get("//sys/tablet_actions")) == 0
+
+    def test_tablet_balancer_table_config(self):
+        cells = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
+        sync_reshard_table("//tmp/t", [[],[1]])
+        set("//tmp/t/@tablet_balancer_config", {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": False,
+        })
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(2)])
+        sync_flush_table("//tmp/t")
+
+        sleep(1)
+        assert get("//tmp/t/@tablet_count") == 2
+        assert all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets"))
+
+        set("//tmp/t/@tablet_balancer_config/enable_auto_tablet_move", True)
+        wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
+
+        assert get("//tmp/t/@enable_tablet_balancer") == False
+        remove("//tmp/t/@enable_tablet_balancer")
+        assert get("//tmp/t/@tablet_balancer_config") == {
+            "enable_auto_tablet_move": True,
+            "enable_auto_reshard": True,
+        }
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+
+    def test_tablet_balancer_table_config_compats(self):
+        cells = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
+
+        set("//tmp/t/@tablet_balancer_config", {})
+        set("//tmp/t/@min_tablet_size", 1)
+        set("//tmp/t/@desired_tablet_size", 2)
+        set("//tmp/t/@max_tablet_size", 3)
+        set("//tmp/t/@desired_tablet_count", 4)
+        assert get("//tmp/t/@tablet_balancer_config") == {
+            "enable_auto_tablet_move": True,
+            "enable_auto_reshard": True,
+            "min_tablet_size": 1,
+            "desired_tablet_size": 2,
+            "max_tablet_size": 3,
+            "desired_tablet_count": 4,
+        }
+        assert get("//tmp/t/@min_tablet_size") == 1
+        assert get("//tmp/t/@desired_tablet_size") == 2
+        assert get("//tmp/t/@max_tablet_size") == 3
+        assert get("//tmp/t/@desired_tablet_count") == 4
+
+        with pytest.raises(YtError): set("//tmp/t/@min_tablet_size", 5)
+        with pytest.raises(YtError): set("//tmp/t/@tablet_balancer_config/min_tablet_size", 5)
+
+        remove("//tmp/t/@min_tablet_size")
+        remove("//tmp/t/@desired_tablet_size")
+        remove("//tmp/t/@max_tablet_size")
+        remove("//tmp/t/@desired_tablet_count")
+        assert get("//tmp/t/@tablet_balancer_config") == {
+            "enable_auto_tablet_move": True,
+            "enable_auto_reshard": True,
+        }
+
+        assert not exists("//tmp/t/@enable_tablet_balancer")
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+        assert get("//tmp/t/@enable_tablet_balancer") == False
 
 ##################################################################
 

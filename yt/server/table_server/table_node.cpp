@@ -37,8 +37,8 @@ DEFINE_ENUM(ESchemaSerializationMethod,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
+    : TabletBalancerConfig(New<TTabletBalancerConfig>())
 { }
 
 void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& context) const
@@ -51,12 +51,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, LastCommitTimestamp);
     Save(context, TabletCountByState);
     Save(context, Tablets);
-    Save(context, EnableTabletBalancer);
-    Save(context, MinTabletSize);
-    Save(context, MaxTabletSize);
-    Save(context, DesiredTabletSize);
     Save(context, InMemoryMode);
-    Save(context, DesiredTabletCount);
     Save(context, TabletErrorCount);
     Save(context, ForcedCompactionRevision);
     Save(context, Dynamic);
@@ -67,6 +62,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TabletCountByExpectedState);
     Save(context, ActualTabletState);
     Save(context, PrimaryLastMountTransactionId);
+    Save(context, *TabletBalancerConfig);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -80,19 +76,23 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, TabletCountByState);
     Load(context, Tablets);
     // COMPAT(savrus)
-    if (context.GetVersion() >= 614) {
-        Load(context, EnableTabletBalancer);
-        Load(context, MinTabletSize);
-        Load(context, MaxTabletSize);
-        Load(context, DesiredTabletSize);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= 614 && context.GetVersion() < 821) {
+        std::optional<bool> enableTabletBalancer;
+        Load(context, enableTabletBalancer);
+        TabletBalancerConfig->EnableAutoReshard = enableTabletBalancer.value_or(true);
+        Load(context, TabletBalancerConfig->MinTabletSize);
+        Load(context, TabletBalancerConfig->MaxTabletSize);
+        Load(context, TabletBalancerConfig->DesiredTabletSize);
     }
     // COMPAT(savrus)
     if (context.GetVersion() >= 621) {
         Load(context, InMemoryMode);
     }
     // COMPAT(savrus)
-    if (context.GetVersion() >= 622) {
-        Load(context, DesiredTabletCount);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= 622 && context.GetVersion() < 821) {
+        Load(context, TabletBalancerConfig->DesiredTabletCount);
     }
     // COMPAT(iskhakovt)
     if (context.GetVersion() >= 628) {
@@ -120,6 +120,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     // COMPAT(savrus)
     if (context.GetVersion() < 800) {
         Dynamic = !Tablets.empty();
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= 821) {
+        Load(context, *TabletBalancerConfig);
     }
 }
 
@@ -622,6 +626,58 @@ std::vector<TError> TTableNode::GetTabletErrors(std::optional<int> limit) const
         }
     }
     return errors;
+}
+
+std::optional<bool> TTableNode::GetEnableTabletBalancer() const
+{
+    return TabletBalancerConfig()->EnableAutoReshard
+        ? std::nullopt
+        : std::make_optional(false);
+}
+
+void TTableNode::SetEnableTabletBalancer(std::optional<bool> value)
+{
+    MutableTabletBalancerConfig()->EnableAutoReshard = value.value_or(true);
+}
+
+std::optional<i64> TTableNode::GetMinTabletSize() const
+{
+    return TabletBalancerConfig()->MinTabletSize;
+}
+
+void TTableNode::SetMinTabletSize(std::optional<i64> value)
+{
+    MutableTabletBalancerConfig()->SetMinTabletSize(value);
+}
+
+std::optional<i64> TTableNode::GetMaxTabletSize() const
+{
+    return TabletBalancerConfig()->MaxTabletSize;
+}
+
+void TTableNode::SetMaxTabletSize(std::optional<i64> value)
+{
+    MutableTabletBalancerConfig()->SetMaxTabletSize(value);
+}
+
+std::optional<i64> TTableNode::GetDesiredTabletSize() const
+{
+    return TabletBalancerConfig()->DesiredTabletSize;
+}
+
+void TTableNode::SetDesiredTabletSize(std::optional<i64> value)
+{
+    MutableTabletBalancerConfig()->SetDesiredTabletSize(value);
+}
+
+std::optional<int> TTableNode::GetDesiredTabletCount() const
+{
+    return TabletBalancerConfig()->DesiredTabletCount;
+}
+
+void TTableNode::SetDesiredTabletCount(std::optional<int> value)
+{
+    MutableTabletBalancerConfig()->DesiredTabletCount = value;
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);
