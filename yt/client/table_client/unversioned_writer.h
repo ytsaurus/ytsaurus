@@ -12,12 +12,33 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  Writes non-versioned, fixed-width, strictly typed rowset with given schema.
+ *  Useful for: query engine.
+ */
+struct IUnversionedRowsetWriter
+    : public virtual TRefCounted
+{
+    virtual TFuture<void> Close() = 0;
+
+    /*!
+     *  Every row must contain exactly one value for each column in schema, in the same order.
+     */
+    virtual bool Write(TRange<TUnversionedRow> rows) = 0;
+
+    virtual TFuture<void> GetReadyEvent() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IUnversionedRowsetWriter)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Writes a schemaless unversioned rowset.
 /*!
  *  Writes unversioned rowset with schema and variable columns.
  *  Useful for: mapreduce jobs, write command.
  */
-struct ISchemalessWriter
+struct IUnversionedWriter
     : public virtual NChunkClient::IWriterBase
 {
     virtual bool Write(TRange<TUnversionedRow> rows) = 0;
@@ -27,7 +48,7 @@ struct ISchemalessWriter
     virtual const TTableSchema& GetSchema() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISchemalessWriter)
+DEFINE_REFCOUNTED_TYPE(IUnversionedWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

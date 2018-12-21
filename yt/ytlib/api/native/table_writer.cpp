@@ -41,7 +41,7 @@ TFuture<ITableWriterPtr> CreateTableWriter(
         client,
         transaction);
 
-    return asyncSchemalessWriter.Apply(BIND([] (const ISchemalessWriterPtr& schemalessWriter) {
+    return asyncSchemalessWriter.Apply(BIND([] (const IUnversionedWriterPtr& schemalessWriter) {
         return CreateApiFromSchemalessWriterAdapter(std::move(schemalessWriter));
     }));
 }

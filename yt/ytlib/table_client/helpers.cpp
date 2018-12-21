@@ -25,7 +25,7 @@
 #include <yt/client/ypath/rich.h>
 
 #include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/name_table.h>
 
@@ -150,7 +150,7 @@ class TApiFromSchemalessWriterAdapter
     : public NApi::ITableWriter
 {
 public:
-    explicit TApiFromSchemalessWriterAdapter(ISchemalessWriterPtr underlyingWriter)
+    explicit TApiFromSchemalessWriterAdapter(IUnversionedWriterPtr underlyingWriter)
         : UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
@@ -180,11 +180,11 @@ public:
     }
 
 private:
-    const ISchemalessWriterPtr UnderlyingWriter_;
+    const IUnversionedWriterPtr UnderlyingWriter_;
 };
 
 NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
-    ISchemalessWriterPtr underlyingWriter)
+    IUnversionedWriterPtr underlyingWriter)
 {
     return New<TApiFromSchemalessWriterAdapter>(std::move(underlyingWriter));
 }
@@ -192,7 +192,7 @@ NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessApiFromWriterAdapter
-    : public ISchemalessWriter
+    : public IUnversionedWriter
 {
 public:
     explicit TSchemalessApiFromWriterAdapter(NApi::ITableWriterPtr underlyingWriter)
@@ -228,7 +228,7 @@ private:
     const NApi::ITableWriterPtr UnderlyingWriter_;
 };
 
-ISchemalessWriterPtr CreateSchemalessFromApiWriterAdapter(
+IUnversionedWriterPtr CreateSchemalessFromApiWriterAdapter(
     NApi::ITableWriterPtr underlyingWriter)
 {
     return New<TSchemalessApiFromWriterAdapter>(std::move(underlyingWriter));
@@ -238,7 +238,7 @@ ISchemalessWriterPtr CreateSchemalessFromApiWriterAdapter(
 
 void PipeReaderToWriter(
     NApi::ITableReaderPtr reader,
-    ISchemalessWriterPtr writer,
+    IUnversionedWriterPtr writer,
     const TPipeReaderToWriterOptions& options)
 {
     TPeriodicYielder yielder(TDuration::Seconds(1));
@@ -291,7 +291,7 @@ void PipeReaderToWriter(
 
 void PipeReaderToWriter(
     ISchemalessChunkReaderPtr reader,
-    ISchemalessWriterPtr writer,
+    IUnversionedWriterPtr writer,
     const TPipeReaderToWriterOptions& options)
 {
     PipeReaderToWriter(

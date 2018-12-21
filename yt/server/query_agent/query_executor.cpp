@@ -55,7 +55,7 @@
 #include <yt/ytlib/table_client/pipe.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 #include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 
 #include <yt/ytlib/tablet_client/public.h>
@@ -305,7 +305,7 @@ public:
         const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
-        ISchemafulWriterPtr writer,
+        IUnversionedRowsetWriterPtr writer,
         const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options)
         : Config_(std::move(config))
@@ -359,7 +359,7 @@ private:
     const std::vector<NTabletClient::TTableMountInfoPtr> MountInfos_;
     const TConstExternalCGInfoPtr ExternalCGInfo_;
     const std::vector<TDataRanges> DataSources_;
-    const ISchemafulWriterPtr Writer_;
+    const IUnversionedRowsetWriterPtr Writer_;
 
     const TQueryOptions Options_;
     const TClientBlockReadOptions BlockReadOptions_;
@@ -639,7 +639,7 @@ private:
 
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
-            [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, IUnversionedRowsetWriterPtr writer) {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto result = Evaluator_->Run(
                     topQuery,
@@ -1307,7 +1307,7 @@ public:
         const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
-        ISchemafulWriterPtr writer,
+        IUnversionedRowsetWriterPtr writer,
         const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) override
     {

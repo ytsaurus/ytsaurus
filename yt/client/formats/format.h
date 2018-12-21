@@ -4,7 +4,7 @@
 
 #include <yt/client/table_client/value_consumer.h> // TODO(babenko): replace with public
 
-#include <yt/client/table_client/schemaless_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -65,7 +65,7 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessFormatWriter
-    : public NTableClient::ISchemalessWriter
+    : public NTableClient::IUnversionedWriter
 {
     virtual TBlob GetContext() const = 0;
 
@@ -76,7 +76,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
+NTableClient::IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& Format,
     const NTableClient::TTableSchema& schema,
     NConcurrency::IAsyncOutputStreamPtr output);

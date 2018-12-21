@@ -8,7 +8,7 @@
 
 #include <yt/client/query_client/query_statistics.h>
 
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -69,7 +69,7 @@ public:
     TQueryStatistics Run(
         TConstBaseQueryPtr query,
         ISchemafulReaderPtr reader,
-        ISchemafulWriterPtr writer,
+        IUnversionedRowsetWriterPtr writer,
         TJoinSubqueryProfiler joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
@@ -252,7 +252,7 @@ TEvaluator::TEvaluator(
 TQueryStatistics TEvaluator::Run(
     TConstBaseQueryPtr query,
     ISchemafulReaderPtr reader,
-    ISchemafulWriterPtr writer,
+    IUnversionedRowsetWriterPtr writer,
     TJoinSubqueryProfiler joinProfiler,
     TConstFunctionProfilerMapPtr functionProfilers,
     TConstAggregateProfilerMapPtr aggregateProfilers,

@@ -174,7 +174,7 @@ public:
         const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
-        ISchemafulWriterPtr writer,
+        IUnversionedRowsetWriterPtr writer,
         const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) override
     {
@@ -495,7 +495,7 @@ private:
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         const TClientBlockReadOptions& blockReadOptions,
-        const ISchemafulWriterPtr& writer,
+        const IUnversionedRowsetWriterPtr& writer,
         int subrangesCount,
         std::function<std::pair<std::vector<TDataRanges>, TString>(int)> getSubsources)
     {
@@ -540,7 +540,7 @@ private:
                     std::move(dataSources),
                     address);
             },
-            [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, IUnversionedRowsetWriterPtr writer) {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return Evaluator_->Run(
                     std::move(topQuery),
@@ -560,7 +560,7 @@ private:
         TDataRanges dataSource,
         const TQueryOptions& options,
         const TClientBlockReadOptions& blockReadOptions,
-        ISchemafulWriterPtr writer)
+        IUnversionedRowsetWriterPtr writer)
     {
         auto Logger = MakeQueryLogger(query);
 
@@ -622,7 +622,7 @@ private:
         TDataRanges dataSource,
         const TQueryOptions& options,
         const TClientBlockReadOptions& blockReadOptions,
-        ISchemafulWriterPtr writer)
+        IUnversionedRowsetWriterPtr writer)
     {
         auto Logger = MakeQueryLogger(query);
 

@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/client/table_client/schemaless_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -22,7 +22,7 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessChunkWriter
-    : public ISchemalessWriter
+    : public IUnversionedWriter
     , public virtual NChunkClient::IChunkWriterBase
 { };
 
@@ -52,7 +52,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessMultiChunkWriter
-    : public ISchemalessWriter
+    : public IUnversionedWriter
     , public virtual NChunkClient::IMultiChunkWriter
 { };
 
@@ -91,7 +91,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<ISchemalessWriterPtr> CreateSchemalessTableWriter(
+TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,

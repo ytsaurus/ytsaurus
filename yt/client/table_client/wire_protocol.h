@@ -5,7 +5,7 @@
 #include <yt/client/api/public.h>
 
 #include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
 
@@ -234,7 +234,7 @@ IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IWireProtocolRowsetWriter
-    : public NTableClient::ISchemafulWriter
+    : public NTableClient::IUnversionedRowsetWriter
 {
     virtual std::vector<TSharedRef> GetCompressedBlocks() = 0;
 };
