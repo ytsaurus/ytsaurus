@@ -28,9 +28,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NMaster {
+namespace NYP::NServer::NMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +66,7 @@ public:
 
         RegisterPostprocessor([&] {
             // Don't use custom thread pool in YT connection.
-            Connection->ThreadPoolSize = Null;
+            Connection->ThreadPoolSize = std::nullopt;
         });
     }
 };
@@ -163,6 +161,4 @@ DEFINE_REFCOUNTED_TYPE(TMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMaster
-} // namespace NNodes
-} // namespace NYP
+} // namespace NYP::NNodes::NMaster

@@ -2,9 +2,7 @@
 
 #include <yp/server/objects/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +40,4 @@ DEFINE_ENUM_FORMATTER(resource_kind, EResourceKind)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

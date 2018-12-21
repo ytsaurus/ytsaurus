@@ -1,8 +1,6 @@
 #include "private.h"
 
-namespace NYP {
-namespace NServer {
-namespace NNet {
+namespace NYP::NServer::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,7 +8,5 @@ const NYT::NLogging::TLogger Logger("Net");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNet
 

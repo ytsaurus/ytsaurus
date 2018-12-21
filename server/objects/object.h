@@ -9,9 +9,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/small_vector.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,9 +102,7 @@ void ValidateObjectId(EObjectType type, const TObjectId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 
 #define OBJECT_INL_H_
 #include "object-inl.h"

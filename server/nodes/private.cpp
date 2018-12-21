@@ -1,8 +1,6 @@
 #include "private.h"
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,7 +9,5 @@ const NYT::NProfiling::TProfiler Profiler("/nodes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes
 

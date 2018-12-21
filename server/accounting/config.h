@@ -24,9 +24,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccounting {
+namespace NYP::NServer::NAccounting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +41,4 @@ DEFINE_REFCOUNTED_TYPE(TAccountingManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccounting
-} // namespace NNodes
-} // namespace NYP
+} // namespace NYP::NNodes::NAccounting

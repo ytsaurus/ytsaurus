@@ -8,9 +8,7 @@
 
 #include <yt/core/net/address.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NServer::NNet;
 
@@ -60,6 +58,11 @@ public:
                 MakeAttributeSchema("update_hfsm_state")
                     ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TUpdateHfsmState>(std::bind(&TNodeTypeHandler::UpdateHfsmState, _1, _2, _3))
             });
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TNode>();
     }
 
     virtual const TDBTable* GetTable() override
@@ -151,7 +154,7 @@ private:
             message = "State updated by client";
         }
 
-        LOG_DEBUG("Updating node HFSM state (NodeId: %v, State: %v, Message: %v)",
+        YT_LOG_DEBUG("Updating node HFSM state (NodeId: %v, State: %v, Message: %v)",
             node->GetId(),
             state,
             message);
@@ -167,7 +170,5 @@ std::unique_ptr<IObjectTypeHandler> CreateNodeTypeHandler(NMaster::TBootstrap* b
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

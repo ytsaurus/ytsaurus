@@ -1,9 +1,7 @@
 #include "replica_set.h"
 #include "db_schema.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +31,5 @@ EObjectType TReplicaSet::GetType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

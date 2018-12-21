@@ -4,9 +4,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +31,4 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

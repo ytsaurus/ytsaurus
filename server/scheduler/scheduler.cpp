@@ -25,9 +25,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 using namespace NServer::NMaster;
 using namespace NServer::NObjects;
@@ -131,7 +129,7 @@ private:
 
         void ReconcileState()
         {
-            LOG_DEBUG("Started reconciling state");
+            YT_LOG_DEBUG("Started reconciling state");
 
             Owner_->Cluster_->LoadSnapshot();
 
@@ -139,7 +137,7 @@ private:
             auto now = TInstant::Now();
             for (auto* pod : pods) {
                 if (!pod->GetNode()) {
-                    LOG_DEBUG("Adding pod to schedule queue since it is not assigned to any node (PodId: %v)",
+                    YT_LOG_DEBUG("Adding pod to schedule queue since it is not assigned to any node (PodId: %v)",
                         pod->GetId());
                     Owner_->ScheduleQueue_.Enqueue(pod->GetId(), now);
                 }
@@ -150,7 +148,7 @@ private:
             InternetAddressManager_.ReconcileState(Owner_->Cluster_);
             Owner_->GlobalResourceAllocator_->ReconcileState(Owner_->Cluster_);
 
-            LOG_DEBUG("State reconciled");
+            YT_LOG_DEBUG("State reconciled");
         }
 
         void RequestPodEvictionAtNodesWithRequestedMaintenance()
@@ -178,7 +176,7 @@ private:
                     }
 
                     auto* transactionPod = transaction->GetPod(pod->GetId());
-                    LOG_DEBUG("Pod eviction requested by HFSM (PodId: %v, NodeId: %v, HfsmState: %v)",
+                    YT_LOG_DEBUG("Pod eviction requested by HFSM (PodId: %v, NodeId: %v, HfsmState: %v)",
                         pod->GetId(),
                         node->GetId(),
                         node->GetHfsmState());
@@ -192,7 +190,7 @@ private:
                 WaitFor(transaction->Commit())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Error committing pod eviction state transitions");
+                YT_LOG_DEBUG(ex, "Error committing pod eviction state transitions");
             }
         }
 
@@ -201,7 +199,7 @@ private:
             auto pods = Owner_->Cluster_->GetPods();
             for (auto* pod : pods) {
                 if (pod->StatusOther().eviction().state() == NClient::NApi::NProto::ES_ACKNOWLEDGED) {
-                    LOG_DEBUG("Pod eviction acknowledged (PodId: %v, NodeId: %v)",
+                    YT_LOG_DEBUG("Pod eviction acknowledged (PodId: %v, NodeId: %v)",
                         pod->GetId(),
                         pod->GetNode()->GetId());
                     AllocationPlan_.RevokePodFromNode(pod);
@@ -226,7 +224,7 @@ private:
                     }
 
                     auto* transactionNode = transaction->GetNode(node->GetId());
-                    LOG_DEBUG("Node maintenance acknowledged (NodeId: %v)",
+                    YT_LOG_DEBUG("Node maintenance acknowledged (NodeId: %v)",
                         node->GetId());
                     transactionNode->UpdateMaintenanceStatus(
                         ENodeMaintenanceState::Acknowledged,
@@ -236,13 +234,13 @@ private:
                 WaitFor(transaction->Commit())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Error committing node maintenance state transitions");
+                YT_LOG_DEBUG(ex, "Error committing node maintenance state transitions");
             }
         }
 
         void RecordAllocationSuccess(TPod* pod, TNode* node)
         {
-            LOG_DEBUG("Node allocation succeeded (PodId: %v, NodeId: %v)",
+            YT_LOG_DEBUG("Node allocation succeeded (PodId: %v, NodeId: %v)",
                 pod->GetId(),
                 node->GetId());
             AllocationPlan_.AssignPodToNode(pod, node);
@@ -253,7 +251,7 @@ private:
             const auto& podId = pod->GetId();
             auto now = TInstant::Now();
             auto deadline = now + Owner_->Config_->FailedAllocationBackoffTime;
-            LOG_DEBUG("Node allocation failed; backing off (PodId: %v, Deadline: %v)",
+            YT_LOG_DEBUG("Node allocation failed; backing off (PodId: %v, Deadline: %v)",
                 podId,
                 deadline);
             Owner_->ScheduleQueue_.Enqueue(podId, deadline);
@@ -264,7 +262,7 @@ private:
             const auto& podId = pod->GetId();
             auto now = TInstant::Now();
             auto deadline = now + Owner_->Config_->FailedAllocationBackoffTime;
-            LOG_DEBUG(error, "Pod scheduling failure; backing off (PodId: %v, Deadline: %v)",
+            YT_LOG_DEBUG(error, "Pod scheduling failure; backing off (PodId: %v, Deadline: %v)",
                 podId,
                 deadline);
             Owner_->ScheduleQueue_.Enqueue(podId, deadline);
@@ -273,7 +271,7 @@ private:
 
         void SchedulePods()
         {
-            LOG_DEBUG("Started scheduling pods");
+            YT_LOG_DEBUG("Started scheduling pods");
 
             auto now = TInstant::Now();
             while (true) {
@@ -284,13 +282,13 @@ private:
 
                 auto* pod = Owner_->Cluster_->FindPod(podId);
                 if (!pod) {
-                    LOG_DEBUG("Pod no longer exists; discarded (PodId: %v)",
+                    YT_LOG_DEBUG("Pod no longer exists; discarded (PodId: %v)",
                         podId);
                     continue;
                 }
 
                 if (pod->GetNode()) {
-                    LOG_DEBUG("Pod is already assigned to node; discarded (PodId: %v, NodeId: %v)",
+                    YT_LOG_DEBUG("Pod is already assigned to node; discarded (PodId: %v, NodeId: %v)",
                         podId,
                         pod->GetNode()->GetId());
                     continue;
@@ -308,13 +306,13 @@ private:
                     RecordSchedulingFailure(pod, nodeOrError);
                 }
             }
-            LOG_DEBUG("Pods scheduled");
+            YT_LOG_DEBUG("Pods scheduled");
         }
 
         void Commit()
         {
             {
-                LOG_DEBUG("Started committing scheduling results (PodCount: %v, NodeCount: %v, FailureCount: %v)",
+                YT_LOG_DEBUG("Started committing scheduling results (PodCount: %v, NodeCount: %v, FailureCount: %v)",
                     AllocationPlan_.GetPodCount(),
                     AllocationPlan_.GetNodeCount(),
                     AllocationPlan_.GetFailures().size());
@@ -328,11 +326,11 @@ private:
                 WaitFor(Combine(asyncResults))
                     .ThrowOnError();
 
-                LOG_DEBUG("Scheduled pods committed");
+                YT_LOG_DEBUG("Scheduled pods committed");
             }
 
             if (!AllocationPlan_.GetFailures().empty()) {
-                LOG_DEBUG("Started committing scheduling failures (Count: %v)",
+                YT_LOG_DEBUG("Started committing scheduling failures (Count: %v)",
                     AllocationPlan_.GetPodCount(),
                     AllocationPlan_.GetNodeCount(),
                     AllocationPlan_.GetFailures().size());
@@ -342,7 +340,7 @@ private:
                     .Run())
                     .ThrowOnError();
 
-                LOG_DEBUG("Scheduling failures committed");
+                YT_LOG_DEBUG("Scheduling failures committed");
             }
         }
 
@@ -351,13 +349,13 @@ private:
             const auto& podId = pod->GetId();
 
             if (!pod->DoesExist()) {
-                LOG_DEBUG("Pod no longer exists; discarded (PodId: %v)",
+                YT_LOG_DEBUG("Pod no longer exists; discarded (PodId: %v)",
                     podId);
                 return false;
             }
 
             if (!pod->Spec().EnableScheduling().Load()) {
-                LOG_DEBUG("Pod scheduling disabled; discarded (PodId: %v)",
+                YT_LOG_DEBUG("Pod scheduling disabled; discarded (PodId: %v)",
                     podId);
                 return false;
             }
@@ -368,14 +366,14 @@ private:
         void CommitScheduledPods()
         {
             while (true) {
-                auto maybePerNodePlan = AllocationPlan_.TryExtractPerNodePlan();
-                if (!maybePerNodePlan) {
+                auto optionalPerNodePlan = AllocationPlan_.TryExtractPerNodePlan();
+                if (!optionalPerNodePlan) {
                     break;
                 }
 
-                const auto& perNodePlan = *maybePerNodePlan;
+                const auto& perNodePlan = *optionalPerNodePlan;
 
-                LOG_DEBUG("Committing pods assignment (NodeId: %v, PodIds: %v)",
+                YT_LOG_DEBUG("Committing pods assignment (NodeId: %v, PodIds: %v)",
                     perNodePlan.Node->GetId(),
                     MakeFormattableRange(perNodePlan.Requests, [] (auto* builder, const auto& request) {
                         builder->AppendFormat("%v%v",
@@ -419,7 +417,7 @@ private:
                             }
                         } else {
                             if (transactionPod->Spec().Node().Load() != transactionNode) {
-                                LOG_DEBUG("Pod is no longer assigned to the expected node; skipped (PodId: %v, ExpectedNodeId: %v, ActualNodeId: %v)",
+                                YT_LOG_DEBUG("Pod is no longer assigned to the expected node; skipped (PodId: %v, ExpectedNodeId: %v, ActualNodeId: %v)",
                                     podId,
                                     perNodePlan.Node->GetId(),
                                     transactionPod->Spec().Node().Load()->GetId());
@@ -433,7 +431,7 @@ private:
                         .ThrowOnError();
                 } catch (const std::exception& ex) {
                     auto now = TInstant::Now();
-                    LOG_DEBUG(ex, "Error committing pods assignment; will reschedule");
+                    YT_LOG_DEBUG(ex, "Error committing pods assignment; will reschedule");
                     for (const auto& request : perNodePlan.Requests) {
                         if (request.Assign) {
                             Owner_->ScheduleQueue_.Enqueue(request.Pod->GetId(), now);
@@ -464,7 +462,7 @@ private:
                 WaitFor(transaction->Commit())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Error committing scheduling failures");
+                YT_LOG_DEBUG(ex, "Error committing scheduling failures");
             }
         }
     };
@@ -474,7 +472,7 @@ private:
         try {
             New<TLoopIteration>(this)->Run();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Loop iteration failed");
+            YT_LOG_WARNING(ex, "Loop iteration failed");
         }
     }
 
@@ -513,7 +511,5 @@ const TClusterPtr& TScheduler::GetCluster() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler
 

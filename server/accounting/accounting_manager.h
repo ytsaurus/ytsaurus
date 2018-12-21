@@ -10,9 +10,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccounting {
+namespace NYP::NServer::NAccounting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +39,4 @@ DEFINE_REFCOUNTED_TYPE(TAccountingManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccessControl
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccessControl

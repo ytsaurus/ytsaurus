@@ -7,9 +7,7 @@
 #include <yp/server/objects/internet_address.h>
 #include <yp/server/objects/transaction.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,16 +23,16 @@ void TInternetAddressManager::ReconcileState(
     }
 }
 
-TNullable<TString> TInternetAddressManager::TakeInternetAddress(
+std::optional<TString> TInternetAddressManager::TakeInternetAddress(
     const TString& networkModuleId)
 {
     if (!ModuleIdToAddressIds_.contains(networkModuleId)) {
-        return Null;
+        return std::nullopt;
     }
 
     auto& queue = ModuleIdToAddressIds_[networkModuleId];
     if (queue.empty()) {
-        return Null;
+        return std::nullopt;
     }
 
     auto result = queue.front();
@@ -57,7 +55,7 @@ void TInternetAddressManager::AssignInternetAddressesToPod(
         }
 
         auto scheduledInternetAddressId = TakeInternetAddress(node->Spec().Load().network_module_id());
-        if (!scheduledInternetAddressId.HasValue()) {
+        if (!scheduledInternetAddressId) {
             THROW_ERROR_EXCEPTION("No spare internet addresses in network module %Qv for pod %Qv at node %Qv",
                 node->Spec().Load().network_module_id(),
                 pod->GetId(),
@@ -94,6 +92,4 @@ void TInternetAddressManager::RevokeInternetAddressesFromPod(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

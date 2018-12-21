@@ -13,9 +13,7 @@
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
-namespace NYP {
-namespace NServer {
-namespace NMaster {
+namespace NYP::NServer::NMaster {
 
 using namespace NYT;
 
@@ -66,9 +64,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMaster
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NMaster
 
 int main(int argc, const char** argv)
 {

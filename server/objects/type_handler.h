@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+#include <yt/core/yson/protobuf_interop.h>
+
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,6 +12,7 @@ struct IObjectTypeHandler
 {
     virtual ~IObjectTypeHandler() = default;
 
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() = 0;
     virtual const TDBTable* GetTable() = 0;
     virtual const TDBField* GetIdField() = 0;
     virtual EObjectType GetType() = 0;
@@ -48,6 +49,4 @@ struct IObjectTypeHandler
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

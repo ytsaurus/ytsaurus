@@ -2,9 +2,7 @@
 
 #include <yp/server/misc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NApi {
+namespace NYP::NServer::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +14,4 @@ DEFINE_ENUM(EMasterInterface,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NApi

@@ -1,8 +1,6 @@
 #include "private.h"
 
-namespace NYP {
-namespace NServer {
-namespace NAccessControl {
+namespace NYP::NServer::NAccessControl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,7 +8,5 @@ const NYT::NLogging::TLogger Logger("AccessControl");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccessControl
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccessControl
 

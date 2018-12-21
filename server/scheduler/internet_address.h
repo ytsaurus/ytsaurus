@@ -6,9 +6,7 @@
 
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +27,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

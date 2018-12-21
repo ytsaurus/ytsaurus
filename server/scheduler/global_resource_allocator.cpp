@@ -12,31 +12,7 @@
 
 #include <yt/core/misc/random.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-int GetPodRequestedInternetAddressCount(const TPod* pod)
-{
-    int result = 0;
-
-    for (const auto& addressRequest : pod->SpecOther().ip6_address_requests()) {
-        if (addressRequest.enable_internet()) {
-            ++result;
-        }
-    }
-
-    return result;
-}
-
-TNetworkModule* GetNodeNetworkModule(const TNode* node, const TClusterPtr& cluster)
-{
-    return node->Spec().has_network_module_id()
-        ? cluster->FindNetworkModule(node->Spec().network_module_id())
-        : nullptr;
-}
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,6 +41,12 @@ public:
     {
         ReleaseAddresses();
     }
+
+private:
+    TNetworkModule* const NetworkModule_;
+    const TPod* const Pod_;
+
+    int AllocationSize_ = 0;
 
 private:
     void ReleaseAddresses()
@@ -99,10 +81,18 @@ private:
         return true;
     }
 
-    TNetworkModule* NetworkModule_;
-    const TPod* Pod_;
+    static int GetPodRequestedInternetAddressCount(const TPod* pod)
+    {
+        int result = 0;
 
-    int AllocationSize_ = 0;
+        for (const auto& addressRequest : pod->SpecOther().ip6_address_requests()) {
+            if (addressRequest.enable_internet()) {
+                ++result;
+            }
+        }
+
+        return result;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,7 +183,7 @@ public:
 
     virtual TErrorOr<TNode*> ComputeAllocation(TPod* pod) override
     {
-        LOG_DEBUG("Started computing pod allocation via basic global resource allocator (PodId: %v, NodeSelectionStrategy: %v)",
+        YT_LOG_DEBUG("Started computing pod allocation via basic global resource allocator (PodId: %v, NodeSelectionStrategy: %v)",
             pod->GetId(),
             NodeSelectionStrategy_);
 
@@ -274,9 +264,10 @@ private:
         TPod* pod,
         TGlobalResourceAllocatorStatistics* statistics)
     {
+        auto* networkModule = Cluster_->FindNetworkModule(node->Spec().network_module_id());
         TNodeAllocationContext nodeAllocationContext(node, pod);
         TInternetAddressAllocationContext internetAddressAllocationContext(
-            GetNodeNetworkModule(node, Cluster_),
+            networkModule,
             pod);
 
         bool result = true;
@@ -360,7 +351,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(SchedulerThread);
 
-        LOG_DEBUG("Started reconciling state of the global resource allocator");
+        YT_LOG_DEBUG("Started reconciling state of the global resource allocator");
 
         RandomNodeSelectionAllocator_->ReconcileState(cluster);
         EveryNodeSelectionAllocator_->ReconcileState(cluster);
@@ -386,7 +377,7 @@ public:
             }
         }
 
-        LOG_DEBUG("Erasing expired pods from the global resource allocator history (RemovedPodCount: %v, AssignedPodCount: %v, HistorySize: %v)",
+        YT_LOG_DEBUG("Erasing expired pods from the global resource allocator history (RemovedPodCount: %v, AssignedPodCount: %v, HistorySize: %v)",
             removedPodCount,
             assignedPodCount,
             PodComputeAllocationHistory_.size());
@@ -395,7 +386,7 @@ public:
             YCHECK(PodComputeAllocationHistory_.erase(podId));
         }
 
-        LOG_DEBUG("State of the global resource allocator reconciled");
+        YT_LOG_DEBUG("State of the global resource allocator reconciled");
     }
 
     virtual TErrorOr<TNode*> ComputeAllocation(TPod* pod) override
@@ -499,6 +490,4 @@ IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(TGlobalResourceAllocat
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-} // namespace NObjects
-} // namespace NScheduler
-} // namespace NYP
+} // namespace NYP::NScheduler::NObjects

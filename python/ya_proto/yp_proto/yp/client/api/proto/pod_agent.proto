@@ -179,7 +179,21 @@ message TLayer {
     // Уникальный идентификатор (произвольная строка)
     string Id = 1;
 
+    // Мы хотим избавиться от вложенности TResource в TLayer https://st.yandex-team.ru/ISS-6264
+    // Поэтому в будующем это поле будет удалено
+    // Сейчас при наличии этого поля в спеке, информация будет браться из него, иначе из остальных полей
+    // Поле Verification.CheckPeriodMs игнорируется
     TResource Resource = 2;
+
+    //не нужно для Pod-agent
+    TResourceMeta Meta = 3; // Мета информация о ресурсе, необходимо для интеграции с CI/CD
+
+    // Контрольная сумма, формат <схема>:<значение> Поддерживаемые схемы "MD5:", "EMPTY:"  "SHA256:" - case sensitive
+    string Checksum = 4;
+
+    // URL для скачивания, протоколы: http, https, rbtorrent
+    // Для записи строчки в файл URL должен быть равен "raw:<строка>"
+    string Url = 5;
 }
 
 enum EVolumeMountMode {
@@ -216,13 +230,16 @@ message TRootfsVolume {
 
 message TFileStorage {
     // Квота на размер
+    // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
     uint64 QuotaBytes = 1;
 }
 
 message TGenericVolume {
-    // Свойства porto volumes, задаваемые непосредственно.
-    // Список доступных свойств смотри так: `portoctl --help`
-    map<string, string> Properties = 3 [(NYT.NYson.NProto.yson_map) = true];
+    reserved 1,2,3;
+
+    // Квота на размер
+    // NOTE: не обрабатывается - porto не умеет во вложенные квоты по диску
+    uint64 QuotaBytes = 5;
 
     // Слои, из которых собирается volume
     //NOTE: Валидация ids в списке должны быть уникальные
@@ -325,6 +342,8 @@ message TWorkload {
     // Поля ComputeResources и CommandLine заменены на контейнер Start
     // Данный контейнер содержит ограничения для запуска основной команды и саму команду
     TUtilityContainer Start = 11;
+
+    TDestroyPolicy DestroyPolicy = 12;
 }
 
 // Mutable поля Workload
@@ -349,6 +368,21 @@ message TStopPolicy {
     }
 
     // Количестно попыток выполнить gracefully stop перед тем, как убить процесс
+    // Должно быть > 0
+    uint32 MaxTries = 3;
+}
+
+// При удалении ворклоуда из спеки
+// будет вызван destroy hook, который выпонится только после окончания выполнения stop hook и перехода start контейнера в состояние dead.
+// в случае если destroy hook завершится не нулевым кодом возврата, он будет перезапущен MaxTries раз
+// пока не завершится успехом
+message TDestroyPolicy {
+    oneof Policy {
+        TUtilityContainer Destroy = 1;
+        THttpGet HttpDestroy = 2;
+    }
+
+    // Количестно попыток выполнить gracefully destroy перед тем, как убить процесс
     // Должно быть > 0
     uint32 MaxTries = 3;
 }
@@ -616,6 +650,8 @@ message TWorkloadStatus {
 
     TStopStatus StopStatus = 14;
 
+    TDestroyStatus DestroyStatus = 15;
+
     TReadinessStatus ReadinessStatus = 6;
 
     TLivenessStatus LivenessStatus = 10;
@@ -682,6 +718,13 @@ message TStopStatus {
     oneof Status {
         TContainerStatus ContainerStatus = 1;
         THttpGetStatus HttpStopStatus = 2;
+    }
+}
+
+message TDestroyStatus {
+    oneof Status {
+        TContainerStatus ContainerStatus = 1;
+        THttpGetStatus HttpDestroyStatus = 2;
     }
 }
 

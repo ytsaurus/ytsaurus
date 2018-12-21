@@ -29,9 +29,7 @@
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 
-namespace NYP {
-namespace NServer {
-namespace NMaster {
+namespace NYP::NServer::NMaster {
 
 using namespace NYT::NApi;
 using namespace NYT::NCypressClient;
@@ -67,7 +65,7 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 
-        LOG_INFO("DB initialized (Path: %v)",
+        YT_LOG_INFO("DB initialized (Path: %v)",
             DBPath_);
 
         MasterDiscoveryExecutor_->Start();
@@ -195,7 +193,7 @@ private:
         if (IsConnectScheduled_) {
             return;
         }
-        
+
         IsConnectScheduled_ = true;
         TDelayedExecutor::Submit(
             BIND(&TImpl::Connect, MakeWeak(this))
@@ -211,20 +209,20 @@ private:
         try {
             GuardedConnect();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error connecting to YT");
+            YT_LOG_WARNING(ex, "Error connecting to YT");
             Disconnect();
         }
     }
 
     void GuardedConnect()
     {
-        LOG_INFO("Connecting to YT");
+        YT_LOG_INFO("Connecting to YT");
 
         const auto& fqdn = Bootstrap_->GetFqdn();
         auto instancePath = GetInstancesCypressPath() + "/" + ToYPathLiteral(fqdn);
 
         {
-            LOG_INFO("Creating instance node");
+            YT_LOG_INFO("Creating instance node");
 
             TCreateNodeOptions options;
             options.Recursive = true;
@@ -250,11 +248,11 @@ private:
             WaitFor(Client_->CreateNode(instancePath, EObjectType::MapNode, options))
                 .ThrowOnError();
 
-            LOG_INFO("Instance node created");
+            YT_LOG_INFO("Instance node created");
         }
 
         {
-            LOG_INFO("Starting instance lock transaction");
+            YT_LOG_INFO("Starting instance lock transaction");
 
             TTransactionStartOptions options;
             options.Timeout = Config_->InstanceTransactionTimeout;
@@ -264,12 +262,12 @@ private:
             InstanceLockTransaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
                 .ValueOrThrow();
 
-            LOG_INFO("Instance lock transaction started (TransactionId: %v)",
+            YT_LOG_INFO("Instance lock transaction started (TransactionId: %v)",
                 InstanceLockTransaction_->GetId());
         }
 
         {
-            LOG_INFO("Taking instance lock");
+            YT_LOG_INFO("Taking instance lock");
 
             WaitFor(InstanceLockTransaction_->LockNode(instancePath, ELockMode::Exclusive))
                 .ThrowOnError();
@@ -278,14 +276,14 @@ private:
         if (!UdfsLoaded_) {
             std::vector<TString> functionNames;
             {
-                LOG_INFO("Listing UDFs");
+                YT_LOG_INFO("Listing UDFs");
                 auto result = WaitFor(Client_->ListNode(GetUdfsPath()))
                     .ValueOrThrow();
                 functionNames = ConvertTo<std::vector<TString>>(result);
             }
 
             {
-                LOG_INFO("Downloading UDFs (FunctionNames: %v)",
+                YT_LOG_INFO("Downloading UDFs (FunctionNames: %v)",
                     functionNames);
 
                 auto externalCGInfo = New<TExternalCGInfo>();
@@ -297,7 +295,9 @@ private:
                 MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionProfilers);
 
                 const auto& functionRegistry = Client_->GetFunctionRegistry();
-                auto descriptors = WaitFor(functionRegistry->FetchFunctions(functionNames))
+                const auto& udfRegistryPath = Client_->GetNativeConnection()->GetConfig()->UdfRegistryPath;
+
+                auto descriptors = WaitFor(functionRegistry->FetchFunctions(udfRegistryPath, functionNames))
                     .ValueOrThrow();
 
                 AppendUdfDescriptors(
@@ -331,7 +331,7 @@ private:
 
         ValidateConnection_.Fire();
 
-        LOG_INFO("YT connected");
+        YT_LOG_INFO("YT connected");
 
         YCHECK(!IsConnected());
         IsConnected_.store(true);
@@ -350,7 +350,7 @@ private:
         StopLeading();
 
         if (IsConnected()) {
-            LOG_INFO("YT disconnected");
+            YT_LOG_INFO("YT disconnected");
             Disconnected_.Fire();
         }
 
@@ -375,7 +375,7 @@ private:
             return;
         }
 
-        LOG_INFO("Instance lock transaction aborted; disconnecting");
+        YT_LOG_INFO("Instance lock transaction aborted; disconnecting");
         Disconnect();
     }
 
@@ -400,19 +400,19 @@ private:
         try {
             GuardedTakeLeaderLock();
         } catch (const std::exception& ex) {
-            LOG_INFO(ex, "Failed to take leader lock");
+            YT_LOG_INFO(ex, "Failed to take leader lock");
             ScheduleTakeLeaderLock();
         }
     }
 
     void GuardedTakeLeaderLock()
     {
-        LOG_INFO("Trying to take leader lock");
+        YT_LOG_INFO("Trying to take leader lock");
 
         const auto& fqdn = Bootstrap_->GetFqdn();
 
         {
-            LOG_INFO("Starting leader lock transaction");
+            YT_LOG_INFO("Starting leader lock transaction");
 
             TTransactionStartOptions options;
             options.Timeout = Config_->LeaderTransactionTimeout;
@@ -423,18 +423,18 @@ private:
             LeaderLockTransaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
                 .ValueOrThrow();
 
-            LOG_INFO("Leader lock transaction started (TransactionId: %v)",
+            YT_LOG_INFO("Leader lock transaction started (TransactionId: %v)",
                 LeaderLockTransaction_->GetId());
         }
 
         {
-            LOG_INFO("Taking leader lock");
+            YT_LOG_INFO("Taking leader lock");
 
             auto path = GetLeaderCypressPath();
             WaitFor(LeaderLockTransaction_->LockNode(path, ELockMode::Exclusive))
                 .ThrowOnError();
 
-            LOG_INFO("Leader lock taken");
+            YT_LOG_INFO("Leader lock taken");
         }
 
         LeaderLockTransaction_->SubscribeAborted(
@@ -444,7 +444,7 @@ private:
                 LeaderLockTransaction_->GetId())
             .Via(Bootstrap_->GetControlInvoker()));
 
-        LOG_INFO("Started leading");
+        YT_LOG_INFO("Started leading");
 
         YCHECK(!IsLeading());
         IsLeading_.store(true);
@@ -461,7 +461,7 @@ private:
             return;
         }
 
-        LOG_INFO("Stopped leading");
+        YT_LOG_INFO("Stopped leading");
 
         IsLeading_.store(false);
         StoppedLeading_.Fire();
@@ -475,7 +475,7 @@ private:
             return;
         }
 
-        LOG_INFO("Leader lock transaction aborted");
+        YT_LOG_INFO("Leader lock transaction aborted");
 
         StopLeading();
         ScheduleTakeLeaderLock();
@@ -484,10 +484,10 @@ private:
 
     void OnMasterDiscovery()
     {
-        LOG_INFO("Master discovery started");
+        YT_LOG_INFO("Master discovery started");
 
         try {
-            TNullable<TString> leaderFqdn;
+            std::optional<TString> leaderFqdn;
             {
                 auto path = GetLeaderCypressPath() + "/@locks";
                 auto yson = WaitFor(Client_->GetNode(path))
@@ -503,7 +503,7 @@ private:
                     auto leaderFqdnYson = WaitFor(Client_->GetNode(Format("%v%v/@fqdn", ObjectIdPathPrefix, transactionId)))
                         .ValueOrThrow();
                     leaderFqdn = ConvertTo<TString>(leaderFqdnYson);
-                    LOG_DEBUG("Leader discovered (Fqdn: %v)",
+                    YT_LOG_DEBUG("Leader discovered (Fqdn: %v)",
                         leaderFqdn);
                 }
             }
@@ -540,7 +540,7 @@ private:
                 info.Leading = (leaderFqdn && *leaderFqdn == info.Fqdn);
                 masterDiscoveryInfos.push_back(info);
 
-                LOG_DEBUG("Master discovered (Fqdn: %v, ClientGrpcAddress: %v, SecureClientGrpcAddress: %v, ClientHttpAddress: %v, "
+                YT_LOG_DEBUG("Master discovered (Fqdn: %v, ClientGrpcAddress: %v, SecureClientGrpcAddress: %v, ClientHttpAddress: %v, "
                     "SecureClientHttpAddress: %v, AgentGrpcAddress: %v, InstanceTag: %v, Alive: %v, Leading: %v)",
                     info.Fqdn,
                     info.ClientGrpcAddress,
@@ -557,9 +557,9 @@ private:
                 TWriterGuard guard(MasterDiscoveryLock_);
                 std::swap(MasterDiscoveryInfos_, masterDiscoveryInfos);
             }
-            LOG_INFO("Master discovery completed");
+            YT_LOG_INFO("Master discovery completed");
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Master discovery failed");
+            YT_LOG_WARNING(ex, "Master discovery failed");
         }
     }
 
@@ -660,7 +660,5 @@ DELEGATE_SIGNAL(TYTConnector, void(), StoppedLeading, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMaster
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NMaster
 

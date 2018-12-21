@@ -6,9 +6,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNet {
+namespace NYP::NServer::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +31,4 @@ DEFINE_REFCOUNTED_TYPE(TNetManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNet

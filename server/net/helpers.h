@@ -4,9 +4,7 @@
 
 #include <yt/core/net/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNet {
+namespace NYP::NServer::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,12 +19,11 @@ NYT::NNet::TIP6Address MakeMtnAddress(
     THostSubnet hostSubnet,
     TProjectId projectId,
     TNonce nonce);
-NYT::NNet::TIP6Network MakeMtnNetwork(
+NYT::NNet::TIP6Network MakeMtnSubnet(
     THostSubnet hostSubnet,
+    TProjectId projectId,
     TNonce nonce);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNet

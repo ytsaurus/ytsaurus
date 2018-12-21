@@ -2,9 +2,7 @@
 
 #include <yp/server/misc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NMaster {
+namespace NYP::NServer::NMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +20,4 @@ DECLARE_REFCOUNTED_CLASS(TMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMaster
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NMaster

@@ -1,8 +1,6 @@
 #include "private.h"
 
-namespace NYP {
-namespace NServer {
-namespace NAccounting {
+namespace NYP::NServer::NAccounting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,7 +9,5 @@ const NYT::NProfiling::TProfiler Profiler("/accounting");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccounting
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccounting
 

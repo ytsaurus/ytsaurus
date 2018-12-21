@@ -5,9 +5,7 @@
 #include "transaction.h"
 #include "db_schema.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
@@ -42,6 +40,11 @@ public:
             ->SetAttribute(TResource::SpecSchema
                 .SetValidator(ValidateSpec))
             ->SetMandatory();
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TResource>();
     }
 
     virtual EObjectType GetParentType() override
@@ -90,13 +93,13 @@ private:
 
     static EResourceKind DeriveKind(TResource* resource, const TResource::TSpec& spec)
     {
-        TNullable<EResourceKind> maybeKind;
+        std::optional<EResourceKind> optionalKind;
         auto setKind = [&] (EResourceKind kind) {
-            if (maybeKind) {
+            if (optionalKind) {
                 THROW_ERROR_EXCEPTION("Resource %Qv has multiple kinds",
                     resource->GetId());
             }
-            maybeKind = kind;
+            optionalKind = kind;
         };
         if (spec.has_cpu()) {
             setKind(EResourceKind::Cpu);
@@ -107,11 +110,11 @@ private:
         if (spec.has_disk()) {
             setKind(EResourceKind::Disk);
         }
-        if (!maybeKind) {
+        if (!optionalKind) {
             THROW_ERROR_EXCEPTION("Resource %Qv is of an unrecognized kind",
                 resource->GetId());
         }
-        return *maybeKind;
+        return *optionalKind;
     }
 
     static void ValidateSpec(
@@ -176,7 +179,5 @@ std::unique_ptr<IObjectTypeHandler> CreateResourceTypeHandler(NMaster::TBootstra
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

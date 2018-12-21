@@ -3,6 +3,8 @@
 #include "pod.h"
 #include "node.h"
 #include "pod_set.h"
+#include "account.h"
+#include "network_project.h"
 #include "db_schema.h"
 
 #include <yp/server/net/net_manager.h>
@@ -24,9 +26,7 @@
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
@@ -124,6 +124,12 @@ public:
                     ->SetUpdatable()
                     ->SetReadPermission(NAccessControl::EAccessControlPermission::ReadSecrets),
 
+                MakeAttributeSchema("account_id")
+                    ->SetAttribute(TPod::TSpec::AccountSchema)
+                    ->SetUpdatable()
+                    ->SetUpdateHandler<TPod>(std::bind(&TPodTypeHandler::OnAccountUpdated, this, _1, _2))
+                    ->SetValidator<TPod>(std::bind(&TPodTypeHandler::ValidateAccount, this, _1, _2)),
+
                 MakeFallbackAttributeSchema()
                     ->SetAttribute(TPod::TSpec::OtherSchema)
                     ->SetUpdatable()
@@ -136,6 +142,11 @@ public:
                 MakeAttributeSchema("acknowledge_eviction")
                     ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAcknowledgeEviction>(std::bind(&TPodTypeHandler::AcknowledgeEviction, _1, _2, _3))
             });
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TPod>();
     }
 
     virtual EObjectType GetParentType() override
@@ -286,7 +297,7 @@ private:
         pod->Spec().UpdateTimestamp().Touch();
     }
 
-    void ValidateSpec(TTransaction* /*transaction*/, TPod* pod)
+    void ValidateSpec(TTransaction* transaction, TPod* pod)
     {
         const auto& spec = pod->Spec();
         const auto& specOther = pod->Spec().Other();
@@ -316,6 +327,8 @@ private:
             }
 
             ValidateDiskVolumeRequests(pod);
+
+            ValidateNetworkRequests(transaction, pod);
         }
     }
 
@@ -334,11 +347,63 @@ private:
             message = "Eviction acknowledged by client";
         }
 
-        LOG_DEBUG("Pod eviction acknowledged (PodId: %v, Message: %v)",
+        YT_LOG_DEBUG("Pod eviction acknowledged (PodId: %v, Message: %v)",
             pod->GetId(),
             message);
 
         pod->UpdateEvictionStatus(EEvictionState::Acknowledged, EEvictionReason::None, message);
+    }
+
+    static void ValidateDiskVolumeRequests(TPod* pod)
+    {
+        THashSet<TString> ids;
+        const auto& requests = pod->Spec().Other().Load().disk_volume_requests();
+        for (const auto& request : requests) {
+            if (!ids.insert(request.id()).second) {
+                THROW_ERROR_EXCEPTION("Duplicate disk volume request %Qv",
+                    request.id());
+            }
+            if (!request.has_quota_policy() &&
+                !request.has_exclusive_policy())
+            {
+                THROW_ERROR_EXCEPTION("Missing policy in disk volume request %Qv",
+                    request.id());
+            }
+        }
+    }
+
+    void ValidateNetworkRequests(TTransaction* transaction, TPod* pod)
+    {
+        auto validateNetworkProject = [&] (const TObjectId& networkProjectId) {
+            auto* networkProject = transaction->GetNetworkProject(networkProjectId);
+            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+            accessControlManager->ValidatePermission(networkProject, EAccessControlPermission::Use);
+        };
+
+        for (const auto& request : pod->Spec().Other().Load().ip6_address_requests()) {
+            validateNetworkProject(request.network_id());
+        }
+
+        for (const auto& request : pod->Spec().Other().Load().ip6_subnet_requests()) {
+            if (request.has_network_id()) {
+                validateNetworkProject(request.network_id());
+            } else {
+                const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+                accessControlManager->ValidateSuperuser();
+            }
+        }
+    }
+
+    void ValidateAccount(TTransaction* /*transaction*/, TPod* pod)
+    {
+        auto* account = pod->Spec().Account().Load();
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
+    }
+
+    void OnAccountUpdated(TTransaction* transaction, TPod* pod)
+    {
+        transaction->ScheduleValidateAccounting(pod);
     }
 };
 
@@ -349,7 +414,5 @@ std::unique_ptr<IObjectTypeHandler> CreatePodTypeHandler(NMaster::TBootstrap* bo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

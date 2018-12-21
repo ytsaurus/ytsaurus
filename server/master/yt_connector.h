@@ -12,9 +12,7 @@
 
 #include <yt/core/actions/signal.h>
 
-namespace NYP {
-namespace NServer {
-namespace NMaster {
+namespace NYP::NServer::NMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +73,4 @@ DEFINE_REFCOUNTED_TYPE(TYTConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMaster
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NMaster

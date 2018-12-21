@@ -13,9 +13,7 @@
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yp/client/api/proto/object_service.pb.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,15 +96,15 @@ TString ToString(const TObjectFilter& filter);
 
 struct TGetQueryResult
 {
-    TNullable<TAttributeValueList> Object;
+    std::optional<TAttributeValueList> Object;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSelectQueryOptions
 {
-    TNullable<i64> Offset;
-    TNullable<i64> Limit;
+    std::optional<i64> Offset;
+    std::optional<i64> Limit;
 };
 
 struct TSelectQueryResult
@@ -162,7 +160,7 @@ public:
         const TAttributeSelector& selector);
     TSelectQueryResult ExecuteSelectQuery(
         EObjectType type,
-        const TNullable<TObjectFilter>& filter,
+        const std::optional<TObjectFilter>& filter,
         const TAttributeSelector& selector,
         const TSelectQueryOptions& options);
 
@@ -218,6 +216,4 @@ DEFINE_REFCOUNTED_TYPE(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

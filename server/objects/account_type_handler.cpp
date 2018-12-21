@@ -1,13 +1,12 @@
 #include "account_type_handler.h"
 #include "type_handler_detail.h"
 #include "account.h"
+#include "pod.h"
 #include "pod_set.h"
 #include "db_schema.h"
 #include "transaction.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
@@ -33,6 +32,11 @@ public:
                     ->SetAttribute(TAccount::TSpec::OtherSchema)
                     ->SetUpdatable()
             });
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TAccount>();
     }
 
     virtual const TDBField* GetIdField() override
@@ -85,7 +89,5 @@ std::unique_ptr<IObjectTypeHandler> CreateAccountTypeHandler(NMaster::TBootstrap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

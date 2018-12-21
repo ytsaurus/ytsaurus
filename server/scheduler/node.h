@@ -7,9 +7,7 @@
 #include <yt/core/misc/small_vector.h>
 #include <yp/client/api/proto/data_model.pb.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,6 +110,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

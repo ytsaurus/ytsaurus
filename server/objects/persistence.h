@@ -7,16 +7,14 @@
 
 #include <yt/client/api/public.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/optional.h>
 #include <yt/core/misc/range.h>
 
 #include <yt/core/yson/writer.h>
 
 #include <yt/core/net/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +52,7 @@ struct ILoadContext
         const TDBTable* table,
         TRange<NYT::NTableClient::TUnversionedValue> key,
         TRange<const TDBField*> fields,
-        std::function<void(const TNullable<TRange<NYT::NTableClient::TVersionedValue>>&)> handler) = 0;
+        std::function<void(const std::optional<TRange<NYT::NTableClient::TVersionedValue>>&)> handler) = 0;
 
     virtual void ScheduleSelect(
         const TString& query,
@@ -215,7 +213,7 @@ public:
 protected:
     friend struct TChildrenAttributeHelper;
 
-    TNullable<THashSet<TObject*>> Children_;
+    std::optional<THashSet<TObject*>> Children_;
     THashSet<TObject*> AddedChildren_;
     THashSet<TObject*> RemovedChildren_;
 
@@ -350,8 +348,8 @@ public:
     T* operator->();
 
 private:
-    TNullable<T> NewValue_;
-    TNullable<T> OldValue_;
+    std::optional<T> NewValue_;
+    std::optional<T> OldValue_;
 
 
     virtual void SetDefaultValues() override;
@@ -470,7 +468,7 @@ public:
 protected:
     const TOneToManyAttributeSchemaBase* const Schema_;
 
-    TNullable<THashSet<TObject*>> ForeignObjects_;
+    std::optional<THashSet<TObject*>> ForeignObjects_;
     THashSet<TObject*> AddedForeignObjects_;
     THashSet<TObject*> RemovedForeignObjects_;
 
@@ -534,19 +532,19 @@ public:
     explicit TAnnotationsAttribute(TObject* owner);
 
     void ScheduleLoad(const TString& key) const;
-    TNullable<NYT::NYson::TYsonString> Load(const TString& key) const;
+    std::optional<NYT::NYson::TYsonString> Load(const TString& key) const;
 
     void ScheduleLoadAll() const;
     std::vector<std::pair<TString, NYT::NYson::TYsonString>> LoadAll() const;
 
-    void Store(const TString& key, const TNullable<NYT::NYson::TYsonString>& value);
+    void Store(const TString& key, const std::optional<NYT::NYson::TYsonString>& value);
 
 private:
     mutable THashSet<TString> ScheduledLoadKeys_;
     mutable bool ScheduledLoadAll_ = false;
     THashSet<TString> ScheduledStoreKeys_;
     bool LoadedAll_ = false;
-    THashMap<TString, TNullable<NYT::NYson::TYsonString>> KeyToValue_;
+    THashMap<TString, std::optional<NYT::NYson::TYsonString>> KeyToValue_;
 
     // IPersistentAttribute implementation
     virtual void LoadFromDB(ILoadContext* context) override;
@@ -557,6 +555,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

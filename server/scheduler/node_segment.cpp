@@ -1,9 +1,7 @@
 #include "node_segment.h"
 #include "label_filter_cache.h"
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 using namespace NObjects;
 
@@ -30,7 +28,5 @@ TLabelFilterCache<TNode>* TNodeSegment::GetSchedulableNodeLabelFilterCache() con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NScheduler
-} // namespace NYP
+} // namespace NYP::NScheduler::NObjects
 

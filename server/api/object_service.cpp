@@ -22,9 +22,9 @@
 
 #include <yt/core/concurrency/async_semaphore.h>
 
-namespace NYP {
-namespace NServer {
-namespace NApi {
+#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+
+namespace NYP::NServer::NApi {
 
 using namespace NMaster;
 using namespace NObjects;
@@ -95,7 +95,7 @@ private:
                 if (mustOwn) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::InvalidTransactionId,
-                        "Null transaction id is not allowed");
+                        "std::nullopt transaction id is not allowed");
                 }
                 Owned_ = true;
                 Transaction_ = WaitFor(transactionManager->StartReadWriteTransaction())
@@ -126,6 +126,71 @@ private:
     TAuthenticatedUserGuard MakeAuthenticatedUserGuard(const NRpc::IServiceContextPtr& context)
     {
         return TAuthenticatedUserGuard(Bootstrap_->GetAccessControlManager(), context->GetUser());
+    }
+
+
+    template <class TContextPtr>
+    void LogDeprecatedPayloadFormat(const TContextPtr& context)
+    {
+        YT_LOG_DEBUG("Deprecated payload format (RequestId: %v, User: %v)",
+            context->GetRequestId(),
+            context->GetUser());
+    }
+
+    TYsonString PayloadToYsonString(
+        const NClient::NApi::NProto::TPayload& payload,
+        EObjectType type,
+        const TYPath& path)
+    {
+        if (payload.has_yson()) {
+            return payload.yson() ? TYsonString(payload.yson()) : TYsonString();
+        } else if (payload.has_protobuf()) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            auto* typeHandler = objectManager->GetTypeHandler(type);
+            const auto* rootType = typeHandler->GetRootProtobufType();
+            const auto* payloadType = GetMessageTypeByYPath(rootType, path);
+            google::protobuf::io::ArrayInputStream protobufInputStream(payload.protobuf().data(), payload.protobuf().length());
+            TString yson;
+            TStringOutput ysonOutputStream(yson);
+            TYsonWriter writer(&ysonOutputStream);
+            ParseProtobuf(&writer, &protobufInputStream, payloadType);
+            return TYsonString(std::move(yson));
+        } else {
+            return TYsonString();
+        }
+    }
+
+    NClient::NApi::NProto::TPayload YsonStringToPayload(
+        const TYsonString& ysonString,
+        EObjectType type,
+        const TYPath& path,
+        NClient::NApi::NProto::EPayloadFormat format)
+    {
+        NClient::NApi::NProto::TPayload payload;
+        if (!ysonString) {
+            payload.set_null(true);
+            return payload;
+        }
+        switch (format) {
+            case NClient::NApi::NProto::PF_YSON:
+                payload.set_yson(ysonString.GetData());
+                break;
+
+            case NClient::NApi::NProto::PF_PROTOBUF: {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                auto* typeHandler = objectManager->GetTypeHandler(type);
+                const auto* rootType = typeHandler->GetRootProtobufType();
+                const auto* payloadType = GetMessageTypeByYPath(rootType, path);
+                google::protobuf::io::StringOutputStream protobufStream(payload.mutable_protobuf());
+                auto protobufWriter = CreateProtobufWriter(&protobufStream, payloadType);
+                ParseYsonStringBuffer(ysonString.GetData(), EYsonType::Node, protobufWriter.get());
+                break;
+            }
+
+            default:
+                Y_UNREACHABLE();
+        }
+        return payload;
     }
 
 
@@ -197,14 +262,24 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, CreateObject)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto objectType = static_cast<NObjects::EObjectType>(request->object_type());
-        auto attributes = request->has_attributes()
-            ? ConvertTo<IMapNodePtr>(TYsonString(request->attributes()))
-            : GetEphemeralNodeFactory()->CreateMap();
+        auto objectType = CheckedEnumCast<NObjects::EObjectType>(request->object_type());
 
         context->SetRequestInfo("TransactionId: %v, ObjectType: %v",
             transactionId,
             objectType);
+
+        IMapNodePtr attributes;
+        if (request->has_attributes()) {
+            LogDeprecatedPayloadFormat(context);
+            attributes = ConvertTo<IMapNodePtr>(TYsonString(request->attributes()));
+        } else if (request->has_attributes_payload()) {
+            attributes = ConvertTo<IMapNodePtr>(PayloadToYsonString(
+                request->attributes_payload(),
+                objectType,
+                TYPath()));
+        } else {
+            attributes = GetEphemeralNodeFactory()->CreateMap();
+        }
 
         auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
@@ -231,14 +306,26 @@ private:
         };
 
         std::vector<TSubrequest> subrequests;
+        bool deprecatedPayloadFormatLogged = false;
         subrequests.reserve(request->subrequests_size());
-        for (const auto& subrequest : request->subrequests()) {
-            subrequests.push_back({
-                static_cast<NObjects::EObjectType>(subrequest.object_type()),
-                subrequest.has_attributes()
-                    ? ConvertTo<IMapNodePtr>(TYsonString(subrequest.attributes()))
-                    : GetEphemeralNodeFactory()->CreateMap()
-            });
+        for (const auto& protoSubrequest : request->subrequests()) {
+            TSubrequest subrequest;
+            subrequest.Type = CheckedEnumCast<NObjects::EObjectType>(protoSubrequest.object_type());
+            if (protoSubrequest.has_attributes()) {
+                if (!deprecatedPayloadFormatLogged) {
+                    LogDeprecatedPayloadFormat(context);
+                    deprecatedPayloadFormatLogged = true;
+                }
+                subrequest.Attributes = ConvertTo<IMapNodePtr>(TYsonString(protoSubrequest.attributes()));
+            } else if (protoSubrequest.has_attributes_payload()) {
+                subrequest.Attributes = ConvertTo<IMapNodePtr>(PayloadToYsonString(
+                    protoSubrequest.attributes_payload(),
+                    subrequest.Type,
+                    TYPath()));
+            } else {
+                subrequest.Attributes = GetEphemeralNodeFactory()->CreateMap();
+            }
+            subrequests.push_back(std::move(subrequest));
         }
 
         context->SetRequestInfo("TransactionId: %v, Subrequests: %v",
@@ -459,7 +546,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GetObject)
     {
         auto objectId = FromProto<TObjectId>(request->object_id());
-        auto objectType = static_cast<NObjects::EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCast<EObjectType>(request->object_type());
         auto timestamp = request->timestamp();
         TAttributeSelector selector{
             FromProto<std::vector<TString>>(request->selector().paths())
@@ -470,6 +557,11 @@ private:
             objectType,
             timestamp,
             selector.Paths);
+
+        auto format = request->format();
+        if (format == NClient::NApi::NProto::PF_NONE) {
+            LogDeprecatedPayloadFormat(context);
+        }
 
         auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
@@ -490,10 +582,24 @@ private:
                 objectId);
         }
 
-        auto* responseValues = response->mutable_result()->mutable_values();
-        for (const auto& value : result.Object->Values) {
-            *responseValues->Add() = value.GetData();
+        if (format == NClient::NApi::NProto::PF_NONE) {
+            // COMPAT(babenko)
+            auto* responseValues = response->mutable_result()->mutable_values();
+            for (const auto& value : result.Object->Values) {
+                *responseValues->Add() = value.GetData();
+            }
+        } else {
+            auto* responseValuePayloads = response->mutable_result()->mutable_value_payloads();
+            YCHECK(result.Object->Values.size() == selector.Paths.size());
+            for (size_t index = 0; index < result.Object->Values.size(); ++index) {
+                *responseValuePayloads->Add() = YsonStringToPayload(
+                    result.Object->Values[index],
+                    objectType,
+                    selector.Paths[index],
+                    format);
+            }
         }
+
         context->Reply();
     }
 
@@ -503,8 +609,8 @@ private:
         auto timestamp = request->timestamp();
 
         auto filter = request->has_filter()
-            ? MakeNullable<TObjectFilter>({request->filter().query()})
-            : Null;
+            ? std::make_optional(TObjectFilter{request->filter().query()})
+            : std::nullopt;
 
         TSelectQueryOptions options;
         TAttributeSelector selector{
@@ -512,11 +618,11 @@ private:
         };
 
         options.Offset = request->has_offset()
-            ? MakeNullable(request->offset().value())
-            : Null;
+            ? std::make_optional(request->offset().value())
+            : std::nullopt;
         options.Limit = request->has_limit()
-            ? MakeNullable(request->limit().value())
-            : Null;
+            ? std::make_optional(request->limit().value())
+            : std::nullopt;
 
         context->SetRequestInfo("ObjectType: %v, Timestamp: %v, Filter: %v, Selector: %v, Offset: %v, Limit: %v",
             objectType,
@@ -525,6 +631,11 @@ private:
             selector,
             options.Offset,
             options.Limit);
+
+        auto format = request->format();
+        if (format == NClient::NApi::NProto::PF_NONE) {
+            LogDeprecatedPayloadFormat(context);
+        }
 
         auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
@@ -538,10 +649,25 @@ private:
             selector,
             options);
 
+
         for (const auto& object : result.Objects) {
             auto* protoResult = response->add_results();
-            for (const auto& value : object.Values) {
-                protoResult->add_values(value.GetData());
+            if (format == NClient::NApi::NProto::PF_NONE) {
+                // COMPAT(babenko)
+                auto* responseValues = protoResult->mutable_values();
+                for (const auto& value : object.Values) {
+                    *responseValues->Add() = value.GetData();
+                }
+            } else {
+                auto* responseValuePayloads = protoResult->mutable_value_payloads();
+                YCHECK(object.Values.size() == selector.Paths.size());
+                for (size_t index = 0; index < object.Values.size(); ++index) {
+                    *responseValuePayloads->Add() = YsonStringToPayload(
+                        object.Values[index],
+                        objectType,
+                        selector.Paths[index],
+                        format);
+                }
             }
         }
         context->SetResponseInfo("Count: %v", result.Objects.size());
@@ -562,7 +688,7 @@ private:
 
         std::vector<TObject*> objects;
         for (const auto& subrequest : request->subrequests()) {
-            auto objectType = static_cast<EObjectType>(subrequest.object_type());
+            auto objectType = CheckedEnumCast<EObjectType>(subrequest.object_type());
             const auto& objectId = subrequest.object_id();
             objects.push_back(transaction->GetObject(objectType, objectId));
         }
@@ -571,7 +697,7 @@ private:
         for (int index = 0; index < request->subrequests_size(); ++index) {
             const auto& subrequest = request->subrequests(index);
             const auto& subjectId = subrequest.subject_id();
-            auto permission = static_cast<EAccessControlPermission>(subrequest.permission());
+            auto permission = CheckedEnumCast<EAccessControlPermission>(subrequest.permission());
             auto* object = objects[index];
             auto result = accessControlManager->CheckPermission(subjectId, object, permission);
             auto* subresponse = response->add_subresponses();
@@ -599,7 +725,7 @@ private:
 
         std::vector<TObject*> objects;
         for (const auto& subrequest : request->subrequests()) {
-            auto objectType = static_cast<EObjectType>(subrequest.object_type());
+            auto objectType = CheckedEnumCast<EObjectType>(subrequest.object_type());
             const auto& objectId = subrequest.object_id();
             objects.push_back(transaction->GetObject(objectType, objectId));
         }
@@ -625,7 +751,5 @@ IServicePtr CreateObjectService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NApi
 

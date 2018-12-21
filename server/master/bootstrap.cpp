@@ -59,9 +59,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-namespace NYP {
-namespace NServer {
-namespace NMaster {
+namespace NYP::NServer::NMaster {
 
 using namespace NYT;
 using namespace NYT::NConcurrency;
@@ -273,7 +271,7 @@ private:
             AgentGrpcAddress_ = BuildGrpcAddress(Config_->AgentGrpcServer);
         }
 
-        LOG_INFO("Initializing master (Fqdn: %v)",
+        YT_LOG_INFO("Initializing master (Fqdn: %v)",
             Fqdn_);
 
         HttpPoller_ = CreateThreadPoolPoller(1, "Http");
@@ -288,7 +286,7 @@ private:
         AccountingManager_ = New<TAccountingManager>(Bootstrap_, Config_->AccountingManager);
         AuthenticationManager_ = New<TAuthenticationManager>(
             Config_->AuthenticationManager,
-            GetWorkerPoolInvoker(),
+            HttpPoller_,
             YTConnector_->GetClient());
         if (Config_->SecretVaultService && AuthenticationManager_->GetTvmService()) {
             NProfiling::TProfiler secretVaultProfiler("/secret_vault");
@@ -385,7 +383,7 @@ private:
             AgentGrpcServer_->RegisterService(AgentDiscoveryService_);
         }
 
-        LOG_INFO("Listening for incoming connections");
+        YT_LOG_INFO("Listening for incoming connections");
 
         if (ClientHttpRpcServer_) {
             ClientHttpRpcServer_->Start();
@@ -526,7 +524,5 @@ void TBootstrap::Run()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMaster
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NMaster
 

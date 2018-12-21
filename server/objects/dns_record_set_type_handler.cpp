@@ -3,9 +3,7 @@
 #include "dns_record_set.h"
 #include "db_schema.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +16,11 @@ public:
     {
         SpecAttributeSchema_
             ->SetAttribute(TDnsRecordSet::SpecSchema);
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TDnsRecordSet>();
     }
 
     virtual const TDBTable* GetTable() override
@@ -47,6 +50,4 @@ std::unique_ptr<IObjectTypeHandler> CreateDnsRecordSetTypeHandler(NMaster::TBoot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

@@ -20,9 +20,7 @@
 
 #include <yt/core/actions/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NMaster {
+namespace NYP::NServer::NMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +59,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMaster
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NMaster

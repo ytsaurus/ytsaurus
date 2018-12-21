@@ -1,6 +1,7 @@
 import pytest
 
 from yp.common import YtResponseError
+from yt.yson import YsonEntity
 from six.moves import xrange
 
 @pytest.mark.usefixtures("yp_env")
@@ -30,3 +31,9 @@ class TestObjects(object):
         for type in ["pod", "pod_set"]:
             with pytest.raises(YtResponseError):
                 yp_client.create_object(type, attributes={"meta": {"name": "some_name"}})
+
+    def test_zero_selectors_yp_563(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("pod_set")
+        assert yp_client.select_objects("pod_set", selectors=["/status"]) == [[{}]]

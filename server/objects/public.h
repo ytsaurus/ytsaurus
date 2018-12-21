@@ -10,9 +10,7 @@
 
 #include <yt/core/misc/guid.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,6 +129,7 @@ DEFINE_ENUM(EObjectType,
     ((Account)        (12))
     ((ReplicaSet)     (13))
     ((DnsRecordSet)   (14))
+    ((NetworkModule) (100)) // internal, not present in data_model.proto
     ((Schema)        (256))
 );
 
@@ -220,6 +219,4 @@ extern const TObjectId EveryoneSubjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

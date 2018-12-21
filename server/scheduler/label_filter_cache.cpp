@@ -15,9 +15,7 @@
 
 #include <yt/client/table_client/row_buffer.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 using namespace NObjects;
 
@@ -94,7 +92,7 @@ TErrorOr<std::vector<TObject*>> TLabelFilterCacheBase::DoGetFilteredObjects(cons
         return AllObjects_;
     }
 
-    LOG_DEBUG("Started filtering objects (Type: %v, Query: %v)",
+    YT_LOG_DEBUG("Started filtering objects (Type: %v, Query: %v)",
         TypeHandler_->GetType(),
         query);
 
@@ -148,7 +146,7 @@ TErrorOr<std::vector<TObject*>> TLabelFilterCacheBase::DoGetFilteredObjects(cons
             }
         }
 
-        LOG_DEBUG("Finished filtering objects (MatchingCount: %v)",
+        YT_LOG_DEBUG("Finished filtering objects (MatchingCount: %v)",
             matchingObjects.size());
 
         return matchingObjects;
@@ -162,7 +160,5 @@ TErrorOr<std::vector<TObject*>> TLabelFilterCacheBase::DoGetFilteredObjects(cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler
 

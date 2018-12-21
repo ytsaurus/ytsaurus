@@ -1,8 +1,6 @@
 #include "pod_set.h"
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 using namespace NYT::NYson;
 
@@ -22,7 +20,5 @@ TPodSet::TPodSet(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NScheduler
-} // namespace NYP
+} // namespace NYP::NScheduler::NObjects
 

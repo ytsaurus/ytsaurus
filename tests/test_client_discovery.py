@@ -1,4 +1,10 @@
 from yp.client import YpClientError, YpMasterDiscovery
+from yp.common import GrpcDeadlineExceededError
+from yp.retries import get_default_retries_config
+
+from yt.wrapper.errors import YtRetriableError as ChaosMonkeyError
+
+from yt.common import update
 
 import pytest
 
@@ -7,10 +13,11 @@ import sys
 import time
 
 
+@pytest.mark.usefixtures("yp_env")
 class TestClientYpMasterDiscovery(object):
     def get_mock_yp_client(self, instance_discovery_infos):
         class MockYpClient(object):
-            def get_masters(self):
+            def get_masters(self, _allow_retries=None):
                 return dict(master_infos=instance_discovery_infos)
         return MockYpClient()
 
@@ -109,7 +116,7 @@ class TestClientYpMasterDiscovery(object):
             def __init__(self):
                 self._request_count = 0
 
-            def get_masters(self):
+            def get_masters(self, _allow_retries=None):
                 self._request_count += 1
                 return dict(master_infos=[
                     dict(
@@ -158,3 +165,64 @@ class TestClientYpMasterDiscovery(object):
         discovery = YpMasterDiscovery(client, expiration_time=100)
         # One additional reference from getrefcount call argument.
         assert sys.getrefcount(client) == 2
+
+    def test_consistency_after_failure(self):
+        class MockYpClient(object):
+            def __init__(self):
+                self._request_count = 0
+
+            def get_masters(self, _allow_retries=None):
+                self._request_count += 1
+                if self._request_count == 1:
+                    raise GrpcDeadlineExceededError()
+                return dict(master_infos=[
+                    dict(
+                        alive=True,
+                        fqdn="fqdn",
+                        instance_tag="tag",
+                        grpc_address="address"
+                    )
+                ])
+        client = MockYpClient()
+        discovery = YpMasterDiscovery(client, expiration_time=2000)
+        with pytest.raises(GrpcDeadlineExceededError):
+            discovery.get_random_instance_address("grpc")
+        assert discovery.get_random_instance_address("grpc") == "address"
+        assert discovery.get_instance_address_by_tag("tag", "grpc") == "address"
+
+    def test_disabled_retries(self):
+        class MockYpClient(object):
+            def get_masters(self, _allow_retries=True):
+                assert _allow_retries == False
+                return dict(master_infos=[
+                    dict(
+                        alive=True,
+                        fqdn="fqdn",
+                        instance_tag="tag",
+                        grpc_address="address"
+                    )
+                ])
+        client = MockYpClient()
+        discovery = YpMasterDiscovery(client, expiration_time=2000)
+        assert discovery.get_random_instance_address("grpc") == "address"
+
+    def test_get_masters_method_allow_retries_option(self, yp_env):
+        class ChaosMonkey(object):
+            def __init__(self):
+                self._request_count = 0
+
+            def __call__(self):
+                self._request_count += 1
+                return self._request_count == 1
+
+        def create_client():
+            retries_config = update(
+                get_default_retries_config(),
+                dict(_CHAOS_MONKEY_FACTORY=lambda: ChaosMonkey()),
+            )
+            return yp_env.yp_instance.create_client(config=dict(retries=retries_config))
+
+        with pytest.raises(ChaosMonkeyError):
+            create_client().get_masters(_allow_retries=False)
+
+        create_client().get_masters(_allow_retries=True)

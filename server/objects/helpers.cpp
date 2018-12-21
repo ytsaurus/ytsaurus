@@ -17,9 +17,7 @@
 
 #include <yt/core/ytree/ypath_client.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
@@ -529,6 +527,8 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
             return AsStringBuf("Account");
         case EObjectType::DnsRecordSet:
             return AsStringBuf("DNS record set");
+        case EObjectType::NetworkModule:
+            return AsStringBuf("Network module");
         default:
             Y_UNREACHABLE();
     }
@@ -569,6 +569,8 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
             return AsStringBuf("account");
         case EObjectType::DnsRecordSet:
             return AsStringBuf("DNS record set");
+        case EObjectType::NetworkModule:
+            return AsStringBuf("network module");
         default:
             Y_UNREACHABLE();
     }
@@ -590,27 +592,5 @@ TObjectId GenerateUuid()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateDiskVolumeRequests(TPod* pod)
-{
-    THashSet<TString> ids;
-    const auto& requests = pod->Spec().Other().Load().disk_volume_requests();
-    for (const auto& request : requests) {
-        if (!ids.insert(request.id()).second) {
-            THROW_ERROR_EXCEPTION("Duplicate disk volume request %Qv",
-                request.id());
-        }
-        if (!request.has_quota_policy() &&
-            !request.has_exclusive_policy())
-        {
-            THROW_ERROR_EXCEPTION("Missing policy in disk volume request %Qv",
-                request.id());
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

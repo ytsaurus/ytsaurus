@@ -2,9 +2,7 @@
 
 #include <yp/server/misc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +13,4 @@ using TEpochId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes

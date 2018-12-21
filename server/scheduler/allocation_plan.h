@@ -2,9 +2,7 @@
 
 #include "private.h"
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +26,7 @@ public:
         std::vector<TPodRequest> Requests;
     };
 
-    TNullable<TPerNodePlan> TryExtractPerNodePlan();
+    std::optional<TPerNodePlan> TryExtractPerNodePlan();
 
     struct TFailure
     {
@@ -51,6 +49,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

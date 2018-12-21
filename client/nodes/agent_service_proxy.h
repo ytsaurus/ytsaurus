@@ -4,9 +4,7 @@
 
 #include <yt/core/rpc/client.h>
 
-namespace NYP {
-namespace NClient {
-namespace NNodes {
+namespace NYP::NClient::NNodes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +20,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NClient
-} // namespace NYP
+} // namespace NYP::NClient::NNodes

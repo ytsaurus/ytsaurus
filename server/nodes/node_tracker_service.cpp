@@ -14,9 +14,7 @@
 
 #include <yt/core/rpc/grpc/proto/grpc.pb.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 using namespace NClient::NNodes;
 using namespace NServer::NObjects;
@@ -106,7 +104,7 @@ private:
         auto* node = transaction->GetNode(nodeId);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto error = nodeTracker->ProcessHeartbeat(
+        nodeTracker->ProcessHeartbeat(
             transaction,
             node,
             epochId,
@@ -117,7 +115,7 @@ private:
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        context->Reply(error);
+        context->Reply();
     }
 
 
@@ -163,7 +161,5 @@ IServicePtr CreateNodeTrackerService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes
 

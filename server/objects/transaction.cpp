@@ -49,9 +49,7 @@
 
 #include <array>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
@@ -162,7 +160,7 @@ public:
                     New<TReferenceExpression>(TSourceLocation(), AnnotationsTable.Fields.ObjectType.Name, foreignTableAlias),
                     New<TReferenceExpression>(TSourceLocation(), AnnotationsTable.Fields.Name.Name, foreignTableAlias)
                 },
-                Null);
+                std::nullopt);
 
             auto expr = New<TReferenceExpression>(TSourceLocation(), AnnotationsTable.Fields.Value.Name, foreignTableAlias);
             it = AnnotationNameToExpression_.emplace(name, std::move(expr)).first;
@@ -367,7 +365,7 @@ public:
             &permissions);
         auto queryString = FormatQuery(*query);
 
-        LOG_DEBUG("Getting object (ObjectId: %v, Query: %v)",
+        YT_LOG_DEBUG("Getting object (ObjectId: %v, Query: %v)",
             id,
             queryString);
 
@@ -380,7 +378,7 @@ public:
         auto row = rows[0];
 
         TGetQueryResult result;
-        result.Object.Emplace();
+        result.Object.emplace();
 
         for (auto& fetcher : fetchers) {
             fetcher.Prefetch(row);
@@ -403,7 +401,7 @@ public:
 
     TSelectQueryResult ExecuteSelectQuery(
         EObjectType type,
-        const TNullable<TObjectFilter>& filter,
+        const std::optional<TObjectFilter>& filter,
         const TAttributeSelector& selector,
         const TSelectQueryOptions& options)
     {
@@ -458,7 +456,7 @@ public:
 
         auto queryString = FormatQuery(*query);
 
-        LOG_DEBUG("Selecting objects (Type: %v, Query: %v)",
+        YT_LOG_DEBUG("Selecting objects (Type: %v, Query: %v)",
             type,
             queryString);
 
@@ -466,7 +464,7 @@ public:
         auto rows = rowset->GetRows();
 
         auto forAllRows = [&] (auto func) {
-            auto rowsToSkip = offset.Get(0);
+            auto rowsToSkip = offset.value_or(0);
             for (auto row : rows) {
                 if (rowsToSkip > 0) {
                     --rowsToSkip;
@@ -476,7 +474,7 @@ public:
             }
         };
 
-        LOG_DEBUG("Prefetching results");
+        YT_LOG_DEBUG("Prefetching results");
 
         forAllRows([&] (auto row) {
             for (auto& fetcher : fetchers) {
@@ -484,7 +482,7 @@ public:
             }
         });
 
-        LOG_DEBUG("Fetching results");
+        YT_LOG_DEBUG("Fetching results");
 
         TSelectQueryResult result;
         forAllRows([&] (auto row) {
@@ -648,7 +646,7 @@ public:
 
                 State_ = ETransactionState::Committed;
 
-                LOG_DEBUG("Transaction committed (CommitTimestamp: %llx)",
+                YT_LOG_DEBUG("Transaction committed (CommitTimestamp: %llx)",
                     timestamp);
 
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -665,7 +663,7 @@ public:
     void Abort()
     {
         EnsureReadWrite();
-        LOG_DEBUG("Transaction aborted");
+        YT_LOG_DEBUG("Transaction aborted");
         State_ = ETransactionState::Aborted;
         UnderlyingTransaction_->Abort();
     }
@@ -676,7 +674,7 @@ public:
         EnsureReadWrite();
         node->Status().AgentAddress().ScheduleLoad();
         if (AgentsAwaitingNotifcation_.insert(node).second) {
-            LOG_DEBUG("Agent notification scheduled (NodeId: %v)",
+            YT_LOG_DEBUG("Agent notification scheduled (NodeId: %v)",
                 node->GetId());
         }
     }
@@ -685,7 +683,7 @@ public:
     {
         EnsureReadWrite();
         if (PodsAwaitingResourceAllocation_.insert(pod).second) {
-            LOG_DEBUG("Pod resource allocation scheduled (PodId: %v)",
+            YT_LOG_DEBUG("Pod resource allocation scheduled (PodId: %v)",
                 pod->GetId());
         }
     }
@@ -694,7 +692,7 @@ public:
     {
         EnsureReadWrite();
         if (NodesAwaitingResourceValidation_.insert(node).second) {
-            LOG_DEBUG("Node resource validation scheduled (NodeId: %v)",
+            YT_LOG_DEBUG("Node resource validation scheduled (NodeId: %v)",
                 node->GetId());
         }
     }
@@ -706,7 +704,7 @@ public:
             const auto& resourceManager = Bootstrap_->GetResourceManager();
             resourceManager->PrepareUpdatePodSpec(Owner_, pod);
 
-            LOG_DEBUG("Pod spec update scheduled (PodId: %v)",
+            YT_LOG_DEBUG("Pod spec update scheduled (PodId: %v)",
                 pod->GetId());
         }
     }
@@ -718,7 +716,7 @@ public:
             const auto& accountingManager = Bootstrap_->GetAccountingManager();
             accountingManager->PrepareValidateAccounting(pod);
 
-            LOG_DEBUG("Pod accounting validation scheduled (PodId: %v)",
+            YT_LOG_DEBUG("Pod accounting validation scheduled (PodId: %v)",
                 pod->GetId());
         }
     }
@@ -826,7 +824,7 @@ private:
             const TDBTable* table,
             TRange<TUnversionedValue> key,
             TRange<const TDBField*> fields,
-            std::function<void(const TNullable<TRange<NYT::NTableClient::TVersionedValue>>&)> handler) override
+            std::function<void(const std::optional<TRange<NYT::NTableClient::TVersionedValue>>&)> handler) override
         {
             LookupRequests_[std::make_pair(table, CaptureKey(key))].Subrequests.push_back(TLookupSubrequest{
                 SmallVector<const TDBField*, 2>(fields.begin(), fields.end()),
@@ -853,7 +851,7 @@ private:
 
             const auto& Logger = Transaction_->Logger;
 
-            LOG_DEBUG("Running reads");
+            YT_LOG_DEBUG("Running reads");
 
             std::vector<TFuture<void>> asyncResults;
             std::vector<TFuture<IVersionedRowsetPtr>> asyncLookupResults;
@@ -862,7 +860,7 @@ private:
                 request.Tag = Format("Query: %v",
                     request.Query);
 
-                LOG_DEBUG("Executing select (%v)",
+                YT_LOG_DEBUG("Executing select (%v)",
                     request.Tag);
 
                 TSelectRowsOptions options;
@@ -927,7 +925,7 @@ private:
                     }),
                     keys);
 
-                LOG_DEBUG("Executing lookup (%v)",
+                YT_LOG_DEBUG("Executing lookup (%v)",
                     request.Tag);
 
                 auto asyncResult = Transaction_->Client_->VersionedLookupRows(
@@ -946,7 +944,7 @@ private:
             WaitFor(Combine(asyncResults))
                 .ThrowOnError();
 
-            LOG_DEBUG("Reads complete; parsing results");
+            YT_LOG_DEBUG("Reads complete; parsing results");
 
             std::vector<TError> errors;
             auto guardedRun = [&] (auto f) {
@@ -960,7 +958,7 @@ private:
             for (const auto& request : SelectRequests_) {
                 guardedRun([&] {
                     const auto& rowset = request.AsyncResult.Get().Value();
-                    LOG_DEBUG("Got select results (%v, RowCount: %v)",
+                    YT_LOG_DEBUG("Got select results (%v, RowCount: %v)",
                         request.Tag,
                         rowset->GetRows().Size());
                     request.Handler(rowset);
@@ -977,7 +975,7 @@ private:
 
                 auto invokeHandlersWithNull = [&] () {
                     for (const auto& subrequest : request.Subrequests) {
-                        subrequest.Handler(Null);
+                        subrequest.Handler(std::nullopt);
                     }
                 };
 
@@ -994,7 +992,7 @@ private:
                 };
 
                 if (rows.Empty()) {
-                    LOG_DEBUG("No rows found (%v)",
+                    YT_LOG_DEBUG("No rows found (%v)",
                         request.Tag);
                     invokeHandlersWithNull();
                     continue;
@@ -1009,7 +1007,7 @@ private:
                     ? MinTimestamp
                     : row.BeginDeleteTimestamps()[0];
                 if (maxWriteTimestamp <= maxDeleteTimestamp) {
-                    LOG_DEBUG("Got dead lookup row (%v, Row: %v)",
+                    YT_LOG_DEBUG("Got dead lookup row (%v, Row: %v)",
                         request.Tag,
                         row);
                     invokeHandlersWithNull();
@@ -1041,13 +1039,13 @@ private:
                     }
                 }
 
-                LOG_DEBUG("Got lookup row (%v, Row: %v)",
+                YT_LOG_DEBUG("Got lookup row (%v, Row: %v)",
                     request.Tag,
                     row);
                 invokeHandlersWithRows();
             }
 
-            LOG_DEBUG("Results parsed");
+            YT_LOG_DEBUG("Results parsed");
 
             if (!errors.empty()) {
                 THROW_ERROR_EXCEPTION("Error parsing database results")
@@ -1070,7 +1068,7 @@ private:
         {
             SmallVector<const TDBField*, 4> Fields;
             SmallVector<int, 4> ResultColumnIds;
-            std::function<void(const TNullable<TRange<NYT::NTableClient::TVersionedValue>>&)> Handler;
+            std::function<void(const std::optional<TRange<NYT::NTableClient::TVersionedValue>>&)> Handler;
         };
 
         struct TLookupRequest
@@ -1163,7 +1161,7 @@ private:
                         value.Id = fieldToId[request.Fields[index]];
                     }
                     rows.push_back(row);
-                    LOG_DEBUG("Executing write (Path: %v, Columns: %v, Row: %v)",
+                    YT_LOG_DEBUG("Executing write (Path: %v, Columns: %v, Row: %v)",
                         path,
                         MakeFormattableRange(MakeRange(row.Begin() + table->Key.size(), row.End()), [&] (TStringBuilder* builder, const auto& value) {
                             FormatValue(builder, idToField[value.Id - table->Key.size()]->Name, TStringBuf());
@@ -1196,7 +1194,7 @@ private:
                         key[index].Id = index;
                     }
                     keys.push_back(key);
-                    LOG_DEBUG("Executing delete (Path: %v, Key: %v)",
+                    YT_LOG_DEBUG("Executing delete (Path: %v, Key: %v)",
                         path,
                         key);
                 }
@@ -1326,7 +1324,7 @@ private:
                 TChildrenAttributeHelper::Add(attribute, object);
             }
 
-            LOG_DEBUG("Object created (ObjectId: %v, ParentId: %v, Type: %v)",
+            YT_LOG_DEBUG("Object created (ObjectId: %v, ParentId: %v, Type: %v)",
                 actualId,
                 parentId,
                 type);
@@ -1363,7 +1361,7 @@ private:
                 it = InstantiatedObjects_.emplace(key, std::move(objectHolder)).first;
                 object->InitializeInstantiated();
 
-                LOG_DEBUG("Object instantiated (ObjectId: %v, ParentId: %v, Type: %v)",
+                YT_LOG_DEBUG("Object instantiated (ObjectId: %v, ParentId: %v, Type: %v)",
                     id,
                     typeHandler->GetParentType() == EObjectType::Null
                         ? "<None>"
@@ -1396,7 +1394,7 @@ private:
                 object->SetState(EObjectState::Removing);
             }
 
-            LOG_DEBUG("Object removed (ObjectId: %v, Type: %v)",
+            YT_LOG_DEBUG("Object removed (ObjectId: %v, Type: %v)",
                 object->GetId(),
                 object->GetType());
 
@@ -1523,7 +1521,7 @@ private:
 
         void ValidateCreatedObjects()
         {
-            LOG_DEBUG("Started validating created object");
+            YT_LOG_DEBUG("Started validating created object");
 
             std::vector<std::unique_ptr<TObjectExistenceChecker>> checkers;
             std::vector<std::pair<TObject*, TObject*>> objectParentPairs;
@@ -1579,12 +1577,12 @@ private:
                 }
             }
 
-            LOG_DEBUG("Finished validating created objects");
+            YT_LOG_DEBUG("Finished validating created objects");
         }
 
         void FlushObjectsCreation()
         {
-            LOG_DEBUG("Started preparing objects creation");
+            YT_LOG_DEBUG("Started preparing objects creation");
             TStoreContext context(Owner_);
 
             for (const auto& item : CreatedObjects_) {
@@ -1619,23 +1617,23 @@ private:
             }
 
             context.FillTransaction(Owner_->UnderlyingTransaction_);
-            LOG_DEBUG("Finished preparing objects creation");
+            YT_LOG_DEBUG("Finished preparing objects creation");
         }
 
         void FlushObjectsDeletion()
         {
             auto now = TInstant::Now();
 
-            LOG_DEBUG("Started preparing objects deletion");
+            YT_LOG_DEBUG("Started preparing objects deletion");
             TStoreContext context(Owner_);
 
             const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
             for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
-                if (type == EObjectType::Null) {
+                auto* typeHandler = objectManager->FindTypeHandler(type);
+                if (!typeHandler) {
                     continue;
                 }
 
-                auto* typeHandler = objectManager->GetTypeHandler(type);
                 auto parentType = typeHandler->GetParentType();
                 const auto* table = typeHandler->GetTable();
 
@@ -1672,7 +1670,7 @@ private:
             }
 
             context.FillTransaction(Owner_->UnderlyingTransaction_);
-            LOG_DEBUG("Finished preparing objects deletion");
+            YT_LOG_DEBUG("Finished preparing objects deletion");
         }
 
         void FlushLoadsOnce(std::vector<TError>* errors)
@@ -1683,7 +1681,7 @@ private:
                     continue;
                 }
 
-                LOG_DEBUG("Started preparing reads (Priority: %v, Count: %v)",
+                YT_LOG_DEBUG("Started preparing reads (Priority: %v, Count: %v)",
                     priority,
                     scheduledLoads.size());
 
@@ -1699,7 +1697,7 @@ private:
                     }
                 }
 
-                LOG_DEBUG("Finished preparing reads");
+                YT_LOG_DEBUG("Finished preparing reads");
 
                 context.RunReads();
             }
@@ -1711,7 +1709,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Started preparing writes (Count: %v)",
+            YT_LOG_DEBUG("Started preparing writes (Count: %v)",
                 ScheduledStores_.size());
 
             TStoreContext context(Owner_);
@@ -1728,7 +1726,7 @@ private:
 
             context.FillTransaction(Owner_->UnderlyingTransaction_);
 
-            LOG_DEBUG("Finished preparing writes");
+            YT_LOG_DEBUG("Finished preparing writes");
         }
     };
 
@@ -2137,7 +2135,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Scheduling attribute load (ObjectId: %v, Attribute: %v)",
+        YT_LOG_DEBUG("Scheduling attribute load (ObjectId: %v, Attribute: %v)",
             object->GetId(),
             match.Schema->GetPath());
 
@@ -2185,7 +2183,7 @@ private:
         TAttributeSchema* schema,
         const TSetUpdateRequest& request)
     {
-        LOG_DEBUG("Applying set update (ObjectId: %v, Attribute: %v, Path: %v, Value: %v)",
+        YT_LOG_DEBUG("Applying set update (ObjectId: %v, Attribute: %v, Path: %v, Value: %v)",
             object->GetId(),
             schema->GetPath(),
             request.Path,
@@ -2205,7 +2203,7 @@ private:
         TAttributeSchema* schema,
         const TRemoveUpdateRequest& request)
     {
-        LOG_DEBUG("Applying remove update (ObjectId: %v, Attribute: %v, Path: %v)",
+        YT_LOG_DEBUG("Applying remove update (ObjectId: %v, Attribute: %v, Path: %v)",
             object->GetId(),
             schema->GetPath(),
             request.Path);
@@ -2225,7 +2223,7 @@ private:
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         const auto* table = typeHandler->GetTable();
         query->Table = TTableDescriptor(ytConnector->GetTablePath(table),  PrimaryTableAlias);
-        query->SelectExprs.Emplace();
+        query->SelectExprs.emplace();
         return query;
     }
 
@@ -2237,12 +2235,6 @@ private:
         const TAttributeSelector& selector,
         TResolvePermissions* permissions = nullptr)
     {
-        if (selector.Paths.empty()) {
-            static const auto DummyExpr = New<TLiteralExpression>(TSourceLocation(), TLiteralValue(false));
-            query->SelectExprs->push_back(std::move(DummyExpr));
-            return {};
-        }
-
         auto* typeHandler = queryContext->GetTypeHandler();
 
         std::vector<TAttributeFetcher> fetchers;
@@ -2256,6 +2248,11 @@ private:
         }
 
         query->SelectExprs = fetcherContext->GetSelectExpressions();
+        if (query->SelectExprs->empty()) {
+            static const auto DummyExpr = New<TLiteralExpression>(TSourceLocation(), TLiteralValue(false));
+            query->SelectExprs->push_back(DummyExpr);
+        }
+
         return fetchers;
     }
 
@@ -2372,7 +2369,7 @@ TGetQueryResult TTransaction::ExecuteGetQuery(
 
 TSelectQueryResult TTransaction::ExecuteSelectQuery(
     EObjectType type,
-    const TNullable<TObjectFilter>& filter,
+    const std::optional<TObjectFilter>& filter,
     const TAttributeSelector& selector,
     const TSelectQueryOptions& options)
 {
@@ -2485,7 +2482,5 @@ TAsyncSemaphoreGuard TTransaction::AcquireLock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

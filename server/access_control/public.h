@@ -2,9 +2,7 @@
 
 #include <yp/server/misc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccessControl {
+namespace NYP::NServer::NAccessControl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +33,4 @@ DECLARE_REFCOUNTED_CLASS(TAccessControlManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccessControl
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccessControl

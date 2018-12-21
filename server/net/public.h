@@ -2,9 +2,7 @@
 
 #include <yp/server/misc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNet {
+namespace NYP::NServer::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +17,4 @@ DECLARE_REFCOUNTED_CLASS(TNetManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNet

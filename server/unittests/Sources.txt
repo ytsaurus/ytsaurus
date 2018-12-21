@@ -1,6 +1,0 @@
-SET(YT_SRCS
-  allocation_plan_ut.cpp
-  net_ut.cpp
-  porto_ut.cpp
-  resources_ut.cpp
-)

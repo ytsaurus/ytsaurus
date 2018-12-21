@@ -4,9 +4,7 @@
 
 #include <yp/server/master/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,6 +12,4 @@ std::unique_ptr<IObjectTypeHandler> CreateNodeSegmentTypeHandler(NMaster::TBoots
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

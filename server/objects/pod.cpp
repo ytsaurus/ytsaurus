@@ -1,13 +1,12 @@
 #include "pod.h"
 #include "pod_set.h"
 #include "node.h"
+#include "account.h"
 #include "db_schema.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -102,6 +101,12 @@ const TScalarAttributeSchema<TPod, TPod::TSpec::TOther> TPod::TSpec::OtherSchema
     [] (TPod* pod) { return &pod->Spec().Other(); }
 };
 
+const TManyToOneAttributeSchema<TPod, TAccount> TPod::TSpec::AccountSchema{
+    &PodsTable.Fields.Spec_AccountId,
+    [] (TPod* pod) { return &pod->Spec().Account(); },
+    [] (TAccount* account) { return &account->Pods(); }
+};
+
 TPod::TSpec::TSpec(TPod* pod)
     : Node_(pod, &NodeSchema)
     , IssPayload_(pod, &IssPayloadSchema)
@@ -110,6 +115,7 @@ TPod::TSpec::TSpec(TPod* pod)
     , Secrets_(pod, &SecretsSchema)
     , UpdateTimestamp_(pod, &UpdateTimestampSchema)
     , Other_(pod, &OtherSchema)
+    , Account_(pod, &AccountSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,7 +167,5 @@ void TPod::UpdateSchedulingStatus(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

@@ -2,9 +2,7 @@
 #include "topology_zone.h"
 #include "helpers.h"
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 using namespace NObjects;
 
@@ -136,7 +134,5 @@ bool TNode::IsSchedulable() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NScheduler
-} // namespace NYP
+} // namespace NYP::NScheduler::NObjects
 

@@ -1,8 +1,6 @@
 #include "db_schema.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +29,7 @@ const TInternetAddressesTable InternetAddressesTable;
 const TAccountsTable AccountsTable;
 const TAccountParentToChildrenTable AccountParentToChildrenTable;
 const TAccountToPodSetsTable AccountToPodSetsTable;
+const TAccountToPodsTable AccountToPodsTable;
 const TDnsRecordSetsTable DnsRecordSetsTable;
 
 const std::vector<const TDBTable*> Tables = {
@@ -58,12 +57,11 @@ const std::vector<const TDBTable*> Tables = {
     &AccountsTable,
     &AccountParentToChildrenTable,
     &AccountToPodSetsTable,
+    &AccountToPodsTable,
     &DnsRecordSetsTable
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

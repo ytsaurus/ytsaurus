@@ -2,9 +2,7 @@
 #include "bootstrap.h"
 #include "yt_connector.h"
 
-namespace NYP {
-namespace NServer {
-namespace NMaster {
+namespace NYP::NServer::NMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +32,4 @@ void TServiceBase::BeforeInvoke(NRpc::IServiceContext* /*context*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMaster
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NMaster

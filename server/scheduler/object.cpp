@@ -1,8 +1,6 @@
 #include "object.h"
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 using namespace NYT::NYson;
 
@@ -27,7 +25,5 @@ const TYsonString& TObject::GetLabels() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NScheduler
-} // namespace NYP
+} // namespace NYP::NScheduler::NObjects
 

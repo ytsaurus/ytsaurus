@@ -4,9 +4,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +13,4 @@ extern const NYT::NProfiling::TProfiler Profiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes

@@ -6,9 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NApi {
+namespace NYP::NServer::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +16,4 @@ NYT::NRpc::IServicePtr CreateDiscoveryService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NApi

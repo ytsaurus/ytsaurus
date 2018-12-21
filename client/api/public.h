@@ -2,9 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYP {
-namespace NClient {
-namespace NApi {
+namespace NYP::NClient::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +39,4 @@ DEFINE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NClient
-} // namespace NYP
+} // namespace NYP::NClient::NApi

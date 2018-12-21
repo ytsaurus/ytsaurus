@@ -7,9 +7,7 @@
 
 #include <yt/ytlib/query_client/ast.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
@@ -217,7 +215,5 @@ void TObjectTypeHandlerBase::ValidateMetaOther(TTransaction* /*transaction*/, TO
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

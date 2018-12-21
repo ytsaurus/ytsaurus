@@ -8,9 +8,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccessControl {
+namespace NYP::NServer::NAccessControl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,6 +95,4 @@ DEFINE_REFCOUNTED_TYPE(TAccessControlManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccessControl
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccessControl

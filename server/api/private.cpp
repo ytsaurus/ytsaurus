@@ -1,8 +1,6 @@
 #include "private.h"
 
-namespace NYP {
-namespace NServer {
-namespace NApi {
+namespace NYP::NServer::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,7 +8,5 @@ const NYT::NLogging::TLogger Logger("Api");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NApi
 

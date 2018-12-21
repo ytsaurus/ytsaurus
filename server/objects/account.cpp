@@ -1,10 +1,9 @@
 #include "account.h"
+#include "pod.h"
 #include "pod_set.h"
 #include "db_schema.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +47,14 @@ const TOneToManyAttributeSchema<TAccount, TPodSet> TAccount::PodSetsSchema{
     [] (TPodSet* podSet) { return &podSet->Spec().Account(); },
 };
 
+const TOneToManyAttributeSchema<TAccount, TPod> TAccount::PodsSchema{
+    &AccountToPodsTable,
+    &AccountToPodsTable.Fields.AccountId,
+    &AccountToPodsTable.Fields.PodSetId,
+    [] (TAccount* account) { return &account->Pods(); },
+    [] (TPod* pod) { return &pod->Spec().Account(); },
+};
+
 TAccount::TAccount(
     const TObjectId& id,
     IObjectTypeHandler* typeHandler,
@@ -56,6 +63,7 @@ TAccount::TAccount(
     , Status_(this, &StatusSchema)
     , Spec_(this)
     , PodSets_(this, &PodSetsSchema)
+    , Pods_(this, &PodsSchema)
 { }
 
 EObjectType TAccount::GetType() const
@@ -70,7 +78,5 @@ bool TAccount::IsBuiltin() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

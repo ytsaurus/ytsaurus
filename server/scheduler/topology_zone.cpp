@@ -2,9 +2,7 @@
 #include "pod_set.h"
 #include "pod.h"
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +57,5 @@ int* TTopologyZone::GetAntiaffinityVacancies(const TPod* pod)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NScheduler
-} // namespace NYP
+} // namespace NYP::NScheduler::NObjects
 

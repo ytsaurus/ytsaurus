@@ -1,9 +1,7 @@
 #include "allocation_plan.h"
 #include "pod.h"
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,10 +28,10 @@ void TAllocationPlan::RecordFailure(TPod* pod, const TError& error)
     Failures_.push_back(TFailure{pod, error});
 }
 
-TNullable<TAllocationPlan::TPerNodePlan> TAllocationPlan::TryExtractPerNodePlan()
+std::optional<TAllocationPlan::TPerNodePlan> TAllocationPlan::TryExtractPerNodePlan()
 {
     if (NodeToRequests_.empty()) {
-        return Null;
+        return std::nullopt;
     }
 
     TPerNodePlan plan;
@@ -72,7 +70,5 @@ void TAllocationPlan::EmplaceRequest(TNode* node, const TPodRequest& request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NScheduler
-} // namespace NYP
+} // namespace NYP::NScheduler::NObjects
 

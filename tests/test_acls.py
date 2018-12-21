@@ -319,3 +319,45 @@ class TestAcls(object):
         yp_env.sync_access_control()
 
         try_update()
+
+    def test_only_superuser_can_request_subnet_without_network_project(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+
+        yp_env.sync_access_control()
+        
+        node_id = yp_client.create_object("node")
+        pod_set_id = yp_client.create_object("pod_set", attributes={
+                "meta": {
+                    "acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]
+                }
+            })
+        
+        yp_client1 = yp_env.yp_instance.create_client(config={"user": "u"})
+
+        def try_create():
+            yp_client1.create_object("pod", attributes={
+                    "meta": {
+                        "pod_set_id": pod_set_id
+                    },
+                    "spec": {
+                        "resource_requests": ZERO_RESOURCE_REQUESTS,
+                        "ip6_subnet_requests": [
+                            {"vlan_id": "somevlan"}
+                        ]
+                    }
+                })
+
+        with pytest.raises(YpAuthorizationError):
+            try_create()
+
+        yp_client.update_object("group", "superusers", set_updates=[
+                {"path": "/spec/members", "value": ["u"]}
+            ])
+
+        yp_env.sync_access_control()
+
+        try_create()
+
+

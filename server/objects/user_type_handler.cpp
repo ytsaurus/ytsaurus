@@ -5,9 +5,7 @@
 
 #include <yp/server/access_control/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
@@ -25,6 +23,11 @@ public:
 
         StatusAttributeSchema_
             ->SetComposite();
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TUser>();
     }
 
     virtual const TDBTable* GetTable() override
@@ -59,7 +62,5 @@ std::unique_ptr<IObjectTypeHandler> CreateUserTypeHandler(NMaster::TBootstrap* b
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

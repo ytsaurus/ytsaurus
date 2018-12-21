@@ -3,9 +3,7 @@
 #include "virtual_service.h"
 #include "db_schema.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +19,11 @@ public:
 
         StatusAttributeSchema_
             ->SetComposite();
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TVirtualService>();
     }
 
     virtual const TDBTable* GetTable() override
@@ -50,7 +53,5 @@ std::unique_ptr<IObjectTypeHandler> CreateVirtualServiceTypeHandler(NMaster::TBo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

@@ -24,9 +24,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccessControl {
+namespace NYP::NServer::NAccessControl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +45,4 @@ DEFINE_REFCOUNTED_TYPE(TAccessControlManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccessControl
-} // namespace NNodes
-} // namespace NYP
+} // namespace NYP::NNodes::NAccessControl

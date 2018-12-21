@@ -605,18 +605,13 @@ message TPodSpec
     message TIP6AddressRequest
     {
         // Id of network_project.
-        // Could be omitted if manual_address is given.
-        optional string network_id = 1;
+        required string network_id = 1;
 
         // Will be matched against /node/spec/ip6_subnets/*/vlan_id.
         required string vlan_id = 2;
 
         // These labels get propagated to /pod/status/ip6_address_allocations/*/labels
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
-
-        // If given, specifies the exact IP6 address to use thus disabling IP Broker.
-        // This feature will only be used for migration and will be deprecated afterwards.
-        optional string manual_address = 4;
 
         // If true, this address is published to DNS.
         optional bool enable_dns = 5;
@@ -635,6 +630,11 @@ message TPodSpec
 
     message TIP6SubnetRequest
     {
+        // Id of network_project.
+        // If omitted, no network configuration is actually being applied at nodes;
+        // however the IP6 address nonce is still being reserved.
+        optional string network_id = 3;
+
         // Will be matched against /node/spec/ip6_subnets/*/vlan_id.
         required string vlan_id = 1;
 
@@ -725,6 +725,9 @@ message TPodSpec
 
     // Defines secrets to be delivered to the pod.
     map<string, TSecret> secrets = 16 [(NYT.NYson.NProto.yson_map) = true];
+
+    // If given, overrides the podset's account.
+    optional string account_id = 17;
 }
 
 enum EEvictionState
@@ -826,9 +829,6 @@ message TPodStatus
 
         // Copied from /pod/spec/ip6_subnet_requests/*/labels
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
-
-        // True if the the address was manually specified via /pod/spec/ip6_address_allocations/*/manual_address.
-        optional bool manual = 4;
 
         // Persistent DNS name assigned to this address (if any) of the form:
         // [<dns_prefix>.]<pod-id>.<suffix>

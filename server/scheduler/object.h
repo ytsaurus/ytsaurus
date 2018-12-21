@@ -4,9 +4,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,9 +31,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler
 
 #define OBJECT_INL_H_
 #include "object-inl.h"

@@ -37,9 +37,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NServer::NMaster;
 
@@ -144,7 +142,7 @@ private:
 
         {
             const auto& path = ytConnector->GetDBPath();
-            LOG_INFO("Locking DB (Path: %v)",
+            YT_LOG_INFO("Locking DB (Path: %v)",
                 path);
 
             WaitFor(transaction->LockNode(path, ELockMode::Shared))
@@ -156,7 +154,7 @@ private:
             for (const auto* table : Tables) {
                 auto path = ytConnector->GetTablePath(table);
 
-                LOG_INFO("Checking DB table version (Path: %v)",
+                YT_LOG_INFO("Checking DB table version (Path: %v)",
                     path);
 
                 asyncResults.push_back(transaction->GetNode(path + "/@version")
@@ -205,7 +203,7 @@ private:
                 SweepTable(typeHandler->GetTable(), &ObjectsTable.Fields.Meta_RemovalTime);
             }
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Failed to perform removed objects sweep");
+            YT_LOG_WARNING(ex, "Failed to perform removed objects sweep");
         }
     }
 
@@ -243,7 +241,7 @@ private:
         const TDBField* removalTimeField)
     {
         auto deadline = TInstant::Now() - Config_->RemovedObjectsGraceTimeout;
-        LOG_INFO("Selecting dead rows (Table: %v, Deadline: %v)",
+        YT_LOG_INFO("Selecting dead rows (Table: %v, Deadline: %v)",
             table->Name,
             deadline);
 
@@ -264,7 +262,7 @@ private:
             });
         session->FlushLoads();
 
-        LOG_INFO("Dead rows selected (Count: %v)",
+        YT_LOG_INFO("Dead rows selected (Count: %v)",
             result->GetRows().Size());
 
         return result;
@@ -274,13 +272,13 @@ private:
         const TDBTable* table,
         const IUnversionedRowsetPtr& rowset)
     {
-        LOG_INFO("Starting removal transaction");
+        YT_LOG_INFO("Starting removal transaction");
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
             .ValueOrThrow();
 
-        LOG_INFO("Removal transaction started (TransactionId: %v)",
+        YT_LOG_INFO("Removal transaction started (TransactionId: %v)",
             transaction->GetId());
 
         auto* session = transaction->GetSession();
@@ -293,12 +291,12 @@ private:
                 }
             });
 
-        LOG_INFO("Committing removal transaction");
+        YT_LOG_INFO("Committing removal transaction");
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        LOG_INFO("Removal transaction committed");
+        YT_LOG_INFO("Removal transaction committed");
     }
 };
 
@@ -330,7 +328,5 @@ IObjectTypeHandler* TObjectManager::FindTypeHandler(EObjectType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

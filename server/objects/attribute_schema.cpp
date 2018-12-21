@@ -6,9 +6,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NYT::NYTree;
 using namespace NYT::NYPath;
@@ -39,7 +37,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
             if (tokenizer.Advance() == ETokenType::EndOfStream) {
                 for (const auto& pair : attribute->LoadAll()) {
-                    attribute->Store(pair.first, Null);
+                    attribute->Store(pair.first, std::nullopt);
                 }
                 for (const auto& pair : value->AsMap()->GetChildren()) {
                     attribute->Store(pair.first, ConvertToYsonString(pair.second));
@@ -56,10 +54,10 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
                     updatedYson = ConvertToYsonString(value);
                 } else {
                     INodePtr existingNode;
-                    auto maybeExistingYson = attribute->Load(key);
-                    if (maybeExistingYson) {
+                    auto optionalExistingYson = attribute->Load(key);
+                    if (optionalExistingYson) {
                         try {
-                            existingNode = ConvertToNode(*maybeExistingYson);
+                            existingNode = ConvertToNode(*optionalExistingYson);
                         } catch (const std::exception& ex) {
                             THROW_ERROR_EXCEPTION("Error parsing value of annotation %Qv of object %Qv",
                                 key,
@@ -109,10 +107,10 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
             auto* attribute = &object->Annotations();
 
-            TNullable<TYsonString> maybeUpdatedYson;
+            std::optional<TYsonString> optionalUpdatedYson;
             if (tokenizer.Advance() != ETokenType::EndOfStream) {
-                auto maybeExistingYson = attribute->Load(key);
-                if (!maybeExistingYson) {
+                auto optionalExistingYson = attribute->Load(key);
+                if (!optionalExistingYson) {
                     THROW_ERROR_EXCEPTION("%v %v has no annotation %Qv",
                         GetCapitalizedHumanReadableTypeName(object->GetType()),
                         GetObjectDisplayName(object),
@@ -121,7 +119,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
                 INodePtr existingNode;
                 try {
-                    existingNode = ConvertToNode(*maybeExistingYson);
+                    existingNode = ConvertToNode(*optionalExistingYson);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error parsing value of annotation %Qv of %v %v",
                         key,
@@ -132,10 +130,10 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
 
                 // TODO(babenko): optimize
                 SyncYPathRemove(existingNode, TYPath(tokenizer.GetInput()));
-                maybeUpdatedYson = ConvertToYsonString(existingNode);
+                optionalUpdatedYson = ConvertToYsonString(existingNode);
             }
 
-            attribute->Store(key, maybeUpdatedYson);
+            attribute->Store(key, optionalUpdatedYson);
         };
 
 
@@ -517,7 +515,5 @@ void TAttributeSchema::InitExpressionBuilder(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

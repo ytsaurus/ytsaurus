@@ -2,9 +2,7 @@
 #include "db_schema.h"
 #include "helpers.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,7 +224,5 @@ void ValidateObjectId(EObjectType type, const TObjectId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

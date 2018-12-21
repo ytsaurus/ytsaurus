@@ -17,9 +17,7 @@
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/lease_manager.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NServer::NMaster;
 using namespace NYT::NTransactionClient;
@@ -65,14 +63,14 @@ public:
                 startTimestamp,
                 ytConnector->GetClient(),
                 nullptr);
-            LOG_DEBUG("Read-only transaction created (TransactionId: %v, StartTimestamp: %llx)",
+            YT_LOG_DEBUG("Read-only transaction created (TransactionId: %v, StartTimestamp: %llx)",
                 id,
                 startTimestamp);
             return transaction;
         };
 
         if (startTimestamp == NullTimestamp) {
-            LOG_DEBUG("Generating transaction start timestamp");
+            YT_LOG_DEBUG("Generating transaction start timestamp");
             const auto& ytConnector = Bootstrap_->GetYTConnector();
             const auto& timestampProvider = ytConnector->GetClient()->GetTimestampProvider();
             return timestampProvider->GenerateTimestamps().Apply(BIND(onTimestampGenerated));
@@ -175,7 +173,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Read-write transaction registered (TransactionId: %v, StartTimestamp: %llx, UnderlyingTransactionId: %v)",
+        YT_LOG_DEBUG("Read-write transaction registered (TransactionId: %v, StartTimestamp: %llx, UnderlyingTransactionId: %v)",
             id,
             startTimestamp,
             underlyingTransaction->GetId());
@@ -196,7 +194,7 @@ private:
             TransactionMap_.erase(it);
         }
 
-        LOG_DEBUG("Read-write transaction unregistered (TransactionId: %v)",
+        YT_LOG_DEBUG("Read-write transaction unregistered (TransactionId: %v)",
             id);
     }
 
@@ -214,7 +212,7 @@ private:
             TransactionMap_.erase(it);
         }
 
-        LOG_DEBUG("Read-write transaction lease expired (TransactionId: %v)",
+        YT_LOG_DEBUG("Read-write transaction lease expired (TransactionId: %v)",
             id);
 
         transaction->Abort();
@@ -254,7 +252,5 @@ TTransactionPtr TTransactionManager::GetTransactionOrThrow(const TTransactionId&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

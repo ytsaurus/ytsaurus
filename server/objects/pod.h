@@ -8,9 +8,7 @@
 
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,6 +99,10 @@ public:
         using TOther = NProto::TPodSpecOther;
         static const TScalarAttributeSchema<TPod, TOther> OtherSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
+
+        static const TManyToOneAttributeSchema<TPod, TAccount> AccountSchema;
+        using TAccountAttribute = TManyToOneAttribute<TPod, TAccount>;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
@@ -118,6 +120,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

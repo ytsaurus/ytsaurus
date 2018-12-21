@@ -2,9 +2,7 @@
 
 #include "persistence.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,6 +157,7 @@ extern const struct TPodsTable
         TDBField Spec_Secrets{"spec.secrets"};
         TDBField Spec_UpdateTag{"spec.update_tag"};
         TDBField Spec_Other{"spec.other"};
+        TDBField Spec_AccountId{"spec.account_id"};
     } Fields;
 } PodsTable;
 
@@ -534,10 +533,27 @@ extern const struct TAccountToPodSetsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TAccountToPodsTable
+    : public TDBTable
+{
+    TAccountToPodsTable()
+        : TDBTable("account_to_pods")
+    {
+        Key = {&Fields.AccountId, &Fields.PodSetId};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField AccountId{"account_id"};
+        TDBField PodSetId{"pod_id"};
+    } Fields;
+} AccountToPodsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const std::vector<const TDBTable*> Tables;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

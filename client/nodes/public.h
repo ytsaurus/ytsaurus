@@ -2,9 +2,7 @@
 
 #include <yp/server/misc/public.h>
 
-namespace NYP {
-namespace NClient {
-namespace NNodes {
+namespace NYP::NClient::NNodes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +18,4 @@ class TRspHeartbeat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NClient
-} // namespace NYP
+} // namespace NYP::NClient::NNodes

@@ -6,9 +6,7 @@
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +15,7 @@ class TNodeTrackerConfig
 {
 public:
     bool ValidateAgentCertificate;
-    TNullable<TString> AgentCertificateIssuer;
+    std::optional<TString> AgentCertificateIssuer;
 
     bool EnableAgentNotification;
     TDuration AgentNotificationRpcTimeout;
@@ -47,6 +45,4 @@ DEFINE_REFCOUNTED_TYPE(TNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes

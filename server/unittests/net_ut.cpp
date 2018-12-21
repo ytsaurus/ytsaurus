@@ -2,9 +2,7 @@
 
 #include <yp/server/net/net_manager.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNet {
+namespace NYP::NServer::NNet {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +22,5 @@ TEST(TestNetManager, TestShortIp6ToPtrDnsRecord)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NNet
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNet
 

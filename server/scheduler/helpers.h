@@ -7,9 +7,7 @@
 
 #include <yp/client/api/proto/data_model.pb.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +81,4 @@ TAllocationStatistics operator+(const TAllocationStatistics& lhs, const TAllocat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

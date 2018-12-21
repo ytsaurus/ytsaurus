@@ -10,19 +10,44 @@ option java_outer_classname = "Object";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Describes the desired format of TPayload.
+enum EPayloadFormat
+{
+    // Indicates a legacy client that is not aware of formats.
+    PF_NONE = 0;
+    PF_YSON = 1;
+    PF_PROTOBUF = 2;
+}
+
+// Represents a polymorphic payload.
+message TPayload
+{
+    oneof value {
+        bool null = 1;
+        bytes yson = 2 [(NYT.NYson.NProto.yson_string) = true];
+        bytes protobuf = 3;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TAttributeSelector
 {
     // YPaths of requested attributes.
-    // If a path refers to a nonexisting attribute (or its sub-attribute)
+    // If a path refers to a non-existing attribute (or its sub-attribute)
     // the result is null.
     repeated string paths = 1;
 }
 
 message TAttributeValueList
 {
+    // COMPAT(babenko): deprecated; use value_payloads instead.
     // Values are in YSON; nulls are encoded as empty strings.
     // Value order coincides with that of TAttributeSelector.paths.
     repeated bytes values = 1 [(NYT.NYson.NProto.yson_string) = true];
+
+    // Value order coincides with that of TAttributeSelector.paths.
+    repeated TPayload value_payloads = 2;
 }
 
 message TObjectFilter
@@ -60,8 +85,12 @@ message TSetUpdate
     // YPath pointing to the attribute to set.
     required string path = 1;
 
+    // COMPAT(babenko): deprecated; use value_payload instead.
     // Attribute value; in YSON.
-    required bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+    optional bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+
+    // Attribute value.
+    optional TPayload value_payload = 4;
 
     // If true then missing intermediate
     optional bool recursive = 3;
@@ -134,8 +163,12 @@ message TReqCreateObject
     // Type of the object to create.
     required EObjectType object_type = 2;
 
+    // COMPAT(babenko): deprecated; use attributes_payload instead.
     // Object attributes; in YSON.
     optional bytes attributes = 3 [(NYT.NYson.NProto.yson_string) = true];
+
+    // Object attributes.
+    optional TPayload attributes_payload = 4;
 }
 
 message TRspCreateObject
@@ -157,8 +190,12 @@ message TReqCreateObjects
         // Type of the object to create.
         required EObjectType object_type = 1;
 
+        // COMPAT(babenko): deprecated; use attributes_payload instead.
         // Object attributes; in YSON.
         optional bytes attributes = 2 [(NYT.NYson.NProto.yson_string) = true];
+
+        // Object attributes.
+        optional TPayload attributes_payload = 3;
     }
 
     // Subrequests to serve.
@@ -290,13 +327,15 @@ message TReqGetObject
     // Describes which attributes are to fetched.
     // TRspGetObject.result.attributes will contain exactly this number of attributes.
     required TAttributeSelector selector = 3;
+
+    // Format to use in response.
+    optional EPayloadFormat format = 5;
 }
 
 message TRspGetObject
 {
-    // The result: if present then contains the requested attributes.
-    // If absent then there is no object with the given id.
-    optional TAttributeValueList result = 1;
+    // The result containing the requested attributes.
+    required TAttributeValueList result = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,6 +361,9 @@ message TReqSelectObjects
 
     // Enables skipping a number of leading results.
     optional TSelectOffset offset = 6;
+
+    // Format to use in response.
+    optional EPayloadFormat format = 7;
 }
 
 message TRspSelectObjects

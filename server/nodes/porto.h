@@ -7,9 +7,7 @@
 
 #include <yp/client/api/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +21,4 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes

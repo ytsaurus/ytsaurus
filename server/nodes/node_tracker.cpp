@@ -25,9 +25,7 @@
 
 #include <queue>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 using namespace NServer::NObjects;
 using namespace NServer::NMaster;
@@ -82,7 +80,7 @@ public:
         Node_->Status().HeartbeatSequenceNumber() = 0;
         Node_->Status().Other()->set_agent_version(version);
 
-        LOG_DEBUG("Handshake received (NodeId: %v, Address: %v, Version: %v, EpochId: %v)",
+        YT_LOG_DEBUG("Handshake received (NodeId: %v, Address: %v, Version: %v, EpochId: %v)",
             nodeId,
             address,
             version,
@@ -114,13 +112,13 @@ public:
                     Node_->GetId()))
         { }
 
-        TError Run()
+        void Run()
         {
             SchedulePreload();
 
             ValidateSequencing();
 
-            LOG_DEBUG("Heartbeat received (EpochId: %v, SequenceNumber: %v)",
+            YT_LOG_DEBUG("Heartbeat received (EpochId: %v, SequenceNumber: %v)",
                 EpochId_,
                 SequenceNumber_);
 
@@ -131,7 +129,7 @@ public:
             if (Node_->Status().Other()->unknown_pod_ids_size() > 0 &&
                 !Node_->Spec().Load().force_remove_unknown_pods())
             {
-                return TError("Unknown pods found at node, heartbeat ignored");
+                return;
             }
 
             ProcessReportedPods();
@@ -150,8 +148,6 @@ public:
             FillResponse();
 
             ReconcileNodeResources();
-
-            return {};
         }
 
     private:
@@ -267,7 +263,7 @@ public:
                 auto podId = FromProto<TObjectId>(podEntry.pod_id());
                 auto* pod = Transaction_->GetPod(podId);
                 if (!pod->DoesExist() && !pod->IsTombstone()) {
-                    LOG_DEBUG("Unknown pod reported by agent (PodId: %v)",
+                    YT_LOG_DEBUG("Unknown pod reported by agent (PodId: %v)",
                         podId);
                     Node_->Status().Other()->add_unknown_pod_ids(podId);
                 }
@@ -296,10 +292,10 @@ public:
                 auto podIt = ExpectedPods_.find(podId);
                 if (podIt == ExpectedPods_.end()) {
                     if (currentState == EPodCurrentState::Stopped) {
-                        LOG_DEBUG("Unexpected pod is stopped, ignored (PodId: %v)",
+                        YT_LOG_DEBUG("Unexpected pod is stopped, ignored (PodId: %v)",
                             podId);
                     } else {
-                        LOG_DEBUG("Unexpected pod found, removal scheduled (PodId: %v, CurrentState: %v)",
+                        YT_LOG_DEBUG("Unexpected pod found, removal scheduled (PodId: %v, CurrentState: %v)",
                             podId,
                             currentState);
                         ScheduleRemovePod(podId);
@@ -322,7 +318,7 @@ public:
                     }
 
                     if (agentTimestamp < masterTimestamp) {
-                        LOG_DEBUG("Sending pod spec update (PodId: %v, CurrentState: %v, SpecTimestamp: %llx -> %llx)",
+                        YT_LOG_DEBUG("Sending pod spec update (PodId: %v, CurrentState: %v, SpecTimestamp: %llx -> %llx)",
                             podId,
                             currentState,
                             agentTimestamp,
@@ -336,7 +332,7 @@ public:
                     }
 
                     if (podEntry.has_status()) {
-                        LOG_DEBUG("Pod status update received (PodId: %v, CurrentState: %v)",
+                        YT_LOG_DEBUG("Pod status update received (PodId: %v, CurrentState: %v)",
                             podId,
                             currentState);
 
@@ -372,7 +368,7 @@ public:
                 const auto& podId = pair.first;
                 auto* pod = pair.second;
                 if (ReportedPodIds_.find(podId) == ReportedPodIds_.end()) {
-                    LOG_DEBUG("Requesting pod install (PodId: %v, SpecTimestamp: %llx)",
+                    YT_LOG_DEBUG("Requesting pod install (PodId: %v, SpecTimestamp: %llx)",
                         podId,
                         pod->Spec().UpdateTimestamp().Load());
                     ScheduleUpdatePod(pod);
@@ -387,7 +383,7 @@ public:
                 if (other.has_install_error() &&
                     other.failed_install_attempt_spec_timestamp() == pod->Spec().UpdateTimestamp().Load())
                 {
-                    LOG_DEBUG("Pod update skipped due to an active install error (PodId: %v)",
+                    YT_LOG_DEBUG("Pod update skipped due to an active install error (PodId: %v)",
                         pod->GetId());
                     return true;
                 } else {
@@ -402,7 +398,7 @@ public:
             if (PodsToUpdate_.erase(pod) == 0) {
                 return;
             }
-            LOG_DEBUG(error, "Pod install failed (PodId: %v)",
+            YT_LOG_DEBUG(error, "Pod install failed (PodId: %v)",
                 pod->GetId());
             auto* other = pod->Status().Agent().Other().Get();
             ToProto(other->mutable_install_error(), error);
@@ -419,8 +415,8 @@ public:
         static bool IsPersistentSecretVaultError(const TError& error)
         {
             return
-                error.FindMatching(ESecretVaultErrorCode::DelegationAccessError).HasValue() ||
-                error.FindMatching(ESecretVaultErrorCode::DelegationTokenRevoked).HasValue();
+                error.FindMatching(ESecretVaultErrorCode::DelegationAccessError) ||
+                error.FindMatching(ESecretVaultErrorCode::DelegationTokenRevoked);
         }
 
         void RequestSecrets()
@@ -444,7 +440,7 @@ public:
 
             std::vector<TKeyedSecret> keyedSecrets(secretSubrequests.size());
             if (!secretSubrequests.empty()) {
-                LOG_DEBUG("Retrieving secrets from Vault (Count: %v)",
+                YT_LOG_DEBUG("Retrieving secrets from Vault (Count: %v)",
                     secretSubrequests.size());
                 const auto& secretVaultService = Owner_->Bootstrap_->GetSecretVaultService();
                 auto result = WaitFor(secretVaultService->GetSecrets(secretSubrequests));
@@ -473,18 +469,18 @@ public:
                                 << secretSubresponseOrError;
                             SetPodInstallFailure(pod, error);
                         } else {
-                            LOG_DEBUG(secretSubresponseOrError, "Pod update skipped due to transient Vault error (PodId: %v)",
+                            YT_LOG_DEBUG(secretSubresponseOrError, "Pod update skipped due to transient Vault error (PodId: %v)",
                                 pod->GetId());
                             SkipPodUpdate(pod);
                         }
                     }
                 } else {
-                    LOG_WARNING(result, "Vault request failed");
+                    YT_LOG_WARNING(result, "Vault request failed");
                     SkipPodUpdateIf([&] (TPod* pod) {
                         if (pod->Spec().Secrets().Load().empty()) {
                             return false;
                         }
-                        LOG_DEBUG("Pod update skipped due to Vault error (PodId: %v)",
+                        YT_LOG_DEBUG("Pod update skipped due to Vault error (PodId: %v)",
                             pod->GetId());
                         return true;
                     });
@@ -505,7 +501,7 @@ public:
                 auto* protoProperty = protoSpec->add_porto_properties();
                 protoProperty->set_key(pair.first);
                 protoProperty->set_value(pair.second);
-                LOG_DEBUG("Setting Porto property (PodId: %v, Name: %v, Value: %v)",
+                YT_LOG_DEBUG("Setting Porto property (PodId: %v, Name: %v, Value: %v)",
                     pod->GetId(),
                     pair.first,
                     pair.second);
@@ -592,7 +588,7 @@ public:
 
     using TKeyedSecret = std::pair<TString, ISecretVaultService::TSecretSubrequest>;
 
-    TError ProcessHeartbeat(
+    void ProcessHeartbeat(
         const TTransactionPtr& transaction,
         TNode* node,
         const TEpochId& epochId,
@@ -608,7 +604,7 @@ public:
             sequenceNumber,
             request,
             response);
-        return handler.Run();
+        handler.Run();
     }
 
     void NotifyAgent(TNode* node)
@@ -622,7 +618,7 @@ public:
             node->Status().AgentAddress().Load()
         };
 
-        LOG_DEBUG("Agent notification enqueued (NodeId: %v, Address: %v)",
+        YT_LOG_DEBUG("Agent notification enqueued (NodeId: %v, Address: %v)",
             entry.Id,
             entry.Address);
 
@@ -654,7 +650,7 @@ private:
             auto entry = std::move(AgentNotificationQueue_.front());
             AgentNotificationQueue_.pop();
 
-            LOG_DEBUG("Sending agent notification (NodeId: %v, Address: %v)",
+            YT_LOG_DEBUG("Sending agent notification (NodeId: %v, Address: %v)",
                 entry.Id,
                 entry.Address);
 
@@ -662,11 +658,11 @@ private:
             auto req = proxy->Notify();
             return req->Invoke().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TAgentServiceProxy::TErrorOrRspNotifyPtr& rspOrError) {
                 if (rspOrError.IsOK()) {
-                    LOG_DEBUG("Agent notification succeeded (NodeId: %v, Address: %v)",
+                    YT_LOG_DEBUG("Agent notification succeeded (NodeId: %v, Address: %v)",
                         entry.Id,
                         entry.Address);
                 } else {
-                    LOG_DEBUG(rspOrError, "Agent notification failed (NodeId: %v, Address: %v)",
+                    YT_LOG_DEBUG(rspOrError, "Agent notification failed (NodeId: %v, Address: %v)",
                         entry.Id,
                         entry.Address);
                 }
@@ -702,7 +698,7 @@ TNode* TNodeTracker::ProcessHandshake(
         version);
 }
 
-TError TNodeTracker::ProcessHeartbeat(
+void TNodeTracker::ProcessHeartbeat(
     const TTransactionPtr& transaction,
     TNode* Node_,
     const TEpochId& epochId,
@@ -710,7 +706,7 @@ TError TNodeTracker::ProcessHeartbeat(
     const TReqHeartbeat* request,
     TRspHeartbeat* response)
 {
-    return Impl_->ProcessHeartbeat(
+    Impl_->ProcessHeartbeat(
         transaction,
         Node_,
         epochId,
@@ -726,7 +722,5 @@ void TNodeTracker::NotifyAgent(TNode* Node_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes
 

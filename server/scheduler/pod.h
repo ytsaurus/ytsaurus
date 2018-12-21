@@ -9,9 +9,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +24,7 @@ public:
         NServer::NObjects::NProto::TMetaOther metaOther,
         TNode* node,
         NServer::NObjects::NProto::TPodSpecOther specOther,
+        TAccount* account,
         NServer::NObjects::NProto::TPodStatusOther statusOther,
         NYT::NYson::TYsonString labels);
 
@@ -33,11 +32,12 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TMetaOther, MetaOther);
     DEFINE_BYVAL_RO_PROPERTY(TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TPodSpecOther, SpecOther);
+    DEFINE_BYVAL_RO_PROPERTY(TAccount*, Account);
     DEFINE_BYREF_RO_PROPERTY(NServer::NObjects::NProto::TPodStatusOther, StatusOther);
+
+    TAccount* GetEffectiveAccount() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

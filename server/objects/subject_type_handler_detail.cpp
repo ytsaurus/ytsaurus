@@ -4,9 +4,7 @@
 
 #include <yp/server/access_control/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NTableClient;
 using namespace NAccessControl;
@@ -36,8 +34,8 @@ void TSubjectTypeHandlerBase::BeforeObjectCreated(
                     context->GetRowBuffer(),
                     id),
                 MakeArray(&SubjectToTypeTable.Fields.Type),
-                [=] (const TNullable<TRange<TVersionedValue>>& maybeValues) {
-                    if (maybeValues) {
+                [=] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
+                    if (optionalValues) {
                         THROW_ERROR_EXCEPTION(
                             NClient::NApi::EErrorCode::DuplicateObjectId,
                             "Subject %Qv already exists",
@@ -81,7 +79,5 @@ void TSubjectTypeHandlerBase::AfterObjectRemoved(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

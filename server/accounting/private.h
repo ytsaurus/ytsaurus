@@ -4,9 +4,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccounting {
+namespace NYP::NServer::NAccounting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +13,4 @@ extern const NYT::NProfiling::TProfiler Profiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccounting
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccounting

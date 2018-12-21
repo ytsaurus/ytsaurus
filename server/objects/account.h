@@ -8,9 +8,7 @@
 
 #include <yt/core/misc/ref_tracked.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,11 +54,14 @@ public:
     using TPodSets = TOneToManyAttribute<TAccount, TPodSet>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSets, PodSets);
 
+    // NB: Only pods explicitly overriding their podsets' account are present here.
+    static const TOneToManyAttributeSchema<TAccount, TPod> PodsSchema;
+    using TPods = TOneToManyAttribute<TAccount, TPod>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPods, Pods);
+
     virtual bool IsBuiltin() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

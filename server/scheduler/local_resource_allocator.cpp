@@ -3,9 +3,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 using namespace NServer::NObjects;
 
@@ -192,7 +190,5 @@ TString TLocalResourceAllocator::FormatRequest(const TRequest& request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler
 

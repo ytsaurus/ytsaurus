@@ -12,9 +12,7 @@
 
 #include <yt/core/net/address.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
@@ -42,6 +40,11 @@ public:
         SpecAttributeSchema_
             ->SetAttribute(TEndpoint::SpecSchema)
             ->SetValidator<TEndpoint>(std::bind(&TEndpointTypeHandler::ValidateSpec, this, _1, _2));
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TEndpoint>();
     }
 
     virtual EObjectType GetParentType() override
@@ -106,7 +109,5 @@ std::unique_ptr<IObjectTypeHandler> CreateEndpointTypeHandler(NMaster::TBootstra
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

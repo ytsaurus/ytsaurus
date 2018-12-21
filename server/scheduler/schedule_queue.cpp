@@ -2,9 +2,7 @@
 
 #include <yt/core/misc/heap.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +34,5 @@ bool TScheduleQueue::TEntry::operator<(const TScheduleQueue::TEntry& other) cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler
 

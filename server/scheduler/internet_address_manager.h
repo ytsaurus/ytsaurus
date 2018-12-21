@@ -6,9 +6,7 @@
 #include <util/generic/queue.h>
 #include <util/generic/string.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +26,7 @@ public:
         NObjects::TPod* pod);
 
 private:
-    TNullable<TString> TakeInternetAddress(
+    std::optional<TString> TakeInternetAddress(
         const TString& networkModuleId);
 
     THashMap<TString, TQueue<TString>> ModuleIdToAddressIds_;
@@ -36,6 +34,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

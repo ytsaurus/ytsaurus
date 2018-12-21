@@ -1,14 +1,10 @@
 #include "private.h"
 
-namespace NYP {
-namespace NServer {
-namespace NAccessControl {
+namespace NYP::NServer::NAccessControl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccessControl
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccessControl
 

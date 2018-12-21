@@ -13,9 +13,7 @@
 #include <yt/core/misc/indexed_vector.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 using namespace NServer::NMaster;
 using namespace NServer::NObjects;
@@ -343,7 +341,5 @@ void TResourceManager::ReallocatePodResources(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler
 

@@ -4,9 +4,7 @@
 
 #include <yt/core/net/address.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNet {
+namespace NYP::NServer::NNet {
 
 using namespace NClient::NApi;
 
@@ -98,19 +96,18 @@ TIP6Address MakeMtnAddress(
     return TIP6Address::FromRawDWords(parts);
 }
 
-TIP6Network MakeMtnNetwork(
+TIP6Network MakeMtnSubnet(
     THostSubnet hostSubnet,
+    TProjectId projectId,
     TNonce nonce)
 {
     static const auto Mask = TIP6Address::FromString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:0000");
     return TIP6Network(
-        MakeMtnAddress(hostSubnet, 0, nonce),
+        MakeMtnAddress(hostSubnet, projectId, nonce),
         Mask);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNet
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNet
 

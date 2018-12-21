@@ -8,9 +8,7 @@
 
 #include <yp/server/objects/proto/objects.pb.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccounting {
+namespace NYP::NServer::NAccounting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,14 +21,9 @@ TResourceTotals ResourceUsageFromPodSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccounting
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccounting
 
-namespace NYP {
-namespace NClient {
-namespace NApi {
-namespace NProto {
+namespace NYP::NClient::NApi::NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,8 +45,5 @@ TString ToString(const TResourceTotals& totals);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProto
-} // namespace NApi
-} // namespace NClient
-} // namespace NYP
+} // namespace NYP::NClient::NApi::NProto
 

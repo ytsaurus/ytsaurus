@@ -25,6 +25,7 @@ class ControllableChaosMonkey(object):
 def get_default_client_config():
     return {
         "request_timeout": 1000,
+        "master_discovery_expiration_time": 10 ** 9,
         "retries": yp_retries.get_default_retries_config()
     }
 
@@ -47,13 +48,14 @@ class TestRetries(object):
         retries_config = config["retries"]
 
         chaos_monkey = ControllableChaosMonkey()
-        chaos_monkey.set_values([True, False])
         retries_config["_CHAOS_MONKEY_FACTORY"] = lambda: chaos_monkey
 
         retries_config["count"] = 1
+        chaos_monkey.set_values([True, False, False])
         yp_flaky_client = yp_env.yp_instance.create_client(config=config, transport=transport)
 
         retries_config["count"] = 2
+        chaos_monkey.set_values([True, False, False])
         yp_flaky_client_with_retries = yp_env.yp_instance.create_client(config=config, transport=transport)
 
         with pytest.raises(ChaosMonkeyError):
@@ -71,6 +73,8 @@ class TestRetries(object):
         retries_config["_CHAOS_MONKEY_FACTORY"] = lambda: chaos_monkey
 
         yp_client = yp_env.yp_instance.create_client(config=config, transport=transport)
+        # Prepare YP master discovery info.
+        yp_client.select_objects("pod", selectors=[""])
 
         def generate(count):
             result = []
@@ -103,7 +107,6 @@ class TestRetries(object):
         def check_result(result):
             assert sorted(self.pod_ids) == sorted(map(lambda l: l[0], result))
         self.do_test(yp_env, transport, callback, check_result, config=config)
-
 
     @pytest.mark.parametrize("transport", ["http", "grpc"])
     def test_select_objects(self, yp_env, transport):

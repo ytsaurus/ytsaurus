@@ -5,9 +5,7 @@
 #include <util/string/join.h>
 #include <util/string/split.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 namespace {
 
 using namespace ::NYP::NServer::NObjects;
@@ -195,6 +193,4 @@ TEST(BuildPortoProperties, TestSubnetsPortoProperties)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

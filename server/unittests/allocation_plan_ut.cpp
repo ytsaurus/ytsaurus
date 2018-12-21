@@ -10,9 +10,7 @@
 
 #include <memory>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,6 +36,7 @@ std::unique_ptr<TPod> CreateMockPod()
         std::move(metaOther),
         /* node */ nullptr,
         NObjects::NProto::TPodSpecOther(),
+        /* node */ nullptr,
         NObjects::NProto::TPodStatusOther(),
         /* labels */ NYT::NYson::TYsonString());
 }
@@ -82,6 +81,4 @@ TEST(TAllocationPlanTest, GetNodeCount)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

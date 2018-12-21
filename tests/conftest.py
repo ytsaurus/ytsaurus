@@ -148,7 +148,8 @@ class YpTestEnvironment(object):
 
     def cleanup(self):
         self.yp_instance.stop()
-        self._save_yatest_working_files()
+        if yatest_common is not None:
+            self._save_yatest_working_files()
 
     def _save_yatest_working_files(self):
         if self.ram_drive_path is not None:

@@ -5,9 +5,7 @@
 #include "label_filter_cache.h"
 #endif
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +47,4 @@ const TErrorOr<std::vector<T*>>& TLabelFilterCache<T>::GetFilteredObjects(const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

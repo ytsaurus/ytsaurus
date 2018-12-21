@@ -6,9 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +16,4 @@ NYT::NRpc::IServicePtr CreateNodeTrackerService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes

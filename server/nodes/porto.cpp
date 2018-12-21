@@ -7,9 +7,7 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 using namespace NObjects;
 
@@ -370,7 +368,5 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes
 

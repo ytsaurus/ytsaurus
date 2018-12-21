@@ -12,9 +12,7 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,10 +249,8 @@ struct TScalarTypeTraits<EResourceKind>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 
 #define  ATTRIBUTE_SCHEMA_INL_H_
 #include "attribute_schema-inl.h"
-#undef ATTRIBUTE_SCHEMA_INL_H_
+#undef ATTRIBUTE_SCHEMA_INL_H

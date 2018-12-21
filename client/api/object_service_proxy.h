@@ -4,9 +4,7 @@
 
 #include <yt/core/rpc/client.h>
 
-namespace NYP {
-namespace NClient {
-namespace NApi {
+namespace NYP::NClient::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +32,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NClient
-} // namespace NYP
+} // namespace NYP::NClient::NApi

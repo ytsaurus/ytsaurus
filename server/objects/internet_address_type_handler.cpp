@@ -3,9 +3,7 @@
 #include "internet_address.h"
 #include "db_schema.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +19,11 @@ public:
 
         StatusAttributeSchema_
             ->SetAttribute(TInternetAddress::StatusSchema);
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TInternetAddress>();
     }
 
     virtual const TDBTable* GetTable() override
@@ -50,7 +53,5 @@ std::unique_ptr<IObjectTypeHandler> CreateInternetAddressTypeHandler(NMaster::TB
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

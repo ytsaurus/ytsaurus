@@ -16,6 +16,7 @@
 #include <yp/server/objects/transaction.h>
 #include <yp/server/objects/db_schema.h>
 #include <yp/server/objects/object.h>
+#include <yp/server/objects/helpers.h>
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -25,9 +26,7 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/convert.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 using namespace NYT::NConcurrency;
 using namespace NYT::NApi;
@@ -48,224 +47,64 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-
-    std::vector<TNode*> GetNodes()
-    {
-        std::vector<TNode*> result;
-        result.reserve(NodeMap_.size());
-        for (const auto& pair : NodeMap_) {
-            result.push_back(pair.second.get());
+    #define IMPLEMENT_ACCESSORS(name, pluralName) \
+        std::vector<T##name*> Get##pluralName() \
+        { \
+            std::vector<T##name*> result; \
+            result.reserve(name##Map_.size()); \
+            for (const auto& [id, object] : name##Map_) { \
+                result.push_back(object.get()); \
+            } \
+            return result; \
+        } \
+        \
+        T##name* Find##name(const TObjectId& id) \
+        { \
+            if (!id) { \
+                return nullptr; \
+            } \
+            auto it = name##Map_.find(id); \
+            return it == name##Map_.end() ? nullptr : it->second.get(); \
+        } \
+        \
+        T##name* Get##name##OrThrow(const TObjectId& id) \
+        { \
+            if (!id) { \
+                THROW_ERROR_EXCEPTION("%v id cannot be null", \
+                    GetCapitalizedHumanReadableTypeName(EObjectType::name)); \
+            } \
+            auto* object = Find##name(id); \
+            if (!object) { \
+                THROW_ERROR_EXCEPTION( \
+                    NClient::NApi::EErrorCode::NoSuchObject, \
+                    "No such %v %Qv", \
+                    GetLowercaseHumanReadableTypeName(EObjectType::name), \
+                    id); \
+            } \
+            return object; \
         }
-        return result;
-    }
-
-    TNode* FindNode(const TObjectId& id)
-    {
-        if (!id) {
-            return nullptr;
-        }
-        auto it = NodeMap_.find(id);
-        return it == NodeMap_.end() ? nullptr : it->second.get();
-    }
-
-    TNode* GetNodeOrThrow(const TObjectId& id)
-    {
-        if (!id) {
-            THROW_ERROR_EXCEPTION("Node id cannot be null");
-        }
-        auto* node = FindNode(id);
-        if (!node) {
-            THROW_ERROR_EXCEPTION(
-                NClient::NApi::EErrorCode::NoSuchObject,
-                "No such node %Qv",
-                id);
-        }
-        return node;
-    }
 
 
-    std::vector<TNodeSegment*> GetNodeSegments()
-    {
-        std::vector<TNodeSegment*> result;
-        result.reserve(NodeSegmentMap_.size());
-        for (const auto& pair : NodeSegmentMap_) {
-            result.push_back(pair.second.get());
-        }
-        return result;
-    }
+    IMPLEMENT_ACCESSORS(Node, Nodes)
+    IMPLEMENT_ACCESSORS(NodeSegment, NodeSegments)
+    IMPLEMENT_ACCESSORS(PodSet, PodSets)
+    IMPLEMENT_ACCESSORS(Pod, Pods)
+    IMPLEMENT_ACCESSORS(InternetAddress, InternetAddresses)
+    IMPLEMENT_ACCESSORS(Account, Accounts)
+    IMPLEMENT_ACCESSORS(NetworkModule, NetworkModules)
 
-    TNodeSegment* FindNodeSegment(const TObjectId& id)
-    {
-        if (!id) {
-            return nullptr;
-        }
-        auto it = NodeSegmentMap_.find(id);
-        return it == NodeSegmentMap_.end() ? nullptr : it->second.get();
-    }
-
-    TNodeSegment* GetNodeSegmentOrThrow(const TObjectId& id)
-    {
-        if (!id) {
-            THROW_ERROR_EXCEPTION(
-                NClient::NApi::EErrorCode::InvalidObjectId,
-                "Node segment id cannot be null");
-        }
-        auto* segment = FindNodeSegment(id);
-        if (!segment) {
-            THROW_ERROR_EXCEPTION(
-                NClient::NApi::EErrorCode::NoSuchObject,
-                "No such node segment %Qv",
-                id);
-        }
-        return segment;
-    }
-
-
-    std::vector<TPodSet*> GetPodSets()
-    {
-        std::vector<TPodSet*> result;
-        result.reserve(PodSetMap_.size());
-        for (const auto& pair : PodSetMap_) {
-            result.push_back(pair.second.get());
-        }
-        return result;
-    }
-
-    TPodSet* FindPodSet(const TObjectId& id)
-    {
-        if (!id) {
-            THROW_ERROR_EXCEPTION("Pod set id cannot be null");
-        }
-        auto it = PodSetMap_.find(id);
-        return it == PodSetMap_.end() ? nullptr : it->second.get();
-    }
-
-    TPodSet* GetPodSetOrThrow(const TObjectId& id)
-    {
-        if (!id) {
-            THROW_ERROR_EXCEPTION(
-                NClient::NApi::EErrorCode::InvalidObjectId,
-                "Pod set id cannot be null");
-        }
-        auto* podSet = FindPodSet(id);
-        if (!podSet) {
-            THROW_ERROR_EXCEPTION(
-                NClient::NApi::EErrorCode::NoSuchObject,
-                "No such pod set %Qv",
-                id);
-        }
-        return podSet;
-    }
-
-
-    std::vector<TPod*> GetPods()
-    {
-        std::vector<TPod*> result;
-        result.reserve(PodMap_.size());
-        for (const auto& pair : PodMap_) {
-            result.push_back(pair.second.get());
-        }
-        return result;
-    }
-
-
-    TPod* FindPod(const TObjectId& id)
-    {
-        if (!id) {
-            THROW_ERROR_EXCEPTION(
-                NClient::NApi::EErrorCode::InvalidObjectId,
-                "Pod id cannot be null");
-        }
-        auto it = PodMap_.find(id);
-        return it == PodMap_.end() ? nullptr : it->second.get();
-    }
-
-    TPod* GetPodOrThrow(const TObjectId& id)
-    {
-        if (!id) {
-            return nullptr;
-        }
-        auto* pod = FindPod(id);
-        if (!pod) {
-            THROW_ERROR_EXCEPTION(
-                NClient::NApi::EErrorCode::NoSuchObject,
-                "No such pod %Qv",
-                id);
-        }
-        return pod;
-    }
-
-
-    std::vector<TInternetAddress*> GetInternetAddresses()
-    {
-        std::vector<TInternetAddress*> result;
-        result.reserve(InternetAddressMap_.size());
-        for (const auto& pair : InternetAddressMap_) {
-            result.push_back(pair.second.get());
-        }
-        return result;
-    }
-
-
-    std::vector<TAccount*> GetAccounts()
-    {
-        std::vector<TAccount*> result;
-        result.reserve(AccountMap_.size());
-        for (const auto& pair : AccountMap_) {
-            result.push_back(pair.second.get());
-        }
-        return result;
-    }
-
-    TAccount* FindAccount(const TObjectId& id)
-    {
-        if (!id) {
-            THROW_ERROR_EXCEPTION("Account id cannot be null");
-        }
-        auto it = AccountMap_.find(id);
-        return it == AccountMap_.end() ? nullptr : it->second.get();
-    }
-
-    TAccount* GetAccount(const TObjectId& id)
-    {
-        auto* account = FindAccount(id);
-        YCHECK(account);
-        return account;
-    }
-
-    TAccount* GetAccountThrow(const TObjectId& id)
-    {
-        if (!id) {
-            THROW_ERROR_EXCEPTION("Account id cannot be null");
-        }
-        auto* account = FindAccount(id);
-        if (!account) {
-            THROW_ERROR_EXCEPTION("No such account %Qv", id);
-        }
-        return account;
-    }
-
-
-    TNetworkModule* FindNetworkModule(const TObjectId& id)
-    {
-        if (!id) {
-            THROW_ERROR_EXCEPTION("Network module id cannot be null");
-        }
-        auto it = NetworkModuleMap_.find(id);
-        return it == NetworkModuleMap_.end() ? nullptr : it->second.get();
-    }
-
+    #undef IMPLEMENT_ACCESSORS
 
     void LoadSnapshot()
     {
         try {
-            LOG_INFO("Started loading cluster snapshot");
+            YT_LOG_INFO("Started loading cluster snapshot");
 
             PROFILE_TIMING("/cluster_snapshot/time/clear") {
                 Clear();
             }
 
-            LOG_INFO("Starting snapshot transaction");
+            YT_LOG_INFO("Starting snapshot transaction");
 
             TTransactionPtr transaction;
             PROFILE_TIMING("/cluster_snapshot/time/start_transaction") {
@@ -276,7 +115,7 @@ public:
 
             Timestamp_ = transaction->GetStartTimestamp();
 
-            LOG_INFO("Snapshot transaction started (Timestamp: %llx)",
+            YT_LOG_INFO("Snapshot transaction started (Timestamp: %llx)",
                 Timestamp_);
 
             auto* session = transaction->GetSession();
@@ -287,14 +126,14 @@ public:
                         context->ScheduleSelect(
                             GetInternetAddressQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_INFO("Parsing internet addresses");
+                                YT_LOG_INFO("Parsing internet addresses");
                                 for (auto row : rowset->GetRows()) {
                                     ParseInternetAddressFromRow(row);
                                 }
                             });
                     });
 
-                LOG_INFO("Querying internet addresses");
+                YT_LOG_INFO("Querying internet addresses");
                 session->FlushLoads();
             }
 
@@ -304,14 +143,14 @@ public:
                         context->ScheduleSelect(
                             GetNodeQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_INFO("Parsing nodes");
+                                YT_LOG_INFO("Parsing nodes");
                                 for (auto row : rowset->GetRows()) {
                                     ParseNodeFromRow(row);
                                 }
                             });
                     });
 
-                LOG_INFO("Querying nodes");
+                YT_LOG_INFO("Querying nodes");
                 session->FlushLoads();
             }
 
@@ -321,14 +160,14 @@ public:
                         context->ScheduleSelect(
                             GetAccountQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_INFO("Parsing accounts");
+                                YT_LOG_INFO("Parsing accounts");
                                 for (auto row : rowset->GetRows()) {
                                     ParseAccountFromRow(row);
                                 }
                             });
                     });
 
-                LOG_INFO("Querying accounts");
+                YT_LOG_INFO("Querying accounts");
                 session->FlushLoads();
             }
 
@@ -338,14 +177,14 @@ public:
                         context->ScheduleSelect(
                             GetAccountHierarchyQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_INFO("Parsing accounts hierarchy");
+                                YT_LOG_INFO("Parsing accounts hierarchy");
                                 for (auto row : rowset->GetRows()) {
                                     ParseAccountHierarchyFromRow(row);
                                 }
                             });
                     });
 
-                LOG_INFO("Querying accounts hierarchy");
+                YT_LOG_INFO("Querying accounts hierarchy");
                 session->FlushLoads();
             }
 
@@ -365,14 +204,14 @@ public:
                         context->ScheduleSelect(
                             GetNodeSegmentQueryString(),
                             [&](const IUnversionedRowsetPtr& rowset) {
-                                LOG_INFO("Parsing node segments");
+                                YT_LOG_INFO("Parsing node segments");
                                 for (auto row : rowset->GetRows()) {
                                     ParseNodeSegmentFromRow(row);
                                 }
                             });
                     });
 
-                LOG_INFO("Querying node segments");
+                YT_LOG_INFO("Querying node segments");
                 session->FlushLoads();
             }
 
@@ -382,14 +221,14 @@ public:
                         context->ScheduleSelect(
                             GetPodSetQueryString(),
                             [&] (const IUnversionedRowsetPtr& rowset) {
-                                LOG_INFO("Parsing pod sets");
+                                YT_LOG_INFO("Parsing pod sets");
                                 for (auto row : rowset->GetRows()) {
                                     ParsePodSetFromRow(row);
                                 }
                             });
                     });
 
-                LOG_INFO("Querying pod sets");
+                YT_LOG_INFO("Querying pod sets");
                 session->FlushLoads();
             }
 
@@ -399,14 +238,14 @@ public:
                         context->ScheduleSelect(
                             GetPodQueryString(),
                             [&] (const IUnversionedRowsetPtr& rowset) {
-                                LOG_INFO("Parsing pods");
+                                YT_LOG_INFO("Parsing pods");
                                 for (auto row : rowset->GetRows()) {
                                     ParsePodFromRow(row);
                                 }
                             });
                     });
 
-                LOG_INFO("Querying pods");
+                YT_LOG_INFO("Querying pods");
                 session->FlushLoads();
             }
 
@@ -416,14 +255,14 @@ public:
                         context->ScheduleSelect(
                             GetResourceQueryString(),
                             [&] (const IUnversionedRowsetPtr& rowset) {
-                                LOG_INFO("Parsing resources");
+                                YT_LOG_INFO("Parsing resources");
                                 for (auto row : rowset->GetRows()) {
                                     ParseResourceFromRow(row);
                                 }
                             });
                     });
 
-                LOG_INFO("Querying resources");
+                YT_LOG_INFO("Querying resources");
                 session->FlushLoads();
             }
 
@@ -433,7 +272,7 @@ public:
             InitializeAntiaffinityVacancies();
             InitializeNetworkModules();
 
-            LOG_INFO("Finished loading cluster snapshot (PodCount: %v, NodeCount: %v, NodeSegmentCount: %v)",
+            YT_LOG_INFO("Finished loading cluster snapshot (PodCount: %v, NodeCount: %v, NodeSegmentCount: %v)",
                 PodMap_.size(),
                 NodeMap_.size(),
                 NodeSegmentMap_.size());
@@ -464,46 +303,41 @@ private:
 
     void InitializeNodePods()
     {
-        for (const auto& pair : PodMap_) {
-            auto* pod = pair.second.get();
+        for (const auto& [podId, pod] : PodMap_) {
             if (pod->GetNode()) {
-                YCHECK(pod->GetNode()->Pods().insert(pod).second);
+                YCHECK(pod->GetNode()->Pods().insert(pod.get()).second);
             }
         }
     }
 
     void InitializePodSetPods()
     {
-        for (const auto& pair : PodMap_) {
-            auto* pod = pair.second.get();
+        for (const auto& [podId, pod] : PodMap_) {
             auto* podSet = pod->GetPodSet();
-            YCHECK(podSet->Pods().insert(pod).second);
+            YCHECK(podSet->Pods().insert(pod.get()).second);
         }
     }
 
     void InitializeAccountPodSets()
     {
-        for (const auto& pair : PodSetMap_) {
-            auto* podSet = pair.second.get();
-            YCHECK(podSet->GetAccount()->PodSets().insert(podSet).second);
+        for (const auto& [podId, pod] : PodMap_) {
+            YCHECK(pod->GetEffectiveAccount()->Pods().insert(pod.get()).second);
         }
     }
 
     void InitializeAntiaffinityVacancies()
     {
-        for (const auto& pair : PodMap_) {
-            const auto* pod = pair.second.get();
+        for (const auto& [podId, pod] : PodMap_) {
             auto* node = pod->GetNode();
             if (node) {
-                node->AcquireAntiaffinityVacancies(pod);
+                node->AcquireAntiaffinityVacancies(pod.get());
             }
         }
     }
 
     void InitializeNetworkModules()
     {
-        for (const auto& pair : InternetAddressMap_) {
-            const auto* internetAddress = pair.second.get();
+        for (const auto& [internetAddressId, internetAddress] : InternetAddressMap_) {
             const auto& networkModuleId = internetAddress->Spec().network_module_id();
             auto* networkModule = GetOrCreateNetworkModule(networkModuleId);
             ++networkModule->InternetAddressCount();
@@ -517,10 +351,9 @@ private:
     {
         std::vector<TNode*> result;
         result.reserve(NodeMap_.size());
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second.get();
+        for (const auto& [nodeId, node] : NodeMap_) {
             if (node->IsSchedulable()) {
-                result.push_back(node);
+                result.push_back(node.get());
             }
         }
         return result;
@@ -561,7 +394,7 @@ private:
 
         auto* node = FindNode(nodeId);
         if (!node) {
-            LOG_WARNING("Resource refers to an unknown node (ResourceId: %v, NodeId: %v)",
+            YT_LOG_WARNING("Resource refers to an unknown node (ResourceId: %v, NodeId: %v)",
                 resourceId,
                 nodeId);
             return;
@@ -584,14 +417,14 @@ private:
         auto podIdToActualStatistics = aggregateAllocations(actualAllocations);
         
         auto podIdToMaxStatistics = podIdToScheduledStatistics;
-        for (const auto& pair : podIdToActualStatistics) {
-            auto& current = podIdToMaxStatistics[pair.first];
-            current = Max(current, pair.second);
+        for (const auto& [podId, scheduledStatistics] : podIdToActualStatistics) {
+            auto& current = podIdToMaxStatistics[podId];
+            current = Max(current, scheduledStatistics);
         }
 
         TAllocationStatistics allocatedStatistics;
-        for (const auto& pair : podIdToMaxStatistics) {
-            allocatedStatistics += pair.second;
+        for (const auto& [podId, maxStatistics] : podIdToMaxStatistics) {
+            allocatedStatistics += maxStatistics;
         }
 
         switch (kind) {
@@ -641,7 +474,7 @@ private:
         }
 
         if (topologyNode->GetType() != ENodeType::Map) {
-            LOG_WARNING("Invalid %Qv label: expected %Qlv, got %Qlv (NodeId: %v)",
+            YT_LOG_WARNING("Invalid %Qv label: expected %Qlv, got %Qlv (NodeId: %v)",
                 topologyNode->GetPath(),
                 ENodeType::Map,
                 topologyNode->GetType(),
@@ -652,11 +485,9 @@ private:
         auto topologyMap = topologyNode->AsMap();
         std::vector<TTopologyZone*> zones;
         zones.reserve(topologyMap->GetChildCount());
-        for (const auto& pair : topologyMap->GetChildren()) {
-            const auto& key = pair.first;
-            const auto& valueNode = pair.second;
+        for (const auto& [key, valueNode] : topologyMap->GetChildren()) {
             if (valueNode->GetType() != ENodeType::String) {
-                LOG_WARNING("Invalid %Qv label: expected %Qlv, got %Qlv (NodeId: %v)",
+                YT_LOG_WARNING("Invalid %Qv label: expected %Qlv, got %Qlv (NodeId: %v)",
                     valueNode->GetPath(),
                     ENodeType::String,
                     valueNode->GetType(),
@@ -775,7 +606,7 @@ private:
         auto allNodesOrError = AllNodeSegmentsLabelFilterCache_->GetFilteredObjects(spec.node_filter());
         auto schedulableNodesOrError = SchedulableNodeSegmentsLabelFilterCache_->GetFilteredObjects(spec.node_filter());
         if (!allNodesOrError.IsOK() || !schedulableNodesOrError.IsOK()) {
-            LOG_ERROR("Invalid node segment node filter; scheduling for this segment is disabled (NodeSegmentId: %v)",
+            YT_LOG_ERROR("Invalid node segment node filter; scheduling for this segment is disabled (NodeSegmentId: %v)",
                 segmentId);
             return;
         }
@@ -845,14 +676,14 @@ private:
             &accountId,
             &parentId);
 
-        auto* account = GetAccount(accountId);
         if (!parentId) {
             return;
         }
 
+        auto* account = GetAccountOrThrow(accountId);
         auto* parent = FindAccount(parentId);
         if (!parent) {
-            LOG_WARNING("Account refers to an unknown parent (AccountId: %v, ParentId: %v)",
+            YT_LOG_WARNING("Account refers to an unknown parent (AccountId: %v, ParentId: %v)",
                 accountId,
                 parentId);
             return;
@@ -867,12 +698,13 @@ private:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v], [%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v]) and [%v] = true",
+            "[%v], [%v], [%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v]) and [%v] = true",
             PodsTable.Fields.Meta_Id.Name,
             PodsTable.Fields.Meta_PodSetId.Name,
             PodsTable.Fields.Meta_Other.Name,
             PodsTable.Fields.Spec_NodeId.Name,
             PodsTable.Fields.Spec_Other.Name,
+            PodsTable.Fields.Spec_AccountId.Name,
             PodsTable.Fields.Status_Other.Name,
             PodsTable.Fields.Labels.Name,
             ytConnector->GetTablePath(&PodsTable),
@@ -887,6 +719,7 @@ private:
         NServer::NObjects::NProto::TMetaOther metaOther;
         TObjectId nodeId;
         NServer::NObjects::NProto::TPodSpecOther specOther;
+        TObjectId accountId;
         NServer::NObjects::NProto::TPodStatusOther statusOther;
         TYsonString labels;
         FromUnversionedRow(
@@ -896,12 +729,13 @@ private:
             &metaOther,
             &nodeId,
             &specOther,
+            &accountId,
             &statusOther,
             &labels);
 
         auto* podSet = FindPodSet(podSetId);
         if (!podSet) {
-            LOG_WARNING("Pod refers to an unknown pod set (PodId: %v, PodSetId: %v)",
+            YT_LOG_WARNING("Pod refers to an unknown pod set (PodId: %v, PodSetId: %v)",
                 podId,
                 podSetId);
             return;
@@ -909,9 +743,17 @@ private:
 
         auto* node = FindNode(nodeId);
         if (nodeId && !node) {
-            LOG_WARNING("Pod refers to an unknown node (PodId: %v, NodeId: %v)",
+            YT_LOG_WARNING("Pod refers to an unknown node (PodId: %v, NodeId: %v)",
                 podId,
                 nodeId);
+            return;
+        }
+
+        auto* account = FindAccount(accountId);
+        if (accountId && !account) {
+            YT_LOG_WARNING("Pod refers to an account node (PodId: %v, AccountId: %v)",
+                podId,
+                accountId);
             return;
         }
 
@@ -921,6 +763,7 @@ private:
             std::move(metaOther),
             node,
             std::move(specOther),
+            account,
             std::move(statusOther),
             std::move(labels));
         YCHECK(PodMap_.emplace(pod->GetId(), std::move(pod)).second);
@@ -958,7 +801,7 @@ private:
 
         auto* nodeSegment = FindNodeSegment(nodeSegmentId);
         if (!nodeSegment) {
-            LOG_WARNING("Pod set refers to an unknown node segment (PodSetId: %v, NodeSegmentId: %v)",
+            YT_LOG_WARNING("Pod set refers to an unknown node segment (PodSetId: %v, NodeSegmentId: %v)",
                 podSetId,
                 nodeSegmentId);
             return;
@@ -966,7 +809,7 @@ private:
 
         auto* account = FindAccount(accountId);
         if (!account) {
-            LOG_WARNING("Pod set refers to an account (PodSetId: %v, AccountId: %v)",
+            YT_LOG_WARNING("Pod set refers to an account (PodSetId: %v, AccountId: %v)",
                 podSetId,
                 accountId);
             return;
@@ -1085,7 +928,5 @@ void TCluster::LoadSnapshot()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler
 

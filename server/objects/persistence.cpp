@@ -13,9 +13,7 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 using namespace NYT::NTableClient;
 using namespace NYT::NApi;
@@ -92,14 +90,14 @@ void TObjectExistenceChecker::LoadFromDB(ILoadContext* context)
 {
     Y_ASSERT(!Checked_);
 
-    auto lookupHandler = [&] (const TNullable<TRange<NYT::NTableClient::TVersionedValue>>& maybeValues) {
+    auto lookupHandler = [&] (const std::optional<TRange<NYT::NTableClient::TVersionedValue>>& optionalValues) {
         Y_ASSERT(!Checked_);
         Checked_ = true;
         auto* typeHandler = Object_->GetTypeHandler();
         if (typeHandler->GetParentType() == EObjectType::Null) {
-            Exists_ = maybeValues.HasValue() && (*maybeValues)[1].Type == EValueType::Null;
+            Exists_ = optionalValues.operator bool() && (*optionalValues)[1].Type == EValueType::Null;
         } else {
-            Exists_ = maybeValues.HasValue();
+            Exists_ = optionalValues.operator bool();
         }
     };
 
@@ -177,10 +175,10 @@ void TObjectTombstoneChecker::LoadFromDB(ILoadContext* /* context */)
                 MakeArray(
                     // Not actually used, just for better diagnostics.
                     &TombstonesTable.Fields.RemovalTime),
-                [=] (const TNullable<TRange<TVersionedValue>>& maybeValues) {
+                [=] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
                     Y_ASSERT(!Checked_);
                     Checked_ = true;
-                    Tombstone_ = maybeValues.HasValue();
+                    Tombstone_ = optionalValues.operator bool();
                 });
         });
 }
@@ -290,12 +288,12 @@ void TParentIdAttribute::LoadFromDB(ILoadContext* context)
             Owner_->GetId(),
             Owner_->GetType()),
         MakeArray(&ParentsTable.Fields.ParentId),
-        [=] (const TNullable<TRange<TVersionedValue>>& maybeValues) {
-            if (maybeValues) {
-                Y_ASSERT(maybeValues->Size() == 1);
+        [=] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
+            if (optionalValues) {
+                Y_ASSERT(optionalValues->Size() == 1);
                 try {
-                    FromUnversionedValue(&ParentId_, (*maybeValues)[0]);
-                    LOG_DEBUG("Object parent resolved (ObjectId: %v, ObjectType: %v, ParentId: %v)",
+                    FromUnversionedValue(&ParentId_, (*optionalValues)[0]);
+                    YT_LOG_DEBUG("Object parent resolved (ObjectId: %v, ObjectType: %v, ParentId: %v)",
                         Owner_->GetId(),
                         Owner_->GetType(),
                         ParentId_);
@@ -367,7 +365,7 @@ void TChildrenAttributeBase::LoadFromDB(ILoadContext* context)
         [=] (const IUnversionedRowsetPtr& rowset) {
             Y_ASSERT(!Children_);
             auto rows = rowset->GetRows();
-            Children_.Emplace();
+            Children_.emplace();
             Children_->reserve(rows.Size());
             for (auto row : rows) {
                 Y_ASSERT(row.GetCount() == 1);
@@ -460,11 +458,11 @@ void TScalarAttributeBase::LoadFromDB(ILoadContext* context)
         table,
         key,
         MakeArray(Schema_->Field),
-        [=] (const TNullable<TRange<TVersionedValue>>& maybeValues) {
-            if (maybeValues) {
-                Y_ASSERT(maybeValues->Size() == 1);
+        [=] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
+            if (optionalValues) {
+                Y_ASSERT(optionalValues->Size() == 1);
                 try {
-                    LoadOldValue((*maybeValues)[0], context);
+                    LoadOldValue((*optionalValues)[0], context);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error loading value of [%v.%v] for %v %v",
                         table->Name,
@@ -615,7 +613,7 @@ void TOneToManyAttributeBase::LoadFromDB(ILoadContext* context)
         [=] (const IUnversionedRowsetPtr& rowset) {
             Y_ASSERT(!ForeignObjects_);
             auto rows = rowset->GetRows();
-            ForeignObjects_.Emplace();
+            ForeignObjects_.emplace();
             ForeignObjects_->reserve(rows.Size());
             for (auto row : rows) {
                 Y_ASSERT(row.GetCount() == 1);
@@ -673,7 +671,7 @@ void TAnnotationsAttribute::ScheduleLoad(const TString& key) const
     DoScheduleLoad();
 }
 
-TNullable<TYsonString> TAnnotationsAttribute::Load(const TString& key) const
+std::optional<TYsonString> TAnnotationsAttribute::Load(const TString& key) const
 {
     ScheduleLoad(key);
     Owner_->GetSession()->FlushLoads();
@@ -707,7 +705,7 @@ std::vector<std::pair<TString, NYT::NYson::TYsonString>> TAnnotationsAttribute::
     return result;
 }
 
-void TAnnotationsAttribute::Store(const TString& key, const TNullable<TYsonString>& value)
+void TAnnotationsAttribute::Store(const TString& key, const std::optional<TYsonString>& value)
 {
     auto ownerState = Owner_->GetState();
     YCHECK(ownerState != EObjectState::Removed && ownerState != EObjectState::CreatedRemoved);
@@ -749,7 +747,7 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                 for (auto row : rows) {
                     Y_ASSERT(row.GetCount() == 1);
                     auto key = FromUnversionedValue<TString>(row[0]);
-                    YCHECK(KeyToValue_.emplace(key, Null).second);
+                    YCHECK(KeyToValue_.emplace(key, std::nullopt).second);
                     YCHECK(ScheduledStoreKeys_.emplace(key).second);
                 }
             });
@@ -763,13 +761,13 @@ void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
                     Owner_->GetType(),
                     attributeKey),
                 MakeArray(&AnnotationsTable.Fields.Value),
-                [=] (const TNullable<TRange<TVersionedValue>>& maybeValues) {
-                    if (maybeValues) {
-                        Y_ASSERT(maybeValues->Size() == 1);
-                        const auto& value = (*maybeValues)[0];
+                [=] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
+                    if (optionalValues) {
+                        Y_ASSERT(optionalValues->Size() == 1);
+                        const auto& value = (*optionalValues)[0];
                         KeyToValue_[attributeKey] = FromUnversionedValue<TYsonString>(value);
                     } else {
-                        KeyToValue_[attributeKey] = Null;
+                        KeyToValue_[attributeKey] = std::nullopt;
                     }
                     YCHECK(ScheduledLoadKeys_.erase(attributeKey) == 1);
                 });
@@ -807,7 +805,7 @@ void TAnnotationsAttribute::StoreToDB(IStoreContext* context)
     for (const auto& attributeKey : ScheduledStoreKeys_) {
         auto it = KeyToValue_.find(attributeKey);
         Y_ASSERT(it != KeyToValue_.end());
-        const auto& maybeAttributeValue = it->second;
+        const auto& optionalAttributeValue = it->second;
 
         auto keyValues = ToUnversionedValues(
             context->GetRowBuffer(),
@@ -815,14 +813,14 @@ void TAnnotationsAttribute::StoreToDB(IStoreContext* context)
             Owner_->GetType(),
             attributeKey);
 
-        if (maybeAttributeValue) {
+        if (optionalAttributeValue) {
             context->WriteRow(
                 &AnnotationsTable,
                 keyValues,
                 MakeArray(&AnnotationsTable.Fields.Value),
                 ToUnversionedValues(
                     context->GetRowBuffer(),
-                    *maybeAttributeValue));
+                    *optionalAttributeValue));
         } else {
             context->DeleteRow(
                 &AnnotationsTable,
@@ -844,7 +842,5 @@ void TAnnotationsAttribute::OnObjectRemoved()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

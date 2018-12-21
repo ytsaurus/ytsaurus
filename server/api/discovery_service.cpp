@@ -8,9 +8,7 @@
 
 #include <yp/client/api/proto/discovery_service.pb.h>
 
-namespace NYP {
-namespace NServer {
-namespace NApi {
+namespace NYP::NServer::NApi {
 
 using namespace NYT;
 using namespace NYT::NRpc;
@@ -84,7 +82,5 @@ IServicePtr CreateDiscoveryService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NApi
 

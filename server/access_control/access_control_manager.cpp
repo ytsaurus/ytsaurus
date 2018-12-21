@@ -26,9 +26,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/fls.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccessControl {
+namespace NYP::NServer::NAccessControl {
 
 using namespace NObjects;
 using namespace NApi;
@@ -244,12 +242,12 @@ public:
         }
     }
 
-    TNullable<std::tuple<EAccessControlAction, TObjectId>> ApplyAcl(
+    std::optional<std::tuple<EAccessControlAction, TObjectId>> ApplyAcl(
         const std::vector<NClient::NApi::NProto::TAccessControlEntry>& acl,
         EAccessControlPermission permission,
         const TObjectId& userId)
     {
-        TNullable<std::tuple<EAccessControlAction, TObjectId>> result;
+        std::optional<std::tuple<EAccessControlAction, TObjectId>> result;
         for (const auto& ace : acl) {
             auto subresult = ApplyAce(ace, permission, userId);
             if (subresult) {
@@ -295,13 +293,13 @@ private:
         }
     }
 
-    TNullable<std::tuple<EAccessControlAction, TObjectId>> ApplyAce(
+    std::optional<std::tuple<EAccessControlAction, TObjectId>> ApplyAce(
         const NClient::NApi::NProto::TAccessControlEntry& ace,
         EAccessControlPermission permission,
         const TObjectId& userId)
     {
         if (!ContainsPermission(ace, permission)) {
-            return Null;
+            return std::nullopt;
         }
 
         for (const auto& subjectId : ace.subjects()) {
@@ -328,7 +326,7 @@ private:
             }
         }
 
-        return Null;
+        return std::nullopt;
     }
 };
 
@@ -505,7 +503,7 @@ public:
 
     void ResetAuthenticatedUser()
     {
-        AuthenticatedUserId_->Reset();
+        AuthenticatedUserId_->reset();
     }
 
     bool HasAuthenticatedUser()
@@ -585,7 +583,7 @@ private:
     TReaderWriterSpinLock ClusterSnapshotLock_;
     TClusterSnapshotPtr ClusterSnapshot_;
 
-    static NConcurrency::TFls<TNullable<TObjectId>> AuthenticatedUserId_;
+    static NConcurrency::TFls<std::optional<TObjectId>> AuthenticatedUserId_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -645,15 +643,15 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         try {
-            LOG_DEBUG("Started loading cluster snapshot");
+            YT_LOG_DEBUG("Started loading cluster snapshot");
 
-            LOG_DEBUG("Starting snapshot transaction");
+            YT_LOG_DEBUG("Starting snapshot transaction");
 
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
                 .ValueOrThrow();
 
-            LOG_DEBUG("Snapshot transaction started (Timestamp: %llx)",
+            YT_LOG_DEBUG("Snapshot transaction started (Timestamp: %llx)",
                 transaction->GetStartTimestamp());
 
             int userCount = 0;
@@ -669,7 +667,7 @@ private:
                         context->ScheduleSelect(
                             GetUserQueryString(),
                             [&] (const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing nodes");
+                                YT_LOG_DEBUG("Parsing nodes");
                                 for (auto row : rowset->GetRows()) {
                                     ++userCount;
                                     ParseUserFromRow(snapshot, row);
@@ -677,7 +675,7 @@ private:
                             });
                     });
 
-                LOG_DEBUG("Querying users");
+                YT_LOG_DEBUG("Querying users");
                 session->FlushLoads();
             }
 
@@ -687,7 +685,7 @@ private:
                         context->ScheduleSelect(
                             GetGroupQueryString(),
                             [&] (const IUnversionedRowsetPtr& rowset) {
-                                LOG_DEBUG("Parsing groups");
+                                YT_LOG_DEBUG("Parsing groups");
                                 for (auto row : rowset->GetRows()) {
                                     ++groupCount;
                                     ParseGroupFromRow(snapshot, row);
@@ -695,18 +693,18 @@ private:
                             });
                     });
 
-                LOG_DEBUG("Querying groups");
+                YT_LOG_DEBUG("Querying groups");
                 session->FlushLoads();
             }
 
             snapshot->Prepare();
             SetClusterSnapshot(std::move(snapshot));
 
-            LOG_DEBUG("Finished loading cluster snapshot (UserCount: %v, GroupCount: %v)",
+            YT_LOG_DEBUG("Finished loading cluster snapshot (UserCount: %v, GroupCount: %v)",
                 userCount,
                 groupCount);
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error loading cluster snapshot");
+            YT_LOG_WARNING(ex, "Error loading cluster snapshot");
         }
     }
 
@@ -759,7 +757,7 @@ private:
     }
 };
 
-NConcurrency::TFls<TNullable<TObjectId>> TAccessControlManager::TImpl::AuthenticatedUserId_;
+NConcurrency::TFls<std::optional<TObjectId>> TAccessControlManager::TImpl::AuthenticatedUserId_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -826,7 +824,5 @@ void TAccessControlManager::ValidateSuperuser()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccessControl
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccessControl
 

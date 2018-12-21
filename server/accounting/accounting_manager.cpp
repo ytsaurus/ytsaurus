@@ -25,9 +25,7 @@
 
 #include <yt/core/misc/small_set.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccounting {
+namespace NYP::NServer::NAccounting {
 
 using namespace NScheduler;
 using namespace NYT::NConcurrency;
@@ -52,22 +50,20 @@ public:
 
     void PrepareValidateAccounting(NObjects::TPod* pod)
     {
-        // TODO(babenko): pod->PodSet().ScheduleLoad();
         pod->Spec().Other().ScheduleLoad();
+        pod->Spec().Account().ScheduleLoad();
     }
 
     void ValidateAccounting(const std::vector<NObjects::TPod*>& pods)
     {
-        LOG_DEBUG("Starting accounting validation");
+        YT_LOG_DEBUG("Starting accounting validation");
 
         THashMap<const NObjects::TAccount*, TResourceTotals> accountToUsageDelta;
 
         for (auto* pod : pods) {
-            const auto* podSet = pod->PodSet().Load();
-
             if (pod->DidExist()) {
-                const auto* oldAccount = podSet->Spec().Account().LoadOld();
-                const auto* oldSegment = podSet->Spec().NodeSegment().LoadOld();
+                const auto* oldAccount = GetOldPodAccount(pod);
+                const auto* oldSegment = GetOldPodSegment(pod);
                 const auto& oldSpec = pod->Spec().Other().LoadOld();
                 if (oldSegment) {
                     accountToUsageDelta[oldAccount] -= ResourceUsageFromPodSpec(oldSpec, oldSegment->GetId());
@@ -75,8 +71,8 @@ public:
             }
 
             if (pod->DoesExist()) {
-                const auto* newAccount = podSet->Spec().Account().Load();
-                const auto* newSegment = podSet->Spec().NodeSegment().Load();
+                const auto* newAccount = GetNewPodAccount(pod);
+                const auto* newSegment = GetNewPodSegment(pod);
                 const auto& newSpec = pod->Spec().Other().Load();
                 if (newSegment) {
                     accountToUsageDelta[newAccount] += ResourceUsageFromPodSpec(newSpec, newSegment->GetId());
@@ -87,20 +83,20 @@ public:
         for (const auto& pair : accountToUsageDelta) {
             auto* account = pair.first;
             const auto& usageDelta = pair.second;
-            LOG_DEBUG("Validating account usage increase (Account: %v, UsageDelta: %v)",
+            YT_LOG_DEBUG("Validating account usage increase (Account: %v, UsageDelta: %v)",
                 account->GetId(),
                 usageDelta);
             ValidateAccountUsageIncrease(account, usageDelta);
         }
 
-        LOG_DEBUG("Finished accounting validation");
+        YT_LOG_DEBUG("Finished accounting validation");
     }
 
     void UpdateNodeSegmentsStatus(const TClusterPtr& cluster)
     {
         auto nodeSegments = cluster->GetNodeSegments();
 
-        LOG_DEBUG("Started committing node segments status update");
+        YT_LOG_DEBUG("Started committing node segments status update");
 
         try {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -149,9 +145,9 @@ public:
             WaitFor(transaction->Commit())
                 .ThrowOnError();
 
-            LOG_DEBUG("Node segments status update committed");
+            YT_LOG_DEBUG("Node segments status update committed");
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Error committing node segments status update");
+            YT_LOG_DEBUG(ex, "Error committing node segments status update");
         }
     }
 
@@ -159,7 +155,7 @@ public:
     {
         auto nodeSegments = cluster->GetNodeSegments();
 
-        LOG_DEBUG("Started committing accounts status update");
+        YT_LOG_DEBUG("Started committing accounts status update");
 
         try {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -178,11 +174,9 @@ public:
             THashMap<TAccount*, NClient::NApi::NProto::TResourceTotals> accountToImmediateUsage;
             for (auto* account : accounts) {
                 NClient::NApi::NProto::TResourceTotals usage;
-                for (auto* podSet : account->PodSets()) {
-                    auto* nodeSegment = podSet->GetNodeSegment();
-                    for (auto* pod : podSet->Pods()) {
-                        usage += ResourceUsageFromPodSpec(pod->SpecOther(), nodeSegment->GetId());
-                    }
+                for (auto* pod : account->Pods()) {
+                    auto* nodeSegment = pod->GetPodSet()->GetNodeSegment();
+                    usage += ResourceUsageFromPodSpec(pod->SpecOther(), nodeSegment->GetId());
                 }
                 accountToImmediateUsage[account] = std::move(usage);
             }
@@ -212,9 +206,9 @@ public:
             WaitFor(transaction->Commit())
                 .ThrowOnError();
 
-            LOG_DEBUG("Accounts status update committed");
+            YT_LOG_DEBUG("Accounts status update committed");
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Error committing accounts status update");
+            YT_LOG_DEBUG(ex, "Error committing accounts status update");
         }
     }
 
@@ -233,7 +227,7 @@ private:
     {
         auto pair = accountToUsage->emplace(currentAccount, accountToImmediateUsage.at(currentAccount));
         if (!pair.second) {
-            LOG_WARNING(
+            YT_LOG_WARNING(
                 "Account visited at least twice during recursive traversal; "
                 "this indicates cyclic dependencies in accounts hierarchy (AccountId: %v)",
                 currentAccount->GetId());
@@ -337,6 +331,36 @@ private:
             currentAccount = currentAccount->Spec().Parent().Load();
         }
     }
+
+
+    static NObjects::TAccount* GetOldPodAccount(NObjects::TPod* pod)
+    {
+        auto* podAccount = pod->Spec().Account().LoadOld();
+        if (podAccount) {
+            return podAccount;
+        }
+        return pod->PodSet().Load()->Spec().Account().LoadOld();
+    }
+
+    static NObjects::TAccount* GetNewPodAccount(NObjects::TPod* pod)
+    {
+        auto* podAccount = pod->Spec().Account().Load();
+        if (podAccount) {
+            return podAccount;
+        }
+        return pod->PodSet().Load()->Spec().Account().Load();
+    }
+
+
+    static NObjects::TNodeSegment* GetOldPodSegment(NObjects::TPod* pod)
+    {
+        return pod->PodSet().Load()->Spec().NodeSegment().LoadOld();
+    }
+
+    static NObjects::TNodeSegment* GetNewPodSegment(NObjects::TPod* pod)
+    {
+        return pod->PodSet().Load()->Spec().NodeSegment().Load();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,7 +398,5 @@ void TAccountingManager::UpdateAccountsStatus(const TClusterPtr& cluster)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccounting
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccounting
 

@@ -4,9 +4,7 @@
 
 #include <util/generic/hash.h>
 
-namespace NYP {
-namespace NServer {
-namespace NScheduler {
+namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +23,4 @@ IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(TGlobalResourceAllocat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NScheduler

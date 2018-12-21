@@ -8,9 +8,7 @@
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/helpers.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +134,7 @@ template <class T>
 void TScalarAttribute<T>::Store(const T& value)
 {
     OnStore();
-    NewValue_.Assign(value);
+    NewValue_ = value;
 }
 
 template <class T>
@@ -150,7 +148,7 @@ template <class T>
 void TScalarAttribute<T>::Store(T&& value)
 {
     OnStore();
-    NewValue_.Emplace(std::move(value));
+    NewValue_.emplace(std::move(value));
 }
 
 template <class T>
@@ -169,7 +167,7 @@ T* TScalarAttribute<T>::Get()
         Y_ASSERT(OldValue_);
         NewValue_ = OldValue_;
     }
-    return NewValue_.GetPtr();
+    return NewValue_ ? &*NewValue_ : nullptr;
 }
 
 template <class T>
@@ -181,15 +179,15 @@ T* TScalarAttribute<T>::operator->()
 template <class T>
 void TScalarAttribute<T>::SetDefaultValues()
 {
-    OldValue_.Emplace();
-    NewValue_.Emplace();
+    OldValue_.emplace();
+    NewValue_.emplace();
 }
 
 template <class T>
 void TScalarAttribute<T>::LoadOldValue(const NTableClient::TVersionedValue& value, ILoadContext* /*context*/)
 {
-    OldValue_.Emplace();
-    NYT::NTableClient::FromUnversionedValue(OldValue_.GetPtr(), static_cast<const NTableClient::TUnversionedValue&>(value));
+    OldValue_.emplace();
+    NYT::NTableClient::FromUnversionedValue(&*OldValue_, static_cast<const NTableClient::TUnversionedValue&>(value));
 }
 
 template <class T>
@@ -331,6 +329,4 @@ void TOneToManyAttribute<TOne, TMany>::OnObjectRemoved()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

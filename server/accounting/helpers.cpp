@@ -2,9 +2,7 @@
 
 #include <yt/core/misc/format.h>
 
-namespace NYP {
-namespace NServer {
-namespace NAccounting {
+namespace NYP::NServer::NAccounting {
 
 using namespace NObjects;
 
@@ -66,14 +64,9 @@ TResourceTotals ResourceUsageFromPodSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAccounting
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NAccounting
 
-namespace NYP {
-namespace NClient {
-namespace NApi {
-namespace NProto {
+namespace NYP::NClient::NApi::NProto {
 
 using namespace NYT;
 
@@ -233,7 +226,4 @@ TString ToString(const TResourceTotals& totals)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProto
-} // namespace NApi
-} // namespace NClient
-} // namespace NYP
+} // namespace NYP::NClient::NApi::NProto

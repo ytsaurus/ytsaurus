@@ -6,9 +6,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NApi {
+namespace NYP::NServer::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +14,4 @@ NYT::NRpc::IServicePtr CreateObjectService(NMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NApi

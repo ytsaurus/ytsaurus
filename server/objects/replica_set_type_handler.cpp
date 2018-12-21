@@ -3,9 +3,7 @@
 #include "replica_set.h"
 #include "db_schema.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +20,11 @@ public:
         StatusAttributeSchema_
             ->SetAttribute(TReplicaSet::StatusSchema)
             ->SetUpdatable();
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TReplicaSet>();
     }
 
     virtual const TDBTable* GetTable() override
@@ -51,7 +54,5 @@ std::unique_ptr<IObjectTypeHandler> CreateReplicaSetTypeHandler(NMaster::TBootst
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

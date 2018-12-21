@@ -4,9 +4,7 @@
 #include "pod_set.h"
 #include "db_schema.h"
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +20,11 @@ public:
 
         StatusAttributeSchema_
             ->SetAttribute(TNodeSegment::StatusSchema);
+    }
+
+    virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
+    {
+        return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TNodeSegment>();
     }
 
     virtual const TDBTable* GetTable() override
@@ -66,7 +69,5 @@ std::unique_ptr<IObjectTypeHandler> CreateNodeSegmentTypeHandler(NMaster::TBoots
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects
 

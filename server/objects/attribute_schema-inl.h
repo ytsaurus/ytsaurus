@@ -18,9 +18,7 @@
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
-namespace NYP {
-namespace NServer {
-namespace NObjects {
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -385,6 +383,4 @@ void TAttributeSchema::InitRemover(const TSchema& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjects
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NObjects

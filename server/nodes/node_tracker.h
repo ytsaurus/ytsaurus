@@ -6,9 +6,7 @@
 
 #include <yp/client/nodes/public.h>
 
-namespace NYP {
-namespace NServer {
-namespace NNodes {
+namespace NYP::NServer::NNodes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +29,7 @@ public:
      * The transaction, however, will commit even in case the result is not OK.
      * This is helpful, e.g., for updating /node/status/unknown_pod_ids.
      */
-    TError ProcessHeartbeat(
+    void ProcessHeartbeat(
         const NObjects::TTransactionPtr& transaction,
         NObjects::TNode* node,
         const TEpochId& epochId,
@@ -51,6 +49,4 @@ DEFINE_REFCOUNTED_TYPE(TNodeTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodes
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NNodes

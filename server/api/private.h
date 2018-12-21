@@ -2,9 +2,7 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYP {
-namespace NServer {
-namespace NApi {
+namespace NYP::NServer::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,6 +10,4 @@ extern const NYT::NLogging::TLogger Logger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NApi
-} // namespace NServer
-} // namespace NYP
+} // namespace NYP::NServer::NApi
