@@ -780,6 +780,35 @@ void TContext::Run()
     }
 }
 
+TSharedRef DumpError(const TError& error)
+{
+    TString delimiter;
+    delimiter.append('\n');
+    delimiter.append(80, '=');
+    delimiter.append('\n');
+
+    TString errorMessage;
+    TStringOutput errorStream(errorMessage);
+    errorStream << "\n";
+    errorStream << delimiter;
+
+    auto formatAttributes = CreateEphemeralAttributes();
+    formatAttributes->SetYson("format", TYsonString("pretty"));
+
+    auto consumer = CreateConsumerForFormat(
+        TFormat(EFormatType::Json, formatAttributes.get()),
+        EDataType::Structured,
+        &errorStream);
+
+    Serialize(error, consumer.get());
+    consumer->Flush();
+
+    errorStream << delimiter;
+    errorStream.Finish();
+
+    return TSharedRef::FromString(errorMessage);
+}
+
 void TContext::Finalize()
 {
     if (IsClientBuggy(Request_)) {
@@ -793,6 +822,16 @@ void TContext::Finalize()
                 }
             }
         } catch (const std::exception& ex) { }
+    }
+
+    bool dumpErrorIntoResponse = false;
+    if (auto param = DriverRequest_.Parameters->FindChild("dump_error_into_response")) {
+        dumpErrorIntoResponse = ConvertTo<bool>(param);
+    }
+
+    if (!Error_.IsOK() && dumpErrorIntoResponse) {
+        auto result = WaitFor(Response_->Write(DumpError(Error_)));
+        (void)result;
     }
 
     if (!Response_->IsHeadersFlushed()) {
