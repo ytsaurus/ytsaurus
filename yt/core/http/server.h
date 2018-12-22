@@ -29,6 +29,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  Thread affinity: single-threaded
+ */
 struct IServer
     : public virtual TRefCounted
 {
@@ -45,10 +48,19 @@ struct IServer
     virtual const NNet::TNetworkAddress& GetAddress() const = 0;
 
     //! Starts the server.
+    /*!
+     *  Must be called at most once.
+     *  All #AddHandler calls must happen prior to start.
+     */
     virtual void Start() = 0;
 
     //! Stops the server.
-    virtual void Stop() = 0;
+    /*!
+     *  Can be called multiple times (and even if not started).
+     *  The returned future is set when the acceptor fiber is reliably stopped.
+     *  This, however, tells nothing about the connections being active.
+     */
+    virtual TFuture<void> Stop() = 0;
 
 
     // Extension methods

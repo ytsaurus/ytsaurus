@@ -14,8 +14,8 @@ struct IListener
     : public virtual TRefCounted
 {
     virtual const TNetworkAddress& GetAddress() const = 0;
-
     virtual TFuture<IConnectionPtr> Accept() = 0;
+    virtual void Shutdown() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IListener);

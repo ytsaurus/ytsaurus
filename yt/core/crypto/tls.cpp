@@ -508,6 +508,11 @@ public:
             }));
     }
 
+    virtual void Shutdown() override
+    {
+        Underlying_->Shutdown();
+    }
+
 private:
     const TSslContextImplPtr Ctx_;
     const IListenerPtr Underlying_;

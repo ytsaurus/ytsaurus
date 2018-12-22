@@ -5,8 +5,9 @@
 #include <yt/core/concurrency/poller.h>
 
 #include <yt/core/misc/proc.h>
-#include <yt/core/net/socket.h>
 #include <yt/core/misc/finally.h>
+
+#include <yt/core/net/socket.h>
 
 #include <errno.h>
 
@@ -14,6 +15,10 @@ namespace NYT::NNet {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TFDConnectionImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -335,27 +340,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError SyncSendTo(int fd, const TSharedRef& buffer, const TNetworkAddress& address) noexcept
-{
-    auto res = HandleEintr(
-        ::sendto,
-        fd,
-        buffer.Begin(),
-        buffer.Size(),
-        0, // flags
-        address.GetSockAddr(),
-        address.GetLength());
-
-    if (res == -1) {
-        return TError("Write failed")
-            << TError::FromSystem();
-    }
-
-    return {};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TFDConnectionImpl
     : public IPollable
 {
@@ -365,7 +349,7 @@ public:
         const TString& filePath,
         const IPollerPtr& poller,
         bool delayFirstRead)
-        : Name_(Format("FDConnection{file://%v}", filePath))
+        : Name_(Format("File{%v}", filePath))
         , FD_(fd)
         , Poller_(poller)
         , DelayFirstRead_(delayFirstRead)
@@ -378,7 +362,8 @@ public:
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
         const IPollerPtr& poller)
-        : Name_(Format("FDConnection{%v<->%v}", localAddress, remoteAddress))
+        : Name_(Format("FD{%v<->%v}", localAddress, remoteAddress))
+        , LoggingId_(Format("ConnectionId: %v", Name_))
         , LocalAddress_(localAddress)
         , RemoteAddress_(remoteAddress)
         , FD_(fd)
@@ -389,36 +374,49 @@ public:
 
     virtual const TString& GetLoggingId() const override
     {
-        return Name_;
+        return LoggingId_;
     }
 
     virtual void OnEvent(EPollControl control) override
     {
+        TShutdownProtector protector;
+        {
+            auto guard = Guard(Lock_);
+            if (!Error_.IsOK()) {
+                return;
+            }
+            protector = TShutdownProtector(this);
+        }
+        
         if (Any(control & EPollControl::Write)) {
-            DoIO(&WriteDirection_, true);
+            DoIO(&WriteDirection_, true, std::move(protector));
         }
 
         if (Any(control & EPollControl::Read)) {
-            DoIO(&ReadDirection_, true);
+            DoIO(&ReadDirection_, true, std::move(protector));
         }
     }
 
     virtual void OnShutdown() override
     {
+        bool canShutdownNow;
         // Poller gurantees that OnShutdown is never executed concurrently with OnEvent()
         // but it may execute concurrently with callback what was posted directly to
         // the poller invoker. In that case we postpone closing the descriptor until
-        // callback finished executing.
+        // the callback finishes executing.
         {
             auto guard = Guard(Lock_);
 
-            // IO callback is responsible for closing file descriptor and setting future.
-            if (ReadDirection_.Starting || WriteDirection_.Starting || SynchronousIOCount_) {
-                AbortDelayed_ = true;
+            if (Error_.IsOK()) {
+                Error_ = TError("Connection is shut down");
+            }
+
+            if (ShutdownRequested_) {
                 return;
             }
 
-            YCHECK(!Error_.IsOK());
+            ShutdownRequested_ = true;
+            canShutdownNow = ShutdownProtectorCount_ == 0;
         }
 
         // At this point Error_, ReadDirection_, WriteDirection_ can't change.
@@ -431,7 +429,10 @@ public:
             WriteDirection_.Operation->Abort(Error_);
             WriteDirection_.Operation.reset();
         }
-        FinishShutdown();
+
+        if (canShutdownNow) {
+            FinishShutdown();
+        }
     }
 
     TFuture<size_t> Read(const TSharedMutableRef& data)
@@ -453,26 +454,31 @@ public:
 
     void SendTo(const TSharedRef& buffer, const TNetworkAddress& address)
     {
-        EnterSychronousIO();
-        auto error = SyncSendTo(FD_, buffer, address);
-        ExitSynchronousIO();
-        error.ThrowOnError();
+        auto guard = EnterSychronousIO();
+        auto res = HandleEintr(
+            ::sendto,
+            FD_,
+            buffer.Begin(),
+            buffer.Size(),
+            0, // flags
+            address.GetSockAddr(),
+            address.GetLength());
+        if (res == -1) {
+            THROW_ERROR_EXCEPTION("Write failed")
+                << TError::FromSystem();
+        }
     }
 
     bool SetNoDelay()
     {
-        EnterSychronousIO();
-        bool ok = TrySetSocketNoDelay(FD_);
-        ExitSynchronousIO();
-        return ok;
+        auto guard = EnterSychronousIO();
+        return TrySetSocketNoDelay(FD_);
     }
 
     bool SetKeepAlive()
     {
-        EnterSychronousIO();
-        bool ok = TrySetSocketKeepAlive(FD_);
-        ExitSynchronousIO();
-        return ok;
+        auto guard = EnterSychronousIO();
+        return TrySetSocketKeepAlive(FD_);
     }
 
     TFuture<void> Write(const TSharedRef& data)
@@ -564,62 +570,116 @@ public:
 
     void SetReadDeadline(TInstant deadline)
     {
-        if (ReadTimeout_) {
-            TDelayedExecutor::CancelAndClear(ReadTimeout_);
+        if (ReadTimeoutCookie_) {
+            TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
         }
 
         if (deadline) {
-            ReadTimeout_ = TDelayedExecutor::Submit(AbortFromReadTimeout_, deadline);
+            ReadTimeoutCookie_ = TDelayedExecutor::Submit(AbortFromReadTimeout_, deadline);
         }
     }
 
     void SetWriteDeadline(TInstant deadline)
     {
-        if (WriteTimeout_) {
-            TDelayedExecutor::CancelAndClear(WriteTimeout_);
+        if (WriteTimeoutCookie_) {
+            TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
         }
 
         if (deadline) {
-            WriteTimeout_ = TDelayedExecutor::Submit(AbortFromWriteTimeout_, deadline);
+            WriteTimeoutCookie_ = TDelayedExecutor::Submit(AbortFromWriteTimeout_, deadline);
         }        
     }
 
 private:
     const TString Name_;
+    const TString LoggingId_;
     const TNetworkAddress LocalAddress_;
     const TNetworkAddress RemoteAddress_;
     int FD_ = -1;
 
+    class TShutdownProtector
+    {
+    public:
+        explicit TShutdownProtector(TFDConnectionImplPtr owner)
+            : Owner_(std::move(owner))
+        {
+            ++Owner_->ShutdownProtectorCount_;
+        }
+
+        TShutdownProtector() = default;
+        TShutdownProtector(const TShutdownProtector&) = delete;
+        TShutdownProtector(TShutdownProtector&&) = default;
+
+        TShutdownProtector& operator=(const TShutdownProtector&) = delete;
+        TShutdownProtector& operator=(TShutdownProtector&&) = default;
+
+        ~TShutdownProtector()
+        {
+            if (Owner_) {
+                Owner_->OnShutdownProtectorReleased();
+            }
+        }
+
+    private:
+        TFDConnectionImplPtr Owner_;
+    };
+
+    class TSynchronousIOGuard
+    {
+    public:
+        TSynchronousIOGuard(TFDConnectionImplPtr owner, TShutdownProtector protector)
+            : Owner_(std::move(owner))
+        {
+            ++Owner_->SynchronousIOCount_;
+        }
+
+        ~TSynchronousIOGuard()
+        {
+            if (Owner_) {
+                --Owner_->SynchronousIOCount_;
+            }
+        }
+
+        TSynchronousIOGuard(const TSynchronousIOGuard&) = delete;
+        TSynchronousIOGuard(TSynchronousIOGuard&&) = default;
+
+        TSynchronousIOGuard& operator=(const TSynchronousIOGuard&) = delete;
+        TSynchronousIOGuard& operator=(TSynchronousIOGuard&&) = default;
+
+    private:
+        TFDConnectionImplPtr Owner_;
+        TShutdownProtector Protector_;
+    };
+
     struct TIODirection
     {
         std::unique_ptr<IIOOperation> Operation;
-        bool Starting = false;
         std::atomic<i64> BytesTransferred = {0};
-        TDuration IdleDuration_;
-        TDuration BusyDuration_;
-        TCpuInstant StartTime_ = GetCpuInstant();
+        TDuration IdleDuration;
+        TDuration BusyDuration;
+        TCpuInstant StartTime = GetCpuInstant();
 
-        TClosure DoIO;
+        TCallback<void(TShutdownProtector)> DoIO;
         EPollControl PollFlag;
 
         void StartBusyTimer()
         {
             auto now = GetCpuInstant();
-            IdleDuration_ += CpuDurationToDuration(now - StartTime_);
-            StartTime_ = now;
+            IdleDuration += CpuDurationToDuration(now - StartTime);
+            StartTime = now;
         }
 
         void StopBusyTimer()
         {
             auto now = GetCpuInstant();
-            BusyDuration_ += CpuDurationToDuration(now - StartTime_);
-            StartTime_ = now;
+            BusyDuration += CpuDurationToDuration(now - StartTime);
+            StartTime = now;
         }
 
         TConnectionStatistics GetStatistics() const
         {
-            TConnectionStatistics statistics{IdleDuration_, BusyDuration_};
-            (Operation ? statistics.BusyDuration : statistics.IdleDuration) += CpuDurationToDuration(GetCpuInstant() - StartTime_);
+            TConnectionStatistics statistics{IdleDuration, BusyDuration};
+            (Operation ? statistics.BusyDuration : statistics.IdleDuration) += CpuDurationToDuration(GetCpuInstant() - StartTime);
             return statistics;
         }
     };
@@ -627,10 +687,9 @@ private:
     TSpinLock Lock_;
     TIODirection ReadDirection_;
     TIODirection WriteDirection_;
-    bool AbortDelayed_ = false;
-
-    int SynchronousIOCount_ = 0;
-    
+    bool ShutdownRequested_ = false;
+    std::atomic<int> ShutdownProtectorCount_ = {0};
+    std::atomic<int> SynchronousIOCount_ = {0};
     TError Error_;
     TPromise<void> ShutdownPromise_ = NewPromise<void>();
 
@@ -638,8 +697,11 @@ private:
     IPollerPtr Poller_;
     bool DelayFirstRead_ = false;
 
-    TClosure AbortFromReadTimeout_, AbortFromWriteTimeout_;
-    TDelayedExecutorCookie ReadTimeout_, WriteTimeout_;
+    TClosure AbortFromReadTimeout_;
+    TClosure AbortFromWriteTimeout_;
+    
+    TDelayedExecutorCookie ReadTimeoutCookie_;
+    TDelayedExecutorCookie WriteTimeoutCookie_;
 
     void Init()
     {
@@ -653,32 +715,30 @@ private:
         Poller_->Register(this);
     }
 
-    void EnterSychronousIO()
+    TSynchronousIOGuard EnterSychronousIO()
     {
         auto guard = Guard(Lock_);
         Error_.ThrowOnError();
-        SynchronousIOCount_++;
+        return TSynchronousIOGuard(this, TShutdownProtector(this));
     }
 
-    void ExitSynchronousIO()
+    void OnShutdownProtectorReleased()
     {
-        bool needClose = false;
         {
             auto guard = Guard(Lock_);
-            SynchronousIOCount_--;
-            if (AbortDelayed_ && !WriteDirection_.Starting && !ReadDirection_.Starting && !SynchronousIOCount_) {
-                needClose = true;
+            YCHECK(--ShutdownProtectorCount_ >= 0);
+            if (ShutdownProtectorCount_ > 0 || !ShutdownRequested_) {
+                return;
             }
         }
 
-        if (needClose) {
-            FinishShutdown();
-        }
+        FinishShutdown();
     }
 
     void StartIO(TIODirection* direction, std::unique_ptr<IIOOperation> operation)
     {
         TError error;
+        TShutdownProtector protector;
 
         {
             auto guard = Guard(Lock_);
@@ -691,9 +751,7 @@ private:
                 YCHECK(!direction->Operation);
                 direction->Operation = std::move(operation);
                 direction->StartBusyTimer();
-
-                YCHECK(!direction->Starting);
-                direction->Starting = true;
+                protector = TShutdownProtector(this);
             } else {
                 error = Error_;
             }
@@ -704,10 +762,10 @@ private:
             return;
         }
 
-        Poller_->GetInvoker()->Invoke(direction->DoIO);
+        Poller_->GetInvoker()->Invoke(BIND(direction->DoIO, Passed(std::move(protector))));
     }
 
-    void DoIO(TIODirection* direction, bool filterSpuriousEvent)
+    void DoIO(TIODirection* direction, bool filterSpuriousEvent, TShutdownProtector /*protector*/)
     {
         {
             auto guard = Guard(Lock_);
@@ -731,7 +789,7 @@ private:
             result << TErrorAttribute("connection", Name_);
         }
 
-        bool needClose = false;
+        bool needUnregister = false;
         std::unique_ptr<IIOOperation> operation;
         {
             auto guard = Guard(Lock_);
@@ -740,7 +798,7 @@ private:
                 operation = std::move(direction->Operation);
                 if (Error_.IsOK()) {
                     Error_ = result;
-                    UnregisterFromPoller();
+                    needUnregister = true;
                 }
                 direction->StopBusyTimer();
             } else if (!Error_.IsOK()) {
@@ -758,12 +816,6 @@ private:
                 // IO finished successfully.
                 operation = std::move(direction->Operation);
                 direction->StopBusyTimer();
-              }
-
-            direction->Starting = false;
-            if (AbortDelayed_ && !WriteDirection_.Starting && !ReadDirection_.Starting && !SynchronousIOCount_) {
-                // Object is in the middle of shutdown. We are responsible for closing FD_.
-                needClose = true;
             }
 
             MaybeRearm();
@@ -775,8 +827,8 @@ private:
             operation->SetResult();
         }
 
-        if (needClose) {
-            FinishShutdown();
+        if (needUnregister) {
+            Poller_->Unregister(this);
         }
     }
 
@@ -785,15 +837,11 @@ private:
         auto guard = Guard(Lock_);
         if (Error_.IsOK()) {
             Error_ = error;
-            UnregisterFromPoller();
+            Poller_->Unarm(FD_);
+            guard.Release();
+            Poller_->Unregister(this);
         }
         return ShutdownPromise_.ToFuture();
-    }
-
-    void UnregisterFromPoller()
-    {
-        Poller_->Unarm(FD_);
-        Poller_->Unregister(this);
     }
 
     void MaybeRearm()
@@ -812,12 +860,12 @@ private:
         WriteDirection_.DoIO.Reset();
         ShutdownPromise_.Set();
 
-        if (WriteTimeout_) {
-            TDelayedExecutor::CancelAndClear(WriteTimeout_);
+        if (WriteTimeoutCookie_) {
+            TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
         }
 
-        if (ReadTimeout_) {
-            TDelayedExecutor::CancelAndClear(ReadTimeout_);
+        if (ReadTimeoutCookie_) {
+            TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
         }
     }
 
@@ -832,7 +880,6 @@ private:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TFDConnectionImpl)
 DEFINE_REFCOUNTED_TYPE(TFDConnectionImpl)
 
 ////////////////////////////////////////////////////////////////////////////////

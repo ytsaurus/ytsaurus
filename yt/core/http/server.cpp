@@ -62,7 +62,7 @@ public:
 
     virtual void AddHandler(const TString& path, const IHttpHandlerPtr& handler) override
     {
-        YCHECK(!Started_.load());
+        YCHECK(!Started_);
         Handlers_.Add(path, handler);
     }
 
@@ -73,25 +73,27 @@ public:
 
     virtual void Start() override
     {
-        if (Started_) {
-            return;
-        }
-
+        YCHECK(!Started_);
         Started_ = true;
-        MainLoopFuture_ = BIND(&TServer::MainLoop, MakeStrong(this))
+
+        BIND(&TServer::MainLoop, MakeStrong(this))
             .AsyncVia(Poller_->GetInvoker())
             .Run();
     }
 
-    virtual void Stop() override
+    virtual TFuture<void> Stop() override
     {
         if (!Started_) {
-            return;
+            return VoidFuture;
         }
 
-        Started_ = false;
-        MainLoopFuture_.Cancel();
-        MainLoopFuture_.Reset();
+        if (StoppedPromise_) {
+            return StoppedPromise_.ToFuture();
+        }
+
+        StoppedPromise_ = NewPromise<void>();
+        StoppingPromise_.Set(TError("Server stopped"));
+        return StoppedPromise_.ToFuture();
     }
 
 private:
@@ -99,45 +101,51 @@ private:
     const IListenerPtr Listener_;
     const IPollerPtr Poller_;
 
-    TFuture<void> MainLoopFuture_;
+    bool Started_ = false;
+    TPromise<IConnectionPtr> StoppingPromise_ = NewPromise<IConnectionPtr>();
+    TPromise<void> StoppedPromise_;
 
-    std::atomic<int> ActiveClients_ = {0};
-
-    std::atomic<bool> Started_ = {false};
     TRequestPathMatcher Handlers_;
 
-    TMonotonicCounter ConnectionsAccepted_{"/connections_accepted"};
-    TMonotonicCounter ConnectionsDropped_{"/connections_dropped"};
+    TSimpleGauge ConnectionsActiveGauge_{"/connections_active"};
+    TMonotonicCounter ConnectionsAcceptedCounter_{"/connections_accepted"};
+    TMonotonicCounter ConnectionsDroppedCounter_{"/connections_dropped"};
 
 
     void MainLoop()
     {
         YT_LOG_INFO("Server started");
-        auto logStop = Finally([] {
-            YT_LOG_INFO("Server stopped");
-        });
+        try {
+            while (true) {
+                auto asyncConnection = AnyOf(std::vector<TFuture<IConnectionPtr>>{
+                    Listener_->Accept(),
+                    StoppingPromise_.ToFuture()
+                });
+                auto connection = WaitFor(asyncConnection)
+                    .ValueOrThrow();
 
-        while (true) {
-            auto client = WaitFor(Listener_->Accept())
-                .ValueOrThrow();
+                HttpProfiler.Increment(ConnectionsAcceptedCounter_);
+                if (HttpProfiler.Increment(ConnectionsActiveGauge_, +1) >= Config_->MaxSimultaneousConnections) {
+                    HttpProfiler.Increment(ConnectionsDroppedCounter_);
+                    HttpProfiler.Increment(ConnectionsActiveGauge_, -1);
+                    YT_LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
+                        connection->RemoteAddress());
+                    continue;
+                }
 
-            HttpProfiler.Increment(ConnectionsAccepted_);
-            if (++ActiveClients_ >= Config_->MaxSimultaneousConnections) {
-                HttpProfiler.Increment(ConnectionsDropped_);
-                --ActiveClients_;
-                YT_LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
-                    client->RemoteAddress());
-                continue;
+                auto connectionId = TGuid::Create();
+                YT_LOG_DEBUG("Connection accepted (ConnectionId: %v, RemoteAddress: %v, LocalAddress: %v)",
+                    connectionId,
+                    connection->RemoteAddress(),
+                    connection->LocalAddress());
+                Poller_->GetInvoker()->Invoke(
+                    BIND(&TServer::HandleConnection, MakeStrong(this), std::move(connection), connectionId));
             }
-
-            auto connectionId = TGuid::Create();
-            YT_LOG_DEBUG("Client accepted (ConnectionId: %v, RemoteAddress: %v, LocalAddress: %v)",
-                connectionId,
-                client->RemoteAddress(),
-                client->LocalAddress());
-            Poller_->GetInvoker()->Invoke(
-                BIND(&TServer::HandleClient, MakeStrong(this), std::move(client), connectionId));
+        } catch (const std::exception& ex) {
+            YT_LOG_INFO(ex, "Server loop finished");
         }
+
+        StoppedPromise_.Set();
     }
 
     bool HandleRequest(const THttpInputPtr& request, const THttpOutputPtr& response)
@@ -215,16 +223,16 @@ private:
         return true;
     }
 
-    void HandleClient(const IConnectionPtr& connection, const TGuid connectionId)
+    void HandleConnection(const IConnectionPtr& connection, TGuid connectionId)
     {
         auto finally = Finally([&] {
-            --ActiveClients_;
+            HttpProfiler.Increment(ConnectionsActiveGauge_, -1);
         });
 
         auto request = New<THttpInput>(
             connection,
             connection->RemoteAddress(),
-            Poller_->GetInvoker(),
+            GetCurrentInvoker(),
             EMessageType::Request,
             Config_);
 
@@ -241,13 +249,15 @@ private:
             request->SetRequestId(requestId);
             response->SetRequestId(requestId);
         
+            YT_LOG_DEBUG("HandleConnection3");
             bool ok = HandleRequest(request, response);
             if (!ok) {
                 break;
             }
 
+            YT_LOG_DEBUG("HandleConnection4");
             auto logDrop = [&] (auto reason) {
-                YT_LOG_DEBUG("Dropping HTTP connection (ConnectionId: %v, Reason: %Qv)",
+                YT_LOG_DEBUG("Dropping HTTP connection (ConnectionId: %v, Reason: %v)",
                     connectionId,
                     reason);
             };
@@ -265,8 +275,10 @@ private:
             // there is no data left inside stream.
             bool bodyConsumed = false;
             try {
+                YT_LOG_DEBUG("HandleConnection5");
                 auto chunk = WaitFor(request->Read())
                     .ValueOrThrow();
+                YT_LOG_DEBUG("HandleConnection6");
                 bodyConsumed = chunk.Empty();
             } catch (const std::exception& ) { }
             if (!bodyConsumed) {
@@ -292,9 +304,12 @@ private:
                 logDrop("Connection not idle");
                 break;
             }
+            YT_LOG_DEBUG("HandleConnection8");
         }
 
+        YT_LOG_DEBUG("HandleConnection9");
         auto connectionResult = WaitFor(connection->Close());
+        YT_LOG_DEBUG("HandleConnection10");
         if (connectionResult.IsOK()) {
             YT_LOG_DEBUG("HTTP connection closed (ConnectionId: %v)",
                 connectionId);
