@@ -6,6 +6,8 @@
 
 #include <yt/core/alloc/alloc.h>
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TYTEnvironment
     : public ::testing::Environment
 {
@@ -21,8 +23,15 @@ public:
     virtual void TearDown() override
     {
         NYT::Shutdown();
+#ifdef _asan_enabled_
+        // Wait for some time to ensure background cleanup is somewhat complete.
+        Sleep(TDuration::Seconds(1));
+        NYT::TRefCountedTrackerFacade::Dump();
+#endif
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
 {
@@ -36,4 +45,3 @@ int main(int argc, char **argv)
 
     return RUN_ALL_TESTS();
 }
-
