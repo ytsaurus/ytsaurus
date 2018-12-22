@@ -50,9 +50,9 @@ public:
     }
 
     //! Stops the server.
-    virtual void Stop() override
+    virtual TFuture<void> Stop() override
     {
-        Underlying_->Stop();
+        return Underlying_->Stop();
     }
 
 private:

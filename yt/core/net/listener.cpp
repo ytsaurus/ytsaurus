@@ -4,6 +4,7 @@
 #include <yt/core/concurrency/poller.h>
 
 #include <yt/core/net/socket.h>
+
 #include <yt/core/misc/proc.h>
 
 namespace NYT::NNet {
@@ -12,11 +13,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TListenerImpl
+class TListener
     : public IPollable
+    , public IListener
 {
 public:
-    TListenerImpl(
+    TListener(
         SOCKET serverSocket,
         const TNetworkAddress& address,
         const TString& name,
@@ -29,6 +31,7 @@ public:
         Poller_->Register(this);
     }
 
+    // IPollable implementation
     virtual const TString& GetLoggingId() const override
     {
         return Name_;
@@ -47,18 +50,28 @@ public:
 
     virtual void OnShutdown() override
     {
-        YCHECK(TryClose(ServerSocket_, false));
-        for (auto& promise : Queue_) {
+        decltype(Queue_) queue;
+        {
+            auto guard = Guard(Lock_);
+            if (Error_.IsOK()) {
+                Error_ = TError("Listener is shut down");
+            }
+            std::swap(Queue_, queue);
+            YCHECK(TryClose(ServerSocket_, false));
+        }
+        
+        for (auto& promise : queue) {
             promise.Set(Error_);
         }
     }
 
-    const TNetworkAddress& GetAddress() const
+    virtual const TNetworkAddress& GetAddress() const override
     {
         return Address_;
     }
 
-    TFuture<IConnectionPtr> Accept()
+    // IListener implementation
+    virtual TFuture<IConnectionPtr> Accept() override
     {
         auto promise = NewPromise<IConnectionPtr>();
         {
@@ -88,17 +101,9 @@ public:
         return promise.ToFuture();
     }
 
-    void Abort(const TError& error)
+    virtual void Shutdown() override
     {
-        auto guard = Guard(Lock_);
-        if (!Error_.IsOK()) {
-            return;
-        }
-
-        Error_ = error
-            << TErrorAttribute("listener", Name_);
-        Poller_->Unarm(ServerSocket_);
-        Poller_->Unregister(this);
+        Abort(TError("Listener is shut down"));
     }
 
 private:
@@ -112,10 +117,30 @@ private:
     std::deque<TPromise<IConnectionPtr>> Queue_;
     TError Error_;
 
+
+    void Abort(const TError& error)
+    {
+        YCHECK(!error.IsOK());
+        
+        auto guard = Guard(Lock_);
+        
+        if (!Error_.IsOK()) {
+            return;
+        }
+
+        Error_ = error
+            << TErrorAttribute("listener", Name_);
+        Poller_->Unarm(ServerSocket_);
+        Poller_->Unregister(this);
+    }
+
     bool TryAccept()
     {
         {
             auto guard = Guard(Lock_);
+            if (!Error_.IsOK()) {
+                return false;
+            }
             if (Queue_.empty()) {
                 Active_ = false;
                 return false;
@@ -123,7 +148,7 @@ private:
         }
 
         TNetworkAddress clientAddress;
-        SOCKET clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
+        auto clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
 
         TPromise<IConnectionPtr> promise;
         bool active = false;
@@ -149,39 +174,8 @@ private:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TListenerImpl);
-DEFINE_REFCOUNTED_TYPE(TListenerImpl);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TListener
-    : public IListener
-{
-public:
-    explicit TListener(const TListenerImplPtr& impl)
-        : Impl_(impl)
-    { }
-
-    virtual TFuture<IConnectionPtr> Accept() override
-    {
-        return Impl_->Accept();
-    }
-
-    virtual const TNetworkAddress& GetAddress() const override
-    {
-        return Impl_->GetAddress();
-    }
-
-    ~TListener()
-    {
-        Impl_->Abort(TError("Listener destroyed"));
-    }
-
-private:
-    const TListenerImplPtr Impl_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TListener);
+DECLARE_REFCOUNTED_CLASS(TListener)
+DEFINE_REFCOUNTED_TYPE(TListener)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,12 +198,11 @@ IListenerPtr CreateListener(
 
         const int ListenBacklogSize = 128;
         ListenSocket(serverSocket, ListenBacklogSize);
-        auto impl = New<TListenerImpl>(
+        return New<TListener>(
             serverSocket,
             realAddress,
             Format("Listener{%v}", realAddress),
             poller);
-        return New<TListener>(impl);
     } catch (const std::exception& ) {
         YCHECK(TryClose(serverSocket, false));
         throw;
