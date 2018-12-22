@@ -72,7 +72,7 @@ void TSchedulerThread::Start()
     ui64 epoch;
     while (true) {
         epoch = Epoch_.load(std::memory_order_acquire);
-        if ((epoch & StartedEpochMask) != 0x0) {
+        if (epoch & StartedEpochMask) {
             // Startup already in progress.
             alreadyDone = true;
             break;
@@ -84,20 +84,19 @@ void TSchedulerThread::Start()
     }
 
     if (!alreadyDone) {
-        if ((epoch & ShutdownEpochMask) == 0x0) {
+        if (!(epoch & ShutdownEpochMask)) {
             YT_LOG_DEBUG_IF(EnableLogging_, "Starting thread (Name: %v)", ThreadName_);
 
             try {
                 Thread_.Start();
             } catch (const std::exception& ex) {
-                // NB: Cannot use logging here since it relies on us.
-                auto error = TError("Error starting %v thread", ThreadName_)
-                    << ex;
-                fprintf(stderr, "%s\n", ToString(error).c_str());
+                fprintf(stderr, "Error starting %s thread\n%s\n",
+                    ThreadName_.c_str(),
+                    ex.what());
                 _exit(100);
             }
 
-            ThreadId_ = TThreadId(Thread_.Id());
+            ThreadId_ = static_cast<TThreadId>(Thread_.Id());
 
             OnStart();
         } else {
@@ -115,7 +114,7 @@ void TSchedulerThread::Shutdown()
     ui64 epoch;
     while (true) {
         epoch = Epoch_.load(std::memory_order_acquire);
-        if ((epoch & ShutdownEpochMask) != 0x0) {
+        if (epoch & ShutdownEpochMask) {
             // Shutdown requested; await.
             alreadyDone = true;
             break;
@@ -126,7 +125,7 @@ void TSchedulerThread::Shutdown()
     }
 
     if (!alreadyDone) {
-        if ((epoch & StartedEpochMask) != 0x0) {
+        if (epoch & StartedEpochMask) {
             // There is a tiny chance that thread is not started yet, and call to TThread::Join may fail
             // in this case. Ensure proper event sequencing by synchronizing with thread startup.
             ThreadStartedEvent_.Wait();
@@ -143,7 +142,6 @@ void TSchedulerThread::Shutdown()
             } else {
                 Thread_.Join();
             }
-
 
             AfterShutdown();
         } else {
@@ -178,7 +176,7 @@ void TSchedulerThread::ThreadMain()
 
         ThreadStartedEvent_.NotifyAll();
 
-        while ((Epoch_.load(std::memory_order_relaxed) & ShutdownEpochMask) == 0x0) {
+        while (!(Epoch_.load(std::memory_order_relaxed) & ShutdownEpochMask) || !RunQueue_.empty()) {
             ThreadMainStep();
         }
 
@@ -296,7 +294,7 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
     auto cookie = CallbackEventCount_->PrepareWait();
 
     auto currentEpoch = Epoch_.load(std::memory_order_relaxed);
-    if ((currentEpoch & ShutdownEpochMask) != 0x0) {
+    if (currentEpoch & ShutdownEpochMask) {
         CallbackEventCount_->CancelWait();
         return false;
     }
@@ -379,12 +377,12 @@ TThreadId TSchedulerThread::GetId() const
 
 bool TSchedulerThread::IsStarted() const
 {
-    return (Epoch_.load(std::memory_order_relaxed) & StartedEpochMask) != 0x0;
+    return Epoch_.load(std::memory_order_relaxed) & StartedEpochMask;
 }
 
 bool TSchedulerThread::IsShutdown() const
 {
-    return (Epoch_.load(std::memory_order_relaxed) & ShutdownEpochMask) != 0x0;
+    return Epoch_.load(std::memory_order_relaxed) & ShutdownEpochMask;
 }
 
 TFiber* TSchedulerThread::GetCurrentFiber()
@@ -515,7 +513,11 @@ void TSchedulerThread::OnThreadStart()
 }
 
 void TSchedulerThread::OnThreadShutdown()
-{ }
+{
+    CurrentFiber_.Reset();
+    IdleFiber_.Reset();
+    RunQueue_.clear();
+}
 
 void TSchedulerThread::SwitchContextFrom(TFiber* currentFiber)
 {
