@@ -708,10 +708,12 @@ private:
         AbortFromReadTimeout_ = BIND(&TFDConnectionImpl::AbortFromReadTimeout, MakeWeak(this));
         AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
     
-        ReadDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &ReadDirection_, false);
+        ReadDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeWeak(this), &ReadDirection_, false);
         ReadDirection_.PollFlag = EPollControl::Read;
-        WriteDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &WriteDirection_, false);
+        
+        WriteDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeWeak(this), &WriteDirection_, false);
         WriteDirection_.PollFlag = EPollControl::Write;
+        
         Poller_->Register(this);
     }
 
@@ -856,17 +858,10 @@ private:
         YCHECK(TryClose(FD_, false));
         FD_ = -1;
 
-        ReadDirection_.DoIO.Reset();
-        WriteDirection_.DoIO.Reset();
         ShutdownPromise_.Set();
 
-        if (WriteTimeoutCookie_) {
-            TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
-        }
-
-        if (ReadTimeoutCookie_) {
-            TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
-        }
+        TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
+        TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
     }
 
     void AbortFromReadTimeout()
