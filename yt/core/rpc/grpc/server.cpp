@@ -212,8 +212,7 @@ private:
 
         virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
-            auto handler = Handler_.Lock();
-            if (handler) {
+            if (auto handler = Handler_.Lock()) {
                 handler->OnResponseMessage(std::move(message));
             }
             return {};
