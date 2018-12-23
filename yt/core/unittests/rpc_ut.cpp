@@ -538,7 +538,6 @@ using AllTransport = ::testing::Types<
 #ifdef _linux_
     TRpcOverBus<TRpcOverUnixDomainImpl>,
 #endif
-//    TRpcOverBus<TRpcOverBusImpl>,
     TRpcOverGrpcImpl<false>,
     TRpcOverGrpcImpl<true>
 >;
@@ -558,17 +557,6 @@ TYPED_TEST_CASE(TNotGrpcTest, WithoutGrpc);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//template <>
-//const bool TRpcOverBus<TRpcOverBusImpl>::Secure;
-//template <>
-//const bool TRpcOverBus<TRpcOverUnixDomainImpl>::Secure;
-//template <>
-//const bool TRpcOverBus<TRpcOverGrpcImpl<false>>::Secure;
-//template <>
-//const bool TRpcOverBus<TRpcOverGrpcImpl<true>>::Secure;
-//
-//////////////////////////////////////////////////////////////////////////////////
-//
 TYPED_TEST(TRpcTest, Send)
 {
     TMyProxy proxy(this->CreateChannel());
