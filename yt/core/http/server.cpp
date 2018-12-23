@@ -220,6 +220,7 @@ private:
             }
         }
 
+         YT_LOG_INFO("HandleRequest8");
         return true;
     }
 
@@ -249,13 +250,11 @@ private:
             request->SetRequestId(requestId);
             response->SetRequestId(requestId);
         
-            YT_LOG_DEBUG("HandleConnection3");
             bool ok = HandleRequest(request, response);
             if (!ok) {
-                break;
+               break;
             }
 
-            YT_LOG_DEBUG("HandleConnection4");
             auto logDrop = [&] (auto reason) {
                 YT_LOG_DEBUG("Dropping HTTP connection (ConnectionId: %v, Reason: %v)",
                     connectionId,
@@ -275,10 +274,8 @@ private:
             // there is no data left inside stream.
             bool bodyConsumed = false;
             try {
-                YT_LOG_DEBUG("HandleConnection5");
                 auto chunk = WaitFor(request->Read())
                     .ValueOrThrow();
-                YT_LOG_DEBUG("HandleConnection6");
                 bodyConsumed = chunk.Empty();
             } catch (const std::exception& ) { }
             if (!bodyConsumed) {
@@ -286,7 +283,7 @@ private:
                 break;
             }
 
-            if (request->IsSafeToReuse()) {
+           if (request->IsSafeToReuse()) {
                 request->Reset();
             } else {
                 logDrop("Request is not safe to reuse");
@@ -304,12 +301,9 @@ private:
                 logDrop("Connection not idle");
                 break;
             }
-            YT_LOG_DEBUG("HandleConnection8");
         }
 
-        YT_LOG_DEBUG("HandleConnection9");
         auto connectionResult = WaitFor(connection->Close());
-        YT_LOG_DEBUG("HandleConnection10");
         if (connectionResult.IsOK()) {
             YT_LOG_DEBUG("HTTP connection closed (ConnectionId: %v)",
                 connectionId);

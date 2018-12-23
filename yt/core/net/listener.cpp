@@ -13,6 +13,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLogging::TLogger Logger("TTT");
+
 class TListener
     : public IPollable
     , public IListener
@@ -61,7 +63,7 @@ public:
         }
         
         for (auto& promise : queue) {
-            promise.Set(Error_);
+           promise.Set(Error_);
         }
     }
 
