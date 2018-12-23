@@ -400,7 +400,7 @@ public:
     virtual void OnShutdown() override
     {
         bool canShutdownNow;
-        // Poller gurantees that OnShutdown is never executed concurrently with OnEvent()
+        // Poller guarantees that OnShutdown is never executed concurrently with OnEvent()
         // but it may execute concurrently with callback what was posted directly to
         // the poller invoker. In that case we postpone closing the descriptor until
         // the callback finishes executing.
