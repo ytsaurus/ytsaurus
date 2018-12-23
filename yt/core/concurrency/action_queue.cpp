@@ -131,9 +131,7 @@ class TSerializedInvoker
 public:
     explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
         : TInvokerWrapper(std::move(underlyingInvoker))
-    {
-        Lock_.clear();
-    }
+    { }
 
     virtual void Invoke(TClosure callback) override
     {
@@ -143,7 +141,7 @@ public:
 
 private:
     TLockFreeQueue<TClosure> Queue_;
-    std::atomic_flag Lock_;
+    std::atomic_flag Lock_ = ATOMIC_FLAG_INIT;
 
 
     class TInvocationGuard
@@ -182,15 +180,19 @@ private:
 
     void TrySchedule()
     {
-        if (Queue_.IsEmpty()) {
-            return;
-        }
-
         if (!Lock_.test_and_set(std::memory_order_acquire)) {
             UnderlyingInvoker_->Invoke(BIND(
                 &TSerializedInvoker::RunCallback,
                 MakeStrong(this),
                 Passed(TInvocationGuard(this))));
+        }
+    }
+
+    void DrainQueue()
+    {
+        TClosure callback;
+        while (Queue_.Dequeue(&callback)) {
+            callback.Reset();
         }
     }
 
@@ -210,11 +212,15 @@ private:
         }
     }
 
-    void OnFinished(bool scheduleMore)
+    void OnFinished(bool activated)
     {
         Lock_.clear(std::memory_order_release);
-        if (scheduleMore) {
-            TrySchedule();
+        if (activated) {
+            if (!Queue_.IsEmpty()) {
+                TrySchedule();
+            }
+        } else {
+            DrainQueue();
         }
     }
 
