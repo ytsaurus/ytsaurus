@@ -360,12 +360,12 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
     DialerSession_->Dial();
 }
 
-void TTcpConnection::OnDialerFinished(SOCKET socket, const TError& error)
+void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
 {
-    if (socket != INVALID_SOCKET) {
-        OnSocketConnected(socket);
+    if (socketOrError.IsOK()) {
+        OnSocketConnected(socketOrError.Value());
     } else {
-        Abort(error);
+        Abort(socketOrError);
     }
     DialerSession_.Reset();
 }

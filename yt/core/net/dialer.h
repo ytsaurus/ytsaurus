@@ -30,10 +30,7 @@ IDialerPtr CreateDialer(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Async dialer notifies caller via callback for better performance.
-
-//! If socket is INVALID_SOCKET, dialer failed with error.
-//! Otherwise dialer succeeded and socket is a valid socket.
-using TAsyncDialerCallback = TCallback<void(SOCKET, TError)>;
+using TAsyncDialerCallback = TCallback<void(const TErrorOr<SOCKET>&)>;
 
 //! Dialer session interface.
 //! Caller should hold a reference to a session until callback is called.
