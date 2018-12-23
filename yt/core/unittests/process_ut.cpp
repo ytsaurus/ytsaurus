@@ -18,7 +18,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _unix_
+#if defined(_unix_) and not defined(_asan_enabled_)
 
 TEST(TProcessTest, Basic)
 {
