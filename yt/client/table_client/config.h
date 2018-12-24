@@ -147,7 +147,7 @@ class TTableReaderConfig
 public:
     bool SuppressAccessTracking;
     EUnavailableChunkStrategy UnavailableChunkStrategy;
-    std::optional<TDuration> MaxReadDuration;
+    TNullable<TDuration> MaxReadDuration;
 
     TTableReaderConfig()
     {
