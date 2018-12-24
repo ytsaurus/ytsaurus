@@ -1178,6 +1178,13 @@ class TestTables(YTEnvSetup):
         for k, v in attributes.iteritems():
             assert get("//tmp/t2/@" + k) == v
 
+    def test_max_read_duration(self):
+        create("table", "//tmp/table")
+        write_table("//tmp/table", {"b": "hello"})
+
+        with pytest.raises(YtError):
+            read_table("//tmp/table", table_reader={"max_read_duration": 0})
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):
@@ -1306,4 +1313,3 @@ class TestTablesMulticell(TestTables):
             write_table("<append=%true>//tmp/input", [
                 {"foo": float("nan"), "bar": "e"},
             ])
-
