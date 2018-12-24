@@ -629,6 +629,7 @@ private:
     public:
         TSynchronousIOGuard(TFDConnectionImplPtr owner, TShutdownProtector protector)
             : Owner_(std::move(owner))
+            , Protector_(std::move(protector))
         {
             ++Owner_->SynchronousIOCount_;
         }
