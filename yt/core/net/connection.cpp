@@ -454,7 +454,7 @@ public:
 
     void SendTo(const TSharedRef& buffer, const TNetworkAddress& address)
     {
-        auto guard = EnterSychronousIO();
+        auto guard = EnterSynchronousIO();
         auto res = HandleEintr(
             ::sendto,
             FD_,
@@ -471,13 +471,13 @@ public:
 
     bool SetNoDelay()
     {
-        auto guard = EnterSychronousIO();
+        auto guard = EnterSynchronousIO();
         return TrySetSocketNoDelay(FD_);
     }
 
     bool SetKeepAlive()
     {
-        auto guard = EnterSychronousIO();
+        auto guard = EnterSynchronousIO();
         return TrySetSocketKeepAlive(FD_);
     }
 
@@ -718,7 +718,7 @@ private:
         Poller_->Register(this);
     }
 
-    TSynchronousIOGuard EnterSychronousIO()
+    TSynchronousIOGuard EnterSynchronousIO()
     {
         auto guard = Guard(Lock_);
         Error_.ThrowOnError();
