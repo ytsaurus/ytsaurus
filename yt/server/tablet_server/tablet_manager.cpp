@@ -2653,8 +2653,10 @@ public:
                     Y_UNREACHABLE();
             }
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Unexpected exception while cloning table (TableId: %v)",
-                sourceTable->GetId());
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            LOG_ERROR(ex, "Unexpected error: exception while cloning table (TableId: %v, User: %v)",
+                sourceTable->GetId(),
+                securityManager->GetAuthenticatedUserName());
         }
 
         // Undo the harm done in TChunkOwnerTypeHandler::DoClone.
