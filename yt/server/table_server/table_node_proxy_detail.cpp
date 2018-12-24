@@ -118,7 +118,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpectedTabletState)
         .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastMountTransaction)
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CurrentMountTransactionId)
+        .SetPresent(isDynamic && trunkTable->GetCurrentMountTransactionId()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastMountTransactionId)
         .SetPresent(isDynamic && trunkTable->GetLastMountTransactionId()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastCommitTimestamp)
         .SetExternal(isExternal)
@@ -358,7 +360,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(trunkTable->GetExpectedTabletState());
             return true;
 
-        case EInternedAttributeKey::LastMountTransaction:
+        case EInternedAttributeKey::CurrentMountTransactionId:
+            if (!isDynamic || !trunkTable->GetCurrentMountTransactionId()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetCurrentMountTransactionId());
+            return true;
+
+        case EInternedAttributeKey::LastMountTransactionId:
             if (!isDynamic || !trunkTable->GetLastMountTransactionId()) {
                 break;
             }
