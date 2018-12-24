@@ -19,7 +19,7 @@ namespace NYT::NHttpProxy {
 using namespace NHttp;
 using namespace NYTree;
 
-static auto& Logger = HttpProxyLogger;
+static const auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
