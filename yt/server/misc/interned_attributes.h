@@ -58,6 +58,7 @@
     XX(CountByHealth, count_by_health) \
     XX(CreationTime, creation_time) \
     XX(CurrentCommitRevision, current_commit_revision) \
+    XX(CurrentMountTransactionId, current_mount_transaction_id) \
     XX(DataCenter, data_center) \
     XX(DataWeight, data_weight) \
     XX(Deadline, deadline) \
@@ -119,7 +120,7 @@
     XX(KeyColumns, key_columns) \
     XX(Kind, kind) \
     XX(LastCommitTimestamp, last_commit_timestamp) \
-    XX(LastMountTransaction, last_mount_transaction_id) \
+    XX(LastMountTransactionId, last_mount_transaction_id) \
     XX(LastPingTime, last_ping_time) \
     XX(LastSeenReplicas, last_seen_replicas) \
     XX(LastSeenTime, last_seen_time) \

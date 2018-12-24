@@ -62,6 +62,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TabletCountByExpectedState);
     Save(context, ActualTabletState);
     Save(context, PrimaryLastMountTransactionId);
+    Save(context, CurrentMountTransactionId);
     Save(context, *TabletBalancerConfig);
 }
 
@@ -116,14 +117,18 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     if (context.GetVersion() >= 803) {
         Load(context, PrimaryLastMountTransactionId);
     }
-
-    // COMPAT(savrus)
-    if (context.GetVersion() < 800) {
-        Dynamic = !Tablets.empty();
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= 822) {
+        Load(context, CurrentMountTransactionId);
     }
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= 821) {
         Load(context, *TabletBalancerConfig);
+    }
+
+    // COMPAT(savrus)
+    if (context.GetVersion() < 800) {
+        Dynamic = !Tablets.empty();
     }
 }
 
@@ -578,8 +583,20 @@ void TTableNode::UpdateExpectedTabletState(ETabletState state)
     }
 }
 
+void TTableNode::ValidateNoCurrentMountTransaction(TStringBuf message) const
+{
+    const auto* trunkTable = GetTrunkNode();
+    const auto& transactionId = trunkTable->GetCurrentMountTransactionId();
+    if (transactionId) {
+        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since node is locked by mount-unmount operation", message)
+            << TErrorAttribute("current_mount_transaction_id", transactionId);
+    }
+}
+
 void TTableNode::ValidateTabletStateFixed(TStringBuf message) const
 {
+    ValidateNoCurrentMountTransaction(message);
+
     const auto* trunkTable = GetTrunkNode();
     const auto& transactionId = trunkTable->GetLastMountTransactionId();
     if (transactionId) {
