@@ -116,50 +116,50 @@ void WriteToPacker(msgpack::packer<msgpack::sbuffer>* packer, const INodePtr& no
     };
 
     switch(node->GetType()) {
-    case ENodeType::Entity:
-        packer->pack_nil();
-        break;
-    case ENodeType::Boolean: {
-        if (node->GetValue<bool>()) {
-            packer->pack_true();
-        } else {
-            packer->pack_false();
+        case ENodeType::Entity:
+            packer->pack_nil();
+            break;
+        case ENodeType::Boolean: {
+            if (node->GetValue<bool>()) {
+                packer->pack_true();
+            } else {
+                packer->pack_false();
+            }
+            break;
         }
-        break;
-    }
-    case ENodeType::Int64:
-        packer->pack_int64(node->GetValue<i64>());
-        break;
-    case ENodeType::Uint64:
-        packer->pack_uint64(node->GetValue<ui64>());
-        break;
-    case ENodeType::Double:
-        packer->pack_double(node->GetValue<double>());
-        break;    
-    case ENodeType::String: {
-        auto value = node->GetValue<TString>();
-        packString(value);
-        break;
-    }
-    case ENodeType::List: {
-        auto list = node->AsList()->GetChildren();
-        packer->pack_array(list.size());
-        for (auto&& item : list) {
-            WriteToPacker(packer, item);
+        case ENodeType::Int64:
+            packer->pack_int64(node->GetValue<i64>());
+            break;
+        case ENodeType::Uint64:
+            packer->pack_uint64(node->GetValue<ui64>());
+            break;
+        case ENodeType::Double:
+            packer->pack_double(node->GetValue<double>());
+            break;
+        case ENodeType::String: {
+            auto value = node->GetValue<TString>();
+            packString(value);
+            break;
         }
-        break;
-    }
-    case ENodeType::Map: {
-        auto map = node->AsMap()->GetChildren();
-        packer->pack_map(map.size());
-        for (auto&& item : map) {
-            packString(item.first);
-            WriteToPacker(packer, item.second);
+        case ENodeType::List: {
+            auto list = node->AsList()->GetChildren();
+            packer->pack_array(list.size());
+            for (auto&& item : list) {
+                WriteToPacker(packer, item);
+            }
+            break;
         }
-        break;
-    }
-    default:
-        THROW_ERROR_EXCEPTION("Unsupported node type");
+        case ENodeType::Map: {
+            auto map = node->AsMap()->GetChildren();
+            packer->pack_map(map.size());
+            for (auto&& item : map) {
+                packString(item.first);
+                WriteToPacker(packer, item.second);
+            }
+            break;
+        }
+        default:
+            THROW_ERROR_EXCEPTION("Unsupported node type");
     }
 }
 

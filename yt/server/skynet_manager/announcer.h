@@ -47,7 +47,7 @@ private:
     const NNet::TNetworkAddress TrackerAddress_;
     const TString PeerId_;
 
-    typedef ui32 TTrackerTransactionId;
+    using TTrackerTransactionId = ui32;
     struct TTrackerRequestContext
     {
         TInstant Deadline;
@@ -61,7 +61,7 @@ private:
 
     NProfiling::TMonotonicCounter SuccessfullPackets_;
     NProfiling::TMonotonicCounter FailedPackets_;
-    NProfiling::TMonotonicCounter TimedoutPackets_;
+    NProfiling::TMonotonicCounter TimedOutPackets_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTrackerConnection)
@@ -77,7 +77,7 @@ public:
 
     void PutRestored(TResourceId resourceId, TTrackerId trackerCount);
     void PutRetry(TResourceId resourceId, TTrackerId failedTrackerId);
-    void PutWithTTL(TResourceId resourceId, TTrackerId trackerId, TDuration ttl);
+    void PutWithTtl(TResourceId resourceId, TTrackerId trackerId, TDuration ttl);
     size_t QueueSize() const;
 
 private:
@@ -161,7 +161,7 @@ private:
     std::vector<std::pair<NNet::TNetworkAddress, TTrackerConnectionPtr>> Trackers_;
 
     void RunReceiveLoop();
-    void RunConnectLoop(TTrackerConnectionPtr tracker);
+    void RunConnectLoop(const TTrackerConnectionPtr& tracker);
     void RunAnnounceLoop();
     void ExpireRequests();
 };
