@@ -111,14 +111,14 @@ class TWritingValueConsumer
 {
 public:
     explicit TWritingValueConsumer(
-        ISchemalessWriterPtr writer,
+        IUnversionedWriterPtr writer,
         const TTypeConversionConfigPtr& typeConversionConfig = New<TTypeConversionConfig>(),
         i64 maxRowBufferSize = 1_MB);
 
     TFuture<void> Flush();
 
 private:
-    const ISchemalessWriterPtr Writer_;
+    const IUnversionedWriterPtr Writer_;
 
     const TRowBufferPtr RowBuffer_;
 

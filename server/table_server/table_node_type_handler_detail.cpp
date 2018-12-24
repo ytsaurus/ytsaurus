@@ -270,12 +270,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetInMemoryMode(trunkSourceNode->GetInMemoryMode());
     clonedNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
     clonedNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
-    clonedNode->SetEnableTabletBalancer(trunkSourceNode->GetEnableTabletBalancer());
-    clonedNode->SetMinTabletSize(trunkSourceNode->GetMinTabletSize());
-    clonedNode->SetMaxTabletSize(trunkSourceNode->GetMaxTabletSize());
-    clonedNode->SetDesiredTabletSize(trunkSourceNode->GetDesiredTabletSize());
-    clonedNode->SetDesiredTabletCount(trunkSourceNode->GetDesiredTabletCount());
-
+    clonedNode->MutableTabletBalancerConfig() = trunkSourceNode->TabletBalancerConfig();
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
 }
 

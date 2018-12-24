@@ -219,7 +219,7 @@ private:
     int GetSocketPort();
 
     void ConnectSocket(const NNet::TNetworkAddress& address);
-    void OnDialerFinished(SOCKET socket, const TError& error);
+    void OnDialerFinished(const TErrorOr<SOCKET>& socketOrError);
     void CloseSocket();
 
     void OnAddressResolveFinished(const TErrorOr<NNet::TNetworkAddress>& result);

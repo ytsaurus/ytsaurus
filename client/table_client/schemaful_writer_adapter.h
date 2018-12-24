@@ -8,9 +8,9 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<ISchemalessWriterPtr(TNameTablePtr)> TSchemalessWriterFactory;
+typedef std::function<IUnversionedWriterPtr(TNameTablePtr)> TSchemalessWriterFactory;
 
-ISchemafulWriterPtr CreateSchemafulWriterAdapter(ISchemalessWriterPtr underlyingWriter);
+IUnversionedRowsetWriterPtr CreateSchemafulWriterAdapter(IUnversionedWriterPtr underlyingWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

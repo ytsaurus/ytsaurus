@@ -26,7 +26,7 @@ struct TFixedMutationHeader
 
 TSharedRef SerializeMutationRecord(
     const NProto::TMutationHeader& mutationHeader,
-    const TRef& data)
+    TRef data)
 {
     TFixedMutationHeader recordHeader;
     recordHeader.HeaderSize = mutationHeader.ByteSize();

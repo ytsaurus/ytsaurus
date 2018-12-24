@@ -27,6 +27,7 @@ namespace NYT::NRpc::NGrpc {
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +40,7 @@ DEFINE_ENUM(EServerCallStage,
     (WaitingForService)
     (SendingResponse)
     (WaitingForClose)
+    (Done)
 );
 
 DEFINE_ENUM(EServerCallCookie,
@@ -66,6 +68,26 @@ private:
 
     TGrpcServerPtr Native_;
     std::vector<TGrpcServerCredentialsPtr> Credentials_;
+
+    std::atomic<int> CallHandlerCount_ = {0};
+    TPromise<void> ShutdownPromise_ = NewPromise<void>();
+
+
+    void OnCallHandlerConstructed()
+    {
+        ++CallHandlerCount_;
+    }
+
+    void OnCallHandlerDestroyed()
+    {
+        if (--CallHandlerCount_ > 0) {
+            return;
+        }
+
+        Cleanup();
+        ShutdownPromise_.SetFrom(TServerBase::DoStop(true));
+        Unref();
+    }
 
 
     virtual void DoStart() override
@@ -110,6 +132,9 @@ private:
 
         Ref();
 
+        // This instance is fake; see DoStop.
+        OnCallHandlerConstructed();
+
         TServerBase::DoStart();
 
         New<TCallHandler>(this);
@@ -121,42 +146,30 @@ private:
             : public TCompletionQueueTag
         {
         public:
-            TFuture<void> GetFuture()
-            {
-                return Promise_.ToFuture();
-            }
-
+            explicit TStopTag(TServerPtr owner)
+                : Owner_(std::move(owner))
+            { }
+            
             virtual void Run(bool success, int /*cookie*/) override
             {
-                Promise_.Set(success ? TError() : TError("GRPC server shutdown failed"));
+                YCHECK(success);
+                Owner_->OnCallHandlerDestroyed();
                 delete this;
             }
 
         private:
-            TPromise<void> Promise_ = NewPromise<void>();
-
+            const TServerPtr Owner_;
         };
 
-        auto* shutdownTag = graceful ? new TStopTag() : nullptr;
-        auto shutdownFuture = shutdownTag ? shutdownTag->GetFuture() : VoidFuture;
+        auto* shutdownTag = new TStopTag(this);
 
-        grpc_server_shutdown_and_notify(
-            Native_.Unwrap(),
-            CompletionQueue_,
-            shutdownTag ? shutdownTag->GetTag() : nullptr);
+        grpc_server_shutdown_and_notify(Native_.Unwrap(), CompletionQueue_, shutdownTag->GetTag());
 
         if (!graceful) {
             grpc_server_cancel_all_calls(Native_.Unwrap());
         }
 
-        return shutdownFuture.Apply(BIND(&TServer::OnShutdownFinished, MakeStrong(this), graceful));
-    }
-
-    TFuture<void> OnShutdownFinished(bool graceful)
-    {
-        Cleanup();
-        Unref();
-        return TServerBase::DoStop(graceful);
+        return ShutdownPromise_;
     }
 
     void Cleanup()
@@ -164,9 +177,68 @@ private:
         Native_.Reset();
     }
 
+    class TCallHandler;
+
+    class TReplyBus
+        : public IBus
+    {
+    public:
+        explicit TReplyBus(TCallHandler* handler)
+            : Handler_(MakeWeak(handler))
+            , PeerAddress_(handler->PeerAddress_)
+            , PeerAddressString_(handler->PeerAddressString_)
+        { }
+
+        // IBus overrides
+        virtual const TString& GetEndpointDescription() const override
+        {
+            return PeerAddressString_;
+        }
+
+        virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
+        {
+            Y_UNREACHABLE();
+        }
+
+        virtual TTcpDispatcherStatistics GetStatistics() const override
+        {
+            return {};
+        }
+
+        virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
+        {
+            return PeerAddress_;
+        }
+
+        virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
+        {
+            if (auto handler = Handler_.Lock()) {
+                handler->OnResponseMessage(std::move(message));
+            }
+            return {};
+        }
+
+        virtual void SetTosLevel(TTosLevel /*tosLevel*/) override
+        { }
+
+        virtual void Terminate(const TError& /*error*/) override
+        { }
+
+        virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        { }
+
+        virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        { }
+
+    private:
+        const TWeakPtr<TCallHandler> Handler_;
+        const TNetworkAddress PeerAddress_;
+        const TString PeerAddressString_;
+    };
+
     class TCallHandler
         : public TCompletionQueueTag
-        , public IBus
+        , public TRefCounted
     {
     public:
         explicit TCallHandler(TServerPtr owner)
@@ -185,12 +257,18 @@ private:
             YCHECK(result == GRPC_CALL_OK);
 
             Ref();
+            Owner_->OnCallHandlerConstructed();
+        }
+
+        ~TCallHandler()
+        {
+            Owner_->OnCallHandlerDestroyed();
         }
 
         // TCompletionQueueTag overrides
         virtual void Run(bool success, int cookie_) override
         {
-            auto cookie = EServerCallCookie(cookie_);
+            auto cookie = static_cast<EServerCallCookie>(cookie_);
             switch (cookie) {
                 case EServerCallCookie::Normal:
                     switch (Stage_) {
@@ -224,49 +302,9 @@ private:
             }
         }
 
-        // IBus overrides
-        virtual const TString& GetEndpointDescription() const override
-        {
-            return PeerAddressString_;
-        }
-
-        virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
-        {
-            Y_UNREACHABLE();
-        }
-
-        virtual TTcpDispatcherStatistics GetStatistics() const override
-        {
-            return {};
-        }
-
-        virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
-        {
-            return PeerAddress_;
-        }
-
-        virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
-        {
-            auto guard = Guard(SpinLock_);
-            YCHECK(!ResponseMessage_);
-            ResponseMessage_ = std::move(message);
-            MaybeSendResponse(guard);
-            return TFuture<void>();
-        }
-
-        virtual void SetTosLevel(TTosLevel /*tosLevel*/) override
-        { }
-
-        virtual void Terminate(const TError& error) override
-        { }
-
-        virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
-        { }
-
-        virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
-        { }
-
     private:
+        friend class TReplyBus;
+
         const TServerPtr Owner_;
 
         grpc_completion_queue* const CompletionQueue_;
@@ -274,10 +312,11 @@ private:
 
         TSpinLock SpinLock_;
         EServerCallStage Stage_ = EServerCallStage::Accept;
+        bool CancelRequested_ = false;
         TSharedRefArray ResponseMessage_;
 
         TString PeerAddressString_;
-        NNet::TNetworkAddress PeerAddress_;
+        TNetworkAddress PeerAddress_;
 
         TRequestId RequestId_;
         std::optional<TString> User_;
@@ -301,7 +340,7 @@ private:
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TString ErrorMessage_;
         grpc_slice ErrorMessageSlice_ = grpc_empty_slice();
-        int Canceled_ = 0;
+        int RawCanceled_ = 0;
 
 
         template <class TOps>
@@ -690,26 +729,28 @@ private:
                 ops[0].op = GRPC_OP_RECV_CLOSE_ON_SERVER;
                 ops[0].flags = 0;
                 ops[0].reserved = nullptr;
-                ops[0].data.recv_close_on_server.cancelled = &Canceled_;
+                ops[0].data.recv_close_on_server.cancelled = &RawCanceled_;
 
                 StartBatch(ops, EServerCallCookie::Close);
             }
 
+            auto replyBus = New<TReplyBus>(this);
             if (Service_) {
                 auto requestMessage = CreateRequestMessage(
                     *header,
                     messageWithAttachments.Message,
                     messageWithAttachments.Attachments);
 
-                Service_->HandleRequest(std::move(header), std::move(requestMessage), this);
+                Service_->HandleRequest(std::move(header), std::move(requestMessage), std::move(replyBus));
             } else {
                 auto error = TError(
                     NRpc::EErrorCode::NoSuchService,
                     "Service is not registered")
                     << TErrorAttribute("service", ServiceName_);
                 YT_LOG_WARNING(error);
-                auto response = CreateErrorResponseMessage(RequestId_, error);
-                Send(std::move(response), NBus::TSendOptions(EDeliveryTrackingLevel::None));
+                
+                auto responseMessage = CreateErrorResponseMessage(RequestId_, error);
+                replyBus->Send(std::move(responseMessage), NBus::TSendOptions(EDeliveryTrackingLevel::None));
             }
         }
 
@@ -724,20 +765,29 @@ private:
 
             {
                 auto guard = Guard(SpinLock_);
-                Stage_ = EServerCallStage::WaitingForService;
-                MaybeSendResponse(guard);
+                if (ResponseMessage_) {
+                    SendResponse(guard);
+                } else {
+                    Stage_ = EServerCallStage::WaitingForService;
+                    CheckCanceled(guard);
+                }
             }
         }
 
-
-        void MaybeSendResponse(TGuard<TSpinLock>& guard)
+        void OnResponseMessage(TSharedRefArray message)
         {
-            if (!ResponseMessage_) {
-                return;
+            auto guard = Guard(SpinLock_);
+            
+            YCHECK(!ResponseMessage_);
+            ResponseMessage_ = std::move(message);
+            
+            if (Stage_ == EServerCallStage::WaitingForService) {
+                SendResponse(guard);
             }
-            if (Stage_ != EServerCallStage::WaitingForService) {
-                return;
-            }
+        }
+
+        void SendResponse(TGuard<TSpinLock>& guard)
+        {
             Stage_ = EServerCallStage::SendingResponse;
             guard.Release();
 
@@ -792,6 +842,11 @@ private:
 
         void OnResponseSent(bool success)
         {
+            {
+                auto guard = Guard(SpinLock_);
+                Stage_ = EServerCallStage::Done;
+            }
+            
             if (success) {
                 YT_LOG_DEBUG("Response sent (RequestId: %v)",
                     RequestId_);
@@ -803,16 +858,11 @@ private:
             Unref();
         }
 
-
         void OnCloseReceived(bool success)
         {
             if (success) {
-                if (Canceled_) {
-                    YT_LOG_DEBUG("Request cancelation received (RequestId: %v)",
-                        RequestId_);
-                    if (Service_) {
-                        Service_->HandleRequestCancelation(RequestId_);
-                    }
+                if (RawCanceled_) {
+                    OnCanceled();
                 } else {
                     YT_LOG_DEBUG("Request closed (RequestId: %v)",
                         RequestId_);
@@ -823,6 +873,31 @@ private:
             }
 
             Unref();
+        }
+
+        void OnCanceled()
+        {
+            YT_LOG_DEBUG("Request cancelation received (RequestId: %v)",
+                RequestId_);
+
+            if (Service_) {
+                Service_->HandleRequestCancelation(RequestId_);
+            }
+
+            {
+                auto guard = Guard(SpinLock_);
+                CancelRequested_ = true;
+                CheckCanceled(guard);
+            }
+        }
+
+        void CheckCanceled(TGuard<TSpinLock>& guard)
+        {
+            if (CancelRequested_ && Stage_ == EServerCallStage::WaitingForService) {
+                Stage_ = EServerCallStage::Done;
+                guard.Release();
+                Unref();
+            }
         }
     };
 };

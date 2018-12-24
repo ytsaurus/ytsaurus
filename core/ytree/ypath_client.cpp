@@ -177,7 +177,7 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
     Attachments_ = std::vector<TSharedRef>(message.Begin() + 2, message.End());
 }
 
-void TYPathResponse::DeserializeBody(const TRef& data)
+void TYPathResponse::DeserializeBody(TRef data)
 {
     Y_UNUSED(data);
 }

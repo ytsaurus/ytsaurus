@@ -34,7 +34,7 @@ IVersionedRowsetPtr CreateRowset(
     const NTableClient::TTableSchema& schema,
     TSharedRange<NTableClient::TVersionedRow> rows);
 
-std::tuple<NTableClient::ISchemafulWriterPtr, TFuture<IUnversionedRowsetPtr>>
+std::tuple<NTableClient::IUnversionedRowsetWriterPtr, TFuture<IUnversionedRowsetPtr>>
     CreateSchemafulRowsetWriter(const NTableClient::TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////

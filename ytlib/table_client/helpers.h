@@ -57,9 +57,9 @@ NApi::ITableReaderPtr CreateApiFromSchemalessChunkReaderAdapter(
     ISchemalessChunkReaderPtr underlyingReader);
 
 NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
-    ISchemalessWriterPtr underlyingWriter);
+    IUnversionedWriterPtr underlyingWriter);
 
-ISchemalessWriterPtr CreateSchemalessFromApiWriterAdapter(
+IUnversionedWriterPtr CreateSchemalessFromApiWriterAdapter(
     NApi::ITableWriterPtr underlyingWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,12 +75,12 @@ struct TPipeReaderToWriterOptions
 
 void PipeReaderToWriter(
     NApi::ITableReaderPtr reader,
-    ISchemalessWriterPtr writer,
+    IUnversionedWriterPtr writer,
     const TPipeReaderToWriterOptions& options);
 
 void PipeReaderToWriter(
     ISchemalessChunkReaderPtr reader,
-    ISchemalessWriterPtr writer,
+    IUnversionedWriterPtr writer,
     const TPipeReaderToWriterOptions& options);
 
 void PipeInputToOutput(

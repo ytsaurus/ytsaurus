@@ -20,7 +20,7 @@ public:
     ISchemafulReaderPtr GetReader() const;
 
     //! Returns the writer side of the pipe.
-    ISchemafulWriterPtr GetWriter() const;
+    IUnversionedRowsetWriterPtr GetWriter() const;
 
     //! When called, propagates the error to the reader.
     void Fail(const TError& error);

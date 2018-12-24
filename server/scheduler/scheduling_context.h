@@ -26,7 +26,7 @@ struct TFairShareSchedulingStatistics
     int NonPreemptiveScheduleJobAttempts = 0;
     int ScheduledDuringPreemption = 0;
     int PreemptableJobCount = 0;
-    bool HasAggressivelyStarvingNodes = false;
+    bool HasAggressivelyStarvingElements = false;
     TJobResources ResourceUsageDiscount;
 };
 

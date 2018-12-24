@@ -95,7 +95,7 @@ protected:
     }
 
     template <class T>
-    static void CheckRecord(const T& data, const TRef& record)
+    static void CheckRecord(const T& data, TRef record)
     {
         EXPECT_EQ(record.Size(), sizeof(data));
         EXPECT_EQ(*(reinterpret_cast<const T*>(record.Begin())), data);

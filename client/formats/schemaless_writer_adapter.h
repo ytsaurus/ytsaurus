@@ -4,7 +4,7 @@
 #include "format.h"
 #include "helpers.h"
 
-#include <yt/client/table_client/schemaless_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/core/concurrency/public.h>
 

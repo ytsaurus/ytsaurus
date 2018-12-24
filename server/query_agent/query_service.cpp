@@ -25,7 +25,7 @@
 
 #include <yt/client/query_client/query_statistics.h>
 
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/client/table_client/wire_protocol.h>
 

@@ -228,6 +228,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FlushLagTime)
         .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletBalancerConfig)
+        .SetWritable(true)
+        .SetReplicated(true)
+        .SetOpaque(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -587,6 +591,14 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
         }
 
+        case EInternedAttributeKey::TabletBalancerConfig:
+            if (!isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->TabletBalancerConfig());
+            return true;
+
         default:
             break;
     }
@@ -813,6 +825,17 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             auto revision = hydraManager->GetAutomatonVersion().ToRevision();
             lockedTable->SetForcedCompactionRevision(revision);
+            return true;
+        }
+
+        case EInternedAttributeKey::TabletBalancerConfig: {
+            if (!table->IsDynamic()) {
+                break;
+            }
+            ValidateNoTransaction();
+
+            auto* lockedTable = LockThisImpl();
+            lockedTable->MutableTabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(value);
             return true;
         }
 

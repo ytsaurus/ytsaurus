@@ -3,8 +3,7 @@
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schemaful_writer.h>
-#include <yt/client/table_client/schemaless_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
@@ -15,10 +14,10 @@ namespace NYT::NTableClient {
 DECLARE_REFCOUNTED_CLASS(TSchemafulWriterAdapter)
 
 class TSchemafulWriterAdapter
-    : public ISchemafulWriter
+    : public IUnversionedRowsetWriter
 {
 public:
-    explicit TSchemafulWriterAdapter(ISchemalessWriterPtr underlyingWriter)
+    explicit TSchemafulWriterAdapter(IUnversionedWriterPtr underlyingWriter)
         : UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
@@ -38,13 +37,13 @@ public:
     }
 
 private:
-    const ISchemalessWriterPtr UnderlyingWriter_;
+    const IUnversionedWriterPtr UnderlyingWriter_;
 
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulWriterAdapter)
 
-ISchemafulWriterPtr CreateSchemafulWriterAdapter(ISchemalessWriterPtr underlyingWriter)
+IUnversionedRowsetWriterPtr CreateSchemafulWriterAdapter(IUnversionedWriterPtr underlyingWriter)
 {
     return New<TSchemafulWriterAdapter>(underlyingWriter);
 }

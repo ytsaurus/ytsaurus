@@ -26,7 +26,7 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/pipe.h>
 
@@ -659,7 +659,7 @@ public:
 };
 
 class TWriterMock
-    : public ISchemafulWriter
+    : public IUnversionedRowsetWriter
 {
 public:
     MOCK_METHOD0(Close, TFuture<void>());
@@ -683,7 +683,7 @@ TQueryStatistics DoExecuteQuery(
     TAggregateProfilerMapPtr aggregateProfilers,
     EFailureLocation failureLocation,
     TConstQueryPtr query,
-    ISchemafulWriterPtr writer,
+    IUnversionedRowsetWriterPtr writer,
     const TQueryBaseOptions& options,
     TJoinSubqueryProfiler joinProfiler = nullptr)
 {
@@ -1051,7 +1051,7 @@ protected:
             };
 
 
-            ISchemafulWriterPtr writer;
+            IUnversionedRowsetWriterPtr writer;
             TFuture<IUnversionedRowsetPtr> asyncResultRowset;
 
             std::tie(writer, asyncResultRowset) = CreateSchemafulRowsetWriter(primaryQuery->GetTableSchema());

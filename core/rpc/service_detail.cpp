@@ -727,8 +727,9 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
     {
         TGuard<TSpinLock> guard(CancelableRequestLock_);
         auto it = ReplyBusToContexts_.find(bus);
-        if (it == ReplyBusToContexts_.end())
+        if (it == ReplyBusToContexts_.end()) {
             return;
+        }
 
         for (auto* rawContext : it->second) {
             auto context = TServiceContext::DangerousGetPtr(rawContext);
@@ -852,6 +853,9 @@ void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
         if (it != ReplyBusToContexts_.end()) {
             auto& contexts = it->second;
             contexts.erase(context);
+            if (contexts.empty()) {
+                ReplyBusToContexts_.erase(it);
+            }
         }
     }
 }

@@ -3,7 +3,7 @@
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/actions/future.h>

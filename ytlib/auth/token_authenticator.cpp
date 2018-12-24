@@ -242,7 +242,7 @@ ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
 
 class TCachingTokenAuthenticator
     : public ITokenAuthenticator
-    , public TAsyncExpiringCache<TTokenCredentials, TAuthenticationResult>
+    , public TAsyncExpiringCache<TString, TAuthenticationResult>
 {
 public:
     TCachingTokenAuthenticator(
@@ -255,15 +255,39 @@ public:
 
     virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
-        return Get(credentials);
+        {
+            auto guard = Guard(Lock_);
+            LastUserIP_[credentials.Token] = credentials.UserIP;
+        }
+    
+        return Get(credentials.Token);
     }
 
 private:
     const ITokenAuthenticatorPtr TokenAuthenticator_;
 
-    virtual TFuture<TAuthenticationResult> DoGet(const TTokenCredentials& credentials) override
+    TSpinLock Lock_;
+    THashMap<TString, NNet::TNetworkAddress> LastUserIP_;
+
+    virtual TFuture<TAuthenticationResult> DoGet(const TString& token) override
     {
+        TTokenCredentials credentials;
+        credentials.Token = token;
+        {
+            auto guard = Guard(Lock_);
+            auto it = LastUserIP_.find(token);
+            if (it != LastUserIP_.end()) {
+                credentials.UserIP = it->second;
+            }
+        }
+        
         return TokenAuthenticator_->Authenticate(credentials);
+    }
+
+    virtual void OnErase(const TString& token) override
+    {
+        auto guard = Guard(Lock_);
+        LastUserIP_.erase(token);
     }
 };
 
