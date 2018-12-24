@@ -38,7 +38,7 @@ public:
         IChunkWriterPtr chunkWriter,
         NChunkClient::IBlockCachePtr blockCache);
 
-    virtual bool Write(const TRef& data) override;
+    virtual bool Write(TRef data) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -91,7 +91,7 @@ TFileChunkWriter::TFileChunkWriter(
         Logger))
 { }
 
-bool TFileChunkWriter::Write(const TRef& data)
+bool TFileChunkWriter::Write(TRef data)
 {
     YT_LOG_DEBUG("Writing data (Size: %v)", data.Size());
 
@@ -240,7 +240,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     typedef TMultiChunkWriterBase<
         IFileMultiChunkWriter,
         IFileChunkWriter,
-        const TRef&> TFileMultiChunkWriter;
+        TRef> TFileMultiChunkWriter;
 
     auto createChunkWriter = [=] (IChunkWriterPtr chunkWriter) {
          return CreateFileChunkWriter(

@@ -4,44 +4,40 @@
 #include <yt/core/net/listener.h>
 #include <yt/core/net/dialer.h>
 #include <yt/core/net/config.h>
+#include <yt/core/net/private.h>
 
 #include <yt/core/concurrency/poller.h>
 #include <yt/core/concurrency/thread_pool_poller.h>
 
-namespace NYT {
+namespace NYT::NNet {
 namespace {
 
-using namespace NYT::NNet;
 using namespace NYT::NConcurrency;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNetTest
     : public ::testing::Test
 {
-public:
-    TNetTest()
+protected:
+    IPollerPtr Poller;
+
+    virtual void SetUp() override
     {
         Poller = CreateThreadPoolPoller(2, "nettest");
     }
 
-    ~TNetTest()
+    virtual void TearDown() override
     {
         Poller->Shutdown();
     }
 
-protected:
-    IPollerPtr Poller;
-    const TDialerConfigPtr Config = New<TDialerConfig>();
-    NLogging::TLogger Logger = NLogging::TLogger("Net");
-
     IDialerPtr CreateDialer()
     {
         return NNet::CreateDialer(
-            Config,
+            New<TDialerConfig>(),
             Poller,
-            Logger);
+            NetLogger);
     }
 };
 
@@ -300,4 +296,4 @@ TEST_F(TNetTest, AbandonAccept)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NNet

@@ -514,17 +514,27 @@ TEST(THttpInputTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct THttpServerTest
+class THttpServerTest
     : public ::testing::TestWithParam<bool>
 {
+protected:
     IPollerPtr Poller;
     IServerPtr Server;
     IClientPtr Client;
 
-    int TestPort;
+    int TestPort = -1;
     TString TestUrl;
 
-    THttpServerTest()
+private:
+    void SetupServer(const NHttp::TServerConfigPtr& config)
+    {
+        config->Port = 0;
+    }
+
+    void SetupClient(const NHttp::TClientConfigPtr& /*config*/)
+    { }
+
+    virtual void SetUp() override
     {
         Poller = CreateThreadPoolPoller(4, "HttpTest");
         if (!GetParam()) {
@@ -559,21 +569,13 @@ struct THttpServerTest
         TestUrl = Format("http://localhost:%v", TestPort);
     }
 
-    ~THttpServerTest()
+    virtual void TearDown() override
     {
-        Server->Stop();
+        Server->Stop().Get().ThrowOnError();
         Server.Reset();
         Poller->Shutdown();
+        Poller.Reset();
     }
-
-private:
-    void SetupServer(const NHttp::TServerConfigPtr& config)
-    {
-        config->Port = 0;
-    }
-
-    void SetupClient(const NHttp::TClientConfigPtr& /*config*/)
-    { }
 };
 
 class TOKHttpHandler
@@ -594,9 +596,6 @@ TEST_P(THttpServerTest, SimpleRequest)
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/ok")).ValueOrThrow();
     ASSERT_EQ(EStatusCode::OK, rsp->GetStatusCode());
-
-    Server->Stop();
-    Sleep(TDuration::MilliSeconds(10));
 }
 
 class TEchoHttpHandler

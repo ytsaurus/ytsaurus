@@ -80,7 +80,7 @@ struct TFairShareContext
     int ScheduleJobFailureCount = 0;
     TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
 
-    // Used to avoid unnecessary calculation of HasAggressivelyStarvingNodes.
+    // Used to avoid unnecessary calculation of HasAggressivelyStarvingElements.
     bool PrescheduledCalled = false;
 
     TFairShareSchedulingStatistics SchedulingStatistics;
@@ -180,8 +180,8 @@ class TSchedulerElement
     , public TIntrinsicRefCounted
 {
 public:
-    //! Enumerates nodes of the tree using inorder traversal. Returns first unused index.
-    virtual int EnumerateNodes(int startIndex);
+    //! Enumerates elements of the tree using inorder traversal. Returns first unused index.
+    virtual int EnumerateElements(int startIndex);
 
     int GetTreeIndex() const;
     void SetTreeIndex(int treeIndex);
@@ -205,7 +205,7 @@ public:
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled);
     virtual bool ScheduleJob(TFairShareContext* context) = 0;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const = 0;
+    virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const = 0;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
 
@@ -361,7 +361,7 @@ public:
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
 
-    virtual int EnumerateNodes(int startIndex) override;
+    virtual int EnumerateElements(int startIndex) override;
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
@@ -382,7 +382,7 @@ public:
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual bool ScheduleJob(TFairShareContext* context) override;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
+    virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
     virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
@@ -557,7 +557,7 @@ protected:
 DEFINE_ENUM(EOperationPreemptionStatus,
     (Allowed)
     (ForbiddenSinceStarvingParent)
-    (ForbiddenSinceUnsatisfiedParent)
+    (ForbiddenSinceUnsatisfiedParentOrSelf)
     (ForbiddenSinceLowJobCount)
 );
 
@@ -780,7 +780,7 @@ public:
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual bool ScheduleJob(TFairShareContext* context) override;
 
-    virtual bool HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
+    virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
     virtual TString GetLoggingString(const TDynamicAttributesList& dynamicAttributesList) const override;
 

@@ -372,8 +372,9 @@ bool THttpInput::ReceiveHeaders()
     
         bool eof = false;
         if (UnconsumedData_.Empty()) {
-            auto asyncRead = Connection_->Read(InputBuffer_);
-            UnconsumedData_ = InputBuffer_.Slice(0, WaitFor(asyncRead).ValueOrThrow());
+            auto asyncReadResult = Connection_->Read(InputBuffer_);
+            auto readResult = WaitFor(asyncReadResult);
+            UnconsumedData_ = InputBuffer_.Slice(0, readResult.ValueOrThrow());
             eof = UnconsumedData_.Size() == 0;
         }
 

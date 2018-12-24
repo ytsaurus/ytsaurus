@@ -45,10 +45,10 @@ using TEvaluateResult = std::pair<
 
 TQueryStatistics CoordinateAndExecute(
     const TConstQueryPtr& query,
-    const ISchemafulWriterPtr& writer,
+    const IUnversionedRowsetWriterPtr& writer,
     const std::vector<TRefiner>& ranges,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
-    std::function<TQueryStatistics(TConstFrontQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop);
+    std::function<TQueryStatistics(TConstFrontQueryPtr, ISchemafulReaderPtr, IUnversionedRowsetWriterPtr)> evaluateTop);
 
 ////////////////////////////////////////////////////////////////////////////////
 

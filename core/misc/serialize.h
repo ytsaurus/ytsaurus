@@ -21,7 +21,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOutput>
-void Write(TOutput& output, const TRef& ref)
+void Write(TOutput& output, TRef ref)
 {
     output.Write(ref.Begin(), ref.Size());
 }
@@ -57,7 +57,7 @@ size_t WritePadding(TOutput& output, size_t writtenSize)
 }
 
 template <class TOutput>
-size_t WritePadded(TOutput& output, const TRef& ref)
+size_t WritePadded(TOutput& output, TRef ref)
 {
     output.Write(ref.Begin(), ref.Size());
     output.Write(&NYT::NDetail::SerializationPadding, GetPaddingSize(ref.Size()));
@@ -408,7 +408,7 @@ struct TDefaultSerializer
 struct TRangeSerializer
 {
     template <class C>
-    static void Save(C& context, const TRef& value)
+    static void Save(C& context, TRef value)
     {
         auto* output = context.GetOutput();
         output->Write(value.Begin(), value.Size());

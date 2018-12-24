@@ -12,7 +12,7 @@
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schemaful_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/versioned_writer.h>
 #include <yt/client/table_client/columnar_statistics.h>
 

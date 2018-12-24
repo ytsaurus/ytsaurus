@@ -31,7 +31,7 @@ protected:
 
     TYamrFormatConfigPtr Config_;
 
-    ISchemalessWriterPtr Writer_;
+    IUnversionedWriterPtr Writer_;
 
     TStringStream OutputStream_;
 

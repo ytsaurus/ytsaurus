@@ -262,7 +262,7 @@ public:
         void SetEmpty();
 
         virtual void SetPromise(const TError& error) override;
-        virtual void DeserializeBody(const TRef& data) override;
+        virtual void DeserializeBody(TRef data) override;
 
         void Append(const TRspExecuteBatchPtr& subbatchResponse);
     };

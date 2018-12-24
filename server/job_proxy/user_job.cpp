@@ -46,7 +46,7 @@
 #include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schemaless_writer.h>
+#include <yt/client/table_client/unversioned_writer.h>
 
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>

@@ -256,7 +256,7 @@ public:
 protected:
     explicit TClientResponse(TClientContextPtr clientContext);
 
-    virtual void DeserializeBody(const TRef& data) = 0;
+    virtual void DeserializeBody(TRef data) = 0;
 
 private:
     TSharedRefArray ResponseMessage_;
@@ -289,7 +289,7 @@ private:
 
 
     virtual void SetPromise(const TError& error) override;
-    virtual void DeserializeBody(const TRef& data) override;
+    virtual void DeserializeBody(TRef data) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1002,7 +1002,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     }
 
     if (!context->PrescheduledCalled) {
-        context->SchedulingStatistics.HasAggressivelyStarvingNodes = rootElement->HasAggressivelyStarvingNodes(context, false);
+        context->SchedulingStatistics.HasAggressivelyStarvingElements = rootElement->HasAggressivelyStarvingElements(context, false);
     }
 
     // Compute discount to node usage.
@@ -1023,7 +1023,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
                 continue;
             }
 
-            bool aggressivePreemptionEnabled = context->SchedulingStatistics.HasAggressivelyStarvingNodes &&
+            bool aggressivePreemptionEnabled = context->SchedulingStatistics.HasAggressivelyStarvingElements &&
                 operationElement->IsAggressiveStarvationPreemptionAllowed();
             if (operationElement->IsJobPreemptable(job->GetId(), aggressivePreemptionEnabled)) {
                 auto* parent = operationElement->GetParent();

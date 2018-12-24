@@ -173,7 +173,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulWriterForSchemafulDsv
-    : public ISchemafulWriter
+    : public IUnversionedRowsetWriter
     , public TSchemafulDsvWriterBase
 {
 public:
@@ -350,7 +350,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
+IUnversionedRowsetWriterPtr CreateSchemafulWriterForSchemafulDsv(
     TSchemafulDsvFormatConfigPtr config,
     const TTableSchema& schema,
     IAsyncOutputStreamPtr stream)
@@ -373,7 +373,7 @@ ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
         idToIndexInRow);
 }
 
-ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
+IUnversionedRowsetWriterPtr CreateSchemafulWriterForSchemafulDsv(
     const IAttributeDictionary& attributes,
     const TTableSchema& schema,
     IAsyncOutputStreamPtr stream)

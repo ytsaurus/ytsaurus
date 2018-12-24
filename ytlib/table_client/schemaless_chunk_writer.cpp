@@ -1477,7 +1477,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessTableWriter
-    : public ISchemalessWriter
+    : public IUnversionedWriter
     , public TTransactionListener
 {
 public:
@@ -1604,7 +1604,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessWriterPtr DoCreateSchemalessTableWriter(
+IUnversionedWriterPtr DoCreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
@@ -1831,7 +1831,7 @@ ISchemalessWriterPtr DoCreateSchemalessTableWriter(
         objectId);
 }
 
-TFuture<ISchemalessWriterPtr> CreateSchemalessTableWriter(
+TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,

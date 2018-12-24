@@ -39,7 +39,7 @@ TSharedRef SerializeToProtoWithHeader(
 
 bool DeserializeFromProtoWithHeader(
     google::protobuf::MessageLite* message,
-    const TRef& data)
+    TRef data)
 {
     if (data.Size() < sizeof(TFixedMessageHeader)) {
         return false;

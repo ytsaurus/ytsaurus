@@ -148,13 +148,13 @@ TString SerializeProtoToString(
 //! Returns |true| iff everything went well.
 bool TryDeserializeProto(
     google::protobuf::MessageLite* message,
-    const TRef& data);
+    TRef data);
 
 //! Deserializes a chunk of memory into a protobuf message.
 //! Fails on error.
 void DeserializeProto(
     google::protobuf::MessageLite* message,
-    const TRef& data);
+    TRef data);
 
 //! Serializes a given protobuf message and wraps it with envelope.
 //! Optionally compresses the serialized message.
@@ -175,14 +175,14 @@ TString SerializeProtoToStringWithEnvelope(
 //! Returns |true| iff everything went well.
 bool TryDeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
-    const TRef& data);
+    TRef data);
 
 //! Unwraps a chunk of memory obtained from #TrySerializeProtoToRefWithEnvelope
 //! and deserializes it into a protobuf message.
 //! Fails on error.
 void DeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
-    const TRef& data);
+    TRef data);
 
 TSharedRef PushEnvelope(const TSharedRef& data);
 TSharedRef PopEnvelope(const TSharedRef& data);

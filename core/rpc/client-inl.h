@@ -66,7 +66,7 @@ void TTypedClientResponse<TResponseMessage>::SetPromise(const TError& error)
 }
 
 template <class TResponseMessage>
-void TTypedClientResponse<TResponseMessage>::DeserializeBody(const TRef& data)
+void TTypedClientResponse<TResponseMessage>::DeserializeBody(TRef data)
 {
     DeserializeProtoWithEnvelope(this, data);
 }

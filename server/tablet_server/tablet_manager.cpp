@@ -3186,6 +3186,7 @@ private:
             Persist(context, DataStatistics);
             Persist(context, TabletResourceUsage);
 
+            // COMPAT(aozeritsky)
             if (context.GetVersion() >= 814) {
                 Persist(context, ModificationTime);
                 Persist(context, AccessTime);

@@ -81,10 +81,10 @@ class TTlsConnection
 public:
     TTlsConnection(
         TSslContextImplPtr ctx,
-        IInvokerPtr underlyingInvoker,
+        IPollerPtr poller,
         IConnectionPtr connection)
         : Ctx_(std::move(ctx))
-        , Invoker_(CreateSerializedInvoker(std::move(underlyingInvoker)))
+        , Invoker_(CreateSerializedInvoker(poller->GetInvoker()))
         , Underlying_(std::move(connection))
     {
         Ssl_ = SSL_new(Ctx_->Ctx);
@@ -110,8 +110,6 @@ public:
     ~TTlsConnection()
     {
         SSL_free(Ssl_);
-        Ssl_ = nullptr;
-        // BIO is owned by SSL.
     }
 
     void StartClient()
@@ -189,10 +187,10 @@ public:
     virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         auto promise = NewPromise<size_t>();
-        ++ActiveIO_;
+        ++ActiveIOCount_;
         Invoker_->Invoke(BIND([this, this_ = MakeStrong(this), promise, buffer] () {
             ReadBuffer_ = buffer;
-            ReadResult_ = promise;
+            ReadPromise_ = promise;
 
             YCHECK(!ReadActive_);
             ReadActive_ = true;
@@ -210,10 +208,10 @@ public:
     virtual TFuture<void> WriteV(const TSharedRefArray& buffer) override
     {
         auto promise = NewPromise<void>();
-        ++ActiveIO_;
+        ++ActiveIOCount_;
         Invoker_->Invoke(BIND([this, this_ = MakeStrong(this), promise, buffer] () {
             WriteBuffer_ = buffer;
-            WriteResult_ = promise;
+            WritePromise_ = promise;
 
             YCHECK(!WriteActive_);
             WriteActive_ = true;
@@ -237,7 +235,7 @@ public:
 
     virtual TFuture<void> Close() override
     {
-        ++ActiveIO_;
+        ++ActiveIOCount_;
         return BIND([this, this_ = MakeStrong(this)] () {
             CloseRequested_ = true;
 
@@ -249,7 +247,7 @@ public:
 
     virtual bool IsIdle() const override
     {
-        return ActiveIO_ == 0 && !Failed_;
+        return ActiveIOCount_ == 0 && !Failed_;
     }
 
     virtual TFuture<void> Abort() override
@@ -265,17 +263,16 @@ public:
     }
 
 private:
-    TSslContextImplPtr Ctx_;
-    IInvokerPtr Invoker_;
-    IConnectionPtr Underlying_;
-    TLogger Logger;
+    const TSslContextImplPtr Ctx_;
+    const IInvokerPtr Invoker_;
+    const IConnectionPtr Underlying_;
 
     SSL* Ssl_ = nullptr;
     BIO* InputBIO_ = nullptr;
     BIO* OutputBIO_ = nullptr;
 
     // This counter gets stuck after streams encounters an error.
-    std::atomic<int> ActiveIO_ = {0};
+    std::atomic<int> ActiveIOCount_ = {0};
     std::atomic<bool> Failed_ = {false};
 
     // FSM
@@ -292,11 +289,12 @@ private:
 
     // Active read
     TSharedMutableRef ReadBuffer_;
-    TPromise<size_t> ReadResult_;
+    TPromise<size_t> ReadPromise_;
 
     // Active write
     TSharedRefArray WriteBuffer_;
-    TPromise<void> WriteResult_;
+    TPromise<void> WritePromise_;
+
 
     void CheckError()
     {
@@ -306,61 +304,73 @@ private:
 
         if (ReadActive_) {
             Failed_ = true;
-            ReadResult_.Set(Error_);
+            ReadPromise_.Set(Error_);
             ReadActive_ = false;
         }
 
         if (WriteActive_) {
             Failed_ = true;
-            WriteResult_.Set(Error_);
+            WritePromise_.Set(Error_);
             WriteActive_ = false;
         }
+    }
+
+    template <class T>
+    void HandleUnderlyingIOResult(TFuture<T> future, TCallback<void(const TErrorOr<T>&)> handler)
+    {
+        future.Subscribe(BIND([handler = std::move(handler), invoker = Invoker_] (const TErrorOr<T>& result) {
+            GuardedInvoke(
+                std::move(invoker),
+                BIND(handler, result),
+                BIND([=] {
+                    TError error("Poller terminated");
+                    handler(error);
+                }));
+        }));
     }
 
     void MaybeStartUnderlyingIO(bool sslWantRead)
     {
         if (!UnderlyingReadActive_ && sslWantRead) {
             UnderlyingReadActive_ = true;
-            auto callback = BIND([this, this_ = MakeStrong(this)] (const TErrorOr<size_t>& result) {
-                UnderlyingReadActive_ = false;
-                if (result.IsOK()) {
-                    if (result.Value() > 0) {
-                        int count = BIO_write(InputBIO_, InputBuffer_.Begin(), result.Value());
-                        YCHECK(count == result.Value());
+            HandleUnderlyingIOResult(
+                Underlying_->Read(InputBuffer_),
+                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<size_t>& result) {
+                    UnderlyingReadActive_ = false;
+                    if (result.IsOK()) {
+                        if (result.Value() > 0) {
+                            int count = BIO_write(InputBIO_, InputBuffer_.Begin(), result.Value());
+                            YCHECK(count == result.Value());
+                        } else {
+                            BIO_set_mem_eof_return(InputBIO_, 0);
+                        }
                     } else {
-                        BIO_set_mem_eof_return(InputBIO_, 0);
+                        Error_ = result;
                     }
-                } else {
-                    Error_ = result;
-                }
 
-                DoRun();
-                MaybeStartUnderlyingIO(false);
-            })
-                .Via(Invoker_);
-
-            Underlying_->Read(InputBuffer_)
-                .Subscribe(callback);
+                    DoRun();
+                    MaybeStartUnderlyingIO(false);
+                }));
         }
 
         if (!UnderlyingWriteActive_ && BIO_ctrl_pending(OutputBIO_)) {
             UnderlyingWriteActive_ = true;
-            auto callback = BIND([this, this_ = MakeStrong(this)] (const TError& result) {
-                UnderlyingWriteActive_ = false;
-                if (result.IsOK()) {
-                    // Hooray!
-                } else {
-                    Error_ = result;
-                }
-
-                DoRun();
-            })
-                .Via(Invoker_);
 
             int count = BIO_read(OutputBIO_, OutputBuffer_.Begin(), OutputBuffer_.Size());
             YCHECK(count > 0);
-            Underlying_->Write(OutputBuffer_.Slice(0, count))
-                .Subscribe(callback);
+
+            HandleUnderlyingIOResult(
+                Underlying_->Write(OutputBuffer_.Slice(0, count)),
+                BIND([=, this_ = MakeStrong(this)] (const TError& result) {
+                    UnderlyingWriteActive_ = false;
+                    if (result.IsOK()) {
+                        // Hooray!
+                    } else {
+                        Error_ = result;
+                    }
+
+                    DoRun();
+                }));
         }
     }
 
@@ -376,7 +386,7 @@ private:
         // NB: We should check for an error here, because Underylying_ might have failed already, and then
         // we will loop on SSL_ERROR_WANT_READ forever.
         if (HandshakeInProgress_ && Error_.IsOK()) {
-            int sslResult = SSL_do_handshake(Ssl_);
+           int sslResult = SSL_do_handshake(Ssl_);
             if (sslResult == 1) {
                 HandshakeInProgress_ = false;
             } else {
@@ -394,7 +404,7 @@ private:
         }
 
         if (HandshakeInProgress_) {
-            return;
+           return;
         }
 
         // Second condition acts as a poor-man backpressure.
@@ -417,19 +427,19 @@ private:
 
             WriteActive_ = false;
             WriteBuffer_.Reset();
-            WriteResult_.Set();
-            WriteResult_.Reset();
-            --ActiveIO_;
+            WritePromise_.Set();
+            WritePromise_.Reset();
+            --ActiveIOCount_;
         }
 
         if (ReadActive_) {
             int count = SSL_read(Ssl_, ReadBuffer_.Begin(), ReadBuffer_.Size());
             if (count >= 0) {
                 ReadActive_ = false;
-                ReadResult_.Set(count);
-                ReadResult_.Reset();
+                ReadPromise_.Set(count);
+                ReadPromise_.Reset();
                 ReadBuffer_.Reset();
-                --ActiveIO_;
+                --ActiveIOCount_;
             } else {
                 int sslError = SSL_get_error(Ssl_, count);
                 if (sslError == SSL_ERROR_WANT_READ) {
@@ -455,27 +465,27 @@ class TTlsDialer
 {
 public:
     TTlsDialer(
-        const TSslContextImplPtr& ctx,
-        const IDialerPtr& dialer,
-        const IInvokerPtr& invoker)
-        : Ctx_(ctx)
-        , Underlying_(dialer)
-        , Invoker_(invoker)
+        TSslContextImplPtr ctx,
+        IDialerPtr dialer,
+        IPollerPtr poller)
+        : Ctx_(std::move(ctx))
+        , Underlying_(std::move(dialer))
+        , Poller_(std::move(poller))
     { }
 
     virtual TFuture<IConnectionPtr> Dial(const TNetworkAddress& remote) override
     {
-        return Underlying_->Dial(remote).Apply(BIND([ctx=Ctx_, invoker=Invoker_] (IConnectionPtr underlying) -> IConnectionPtr {
-            auto connection = New<TTlsConnection>(ctx, invoker, underlying);
+        return Underlying_->Dial(remote).Apply(BIND([ctx = Ctx_, poller = Poller_] (const IConnectionPtr& underlying) -> IConnectionPtr {
+            auto connection = New<TTlsConnection>(ctx, poller, underlying);
             connection->StartClient();
             return connection;
         }));
     }
 
 private:
-    TSslContextImplPtr Ctx_;
-    IDialerPtr Underlying_;
-    IInvokerPtr Invoker_;
+    const TSslContextImplPtr Ctx_;
+    const IDialerPtr Underlying_;
+    const IPollerPtr Poller_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -485,12 +495,12 @@ class TTlsListener
 {
 public:
     TTlsListener(
-        const TSslContextImplPtr& ctx,
-        const IListenerPtr& listener,
-        const IInvokerPtr& invoker)
-        : Ctx_(ctx)
-        , Underlying_(listener)
-        , Invoker_(invoker)
+        TSslContextImplPtr ctx,
+        IListenerPtr listener,
+        IPollerPtr poller)
+        : Ctx_(std::move(ctx))
+        , Underlying_(std::move(listener))
+        , Poller_(std::move(poller))
     { }
 
     const TNetworkAddress& GetAddress() const override
@@ -501,17 +511,22 @@ public:
     virtual TFuture<IConnectionPtr> Accept() override
     {
         return Underlying_->Accept().Apply(
-            BIND([ctx = Ctx_, invoker = Invoker_] (const IConnectionPtr& underlying) -> IConnectionPtr {
-                auto connection = New<TTlsConnection>(ctx, invoker, underlying);
+            BIND([ctx = Ctx_, poller = Poller_] (const IConnectionPtr& underlying) -> IConnectionPtr {
+                auto connection = New<TTlsConnection>(ctx, poller, underlying);
                 connection->StartServer();
                 return connection;
             }));
     }
 
+    virtual void Shutdown() override
+    {
+        Underlying_->Shutdown();
+    }
+
 private:
     const TSslContextImplPtr Ctx_;
     const IListenerPtr Underlying_;
-    const IInvokerPtr Invoker_;
+    const IPollerPtr Poller_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -658,7 +673,7 @@ IDialerPtr TSslContext::CreateDialer(
     const TLogger& logger)
 {
     auto dialer = NNet::CreateDialer(config, poller, logger);
-    return New<TTlsDialer>(Impl_, dialer, poller->GetInvoker());
+    return New<TTlsDialer>(Impl_, dialer, poller);
 }
 
 IListenerPtr TSslContext::CreateListener(
@@ -666,14 +681,14 @@ IListenerPtr TSslContext::CreateListener(
     const IPollerPtr& poller)
 {
     auto listener = NNet::CreateListener(at, poller);
-    return New<TTlsListener>(Impl_, listener, poller->GetInvoker());
+    return New<TTlsListener>(Impl_, listener, poller);
 }
 
 IListenerPtr TSslContext::CreateListener(
     const IListenerPtr& underlying,
     const IPollerPtr& poller)
 {
-    return New<TTlsListener>(Impl_, underlying, poller->GetInvoker());
+    return New<TTlsListener>(Impl_, underlying, poller);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

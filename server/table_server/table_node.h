@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <yt/server/cell_master/public.h>
 
@@ -45,11 +46,6 @@ private:
         TTabletStateIndexedVector TabletCountByState;
         TTabletStateIndexedVector TabletCountByExpectedState;
         TTabletList Tablets;
-        std::optional<bool> EnableTabletBalancer;
-        std::optional<i64> MinTabletSize;
-        std::optional<i64> MaxTabletSize;
-        std::optional<i64> DesiredTabletSize;
-        std::optional<int> DesiredTabletCount;
         int TabletErrorCount = 0;
         std::optional<i64> ForcedCompactionRevision;
         bool Dynamic = false;
@@ -59,6 +55,8 @@ private:
         NTabletClient::ETabletState ExpectedTabletState = NTabletClient::ETabletState::Unmounted;
         NTransactionClient::TTransactionId LastMountTransactionId;
         NTransactionClient::TTransactionId PrimaryLastMountTransactionId;
+
+        TTabletBalancerConfigPtr TabletBalancerConfig;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -83,12 +81,8 @@ public:
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByExpectedState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, Tablets);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableTabletBalancer);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MinTabletSize);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MaxTabletSize);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletSize);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletCount);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletErrorCount);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletBalancerConfig);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedCompactionRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, Dynamic);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MountPath);
@@ -97,6 +91,13 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExpectedTabletState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastMountTransactionId);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, PrimaryLastMountTransactionId);
+
+    // COMPAT(ifsmirnov)
+    DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);
+    DECLARE_BYVAL_RW_PROPERTY(std::optional<i64>, MinTabletSize);
+    DECLARE_BYVAL_RW_PROPERTY(std::optional<i64>, MaxTabletSize);
+    DECLARE_BYVAL_RW_PROPERTY(std::optional<i64>, DesiredTabletSize);
+    DECLARE_BYVAL_RW_PROPERTY(std::optional<int>, DesiredTabletCount);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);

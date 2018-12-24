@@ -10,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksum GetChecksum(const TRef& data);
+TChecksum GetChecksum(TRef data);
 
 TChecksum CombineChecksums(const std::vector<TChecksum>& blockChecksums);
 

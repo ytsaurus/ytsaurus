@@ -109,7 +109,7 @@ public:
     void Deserialize(TSharedRefArray message);
 
 protected:
-    virtual void DeserializeBody(const TRef& data);
+    virtual void DeserializeBody(TRef data);
 
 };
 
@@ -123,7 +123,7 @@ class TTypedYPathResponse
     , public TResponseMessage
 {
 protected:
-    virtual void DeserializeBody(const TRef& data) override
+    virtual void DeserializeBody(TRef data) override
     {
         DeserializeProtoWithEnvelope(this, data);
     }

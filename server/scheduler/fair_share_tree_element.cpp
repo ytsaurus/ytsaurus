@@ -231,7 +231,7 @@ double TSchedulerElementSharedState::GetResourceUsageRatio(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TSchedulerElement::EnumerateNodes(int startIndex)
+int TSchedulerElement::EnumerateElements(int startIndex)
 {
     YCHECK(!Cloned_);
 
@@ -742,13 +742,13 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     cloneChildren(other.DisabledChildren_, &DisabledChildToIndex_, &DisabledChildren_);
 }
 
-int TCompositeSchedulerElement::EnumerateNodes(int startIndex)
+int TCompositeSchedulerElement::EnumerateElements(int startIndex)
 {
     YCHECK(!Cloned_);
 
-    startIndex = TSchedulerElement::EnumerateNodes(startIndex);
+    startIndex = TSchedulerElement::EnumerateElements(startIndex);
     for (const auto& child : EnabledChildren_) {
-        startIndex = child->EnumerateNodes(startIndex);
+        startIndex = child->EnumerateElements(startIndex);
     }
     return startIndex;
 }
@@ -976,7 +976,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
 
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
     if (Starving_ && aggressiveStarvationEnabled) {
-        context->SchedulingStatistics.HasAggressivelyStarvingNodes = true;
+        context->SchedulingStatistics.HasAggressivelyStarvingElements = true;
     }
 
     // If pool is starving, any child will do.
@@ -992,7 +992,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
     }
 }
 
-bool TCompositeSchedulerElement::HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const
+bool TCompositeSchedulerElement::HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const
 {
     // TODO(ignat): eliminate copy/paste
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
@@ -1001,7 +1001,7 @@ bool TCompositeSchedulerElement::HasAggressivelyStarvingNodes(TFairShareContext*
     }
 
     for (const auto& child : EnabledChildren_) {
-        if (child->HasAggressivelyStarvingNodes(context, aggressiveStarvationEnabled)) {
+        if (child->HasAggressivelyStarvingElements(context, aggressiveStarvationEnabled)) {
             return true;
         }
     }
@@ -2294,7 +2294,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
 
-bool TOperationElement::HasAggressivelyStarvingNodes(TFairShareContext* context, bool aggressiveStarvationEnabled) const
+bool TOperationElement::HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const
 {
     // TODO(ignat): Support aggressive starvation by starving operation.
     return false;
@@ -2519,7 +2519,7 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
             return false;
         }
 
-        bool aggressivePreemptionEnabled = context.SchedulingStatistics.HasAggressivelyStarvingNodes &&
+        bool aggressivePreemptionEnabled = context.SchedulingStatistics.HasAggressivelyStarvingElements &&
             element->IsAggressiveStarvationPreemptionAllowed() &&
             IsAggressiveStarvationPreemptionAllowed();
         auto threshold = aggressivePreemptionEnabled
@@ -2528,7 +2528,7 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
 
         // NB: we want to use <s>local</s> satisfaction here.
         if (element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
-            SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParent);
+            SharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParentOrSelf);
             return false;
         }
 
@@ -2839,7 +2839,7 @@ void TRootElement::Update(TDynamicAttributesList& dynamicAttributesList)
 {
     YCHECK(!Cloned_);
 
-    TreeSize_ = TCompositeSchedulerElement::EnumerateNodes(0);
+    TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0);
     dynamicAttributesList.assign(TreeSize_, TDynamicAttributes());
     TCompositeSchedulerElement::Update(dynamicAttributesList);
 }

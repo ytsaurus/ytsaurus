@@ -30,7 +30,7 @@ class TSchemalessWriterForYamredDsvTest
 protected:
     TNameTablePtr NameTable_;
     TYamredDsvFormatConfigPtr Config_;
-    ISchemalessWriterPtr Writer_;
+    IUnversionedWriterPtr Writer_;
 
     TStringStream OutputStream_;
 
