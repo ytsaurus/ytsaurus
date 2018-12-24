@@ -13,8 +13,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLogging::TLogger Logger("TTT");
-
 class TListener
     : public IPollable
     , public IListener
@@ -185,13 +183,9 @@ IListenerPtr CreateListener(
     const TNetworkAddress& address,
     const NConcurrency::IPollerPtr& poller)
 {
-    int family = address.GetSockAddr()->sa_family;
-    SOCKET serverSocket;
-    if (family == AF_UNIX) {
-        serverSocket = CreateUnixServerSocket();
-    } else {
-        serverSocket = CreateTcpServerSocket();
-    }
+    auto serverSocket = address.GetSockAddr()->sa_family == AF_UNIX
+        ? CreateUnixServerSocket()
+        : CreateTcpServerSocket();
 
     try {
         BindSocket(serverSocket, address);

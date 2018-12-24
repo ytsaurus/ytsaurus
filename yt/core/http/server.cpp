@@ -220,7 +220,6 @@ private:
             }
         }
 
-         YT_LOG_INFO("HandleRequest8");
         return true;
     }
 
@@ -252,7 +251,7 @@ private:
         
             bool ok = HandleRequest(request, response);
             if (!ok) {
-               break;
+                break;
             }
 
             auto logDrop = [&] (auto reason) {
@@ -283,7 +282,7 @@ private:
                 break;
             }
 
-           if (request->IsSafeToReuse()) {
+            if (request->IsSafeToReuse()) {
                 request->Reset();
             } else {
                 logDrop("Request is not safe to reuse");
