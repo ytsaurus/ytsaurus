@@ -112,6 +112,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidColumnFilter)        (309))
     ((InvalidColumnRenaming)      (310))
     ((IncompatibleKeyColumns)     (311))
+    ((ReaderDeadlineExpired)      (312))
 );
 
 DEFINE_ENUM(EControlAttribute,
