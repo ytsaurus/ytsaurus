@@ -6,7 +6,7 @@ namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void* Allocate(size_t size, bool dumpable);
+void* Allocate(size_t size);
 
 void Free(void* ptr);
 

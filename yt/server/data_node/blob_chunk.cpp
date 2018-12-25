@@ -346,7 +346,8 @@ void TBlobChunkBase::DoReadBlockSet(
 
                 // NB: Prevent cache from holding the whole block sequence.
                 if (blocks.size() > 1) {
-                    data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data, /* dumpable */ false);
+                    // FIXME(savrus) use undumpable memory zone guard.
+                    data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data);
                 }
 
                 auto blockId = TBlockId(Id_, entry.BlockIndex);

@@ -8,7 +8,7 @@ namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK void* Allocate(size_t size, bool dumpable = true)
+Y_WEAK void* Allocate(size_t size)
 {
     return ::malloc(size);
 }

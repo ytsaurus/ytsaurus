@@ -210,9 +210,9 @@ public:
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
-    static TSharedRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie, bool dumpable)
+    static TSharedRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
     {
-        auto blob = TBlob(tagCookie, ref.Size(), false, 1, dumpable);
+        auto blob = TBlob(tagCookie, ref.Size(), false, 1);
         ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
         return FromBlob(std::move(blob));
     }
@@ -220,9 +220,9 @@ public:
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedRef MakeCopy(TRef ref, bool dumpable = true)
+    static TSharedRef MakeCopy(TRef ref)
     {
-        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>(), dumpable);
+        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>());
     }
 
     //! Creates a TSharedRef for a part of existing range.
@@ -366,9 +366,9 @@ public:
 
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
-    static TSharedMutableRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie, bool dumpable)
+    static TSharedMutableRef MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
     {
-        auto blob = TBlob(tagCookie, ref.Size(), false, dumpable);
+        auto blob = TBlob(tagCookie, ref.Size(), false);
         ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
         return FromBlob(std::move(blob));
     }
@@ -376,9 +376,9 @@ public:
     //! Creates a copy of a given TRef.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedMutableRef MakeCopy(TRef ref, bool dumpable = true)
+    static TSharedMutableRef MakeCopy(TRef ref)
     {
-        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>(), dumpable);
+        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>());
     }
 
     //! Creates a reference for a part of existing range.

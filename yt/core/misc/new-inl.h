@@ -74,7 +74,7 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewImpl(
     As&& ... args)
 {
     auto totalSize = sizeof(T) + extraSpaceSize;
-    auto* ptr = NYTAlloc::Allocate(totalSize, true);
+    auto* ptr = NYTAlloc::Allocate(totalSize);
     auto* instance = static_cast<T*>(ptr);
 
     try {
