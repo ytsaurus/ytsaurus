@@ -50,5 +50,7 @@ Y_UNIT_TEST_SUITE(Common)
         UNIT_ASSERT_VALUES_EQUAL(newSchema.Columns_[2].Name_, TString("c"));
         checkSortBy(schema, {"b", "c"});
         checkSortBy(schema, {"c", "a"});
+        UNIT_ASSERT_EXCEPTION(checkSortBy(schema, {"b", "b"}), yexception);
+        UNIT_ASSERT_EXCEPTION(checkSortBy(schema, {"a", "junk"}), yexception);
     }
 }
