@@ -14,12 +14,9 @@ TBlob::TBlob(
     TRefCountedTypeCookie tagCookie,
     size_t size,
     bool initiailizeStorage,
-    size_t alignment,
-    bool dumpable)
+    size_t alignment)
     : Alignment_(alignment)
-    , Dumpable_(dumpable)
 {
-    YCHECK(Alignment_ > 0);
     SetTagCookie(tagCookie);
     if (size == 0) {
         Reset();
@@ -36,10 +33,8 @@ TBlob::TBlob(
     TRefCountedTypeCookie tagCookie,
     const void* data,
     size_t size,
-    size_t alignment,
-    bool dumpable)
+    size_t alignment)
     : Alignment_(alignment)
-    , Dumpable_(dumpable)
 {
     YCHECK(Alignment_ > 0);
     SetTagCookie(tagCookie);
@@ -49,7 +44,6 @@ TBlob::TBlob(
 
 TBlob::TBlob(const TBlob& other)
     : Alignment_(other.Alignment_)
-    , Dumpable_(other.Dumpable_)
 {
     SetTagCookie(other);
     if (other.Size_ == 0) {
@@ -67,7 +61,6 @@ TBlob::TBlob(TBlob&& other) noexcept
     , Size_(other.Size_)
     , Capacity_(other.Capacity_)
     , Alignment_(other.Alignment_)
-    , Dumpable_(other.Dumpable_)
 {
     SetTagCookie(other);
     other.Reset();
@@ -157,7 +150,7 @@ void TBlob::Reset()
 void TBlob::Allocate(size_t newCapacity)
 {
     YCHECK(!Buffer_);
-    Buffer_ = static_cast<char*>(NYTAlloc::Allocate(newCapacity + Alignment_ - 1, Dumpable_));
+    Buffer_ = static_cast<char*>(NYTAlloc::Allocate(newCapacity + Alignment_ - 1));
     Begin_ = AlignUp(Buffer_, Alignment_);
     Capacity_ = newCapacity;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -172,7 +165,7 @@ void TBlob::Reallocate(size_t newCapacity)
         Allocate(newCapacity);
         return;
     }
-    char* newBuffer = static_cast<char*>(NYTAlloc::Allocate(newCapacity + Alignment_ - 1, Dumpable_));
+    char* newBuffer = static_cast<char*>(NYTAlloc::Allocate(newCapacity + Alignment_ - 1));
     char* newBegin = AlignUp(newBuffer, Alignment_);
     memcpy(newBegin, Begin_, Size_);
     NYTAlloc::Free(Buffer_);

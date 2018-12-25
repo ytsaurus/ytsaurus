@@ -3068,8 +3068,9 @@ TBox<THugeBlobAllocator> HugeBlobAllocator;
 class TBlobAllocator
 {
 public:
-    static void* Allocate(size_t size, bool dumpable)
+    static void* Allocate(size_t size)
     {
+        bool dumpable = true;
         InitializeGlobals();
         // NB: Account for the header. Also note that we may safely ignore the alignment since
         // HugeSizeThreshold is already page-aligned.
@@ -3326,7 +3327,7 @@ void InitializeGlobals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE void* AllocateInline(size_t size, bool dumpable)
+Y_FORCE_INLINE void* AllocateInline(size_t size)
 {
 #define XX() \
     size_t rank; \
@@ -3336,7 +3337,7 @@ Y_FORCE_INLINE void* AllocateInline(size_t size, bool dumpable)
         if (Y_LIKELY(size < LargeSizeThreshold)) { \
             rank = SmallSizeToRank2[(size - 1) >> 8]; \
         } else { \
-            return TBlobAllocator::Allocate(size, dumpable); \
+            return TBlobAllocator::Allocate(size); \
         } \
     }
 
@@ -3359,9 +3360,9 @@ Y_FORCE_INLINE void* AllocateInline(size_t size, bool dumpable)
 #undef XX
 }
 
-Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size, bool dumpable)
+Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
 {
-    auto* ptr = TBlobAllocator::Allocate(size + PageSize, dumpable);
+    auto* ptr = TBlobAllocator::Allocate(size + PageSize);
     return AlignUp(ptr, PageSize);
 }
 
