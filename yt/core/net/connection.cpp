@@ -659,8 +659,6 @@ private:
         TDuration IdleDuration;
         TDuration BusyDuration;
         TCpuInstant StartTime = GetCpuInstant();
-
-        TCallback<void(TShutdownProtector)> DoIO;
         EPollControl PollFlag;
 
         void StartBusyTimer()
@@ -709,10 +707,7 @@ private:
         AbortFromReadTimeout_ = BIND(&TFDConnectionImpl::AbortFromReadTimeout, MakeWeak(this));
         AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
     
-        ReadDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeWeak(this), &ReadDirection_, false);
         ReadDirection_.PollFlag = EPollControl::Read;
-        
-        WriteDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeWeak(this), &WriteDirection_, false);
         WriteDirection_.PollFlag = EPollControl::Write;
         
         Poller_->Register(this);
@@ -765,7 +760,8 @@ private:
             return;
         }
 
-        Poller_->GetInvoker()->Invoke(BIND(direction->DoIO, Passed(std::move(protector))));
+        Poller_->GetInvoker()->Invoke(
+            BIND(&TFDConnectionImpl::DoIO, MakeWeak(this), direction, false, Passed(std::move(protector))));
     }
 
     void DoIO(TIODirection* direction, bool filterSpuriousEvent, TShutdownProtector /*protector*/)
