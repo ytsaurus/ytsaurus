@@ -198,7 +198,17 @@ protected:
         auto it = JobProxyProcesses_.find(slotIndex);
         if (it != JobProxyProcesses_.end()) {
             if (kill) {
-                it->second.Process->Kill(SIGKILL);
+                try {
+                    it->second.Process->Kill(SIGKILL);
+                } catch (const TErrorException& ex) {
+                    // If container disappeared, we don't care.
+                    if (ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist) ||
+                        ex.Error().FindMatching(EContainerErrorCode::InvalidState)) {
+                        LOG_DEBUG(ex, "Failed to kill job proxy container; it vanished");
+                    } else {
+                        throw;
+                    }
+                }
             }
 
             // Ensure that job proxy process finished.
