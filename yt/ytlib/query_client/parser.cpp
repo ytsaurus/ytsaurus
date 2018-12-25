@@ -1797,13 +1797,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
             if (yystack_[0].value.as< TExpressionList > ().size() != 1) {
                 THROW_ERROR_EXCEPTION("Expected scalar expression, got %Qv", GetSource(yylhs.location, source));
             }
-            head->Ast.As<TExpressionPtr>() = yystack_[0].value.as< TExpressionList > ().front();
+            std::get<TExpressionPtr>(head->Ast) = yystack_[0].value.as< TExpressionList > ().front();
         }
     break;
 
   case 8:
     {
-            head->Ast.As<TQuery>().SelectExprs = yystack_[0].value.as< TExpressionList > ();
+            std::get<TQuery>(head->Ast).SelectExprs = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
@@ -1831,7 +1831,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 13:
     {
-            head->Ast.As<TQuery>().Table = yystack_[1].value.as< TTableDescriptor > ();
+            std::get<TQuery>(head->Ast).Table = yystack_[1].value.as< TTableDescriptor > ();
         }
     break;
 
@@ -1847,13 +1847,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 16:
     {
-            head->Ast.As<TQuery>().Joins.emplace_back(yystack_[5].value.as< bool > (), yystack_[3].value.as< TTableDescriptor > (), yystack_[1].value.as< TIdentifierList > (), yystack_[0].value.as< TNullableExpressionList > ());
+            std::get<TQuery>(head->Ast).Joins.emplace_back(yystack_[5].value.as< bool > (), yystack_[3].value.as< TTableDescriptor > (), yystack_[1].value.as< TIdentifierList > (), yystack_[0].value.as< TNullableExpressionList > ());
         }
     break;
 
   case 17:
     {
-            head->Ast.As<TQuery>().Joins.emplace_back(yystack_[7].value.as< bool > (), yystack_[5].value.as< TTableDescriptor > (), yystack_[3].value.as< TExpressionList > (), yystack_[1].value.as< TExpressionList > (), yystack_[0].value.as< TNullableExpressionList > ());
+            std::get<TQuery>(head->Ast).Joins.emplace_back(yystack_[7].value.as< bool > (), yystack_[5].value.as< TTableDescriptor > (), yystack_[3].value.as< TExpressionList > (), yystack_[1].value.as< TExpressionList > (), yystack_[0].value.as< TNullableExpressionList > ());
         }
     break;
 
@@ -1871,13 +1871,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 21:
     {
-            head->Ast.As<TQuery>().WherePredicate = yystack_[0].value.as< TExpressionList > ();
+            std::get<TQuery>(head->Ast).WherePredicate = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
   case 23:
     {
-            head->Ast.As<TQuery>().GroupExprs = std::make_pair(yystack_[1].value.as< TExpressionList > (), yystack_[0].value.as< ETotalsMode > ());
+            std::get<TQuery>(head->Ast).GroupExprs = std::make_pair(yystack_[1].value.as< TExpressionList > (), yystack_[0].value.as< ETotalsMode > ());
         }
     break;
 
@@ -1913,13 +1913,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 30:
     {
-            head->Ast.As<TQuery>().HavingPredicate = yystack_[0].value.as< TExpressionList > ();
+            std::get<TQuery>(head->Ast).HavingPredicate = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
   case 31:
     {
-            head->Ast.As<TQuery>().OrderExpressions = yystack_[0].value.as< TOrderExpressionList > ();
+            std::get<TQuery>(head->Ast).OrderExpressions = yystack_[0].value.as< TOrderExpressionList > ();
         }
     break;
 
@@ -1956,7 +1956,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 38:
     {
-            head->Ast.As<TQuery>().Limit = yystack_[0].value.as< i64 > ();
+            std::get<TQuery>(head->Ast).Limit = yystack_[0].value.as< i64 > ();
         }
     break;
 
@@ -2295,11 +2295,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     {
             switch (yystack_[1].value.as< EUnaryOp > ()) {
                 case EUnaryOp::Minus: {
-                    if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<i64>()) {
+                    if (const auto* data = std::get_if<i64>(&*yystack_[0].value.as< std::optional<TLiteralValue> > ())) {
                         yylhs.value.as< std::optional<TLiteralValue> > () = -*data;
-                    } else if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<ui64>()) {
+                    } else if (const auto* data = std::get_if<ui64>(&*yystack_[0].value.as< std::optional<TLiteralValue> > ())) {
                         yylhs.value.as< std::optional<TLiteralValue> > () = -*data;
-                    } else if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<double>()) {
+                    } else if (const auto* data = std::get_if<double>(&*yystack_[0].value.as< std::optional<TLiteralValue> > ())) {
                         yylhs.value.as< std::optional<TLiteralValue> > () = -*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Negation of unsupported type");
@@ -2310,9 +2310,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
                     yylhs.value.as< std::optional<TLiteralValue> > () = yystack_[0].value.as< std::optional<TLiteralValue> > ();
                     break;
                 case EUnaryOp::BitNot: {
-                    if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<i64>()) {
+                    if (const auto* data = std::get_if<i64>(&*yystack_[0].value.as< std::optional<TLiteralValue> > ())) {
                         yylhs.value.as< std::optional<TLiteralValue> > () = ~*data;
-                    } else if (auto data = yystack_[0].value.as< std::optional<TLiteralValue> > ()->TryAs<ui64>()) {
+                    } else if (const auto* data = std::get_if<i64>(&*yystack_[0].value.as< std::optional<TLiteralValue> > ())) {
                         yylhs.value.as< std::optional<TLiteralValue> > () = ~*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Bitwise negation of unsupported type");

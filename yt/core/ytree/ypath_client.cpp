@@ -231,12 +231,12 @@ void ResolveYPath(
 
         try {
             auto result = currentService->Resolve(currentPath, context);
-            if (auto* hereResult = result.TryAs<IYPathService::TResolveResultHere>()) {
+            if (auto* hereResult = std::get_if<IYPathService::TResolveResultHere>(&result)) {
                 *suffixService = currentService;
                 *suffixPath = std::move(hereResult->Path);
                 break;
             }
-            auto& thereResult = result.As<IYPathService::TResolveResultThere>();
+            auto& thereResult = std::get<IYPathService::TResolveResultThere>(result);
             currentService = std::move(thereResult.Service);
             currentPath = std::move(thereResult.Path);
         } catch (const std::exception& ex) {

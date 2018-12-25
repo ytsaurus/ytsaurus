@@ -30,7 +30,7 @@ struct TDriverRequest
     explicit TDriverRequest(TIntrusivePtr<TIntrinsicRefCounted> holder);
 
     //! Request identifier to be logged.
-    TVariant<ui64, TGuid> Id = static_cast<ui64>(0);
+    std::variant<ui64, TGuid> Id = static_cast<ui64>(0);
 
     //! Command name to execute.
     TString CommandName;

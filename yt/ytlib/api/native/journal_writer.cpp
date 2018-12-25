@@ -305,7 +305,7 @@ private:
             TChunkSessionPtr Session;
         };
 
-        typedef TVariant<
+        typedef std::variant<
             TBatchCommand,
             TCloseCommand,
             TCancelCommand,
@@ -789,18 +789,18 @@ private:
             while (true) {
                 ValidateAborted();
                 auto command = DequeueCommand();
-                if (command.Is<TCloseCommand>()) {
+                if (std::holds_alternative<TCloseCommand>(command)) {
                     HandleClose();
                     break;
-                } else if (command.Is<TCancelCommand>()) {
+                } else if (std::holds_alternative<TCancelCommand>(command)) {
                     throw TFiberCanceledException();
-                } else if (auto* typedCommand = command.TryAs<TBatchCommand>()) {
+                } else if (auto* typedCommand = std::get_if<TBatchCommand>(&command)) {
                     HandleBatch(*typedCommand);
                     if (IsSessionOverfull()) {
                         SwitchChunk();
                         break;
                     }
-                } else if (auto* typedCommand = command.TryAs<TSwitchChunkCommand>()) {
+                } else if (auto* typedCommand = std::get_if<TSwitchChunkCommand>(&command)) {
                     if (typedCommand->Session == CurrentSession_) {
                         SwitchChunk();
                         break;
@@ -974,9 +974,9 @@ private:
 
             while (true) {
                 auto command = DequeueCommand();
-                if (auto* typedCommand = command.TryAs<TBatchCommand>()) {
+                if (auto* typedCommand = std::get_if<TBatchCommand>(&command)) {
                     (*typedCommand)->FlushedPromise.Set(error);
-                } else if (command.Is<TCancelCommand>()) {
+                } else if (std::holds_alternative<TCancelCommand>(command)) {
                     throw TFiberCanceledException();
                 } else {
                     // Ignore.

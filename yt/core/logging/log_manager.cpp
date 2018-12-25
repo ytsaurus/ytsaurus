@@ -509,7 +509,7 @@ private:
         TPromise<void> Promise = NewPromise<void>();
     };
 
-    using TLoggerQueueItem = TVariant<
+    using TLoggerQueueItem = std::variant<
         TLogEvent,
         std::vector<TLogEvent>,
         TConfigEvent
@@ -910,12 +910,12 @@ private:
 
         int eventsWritten = 0;
         while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& item) {
-            if (auto* event = item.TryAs<TConfigEvent>()) {
+            if (auto* event = std::get_if<TConfigEvent>(&item)) {
                 UpdateConfig(*event);
-            } else if (const auto* event = item.TryAs<TLogEvent>()) {
+            } else if (const auto* event = std::get_if<TLogEvent>(&item)) {
                 WriteEvent(*event);
                 ++eventsWritten;
-            } else if (const auto* events = item.TryAs<std::vector<TLogEvent>>()) {
+            } else if (const auto* events = std::get_if<std::vector<TLogEvent>>(&item)) {
                 WriteEvents(*events);
                 eventsWritten += events->size();
             } else {

@@ -10,7 +10,7 @@ extern const TString OperationAliasPrefix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOperationIdOrAlias = TVariant<TOperationId, TString>;
+using TOperationIdOrAlias = std::variant<TOperationId, TString>;
 
 // NB: TOperationIdOrAlias corresponds to a oneof group of fields in proto representation,
 // so we use an enclosing proto message object to properly serialize or deserialize it.

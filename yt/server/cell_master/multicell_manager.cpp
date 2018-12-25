@@ -631,15 +631,15 @@ private:
     TRefCountedEncapsulatedMessagePtr BuildHiveMessage(
         const TCrossCellMessage& crossCellMessage)
     {
-        if (const auto* protoPtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TProtoMessage>()) {
+        if (const auto* protoPtr = std::get_if<TCrossCellMessage::TProtoMessage>(&crossCellMessage.Payload)) {
             return NHiveServer::SerializeMessage(*protoPtr->Message);
         }
 
         NObjectServer::NProto::TReqExecute hydraRequest;
         TSharedRefArray parts;
-        if (const auto* clientPtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TClientMessage>()) {
+        if (const auto* clientPtr = std::get_if<TCrossCellMessage::TClientMessage>(&crossCellMessage.Payload)) {
             parts = clientPtr->Request->Serialize();
-        } else if (const auto* servicePtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TServiceMessage>()) {
+        } else if (const auto* servicePtr = std::get_if<TCrossCellMessage::TServiceMessage>(&crossCellMessage.Payload)) {
             auto requestMessage = servicePtr->Context->GetRequestMessage();
             auto requestHeader = servicePtr->Context->RequestHeader();
             auto updatedYPath = FromObjectId(servicePtr->ObjectId) + GetRequestYPath(requestHeader);

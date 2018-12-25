@@ -126,7 +126,7 @@ private:
         TDuration Timeout;
     };
 
-    using TRequest = TVariant<
+    using TRequest = std::variant<
         TStartRequest,
         TStopRequest,
         TRegisterRequest,

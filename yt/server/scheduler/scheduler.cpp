@@ -437,13 +437,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (auto* id = idOrAlias.TryAs<TOperationId>()) {
+        if (const auto* id = std::get_if<TOperationId>(&idOrAlias)) {
             auto it = IdToOperation_.find(*id);
             return it == IdToOperation_.end() ? nullptr : it->second;
-        } else {
-            const auto& alias = idOrAlias.As<TString>();
-            auto it = OperationAliases_.find(alias);
+        } else if (const auto* alias = std::get_if<TString>(&idOrAlias)) {
+            auto it = OperationAliases_.find(*alias);
             return it == OperationAliases_.end() ? nullptr : it->second.Operation;
+        } else {
+            Y_UNREACHABLE();
         }
     }
 
