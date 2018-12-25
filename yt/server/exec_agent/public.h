@@ -47,6 +47,7 @@ DEFINE_ENUM(EErrorCode,
     ((QuotaSettingFailed)            (1110))
     ((RootVolumePreparationFailed)   (1111))
     ((NotEnoughDiskSpace)            (1112))
+    ((ArtifactDownloadFailed)        (1113))
 );
 
 DEFINE_ENUM(ESandboxKind,
