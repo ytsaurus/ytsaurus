@@ -1,25 +1,7 @@
+#include "align.h"
 #include "blob.h"
 #include "ref.h"
-#include "align.h"
-
-// Support build without YTAlloc
-namespace NYT::NYTAlloc {
-
-////////////////////////////////////////////////////////////////////////////////
-
-Y_WEAK void* Allocate(size_t size, bool dumpable = true)
-{
-    return malloc(size);
-}
-
-Y_WEAK void Free(void* ptr)
-{
-    free(ptr);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NYTAlloc
+#include "yt_alloc.h"
 
 namespace NYT {
 
