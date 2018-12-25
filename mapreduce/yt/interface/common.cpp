@@ -1,6 +1,5 @@
 #include "common.h"
 #include <util/generic/xrange.h>
-#include <util/generic/algorithm.h>
 
 namespace NYT {
 namespace NDetail {
@@ -84,27 +83,34 @@ TTableSchema TTableSchema::AddColumn(const TString& name, EValueType type, ESort
     return std::move(AddColumn(name, type, sortOrder));
 }
 
-
 TTableSchema& TTableSchema::SortBy(const TVector<TString>& columns) &
 {
     THashMap<TString, ui64> columnsIndex;
+    TVector<TColumnSchema> newColumns;
+    newColumns.reserve(Columns_.size());
+    newColumns.resize(columns.size());
+
     for (auto i: xrange(columns.size())) {
+        Y_ENSURE(!columnsIndex.contains(columns[i]), "Key column name '"
+            << columns[i] << "' repeats in columns list");
         columnsIndex[columns[i]] = i;
     }
-    for (auto i: xrange(Columns_.size())) {
-        if (columnsIndex.contains(Columns_[i].Name_)) {
-            Columns_[i].SortOrder(ESortOrder::SO_ASCENDING);
+
+    for (auto& column : Columns_) {
+        if (auto it = columnsIndex.find(column.Name_)) {
+            column.SortOrder(ESortOrder::SO_ASCENDING);
+            newColumns[it->second] = std::move(column); // see newColumns.resize() above
+            columnsIndex.erase(it);
         } else {
-            columnsIndex[Columns_[i].Name_] = i + columns.size();
-            Columns_[i].SortOrder_ = Nothing();
+            column.SortOrder_ = Nothing();
+            newColumns.push_back(std::move(column));
         }
     }
-    ::SortBy(
-        Columns_,
-        [&columnsIndex](const TColumnSchema& column) {
-            return columnsIndex.at(column.Name_);
-        }
-    );
+
+    Y_ENSURE(columnsIndex.empty(), "Column name '" << columnsIndex.begin()->first
+            << "' not found in table schema");
+
+    newColumns.swap(Columns_);
     return *this;
 }
 

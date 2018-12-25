@@ -95,18 +95,29 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest) {
     }
 
     Y_UNIT_TEST(KeyColumns) {
-        const TKeyColumns KEYS = {"key", "subkey"};
+        const TKeyColumns keys = {"key", "subkey"};
 
-        const auto schema = CreateTableSchema<NTesting::TAliased>(KEYS);
+        const auto schema = CreateTableSchema<NTesting::TAliased>(keys);
 
         TEST_FIELD_SORTED(schema.Columns_[0], "key", EValueType::VT_INT32);
         TEST_FIELD_SORTED(schema.Columns_[1], "subkey", EValueType::VT_DOUBLE);
         TEST_FIELD(schema.Columns_[2], "Data", EValueType::VT_STRING);
     }
 
+    Y_UNIT_TEST(KeyColumnsReordered) {
+        const TKeyColumns keys = {"subkey"};
+
+        const auto schema = CreateTableSchema<NTesting::TAliased>(keys);
+
+        TEST_FIELD_SORTED(schema.Columns_[0], "subkey", EValueType::VT_DOUBLE);
+        TEST_FIELD(schema.Columns_[1], "key", EValueType::VT_INT32);
+        TEST_FIELD(schema.Columns_[2], "Data", EValueType::VT_STRING);
+        UNIT_ASSERT_EQUAL(schema.Columns_.size(), 3);
+    }
+
     Y_UNIT_TEST(KeyColumnsInvalid) {
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"subkey"}), yexception);
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"key", "Data"}), yexception);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"subkey", "subkey"}), yexception);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"key", "junk"}), yexception);
     }
 
     Y_UNIT_TEST(KeepFieldsWithoutExtensionTrue) {

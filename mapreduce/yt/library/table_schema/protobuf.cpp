@@ -53,8 +53,6 @@ namespace NYT {
         const bool keepFieldsWithoutExtension) {
 
         TTableSchema result;
-        auto keyIt = keyColumns.Parts_.begin();
-        const auto keyLim = keyColumns.Parts_.end();
         for (int idx = 0, lim = tableProto.field_count(); idx < lim; ++idx) {
             const auto field = tableProto.field(idx);
             if (!keepFieldsWithoutExtension && !HasExtension(*field)) {
@@ -65,14 +63,14 @@ namespace NYT {
             TColumnSchema column;
             column.Name(name);
             column.Type(GetColumnType(*field));
-            if (keyIt != keyLim) {
-                Y_ENSURE(*keyIt == name, "Key columns list should be prefix of schema");
-                column.SortOrder(SO_ASCENDING);
-                ++keyIt;
-            }
             column.Required(field->is_required());
             result.AddColumn(column);
         }
+
+        if (!keyColumns.Parts_.empty()) {
+            result.SortBy(keyColumns.Parts_);
+        }
+
         return result;
     }
 }
