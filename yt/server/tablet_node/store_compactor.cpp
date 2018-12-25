@@ -52,6 +52,7 @@
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/heap.h>
+#include <yt/core/misc/memory_zone.h>
 
 namespace NYT::NTabletNode {
 
@@ -971,6 +972,10 @@ private:
         auto blockCache = WaitFor(asyncBlockCache)
             .ValueOrThrow();
 
+        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->Config->InMemoryMode == EInMemoryMode::None
+            ? EMemoryZone::Normal
+            : EMemoryZone::Undumpable);
+
         auto ensurePartitionStarted = [&] () {
             if (currentWriter)
                 return;
@@ -1380,6 +1385,10 @@ private:
 
         auto blockCache = WaitFor(asyncBlockCache)
             .ValueOrThrow();
+
+        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->Config->InMemoryMode == EInMemoryMode::None
+            ? EMemoryZone::Normal
+            : EMemoryZone::Undumpable);
 
         auto writer = CreateVersionedMultiChunkWriter(
             writerConfig,

@@ -28,7 +28,7 @@ struct TBlock
 {
     TBlock() = default;
     explicit TBlock(TSharedRef block);
-    TBlock(TSharedRef block, TChecksum checksum);
+    TBlock(TSharedRef block, TChecksum checksum, EBlockOrigin origin = EBlockOrigin::Unknown);
 
     TSharedRef Data;
     TChecksum Checksum = NullChecksum;

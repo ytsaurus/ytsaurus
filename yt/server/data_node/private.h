@@ -22,6 +22,8 @@ extern const TString CleanExtension;
 extern const TString SealedFlagExtension;
 extern const TString ArtifactMetaSuffix;
 
+struct TCachedBlobChunkBlockTag { };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
