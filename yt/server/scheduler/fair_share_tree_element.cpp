@@ -1154,15 +1154,15 @@ void TCompositeSchedulerElement::ComputeByFitting(
     double fitFactor = BinarySearch(getSum, sum);
 
     double resultSum = getSum(fitFactor);
-    double uncertantyRatio = 1.0;
+    double uncertaintyRatio = 1.0;
     if (resultSum > RatioComputationPrecision && std::abs(sum - resultSum) > RatioComputationPrecision) {
-        uncertantyRatio = sum / resultSum;
+        uncertaintyRatio = sum / resultSum;
     }
 
     // Compute actual min shares from fit factor.
     for (const auto& child : EnabledChildren_) {
         double value = getter(fitFactor, child);
-        setter(child, value, uncertantyRatio);
+        setter(child, value, uncertaintyRatio);
     }
 }
 
@@ -1262,11 +1262,11 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             result = std::min(result, childAttributes.BestAllocationRatio);
             return result;
         },
-        [&] (const TSchedulerElementPtr& child, double value, double uncertantyRatio) {
-            if (IsRoot() && uncertantyRatio > 1.0) {
-                uncertantyRatio = 1.0;
+        [&] (const TSchedulerElementPtr& child, double value, double uncertaintyRatio) {
+            if (IsRoot() && uncertaintyRatio > 1.0) {
+                uncertaintyRatio = 1.0;
             }
-            child->SetFairShareRatio(value * uncertantyRatio);
+            child->SetFairShareRatio(value * uncertaintyRatio);
         },
         Attributes_.FairShareRatio);
 
@@ -1280,9 +1280,9 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             result = std::max(result, childAttributes.RecursiveMinShareRatio);
             return result;
         },
-        [&] (const TSchedulerElementPtr& child, double value, double uncertantyRatio) {
+        [&] (const TSchedulerElementPtr& child, double value, double uncertaintyRatio) {
             auto& attributes = child->Attributes();
-            attributes.GuaranteedResourcesRatio = value * uncertantyRatio;
+            attributes.GuaranteedResourcesRatio = value * uncertaintyRatio;
         },
         Attributes_.GuaranteedResourcesRatio);
 
