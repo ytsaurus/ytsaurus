@@ -807,10 +807,12 @@ TSortOperationSpec::TSortOperationSpec()
 
         SortJobIO->TableReader->MaxBufferSize = 1_GB;
         SortJobIO->TableReader->RetryCount = 3;
+        SortJobIO->TableReader->PassCount = 50;
 
         // Output slices must be small enough to make reasonable jobs in sorted chunk pool.
         SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
         MergeJobIO->TableReader->RetryCount = 3;
+        MergeJobIO->TableReader->PassCount = 50;
 
         MapSelectivityFactor = 1.0;
     });
@@ -889,7 +891,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
 
         SortJobIO->TableReader->RetryCount = 3;
+        SortJobIO->TableReader->PassCount = 50;
+
         MergeJobIO->TableReader->RetryCount = 3;
+        MergeJobIO->TableReader->PassCount = 50 ;
     });
 
     RegisterPostprocessor([&] () {
