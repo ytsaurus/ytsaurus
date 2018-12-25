@@ -80,6 +80,19 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Memory zone API bridge
+
+void SetCurrentMemoryZone(EMemoryZone zone)
+{
+    NYTAlloc::TThreadManager::SetCurrentMemoryZone(zone);
+}
+
+EMemoryZone GetCurrentMemoryZone()
+{
+    return NYTAlloc::TThreadManager::GetCurrentMemoryZone();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 

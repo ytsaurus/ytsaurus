@@ -7,6 +7,7 @@
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/memory_tag.h>
+#include <yt/core/misc/memory_zone.h>
 #include <yt/core/misc/small_vector.h>
 
 #include <atomic>
@@ -157,6 +158,12 @@ public:
     //! Sets the memory tag used in this fiber.
     void SetMemoryTag(TMemoryTag tag);
 
+    //! Returns memory zone currently used in this fiber.
+    EMemoryZone GetMemoryZone() const;
+
+    //! Sets the memory zone used in this fiber.
+    void SetMemoryZone(EMemoryZone zone);
+
     //! Returns |true| if there is enough remaining stack space.
     /*!
      *  Thread affinity: OwnerThread
@@ -185,6 +192,7 @@ private:
     SmallVector<uintptr_t, 8> Fsd_;
 
     TMemoryTag MemoryTag_ = NullMemoryTag;
+    EMemoryZone MemoryZone_ = EMemoryZone::Normal;
 
     TContextSwitchHandlersList SwitchHandlers_;
 
