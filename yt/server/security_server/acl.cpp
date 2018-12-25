@@ -82,25 +82,14 @@ void Save(NCellMaster::TSaveContext& context, const TAccessControlList& acl)
     Save(context, acl.Entries);
 }
 
-struct TSerializableAccessControlEntry
-    : public TYsonSerializable
+TSerializableAccessControlEntry::TSerializableAccessControlEntry()
 {
-    ESecurityAction Action;
-    std::vector<TString> Subjects;
-    std::vector<TString> Permissions;
-    EAceInheritanceMode InheritanceMode;
-
-    TSerializableAccessControlEntry()
-    {
-        RegisterParameter("action", Action);
-        RegisterParameter("subjects", Subjects);
-        RegisterParameter("permissions", Permissions);
-        RegisterParameter("inheritance_mode", InheritanceMode)
-            .Default(EAceInheritanceMode::ObjectAndDescendants);
-    }
-};
-
-typedef TIntrusivePtr<TSerializableAccessControlEntry> TSerializableAccessControlEntryPtr;
+    RegisterParameter("action", Action);
+    RegisterParameter("subjects", Subjects);
+    RegisterParameter("permissions", Permissions);
+    RegisterParameter("inheritance_mode", InheritanceMode)
+        .Default(EAceInheritanceMode::ObjectAndDescendants);
+}
 
 void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
 {
