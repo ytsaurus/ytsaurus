@@ -976,7 +976,8 @@ private:
 
         // Kick-out any previous incarnation.
         auto* node = FindNodeByAddress(address);
-        if (IsObjectAlive(node)) {
+        auto isNodeNew = !IsObjectAlive(node);
+        if (!isNodeNew) {
             node->ValidateNotBanned();
 
             if (Bootstrap_->IsPrimaryMaster()) {
@@ -1005,17 +1006,7 @@ private:
             node = CreateNode(nodeId, nodeAddresses);
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
-            node->GetId(),
-            address,
-            tags,
-            leaseTransactionId,
-            statistics);
-
-        node->SetLocalState(ENodeState::Registered);
         node->SetNodeTags(tags);
-        UpdateNodeCounters(node, +1);
-
         node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
 
         if (request->has_cypress_annotations()) {
@@ -1029,16 +1020,46 @@ private:
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
 
+        if (Bootstrap_->IsPrimaryMaster()) {
+            PostRegisterNodeMutation(node);
+        }
+
+        if (isNodeNew && GetDynamicConfig()->BanNewNodes) {
+            node->SetBanned(true);
+            {
+                auto nodePath = GetNodePath(node);
+                auto req = TCypressYPathProxy::Set(nodePath + "/@" + BanMessageAttributeName);
+                req->set_value(ConvertToYsonString("The node has never been seen before and has been banned provisionally.").GetData());
+                auto rootService = Bootstrap_->GetObjectManager()->GetRootService();
+                SyncExecuteVerb(rootService, req);
+            }
+            node->SetLocalState(ENodeState::Offline);
+
+            THROW_ERROR_EXCEPTION("Node %Qv (#%v) created and provisionally banned",
+                node->GetId(),
+                address,
+                tags,
+                leaseTransactionId,
+                statistics);
+        }
+
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
+            node->GetId(),
+            address,
+            tags,
+            leaseTransactionId,
+            statistics);
+
+        node->SetLocalState(ENodeState::Registered);
+
+        UpdateNodeCounters(node, +1);
+
         if (leaseTransaction) {
             node->SetLeaseTransaction(leaseTransaction);
             RegisterLeaseTransaction(node);
         }
 
         NodeRegistered_.Fire(node);
-
-        if (Bootstrap_->IsPrimaryMaster()) {
-            PostRegisterNodeMutation(node);
-        }
 
         response->set_node_id(node->GetId());
 

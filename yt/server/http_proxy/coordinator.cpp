@@ -63,7 +63,7 @@ TProxyEntry::TProxyEntry()
         .Default(false);
     RegisterParameter("liveness", Liveness)
         .DefaultNew();
-    RegisterParameter("ban_message", BanMessage)
+    RegisterParameter(BanMessageAttributeName, BanMessage)
         .Default();
 }
 
@@ -187,7 +187,7 @@ std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
 {
     TListNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
-    options.Attributes = {"role", "banned", "liveness", "ban_message"};
+    options.Attributes = {"role", "banned", "liveness", BanMessageAttributeName};
 
     auto proxiesYson = WaitFor(Client_->ListNode("//sys/proxies", options))
         .ValueOrThrow();
@@ -384,7 +384,7 @@ void THostsHandler::HandleRequest(
                             .Item("name").Value(proxy->Endpoint)
                             .Item("role").Value(proxy->Role)
                             .Item("banned").Value(proxy->IsBanned)
-                            .Item("ban_message").Value(proxy->BanMessage)
+                            .Item(BanMessageAttributeName).Value(proxy->BanMessage)
                             .Item("dead").Value(Coordinator_->IsDead(proxy, TInstant::Now()))
                             .Item("liveness").Value(proxy->Liveness)
                         .EndMap();
