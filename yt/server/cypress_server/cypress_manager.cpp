@@ -704,7 +704,7 @@ public:
             return FromObjectId(trunkNode->GetId());
         };
 
-        using TToken = TVariant<TStringBuf, int>;
+        using TToken = std::variant<TStringBuf, int>;
         SmallVector<TToken, 32> tokens;
 
         auto* currentNode = GetVersionedNode(trunkNode, transaction);
@@ -747,15 +747,12 @@ public:
         for (auto it = tokens.rbegin(); it != tokens.rend(); ++it) {
             auto token = *it;
             builder.AppendChar('/');
-            switch (token.Tag()) {
-                case TToken::TagOf<TStringBuf>():
-                    builder.AppendString(token.As<TStringBuf>());
-                    break;
-                case TToken::TagOf<int>():
-                    builder.AppendFormat("%v", token.As<int>());
-                    break;
-                default:
-                    Y_UNREACHABLE();
+            if (const auto* stringBuf = std::get_if<TStringBuf>(&token)) {
+                builder.AppendString(*stringBuf);
+            } else if (const auto* integer = std::get_if<int>(&token)) {
+                builder.AppendFormat("%v", *integer);
+            } else {
+                Y_UNREACHABLE();
             }
         }
 

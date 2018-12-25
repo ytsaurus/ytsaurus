@@ -47,7 +47,7 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    using TEntry = TVariant<TItem, std::vector<TItem>>;
+    using TEntry = std::variant<TItem, std::vector<TItem>>;
     TMultipleProducerSingleConsumerLockFreeStack<TEntry> Stack_;
 
     TRingQueue<TItem> Queue_;

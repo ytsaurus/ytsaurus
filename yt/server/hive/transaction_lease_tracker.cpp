@@ -160,15 +160,15 @@ void TTransactionLeaseTracker::ProcessRequest(const TRequest& request)
 {
     VERIFY_THREAD_AFFINITY(TrackerThread);
 
-    if (const auto* startRequest = request.TryAs<TStartRequest>()) {
+    if (const auto* startRequest = std::get_if<TStartRequest>(&request)) {
         ProcessStartRequest(*startRequest);
-    } else if (const auto* stopRequest = request.TryAs<TStopRequest>()) {
+    } else if (const auto* stopRequest = std::get_if<TStopRequest>(&request)) {
         ProcessStopRequest(*stopRequest);
-    } else if (const auto* registerRequest = request.TryAs<TRegisterRequest>()) {
+    } else if (const auto* registerRequest = std::get_if<TRegisterRequest>(&request)) {
         ProcessRegisterRequest(*registerRequest);
-    } else if (const auto* unregisterRequest = request.TryAs<TUnregisterRequest>()) {
+    } else if (const auto* unregisterRequest = std::get_if<TUnregisterRequest>(&request)) {
         ProcessUnregisterRequest(*unregisterRequest);
-    } else if (const auto* setTimeoutRequest = request.TryAs<TSetTimeoutRequest>()) {
+    } else if (const auto* setTimeoutRequest = std::get_if<TSetTimeoutRequest>(&request)) {
         ProcessSetTimeoutRequest(*setTimeoutRequest);
     } else {
         Y_UNREACHABLE();

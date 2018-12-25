@@ -448,25 +448,21 @@ public:
         TStringBuilder builder;
         for (const auto& item : Items_) {
             builder.AppendChar('/');
-            switch (item.Tag()) {
-                case TEntry::TagOf<const TProtobufField*>():
-                    builder.AppendString(ToYPathLiteral(item.As<const TProtobufField*>()->GetYsonName()));
-                    break;
-                case TEntry::TagOf<TString>():
-                    builder.AppendString(ToYPathLiteral(item.As<TString>()));
-                    break;
-                case TEntry::TagOf<int>():
-                    builder.AppendFormat("%v", item.As<int>());
-                    break;
-                default:
-                    Y_UNREACHABLE();
+            if (const auto* const* protobufField = std::get_if<const TProtobufField*>(&item)) {
+                builder.AppendString(ToYPathLiteral((*protobufField)->GetYsonName()));
+            } else if (const auto* string = std::get_if<TString>(&item)) {
+                builder.AppendString(ToYPathLiteral(*string));
+            } else if (const auto* integer = std::get_if<int>(&item)) {
+                builder.AppendFormat("%v", *integer);
+            } else {
+                Y_UNREACHABLE();
             }
         }
         return builder.Flush();
     }
 
 private:
-    using TEntry = TVariant<
+    using TEntry = std::variant<
         const TProtobufField*,
         TString,
         int>;

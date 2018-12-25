@@ -34,7 +34,7 @@ using TOrderExpressionList = std::vector<std::pair<TExpressionList, bool>>;
 struct TNullLiteralValue
 { };
 
-using TLiteralValue = TVariant<
+using TLiteralValue = std::variant<
     TNullLiteralValue,
     i64,
     ui64,
@@ -391,15 +391,15 @@ struct TAstHead
 {
     static TAstHead MakeQuery()
     {
-        return TAstHead{TVariantTypeTag<TQuery>(), TAliasMap()};
+        return TAstHead{TQuery(), TAliasMap()};
     }
 
     static TAstHead MakeExpression()
     {
-        return TAstHead{TVariantTypeTag<TExpressionPtr>(), TAliasMap()};
+        return TAstHead{TExpressionPtr(), TAliasMap()};
     }
 
-    TVariant<TQuery, TExpressionPtr> Ast;
+    std::variant<TQuery, TExpressionPtr> Ast;
     TAliasMap AliasMap;
 };
 

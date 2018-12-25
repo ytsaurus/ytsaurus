@@ -19,19 +19,19 @@ protected:
     void TestExpression(const TString& source)
     {
         auto parsedSource1 = ParseSource(source, EParseMode::Expression);
-        auto formattedSource = FormatExpression(*parsedSource1->AstHead.Ast.As<TExpressionPtr>());
+        auto formattedSource = FormatExpression(*std::get<TExpressionPtr>(parsedSource1->AstHead.Ast));
         auto parsedSource2 = ParseSource(formattedSource, EParseMode::Expression);
         Cout << source << " -> " << formattedSource << Endl;
-        EXPECT_TRUE(*parsedSource1->AstHead.Ast.As<TExpressionPtr>() == *parsedSource2->AstHead.Ast.As<TExpressionPtr>());
+        EXPECT_TRUE(*std::get<TExpressionPtr>(parsedSource1->AstHead.Ast) == *std::get<TExpressionPtr>(parsedSource2->AstHead.Ast));
     }
 
     void TestQuery(const TString& source)
     {
         auto parsedSource1 = ParseSource(source, EParseMode::Query);
-        auto formattedSource = FormatQuery(parsedSource1->AstHead.Ast.As<TQuery>());
+        auto formattedSource = FormatQuery(std::get<TQuery>(parsedSource1->AstHead.Ast));
         auto parsedSource2 = ParseSource(formattedSource, EParseMode::Query);
         Cout << source << " -> " << formattedSource << Endl;
-        EXPECT_TRUE(parsedSource1->AstHead.Ast.As<TQuery>() == parsedSource2->AstHead.Ast.As<TQuery>());
+        EXPECT_TRUE(std::get<TQuery>(parsedSource1->AstHead.Ast) == std::get<TQuery>(parsedSource2->AstHead.Ast));
     }
 };
 
@@ -56,19 +56,19 @@ TEST_F(TAstFormatTest, Reference)
 
 TEST_F(TAstFormatTest, LiteralValue)
 {
-    EXPECT_EQ("null", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TNullLiteralValue>())));
-    EXPECT_EQ("0", FormatLiteralValue(TLiteralValue(TVariantTypeTag<i64>(), 0)));
-    EXPECT_EQ("123", FormatLiteralValue(TLiteralValue(TVariantTypeTag<i64>(), 123)));
-    EXPECT_EQ("9223372036854775807", FormatLiteralValue(TLiteralValue(TVariantTypeTag<i64>(), std::numeric_limits<i64>::max())));
-    EXPECT_EQ("-9223372036854775808", FormatLiteralValue(TLiteralValue(TVariantTypeTag<i64>(), std::numeric_limits<i64>::min())));
-    EXPECT_EQ("-123", FormatLiteralValue(TLiteralValue(TVariantTypeTag<i64>(), -123)));
-    EXPECT_EQ("0u", FormatLiteralValue(TLiteralValue(TVariantTypeTag<ui64>(), 0)));
-    EXPECT_EQ("123u", FormatLiteralValue(TLiteralValue(TVariantTypeTag<ui64>(), 123)));
-    EXPECT_EQ("18446744073709551615u", FormatLiteralValue(TLiteralValue(TVariantTypeTag<ui64>(), std::numeric_limits<ui64>::max())));
-    EXPECT_EQ("3.140000", FormatLiteralValue(TLiteralValue(TVariantTypeTag<double>(), 3.14)));
-    EXPECT_EQ("\"\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "")));
-    EXPECT_EQ("\"\\\\\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "\\")));
-    EXPECT_EQ("\"hello\"", FormatLiteralValue(TLiteralValue(TVariantTypeTag<TString>(), "hello")));
+    EXPECT_EQ("null", FormatLiteralValue(TLiteralValue(std::in_place_type_t<TNullLiteralValue>())));
+    EXPECT_EQ("0", FormatLiteralValue(TLiteralValue(std::in_place_type_t<i64>(), 0)));
+    EXPECT_EQ("123", FormatLiteralValue(TLiteralValue(std::in_place_type_t<i64>(), 123)));
+    EXPECT_EQ("9223372036854775807", FormatLiteralValue(TLiteralValue(std::in_place_type_t<i64>(), std::numeric_limits<i64>::max())));
+    EXPECT_EQ("-9223372036854775808", FormatLiteralValue(TLiteralValue(std::in_place_type_t<i64>(), std::numeric_limits<i64>::min())));
+    EXPECT_EQ("-123", FormatLiteralValue(TLiteralValue(std::in_place_type_t<i64>(), -123)));
+    EXPECT_EQ("0u", FormatLiteralValue(TLiteralValue(std::in_place_type_t<ui64>(), 0)));
+    EXPECT_EQ("123u", FormatLiteralValue(TLiteralValue(std::in_place_type_t<ui64>(), 123)));
+    EXPECT_EQ("18446744073709551615u", FormatLiteralValue(TLiteralValue(std::in_place_type_t<ui64>(), std::numeric_limits<ui64>::max())));
+    EXPECT_EQ("3.140000", FormatLiteralValue(TLiteralValue(std::in_place_type_t<double>(), 3.14)));
+    EXPECT_EQ("\"\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<TString>(), "")));
+    EXPECT_EQ("\"\\\\\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<TString>(), "\\")));
+    EXPECT_EQ("\"hello\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<TString>(), "hello")));
 }
 
 TEST_F(TAstFormatTest, Expression)

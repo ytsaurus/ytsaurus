@@ -410,8 +410,8 @@ ICallingConventionPtr GetCallingConvention(
         case ECallingConvention::Simple:
             return New<TSimpleCallingConvention>();
         case ECallingConvention::UnversionedValue:
-            if (repeatedArgType.TryAs<EValueType>()
-                && repeatedArgType.As<EValueType>() == EValueType::Null)
+            if (std::holds_alternative<EValueType>(repeatedArgType) &&
+                std::get<EValueType>(repeatedArgType) == EValueType::Null)
             {
                 return New<TUnversionedValueCallingConvention>(-1);
             } else {

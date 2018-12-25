@@ -8,9 +8,13 @@ const TString OperationAliasPrefix("*");
 
 TString GetOperationIdOrAliasContextInfo(const TOperationIdOrAlias& operationIdOrAlias)
 {
-    return Format("Operation%v: %v",
-        operationIdOrAlias.Is<TOperationId>() ? "Id" : "Alias",
-        operationIdOrAlias);
+    if (std::holds_alternative<TString>(operationIdOrAlias)) {
+        return Format("OperationAlias: %v", operationIdOrAlias);
+    } else if (std::holds_alternative<TOperationId>(operationIdOrAlias)) {
+        return Format("OperationId: %v", operationIdOrAlias);
+    } else {
+        Y_UNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

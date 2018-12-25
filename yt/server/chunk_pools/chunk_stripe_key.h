@@ -36,7 +36,7 @@ public:
     operator bool() const;
 
     int& AsIndex();
-    const int& AsIndex() const;
+    int AsIndex() const;
 
     TBoundaryKeys& AsBoundaryKeys();
     const TBoundaryKeys& AsBoundaryKeys() const;
@@ -47,7 +47,7 @@ public:
     void Persist(const TPersistenceContext& context);
 
 private:
-    TVariant<int, TBoundaryKeys, NChunkPools::TOutputOrder::TEntry> Key_;
+    std::variant<int, TBoundaryKeys, NChunkPools::TOutputOrder::TEntry> Key_;
 };
 
 TString ToString(const TChunkStripeKey& key);
