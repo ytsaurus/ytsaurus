@@ -1,4 +1,4 @@
-from .new_fennel import StringIOWrapper, round_down_to, monitor, convert_rows_to_chunks, make_read_tasks
+from .fennel import StringIOWrapper, round_down_to, monitor, convert_rows_to_chunks, make_read_tasks
 
 from yt.packages.six.moves import xrange
 

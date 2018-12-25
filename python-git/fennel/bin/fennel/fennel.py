@@ -3,7 +3,7 @@
 from yt.common import update, get_value
 import yt.yson as yson
 
-from yt.fennel.new_fennel import LogBroker, monitor, push_to_logbroker
+from yt.fennel.fennel import LogBroker, monitor, push_to_logbroker
 import yt.wrapper as yt
 
 import logging
