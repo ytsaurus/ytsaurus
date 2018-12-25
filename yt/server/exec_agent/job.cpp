@@ -1198,6 +1198,7 @@ private:
             auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, nodeDirectory, TrafficMeter_)
                 .Apply(BIND([fileName = artifact.Name] (const TErrorOr<IChunkPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
+                        EErrorCode::ArtifactDownloadFailed,
                         "Failed to prepare user file %Qv",
                         fileName);
 
@@ -1335,6 +1336,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::SlotNotFound) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::ArtifactDownloadFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::RootVolumePreparationFailed) ||
