@@ -768,6 +768,11 @@ private:
     {
         {
             auto guard = Guard(Lock_);
+
+            if (!Error_.IsOK()) {
+                return;
+            }
+
             // We use Poller in a way that generates spurious
             // notifications. Do nothing if we are not interested in
             // this event.
