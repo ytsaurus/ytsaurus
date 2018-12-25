@@ -21,6 +21,8 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/misc/memory_zone.h>
+
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
@@ -342,11 +344,10 @@ void TBlobChunkBase::DoReadBlockSet(
             session->Blocks[entry.LocalIndex] = data;
 
             if (entry.Cookie.IsActive()) {
-                struct TCachedBlobChunkBlockTag {};
-
-                // NB: Prevent cache from holding the whole block sequence.
-                if (blocks.size() > 1) {
-                    // FIXME(savrus) use undumpable memory zone guard.
+                // NB: Copy block to move data to undumpable memory and to
+                // prevent cache from holding the whole block sequence.
+                {
+                    TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
                     data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data);
                 }
 
