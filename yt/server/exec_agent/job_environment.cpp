@@ -201,13 +201,8 @@ protected:
                 try {
                     it->second.Process->Kill(SIGKILL);
                 } catch (const TErrorException& ex) {
-                    // If container disappeared, we don't care.
-                    if (ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist) ||
-                        ex.Error().FindMatching(EContainerErrorCode::InvalidState)) {
-                        LOG_DEBUG(ex, "Failed to kill job proxy container; it vanished");
-                    } else {
-                        throw;
-                    }
+                    // If we failed to kill container we ignore it for now.
+                    LOG_WARNING(ex, "Failed to kill container properly (SlotIndex: %v)", slotIndex);
                 }
             }
 
