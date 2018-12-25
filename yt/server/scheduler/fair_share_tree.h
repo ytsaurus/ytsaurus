@@ -235,7 +235,6 @@ private:
         TRootElementPtr RootElement;
         TOperationElementByIdMap OperationIdToElement;
         TFairShareStrategyTreeConfigPtr Config;
-        std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
 
         TOperationElement* FindOperationElement(TOperationId operationId) const
         {

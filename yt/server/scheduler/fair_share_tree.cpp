@@ -1616,7 +1616,6 @@ TFairShareTree::TRootElementSnapshotPtr TFairShareTree::CreateRootElementSnapsho
     auto snapshot = New<TRootElementSnapshot>();
     snapshot->RootElement = RootElement->Clone();
     snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
-    snapshot->RegisteredSchedulingTagFilters = RegisteredSchedulingTagFilters;
     snapshot->Config = Config;
     return snapshot;
 }
