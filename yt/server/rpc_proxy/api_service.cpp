@@ -640,6 +640,10 @@ private:
             return;
         }
 
+        if (!request->sticky() && request->type() == NApi::NRpcProxy::NProto::ETransactionType::TT_TABLET) {
+            THROW_ERROR_EXCEPTION("Tablet transactions must be sticky");
+        }
+        
         TTransactionStartOptions options;
         if (request->has_timeout()) {
             options.Timeout = FromProto<TDuration>(request->timeout());
