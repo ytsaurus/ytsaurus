@@ -363,6 +363,7 @@ class YTEnvSetup(object):
     START_SECONDARY_MASTER_CELLS = True
     ENABLE_SECONDARY_CELLS_CLEANUP = True
     NUM_NODES = 5
+    DEFER_NODE_START = False
     NUM_SCHEDULERS = 0
     NUM_CONTROLLER_AGENTS = None
     ENABLE_PROXY = False
@@ -447,6 +448,7 @@ class YTEnvSetup(object):
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
             secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
             node_count=cls.get_param("NUM_NODES", index),
+            defer_node_start=cls.get_param("DEFER_NODE_START", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
             has_proxy=cls.get_param("ENABLE_PROXY", index),

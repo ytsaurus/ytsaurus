@@ -50,7 +50,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString BanMessageAttributeName = "ban_message";
 static const TString ExpirationTimeAttributeName = "expiration_time";
 static const TString VersionAttributeName = "version";
 static const TString StartTimeAttributeName = "start_time";
