@@ -825,8 +825,11 @@ void TContext::Finalize()
     }
 
     bool dumpErrorIntoResponse = false;
-    if (auto param = DriverRequest_.Parameters->FindChild("dump_error_into_response")) {
-        dumpErrorIntoResponse = ConvertTo<bool>(param);
+    if (DriverRequest_.Parameters) {
+        auto param = DriverRequest_.Parameters->FindChild("dump_error_into_response");
+        if (param) {
+            dumpErrorIntoResponse = ConvertTo<bool>(param);
+        }
     }
 
     if (!Error_.IsOK() && dumpErrorIntoResponse) {
