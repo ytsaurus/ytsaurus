@@ -10,6 +10,7 @@ try:
     import yt.json_wrapper as json
 except ImportError:
     import yt.json as json
+import yt.yson as yson
 import yt.wrapper as yt
 
 import os
@@ -180,7 +181,7 @@ def convert_to_tskved_json(row):
             pass
         else:
             try:
-                value = json.dumps(value, encoding="latin1")
+                value = json.dumps(yson.yson_to_json(value), encoding="latin1")
             except TypeError:
                 # Ignore data that could be encoded to JSON
                 pass
