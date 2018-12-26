@@ -419,17 +419,6 @@ public:
             canShutdownNow = ShutdownProtectorCount_ == 0;
         }
 
-        // At this point Error_, ReadDirection_, WriteDirection_ can't change.
-        // We access them directly, without spinlock.
-        if (ReadDirection_.Operation) {
-            ReadDirection_.Operation->Abort(Error_);
-            ReadDirection_.Operation.reset();
-        }
-        if (WriteDirection_.Operation) {
-            WriteDirection_.Operation->Abort(Error_);
-            WriteDirection_.Operation.reset();
-        }
-
         if (canShutdownNow) {
             FinishShutdown();
         }
@@ -737,7 +726,6 @@ private:
     {
         TError error;
         TShutdownProtector protector;
-
         {
             auto guard = Guard(Lock_);
             if (Error_.IsOK()) {
@@ -746,7 +734,6 @@ private:
                         << TErrorAttribute("connection", Name_);
                 }
             
-                YCHECK(!direction->Operation);
                 direction->Operation = std::move(operation);
                 direction->StartBusyTimer();
                 protector = TShutdownProtector(this);
@@ -857,6 +844,15 @@ private:
 
     void FinishShutdown()
     {
+        if (ReadDirection_.Operation) {
+            ReadDirection_.Operation->Abort(Error_);
+            ReadDirection_.Operation.reset();
+        }
+        if (WriteDirection_.Operation) {
+            WriteDirection_.Operation->Abort(Error_);
+            WriteDirection_.Operation.reset();
+        }
+
         YCHECK(TryClose(FD_, false));
         FD_ = -1;
 
