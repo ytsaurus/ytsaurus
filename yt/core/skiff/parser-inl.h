@@ -11,56 +11,6 @@
 
 namespace NYT::NSkiff {
 
-using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCoroStream
-    : public IZeroCopyInput
-{
-public:
-    TCoroStream(TStringBuf data, TCoroutine<void(TStringBuf)>* coroutine)
-        : Coroutine_(coroutine)
-        , PendingData_(data)
-        , Finished_(data.empty())
-    { }
-
-    size_t DoNext(const void** ptr, size_t len) override
-    {
-        if (PendingData_.empty()) {
-            if (Finished_) {
-                *ptr = nullptr;
-                return 0;
-            }
-            std::tie(PendingData_) = Coroutine_->Yield();
-            if (PendingData_.empty()) {
-                Finished_ = true;
-                *ptr = nullptr;
-                return 0;
-            }
-        }
-        *ptr = PendingData_.data();
-        len = Min(len, PendingData_.size());
-        PendingData_.Skip(len);
-        return len;
-    }
-
-    void Complete()
-    {
-        if (!Finished_) {
-            const void* ptr;
-            if (!PendingData_.empty() || DoNext(&ptr, 1)) {
-                THROW_ERROR_EXCEPTION("Stray data in stream");
-            }
-        }
-    }
-
-private:
-    TCoroutine<void(TStringBuf)>* const Coroutine_;
-    TStringBuf PendingData_;
-    bool Finished_ = false;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TConsumer>
@@ -127,10 +77,9 @@ public:
         }
     }
 
-    void DoParse(TCoroStream* stream)
+    void DoParse(IZeroCopyInput* stream)
     {
         Parser_ = std::make_unique<TCheckedInDebugSkiffParser>(CreateVariant16Schema(SkiffSchemaList_), stream);
-        InputStream_ = stream;
 
         while (Parser_->HasMoreData()) {
             auto tag = Parser_->ParseVariant16Tag();
@@ -183,7 +132,6 @@ private:
     TSkiffSchemaList SkiffSchemaList_;
 
     std::unique_ptr<TCheckedInDebugSkiffParser> Parser_;
-    TCoroStream* InputStream_;
 
     const std::vector<TSkiffTableColumnIds> TablesColumnIds_;
     std::vector<TSkiffTableDescription> TableDescriptions_;
@@ -206,11 +154,9 @@ TSkiffMultiTableParser<TConsumer>::TSkiffMultiTableParser(
         tablesColumnIds,
         rangeIndexColumnName,
         rowIndexColumnName))
-    , ParserCoroutine_(BIND(
-        [=] (TParserCoroutine& self, TStringBuf data) {
-            TCoroStream stream(data, &self);
-            ParserImpl_->DoParse(&stream);
-            stream.Complete();
+    , ParserCoroPipe_(BIND(
+        [=] (IZeroCopyInput* stream) {
+            ParserImpl_->DoParse(stream);
         }))
 { }
 
@@ -221,17 +167,13 @@ TSkiffMultiTableParser<TConsumer>::~TSkiffMultiTableParser()
 template <class TConsumer>
 void TSkiffMultiTableParser<TConsumer>::Read(TStringBuf data)
 {
-    if (!ParserCoroutine_.IsCompleted()) {
-        ParserCoroutine_.Run(data);
-    } else {
-        THROW_ERROR_EXCEPTION("Input is already parsed");
-    }
+    ParserCoroPipe_.Feed(data);
 }
 
 template <class TConsumer>
 void TSkiffMultiTableParser<TConsumer>::Finish()
 {
-    Read(TStringBuf());
+    ParserCoroPipe_.Finish();
 }
 
 template <class TConsumer>
