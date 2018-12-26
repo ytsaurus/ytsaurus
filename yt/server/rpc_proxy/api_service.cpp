@@ -654,7 +654,7 @@ private:
         if (request->has_parent_id()) {
             FromProto(&options.ParentId, request->parent_id());
         }
-        options.AutoAbort = request->auto_abort();
+        options.AutoAbort = false;
         options.Sticky = request->sticky();
         options.Ping = request->ping();
         options.PingAncestors = request->ping_ancestors();
@@ -796,9 +796,6 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         TTransactionAttachOptions options;
-        if (request->has_auto_abort()) {
-            options.AutoAbort = request->auto_abort();
-        }
         if (request->has_sticky()) {
             options.Sticky = request->sticky();
         }
