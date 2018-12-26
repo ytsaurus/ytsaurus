@@ -571,7 +571,7 @@ private:
 
     virtual void TearDown() override
     {
-        Server->Stop().Get().ThrowOnError();
+        Server->Stop();
         Server.Reset();
         Poller->Shutdown();
         Poller.Reset();
