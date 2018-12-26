@@ -14,6 +14,7 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/checksum.h>
+#include <yt/core/misc/memory_zone.h>
 
 namespace NYT::NChunkClient {
 
@@ -105,6 +106,7 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
 
     TBlock compressedBlock;
     {
+        TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
         NProfiling::TCpuTimingGuard guard(&CodecTime_.CpuDuration);
         compressedBlock.Data = Codec_->Compress(uncompressedBlock);
     }
@@ -142,6 +144,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
 
     TBlock compressedBlock;
     {
+        TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
         NProfiling::TCpuTimingGuard guard(&CodecTime_.CpuDuration);
         compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
     }
