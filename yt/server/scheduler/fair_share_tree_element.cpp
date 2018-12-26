@@ -304,9 +304,8 @@ void TSchedulerElement::UpdateAttributes()
     Attributes_.DemandRatio =
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
-    double possibleUsageRatio = Attributes_.DemandRatio;
     auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
-    possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
+    double possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
 
     Attributes_.MaxPossibleUsageRatio = std::min(
         possibleUsageRatio,
@@ -957,8 +956,6 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
 {
     auto& attributes = context->DynamicAttributes(this);
 
-    attributes.Active = true;
-
     if (!IsAlive()) {
         ++context->DeactivationReasons[EDeactivationReason::IsNotAlive];
         attributes.Active = false;
@@ -974,15 +971,17 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
         return;
     }
 
+    attributes.Active = true;
+
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
     if (Starving_ && aggressiveStarvationEnabled) {
         context->SchedulingStatistics.HasAggressivelyStarvingElements = true;
     }
 
     // If pool is starving, any child will do.
-    bool starvingOnlyChildren = Starving_ ? false : starvingOnly;
+    bool starvingOnlyForChildren = Starving_ ? false : starvingOnly;
     for (const auto& child : EnabledChildren_) {
-        child->PrescheduleJob(context, starvingOnlyChildren, aggressiveStarvationEnabled);
+        child->PrescheduleJob(context, starvingOnlyForChildren, aggressiveStarvationEnabled);
     }
 
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
