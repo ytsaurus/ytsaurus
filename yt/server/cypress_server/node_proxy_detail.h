@@ -376,7 +376,7 @@ private:
     { \
         Y_UNUSED(response); \
         context->SetRequestInfo(); \
-        ValidateSetCommand(NYTree::FindRequestYPath(context->RequestHeader()), context->GetUser(), request->force()); \
+        ValidateSetCommand(GetPath(), context->GetUser(), request->force()); \
         DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
         context->Reply(); \
     }
