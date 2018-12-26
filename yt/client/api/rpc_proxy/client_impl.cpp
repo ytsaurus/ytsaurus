@@ -150,7 +150,6 @@ ITransactionPtr TClient::AttachTransaction(
 
     auto req = proxy.AttachTransaction();
     ToProto(req->mutable_transaction_id(), transactionId);
-    req->set_auto_abort(options.AutoAbort);
     req->set_sticky(options.Sticky);
     if (options.PingPeriod) {
         req->set_ping_period(options.PingPeriod->GetValue());
