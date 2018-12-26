@@ -549,11 +549,6 @@ template <class T>
 TFuture<std::vector<TErrorOr<T>>> CombineAll(
     std::vector<TFuture<T>> futures);
 
-//! Takes a number of same-typed futures and returns a new one that
-//! is set when any of the given onces is set.
-template <class T>
-TFuture<T> AnyOf(std::vector<TFuture<T>> futures);
-
 //! Executes given #callbacks, allowing up to #concurrencyLimit simultaneous invocations.
 template <class T>
 TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(

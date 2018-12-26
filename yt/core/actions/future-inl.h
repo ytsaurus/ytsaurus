@@ -1534,23 +1534,6 @@ TFuture<std::vector<TErrorOr<T>>> CombineAll(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-TFuture<T> AnyOf(std::vector<TFuture<T>> futures)
-{
-    auto promise = NewPromise<T>();
-    for (auto& future : futures) {
-        promise.TrySetFrom(future);
-    }
-    promise.OnCanceled(BIND([futures = std::move(futures)] () mutable {
-        for (auto& future : futures) {
-            future.Cancel();
-        }
-    }));
-    return promise.ToFuture();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NDetail {
 
 template <class T>
