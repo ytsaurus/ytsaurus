@@ -18,6 +18,9 @@ struct TChunkReaderStatistics
     std::atomic<i64> DataBytesReadFromDisk{0};
     std::atomic<i64> DataBytesReadFromCache{0};
     std::atomic<i64> MetaBytesReadFromDisk{0};
+    std::atomic<NProfiling::TValue> DataWaitTime{0};
+    std::atomic<NProfiling::TValue> MetaWaitTime{0};
+    std::atomic<NProfiling::TValue> PickPeerWaitTime{0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderStatistics)
@@ -55,6 +58,9 @@ private:
     NProfiling::TMonotonicCounter DataBytesReadFromDisk;
     NProfiling::TMonotonicCounter DataBytesReadFromCache;
     NProfiling::TMonotonicCounter MetaBytesReadFromDisk;
+    NProfiling::TMonotonicCounter DataWaitTime;
+    NProfiling::TMonotonicCounter MetaWaitTime;
+    NProfiling::TMonotonicCounter PickPeerWaitTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

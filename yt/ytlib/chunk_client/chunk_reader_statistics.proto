@@ -7,6 +7,9 @@ message TChunkReaderStatistics
     required int64 data_bytes_read_from_disk = 1;
     required int64 data_bytes_read_from_cache = 2;
     required int64 meta_bytes_read_from_disk = 3;
+    optional int64 data_wait_time = 4 [default = 0];
+    optional int64 meta_wait_time = 5 [default = 0];
+    optional int64 pick_peer_wait_time = 6 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

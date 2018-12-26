@@ -1921,8 +1921,7 @@ protected:
         if (Spec->PartitionCount) {
             result = *Spec->PartitionCount;
         } else if (Spec->PartitionDataWeight) {
-            auto partitionDataWeight = std::max(*Spec->PartitionDataWeight, Options->MinPartitionWeight);
-            result = DivCeil<i64>(dataWeightAfterPartition, partitionDataWeight);
+            result = DivCeil<i64>(dataWeightAfterPartition, *Spec->PartitionDataWeight);
         } else {
             // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
