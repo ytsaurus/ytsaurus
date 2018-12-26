@@ -97,7 +97,7 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("thread_count", ThreadCount)
-            .Default(2)
+            .Default(1)
             .GreaterThan(0);
 
         RegisterParameter("shift_operations_to_start", ShiftOperationsToStart)

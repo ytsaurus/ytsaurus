@@ -59,6 +59,7 @@ bool operator<(const TControlThreadEvent& lhs, const TControlThreadEvent& rhs)
 TSimulatorControlThread::TSimulatorControlThread(
     const std::vector<TExecNodePtr>* execNodes,
     IOutputStream* eventLogOutputStream,
+    IOperationStatisticsOutput* operationStatisticsOutput,
     const TSchedulerSimulatorConfigPtr& config,
     const NScheduler::TSchedulerConfigPtr& schedulerConfig,
     const std::vector<TOperationDescription>& operations,
@@ -79,7 +80,6 @@ TSimulatorControlThread::TSimulatorControlThread(
         config->ThreadCount,
         /* maxAllowedOutrunning */ FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
     , OperationStatistics_(operations)
-    , OperationStatisticsOutput_(config->OperationsStatsFilename)
     , JobAndOperationCounter_(operations.size())
     , Logger(TLogger(NSchedulerSimulator::Logger).AddTag("ControlThread"))
 {
@@ -94,7 +94,7 @@ TSimulatorControlThread::TSimulatorControlThread(
             &NodeShardEventQueue_,
             &SchedulerStrategyForNodeShards_,
             &OperationStatistics_,
-            &OperationStatisticsOutput_,
+            operationStatisticsOutput,
             &RunningOperationsMap_,
             &JobAndOperationCounter_,
             Config_,
@@ -143,7 +143,6 @@ TFuture<void> TSimulatorControlThread::AsyncRun()
 void TSimulatorControlThread::Run()
 {
     YT_LOG_INFO("Simulation started (ThreadCount: %v)", Config_->ThreadCount);
-    OperationStatisticsOutput_.PrintHeader();
 
     std::vector<TFuture<void>> asyncWorkerResults;
     for (const auto& nodeShard : NodeShards_) {

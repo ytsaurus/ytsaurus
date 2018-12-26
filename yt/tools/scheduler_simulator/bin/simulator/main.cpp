@@ -182,9 +182,12 @@ void Run(const char* configFilename)
     auto schedulerConfig = LoadSchedulerConfigFromFile(config->SchedulerConfigFilename);
     auto poolTreesNode = LoadPoolTrees(config->PoolTreesFilename);
 
+    TSharedOperationStatisticsOutput statisticsOutput(config->OperationsStatsFilename);
+
     auto simulatorControlThread = New<TSimulatorControlThread>(
         &execNodes,
         &eventLogOutputStream,
+        &statisticsOutput,
         config,
         schedulerConfig,
         operations,
