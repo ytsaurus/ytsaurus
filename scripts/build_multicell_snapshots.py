@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import yt.yson as y
-import subprocess as s;
+import subprocess as sp;
 import time
 
 f = open('driver.conf', 'r');
