@@ -222,7 +222,14 @@ class ThreadPool(object):
         for worker in self._workers:
             worker.state = worker.TERMINATING
 
+        main_thread = getattr(threading, "_main_thread", None)
         while True:
+            # Main thread can be dead if __del__ called from Py_Finalize -> PyGC_Collect.
+            # In this case all threads are 'blocked' and wait will be infinite.
+            # More information in ticket YT-10041.
+            if main_thread is not None and not main_thread.is_alive():
+                break
+
             self._clear_queue(self._result_queue)
             self._task_queue.put((None, None))
 
