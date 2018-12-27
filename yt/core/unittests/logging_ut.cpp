@@ -394,8 +394,6 @@ TEST_F(TLoggingTest, TraceSuppression)
 
     TLogManager::Get()->Configure(config);
 
-    YT_LOG_INFO("Info message");
-
     {
         auto traceContext = NTracing::CreateRootTraceContext();
         NTracing::TTraceContextGuard guard(traceContext);
@@ -404,6 +402,8 @@ TEST_F(TLoggingTest, TraceSuppression)
 
         TLogManager::Get()->SuppressTrace(traceContext.GetTraceId());
     }
+
+    YT_LOG_INFO("Info message");
 
     TLogManager::Get()->Synchronize();
 
