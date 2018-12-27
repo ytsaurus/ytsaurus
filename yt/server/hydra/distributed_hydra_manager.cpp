@@ -1370,7 +1370,9 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ResetAutomatonEpochContext();
-        
+
+        followerCommitter->Stop();
+
         DecoratedAutomaton_->OnStopFollowing();
         
         StopFollowing_.Fire();
