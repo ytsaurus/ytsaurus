@@ -13,6 +13,8 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
+#include <yt/core/logging/log_manager.h>
+
 #include <yt/core/net/local_address.h>
 #include <yt/core/net/address.h>
 
@@ -380,6 +382,8 @@ private:
             Profiler.Increment(PerformanceCounters_->FailedRequestCounter);
         }
 
+        HandleLoggingSuppression();
+
         Profiler.Increment(
             PerformanceCounters_->ResponseMessageBodySizeCounter,
             GetMessageBodySize(responseMessage));
@@ -388,6 +392,22 @@ private:
             GetTotalMessageAttachmentSize(responseMessage));
 
         Finalize();
+    }
+
+    void HandleLoggingSuppression()
+    {
+        auto traceId = NTracing::GetCurrentTraceContext().GetTraceId();
+        if (traceId == NTracing::InvalidTraceId) {
+            return;
+        }
+
+        if (TotalTime_ >= FromProto<TDuration>(RequestHeader_->logging_suppression_timeout()) ||
+            (!Error_.IsOK() && RequestHeader_->disable_logging_suppression_if_request_failed()))
+        {
+            return;
+        }
+
+        NLogging::TLogManager::Get()->SuppressTrace(traceId);
     }
 
     void DoSetComplete()

@@ -103,6 +103,8 @@ public:
     std::vector<TString> SuppressedMessages;
     THashMap<TString, size_t> CategoryRateLimits;
 
+    TDuration TraceSuppressionTimeout;
+
     TLogConfig()
     {
         RegisterParameter("flush_period", FlushPeriod)
@@ -129,6 +131,9 @@ public:
             .Default();
         RegisterParameter("category_rate_limits", CategoryRateLimits)
             .Default();
+
+        RegisterParameter("trace_suppression_timeout", TraceSuppressionTimeout)
+            .Default(TDuration::Zero());
 
         RegisterPostprocessor([&] () {
             for (const auto& rule : Rules) {
