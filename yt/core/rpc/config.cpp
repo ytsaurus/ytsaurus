@@ -16,6 +16,7 @@ const NCompression::ECodec TMethodConfig::DefaultResponseCodec = NCompression::E
 const int TMethodConfig::DefaultMaxQueueSize = 10000;
 const int TMethodConfig::DefaultMaxConcurrency = 1000;
 const NLogging::ELogLevel TMethodConfig::DefaultLogLevel = NLogging::ELogLevel::Debug;
+const TDuration TMethodConfig::DefaultLoggingSuppressionTimeout = TDuration::Zero();
 
 ////////////////////////////////////////////////////////////////////////////////
 

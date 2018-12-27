@@ -401,7 +401,12 @@ private:
             return;
         }
 
-        if (TotalTime_ >= FromProto<TDuration>(RequestHeader_->logging_suppression_timeout()) ||
+        auto timeout = RuntimeInfo_->Descriptor.LoggingSuppressionTimeout;
+        if (RequestHeader_->has_logging_suppression_timeout()) {
+            timeout = FromProto<TDuration>(RequestHeader_->logging_suppression_timeout());
+        }
+
+        if (TotalTime_ >= timeout ||
             (!Error_.IsOK() && RequestHeader_->disable_logging_suppression_if_request_failed()))
         {
             return;
@@ -979,6 +984,7 @@ void TServiceBase::Configure(INodePtr configNode)
             descriptor.SetMaxQueueSize(methodConfig->MaxQueueSize);
             descriptor.SetMaxConcurrency(methodConfig->MaxConcurrency);
             descriptor.SetLogLevel(methodConfig->LogLevel);
+            descriptor.SetLoggingSuppressionTimeout(methodConfig->LoggingSuppressionTimeout);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
