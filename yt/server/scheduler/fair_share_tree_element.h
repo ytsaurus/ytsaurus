@@ -259,8 +259,6 @@ public:
 
     void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
 
-    virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) = 0;
-
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
@@ -375,8 +373,6 @@ public:
     virtual bool ScheduleJob(TFairShareContext* context) override;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
-
-    virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
     virtual bool IsExplicit() const;
     virtual bool IsAggressiveStarvationEnabled() const;
@@ -717,7 +713,7 @@ public:
     virtual void CheckForStarvation(TInstant now) override;
     bool IsPreemptionAllowed(const TFairShareContext& context, const TFairShareStrategyTreeConfigPtr& config) const;
 
-    virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
+    void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
     void IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta);
 

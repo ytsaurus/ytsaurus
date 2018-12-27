@@ -955,15 +955,6 @@ bool TCompositeSchedulerElement::ScheduleJob(TFairShareContext* context)
     return true;
 }
 
-void TCompositeSchedulerElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
-{
-    auto* currentElement = this;
-    while (currentElement) {
-        currentElement->ApplyJobMetricsDeltaLocal(delta);
-        currentElement = currentElement->GetParent();
-    }
-}
-
 bool TCompositeSchedulerElement::IsExplicit() const
 {
     return false;
@@ -2466,8 +2457,11 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
 
 void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
 {
-    ApplyJobMetricsDeltaLocal(delta);
-    GetParent()->ApplyJobMetricsDelta(delta);
+    TSchedulerElement* currentElement = this;
+    while (currentElement) {
+        currentElement->ApplyJobMetricsDeltaLocal(delta);
+        currentElement = currentElement->GetParent();
+    }
 }
 
 void TOperationElement::IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta)
