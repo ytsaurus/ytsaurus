@@ -53,6 +53,8 @@ public:
 
     void SuppressTrace(NTracing::TTraceId traceId);
 
+    void Synchronize(TInstant deadline = TInstant::Max());
+
 private:
     TLogManager();
 
