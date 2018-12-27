@@ -7,6 +7,8 @@
 
 #include <yt/core/json/json_parser.h>
 
+#include <yt/core/tracing/trace_context.h>
+
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/ytree/convert.h>
@@ -364,6 +366,54 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");
+}
+
+TEST_F(TLoggingTest, TraceSuppression)
+{
+    NFs::Remove("test.log");
+
+    auto configText = R"({
+        rules = [
+            {
+                "min_level" = "info";
+                "writers" = [ "info" ];
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "test.log";
+                "type" = "file";
+            };
+        };
+        "trace_suppression_timeout" = 100;
+    })";
+
+    auto configNode = ConvertToNode(TYsonString(configText));
+
+    auto config = ConvertTo<TLogConfigPtr>(configNode);
+
+    TLogManager::Get()->Configure(config);
+
+    YT_LOG_INFO("Info message");
+
+    {
+        auto traceContext = NTracing::CreateRootTraceContext();
+        NTracing::TTraceContextGuard guard(traceContext);
+
+        YT_LOG_INFO("Traced message");
+
+        TLogManager::Get()->SuppressTrace(traceContext.GetTraceId());
+    }
+
+    Sleep(TDuration::Seconds(1));
+
+    auto lines = ReadFile("test.log");
+
+    EXPECT_EQ(2, lines.size());
+    EXPECT_TRUE(lines[0].find("Logging started") != -1);
+    EXPECT_TRUE(lines[1].find("Info message") != -1);
+
+    NFs::Remove("test.log");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
