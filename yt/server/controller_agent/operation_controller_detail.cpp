@@ -6398,6 +6398,10 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
             fluent
                 .Item("title").Value(*Spec_->Title);
         })
+        .DoIf(Spec_->Alias.operator bool(), [&] (TFluentMap fluent) {
+            fluent
+                .Item("alias").Value(*Spec_->Alias);
+        })
         .Item("input_table_paths").ListLimited(inputPaths, 1)
         .Item("output_table_paths").ListLimited(outputPaths, 1);
 }
