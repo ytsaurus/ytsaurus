@@ -235,7 +235,7 @@ TEST_F(TLoggingTest, LogManager)
     YT_LOG_INFO("Info message");
     YT_LOG_ERROR("Error message");
 
-    Sleep(TDuration::Seconds(1));
+    TLogManager::Get()->Synchronize();
 
     auto infoLog = ReadFile("test.log");
     auto errorLog = ReadFile("test.error.log");
@@ -262,7 +262,7 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
 
     auto writer = New<TFileLogWriter>(std::make_unique<TJsonLogFormatter>(), "test_writer", "test.log");
     WriteEvent(writer.Get(), event);
-    Sleep(TDuration::MilliSeconds(100));
+    TLogManager::Get()->Synchronize();
 
     auto log = ReadFile("test.log");
 
@@ -405,7 +405,7 @@ TEST_F(TLoggingTest, TraceSuppression)
         TLogManager::Get()->SuppressTrace(traceContext.GetTraceId());
     }
 
-    Sleep(TDuration::Seconds(1));
+    TLogManager::Get()->Synchronize();
 
     auto lines = ReadFile("test.log");
 

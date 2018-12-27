@@ -440,13 +440,7 @@ public:
         } else {
             // Wait for all previously enqueued messages to be flushed
             // but no more than ShutdownGraceTimeout to prevent hanging.
-            auto now = TInstant::Now();
-            auto enqueuedEvents = EnqueuedEvents_.load();
-            while (enqueuedEvents > FlushedEvents_.load() &&
-                   TInstant::Now() - now < Config_->ShutdownGraceTimeout)
-            {
-                SchedYield();
-            }
+            Synchronize(TInstant::Now() + Config_->ShutdownGraceTimeout);
         }
 
         EventQueue_->Shutdown();
@@ -593,6 +587,14 @@ public:
         }
 
         SuppressedTraceIdQueue_.Enqueue(traceId);
+    }
+
+    void Synchronize(TInstant deadline = TInstant::Max())
+    {
+        auto enqueuedEvents = EnqueuedEvents_.load();
+        while (enqueuedEvents > FlushedEvents_.load() && TInstant::Now() < deadline) {
+            SchedYield();
+        }
     }
 
 private:
@@ -1295,6 +1297,11 @@ TDuration TLogManager::GetPerThreadBatchingPeriod() const
 void TLogManager::SuppressTrace(TTraceId traceId)
 {
     Impl_->SuppressTrace(traceId);
+}
+
+void TLogManager::Synchronize(TInstant deadline)
+{
+    Impl_->Synchronize(deadline);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
