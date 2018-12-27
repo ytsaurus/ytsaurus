@@ -1359,7 +1359,7 @@ private:
         YT_LOG_INFO("Stopped following");
 
         // Save for later to respect the thread affinity.
-        auto followerCommitter = ControlEpochContext_->LeaderCommitter;
+        auto followerCommitter = ControlEpochContext_->FollowerCommitter;
 
         StopEpoch();
 
