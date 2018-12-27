@@ -68,6 +68,9 @@ public:
     static const NLogging::ELogLevel DefaultLogLevel;
     NLogging::ELogLevel LogLevel;
 
+    static const TDuration DefaultLoggingSuppressionTimeout;
+    TDuration LoggingSuppressionTimeout;
+
     TMethodConfig()
     {
         RegisterParameter("heavy", Heavy)
@@ -80,6 +83,8 @@ public:
             .Default(DefaultMaxConcurrency);
         RegisterParameter("log_level", LogLevel)
             .Default(DefaultLogLevel);
+        RegisterParameter("logging_suppression_timeout", LoggingSuppressionTimeout)
+            .Default(DefaultLoggingSuppressionTimeout);
     }
 };
 

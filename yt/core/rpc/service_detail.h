@@ -338,6 +338,9 @@ protected:
         //! Log level for events emitted via |Set(Request|Response)Info|-like functions.
         NLogging::ELogLevel LogLevel = TMethodConfig::DefaultLogLevel;
 
+        //! Logging suppression timeout for this method requests.
+        TDuration LoggingSuppressionTimeout = TMethodConfig::DefaultLoggingSuppressionTimeout;
+
         //! Cancelable requests can be canceled by clients.
         //! This, however, requires additional book-keeping at server-side so one is advised
         //! to only mark cancelable those methods taking a considerable time to complete.
@@ -391,6 +394,12 @@ protected:
         TMethodDescriptor& SetLogLevel(NLogging::ELogLevel value)
         {
             LogLevel = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetLoggingSuppressionTimeout(TDuration timeout)
+        {
+            LoggingSuppressionTimeout = timeout;
             return *this;
         }
 
