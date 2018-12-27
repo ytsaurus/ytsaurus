@@ -134,7 +134,6 @@ class TSchedulerElementSharedState
 {
 public:
     TJobResources GetResourceUsage();
-    TJobResources GetResourceUsagePrecommit();
     TJobResources GetTotalResourceUsageWithPrecommit();
     TJobMetrics GetJobMetrics();
 
@@ -250,7 +249,6 @@ public:
     virtual void CheckForStarvation(TInstant now) = 0;
 
     TJobResources GetLocalResourceUsage() const;
-    TJobResources GetLocalResourceUsagePrecommit() const;
     TJobResources GetTotalLocalResourceUsageWithPrecommit() const;
     TJobMetrics GetJobMetrics() const;
     double GetLocalResourceUsageRatio() const;

@@ -129,13 +129,6 @@ TJobResources TSchedulerElementSharedState::GetResourceUsage()
     return ResourceUsage_;
 }
 
-TJobResources TSchedulerElementSharedState::GetResourceUsagePrecommit()
-{
-    TReaderGuard guard(ResourceUsageLock_);
-
-    return ResourceUsagePrecommit_;
-}
-
 TJobResources TSchedulerElementSharedState::GetTotalResourceUsageWithPrecommit()
 {
     TReaderGuard guard(ResourceUsageLock_);
@@ -437,11 +430,6 @@ TJobResources TSchedulerElement::GetLocalResourceUsage() const
     return resourceUsage;
 }
 
-TJobResources TSchedulerElement::GetLocalResourceUsagePrecommit() const
-{
-    return SharedState_->GetResourceUsagePrecommit();
-}
-
 TJobResources TSchedulerElement::GetTotalLocalResourceUsageWithPrecommit() const
 {
     return SharedState_->GetTotalResourceUsageWithPrecommit();
@@ -559,12 +547,12 @@ bool TSchedulerElement::TryIncreaseHierarchicalResourceUsagePrecommit(
         auto* currentElement = this;
         while (currentElement) {
             TJobResources localAvailableResourceLimits;
-            bool succesfullyUpdated = currentElement->TryIncreaseLocalResourceUsagePrecommit(
+            bool successfullyUpdated = currentElement->TryIncreaseLocalResourceUsagePrecommit(
                 delta,
                 context,
                 checkDemand,
                 &localAvailableResourceLimits);
-            if (!succesfullyUpdated) {
+            if (!successfullyUpdated) {
                 failedParent = currentElement;
                 break;
             }
@@ -1625,7 +1613,7 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 {
     YCHECK(!Cloned_);
 
-    Config_ = newConfig;
+    Config_ = std::move(newConfig);
     FifoSortParameters_ = Config_->FifoSortParameters;
     Mode_ = Config_->Mode;
     SchedulingTagFilter_ = TSchedulingTagFilter(Config_->SchedulingTagFilter);
@@ -2129,10 +2117,10 @@ TOperationElement::TOperationElement(
     const TString& treeId)
     : TSchedulerElement(host, treeHost, treeConfig, treeId)
     , TOperationElementFixedState(operation, controllerConfig)
-    , RuntimeParams_(runtimeParams)
+    , RuntimeParams_(std::move(runtimeParams))
     , Spec_(spec)
     , SharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod))
-    , Controller_(controller)
+    , Controller_(std::move(controller))
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
     , LastNonStarvingTime_(TInstant::Now())
 { }
@@ -2293,7 +2281,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
 
-bool TOperationElement::HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const
+bool TOperationElement::HasAggressivelyStarvingElements(TFairShareContext* /*context*/, bool /*aggressiveStarvationEnabled*/) const
 {
     // TODO(ignat): Support aggressive starvation by starving operation.
     return false;
