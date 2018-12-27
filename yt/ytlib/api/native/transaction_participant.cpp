@@ -109,6 +109,7 @@ public:
             THydraServiceProxy proxy(channel);
             auto req = proxy.CommitMutation();
             req->set_type(HeartbeatMutationType);
+            req->Attachments().push_back(TSharedRef());
             return req->Invoke().template As<void>();
         }));
     }
