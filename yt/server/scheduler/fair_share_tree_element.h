@@ -255,28 +255,7 @@ public:
 
     virtual TString GetTreeId() const;
 
-    TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
-    TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
-
-    void CommitLocalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
-    void IncreaseLocalResourceUsage(const TJobResources& delta);
-    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
-    bool TryIncreaseLocalResourceUsagePrecommit(
-        const TJobResources& delta,
-        const TFairShareContext& context,
-        bool checkDemand,
-        TJobResources* availableResourceLimitsOutput);
-
-    void CommitHierarchicalResourceUsage(
-        const TJobResources& resourceUsageDelta,
-        const TJobResources& precommittedResources);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
-    void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
-    bool TryIncreaseHierarchicalResourceUsagePrecommit(
-        const TJobResources& delta,
-        const TFairShareContext& context,
-        bool checkDemand,
-        TJobResources* availableResourceLimitsOutput);
 
     void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
 
@@ -320,8 +299,23 @@ protected:
 
     TString GetLoggingAttributesString(const TDynamicAttributesList& dynamicAttributesList) const;
 
+    TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
+    TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
+
+    bool TryIncreaseLocalResourceUsagePrecommit(
+        const TJobResources& delta,
+        const TFairShareContext& context,
+        bool checkDemand,
+        TJobResources* availableResourceLimitsOutput);
+
+    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
+    void IncreaseLocalResourceUsage(const TJobResources& delta);
+    void CommitLocalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
+
 private:
     void UpdateAttributes();
+
+    friend class TOperationElement;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElement)
@@ -765,6 +759,18 @@ public:
 
     void Disable();
     void Enable();
+
+    bool TryIncreaseHierarchicalResourceUsagePrecommit(
+        const TJobResources& delta,
+        const TFairShareContext& context,
+        bool checkDemand,
+        TJobResources* availableResourceLimitsOutput);
+
+    void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
+
+    void CommitHierarchicalResourceUsage(
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParams);
 
