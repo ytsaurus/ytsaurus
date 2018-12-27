@@ -505,17 +505,6 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShar
         context.DynamicAttributes(this).ResourceUsageDiscount);
 }
 
-void TSchedulerElement::CommitHierarchicalResourceUsage(
-    const TJobResources& resourceUsageDelta,
-    const TJobResources& precommittedResources)
-{
-    auto* currentElement = this;
-    while (currentElement) {
-        currentElement->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
-        currentElement = currentElement->GetParent();
-    }
-}
-
 void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& delta)
 {
     auto* currentElement = this;
@@ -523,57 +512,6 @@ void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& d
         currentElement->IncreaseLocalResourceUsage(delta);
         currentElement = currentElement->GetParent();
     }
-}
-
-void TSchedulerElement::DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources)
-{
-    auto* currentElement = this;
-    while (currentElement) {
-        currentElement->IncreaseLocalResourceUsagePrecommit(-precommittedResources);
-        currentElement = currentElement->GetParent();
-    }
-}
-
-bool TSchedulerElement::TryIncreaseHierarchicalResourceUsagePrecommit(
-    const TJobResources& delta,
-    const TFairShareContext& context,
-    bool checkDemand,
-    TJobResources* availableResourceLimitsOutput)
-{
-    auto availableResourceLimits = InfiniteJobResources();
-    TSchedulerElement* failedParent = nullptr;
-
-    {
-        auto* currentElement = this;
-        while (currentElement) {
-            TJobResources localAvailableResourceLimits;
-            bool successfullyUpdated = currentElement->TryIncreaseLocalResourceUsagePrecommit(
-                delta,
-                context,
-                checkDemand,
-                &localAvailableResourceLimits);
-            if (!successfullyUpdated) {
-                failedParent = currentElement;
-                break;
-            }
-            availableResourceLimits = Min(availableResourceLimits, localAvailableResourceLimits);
-            currentElement = currentElement->GetParent();
-        }
-    }
-
-    if (failedParent != nullptr) {
-        auto* currentElement = this;
-        while (currentElement != failedParent) {
-            currentElement->IncreaseLocalResourceUsagePrecommit(-delta);
-            currentElement = currentElement->GetParent();
-        }
-        return false;
-    }
-
-    if (availableResourceLimitsOutput != nullptr) {
-        *availableResourceLimitsOutput = availableResourceLimits;
-    }
-    return true;
 }
 
 TSchedulerElement::TSchedulerElement(
@@ -2777,6 +2715,66 @@ void TOperationElement::UpdatePreemptableJobsList()
             moveCount,
             OperationId_,
             GetTreeId());
+    }
+}
+
+bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
+    const TJobResources& delta,
+    const TFairShareContext& context,
+    bool checkDemand,
+    TJobResources* availableResourceLimitsOutput)
+{
+    auto availableResourceLimits = InfiniteJobResources();
+    TSchedulerElement* failedParent = nullptr;
+
+    TSchedulerElement* currentElement = this;
+    while (currentElement) {
+        TJobResources localAvailableResourceLimits;
+        bool successfullyUpdated = currentElement->TryIncreaseLocalResourceUsagePrecommit(
+            delta,
+            context,
+            checkDemand,
+            &localAvailableResourceLimits);
+        if (!successfullyUpdated) {
+            failedParent = currentElement;
+            break;
+        }
+        availableResourceLimits = Min(availableResourceLimits, localAvailableResourceLimits);
+        currentElement = currentElement->GetParent();
+    }
+
+    if (failedParent != nullptr) {
+        currentElement = this;
+        while (currentElement != failedParent) {
+            currentElement->IncreaseLocalResourceUsagePrecommit(-delta);
+            currentElement = currentElement->GetParent();
+        }
+        return false;
+    }
+
+    if (availableResourceLimitsOutput != nullptr) {
+        *availableResourceLimitsOutput = availableResourceLimits;
+    }
+    return true;
+}
+
+void TOperationElement::DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources)
+{
+    TSchedulerElement* currentElement = this;
+    while (currentElement) {
+        currentElement->IncreaseLocalResourceUsagePrecommit(-precommittedResources);
+        currentElement = currentElement->GetParent();
+    }
+}
+
+void TOperationElement::CommitHierarchicalResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
+{
+    TSchedulerElement* currentElement = this;
+    while (currentElement) {
+        currentElement->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
+        currentElement = currentElement->GetParent();
     }
 }
 
