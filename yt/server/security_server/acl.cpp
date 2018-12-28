@@ -34,27 +34,13 @@ TAccessControlEntry::TAccessControlEntry(
     , InheritanceMode(inheritanceMode)
 { }
 
-void TAccessControlEntry::Save(NCellMaster::TSaveContext& context) const
+void TAccessControlEntry::Persist(NCellMaster::TPersistenceContext& context)
 {
-    using NYT::Save;
-    Save(context, Subjects);
-    Save(context, Permissions);
-    Save(context, Action);
-    Save(context, InheritanceMode);
-}
-
-void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, Subjects);
-    Load(context, Permissions);
-    Load(context, Action);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 356) {
-        Load(context, InheritanceMode);
-    } else {
-        InheritanceMode = EAceInheritanceMode::ObjectAndDescendants;
-    }
+    using NYT::Persist;
+    Persist(context, Subjects);
+    Persist(context, Permissions);
+    Persist(context, Action);
+    Persist(context, InheritanceMode);
 }
 
 void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)

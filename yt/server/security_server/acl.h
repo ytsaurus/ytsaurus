@@ -35,8 +35,7 @@ struct TAccessControlEntry
     EPermissionSet Permissions;
     EAceInheritanceMode InheritanceMode;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    void Persist(NCellMaster::TPersistenceContext& context);
 };
 
 void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);

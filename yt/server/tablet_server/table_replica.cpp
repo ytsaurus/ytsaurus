@@ -44,12 +44,7 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     Load(context, StartReplicationTimestamp_);
     Load(context, Table_);
     Load(context, State_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 602) {
-        Load(context, Mode_);
-    } else {
-        Mode_ = ETableReplicaMode::Async;
-    }
+    Load(context, Mode_);
     Load(context, TransitioningTablets_);
     // COMPAT(aozeritsky)
     if (context.GetVersion() >= 717) {

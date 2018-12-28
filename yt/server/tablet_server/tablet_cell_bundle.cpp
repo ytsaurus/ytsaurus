@@ -46,64 +46,16 @@ void TTabletCellBundle::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, Name_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 400) {
-        Load(context, Acd_);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 625) {
-        Load(context, *Options_);
-    } else {
-        auto str = NYT::Load<TYsonString>(context);
-        auto node = ConvertTo<INodePtr>(str);
-        node->AsMap()->AddChild("changelog_account", ConvertTo<INodePtr>(DefaultStoreAccountName));
-        node->AsMap()->AddChild("snapshot_account", ConvertTo<INodePtr>(DefaultStoreAccountName));
-        Options_->Load(node);
-    }
+    Load(context, Acd_);
+    Load(context, *Options_);
     // COMPAT(savrus)
     if (context.GetVersion() >= 716) {
         Load(context, *DynamicOptions_);
         Load(context, DynamicConfigVersion_);
     }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 400) {
-        // COMPAT(savrus)
-        if (context.GetVersion() >= 600) {
-            Load(context, NodeTagFilter_);
-        } else {
-            if (auto filter = Load<std::optional<TString>>(context)) {
-                NodeTagFilter_ = MakeBooleanFormula(*filter);
-            }
-        }
-    }
-    // COMAPT(babenko)
-    if (context.GetVersion() >= 400) {
-        Load(context, TabletCells_);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 624) {
-        Load(context, *TabletBalancerConfig_);
-    } else if (context.GetVersion() >= 614) {
-        bool enableTabletBalancer;
-        Load(context, enableTabletBalancer);
-        TabletBalancerConfig_->EnableInMemoryCellBalancer = enableTabletBalancer;
-        TabletBalancerConfig_->EnableTabletSizeBalancer = enableTabletBalancer;
-    }
-
-    //COMPAT(savrus)
-    if (context.GetVersion() < 614) {
-        if (Attributes_) {
-            auto& attributes = Attributes_->Attributes();
-            static const TString nodeTagFilterAttributeName("node_tag_filter");
-            auto it = attributes.find(nodeTagFilterAttributeName);
-            if (it != attributes.end()) {
-                attributes.erase(it);
-            }
-            if (attributes.empty()) {
-                Attributes_.reset();
-            }
-        }
-    }
+    Load(context, NodeTagFilter_);
+    Load(context, TabletCells_);
+    Load(context, *TabletBalancerConfig_);
 
     FillProfilingTag();
 }

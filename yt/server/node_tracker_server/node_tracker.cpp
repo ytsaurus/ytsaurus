@@ -1243,10 +1243,7 @@ private:
     {
         NodeMap_.LoadKeys(context);
         RackMap_.LoadKeys(context);
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= 400) {
-            DataCenterMap_.LoadKeys(context);
-        }
+        DataCenterMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1254,10 +1251,7 @@ private:
         Load(context, NodeIdGenerator_);
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= 400) {
-            DataCenterMap_.LoadValues(context);
-        }
+        DataCenterMap_.LoadValues(context);
     }
 
 
