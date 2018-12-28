@@ -683,6 +683,7 @@ class YTInstance(object):
                                name, proc.pid, os.path.join(self.path, name), proc.returncode))
             return
 
+        logger.info("Sending SIGKILL to process (pid: %d)", proc.pid)
         os.killpg(proc.pid, signal.SIGKILL)
         time.sleep(0.2)
 
