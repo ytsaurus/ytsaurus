@@ -140,12 +140,14 @@ public:
     void CommitResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
     void IncreaseResourceUsage(const TJobResources& delta);
     void IncreaseResourceUsagePrecommit(const TJobResources& delta);
+    bool CheckDemand(
+        const TJobResources& delta,
+        const TJobResources& resourceDemand,
+        const TJobResources& resourceDiscount);
     bool TryIncreaseResourceUsagePrecommit(
         const TJobResources& delta,
         const TJobResources& resourceLimits,
-        const TJobResources& resourceDemand,
         const TJobResources& resourceDiscount,
-        bool checkDemand,
         TJobResources* availableResourceLimitsOutput);
     void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
@@ -300,10 +302,11 @@ protected:
     TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
     TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
 
+    bool CheckDemand(const TJobResources& delta, const TFairShareContext& context);
+
     bool TryIncreaseLocalResourceUsagePrecommit(
         const TJobResources& delta,
         const TFairShareContext& context,
-        bool checkDemand,
         TJobResources* availableResourceLimitsOutput);
 
     void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);

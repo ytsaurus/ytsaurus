@@ -167,12 +167,25 @@ void TSchedulerElementSharedState::IncreaseResourceUsagePrecommit(const TJobReso
     ResourceUsagePrecommit_ += delta;
 }
 
+bool TSchedulerElementSharedState::CheckDemand(
+    const TJobResources& delta,
+    const TJobResources& resourceDemand,
+    const TJobResources& resourceDiscount)
+{
+    TReaderGuard guard(ResourceUsageLock_);
+
+    auto availableDemand = ComputeAvailableResources(
+        resourceDemand,
+        ResourceUsage_ + ResourceUsagePrecommit_,
+        resourceDiscount);
+
+    return Dominates(availableDemand, delta);
+}
+
 bool TSchedulerElementSharedState::TryIncreaseResourceUsagePrecommit(
     const TJobResources& delta,
     const TJobResources& resourceLimits,
-    const TJobResources& resourceDemand,
     const TJobResources& resourceDiscount,
-    bool checkDemand,
     TJobResources* availableResourceLimitsOutput)
 {
     TWriterGuard guard(ResourceUsageLock_);
@@ -184,17 +197,6 @@ bool TSchedulerElementSharedState::TryIncreaseResourceUsagePrecommit(
 
     if (!Dominates(availableResourceLimits, delta)) {
         return false;
-    }
-
-    if (checkDemand) {
-        auto availableDemand = ComputeAvailableResources(
-            resourceDemand,
-            ResourceUsage_ + ResourceUsagePrecommit_,
-            resourceDiscount);
-
-        if (!Dominates(availableDemand, delta)) {
-            return false;
-        }
     }
 
     ResourceUsagePrecommit_ += delta;
@@ -469,18 +471,20 @@ void TSchedulerElement::IncreaseLocalResourceUsagePrecommit(const TJobResources&
     SharedState_->IncreaseResourceUsagePrecommit(delta);
 }
 
+bool TSchedulerElement::CheckDemand(const TJobResources& delta, const TFairShareContext& context)
+{
+    return SharedState_->CheckDemand(delta, ResourceDemand(), context.DynamicAttributes(this).ResourceUsageDiscount);
+}
+
 bool TSchedulerElement::TryIncreaseLocalResourceUsagePrecommit(
     const TJobResources& delta,
     const TFairShareContext& context,
-    bool checkDemand,
     TJobResources* availableResourceLimitsOutput)
 {
     return SharedState_->TryIncreaseResourceUsagePrecommit(
         delta,
         ResourceLimits(),
-        ResourceDemand(),
         context.DynamicAttributes(this).ResourceUsageDiscount,
-        checkDemand,
         availableResourceLimitsOutput);
 }
 
@@ -2721,13 +2725,16 @@ bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     auto availableResourceLimits = InfiniteJobResources();
     TSchedulerElement* failedParent = nullptr;
 
+    if (checkDemand && !CheckDemand(delta, context)) {
+        return false;
+    }
+
     TSchedulerElement* currentElement = this;
     while (currentElement) {
         TJobResources localAvailableResourceLimits;
         bool successfullyUpdated = currentElement->TryIncreaseLocalResourceUsagePrecommit(
             delta,
             context,
-            checkDemand,
             &localAvailableResourceLimits);
         if (!successfullyUpdated) {
             failedParent = currentElement;
