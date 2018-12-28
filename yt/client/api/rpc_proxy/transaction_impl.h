@@ -59,24 +59,6 @@ public:
     virtual void SubscribeAborted(const TClosure&) override;
     virtual void UnsubscribeAborted(const TClosure&) override;
 
-    virtual void WriteRows(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TUnversionedRow> rows,
-        const NApi::TModifyRowsOptions& options) override;
-
-    virtual void WriteRows(
-        const NYPath::TYPath&,
-        NTableClient::TNameTablePtr,
-        TSharedRange<NTableClient::TVersionedRow>,
-        const NApi::TModifyRowsOptions&) override;
-
-    virtual void DeleteRows(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TKey> keys,
-        const NApi::TModifyRowsOptions& options) override;
-
     virtual void ModifyRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
