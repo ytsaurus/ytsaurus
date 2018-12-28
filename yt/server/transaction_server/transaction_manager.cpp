@@ -869,9 +869,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TransactionMap_.LoadKeys(context);
-
-        // COMPAT(babenko)
-        YCHECK(context.GetVersion() >= 400 || TransactionMap_.GetSize() == 0);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)

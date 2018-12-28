@@ -501,10 +501,7 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, TableId_);
     Load(context, MountRevision_);
-    // COMPAT(gridem)
-    if (context.GetVersion() > 100004) {
-        Load(context, TablePath_);
-    }
+    Load(context, TablePath_);
     Load(context, State_);
     Load(context, TableSchema_);
     Load(context, Atomicity_);
@@ -514,12 +511,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
     Load(context, RuntimeData_->LastCommitTimestamp);
-    // COMPAT(babenko)
-    if (context.GetVersion() < 100007) {
-        RuntimeData_->LastWriteTimestamp.store(RuntimeData_->LastCommitTimestamp.load());
-    } else {
-        Load(context, RuntimeData_->LastWriteTimestamp);
-    }
+    Load(context, RuntimeData_->LastWriteTimestamp);
     Load(context, Replicas_);
     for (auto& pair : Replicas_) {
         auto& replicaInfo = pair.second;

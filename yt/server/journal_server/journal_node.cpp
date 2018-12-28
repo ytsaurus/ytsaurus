@@ -49,10 +49,7 @@ void TJournalNode::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ReadQuorum_);
     Load(context, WriteQuorum_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 200) {
-        Load(context, Sealed_);
-    }
+    Load(context, Sealed_);
 }
 
 void TJournalNode::BeginUpload(NChunkClient::EUpdateMode mode)

@@ -378,19 +378,8 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Decommissioned_);
     Load(context, DisableWriteSessions_);
     Load(context, DisableSchedulerJobs_);
-
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 703) {
-        Load(context, DisableTabletCells_);
-    }
-
-    // COMPAT(prime)
-    if (context.GetVersion() < 610) {
-        auto addresses = Load<TAddressMap>(context);
-        NodeAddresses_.emplace(EAddressType::InternalRpc, addresses);
-    } else {
-        Load(context, NodeAddresses_);
-    }
+    Load(context, DisableTabletCells_);
+    Load(context, NodeAddresses_);
 
     {
         using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
@@ -418,22 +407,13 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
-    // COMPAT(shakurov, babenko)
-    if (context.GetVersion() < 400)  {
-        YCHECK(TSizeSerializer::Load(context) == 0);
-        YCHECK(TSizeSerializer::Load(context) == 0);
-    } else if (context.GetVersion() < 401) {
-        YCHECK(Load<int>(context) == 0);
-        YCHECK(Load<int>(context) == 0);
-    } else {
-        while (true) {
-            auto replicaCount = TSizeSerializer::Load(context);
-            if (replicaCount == 0) {
-                break;
-            }
-            auto mediumIndex = Load<int>(context);
-            ReserveReplicas(mediumIndex, replicaCount);
+    while (true) {
+        auto replicaCount = TSizeSerializer::Load(context);
+        if (replicaCount == 0) {
+            break;
         }
+        auto mediumIndex = Load<int>(context);
+        ReserveReplicas(mediumIndex, replicaCount);
     }
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);

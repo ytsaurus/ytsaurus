@@ -468,10 +468,7 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, InputChunkMapping_);
 
-    // COMPAT(max42)
-    if (context.IsSave() || context.GetVersion() >= 202195) {
-        Persist(context, TaskJobIndexGenerator_);
-    }
+    Persist(context, TaskJobIndexGenerator_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)

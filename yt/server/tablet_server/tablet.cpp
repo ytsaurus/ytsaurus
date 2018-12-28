@@ -2,8 +2,6 @@
 #include "tablet_cell.h"
 #include "table_replica.h"
 #include "tablet_action.h"
-// COMPAT(babenko)
-#include "private.h"
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
@@ -55,14 +53,8 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     if (context.GetVersion() >= 800) {
         Persist(context, TabletCount);
     }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 600) {
-        Persist(context, TabletCountPerMemoryMode);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 623) {
-        Persist(context, DynamicMemoryPoolSize);
-    }
+    Persist(context, TabletCountPerMemoryMode);
+    Persist(context, DynamicMemoryPoolSize);
 }
 
 void TUncountableTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
@@ -439,44 +431,18 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Index_);
     Load(context, State_);
     Load(context, MountRevision_);
-    // COMPAT(babenko)
-    bool brokenPrepare = false;
-    if (context.GetVersion() >= 500) {
-        if (context.GetVersion() < 503) {
-            if (Load<bool>(context)) {
-                brokenPrepare = true;
-            }
-        } else {
-            Load(context, StoresUpdatePreparedTransaction_);
-        }
-    }
+    Load(context, StoresUpdatePreparedTransaction_);
     Load(context, Table_);
     Load(context, Cell_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 600) {
-        Load(context, Action_);
-    }
+    Load(context, Action_);
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
     Load(context, InMemoryMode_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 400) {
-        Load(context, TrimmedRowCount_);
-        Load(context, Replicas_);
-        Load(context, RetainedTimestamp_);
-    }
-    // COMPAT(babenko)
-    if (brokenPrepare) {
-        const auto& Logger = TabletServerLogger;
-        YT_LOG_ERROR("Broken prepared tablet found (TabletId: %v, TableId: %v)",
-            Id_,
-            Table_->GetId());
-    }
-    // COMPAT(iskhakovt)
-    if (context.GetVersion() >= 628) {
-        Load(context, Errors_);
-        Load(context, ErrorCount_);
-    }
+    Load(context, TrimmedRowCount_);
+    Load(context, Replicas_);
+    Load(context, RetainedTimestamp_);
+    Load(context, Errors_);
+    Load(context, ErrorCount_);
     // COMPAT(savrus)
     if (context.GetVersion() >= 800) {
         Load(context, ExpectedState_);

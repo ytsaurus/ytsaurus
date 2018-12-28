@@ -69,10 +69,7 @@ private:
     void Load(NCellMaster::TLoadContext& context)
     {
         using NYT::Load;
-        // COMPAT(savrus)
-        if (context.GetVersion() >= 620) {
-            Load(context, *Config_);
-        }
+        Load(context, *Config_);
     }
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)

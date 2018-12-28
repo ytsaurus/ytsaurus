@@ -6,8 +6,6 @@
 
 #include <yt/server/transaction_server/transaction.h>
 
-// COMPAT(babenko)
-#include <yt/core/ytree/convert.h>
 #include <yt/server/object_server/object.h>
 
 namespace NYT::NCypressServer {
@@ -168,20 +166,9 @@ void TCypressNodeBase::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, ExternalCellTag_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 700) {
-        Load<bool>(context); // Drop AccountingEnabled_.
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() < 400) {
-        YCHECK(TSizeSerializer::Load(context) == 0);
-        YCHECK(TSizeSerializer::Load(context) == 0);
-        YCHECK(TSizeSerializer::Load(context) == 0);
-    } else {
-        if (Load<bool>(context)) {
-            LockingState_ = std::make_unique<TCypressNodeLockingState>();
-            Load(context, *LockingState_);
-        }
+    if (Load<bool>(context)) {
+        LockingState_ = std::make_unique<TCypressNodeLockingState>();
+        Load(context, *LockingState_);
     }
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
@@ -200,32 +187,8 @@ void TCypressNodeBase::Load(TLoadContext& context)
         Load(context, ContentRevision_);
     }
     Load(context, Account_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 700) {
-        Load<NSecurityServer::TClusterResources>(context); // Drop CachedResourceUsage_.
-    }
     Load(context, Acd_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 505) {
-        Load(context, Opaque_);
-    } else {
-        if (Attributes_) {
-            auto& attributes = Attributes_->Attributes();
-            static const TString opaqueAttributeName("opaque");
-            auto it = attributes.find(opaqueAttributeName);
-            if (it != attributes.end()) {
-                const auto& value = it->second;
-                try {
-                    SetOpaque(NYTree::ConvertTo<bool>(value));
-                } catch (...) {
-                }
-                attributes.erase(it);
-            }
-            if (Attributes_->Attributes().empty()) {
-                Attributes_.reset();
-            }
-        }
-    }
+    Load(context, Opaque_);
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
 }

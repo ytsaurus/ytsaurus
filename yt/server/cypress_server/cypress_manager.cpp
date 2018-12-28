@@ -1327,11 +1327,6 @@ private:
     TNodeId RootNodeId_;
     TMapNode* RootNode_ = nullptr;
 
-    // COMPAT(babenko)
-    bool FixLinkPaths_ = false;
-    // COMPAT(savrus)
-    bool ClearSysAttributes_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -1362,11 +1357,6 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
-
-        // COMPAT(babenko)
-        FixLinkPaths_ = context.GetVersion() < 403;
-        // COMPAT(savrus)
-        ClearSysAttributes_ = context.GetVersion() < 620;
     }
 
 
@@ -1490,52 +1480,6 @@ private:
         YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
-
-        // COMPAT(babenko)
-        if (FixLinkPaths_) {
-            for (const auto& pair : NodeMap_) {
-                auto* node = pair.second;
-                if (node->GetType() == EObjectType::Link) {
-                    auto* linkNode = node->As<TLinkNode>();
-                    const auto& targetPath = linkNode->GetTargetPath();
-                    if (targetPath.StartsWith(ObjectIdPathPrefix)) {
-                        TObjectId objectId;
-                        TStringBuf objectIdString(targetPath.begin() + ObjectIdPathPrefix.length(), targetPath.end());
-                        if (TObjectId::FromString(objectIdString, &objectId)) {
-                            auto* targetNode = FindNode(TVersionedObjectId(objectId));
-                            if (IsObjectAlive(targetNode)) {
-                                auto fixedPath = GetNodePath(targetNode, nullptr);
-                                YT_LOG_DEBUG("Fixed link target: %v -> %v", targetPath, fixedPath);
-                                linkNode->SetTargetPath(fixedPath);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (ClearSysAttributes_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto* sysNode = cypressManager->ResolvePathToTrunkNode("//sys");
-            auto& attributes = sysNode->GetMutableAttributes()->Attributes();
-            auto processAttribute = [&] (const TString& attributeName)
-            {
-                auto it = attributes.find(attributeName);
-                if (it != attributes.end()) {
-                    YT_LOG_DEBUG("Remove //sys attribute (AttributeName: %Qv, AttributeValue: %v)",
-                        attributeName,
-                        ConvertToYsonString(it->second, EYsonFormat::Text));
-                    attributes.erase(it);
-                }
-            };
-            static const TString enableTabletBalancerAttributeName("enable_tablet_balancer");
-            static const TString disableChunkReplicatorAttributeName("disable_chunk_replicator");
-            processAttribute(enableTabletBalancerAttributeName);
-            processAttribute(disableChunkReplicatorAttributeName);
-            if (attributes.empty()) {
-                sysNode->ClearAttributes();
-            }
-        }
     }
 
 

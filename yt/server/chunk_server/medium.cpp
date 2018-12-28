@@ -35,18 +35,10 @@ void TMedium::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Name_);
     Load(context, Index_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 502) {
-        Priority_ = MediumDefaultPriority;
-    } else {
-        Load(context, Priority_);
-    }
+    Load(context, Priority_);
     Load(context, Transient_);
     Load(context, Cache_);
-    //COMPAT(savrus)
-    if (context.GetVersion() >= 629) {
-        Load(context, *Config_);
-    }
+    Load(context, *Config_);
     Load(context, Acd_);
 }
 

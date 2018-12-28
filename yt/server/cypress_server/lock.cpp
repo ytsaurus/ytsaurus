@@ -75,10 +75,7 @@ void TLockRequest::Persist(TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, Mode);
     Persist(context, Key);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 618)  {
-        Persist(context, Timestamp);
-    }
+    Persist(context, Timestamp);
 }
 
 bool TLockRequest::operator==(const TLockRequest& other) const
@@ -109,12 +106,6 @@ void TCypressNodeLockingState::Persist(TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, AcquiredLocks);
     Persist(context, PendingLocks);
-    // COMPAT(babenko)
-    if (context.GetVersion() < 630) {
-        Load<THashSet<TLock*>>(context.LoadContext());
-        Load<THashMultiMap<TLockKey, TLock*>>(context.LoadContext());
-        Load<THashMultiMap<NTransactionServer::TTransaction*, TLock*>>(context.LoadContext());
-    }
 }
 
 const TCypressNodeLockingState TCypressNodeLockingState::Empty = TCypressNodeLockingState();
