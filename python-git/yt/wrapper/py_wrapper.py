@@ -217,7 +217,6 @@ class Tar(object):
             suffix=suffix)
         self.size = 0
         self.python_eggs = []
-        self.dynamic_libraries = set()
         self.client = client
 
     def __enter__(self):
@@ -230,26 +229,9 @@ class Tar(object):
         self.tar.__enter__()
         return self
 
-    def _append_dynamic_library_dependencies(self, filepath):
-        if not get_config(self.client)["pickling"]["dynamic_libraries"]["enable_auto_collection"] \
-                or not sys.platform.startswith("linux"):
-            return
-        library_filter = get_config(self.client)["pickling"]["dynamic_libraries"]["library_filter"]
-        for library in list_dynamic_library_dependencies(filepath):
-            if library in self.dynamic_libraries:
-                continue
-            if library_filter is not None and not library_filter(library):
-                continue
-            relpath = os.path.join("_shared", os.path.basename(library))
-            self.tar.add(library, relpath)
-            self.dynamic_libraries.add(library)
-            self.size += get_disk_size(library)
-
     def append(self, filepath, relpath):
         if relpath.endswith(".egg"):
             self.python_eggs.append(relpath)
-        if relpath.endswith(".so"):
-            self._append_dynamic_library_dependencies(filepath)
 
         self.tar.add(filepath, relpath)
         self.size += get_disk_size(filepath)
@@ -280,6 +262,11 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
     module_filter = load_function(get_config(client)["pickling"]["module_filter"])
     extra_modules = getattr(sys, "extra_modules", set())
 
+    auto_collection_enabled = \
+        get_config(client)["pickling"]["dynamic_libraries"]["enable_auto_collection"] \
+            and sys.platform.startswith("linux")
+    dynamic_libraries = set()
+
     def add_file_to_compress(file, module_name, name):
         relpath = module_relpath([module_name, name], file, client)
         if relpath is None:
@@ -289,6 +276,17 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
 
         if relpath in files_to_compress:
             return
+
+        if relpath.endswith(".so") and auto_collection_enabled:
+            library_filter = get_config(client)["pickling"]["dynamic_libraries"]["library_filter"]
+            for library in list_dynamic_library_dependencies(file):
+                if library in dynamic_libraries:
+                    continue
+                if library_filter is not None and not library_filter(library):
+                    continue
+                library_relpath = os.path.join("_shared", os.path.basename(library))
+                dynamic_libraries.add(library)
+                files_to_compress[library_relpath] = library
 
         files_to_compress[relpath] = file
 
