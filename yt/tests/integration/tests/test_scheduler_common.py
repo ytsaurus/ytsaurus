@@ -3619,10 +3619,11 @@ class TestControllerMemoryUsage(YTEnvSetup):
         # pairs of boundary keys of length 250kb, resulting in about 20mb of
         # memory. First job should stuck, protecting this check from the race
         # against operation completion.
-        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 10 * 10**6 and
-                     get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 10 * 10**6)
-
-        assert get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6
+        # NB: all these checks should have form of wait(...) since memory usage may sometimes decrease,
+        # so waiting for only one of the conditions and immediately checking the remaining ones is not enough.
+        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 10 * 10**6)
+        wait(lambda: get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 10 * 10**6)
+        wait(lambda: get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
 
         op.abort()
 
