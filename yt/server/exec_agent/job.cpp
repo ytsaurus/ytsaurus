@@ -752,7 +752,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
         TJobResult jobResult;
-        ToProto(jobResult.mutable_error(), error);
+        ToProto(jobResult.mutable_error(), error.Truncate());
         DoSetResult(jobResult);
     }
 
