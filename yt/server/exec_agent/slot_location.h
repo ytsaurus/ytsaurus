@@ -29,7 +29,8 @@ public:
         const NCellNode::TBootstrap* bootstrap,
         const TString& id,
         const IJobDirectoryManagerPtr& jobDirectoryManager,
-        bool enableTmpfs);
+        bool enableTmpfs,
+        int slotCount);
 
     //! Make ./sandbox, ./home/, ./udf and other directories.
     //! Returns tmpfs path if any.
