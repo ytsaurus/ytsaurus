@@ -75,6 +75,26 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGpuManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration HealthCheckTimeout;
+    TDuration HealthCheckPeriod;
+
+    TGpuManagerConfig()
+    {
+        RegisterParameter("health_check_timeout", HealthCheckTimeout)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("health_check_period", HealthCheckPeriod)
+            .Default(TDuration::Minutes(1));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobControllerConfig
     : public NYTree::TYsonSerializable
 {
@@ -100,6 +120,8 @@ public:
     //! This is a special testing option.
     //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
     bool TestGpu;
+
+    TGpuManagerConfigPtr GpuManager;
 
     TJobControllerConfig()
     {
@@ -138,6 +160,9 @@ public:
 
         RegisterParameter("test_gpu", TestGpu)
             .Default(false);
+
+        RegisterParameter("gpu_manager", GpuManager)
+            .DefaultNew();
 
         RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
             .Default(0)
