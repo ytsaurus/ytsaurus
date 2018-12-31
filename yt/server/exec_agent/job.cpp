@@ -100,7 +100,7 @@ public:
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
         , ResourceUsage_(resourceUsage)
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         JobSpec_.Swap(&jobSpec);
 
@@ -125,7 +125,7 @@ public:
 
     virtual void Start() override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (JobPhase_ != EJobPhase::Created) {
             YT_LOG_DEBUG("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
@@ -173,7 +173,7 @@ public:
 
     virtual void Abort(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO(error, "Job abort requested (Phase: %v)", JobPhase_);
 
@@ -211,7 +211,7 @@ public:
 
     virtual void OnJobPrepared() override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         GuardedAction([&] {
             YT_LOG_INFO("Job prepared");
@@ -223,7 +223,7 @@ public:
 
     virtual void SetResult(const TJobResult& jobResult) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         GuardedAction([&] () {
             SetJobPhase(EJobPhase::FinalizingProxy);
@@ -233,35 +233,35 @@ public:
 
     virtual TJobId GetId() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Id_;
     }
 
     virtual TOperationId GetOperationId() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return OperationId_;
     }
 
     virtual EJobType GetType() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return EJobType(JobSpec_.type());
     }
 
     virtual const TJobSpec& GetSpec() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return JobSpec_;
     }
 
     virtual int GetPortCount() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
@@ -278,7 +278,7 @@ public:
 
     virtual EJobState GetState() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return JobState_;
     }
@@ -290,7 +290,7 @@ public:
 
     virtual std::optional<TDuration> GetPrepareDuration() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!PrepareTime_) {
             return std::nullopt;
@@ -303,7 +303,7 @@ public:
 
     virtual std::optional<TDuration> GetDownloadDuration() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!PrepareTime_) {
             return std::nullopt;
@@ -316,7 +316,7 @@ public:
 
     virtual std::optional<TDuration> GetExecDuration() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!ExecTime_) {
             return std::nullopt;
@@ -329,42 +329,42 @@ public:
 
     virtual EJobPhase GetPhase() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return JobPhase_;
     }
 
     virtual TNodeResources GetResourceUsage() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return ResourceUsage_;
     }
 
     virtual std::vector<int> GetPorts() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Ports_;
     }
 
     virtual TJobResult GetResult() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return *JobResult_;
     }
 
     virtual double GetProgress() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Progress_;
     }
 
     virtual void SetResourceUsage(const TNodeResources& newUsage) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (JobPhase_ == EJobPhase::Running) {
             auto delta = newUsage - ResourceUsage_;
@@ -375,7 +375,7 @@ public:
 
     virtual void SetProgress(double progress) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (JobPhase_ == EJobPhase::Running) {
             Progress_ = progress;
@@ -384,25 +384,25 @@ public:
 
     virtual ui64 GetStderrSize() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         return StderrSize_;
     }
 
     virtual void SetStderrSize(ui64 value) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         StderrSize_ = value;
     }
 
     virtual void SetStderr(const TString& value) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         Stderr_ = value;
     }
 
     virtual void SetFailContext(const TString& value) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         FailContext_ = value;
     }
 
@@ -414,28 +414,28 @@ public:
 
     virtual TYsonString GetStatistics() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Statistics_;
     }
 
     virtual TInstant GetStatisticsLastSendTime() const override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return StatisticsLastSendTime_;
     }
 
     virtual void ResetStatisticsLastSendTime() override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         StatisticsLastSendTime_ = TInstant::Now();
     }
 
     virtual void SetStatistics(const TYsonString& statistics) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
             Statistics_ = statistics;
@@ -448,7 +448,7 @@ public:
 
     virtual std::vector<TChunkId> DumpInputContext() override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         ValidateJobRunning();
 
         try {
@@ -461,7 +461,7 @@ public:
 
     virtual TString GetStderr() override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (Stderr_) {
             return *Stderr_;
@@ -479,7 +479,7 @@ public:
 
     virtual std::optional<TString> GetFailContext() override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return FailContext_;
     }
@@ -493,7 +493,7 @@ public:
 
     virtual TYsonString StraceJob() override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         ValidateJobRunning();
 
         try {
@@ -506,7 +506,7 @@ public:
 
     virtual void SignalJob(const TString& signalName) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         ValidateJobRunning();
 
         Signaled_ = true;
@@ -521,7 +521,7 @@ public:
 
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         ValidateJobRunning();
 
         try {
@@ -588,7 +588,7 @@ public:
 
     virtual void Interrupt() override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (JobPhase_ < EJobPhase::Running) {
             Abort(TError(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet"));
@@ -614,7 +614,7 @@ public:
 
     virtual void Fail() override
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         ValidateJobRunning();
 
         try {
@@ -696,7 +696,7 @@ private:
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControllerThread);
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     NLogging::TLogger Logger = ExecAgentLogger;
 
     TJobEvents JobEvents_;
@@ -750,7 +750,7 @@ private:
 
     void DoSetResult(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error.Truncate());
         DoSetResult(jobResult);
@@ -758,7 +758,7 @@ private:
 
     void DoSetResult(const TJobResult& jobResult)
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         if (JobResult_) {
             auto error = FromProto<TError>(JobResult_->error());
             if (!error.IsOK()) {
@@ -821,7 +821,7 @@ private:
 
     void OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::DownloadingArtifacts);
@@ -849,7 +849,7 @@ private:
 
     void OnDirectoriesPrepared(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
@@ -870,7 +870,7 @@ private:
 
     void OnArtifactsPrepared(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
@@ -893,7 +893,7 @@ private:
 
     void OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError)
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingRootVolume);
@@ -928,7 +928,7 @@ private:
 
     void OnJobProxyFinished(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (HandleFinishingPhase()) {
             return;
@@ -964,7 +964,7 @@ private:
     // Finalization.
     void Cleanup()
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished) {
             return;
@@ -1042,7 +1042,7 @@ private:
     // Preparation.
     void PrepareNodeDirectory()
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -1122,7 +1122,7 @@ private:
 
     TJobProxyConfigPtr CreateConfig()
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto proxyConfig = Bootstrap_->BuildJobProxyConfig();
         proxyConfig->BusServer = Slot_->GetBusServerConfig();
@@ -1142,7 +1142,7 @@ private:
 
     void PrepareSandboxDirectories()
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         TUserSandboxOptions options;
 
@@ -1170,7 +1170,7 @@ private:
 
     void InitializeArtifacts()
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
