@@ -859,7 +859,7 @@ class SpecBuilder(object):
     def get_toucher(self, client=None):
         if self.supports_user_job_spec():
             return Toucher(self._uploaded_files, client=client)
-        return lambda state: None
+        return lambda: None
 
 class ReduceSpecBuilder(SpecBuilder):
     def __init__(self, spec=None):
