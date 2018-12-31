@@ -46,7 +46,7 @@ TStracerResult::TStracerResult()
 TStracerResultPtr TStraceTool::operator()(const std::vector<int>& pids) const
 {
     SafeSetUid(0);
-    return Strace(pids);;
+    return Strace(pids);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
