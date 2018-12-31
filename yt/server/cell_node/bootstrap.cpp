@@ -448,7 +448,7 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
 
     ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
-    GpuManager = New<TGpuManager>();
+    GpuManager = New<TGpuManager>(this, Config->ExecAgent->JobController->GpuManager);
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
