@@ -376,13 +376,6 @@ public:
                 "Read-only mode is active"));
         }
 
-        auto epochContext = AutomatonEpochContext_;
-        if (epochContext && epochContext->Restarting) {
-            return MakeFuture<TMutationResponse>(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Peer is restarting"));
-        }
-
         auto state = GetAutomatonState();
         switch (state) {
             case EPeerState::Leading:
@@ -396,11 +389,11 @@ public:
                     auto error = TError(
                         NRpc::EErrorCode::Unavailable,
                         "Leader lease is no longer valid");
-                    Restart(epochContext, error);
+                    Restart(AutomatonEpochContext_, error);
                     return MakeFuture<TMutationResponse>(error);
                 }
 
-                return epochContext->LeaderCommitter->Commit(std::move(request));
+                return AutomatonEpochContext_->LeaderCommitter->Commit(std::move(request));
 
             case EPeerState::Following:
                 if (!FollowerRecovered_) {
@@ -415,7 +408,7 @@ public:
                         "Leader mutation forwarding is not allowed"));
                 }
 
-                return epochContext->FollowerCommitter->Forward(std::move(request));
+                return AutomatonEpochContext_->FollowerCommitter->Forward(std::move(request));
 
             default:
                 return MakeFuture<TMutationResponse>(TError(
@@ -946,14 +939,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!ControlEpochContext_ || ControlEpochContext_->EpochId != epochId) {
+        if (!ControlEpochContext_ ||
+            ControlEpochContext_->EpochId != epochId ||
+            ControlEpochContext_->Restarting)
+        {
             return;
         }
 
-        bool expected = false;
-        if (!ControlEpochContext_->Restarting.compare_exchange_strong(expected, true)) {
-            return;
-        }
+        ControlEpochContext_->Restarting = true;
 
         YT_LOG_WARNING(error, "Restarting Hydra instance");
 
