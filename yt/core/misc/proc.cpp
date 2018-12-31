@@ -1023,26 +1023,4 @@ void TChownChmodTool::operator()(TChownChmodConfigPtr config) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TExtractTarAsRootTool::operator()(const TExtractTarConfigPtr& config) const
-{
-    // Child process
-    SafeSetUid(0);
-    NFs::SetCurrentWorkingDirectory(config->DirectoryPath);
-
-    execl(
-        "/bin/tar",
-        "/bin/tar",
-        "--extract",
-        "--file",
-        config->ArchivePath.c_str(),
-        "--numeric-owner",
-        "--preserve-permissions",
-        (void*) nullptr);
-
-    THROW_ERROR_EXCEPTION("Failed to extract tar archive %Qv: execl failed",
-        config->ArchivePath.c_str()) << TError::FromSystem();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT
