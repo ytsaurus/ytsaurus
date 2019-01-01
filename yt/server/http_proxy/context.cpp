@@ -126,20 +126,13 @@ TContext::TContext(
     DriverRequest_.Id = RandomNumber<ui64>();
 }
 
-void TContext::ProcessDebugHeaders()
-{
-    Response_->GetHeaders()->Add("X-YT-Request-Id", ToString(Request_->GetRequestId()));
-    Response_->GetHeaders()->Add("X-YT-Proxy", Api_->GetCoordinator()->GetSelf()->GetHost());
-
-    auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID");
-    if (correlationId) {
-        Logger.AddTag("CorrelationId: %v", *correlationId);
-    }
-}
-
 bool TContext::TryPrepare()
 {
-    ProcessDebugHeaders();
+    ProcessDebugHeaders(Request_, Response_, Api_->GetCoordinator());
+
+    if (auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {
+        Logger.AddTag("CorrelationId: %v", *correlationId);
+    }
 
     return
         TryParseRequest() &&
@@ -360,30 +353,8 @@ bool TContext::TryRedirectHeavyRequests()
             return false;
         }
 
-        auto target = Api_->GetCoordinator()->AllocateProxy("data");
-        if (target) {
-            auto url = Request_->GetUrl();
-            TString protocol{url.Protocol};
-            if (protocol.empty()) {
-                protocol = "http";
-            }
-            auto location = Format("%v://%v%v?%v",
-                protocol,
-                target->GetHost(),
-                url.Path,
-                url.RawQuery);
-        
-            Response_->SetStatus(EStatusCode::TemporaryRedirect);
-            Response_->GetHeaders()->Set("Location", location);
-            Response_->AddConnectionCloseHeader();
-            WaitFor(Response_->Close())
-                .ThrowOnError();
-
-            return false;
-        } else {
-            DispatchUnavailable("60", "There are no data proxies available");
-            return false;
-        }
+        RedirectToDataProxy(Request_, Response_, Api_->GetCoordinator());
+        return false;
     }
 
     return true;
@@ -906,11 +877,7 @@ void TContext::DispatchNotFound(const TString& message)
 void TContext::ReplyError(const TError& error)
 {
     YT_LOG_DEBUG(error, "Request finished with error");
-    FillYTErrorHeaders(Response_, error);
-    DispatchJson([&] (auto consumer) {
-        BuildYsonFluently(consumer)
-            .Value(error);
-    });
+    NHttpProxy::ReplyError(Response_, error);
 }
 
 void TContext::ReplyFakeError(const TString& message)
