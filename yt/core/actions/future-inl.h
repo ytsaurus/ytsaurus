@@ -1338,8 +1338,13 @@ protected:
     std::vector<TFuture<TItem>> Futures_;
     TPromise<TResult> Promise_ = NewPromise<TResult>();
 
+    std::atomic_flag Canceled_ = ATOMIC_FLAG_INIT;
+
     void CancelFutures()
     {
+        if (Canceled_.test_and_set()) {
+            return;
+        }
         for (size_t index = 0; index < Futures_.size(); ++index) {
             Futures_[index].Cancel();
         }
