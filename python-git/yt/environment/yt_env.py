@@ -166,8 +166,7 @@ def _get_cgroup_path(cgroup_type, *args):
 class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
                  node_count=1, defer_node_start=False, scheduler_count=1, controller_agent_count=None,
-                 has_proxy=False, proxy_port=None, has_rpc_proxy=None,
-                 rpc_proxy_count=1, cell_tag=0, skynet_manager_count=0,
+                 http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, local_port_range=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
@@ -204,15 +203,13 @@ class YTInstance(object):
         if driver_backend not in valid_driver_backends:
             raise YtError('Unrecognized driver backend: expected one of {0}, got "{1}"'.format(valid_driver_backends, driver_backend))
 
-        if has_rpc_proxy is None:
-            has_rpc_proxy = (driver_backend == "rpc")
+        if driver_backend == "rpc" and rpc_proxy_count is None:
+            rpc_proxy_count = 1
 
-        if driver_backend == "rpc" and not has_rpc_proxy:
+        if driver_backend == "rpc" and rpc_proxy_count == 0:
             raise YtError("Driver with RPC backend is requested but RPC proxies aren't enabled.")
 
-        if has_rpc_proxy and rpc_proxy_count == 0:
-            raise YtError("RPC proxies are enabled but none of them are requested.")
-        if not has_rpc_proxy and rpc_proxy_count > 0:
+        if rpc_proxy_count is None:
             rpc_proxy_count = 0
 
         self._random_generator = random.Random(random.SystemRandom().random())
@@ -277,8 +274,10 @@ class YTInstance(object):
             else:
                 controller_agent_count = 0
         self.controller_agent_count = controller_agent_count
-        self.has_proxy = has_proxy
-        self.has_rpc_proxy = has_rpc_proxy
+        self.has_http_proxy = http_proxy_count > 0
+        self.http_proxy_count = http_proxy_count
+        self.http_proxy_ports = http_proxy_ports
+        self.has_rpc_proxy = rpc_proxy_count > 0
         self.rpc_proxy_count = rpc_proxy_count
         self.skynet_manager_count = skynet_manager_count
         self._enable_debug_logging = enable_debug_logging
@@ -294,7 +293,7 @@ class YTInstance(object):
 
         self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start,
-                                  proxy_port, enable_master_cache, modify_configs_func, enable_structured_master_logging)
+                                  enable_master_cache, modify_configs_func, enable_structured_master_logging)
 
     def _get_ports_generator(self, port_range_start):
         if port_range_start and isinstance(port_range_start, int):
@@ -349,8 +348,9 @@ class YTInstance(object):
             for dir_ in node_tmpfs_dirs:
                 makedirp(dir_)
 
-        proxy_dir = os.path.join(self.runtime_data_path, "proxy")
-        makedirp(proxy_dir)
+        http_proxy_dirs = [os.path.join(self.runtime_data_path, "http_proxy", str(i)) for i in xrange(self.http_proxy_count)]
+        for dir_ in http_proxy_dirs:
+            makedirp(dir_)
 
         rpc_proxy_dirs = [os.path.join(self.runtime_data_path, "rpc_proxy", str(i)) for i in xrange(self.rpc_proxy_count)]
         for dir_ in rpc_proxy_dirs:
@@ -360,10 +360,18 @@ class YTInstance(object):
         for dir_ in skynet_manager_dirs:
             makedirp(dir_)
 
-        return master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dirs, skynet_manager_dirs
+        return {"master": master_dirs,
+                "master_tmpfs": master_tmpfs_dirs,
+                "scheduler": scheduler_dirs,
+                "controller_agent": controller_agent_dirs,
+                "node": node_dirs,
+                "node_tmpfs": node_tmpfs_dirs,
+                "http_proxy": http_proxy_dirs,
+                "rpc_proxy": rpc_proxy_dirs,
+                "skynet_manager": skynet_manager_dirs}
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port,
+                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start,
                              enable_master_cache, modify_configs_func, enable_structured_master_logging):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  uuid               %s", self._uuid)
@@ -375,7 +383,7 @@ class YTInstance(object):
         if self.secondary_master_cell_count > 0:
             logger.info("  secondary cells  %d", self.secondary_master_cell_count)
 
-        logger.info("  HTTP proxies       %d", int(self.has_proxy))
+        logger.info("  HTTP proxies       %d", self.http_proxy_count)
         logger.info("  RPC proxies        %d", self.rpc_proxy_count)
         logger.info("  skynet managers    %d", self.skynet_manager_count)
         logger.info("  working dir        %s", self.path)
@@ -403,8 +411,8 @@ class YTInstance(object):
         provision["node"]["memory_limit_addition"] = node_memory_limit_addition
         provision["node"]["chunk_store_quota"] = node_chunk_store_quota
         provision["node"]["allow_chunk_storage_in_tmpfs"] = allow_chunk_storage_in_tmpfs
-        provision["proxy"]["enable"] = self.has_proxy
-        provision["proxy"]["http_port"] = proxy_port
+        provision["http_proxy"]["count"] = self.http_proxy_count
+        provision["http_proxy"]["http_ports"] = self.http_proxy_ports
         provision["rpc_proxy"]["count"] = self.rpc_proxy_count
         provision["driver"]["backend"] = self.driver_backend
         provision["skynet_manager"]["count"] = self.skynet_manager_count
@@ -414,21 +422,9 @@ class YTInstance(object):
             provision["enable_master_cache"] = enable_master_cache
         provision["enable_structured_master_logging"] = enable_structured_master_logging
 
-        master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dirs, skynet_manager_dirs = self._prepare_directories()
+        dirs = self._prepare_directories()
 
-        cluster_configuration = configs_provider.build_configs(
-            self._get_ports_generator(port_range_start),
-            master_dirs,
-            master_tmpfs_dirs,
-            scheduler_dirs,
-            controller_agent_dirs,
-            node_dirs,
-            node_tmpfs_dirs,
-            proxy_dir,
-            rpc_proxy_dirs,
-            skynet_manager_dirs,
-            self.logs_path,
-            provision)
+        cluster_configuration = configs_provider.build_configs(self._get_ports_generator(port_range_start), dirs, self.logs_path, provision)
 
         if modify_configs_func:
             modify_configs_func(cluster_configuration, self.abi_version)
@@ -436,22 +432,22 @@ class YTInstance(object):
         self._cluster_configuration = cluster_configuration
 
         self._prepare_cgroups()
-        self._prepare_masters(cluster_configuration["master"], master_dirs)
+        self._prepare_masters(cluster_configuration["master"], dirs["master"])
         if self.node_count > 0:
-            self._prepare_nodes(cluster_configuration["node"], node_dirs)
+            self._prepare_nodes(cluster_configuration["node"], dirs["node"])
         if self.scheduler_count > 0:
-            self._prepare_schedulers(cluster_configuration["scheduler"], scheduler_dirs)
+            self._prepare_schedulers(cluster_configuration["scheduler"], dirs["scheduler"])
         if self.controller_agent_count > 0:
-            self._prepare_controller_agents(cluster_configuration["controller_agent"], controller_agent_dirs)
-        if self.has_proxy:
-            self._prepare_proxy(cluster_configuration["proxy"], proxy_dir)
+            self._prepare_controller_agents(cluster_configuration["controller_agent"], dirs["controller_agent"])
+        if self.has_http_proxy:
+            self._prepare_http_proxies(cluster_configuration["http_proxy"], dirs["http_proxy"])
         if self.has_rpc_proxy:
-            self._prepare_rpc_proxy(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], rpc_proxy_dirs)
+            self._prepare_rpc_proxies(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], dirs["rpc_proxy"])
         if self.skynet_manager_count > 0:
-            self._prepare_skynet_managers(cluster_configuration["skynet_manager"], skynet_manager_dirs)
+            self._prepare_skynet_managers(cluster_configuration["skynet_manager"], dirs["skynet_manager"])
 
         http_proxy_url = None
-        if self.has_proxy:
+        if self.has_http_proxy:
             http_proxy_url = "localhost:" + self.get_proxy_address().split(":", 1)[1]
         self._prepare_driver(
             cluster_configuration["driver"],
@@ -477,7 +473,7 @@ class YTInstance(object):
 
         self.pids_file = open(self.pids_filename, "wt")
         try:
-            if self.has_proxy:
+            if self.has_http_proxy:
                 self.start_proxy(use_proxy_from_package=use_proxy_from_package, use_new_proxy=use_new_proxy, sync=False)
 
             self.start_master_cell(sync=False)
@@ -497,9 +493,9 @@ class YTInstance(object):
                 client.create("user", attributes={"name": "application_operations"})
                 client.add_member("application_operations", "superusers")
 
-            if self.has_proxy:
+            if self.has_http_proxy:
                 # NB: it is used to determine proper operation URL in local mode.
-                client.set("//sys/@local_mode_proxy_address", self.get_proxy_address())
+                client.set("//sys/@local_mode_proxy_address", self.get_http_proxy_address())
 
             if on_masters_started_func is not None:
                 on_masters_started_func()
@@ -538,7 +534,7 @@ class YTInstance(object):
         self.kill_service("watcher")
         killed_services.add("watcher")
 
-        for name in ["proxy", "node", "scheduler", "controller_agent", "master", "rpc_proxy", "skynet_manager"]:
+        for name in ["http_proxy", "node", "scheduler", "controller_agent", "master", "rpc_proxy", "skynet_manager"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -561,15 +557,22 @@ class YTInstance(object):
             func()
         self._wait_functions = []
 
+    # TODO(max42): remove this method and rename all its usages to get_http_proxy_address.
     def get_proxy_address(self):
-        if not self.has_proxy:
-            raise YtError("Proxy is not started")
-        return "{0}:{1}".format(self._hostname, _config_safe_get(self.configs["proxy"], "proxy", "port"))
+        return self.get_http_proxy_address()
+
+    def get_http_proxy_address(self):
+        return self.get_http_proxy_addresses()[0]
+
+    def get_http_proxy_addresses(self):
+        if not self.has_http_proxy:
+            raise YtError("Http proxies are not started")
+        return ["{0}:{1}".format(self._hostname, _config_safe_get(config, "http_proxy", "port")) for config in self.configs["http_proxy"]]
 
     # XXX(kiselyovp) Only returns one GRPC proxy address even if multiple RPC proxy servers are launched.
     def get_grpc_proxy_address(self):
         if not self.has_rpc_proxy:
-            raise YtError("Rpc proxy is not started")
+            raise YtError("Rpc proxies are not started")
         addresses = _config_safe_get(self.configs["rpc_proxy"][0], "rpc_proxy", "grpc_server/addresses")
         return addresses[0]["address"]
 
@@ -670,8 +673,8 @@ class YTInstance(object):
 
     def _write_environment_info_to_file(self):
         info = {}
-        if self.has_proxy:
-            info["proxy"] = {"address": self.get_proxy_address()}
+        if self.has_http_proxy:
+            info["http_proxies"] = [{"address": address} for address in self.get_http_proxy_addresses()]
         with open(os.path.join(self.path, "info.yson"), "wb") as fout:
             yson.dump(info, fout, yson_format="pretty")
 
@@ -1028,8 +1031,8 @@ class YTInstance(object):
         self._wait_or_skip(lambda: self._wait_for(controller_agents_ready, "controller_agent", max_wait_time=20), sync)
 
     def create_client(self):
-        if self.has_proxy:
-            return YtClient(proxy=self.get_proxy_address())
+        if self.has_http_proxy:
+            return YtClient(proxy=self.get_http_proxy_address())
         return self.create_native_client()
 
     def create_native_client(self, driver_name="driver"):
@@ -1131,20 +1134,24 @@ class YTInstance(object):
         self.configs["console_driver"].append(config)
         self.config_paths["console_driver"].append(config_path)
 
-    def _prepare_proxy(self, proxy_config, proxy_dir):
-        config_path = os.path.join(self.configs_path, "proxy.json")
-        if self._load_existing_environment:
-            if not os.path.isfile(config_path):
-                raise YtError("Proxy config {0} not found".format(config_path))
-            config = read_config(config_path, format="json")
-        else:
-            config = proxy_config
-            write_config(config, config_path, format="json")
+    def _prepare_http_proxies(self, proxy_configs, http_proxy_dirs):
+        self.configs["http_proxy"] = []
+        self.config_paths["http_proxy"] = []
 
-        self.configs["proxy"] = config
-        self.config_paths["proxy"] = config_path
+        for i in xrange(len(http_proxy_dirs)):
+            config_path = os.path.join(self.configs_path, "http-proxy-{}.json".format(i))
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Http proxy config {0} not found".format(config_path))
+                config = read_config(config_path, format="json")
+            else:
+                config = proxy_configs[i]
+                write_config(config, config_path, format="json")
 
-    def _prepare_rpc_proxy(self, rpc_proxy_configs, rpc_client_config, rpc_proxy_dirs):
+            self.configs["http_proxy"].append(config)
+            self.config_paths["http_proxy"].append(config_path)
+
+    def _prepare_rpc_proxies(self, rpc_proxy_configs, rpc_client_config, rpc_proxy_dirs):
         self.configs["rpc_proxy"] = []
         self.config_paths["rpc_proxy"] = []
 
@@ -1200,30 +1207,35 @@ class YTInstance(object):
 
         self._run([nodejs_binary_path,
                    proxy_binary_path,
-                   "-c", self.config_paths["proxy"]],
-                   "proxy")
+                   "-c", self.config_paths["http_proxy"][0]],
+                   "http_proxy")
 
     def start_proxy(self, use_proxy_from_package, use_new_proxy=False, sync=True):
         logger.info("Starting proxy")
         if use_new_proxy or which("ytserver-http-proxy"):
-            self._run(["ytserver-http-proxy", "--legacy-config", self.config_paths["proxy"]], "proxy")
-        elif use_proxy_from_package:
-            self._start_proxy_from_package()
+            for index in xrange(len(self.config_paths["http_proxy"])):
+                self._run(["ytserver-http-proxy", "--legacy-config", self.config_paths["http_proxy"][index]], "http_proxy", number=index)
         else:
-            if not which("run_proxy.sh"):
-                raise YtError("Failed to start proxy from source tree. "
-                              "Make sure you added directory with run_proxy.sh to PATH")
-            self._run(["run_proxy.sh",
-                       "-c", self.config_paths["proxy"]],
-                       "proxy")
+            if len(self.config_paths["http_proxy"]) != 1:
+                raise YtError("Failed to start more than one proxy in legacy mode; use new HTTP proxy")
+            elif use_proxy_from_package:
+                self._start_proxy_from_package()
+            else:
+                if not which("run_proxy.sh"):
+                    raise YtError("Failed to start proxy from source tree. "
+                                  "Make sure you added directory with run_proxy.sh to PATH")
+                self._run(["run_proxy.sh",
+                           "-c", self.config_paths["http_proxy"][0]],
+                           "http_proxy")
 
         def proxy_ready():
-            self._validate_processes_are_running("proxy")
+            self._validate_processes_are_running("http_proxy")
 
             try:
-                address = "127.0.0.1:{0}".format(self.get_proxy_address().split(":")[1])
-                resp = requests.get("http://{0}/api".format(address))
-                resp.raise_for_status()
+                for http_proxy_address in self.get_http_proxy_addresses():
+                    address = "127.0.0.1:{0}".format(http_proxy_address.split(":")[1])
+                    resp = requests.get("http://{0}/api".format(address))
+                    resp.raise_for_status()
             except (requests.exceptions.RequestException, socket.error):
                 return False
 
@@ -1275,7 +1287,7 @@ class YTInstance(object):
                           .format(name_with_number, process.returncode))
 
     def _validate_processes_are_running(self, name):
-        if name == "proxy":
+        if name == "http_proxy":
             self._validate_process_is_running(self._process_to_kill[name][-1], name)
         else:
             for index, process in enumerate(self._process_to_kill[name]):
@@ -1349,7 +1361,7 @@ class YTInstance(object):
 
                     for config in flatten(configs):
                         log_config_path = "logging/writers/debug/file_name"
-                        if service == "proxy":
+                        if service == "http_proxy":
                             log_config_path = "proxy/" + log_config_path
                         log_path = _config_safe_get(config, service, log_config_path)
                         config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
@@ -1358,10 +1370,6 @@ class YTInstance(object):
                             job_proxy_log_config_path = "exec_agent/job_proxy_logging/writers/debug/file_name"
                             job_proxy_log_path = _config_safe_get(config, service, job_proxy_log_config_path)
                             config_file.write("{0}\n{{\n{1}\n}}\n\n".format(job_proxy_log_path, "\n".join(logrotate_options)))
-
-            if self.has_proxy:
-                proxy_log_path = _config_safe_get(self.configs["proxy"], "proxy", "logging/filename")
-                config_file.write("{0}\n{{\n{1}\n}}\n\n".format(proxy_log_path, "\n".join(logrotate_options)))
 
         logs_rotator_data_path = os.path.join(self.runtime_data_path, "logs_rotator")
         makedirp(logs_rotator_data_path)
