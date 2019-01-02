@@ -45,7 +45,7 @@ TMemoryZoneGuard::TMemoryZoneGuard(TMemoryZoneGuard&& other)
 Y_WEAK void SetCurrentMemoryZone(EMemoryZone /*zone*/)
 { }
 
-Y_WEAK EMemoryZone GetCurrentMemoryZone(EMemoryZone /*zone*/)
+Y_WEAK EMemoryZone GetCurrentMemoryZone()
 {
     return EMemoryZone::Normal;
 }
