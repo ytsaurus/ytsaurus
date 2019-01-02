@@ -66,6 +66,6 @@ TAG(
     ya:force_sandbox
 )
 
-#FORK_TEST_FILES()
+FORK_TEST_FILES()
 
 NO_LINT()
