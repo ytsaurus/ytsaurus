@@ -202,6 +202,8 @@ public:
 
     virtual void CustomPrepare() override
     {
+        ValidateOperationLimits();
+
         TaskGroup_ = New<TTaskGroup>();
         RegisterTaskGroup(TaskGroup_);
         for (const auto& pair : Spec_->Tasks) {
@@ -359,6 +361,21 @@ private:
     std::vector<TVanillaTaskPtr> Tasks_;
     std::vector<std::vector<TOutputTablePtr>> TaskOutputTables_;
     TTaskGroupPtr TaskGroup_;
+
+    void ValidateOperationLimits()
+    {
+        if (Spec_->Tasks.size() > Options_->MaxTaskCount) {
+            THROW_ERROR_EXCEPTION("Maximum number of tasks exceeded: %v > %v", Spec_->Tasks.size(), Options_->MaxTaskCount);
+        }
+
+        i64 totalJobCount = 0;
+        for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
+            totalJobCount += taskSpec->JobCount;
+        }
+        if (totalJobCount > Options_->MaxTotalJobCount) {
+            THROW_ERROR_EXCEPTION("Maximum total job count exceeded: %v > %v", totalJobCount, Options_->MaxTotalJobCount);
+        }
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaController);
