@@ -25,6 +25,9 @@ def prepare_yt_binaries(destination):
     watcher_path = yatest.common.binary_path("yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
     os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
+    logrotate_path = yatest.common.binary_path("infra/nanny/logrotate/logrotate")
+    os.symlink(logrotate_path, os.path.join(destination, "logrotate"))
+
 def prepare_yt_environment(destination):
     bin_dir = os.path.join(destination, "bin")
     lock_path = os.path.join(destination, "lock")

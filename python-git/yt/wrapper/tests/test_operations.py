@@ -408,21 +408,6 @@ class TestOperations(object):
         check(yt.read_table(table), [{"sum": "9"}])
 
     @add_failed_operation_stderrs_to_error_message
-    def test_user_statistics_in_jobs(self):
-        def write_statistics(row):
-            yt.write_statistics({"row_count": 1})
-            assert yt.get_blkio_cgroup_statistics()
-            assert not yt.get_memory_cgroup_statistics()
-            yield row
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1}, {"y": 2}])
-        op = yt.run_map(write_statistics, table, table, format=None, sync=False)
-        op.wait()
-        assert op.get_job_statistics()["custom"]["row_count"] == {"$": {"completed": {"map": {"count": 2, "max": 1, "sum": 2, "min": 1}}}}
-        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
-
-    @add_failed_operation_stderrs_to_error_message
     def test_python_operations_and_file_cache(self):
         def func(row):
             yield row

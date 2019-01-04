@@ -7,7 +7,7 @@ import yatest.common
 import os
 import shutil
 
-YT_ABI = "19_3"
+YT_ABI = "19_4"
 
 def build_bindings(build_dir):
     ya = yatest.common.source_path("ya")
@@ -31,13 +31,20 @@ def prepare_yt_packages():
     contrib_path = yatest.common.source_path("yt/python/contrib")
 
     for package in ("requests", "argcomplete", "certifi", "tornado",
-                    "dill"):
+                    "dill", "urllib3", "certifi", "chardet", "idna"):
         src_path = os.path.join(contrib_path, "python-" + package, package)
         dst_path = os.path.join(packages_path, package)
 
         if os.path.exists(dst_path):
             shutil.rmtree(dst_path)
         shutil.copytree(src_path, dst_path)
+
+    # Simplejson
+    src_path = yatest.common.source_path("contrib/python/simplejson/simplejson")
+    dst_path = yatest.common.source_path("yt/python/simplejson")
+    if os.path.exists(dst_path):
+        shutil.rmtree(dst_path)
+    shutil.copytree(src_path, dst_path)
 
     # Six
     copy_file(

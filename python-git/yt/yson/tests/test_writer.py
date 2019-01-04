@@ -20,7 +20,7 @@ import os
 def get_debian_version(root):
     try:
         output = subprocess.check_output(["dpkg-parsechangelog"], cwd=root)
-    except subprocess.CalledProcessError:
+    except (OSError, subprocess.CalledProcessError):
         # Infinite version
         return (100, )
     return tuple(imap(int, output.split("Version:")[1].split()[0].split(".")))
