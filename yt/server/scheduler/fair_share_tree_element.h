@@ -855,6 +855,8 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
+    virtual bool IsAggressiveStarvationEnabled() const override;
+
     virtual void CheckForStarvation(TInstant now) override;
 
     virtual int GetMaxRunningOperationCount() const override;
