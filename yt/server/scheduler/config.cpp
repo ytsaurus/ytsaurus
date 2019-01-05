@@ -85,7 +85,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .GreaterThan(0);
 
     RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
-        .Default(0.5)
+        .Default(0.2)
         .GreaterThan(0);
 
     RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
