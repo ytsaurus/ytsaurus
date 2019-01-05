@@ -78,7 +78,7 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
             auto nodeId = execNodes.size() + 1;
             TNodeDescriptor descriptor("node" + ToString(nodeId));
 
-            auto node = New<TExecNode>(nodeId, descriptor);
+            auto node = New<TExecNode>(nodeId, descriptor, ENodeState::Online);
             node->Tags() = nodeGroupConfig->Tags;
             node->SetResourceLimits(GetNodeResourceLimit(nodeGroupConfig->ResourceLimits));
             node->SetDiskInfo(diskResources);

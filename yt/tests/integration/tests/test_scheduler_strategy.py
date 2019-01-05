@@ -1919,14 +1919,14 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: "supertree2" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
 
         node = ls("//sys/nodes")[0]
-        assert get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "online"
+        assert get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/scheduler_state") == "online"
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 3
 
         assert not get("//sys/scheduler/@alerts")
 
         set("//sys/nodes/" + node + "/@user_tags/end", "y")
 
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "offline")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/scheduler_state") == "offline")
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
         wait(lambda: get("//sys/scheduler/@alerts"))
         assert get("//sys/scheduler/@alerts")[0]

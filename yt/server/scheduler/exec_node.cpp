@@ -7,17 +7,19 @@
 namespace NYT::NScheduler {
 
 using namespace NNodeTrackerClient;
-using namespace NNodeTrackerServer;
 using namespace NConcurrency;
+using ENodeMasterState = NNodeTrackerServer::ENodeState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TExecNode::TExecNode(
     TNodeId id,
-    const TNodeDescriptor& nodeDescriptor)
+    const TNodeDescriptor& nodeDescriptor,
+    ENodeState state)
     : Id_(id)
     , NodeDescriptor_(nodeDescriptor)
-    , MasterState_(ENodeState::Offline)
+    , MasterState_(ENodeMasterState::Offline)
+    , SchedulerState_(state)
     , HasOngoingHeartbeat_(false)
     , HasOngoingJobsScheduling_(false)
     , HasPendingUnregistration_(false)

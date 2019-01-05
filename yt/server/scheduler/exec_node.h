@@ -67,6 +67,9 @@ public:
     //! State of node at master.
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
 
+    //! State of node at scheduler.
+    DEFINE_BYVAL_RW_PROPERTY(ENodeState, SchedulerState);
+
     //! Error of node registration.
     DEFINE_BYVAL_RW_PROPERTY(TError, RegistrationError);
 
@@ -102,7 +105,8 @@ public:
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
-        const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor);
+        const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
+        ENodeState state);
 
     const TString& GetDefaultAddress() const;
 

@@ -91,7 +91,6 @@ using namespace NChunkClient;
 using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
-using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NSecurityClient;

@@ -446,6 +446,8 @@ public:
 
     bool PoolChangeIsAllowed;
 
+    TDuration MaxOfflineNodeAge;
+
     TSchedulerConfig();
 };
 
