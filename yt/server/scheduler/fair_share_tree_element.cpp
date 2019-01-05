@@ -2880,6 +2880,11 @@ TDuration TRootElement::GetFairSharePreemptionTimeout() const
     return TreeConfig_->FairSharePreemptionTimeout;
 }
 
+bool TRootElement::IsAggressiveStarvationEnabled() const
+{
+    return TreeConfig_->EnableAggressiveStarvation;
+}
+
 void TRootElement::CheckForStarvation(TInstant now)
 {
     Y_UNREACHABLE();
