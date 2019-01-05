@@ -944,6 +944,11 @@ class YTInstance(object):
         self._run_yt_component("scheduler")
 
         def schedulers_ready():
+            def check_node_state(node):
+                if "state" in node:
+                    return node["state"] == "online"
+                return node["scheduler_state"] == "online" and node["master_state"] == "online"
+
             self._validate_processes_are_running("scheduler")
 
             instances = client.list("//sys/scheduler/instances")
@@ -977,7 +982,8 @@ class YTInstance(object):
                         raise
 
                 nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/scheduler/nodes")))
-                return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
+                return len(nodes) == self.node_count and all(check_node_state(node) for node in nodes)
+
             except YtResponseError as err:
                 # Orchid connection refused
                 if not err.contains_code(105) and not err.contains_code(100):
