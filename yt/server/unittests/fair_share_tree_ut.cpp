@@ -320,7 +320,7 @@ protected:
         diskResources.mutable_disk_reports()->Add();
         diskResources.mutable_disk_reports(0)->set_limit(nodeResources.GetDiskQuota());
 
-        auto execNode = New<TExecNode>(id, NNodeTrackerClient::TNodeDescriptor());
+        auto execNode = New<TExecNode>(id, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
         execNode->SetResourceLimits(nodeResources.ToJobResources());
         execNode->SetDiskInfo(diskResources);
 

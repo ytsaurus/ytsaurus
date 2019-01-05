@@ -277,8 +277,14 @@ private:
 
     TResourceStatistics CalculateResourceStatistics(const TSchedulingTagFilter& filter);
 
-    TExecNodePtr GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
-    TExecNodePtr RegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
+    TExecNodePtr GetOrRegisterNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const NNodeTrackerClient::TNodeDescriptor& descriptor,
+        ENodeState state);
+    TExecNodePtr RegisterNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const NNodeTrackerClient::TNodeDescriptor& descriptor,
+        ENodeState state);
     void UnregisterNode(const TExecNodePtr& node);
     void DoUnregisterNode(const TExecNodePtr& node);
     void OnNodeLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
@@ -361,7 +367,7 @@ private:
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
-    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState, TError error = TError());
+    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState, ENodeState newSchedulerState, TError error = TError());
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

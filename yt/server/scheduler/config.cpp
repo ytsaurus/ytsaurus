@@ -414,6 +414,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("pool_change_is_allowed", PoolChangeIsAllowed)
         .Default(false);
 
+    RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
+        .Default(TDuration::Hours(12));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
