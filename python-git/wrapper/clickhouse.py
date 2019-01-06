@@ -158,7 +158,9 @@ def start_clickhouse_clique(instance_count,
                                                     client=client) 
  
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count, 
-                                                          cypress_config_path=cypress_config_path, 
+                                                          cypress_config_path=cypress_config_path,
+                                                          cpu_limit=cpu_limit,
+                                                          memory_limit=memory_limit,
                                                           **kwargs), 
                        client=client, 
                        sync=False) 

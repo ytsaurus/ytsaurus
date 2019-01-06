@@ -233,7 +233,7 @@ class YtTestEnvironment(object):
     def reload_global_configuration(self):
         yt.config._init_state()
         yt._cleanup_http_session()
-        update_inplace(yt.config.config, self.config)
+        yt.config.config = self.config
 
 def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
