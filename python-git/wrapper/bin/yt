@@ -48,7 +48,7 @@ Operation commands:
     remote-copy, vanilla, abort-op, suspend-op, resume-op, track-op, complete-op,
     update-op-parameters, get-operation, list-operations
 Transaction commands:
-    lock, start-tx, abort-tx, commit-tx, ping-tx
+    lock, unlock, start-tx, abort-tx, commit-tx, ping-tx
 Job commands:
     get-job-stderr, run-job-shell, abort-job, get-job, list-jobs
 Other commands:
@@ -1044,6 +1044,10 @@ def add_lock_parser(add_parser):
     parser.add_argument("--child-key", help="child key of shared lock")
     parser.add_argument("--attribute-key", help="attribute key of shared lock")
 
+def add_unlock_parser(add_parser):
+    parser = add_parser("unlock", yt.unlock)
+    add_ypath_argument(parser, "path", hybrid=True)
+
 @copy_docstring_from(yt.check_permission)
 def check_permission(**args):
     sys.stdout.write(yt.check_permission(**args))
@@ -1304,6 +1308,7 @@ def main():
     add_ping_tx_parser(add_parser)
 
     add_lock_parser(add_parser)
+    add_unlock_parser(add_parser)
 
     add_add_member_parser(add_parser)
     add_remove_member_parser(add_parser)

@@ -477,13 +477,13 @@ class UserJobSpecBuilder(object):
     def _prepare_ld_library_path(self, spec, client=None):
         if _is_python_function(spec["command"]) and \
                 get_config(client)["pickling"]["dynamic_libraries"]["enable_auto_collection"]:
-            ld_library_path = spec.get("environment", {}).get("LD_LIBRARY_PATH")
+            if "environment" not in spec:
+                spec["environment"] = {}
+            ld_library_path = spec["environment"].get("LD_LIBRARY_PATH")
             paths = ["./modules/_shared", "./tmpfs/modules/_shared"]
             if ld_library_path is not None:
                 paths.insert(0, ld_library_path)
-            if "environment" not in spec:
-                spec["environment"] = {}
-                spec["environment"]["LD_LIBRARY_PATH"] = os.pathsep.join(paths)
+            spec["environment"]["LD_LIBRARY_PATH"] = os.pathsep.join(paths)
         return spec
 
     def _prepare_tmpfs(self, spec, tmpfs_size, disk_size, client=None):
@@ -859,7 +859,7 @@ class SpecBuilder(object):
     def get_toucher(self, client=None):
         if self.supports_user_job_spec():
             return Toucher(self._uploaded_files, client=client)
-        return lambda state: None
+        return lambda: None
 
 class ReduceSpecBuilder(SpecBuilder):
     def __init__(self, spec=None):

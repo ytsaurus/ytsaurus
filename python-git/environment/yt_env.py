@@ -165,7 +165,7 @@ def _get_cgroup_path(cgroup_type, *args):
 
 class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
-                 node_count=1, scheduler_count=1, controller_agent_count=None,
+                 node_count=1, defer_node_start=False, scheduler_count=1, controller_agent_count=None,
                  has_proxy=False, proxy_port=None, has_rpc_proxy=None,
                  rpc_proxy_count=1, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
@@ -269,6 +269,7 @@ class YTInstance(object):
         self.nonvoting_master_count = nonvoting_master_count
         self.secondary_master_cell_count = secondary_master_cell_count
         self.node_count = node_count
+        self.defer_node_start = defer_node_start
         self.scheduler_count = scheduler_count
         if controller_agent_count is None:
             if self.abi_version >= (19, 3) and scheduler_count > 0:
@@ -484,14 +485,11 @@ class YTInstance(object):
             if self.has_rpc_proxy:
                 self.start_rpc_proxy(sync=False)
 
-            for func in self._wait_functions:
-                func()
+            self.synchronize()
 
             if start_secondary_master_cells:
-                self._wait_functions = []
                 self.start_secondary_master_cells(sync=False)
-                for func in self._wait_functions:
-                    func()
+                self.synchronize()
 
             # TODO(asaitgalin): Create this user inside master.
             client = self.create_client()
@@ -503,10 +501,9 @@ class YTInstance(object):
                 # NB: it is used to determine proper operation URL in local mode.
                 client.set("//sys/@local_mode_proxy_address", self.get_proxy_address())
 
-            self._wait_functions = []
             if on_masters_started_func is not None:
                 on_masters_started_func()
-            if self.node_count > 0:
+            if self.node_count > 0 and not self.defer_node_start:
                 self.start_nodes(sync=False)
             if self.scheduler_count > 0:
                 self.start_schedulers(sync=False)
@@ -515,8 +512,7 @@ class YTInstance(object):
             if self.skynet_manager_count > 0:
                 self.start_skynet_managers(sync=False)
 
-            for func in self._wait_functions:
-                func()
+            self.synchronize()
 
             self._start_watcher()
             self._started = True
@@ -559,6 +555,11 @@ class YTInstance(object):
             self._open_port_iterator = None
 
         wait_for_removing_file_lock(os.path.join(self.path, "lock_file"))
+
+    def synchronize(self):
+        for func in self._wait_functions:
+            func()
+        self._wait_functions = []
 
     def get_proxy_address(self):
         if not self.has_proxy:
@@ -682,6 +683,7 @@ class YTInstance(object):
                                name, proc.pid, os.path.join(self.path, name), proc.returncode))
             return
 
+        logger.info("Sending SIGKILL to process (pid: %d)", proc.pid)
         os.killpg(proc.pid, signal.SIGKILL)
         time.sleep(0.2)
 
@@ -976,8 +978,12 @@ class YTInstance(object):
                     else:
                         raise
 
-                nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/scheduler/nodes")))
-                return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
+                if not self.defer_node_start:
+                    nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/scheduler/nodes")))
+                    return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
+
+                return True
+
             except YtResponseError as err:
                 # Orchid connection refused
                 if not err.contains_code(105) and not err.contains_code(100):

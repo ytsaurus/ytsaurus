@@ -1,7 +1,7 @@
 from .common import get_value, YtError, set_param
 from .ypath import YPath
 from .cypress_commands import get
-from .transaction_commands import _make_formatted_transactional_request
+from .transaction_commands import _make_transactional_request, _make_formatted_transactional_request
 
 import time
 from datetime import timedelta, datetime
@@ -56,3 +56,16 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
             raise YtError("Timed out while waiting {0} milliseconds for lock {1}".format(wait_for.microseconds // 1000 + wait_for.seconds * 1000, lock_id))
 
     return lock_id
+
+def unlock(path, client=None):
+    """Tries to unlock the path.
+
+    Both acquired and pending locks are unlocked. Only explicit locks are unlockable.
+
+    If the node is not locked, succeeds silently. If the locked version of the node
+    contains changes compared to its original version, :class:`YtError <yt.common.YtError>` is raised.
+
+    .. seealso:: `unlock on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions#versionirovanieiloki>`_
+    """
+    params = {"path": YPath(path, client=client)}
+    _make_transactional_request("unlock", params, client=client)
