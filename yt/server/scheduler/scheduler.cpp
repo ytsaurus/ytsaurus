@@ -2078,7 +2078,7 @@ private:
 
             for (const auto& pair : *CachedExecNodeDescriptors_) {
                 const auto& descriptor = pair.second;
-                if (filter.CanSchedule(descriptor.Tags)) {
+                if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
                     ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), 1_GB)];
                 }
             }

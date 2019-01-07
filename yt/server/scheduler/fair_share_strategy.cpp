@@ -526,6 +526,9 @@ public:
         auto descriptors = Host->CalculateExecNodeDescriptors(TSchedulingTagFilter());
         for (const auto& idDescriptorPair : *descriptors) {
             const auto& descriptor = idDescriptorPair.second;
+            if (!descriptor.Online) {
+                continue;
+            }
             for (const auto& idTreePair : IdToTree_) {
                 const auto& treeId = idTreePair.first;
                 const auto& tree = idTreePair.second;

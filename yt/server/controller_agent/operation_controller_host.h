@@ -76,7 +76,7 @@ public:
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
     virtual TMemoryTagQueue* GetMemoryTagQueue() override;
 
-    virtual int GetExecNodeCount() override;
+    virtual int GetOnlineExecNodeCount() override;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override;
 
     virtual TInstant GetConnectionTime() override;

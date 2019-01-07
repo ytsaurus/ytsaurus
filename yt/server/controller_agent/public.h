@@ -147,6 +147,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((NoAgentAssigned)               (17))
     ((TentativeTreeDeclined)         (18))
     ((NodeBanned)                    (19))
+    ((NodeOffline)                   (20))
 );
 
 DEFINE_ENUM(EErrorCode,
