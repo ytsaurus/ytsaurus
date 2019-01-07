@@ -13,13 +13,10 @@ logger.setLevel(logging.INFO)
 
 YT_PYTHON_PACKAGE_LIST = [
     "argcomplete",
-    "backports_abc",
     "certifi",
     "dill",
     "requests",
-    "singledispatch",
     "six",
-    "tornado",
     "distro",
     "urllib3",
     "chardet",
@@ -28,6 +25,10 @@ YT_PYTHON_PACKAGE_LIST = [
 
 CONTRIB_PYTHON_PACKAGE_LIST = [
     "simplejson",
+    "cloudpickle",
+    "backports_abc",
+    "singledispatch",
+    "tornado",
 ]
 
 PY23_BINARIES = [

@@ -30,7 +30,7 @@ def prepare_yt_packages():
     packages_path = yatest.common.source_path("yt/python/yt/packages")
     contrib_path = yatest.common.source_path("yt/python/contrib")
 
-    for package in ("requests", "argcomplete", "certifi", "tornado",
+    for package in ("requests", "argcomplete", "certifi",
                     "dill", "urllib3", "certifi", "chardet", "idna"):
         src_path = os.path.join(contrib_path, "python-" + package, package)
         dst_path = os.path.join(packages_path, package)
@@ -42,6 +42,13 @@ def prepare_yt_packages():
     # Simplejson
     src_path = yatest.common.source_path("contrib/python/simplejson/simplejson")
     dst_path = yatest.common.source_path("yt/python/simplejson")
+    if os.path.exists(dst_path):
+        shutil.rmtree(dst_path)
+    shutil.copytree(src_path, dst_path)
+    
+    # Tornado
+    src_path = yatest.common.source_path("contrib/python/tornado/tornado")
+    dst_path = yatest.common.source_path("yt/python/tornado")
     if os.path.exists(dst_path):
         shutil.rmtree(dst_path)
     shutil.copytree(src_path, dst_path)
@@ -60,13 +67,13 @@ def prepare_yt_packages():
 
     # Backports ABC
     copy_file(
-        os.path.join(contrib_path, "python-backports_abc", "backports_abc.py"),
+        os.path.join("contrib/python", "python-backports_abc", "backports_abc.py"),
         os.path.join(packages_path, "backports.abc"))
 
     # Singledispatch
     for file_ in ("singledispatch_helpers.py", "singledispatch.py"):
         copy_file(
-            os.path.join(contrib_path, "python-singledispatch", file_),
+            os.path.join("contrib/python", "python-singledispatch", file_),
             os.path.join(packages_path, file_))
 
     # FUSE
