@@ -7144,17 +7144,32 @@ void TOperationControllerBase::GetExecNodesInformation()
         return;
     }
 
-    ExecNodeCount_ = Host->GetExecNodeCount();
+    OnlineExecNodeCount_ = Host->GetOnlineExecNodeCount();
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
+
+    OnlineExecNodesDescriptors_->clear();
+    for (const auto& pair : *ExecNodesDescriptors_) {
+        if (pair.second.Online) {
+            YCHECK(OnlineExecNodesDescriptors_->insert(pair).second);
+        }
+    }
+
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerExecNodeInfoUpdatePeriod);
+
     OnExecNodesUpdated();
-    YT_LOG_DEBUG("Exec nodes information updated (ExecNodeCount: %v)", ExecNodeCount_);
+    YT_LOG_DEBUG("Exec nodes information updated (SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)", ExecNodesDescriptors_->size(), OnlineExecNodeCount_);
 }
 
-int TOperationControllerBase::GetExecNodeCount()
+int TOperationControllerBase::GetOnlineExecNodeCount()
 {
     GetExecNodesInformation();
-    return ExecNodeCount_;
+    return OnlineExecNodeCount_;
+}
+
+const TExecNodeDescriptorMap& TOperationControllerBase::GetOnlineExecNodeDescriptors()
+{
+    GetExecNodesInformation();
+    return *OnlineExecNodesDescriptors_;
 }
 
 const TExecNodeDescriptorMap& TOperationControllerBase::GetExecNodeDescriptors()
@@ -7165,8 +7180,7 @@ const TExecNodeDescriptorMap& TOperationControllerBase::GetExecNodeDescriptors()
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()
 {
-    auto nodeCount = GetExecNodeCount();
-    if (nodeCount < Config->SafeOnlineNodeCount) {
+    if (GetOnlineExecNodeCount() < Config->SafeOnlineNodeCount) {
         return true;
     }
 

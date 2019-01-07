@@ -240,7 +240,7 @@ struct IOperationControllerHost
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
     virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
 
-    virtual int GetExecNodeCount() = 0;
+    virtual int GetOnlineExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
     virtual NScheduler::TIncarnationId GetIncarnationId() = 0;

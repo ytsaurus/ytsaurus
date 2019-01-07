@@ -359,7 +359,7 @@ protected:
                 DataBalancer_ = New<TDataBalancer>(
                     Controller->Options->DataBalancer,
                     totalDataWeight,
-                    Controller->GetExecNodeDescriptors());
+                    Controller->GetOnlineExecNodeDescriptors());
                 DataBalancer_->SetLogger(Logger);
             }
 
@@ -423,14 +423,14 @@ protected:
             Persist(context, DataBalancer_);
 
             if (context.IsLoad() && DataBalancer_) {
-                DataBalancer_->OnExecNodesUpdated(Controller->GetExecNodeDescriptors());
+                DataBalancer_->OnExecNodesUpdated(Controller->GetOnlineExecNodeDescriptors());
             }
         }
 
         void OnExecNodesUpdated()
         {
             if (DataBalancer_) {
-                DataBalancer_->OnExecNodesUpdated(Controller->GetExecNodeDescriptors());
+                DataBalancer_->OnExecNodesUpdated(Controller->GetOnlineExecNodeDescriptors());
             }
         }
 
@@ -1494,7 +1494,7 @@ protected:
 
         YT_LOG_DEBUG("Examining online nodes");
 
-        const auto& nodeDescriptors = GetExecNodeDescriptors();
+        const auto& nodeDescriptors = GetOnlineExecNodeDescriptors();
         auto maxResourceLimits = ZeroJobResources();
         double maxIOWeight = 0;
         for (const auto& pair : nodeDescriptors) {
