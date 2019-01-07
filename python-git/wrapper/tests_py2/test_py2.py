@@ -106,7 +106,9 @@ def run_pytest():
     }
 
     test_files = [
-        yatest.common.source_path("yt/python/yt/wrapper/tests/test_operations_pickling.py")
+        yatest.common.source_path("yt/python/yt/wrapper/tests/test_operations_pickling.py"),
+        # User statistics uses cgroups that available only in FAT tests.
+        yatest.common.source_path("yt/python/yt/wrapper/tests/test_user_statistics.py")
     ]
 
     pytest_runner.run(test_files, python_path="/usr/bin/python2.7", env=env)
