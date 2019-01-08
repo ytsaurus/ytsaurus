@@ -64,7 +64,7 @@ class YtTestEnvironment(object):
         if env_options is None:
             env_options = {}
 
-        has_proxy = config["backend"] not in ("native",)
+        has_http_proxy = config["backend"] not in ("native",)
 
         logging.getLogger("Yt.local").setLevel(logging.INFO)
 
@@ -136,7 +136,7 @@ class YtTestEnvironment(object):
                 update_inplace(config, common_delta_node_config)
                 if delta_node_config:
                     update_inplace(config, delta_node_config)
-            for config in configs["proxy"]:
+            for config in configs["http_proxy"]:
                 if delta_proxy_config:
                     update_inplace(config, delta_proxy_config)
 
@@ -154,8 +154,8 @@ class YtTestEnvironment(object):
                               master_count=1,
                               node_count=5,
                               scheduler_count=1,
-                              has_proxy=has_proxy,
-                              has_rpc_proxy=True,
+                              http_proxy_count=1 if has_http_proxy else 0,
+                              rpc_proxy_count=1,
                               port_locks_path=get_port_locks_path(),
                               fqdn="localhost",
                               modify_configs_func=modify_configs,
@@ -175,7 +175,7 @@ class YtTestEnvironment(object):
         self.config["enable_request_logging"] = True
         self.config["enable_passing_request_id_to_driver"] = True
         self.config["operation_tracker"]["poll_period"] = 100
-        if has_proxy:
+        if has_http_proxy:
             self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
 
         # NB: to decrease probability of retries test failure.
