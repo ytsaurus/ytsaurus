@@ -58,8 +58,8 @@ def create_class_method(func):
     if "client" in arg_names:
         client_index = arg_names.index("client")
         assert client_index == len(arg_names) - 1, \
-                'By convention "client" argument should be last in function signature. ' \
-                'Function "{0}" should be fixed.'.format(func.__name__)
+            'By convention "client" argument should be last in function signature. ' \
+            'Function "{0}" should be fixed.'.format(func.__name__)
         arg_names.pop(client_index)
 
     if is_class:

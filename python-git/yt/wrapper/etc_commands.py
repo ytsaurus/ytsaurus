@@ -1,4 +1,4 @@
-from .driver import make_request, make_formatted_request
+from .driver import make_formatted_request
 from .common import set_param
 
 # For backward compatibility.

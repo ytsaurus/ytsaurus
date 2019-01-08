@@ -22,17 +22,19 @@ def complete_attributes(path):
     path, attribute = str(path).rsplit("@", 1)
     add_slash_after_attribute_path = False
     if "/" in attribute:
-        attribute_path, attribute_part = attribute.rsplit("/", 1)
+        attribute_path, _ = attribute.rsplit("/", 1)
         add_slash_after_attribute_path = True
     else:
-        attribute_path, attirbute_part = "", attribute
-    
-    # Find all attributes that are siblings of a current attribute. 
+        attribute_path = ""
+
+    # Find all attributes that are siblings of a current attribute.
     attribute_list = yt.list(path + "@" + attribute_path)
     suggestions = []
     for sub_attribute in attribute_list:
-        suggestions.append(path + "@" + attribute_path + ("/" if add_slash_after_attribute_path else "") + sub_attribute)
-    
+        suggestions.append(
+            path + "@" + attribute_path +
+            ("/" if add_slash_after_attribute_path else "") + sub_attribute)
+
     # Try to find all children attributes of a current attribute
     # by treating it as a map atttribute.
     children_attribute_list = []

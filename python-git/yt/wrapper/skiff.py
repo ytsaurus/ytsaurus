@@ -1,7 +1,7 @@
 from .errors import YtError
 
 try:
-    from yt.skiff import SkiffRecord, SkiffSchema, SkiffTableSwitch
+    from yt.skiff import SkiffRecord, SkiffSchema, SkiffTableSwitch # noqa
 except ImportError:
     pass
 
