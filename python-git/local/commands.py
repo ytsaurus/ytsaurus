@@ -152,7 +152,7 @@ def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare
         "prepared" if prepare_only else "started",
         environment.id))
     if start_proxy:
-        logger.info("Proxy address: %s", environment.get_proxy_address())
+        logger.info("HTTP proxy addresses: %s", environment.get_http_proxy_addresses())
         if environment._hostname != "localhost":
             logger.info("UI address: http://yt.yandex.net/%s", environment.get_proxy_address())
     if start_rpc_proxy:
@@ -226,19 +226,32 @@ _START_DEFAULTS = {
     "master_count": 1,
     "node_count": 1,
     "scheduler_count": 1,
+    "http_proxy_count": 1,
+    "rpc_proxy_count": 0,
     "jobs_memory_limit": 16 * GB,
     "jobs_cpu_limit": 1,
     "jobs_user_slot_count": 10,
     "node_chunk_store_quota": 7 * GB
 }
 
-def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=True, start_rpc_proxy=False,
+def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=None, start_rpc_proxy=None, rpc_proxy_count=0,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None, controller_agent_config=None,
-          proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
+          proxy_port=None, http_proxy_ports=None, http_proxy_count=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
           meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0, use_new_proxy=False):
+
+    # TODO(max42): start_proxy, start_rpc_proxy and proxy_port are legacy options. Get rid of them in Arcadia.
+    if proxy_port is not None:
+        logger.warn("proxy_port keyword argument is deprecated and will be removed soon. Use http_proxy_ports = [...] instead.")
+        http_proxy_ports = [proxy_port]
+    if start_proxy is not None:
+        logger.warn("start_proxy keyword argument is deprecated and will be removed soon. Use http_proxy_count = 1 instead.")
+        http_proxy_count = 1 if start_proxy else 0
+    if start_rpc_proxy is not None:
+        logger.warn("start_rpc_proxy keyword argument is deprecated and will be removed soon. Use rpc_proxy_count = 1 instead.")
+        rpc_proxy_count = 1 if start_rpc_proxy else 0
 
     options = {}
     for name in _START_DEFAULTS:
@@ -265,9 +278,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
     os.environ["YT_CAPTURE_STDERR_TO_FILE"] = "1"
 
     environment = YTInstance(sandbox_path,
-                             has_proxy=start_proxy,
-                             has_rpc_proxy=start_rpc_proxy,
-                             proxy_port=proxy_port,
+                             http_proxy_ports=http_proxy_ports,
                              enable_debug_logging=enable_debug_logging,
                              port_range_start=port_range_start,
                              fqdn=fqdn,
@@ -316,7 +327,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client)
 
-    log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare_only)
+    log_started_instance_info(environment, options["http_proxy_count"] > 0, options["rpc_proxy_count"] > 0, prepare_only)
     touch(is_started_file)
 
     return environment
@@ -390,10 +401,13 @@ def get_proxy(id, path=None):
 
     with open(info_file_path, "rb") as f:
         info = yson.load(f)
-        if not "proxy" in info:
+        if "http_proxies" in info:
+            return info["http_proxies"][0]["address"]
+        # COMPAT(max42)
+        elif "proxy" in info:
+            return info["proxy"]["address"]
+        else:
             raise yt.YtError("Local YT with id {0} does not have started proxy".format(id))
-
-    return info["proxy"]["address"]
 
 def list_instances(path=None):
     path = get_root_path(path)
