@@ -54,7 +54,7 @@ def sample_rows_from_table(table, output_table, row_count, client=None):
         raise YtError("Total table row count is less than desired row count")
 
     if row_count > get_config(client)["max_row_count_for_local_sampling"]:
-       return _sample_rows_from_table_in_mapreduce(table, output_table, total_table_row_count, row_count, client)
+        return _sample_rows_from_table_in_mapreduce(table, output_table, total_table_row_count, row_count, client)
 
     rows_generator = _sample_rows_from_table_generator(table, total_table_row_count, row_count, client)
     write_table(output_table, rows_generator, client=client)

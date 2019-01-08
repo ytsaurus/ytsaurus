@@ -32,4 +32,5 @@ def shuffle_table(table, sync=True, temp_column_name="__random_number", spec=Non
             if "sort_order" in elem:
                 del elem["sort_order"]
 
-    return run_map_reduce(shuffle_mapper, shuffle_reducer, table, TablePath(table, schema=schema, client=client), reduce_by=temp_column_name, sync=sync, spec=spec, client=client)
+    return run_map_reduce(shuffle_mapper, shuffle_reducer, table, TablePath(table, schema=schema, client=client),
+                          reduce_by=temp_column_name, sync=sync, spec=spec, client=client)

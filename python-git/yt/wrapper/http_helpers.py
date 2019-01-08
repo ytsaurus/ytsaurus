@@ -186,7 +186,8 @@ def _raise_for_status(response, request_info):
         raise YtTokenError(
             "Your authentication token was rejected by the server (X-YT-Request-ID: {0})\n"
             "Please refer to oauth.yt.yandex.net for obtaining a valid token\n"
-            "if it will not fix error please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"\
+            "if it will not fix error please kindly submit a request to "
+            "https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
             .format(response.headers.get("X-YT-Request-ID", "missing")))
 
     if not response.is_ok():
@@ -304,7 +305,8 @@ class RequestRetrier(Retrier):
             raise
 
     def backoff_action(self, attempt, backoff):
-        skip_backoff = get_config(self.client)["proxy"]["skip_backoff_if_connect_timed_out"] and self.is_connection_timeout_error
+        skip_backoff = get_config(self.client)["proxy"]["skip_backoff_if_connect_timed_out"] \
+            and self.is_connection_timeout_error
         if not skip_backoff:
             logger.warning("Sleep for %.2lf seconds before next retry", backoff)
             time.sleep(backoff)
@@ -333,7 +335,12 @@ def get_proxy_url(required=True, client=None):
 def _request_api(version=None, client=None):
     proxy = get_proxy_url(client=client)
     location = "api" if version is None else "api/" + version
-    return make_request_with_retries("get", "http://{0}/{1}".format(proxy, location), response_format="json", client=client).json()
+    return make_request_with_retries(
+        "get",
+        "http://{0}/{1}".format(proxy, location),
+        response_format="json",
+        client=client
+    ).json()
 
 def get_api_version(client=None):
     api_version_option = get_option("_api_version", client)
