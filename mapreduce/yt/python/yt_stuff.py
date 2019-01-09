@@ -452,7 +452,7 @@ class YtStuff(object):
                 info_yson_file = os.path.join(self.yt_work_dir, self.yt_id, "info.yson")
                 with open(info_yson_file) as f:
                     info = yson.load(f)
-                self.yt_proxy_port = int(info["proxy"]["address"].split(":")[1])
+                self.yt_proxy_port = int(info["http_proxies"][0]["address"].split(":")[1])
 
             self.cluster_config = dict()
             with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "master-0-0.yson")) as f:
@@ -465,8 +465,8 @@ class YtStuff(object):
                 for field in ["table_mount_cache", "cell_directory_synchronizer", "cluster_directory_synchronizer"]:
                     if field in v:
                         self.cluster_config[field] = v[field]
-        except Exception, e:
-            self._log("Failed to start local YT:\n%s", str(e))
+        except Exception:
+            self.logger.exception("Failed to start local YT")
             for pid in self._get_pids():
                 try:
                     os.kill(pid, signal.SIGKILL)
