@@ -25,7 +25,8 @@ def get_config_patcher(patches):
             configs["node"][index] = update_inplace(config, patches.get("DELTA_NODE_CONFIG", {}))
         for key, config in configs["driver"].iteritems():
             configs["driver"][key] = update_inplace(config, patches.get("DELTA_DRIVER_CONFIG", {}))
-        configs["proxy"] = update_inplace(configs["proxy"], patches.get("DELTA_PROXY_CONFIG", {}))
+        for index, config in enumerate(configs["http_proxy"]):
+            configs["http_proxy"][index] = update_inplace(config, patches.get("DELTA_PROXY_CONFIG", {}))
         for index, config in enumerate(configs["rpc_proxy"]):
             configs["rpc_proxy"][index] = update_inplace(config, patches.get("DELTA_RPC_PROXY_CONFIG", {}))
     return apply_config_patches
