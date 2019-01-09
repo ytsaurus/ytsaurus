@@ -675,6 +675,8 @@ class YTInstance(object):
         info = {}
         if self.has_http_proxy:
             info["http_proxies"] = [{"address": address} for address in self.get_http_proxy_addresses()]
+            if len(self.get_http_proxy_addresses()) == 1:
+                info["proxy"] = {"address": self.get_http_proxy_addresses()[0]}
         with open(os.path.join(self.path, "info.yson"), "wb") as fout:
             yson.dump(info, fout, yson_format="pretty")
 
