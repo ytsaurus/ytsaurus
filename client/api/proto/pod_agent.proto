@@ -15,7 +15,7 @@ import "yt/core/yson/proto/protobuf_interop.proto";
 option (NYT.NYson.NProto.derive_underscore_case_names) = true;
 
 //TODO: itype (labels)
-//TODO: probabilty + core dump
+//TODO: coredump probabilty
 
 // Конфигурация Пода, передаваемая в Pod-agent.
 // NOTE: сущности верхнего уровня имеют уникальные в рамках Пода идентификаторы (поле Id)
@@ -348,7 +348,7 @@ message TMutableWorkload {
     EWorkloadTargetState TargetState = 2;
 }
 
-// При переводе MutableTarget в состояние REMOVED или обновления ревизии workload или любой его зависимости
+// При переводе TMutableWorkload.TargetState в состояние REMOVED или обновления ревизии workload или любой его зависимости
 // будет вызван stop hook, который должен выполнить gracefully завершение контейнера start
 // Если после завершения stop hook контейнер start находится в состоянии dead или stopped, то он будет уничтожен,
 // иначе stop hook будет перезапускаться до тех пор, пока контейнер start не перейдет в одно из этих состояний
@@ -366,9 +366,9 @@ message TStopPolicy {
     uint32 MaxTries = 3;
 }
 
-// При удалении ворклоуда из спеки
+// При удалении workload из спеки
 // будет вызван destroy hook, который выпонится только после окончания выполнения stop hook и перехода start контейнера в состояние dead.
-// в случае если destroy hook завершится не нулевым кодом возврата, он будет перезапущен MaxTries раз
+// в случае если destroy hook завершится ненулевым кодом возврата, он будет перезапущен MaxTries раз
 // пока не завершится успехом
 message TDestroyPolicy {
     oneof Policy {
@@ -465,7 +465,6 @@ message TUtilityContainer {
 //Снача запускаются закачки для активных workload и параллельно запускаются только те, которые можно разместить
 //в рамках лимитов box
 message TResourceGang {
-    //Слои, все закачки происходят в рамках вычислительных
     //Идея убрать произвольные ресурсы, а оставить слои в том, чтобы форсить пользователя готовить во вне воспроизводимое
     //окружение для своего сервиса. По сути это аналог деплоя готовых docker образов.
     repeated TLayer Layers = 2;
@@ -527,7 +526,6 @@ enum EBoxState {
     EBoxState_INVALID = 9 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
 }
 
-//Состояние workload
 //Q: Почему нет DEBUG состояния, чтобы поотлаживать упавшую джобу
 //A: Дело в том, в pod agent не будет понятия джобы. pod agent запускает только сервисы.
 //     одним из сервисов может быть сервис, который выполняет джобы.
