@@ -83,7 +83,7 @@ def replace_symlink(source, destination):
     os.symlink(source, destination)
 
 
-def prepare_python_source_tree(python_root, yt_root):
+def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=True, prepare_bindings=True):
     def python_contrib_path(path):
         return os.path.join(python_root, "contrib", path)
 
@@ -121,22 +121,24 @@ def prepare_python_source_tree(python_root, yt_root):
         for path in files_to_copy:
             cp_r(path, packages_dir)
 
-    replace(os.path.join(yt_root, "yt/python/yt_yson_bindings"), python_root)
-    replace(os.path.join(yt_root, "yt/python/yt_driver_bindings"), python_root)
-
     replace(python_contrib_path("python-decorator/src/decorator.py"), packages_dir)
     replace(python_contrib_path("python-fusepy/fuse.py"), packages_dir)
 
-    for binary in PY23_BINARIES:
-        binary_path = os.path.join(python_root, binary)
-        for suffix in ("2", "3"):
-            ln_s(binary_path, binary_path + suffix)
+    if prepare_bindings:
+        replace(os.path.join(yt_root, "yt/python/yt_yson_bindings"), python_root)
+        replace(os.path.join(yt_root, "yt/python/yt_driver_bindings"), python_root)
 
-    for binary in YT_PREFIX_BINARIES:
-        binary_path = os.path.join(python_root, binary)
-        dirname, basename = os.path.split(binary_path)
-        link_path = os.path.join(dirname, "yt_" + basename)
-        ln_s(binary_path, link_path)
+    if prepare_binary_symlinks:
+        for binary in PY23_BINARIES:
+            binary_path = os.path.join(python_root, binary)
+            for suffix in ("2", "3"):
+                ln_s(binary_path, binary_path + suffix)
+
+        for binary in YT_PREFIX_BINARIES:
+            binary_path = os.path.join(python_root, binary)
+            dirname, basename = os.path.split(binary_path)
+            link_path = os.path.join(dirname, "yt_" + basename)
+            ln_s(binary_path, link_path)
 
 
 def main():
