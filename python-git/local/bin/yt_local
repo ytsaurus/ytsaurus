@@ -115,7 +115,7 @@ def start_func(**kwargs):
     if kwargs["proxy_port"] is not None:
         kwargs["http_proxy_ports"] = kwargs["proxy_port"]
 
-    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit", "no_proxy", "rpc_proxy"):
+    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit", "no_proxy", "rpc_proxy", "proxy_port"):
         del kwargs[opt]
     # Tests options
     sync_mode_sleep_timeout = kwargs.pop("sync_mode_sleep_timeout")

@@ -227,7 +227,7 @@ _START_DEFAULTS = {
     "node_count": 1,
     "scheduler_count": 1,
     "http_proxy_count": 1,
-    "rpc_proxy_count": 0,
+    "rpc_proxy_count": None,
     "jobs_memory_limit": 16 * GB,
     "jobs_cpu_limit": 1,
     "jobs_user_slot_count": 10,
@@ -256,6 +256,9 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
     options = {}
     for name in _START_DEFAULTS:
         options[name] = get_value(locals()[name], _START_DEFAULTS[name])
+
+    if options["rpc_proxy_count"] is None:
+        options["rpc_proxy_count"] = 0
 
     require(options["master_count"] >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
