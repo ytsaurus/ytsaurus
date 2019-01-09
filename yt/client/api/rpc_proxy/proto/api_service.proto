@@ -915,6 +915,22 @@ message TRspReshardTable
 
 //------------------------------------------------------------------------------
 
+message TReqReshardTableAutomatic
+{
+    required string path = 1; // YPath
+    required bool keep_actions = 2 [default = false];
+
+    optional TMutatingOptions mutating_options = 103;
+    optional TTabletRangeOptions tablet_range_options = 104;
+}
+
+message TRspReshardTableAutomatic
+{
+    repeated NYT.NProto.TGuid tablet_actions = 1;
+}
+
+//------------------------------------------------------------------------------
+
 message TReqTrimTable
 {
     required string path = 1; // YPath
@@ -961,6 +977,22 @@ message TReqAlterTableReplica
 
 message TRspAlterTableReplica
 {
+}
+
+//------------------------------------------------------------------------------
+
+message TReqBalanceTabletCells
+{
+    required string bundle = 1;
+    repeated string movable_tables = 2;
+    required bool keep_actions = 3 [default = false];
+
+    optional TMutatingOptions mutating_options = 103;
+}
+
+message TRspBalanceTabletCells
+{
+    repeated NYT.NProto.TGuid tablet_actions = 1;
 }
 
 //------------------------------------------------------------------------------

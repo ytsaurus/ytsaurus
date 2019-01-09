@@ -50,14 +50,22 @@ public:
     //! Contains error if tablet action failed.
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
-    //! Keep tablet action after it is finished (completed or failed).
-    DEFINE_BYVAL_RW_PROPERTY(bool, KeepFinished);
+    //! Random guid to help connecting tablet balancer logs with tablet actions.
+    DEFINE_BYVAL_RW_PROPERTY(TGuid, CorrelationId);
+
+    //! When finished, action will not be destroyed until this time.
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, ExpirationTime);
+
+    //! Tablet cell bundle of the participating tablets.
+    DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundle*, TabletCellBundle);
 
 public:
     explicit TTabletAction(TTabletActionId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    bool IsFinished() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

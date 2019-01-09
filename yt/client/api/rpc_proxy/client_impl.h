@@ -60,6 +60,10 @@ public:
         int tabletCount,
         const NApi::TReshardTableOptions& options) override;
 
+    virtual TFuture<std::vector<NTabletClient::TTabletActionId>> ReshardTableAutomatic(
+        const NYPath::TYPath& path,
+        const NApi::TReshardTableAutomaticOptions& options) override;
+
     virtual TFuture<void> TrimTable(
         const NYPath::TYPath& path,
         int tabletIndex,
@@ -84,6 +88,11 @@ public:
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
         const NApi::TGetTabletsInfoOptions& options) override;
+
+    virtual TFuture<std::vector<NTabletClient::TTabletActionId>> BalanceTabletCells(
+        const TString& tabletCellBundle,
+        const std::vector<NYPath::TYPath>& movableTables,
+        const NApi::TBalanceTabletCellsOptions& options) override;
 
     // Files
     virtual TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(

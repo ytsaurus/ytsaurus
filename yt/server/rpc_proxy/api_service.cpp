@@ -401,9 +401,11 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FreezeTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnfreezeTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReshardTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReshardTableAutomatic));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(TrimTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
@@ -1625,6 +1627,36 @@ private:
         }
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReshardTableAutomatic)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        const auto& path = request->path();
+
+        TReshardTableAutomaticOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+        options.KeepActions = request->keep_actions();
+
+        TFuture<std::vector<TTabletActionId>> result;
+
+        CompleteCallWith(
+            context,
+            client->ReshardTableAutomatic(path, options),
+            [] (const auto& context, const auto& tabletActions) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_tablet_actions(), tabletActions);
+            });
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TrimTable)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
@@ -1714,6 +1746,34 @@ private:
         CompleteCallWith(
             context,
             client->AlterTableReplica(replicaId, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BalanceTabletCells)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        const auto& bundle = request->bundle();
+        auto tables = FromProto<std::vector<NYPath::TYPath>>(request->movable_tables());
+
+        TBalanceTabletCellsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        options.KeepActions = request->keep_actions();
+
+        TFuture<std::vector<TTabletActionId>> result;
+
+        CompleteCallWith(
+            context,
+            client->BalanceTabletCells(bundle, tables, options),
+            [] (const auto& context, const auto& tabletActions) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_tablet_actions(), tabletActions);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartOperation)

@@ -501,18 +501,30 @@ def unfreeze_table(path, **kwargs):
     kwargs["path"] = path
     return execute_command("unfreeze_table", kwargs)
 
-def reshard_table(path, arg, **kwargs):
+def reshard_table(path, arg=None, **kwargs):
     clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
+    assert arg is not None
     if isinstance(arg, int):
         kwargs["tablet_count"] = arg
     else:
         kwargs["pivot_keys"] = arg
     return execute_command("reshard_table", kwargs)
 
+def reshard_table_automatic(path, **kwargs):
+    clear_metadata_caches(kwargs.get("driver"))
+    kwargs["path"] = path
+    return yson.loads(execute_command("reshard_table_automatic", kwargs))
+
 def alter_table(path, **kwargs):
     kwargs["path"] = path;
     return execute_command("alter_table", kwargs)
+
+def balance_tablet_cells(bundle, tables=None, **kwargs):
+    kwargs["bundle"] = bundle
+    if tables is not None:
+        kwargs["tables"] = tables
+    return yson.loads(execute_command("balance_tablet_cells", kwargs))
 
 def write_file(path, data, **kwargs):
     kwargs["path"] = path
@@ -1348,6 +1360,21 @@ def sync_unfreeze_table(path, **kwargs):
 def sync_reshard_table(path, *args, **kwargs):
     reshard_table(path, *args, **kwargs)
     wait(lambda: get(path + "/@tablet_state") != "transient")
+
+def _wait_for_tablet_actions(action_ids):
+    wait(lambda: all(
+        get("//sys/tablet_actions/{}/@state".format(action_id)) in ("completed", "failed")
+        for action_id in action_ids))
+
+def sync_reshard_table_automatic(path, **kwargs):
+    kwargs["keep_actions"] = True
+    rsp = reshard_table_automatic(path, **kwargs)
+    _wait_for_tablet_actions(rsp)
+
+def sync_balance_tablet_cells(bundle, tables=None, **kwargs):
+    kwargs["keep_actions"] = True
+    rsp = balance_tablet_cells(bundle, tables, **kwargs)
+    _wait_for_tablet_actions(rsp)
 
 def sync_flush_table(path, driver=None):
     sync_freeze_table(path, driver=driver)

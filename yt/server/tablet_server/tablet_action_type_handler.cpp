@@ -46,7 +46,6 @@ public:
         auto kind = attributes->GetAndRemove<ETabletActionKind>("kind");
         auto tabletCount = attributes->FindAndRemove<int>("tablet_count");
         auto skipFreezing = attributes->GetAndRemove<bool>("skip_freezing", false);
-        auto keepFinished = attributes->GetAndRemove<bool>("keep_finished", false);
         auto tabletIds = attributes->GetAndRemove<std::vector<TTabletId>>("tablet_ids");
         auto cellIds = attributes->GetAndRemove<std::vector<TTabletCellId>>(
             "cell_ids",
@@ -54,6 +53,21 @@ public:
         auto pivotKeys = attributes->GetAndRemove<std::vector<TOwningKey>>(
             "pivot_keys",
             std::vector<TOwningKey>());
+        auto correlationId = attributes->GetAndRemove<TGuid>("correlation_id", TGuid{});
+
+        TInstant expirationTime = TInstant::Zero();
+        auto optionalKeepFinished = attributes->FindAndRemove<bool>("keep_finished");
+        auto optionalExpirationTime = attributes->FindAndRemove<TInstant>("expiration_time");
+        if (optionalKeepFinished && optionalExpirationTime) {
+            THROW_ERROR_EXCEPTION("Attributes \"keep_finished\" and \"expiration_time\" cannot be specified together");
+        } else if (optionalKeepFinished) {
+            if (*optionalKeepFinished) {
+                expirationTime = TInstant::Max();
+            }
+        } else if (optionalExpirationTime) {
+            expirationTime = *optionalExpirationTime;
+        }
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         if (attributes->Find<bool>("freeze")) {
@@ -78,7 +92,8 @@ public:
             pivotKeys,
             tabletCount,
             skipFreezing,
-            keepFinished);
+            correlationId,
+            expirationTime);
     }
 
 private:

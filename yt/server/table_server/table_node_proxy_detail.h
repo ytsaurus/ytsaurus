@@ -57,6 +57,7 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unfreeze);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Remount);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Reshard);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
 

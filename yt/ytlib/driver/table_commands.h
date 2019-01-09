@@ -180,10 +180,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReshardTableAutomaticCommand
+    : public TTabletCommandBase<NApi::TReshardTableAutomaticOptions>
+{
+public:
+    TReshardTableAutomaticCommand();
+
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
 class TAlterTableCommand
     : public TTypedCommand<NApi::TAlterTableOptions>
 {
-public: 
+public:
     TAlterTableCommand();
 
 private:

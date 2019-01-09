@@ -336,4 +336,26 @@ void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBalanceTabletCellsCommand::TBalanceTabletCellsCommand()
+{
+    RegisterParameter("bundle", TabletCellBundle);
+    RegisterParameter("tables", MovableTables)
+        .Optional();
+    RegisterParameter("keep_actions", Options.KeepActions)
+        .Default(false);
+}
+
+void TBalanceTabletCellsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->BalanceTabletCells(
+        TabletCellBundle,
+        MovableTables,
+        Options);
+    auto tabletActions = WaitFor(asyncResult)
+        .ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently().List(tabletActions));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver
