@@ -147,9 +147,14 @@ class YpTestEnvironment(object):
         time.sleep(1.0)
 
     def cleanup(self):
-        self.yp_instance.stop()
-        if yatest_common is not None:
-            self._save_yatest_working_files()
+        try:
+            self.yp_instance.stop()
+            if yatest_common is not None:
+                self._save_yatest_working_files()
+        except:
+            # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
+            logger.exception("YpTestEnvironment cleanup failed")
+            raise
 
     def _save_yatest_working_files(self):
         if self.ram_drive_path is not None:
@@ -161,31 +166,38 @@ def test_method_setup(yp_env):
     print("\n", file=sys.stderr)
 
 def test_method_teardown(yp_env):
+    def cleanup_objects(yp_client):
+        for object_type in OBJECT_TYPES:
+            if object_type == "schema":
+                continue
+
+            # Occasionally we may run into conflicts with the scheduler, see YP-284
+            def do():
+                object_ids = yp_client.select_objects(object_type, selectors=["/meta/id"])
+                for object_id_list in object_ids:
+                    object_id = object_id_list[0]
+                    if object_type == "user" and object_id == "root":
+                        continue
+                    if object_type == "group" and object_id == "superusers":
+                        continue
+                    if object_type == "account" and object_id == "tmp":
+                        continue
+                    if object_type == "node_segment" and object_id == "default":
+                        continue
+                    yp_client.remove_object(object_type, object_id)
+                yp_client.update_object("group", "superusers", set_updates=[
+                    {"path": "/spec/members", "value": ["root"]}
+                ])
+
+            run_with_retries(do, exceptions=(YtResponseError,))
+
     print("\n", file=sys.stderr)
-    yp_client = yp_env.yp_client
-    for object_type in OBJECT_TYPES:
-        if object_type == "schema":
-            continue
-
-        # Occasionally we may run into conflicts with the scheduler, see YP-284
-        def do():
-            object_ids = yp_client.select_objects(object_type, selectors=["/meta/id"])
-            for object_id_list in object_ids:
-                object_id = object_id_list[0]
-                if object_type == "user" and object_id == "root":
-                    continue
-                if object_type == "group" and object_id == "superusers":
-                    continue
-                if object_type == "account" and object_id == "tmp":
-                    continue
-                if object_type == "node_segment" and object_id == "default":
-                    continue
-                yp_client.remove_object(object_type, object_id)
-            yp_client.update_object("group", "superusers", set_updates=[
-                {"path": "/spec/members", "value": ["root"]}
-            ])
-
-        run_with_retries(do, exceptions=(YtResponseError,))
+    try:
+        cleanup_objects(yp_env.yp_client)
+    except:
+        # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
+        logger.exception("test_method_teardown failed")
+        raise
 
 
 @pytest.fixture(scope="session")
