@@ -303,16 +303,24 @@ enum EWorkloadTargetState {
 }
 
 message TWorkload {
+    reserved 2,4,10;
+
     // уникальный в рамках pod идентификатор Workload. Должeн состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
     string Id = 1;
+
+    //Указатель на Box, в котором надо запускаться
+    string BoxRef = 8;
+
+    //Переменные окружения - прокидываются во все контейнеры ворклода
+    repeated TEnvVar Env = 5;
 
     //Набор команд, запускаемых перед стартом основного процесса.
     //Гарантируется, что каждая отработает at least once.
     //Если команда падает - она перезапускается до победного
     repeated TUtilityContainer Init = 3;
 
-    //Переменные окружения
-    repeated TEnvVar Env = 5;
+    // Описание основного процесса
+    TUtilityContainer Start = 11;
 
     //В случае возврата 0 - workload переходит в состояние ACTIVE, в других случаях SEMI_FAILED
     //Нет такого кода возврата status hook, при котором контейнер будет убит
@@ -324,18 +332,10 @@ message TWorkload {
     // stdout этого хука
     TReadinessCheck ReadinessCheck = 6;
 
-    TStopPolicy StopPolicy = 7;
-
-    //Указатель на Box, в котором надо запускаться
-    string BoxRef = 8;
-
     //В случае ненулевого возврата - workload убивается и переходит в состояние DEACTIVATED_BY_LIVENESS
     TLivenessCheck LivenessCheck = 9;
 
-    // В связи с изменением структуры контейнеров: https://st.yandex-team.ru/ISS-5791
-    // Поля ComputeResources и CommandLine заменены на контейнер Start
-    // Данный контейнер содержит ограничения для запуска основной команды и саму команду
-    TUtilityContainer Start = 11;
+    TStopPolicy StopPolicy = 7;
 
     TDestroyPolicy DestroyPolicy = 12;
 }
