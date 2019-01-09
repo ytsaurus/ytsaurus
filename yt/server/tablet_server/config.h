@@ -163,6 +163,23 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellDecommissionerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletActionManagerMasterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration TabletActionsCleanupPeriod;
+
+    TTabletActionManagerMasterConfig()
+    {
+        RegisterParameter("tablet_actions_cleanup_period", TabletActionsCleanupPeriod)
+            .Default(TDuration::Minutes(1));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletActionManagerMasterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicTablesMulticellGossipConfig
     : public NYTree::TYsonSerializable
 {
@@ -242,6 +259,9 @@ public:
     //! Tablet cell decommissioner config.
     TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
 
+    //! Tablet action manager config.
+    TTabletActionManagerMasterConfigPtr TabletActionManager;
+
     //! Dynamic tables multicell gossip config.
     TDynamicTablesMulticellGossipConfigPtr MulticellGossipConfig;
 
@@ -278,6 +298,8 @@ public:
         RegisterParameter("tablet_balancer", TabletBalancer)
             .DefaultNew();
         RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
+            .DefaultNew();
+        RegisterParameter("tablet_action_manager", TabletActionManager)
             .DefaultNew();
         RegisterParameter("multicell_gossip_config", MulticellGossipConfig)
             .DefaultNew();

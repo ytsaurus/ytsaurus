@@ -11,32 +11,24 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancer
+class TTabletActionManager
     : public TRefCounted
 {
 public:
-    TTabletBalancer(
-        TTabletBalancerMasterConfigPtr config,
+    TTabletActionManager(
+        TTabletActionManagerMasterConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
-    ~TTabletBalancer();
+    ~TTabletActionManager();
 
     void Start();
     void Stop();
-
-    void OnTabletHeartbeat(TTablet* tablet);
-
-    std::vector<TTabletActionId> SyncBalanceCells(
-        TTabletCellBundle* bundle,
-        const std::optional<std::vector<NTableServer::TTableNode*>>& tables);
-
-    std::vector<TTabletActionId> SyncBalanceTablets(NTableServer::TTableNode* table);
 
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletBalancer)
+DEFINE_REFCOUNTED_TYPE(TTabletActionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

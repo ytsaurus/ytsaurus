@@ -487,6 +487,24 @@ void TReshardTableCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReshardTableAutomaticCommand::TReshardTableAutomaticCommand()
+{
+    RegisterParameter("keep_actions", Options.KeepActions)
+        .Default(false);
+}
+
+void TReshardTableAutomaticCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->ReshardTableAutomatic(
+        Path.GetPath(),
+        Options);
+    auto tabletActions = WaitFor(asyncResult)
+        .ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently().List(tabletActions));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAlterTableCommand::TAlterTableCommand()
 {
     RegisterParameter("path", Path);

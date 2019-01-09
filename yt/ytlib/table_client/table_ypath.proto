@@ -90,6 +90,18 @@ message TRspReshard
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqReshardAutomatic
+{
+    required bool keep_actions = 1 [default = false];
+}
+
+message TRspReshardAutomatic
+{
+    repeated NYT.NProto.TGuid tablet_actions = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetMountInfo
 { }
 

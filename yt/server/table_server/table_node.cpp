@@ -111,7 +111,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     if (context.GetVersion() >= 803) {
         Load(context, PrimaryLastMountTransactionId);
     }
-    // COMPAT(ifsmirnov)
+    // COMPAT(savrus)
     if (context.GetVersion() >= 822) {
         Load(context, CurrentMountTransactionId);
     }

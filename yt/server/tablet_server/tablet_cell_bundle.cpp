@@ -1,4 +1,5 @@
 #include "config.h"
+#include "private.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_cell.h"
 
@@ -17,6 +18,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = TabletServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTabletCellBundle::TTabletCellBundle(TTabletCellBundleId id)
     : TNonversionedObjectBase(id)
     , Acd_(this)
@@ -24,6 +29,21 @@ TTabletCellBundle::TTabletCellBundle(TTabletCellBundleId id)
     , TabletBalancerConfig_(New<TTabletBalancerConfig>())
     , DynamicOptions_(New<TDynamicTabletCellOptions>())
 { }
+
+void TTabletCellBundle::IncreaseActiveTabletActionCount()
+{
+    ++ActiveTabletActionCount_;
+}
+
+void TTabletCellBundle::DecreaseActiveTabletActionCount()
+{
+    YT_LOG_ERROR_UNLESS(ActiveTabletActionCount_ > 0,
+        "Attempting to decrease non-positive ActiveTabletActionCount "
+        "(ActiveTabletActionCount: %v, Bundle: %v)",
+        ActiveTabletActionCount_,
+        GetName());
+    --ActiveTabletActionCount_;
+}
 
 void TTabletCellBundle::Save(TSaveContext& context) const
 {
@@ -38,6 +58,8 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, NodeTagFilter_);
     Save(context, TabletCells_);
     Save(context, *TabletBalancerConfig_);
+    Save(context, TabletActions_);
+    Save(context, ActiveTabletActionCount_);
 }
 
 void TTabletCellBundle::Load(TLoadContext& context)
@@ -56,6 +78,12 @@ void TTabletCellBundle::Load(TLoadContext& context)
     Load(context, NodeTagFilter_);
     Load(context, TabletCells_);
     Load(context, *TabletBalancerConfig_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= 823) {
+        Load(context, TabletActions_);
+        Load(context, ActiveTabletActionCount_);
+    }
 
     FillProfilingTag();
 }

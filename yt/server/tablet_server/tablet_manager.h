@@ -146,6 +146,13 @@ public:
         std::optional<NTransactionClient::EAtomicity> atomicity,
         std::optional<bool> preserveTimestamps);
 
+    std::vector<TTabletActionId> SyncBalanceCells(
+        TTabletCellBundle* bundle,
+        const std::optional<std::vector<NTableServer::TTableNode*>>& tables,
+        bool keepActions);
+
+    std::vector<TTabletActionId> SyncBalanceTablets(NTableServer::TTableNode* table, bool keepActions);
+
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
@@ -208,12 +215,13 @@ private:
     TTabletAction* CreateTabletAction(
         NObjectClient::TObjectId hintId,
         ETabletActionKind kind,
-        const std::vector<TTablet*>& tabletIds,
-        const std::vector<TTabletCell*>& cellIds,
+        const std::vector<TTablet*>& tablets,
+        const std::vector<TTabletCell*>& cells,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const std::optional<int>& tabletCount,
         bool skipFreezing,
-        bool preserve);
+        TGuid correlationId,
+        TInstant expirationTime);
 
     void DestroyTabletAction(TTabletAction* action);
 

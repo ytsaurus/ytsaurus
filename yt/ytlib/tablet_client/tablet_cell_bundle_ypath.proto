@@ -1,0 +1,20 @@
+package NYT.NTabletClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqBalanceTabletCells
+{
+    // If empty then any table of the bundle can be moved.
+    repeated NYT.NProto.TGuid movable_tables = 1;
+
+    required bool keep_actions = 2 [default = false];
+}
+
+message TRspBalanceTabletCells
+{
+    repeated NYT.NProto.TGuid tablet_actions = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

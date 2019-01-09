@@ -914,6 +914,7 @@ bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
     DISPATCH_YPATH_SERVICE_METHOD(Freeze);
     DISPATCH_YPATH_SERVICE_METHOD(Unfreeze);
     DISPATCH_YPATH_SERVICE_METHOD(Reshard);
+    DISPATCH_YPATH_SERVICE_METHOD(ReshardAutomatic);
     DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
     DISPATCH_YPATH_SERVICE_METHOD(Alter);
     return TBase::DoInvoke(context);
@@ -1127,6 +1128,25 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Reshard)
             return client->ReshardTable(path, pivotKeys, options);
         }
     });
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, ReshardAutomatic)
+{
+    DeclareMutating();
+
+    bool keepActions = request->keep_actions();
+
+    context->SetRequestInfo("KeepActions: %v", keepActions);
+
+    ValidateNoTransaction();
+
+    auto* trunkTable = GetThisImpl();
+
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
+    auto tabletActions = tabletManager->SyncBalanceTablets(trunkTable, keepActions);
+    ToProto(response->mutable_tablet_actions(), tabletActions);
 
     context->Reply();
 }

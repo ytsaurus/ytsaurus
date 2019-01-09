@@ -237,6 +237,7 @@
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
     XX(TableId, table_id) \
     XX(TablePath, table_path) \
+    XX(TabletActions, tablet_actions) \
     XX(TabletBalancerConfig, tablet_balancer_config) \
     XX(TabletCellBundle, tablet_cell_bundle) \
     XX(TabletCellCount, tablet_cell_count) \
