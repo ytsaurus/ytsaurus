@@ -302,7 +302,6 @@ enum EWorkloadTargetState {
     EWorkloadTarget_REMOVED = 1 [(NYT.NYson.NProto.enum_value_name) = "removed"];
 }
 
-//pid-ns как изолируется относительно соседей
 message TWorkload {
     // уникальный в рамках pod идентификатор Workload. Должeн состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
     string Id = 1;
@@ -382,21 +381,23 @@ message TDestroyPolicy {
     uint32 MaxTries = 3;
 }
 
+// Обеспечивает изоляцию по диску и pidns
+// Сеть между боксами не изолирована - workloadы разных боксов могут общаться друг с другом по localhost
 message TBox {
     // уникальный в рамках pod идентификатор Box. Должен состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
     string Id = 1;
 
     TRootfsVolume Rootfs = 2;
 
-    //NOTE: валидация должна гарантировать, что не может быть двух вольюмов в этом списке, у которых совпадает mountPoint
-    //NOTE: валидация уникальности id в списке
+    //TODO: валидация должна гарантировать, что не может быть двух вольюмов в этом списке, у которых совпадает mountPoint
+    //TODO: валидация уникальности id в списке
     repeated TMountedVolume Volumes = 8;
 
     // Процессы, запускаемые при подготовке Box после создания вольюмов
     repeated TUtilityContainer Init = 9;
 
-    //NOTE: валидация должна гарантировать, что не может быть двух ресурсов в этом списке, у которых совпадает mountPoint
-    //NOTE: валидация уникальности id в списке
+    //TODO: валидация должна гарантировать, что не может быть двух ресурсов в этом списке, у которых совпадает mountPoint
+    //TODO: валидация уникальности id в списке
     repeated TMountedStaticResource StaticResources = 10;
 }
 
