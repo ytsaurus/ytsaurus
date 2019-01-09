@@ -768,11 +768,7 @@ private:
         int endIndex = tablet->GetIndex();
 
         auto sizeGood = [&] () {
-            i64 tabletCount = size / desiredSize;
-            if (tabletCount == 0) {
-                return false;
-            }
-
+            int tabletCount = std::clamp<i64>(DivRound(size, desiredSize), 1, MaxTabletCount);
             i64 tabletSize = size / tabletCount;
             return tabletSize >= bounds.MinTabletSize && tabletSize <= bounds.MaxTabletSize;
         };
@@ -794,10 +790,7 @@ private:
             size += GetTabletSize(table->Tablets()[endIndex]);
         }
 
-        int newTabletCount = size / desiredSize;
-        if (newTabletCount == 0) {
-            newTabletCount = 1;
-        }
+        int newTabletCount = std::clamp<i64>(DivRound(size, desiredSize), 1, MaxTabletCount);
 
         if (newTabletCount == endIndex - startIndex + 1 && newTabletCount == 1) {
             YT_LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v)",
