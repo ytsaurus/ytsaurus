@@ -559,16 +559,6 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_count", 10000, driver=driver)
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 1024 * 1024 * 1024, driver=driver)
 
-                # Remove write ace for users for tablet_cell_bundle and tablet_cell.	
-                def _remove_write_ace(path):	
-                    for idx, ace in enumerate(yt_commands.get(path + "/@acl", driver=driver)):	
-                        if ace["action"] == "allow" and ace["permissions"] == ["write"] and ace["subjects"] == ["users"]:	
-                            yt_commands.remove(path + "/@acl/{}".format(idx), driver=driver)	
-                            break	
-                _remove_write_ace("//sys/tablet_cell_bundles/default")	
-                _remove_write_ace("//sys/schemas/tablet_cell")	
-                _remove_write_ace("//sys/schemas/tablet_cell_bundle")	
-
         if cls.SINGLE_SETUP_TEARDOWN:
             cls._setup_method()
 

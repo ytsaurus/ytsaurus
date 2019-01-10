@@ -2355,11 +2355,10 @@ class TestTabletActions(TestDynamicTablesBase):
         create_user("u")
         create_tablet_cell_bundle("b")
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["read", "use"]))
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("deny", "u", ["write"]))
         sync_create_cells(1, "b")
 
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
-        print get("//tmp/t/@")
-        print check_permission("u", "write", "//sys/tablet_cell_bundles/b")
         sync_mount_table("//tmp/t")
         with pytest.raises(YtError):
             sync_balance_tablet_cells("b", authenticated_user="u")
@@ -2368,7 +2367,9 @@ class TestTabletActions(TestDynamicTablesBase):
         with pytest.raises(YtError):
             sync_reshard_table_automatic("//tmp/t", authenticated_user="u")
 
-        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "write"))
+        # Remove `deny` ACE.
+        remove("//sys/tablet_cell_bundles/b/@acl/-1")
+
         sync_balance_tablet_cells("b", authenticated_user="u")
         sync_balance_tablet_cells("b", ["//tmp/t"], authenticated_user="u")
         sync_reshard_table_automatic("//tmp/t", authenticated_user="u")
