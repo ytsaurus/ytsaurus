@@ -69,7 +69,7 @@ class ExecutableItem(pytest.Item):
             "NUM_MASTERS": "master_count",
             "NUM_SCHEDULERS": "scheduler_count",
             "NUM_NODES": "node_count",
-            "ENABLE_RPC_PROXY": "has_rpc_proxy",
+            "NUM_RPC_PROXIES": "rpc_proxy_count",
             "DRIVER_BACKENDS": None # This key is recognized but is handled elsewhere.
         }
 
