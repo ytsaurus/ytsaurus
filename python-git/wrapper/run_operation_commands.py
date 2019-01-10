@@ -35,7 +35,7 @@ Operation run under self-pinged transaction, if ``yt.wrapper.config["detached"]`
 """
 
 from .table_helpers import _are_default_empty_table, _remove_tables
-from .common import is_prefix, get_value, forbidden_inside_job
+from .common import is_prefix, forbidden_inside_job
 from .retries import Retrier
 from .config import get_config, get_command_param
 from .cypress_commands import get, remove, _make_formatted_transactional_request
@@ -419,8 +419,11 @@ class OperationRequestRetrier(Retrier):
 
     def action(self):
         if self.run_with_start_op:
-            return _make_formatted_transactional_request("start_op", {"operation_type": self.command_name, "spec": self.spec}, format=None,
-                                                         client=self.client)
+            return _make_formatted_transactional_request(
+                "start_op",
+                {"operation_type": self.command_name, "spec": self.spec},
+                format=None,
+                client=self.client)
         else:
             return _make_formatted_transactional_request(self.command_name, {"spec": self.spec}, format=None,
                                                          client=self.client)
@@ -439,7 +442,8 @@ def _make_operation_request(command_name, spec, sync,
                             run_with_start_op=None,
                             client=None):
     def _manage_operation(finalization_actions):
-        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, run_with_start_op=run_with_start_op, retry_actions=retry_actions, client=client)
+        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, run_with_start_op=run_with_start_op,
+                                          retry_actions=retry_actions, client=client)
         operation_id = retrier.run()
         operation = Operation(operation_id, type=command_name, finalization_actions=finalization_actions, client=client)
 
@@ -464,7 +468,7 @@ def _make_operation_request(command_name, spec, sync,
             transaction = Transaction(
                 attributes={"title": "Python wrapper: envelope transaction of operation"},
                 client=client)
-        else: # should_ping_transaction
+        else:  # should_ping_transaction
             timeout = get("#{0}/@timeout".format(transaction_id), client=client)
             transaction = Transaction(
                 transaction_id=get_command_param("transaction_id", client),

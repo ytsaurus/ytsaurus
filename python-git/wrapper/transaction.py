@@ -245,7 +245,7 @@ class PingTransaction(Thread):
         self.failed = False
         self.is_running = True
         self.daemon = True
-        self.step = min(self.delay, get_config(client)["transaction_sleep_period"] / 1000.0) # in seconds
+        self.step = min(self.delay, get_config(client)["transaction_sleep_period"] / 1000.0)  # in seconds
         self._client = client
 
         ping_failed_mode = _get_ping_failed_mode(self._client)
@@ -283,7 +283,7 @@ class PingTransaction(Thread):
                         os.kill(os.getpid(), signal.SIGUSR1)
                     elif ping_failed_mode == "interrupt_main":
                         interrupt_main()
-                    else: # ping_failed_mode == "pass":
+                    else:  # ping_failed_mode == "pass":
                         pass
                 else:
                     logger.exception("Failed to ping transaction %s, pinger stopped", self.transaction)

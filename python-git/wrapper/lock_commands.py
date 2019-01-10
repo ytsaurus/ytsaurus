@@ -53,7 +53,9 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
                 break
             time.sleep(1.0)
         if not acquired:
-            raise YtError("Timed out while waiting {0} milliseconds for lock {1}".format(wait_for.microseconds // 1000 + wait_for.seconds * 1000, lock_id))
+            raise YtError(
+                "Timed out while waiting {0} milliseconds for lock {1}"
+                .format(wait_for.microseconds // 1000 + wait_for.seconds * 1000, lock_id))
 
     return lock_id
 

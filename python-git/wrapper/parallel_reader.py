@@ -1,4 +1,4 @@
-from .common import get_value, YtError
+from .common import YtError
 from .config import get_config, get_option
 from .errors import YtChunkUnavailable
 from .format import YtFormatReadError
@@ -89,7 +89,8 @@ class ParallelReader(object):
         if self._transaction:
             self._transaction.abort()
 
-def make_read_parallel_request(command_name, path, ranges, params, prepare_params_func, unordered, response_parameters, client):
+def make_read_parallel_request(command_name, path, ranges, params,
+                               prepare_params_func, unordered, response_parameters, client):
     if not ranges:
         return ResponseStreamWithReadRow(
             get_response=lambda: None,

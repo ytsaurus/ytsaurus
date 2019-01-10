@@ -42,7 +42,7 @@ def get_command_list(client=None):
     backend = get_backend_type(client)
     if backend in ("native", "rpc"):
         return list(native_driver.get_command_descriptors(client))
-    else: # backend == "http"
+    else:  # backend == "http"
         return list(get_api_commands(client))
 
 def make_request(command_name,
