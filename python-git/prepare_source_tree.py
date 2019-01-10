@@ -66,7 +66,7 @@ def cp_r(path, dest_dir):
 
 def ln_s(path, link):
     """create symlink"""
-    logger.info("Makeing link from %s to %s", path, link)
+    logger.info("Making symlink from %s to %s", path, link)
     if not os.path.exists(link):
         os.symlink(path, link)
 
