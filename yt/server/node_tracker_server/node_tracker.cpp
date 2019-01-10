@@ -861,7 +861,6 @@ private:
     NHydra::TEntityMap<TDataCenter> DataCenterMap_;
 
     int AggregatedOnlineNodeCount_ = 0;
-    int LocalRegisteredNodeCount_ = 0;
 
     TCpuInstant TotalNodeStatisticsUpdateDeadline_ = 0;
     TTotalNodeStatistics TotalNodeStatistics_;

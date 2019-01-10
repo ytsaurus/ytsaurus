@@ -21,7 +21,6 @@ public:
 
 private:
     TFile File_;
-    const int BlockSize_;
     i64 OutputPosition_ = 0;
 
     TBufferOutput Output_;
