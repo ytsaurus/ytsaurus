@@ -56,7 +56,8 @@ DATA(
 )
 
 REQUIREMENTS(
-    ram_disk:16
+    ram_disk:56
+    cpu:4
 )
 
 SIZE(LARGE)
