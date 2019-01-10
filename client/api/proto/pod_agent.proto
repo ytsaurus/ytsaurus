@@ -596,18 +596,23 @@ enum EContainerState {
 //A: Я считаю, что в данном случае сливать статистику в обратную связь бесполезно, т.к. нет возможности строить графики
 //    если статистика реально нужна, то её надо выливать в какой-то из существующих сервисов: YT, solomon, golovan, statface
 message TContainerStatus {
-    reserved 12, 13, 14;
+    reserved 1, 2, 3, 4, 5, 12, 13, 14;
 
-    EContainerState State = 1;
+    message TAttemptFeedback {
+        EContainerState State = 1;
 
-    int32 ReturnCode = 2;
+        int32 ReturnCode = 2;
 
-    string Stderr = 3;
+        string Stderr = 3;
 
-    string Stdout = 4;
+        string Stdout = 4;
 
-    //Неструктурированное описание последней ошибки связанной c запуском контейнера
-    string FailReason = 5;
+        //Неструктурированное описание последней ошибки связанной c запуском контейнера
+        string FailReason = 5;
+    }
+
+    TAttemptFeedback Current = 16;
+    TAttemptFeedback Last = 17;
 
     uint32 ZeroReturnCodeCounter = 6;
     uint32 NonZeroReturnCodeCounter = 7;
@@ -693,23 +698,34 @@ enum ETcpCheckState {
 }
 
 message TTcpCheckStatus {
-    reserved 2, 3, 4;
+    reserved 1, 2, 3, 4, 6;
 
-    ETcpCheckState State = 1;
+    message TAttemptFeedback {
+        ETcpCheckState State = 1;
+        string FailReason = 2;
+    }
+
+    TAttemptFeedback Current = 7;
+    TAttemptFeedback Last = 8;
 
     TTimeLimitStatus TimeLimit = 5;
-    string FailReason = 6;
 }
 
 message THttpGetStatus {
-    reserved 2, 3, 4;
+    reserved 1, 2, 3, 4, 6, 8;
 
-    EHttpGetState State = 1;
+    message TAttemptFeedback {
+        EHttpGetState State = 1;
+        string FailReason = 2;
+        string InnerFailReason = 3;
+    }
+
+    TAttemptFeedback Current = 9;
+    TAttemptFeedback Last = 10;
+
+    uint32 RequestsCount = 7;
 
     TTimeLimitStatus TimeLimit = 5;
-    string FailReason = 6;
-    uint32 RequestsCount = 7;
-    string InnerFailReason = 8;
 }
 
 message TStopStatus {
