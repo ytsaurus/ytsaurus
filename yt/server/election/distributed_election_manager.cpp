@@ -665,7 +665,7 @@ bool TDistributedElectionManager::CheckQuorum()
     }
 
     YT_LOG_WARNING("Quorum is lost");
-    
+
     StopLeading();
 
     return false;

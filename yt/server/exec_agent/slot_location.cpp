@@ -303,7 +303,7 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
             THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
                 << ex;
         }
-        
+
         auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
             // Job will be aborted.
             auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)

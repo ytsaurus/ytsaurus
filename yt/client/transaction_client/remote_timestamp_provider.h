@@ -15,7 +15,7 @@ ITimestampProviderPtr CreateBatchingTimestampProvider(
 ITimestampProviderPtr CreateRemoteTimestampProvider(
     TRemoteTimestampProviderConfigPtr config,
     NRpc::IChannelFactoryPtr channelFactory);
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionClient

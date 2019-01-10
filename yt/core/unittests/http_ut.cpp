@@ -173,7 +173,7 @@ struct TFakeConnection
         Input = Input.substr(toCopy);
         return MakeFuture(toCopy);
     }
-    
+
     virtual TFuture<void> Write(const TSharedRef& ref) override
     {
         Output += TString(ref.Begin(), ref.Size());
@@ -217,7 +217,7 @@ struct TFakeConnection
     {
         THROW_ERROR_EXCEPTION("Not implemented");
     }
-    
+
     virtual const TNetworkAddress& RemoteAddress() const override
     {
         THROW_ERROR_EXCEPTION("Not implemented");
@@ -259,7 +259,7 @@ DEFINE_REFCOUNTED_TYPE(TFakeConnection)
 
 void FinishBody(THttpOutput* out)
 {
-    WaitFor(out->Close()).ThrowOnError();    
+    WaitFor(out->Close()).ThrowOnError();
 }
 
 void WriteChunk(THttpOutput* out, TStringBuf chunk)
@@ -614,7 +614,7 @@ public:
         }
 
         WaitFor(rsp->Close()).ThrowOnError();
-    }    
+    }
 };
 
 TString ReadAll(const IAsyncZeroCopyInputStreamPtr& in)
@@ -640,7 +640,7 @@ TEST_P(THttpServerTest, TransferSmallBody)
 
     auto reqBody = TSharedMutableRef::Allocate(1024);
     std::fill(reqBody.Begin(), reqBody.End(), 0xab);
-    
+
     auto rsp = WaitFor(Client->Post(TestUrl + "/echo", reqBody)).ValueOrThrow();
     ASSERT_EQ(EStatusCode::OK, rsp->GetStatusCode());
 
@@ -1066,7 +1066,7 @@ TEST(THttpHandlerMatchingTest, Simple)
     TRequestPathMatcher handlers3;
     handlers3.Add("/a/", h2);
     handlers3.Add("/a", h3);
-   
+
     EXPECT_EQ(h3.Get(), handlers3.Match(AsStringBuf("/a")).Get());
     EXPECT_EQ(h2.Get(), handlers3.Match(AsStringBuf("/a/")).Get());
     EXPECT_EQ(h2.Get(), handlers3.Match(AsStringBuf("/a/b")).Get());

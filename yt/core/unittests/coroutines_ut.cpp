@@ -83,7 +83,7 @@ TEST_F(TCoroutineTest, Unary)
 }
 
 // In this case I've got lazy and set up these test cases.
-struct TTestCase { 
+struct TTestCase {
     int lhs;
     int rhs;
     int sum;

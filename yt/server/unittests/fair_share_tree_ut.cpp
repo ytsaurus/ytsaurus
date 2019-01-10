@@ -75,7 +75,7 @@ struct TSchedulerStrategyHostMock
     {
         return {};
     }
-    
+
     virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override
     {
         Y_UNREACHABLE();

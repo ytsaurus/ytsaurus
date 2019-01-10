@@ -301,7 +301,7 @@ public:
         return properties.at("absolute_name")
              .ValueOrThrow();
     }
-    
+
     virtual void SetCpuShare(double cores) override
     {
         SetProperty("cpu_guarantee", ToString(cores) + "c");

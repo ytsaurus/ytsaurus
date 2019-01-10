@@ -164,8 +164,8 @@ void TBlobChunkBase::SetBlocksExt(const TRefCountedChunkMetaPtr& meta)
 
 bool TBlobChunkBase::IsFatalError(const TError& error) const
 {
-    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange) || 
-        error.FindMatching(NYT::EErrorCode::Canceled)) 
+    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange) ||
+        error.FindMatching(NYT::EErrorCode::Canceled))
     {
         return false;
     }
@@ -250,8 +250,8 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(const TReadBlockSetSessionPtr& s
     const auto& outThrottler = Location_->GetOutThrottler(session->Options.WorkloadDescriptor);
     auto throttleFuture = VoidFuture;
     if (!outThrottler->TryAcquire(pendingDataSize)) {
-        YT_LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)", 
-            pendingDataSize, 
+        YT_LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)",
+            pendingDataSize,
             session->Options.WorkloadDescriptor);
         throttleFuture = outThrottler->Throttle(pendingDataSize);
     }

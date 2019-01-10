@@ -969,7 +969,7 @@ private:
         // Must not fail.
         YCHECK(result == 0);
     }
-    
+
     bool TryMadviseStockpile(size_t size)
     {
         auto result = ::madvise(nullptr, size, MADV_STOCKPILE);
@@ -2669,7 +2669,7 @@ private:
             if (!blob) {
                 break;
             }
-            
+
             PARANOID_CHECK(blob->BytesAllocated == 0);
             auto bytesAcquired = blob->BytesAcquired;
 
@@ -2677,7 +2677,7 @@ private:
             bytesToReclaim -= bytesAcquired;
             bytesReclaimed += bytesAcquired;
             blobsReclaimed += 1;
-            
+
             auto* extent = blob->Extent;
             auto* ptr = reinterpret_cast<char*>(blob);
             ReleaseArenaPages(
@@ -3186,7 +3186,7 @@ protected:
     {
         Thread_.Start();
     }
-    
+
     bool IsDone(TDuration interval)
     {
         return StopEvent_.WaitT(interval);
@@ -3241,7 +3241,7 @@ public:
     }
 } BackgroundThreadInitializer;
 
-// Invokes madvise(MADV_STOCKPILE) periodically. 
+// Invokes madvise(MADV_STOCKPILE) periodically.
 class TStockpileThread
     : public TBackgroundThreadBase<TStockpileThread>
 {

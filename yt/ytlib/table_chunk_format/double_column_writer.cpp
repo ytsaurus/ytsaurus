@@ -68,7 +68,7 @@ public:
             DumpSegment();
             Reset();
         }
-    }   
+    }
 
 private:
     std::vector<double> Values_;
@@ -97,13 +97,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedDoubleColumnWriter(
-    int columnId, 
-    bool aggregate, 
+    int columnId,
+    bool aggregate,
     TDataBlockWriter* blockWriter)
 {
     return std::make_unique<TVersionedDoubleColumnWriter>(
-        columnId, 
-        aggregate, 
+        columnId,
+        aggregate,
         blockWriter);
 }
 
@@ -169,7 +169,7 @@ private:
         segmentInfo.SegmentMeta.set_version(0);
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
         segmentInfo.SegmentMeta.set_chunk_row_count(RowCount_);
-        
+
         TColumnWriterBase::DumpSegment(&segmentInfo);
     }
 
@@ -198,7 +198,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedDoubleColumnWriter(
-    int columnIndex, 
+    int columnIndex,
     TDataBlockWriter* blockWriter)
 {
     return std::make_unique<TUnversionedDoubleColumnWriter>(columnIndex, blockWriter);

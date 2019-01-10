@@ -124,7 +124,7 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
         TProfileManager::Get()->RegisterTag("user", key.first),
         TProfileManager::Get()->RegisterTag("command", key.second),
     };
-    
+
     counters->ConcurrencySemaphore = { "/concurrency_semaphore", counters->Tags };
     counters->RequestCount = { "/request_count", counters->Tags };
     counters->BytesIn = { "/bytes_in", counters->Tags };
@@ -148,7 +148,7 @@ void TApi::DoIncrementHttpCode(
     TTagIdList tags)
 {
     auto it = counters->find(httpStatusCode);
-        
+
     if (it == counters->end()) {
         tags.push_back(TProfileManager::Get()->RegisterTag("http_code", static_cast<int>(httpStatusCode)));
 

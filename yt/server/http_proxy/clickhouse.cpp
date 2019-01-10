@@ -187,7 +187,7 @@ private:
 
         YT_LOG_DEBUG("Alias resolved (Alias: %v, CliqueId: %v)", alias, CliqueId_);
         CgiParameters_.ReplaceUnescaped("database", CliqueId_);
-        
+
         return true;
     }
 

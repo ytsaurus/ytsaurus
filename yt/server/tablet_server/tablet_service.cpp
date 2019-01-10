@@ -277,7 +277,7 @@ private:
             table,
             force,
             firstTabletIndex,
-            lastTabletIndex); 
+            lastTabletIndex);
     }
 
     void HydraCommitUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request)
@@ -314,7 +314,7 @@ private:
             table,
             force,
             firstTabletIndex,
-            lastTabletIndex); 
+            lastTabletIndex);
     }
 
     void HydraAbortUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request)
@@ -377,7 +377,7 @@ private:
         tabletManager->PrepareFreezeTable(
             table,
             firstTabletIndex,
-            lastTabletIndex); 
+            lastTabletIndex);
     }
 
     void HydraCommitFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request)
@@ -411,7 +411,7 @@ private:
         tabletManager->FreezeTable(
             table,
             firstTabletIndex,
-            lastTabletIndex); 
+            lastTabletIndex);
     }
 
     void HydraAbortFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request)
@@ -472,7 +472,7 @@ private:
         tabletManager->PrepareUnfreezeTable(
             table,
             firstTabletIndex,
-            lastTabletIndex); 
+            lastTabletIndex);
     }
 
     void HydraCommitUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request)
@@ -507,7 +507,7 @@ private:
         tabletManager->UnfreezeTable(
             table,
             firstTabletIndex,
-            lastTabletIndex); 
+            lastTabletIndex);
     }
 
     void HydraAbortUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request)
@@ -568,7 +568,7 @@ private:
         tabletManager->PrepareRemountTable(
             table,
             firstTabletIndex,
-            lastTabletIndex); 
+            lastTabletIndex);
     }
 
     void HydraCommitRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request)
@@ -600,7 +600,7 @@ private:
         tabletManager->RemountTable(
             table,
             firstTabletIndex,
-            lastTabletIndex); 
+            lastTabletIndex);
     }
 
     void HydraAbortRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request)

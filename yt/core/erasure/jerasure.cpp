@@ -39,7 +39,7 @@ TSchedule::~TSchedule()
 {
     Free();
 }
-    
+
 void TSchedule::Free()
 {
     if (SchedulePointer_) {
@@ -136,7 +136,7 @@ std::vector<TSharedRef> ScheduleEncode(
     const std::vector<TSharedRef>& dataBlocks)
 {
     YCHECK(dataBlocks.size() == dataCount);
-    
+
     i64 blockLength = dataBlocks.front().Size();
     // We should multiply WordSize by 8 because we use BitMatrix
     YCHECK(blockLength % (wordSize * 8) == 0);
@@ -149,7 +149,7 @@ std::vector<TSharedRef> ScheduleEncode(
     for (const auto& block : dataBlocks) {
         dataPointers.push_back(const_cast<char*>(block.Begin()));
     }
-    
+
     std::vector<TSharedMutableRef> parities(parityCount);
     std::vector<char*> parityPointers(parityCount);
     for (int i = 0; i < parityCount; ++i) {
@@ -180,7 +180,7 @@ std::vector<TSharedRef> BitMatrixDecode(
     const TPartIndexList& erasedIndices)
 {
     YCHECK(blocks.size() + erasedIndices.size() == blockCount + parityCount);
-    
+
     i64 blockLength = blocks.front().Size();
     // We should multiply WordSize by 8 because we use BitMatrix
     YCHECK(blockLength % (wordSize * 8) == 0);
@@ -188,12 +188,12 @@ std::vector<TSharedRef> BitMatrixDecode(
     for (int i = 1; i < blocks.size(); ++i) {
         YCHECK(blocks[i].Size() == blockLength);
     }
-    
+
     std::vector<TSharedMutableRef> repaired(erasedIndices.size());
 
     std::vector<char*> blockPointers;
     std::vector<char*> parityPointers;
-    
+
     int blockNumber = 0;
     int erasureNumber = 0;
     for (int i = 0; i < blockCount + parityCount; ++i) {
@@ -213,7 +213,7 @@ std::vector<TSharedRef> BitMatrixDecode(
         }
     }
     YCHECK(erasureNumber == erasedIndices.size());
-    
+
     auto preparedErasedIndices = erasedIndices;
     preparedErasedIndices.push_back(-1);
 
@@ -232,7 +232,7 @@ std::vector<TSharedRef> BitMatrixDecode(
         sizeof(long),
         1);
     YCHECK(res == 0);
-    
+
     return std::vector<TSharedRef>(repaired.begin(), repaired.end());
 }
 

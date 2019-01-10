@@ -50,7 +50,7 @@ private:
     DECLARE_IMMORTAL_SINGLETON_FRIEND()
 
     const double ClockRate_;
-    
+
     struct TCalibrationState
     {
         TCpuInstant CpuInstant;

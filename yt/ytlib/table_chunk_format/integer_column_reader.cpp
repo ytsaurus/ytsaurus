@@ -386,8 +386,8 @@ public:
         i64 upperRowIndex) override
     {
         return DoGetEqualRange<ValueType>(
-            value, 
-            lowerRowIndex, 
+            value,
+            lowerRowIndex,
             upperRowIndex);
     }
 

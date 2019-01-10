@@ -465,7 +465,7 @@ private:
 
     THashMap<TString, NProfiling::TMonotonicCounter> RestartCounters_;
 
-    
+
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1073,7 +1073,7 @@ private:
     void RotateChangelogAndWatch()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        
+
         auto changelogResult = AutomatonEpochContext_->Checkpointer->RotateChangelog();
         WatchChangelogRotation(changelogResult);
     }
@@ -1161,7 +1161,7 @@ private:
 
         YCHECK(!AutomatonEpochContext_);
         AutomatonEpochContext_ = epochContext;
-        
+
         DecoratedAutomaton_->OnStartLeading(epochContext);
 
         StartLeading_.Fire();
@@ -1261,11 +1261,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ResetAutomatonEpochContext();
-        
+
         leaderCommitter->Stop();
-        
+
         DecoratedAutomaton_->OnStopLeading();
-        
+
         StopLeading_.Fire();
 
         Participate();
@@ -1367,7 +1367,7 @@ private:
         followerCommitter->Stop();
 
         DecoratedAutomaton_->OnStopFollowing();
-        
+
         StopFollowing_.Fire();
 
         Participate();
@@ -1488,7 +1488,7 @@ private:
         }
 
         ControlEpochContext_->CancelableContext->Cancel();
-        
+
         ControlEpochContext_.Reset();
     }
 
@@ -1509,7 +1509,7 @@ private:
         trySetPromise(AutomatonEpochContext_->ActiveUpstreamSyncPromise);
         trySetPromise(AutomatonEpochContext_->PendingUpstreamSyncPromise);
         trySetPromise(AutomatonEpochContext_->LeaderSyncPromise);
-        
+
         AutomatonEpochContext_.Reset();
     }
 

@@ -136,7 +136,7 @@ std::array<ui16, 8> AddressToWords(const TIP6Address& addr) {
 TEST(TIP6AddressTest, FromString)
 {
     typedef std::pair<TString, std::array<ui16, 8>> TTestCase;
-    
+
     for (const auto& testCase : {
         TTestCase{"0:0:0:0:0:0:0:0", {0, 0, 0, 0, 0, 0, 0, 0}},
         TTestCase{"0:0:0:0:0:0:0:3", {3, 0, 0, 0, 0, 0, 0, 0}},
@@ -216,7 +216,7 @@ TEST(TIP6AddressTest, InvalidInput)
 
         auto network = testCase + "/32";
         EXPECT_THROW(TIP6Network::FromString(network), TErrorException)
-            << Format("input = %Qv", network);        
+            << Format("input = %Qv", network);
     }
 }
 

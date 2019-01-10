@@ -78,7 +78,7 @@ void TChunkStore::Initialize()
 
     for (int index = 0; index < Config_->StoreLocations.size(); ++index) {
         const auto& location = Locations_[index];
-        
+
         for (const auto& descriptor : allDescriptors[index]) {
             auto chunk = CreateFromDescriptor(location, descriptor);
             RegisterExistingChunk(chunk);

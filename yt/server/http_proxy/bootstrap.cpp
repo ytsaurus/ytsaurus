@@ -76,7 +76,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());
     MonitoringManager_->Start();
-    
+
     auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
         orchidRoot,

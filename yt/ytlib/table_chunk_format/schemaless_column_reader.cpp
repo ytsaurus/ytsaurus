@@ -18,13 +18,13 @@ class TSchemalessSegmentReader
 {
 public:
     TSchemalessSegmentReader(
-        TRef data, 
+        TRef data,
         const TSegmentMeta& meta,
         const std::vector<TColumnIdMapping>& idMapping)
         : Meta_(meta)
         , IdMapping_(idMapping)
         , SegmentStartRowIndex_(meta.chunk_row_count() - meta.row_count())
-    { 
+    {
         const char* ptr = data.Begin();
 
         OffsetDiffReader_ = TOffsetDiffReader(reinterpret_cast<const ui64*>(ptr));
@@ -127,7 +127,7 @@ class TSchemalessColumnReader
 {
 public:
     TSchemalessColumnReader(
-        const TColumnMeta& meta, 
+        const TColumnMeta& meta,
         const std::vector<TColumnIdMapping>& idMapping)
         : TColumnReaderBase(meta)
         , IdMapping_(idMapping)

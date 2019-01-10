@@ -91,7 +91,7 @@ std::vector<TChunkTreeId> TOutputOrder::ArrangeOutputChunkTrees(
         YCHECK(chunkTrees.empty());
         return {};
     }
-    
+
     std::vector<TChunkTreeId> chunkTreeByPosition;
     chunkTreeByPosition.resize(Pool_.size());
     for (const auto& pair : chunkTrees) {

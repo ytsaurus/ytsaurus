@@ -31,7 +31,7 @@ public:
     void IncrementReadThrottlingCounter(const TString& name);
 
     void UpdateStatistics(NNodeTrackerClient::NProto::TNodeStatistics* statistics);
-    
+
 private:
     TDataNodeConfigPtr Config_;
 

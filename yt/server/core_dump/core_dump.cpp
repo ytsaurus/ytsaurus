@@ -14,7 +14,7 @@ i64 WriteSparseCoreDump(IInputStream* in, TFile* out)
 {
     typedef std::array<char, 4_KB> Page;
     constexpr int BatchSize = 128;
-    
+
     Page zeroPage = {};
     i64 offset = 0;
     std::vector<Page> pages(BatchSize);
