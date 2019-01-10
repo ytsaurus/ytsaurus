@@ -450,7 +450,6 @@ def action_pull(ctx, args):
 
 
 def action_cherry_pick(ctx, args):
-    # 1. Найти коммит, который мы хотим черри-пикнуть.
     revision_to_commit = extract_git_svn_revision_to_commit_mapping_as_dict(ctx.git, ctx.arc_url, make_remote_ref(ctx.arc_git_remote))
     commit = revision_to_commit.get(args.revision, None)
     if commit is None:
