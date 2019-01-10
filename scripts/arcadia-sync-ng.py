@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- encoding: utf8 -*-
 
 """
 ## Introduction
@@ -56,6 +57,7 @@ import subprocess
 import tempfile
 
 from xml.etree import ElementTree
+from contextlib import contextmanager
 
 logger = logging.getLogger("Yt.GitSvn")
 
@@ -67,8 +69,10 @@ PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, ".."))
 
 ARGV0 = sys.argv[0]
 
-##### Block to be moved ###########################################
-# TODO (ermolovd): this block should be moved to git-svn/
+
+class ArcadiaSyncError(RuntimeError):
+    pass
+
 
 def check_git_working_tree(git):
     git.call("update-index", "-q", "--refresh")
@@ -154,6 +158,18 @@ def svn_get_log_message(svn, url, revision):
     msg_list = tree.findall("logentry/msg")
     assert len(msg_list) == 1
     return msg_list[0].text
+
+
+@contextmanager
+def temporary_directory():
+    d = tempfile.mkdtemp()
+    logger.debug("created temporary directory: {}".format(d))
+    try:
+        yield d
+    finally:
+        shutil.rmtree(d)
+        logger.debug("removing temporary directory: {}".format(d))
+
 
 def local_svn_iter_changed_files(local_svn, relpath):
     return (status for status in local_svn.iter_status(relpath) if status.status not in ("normal", "unversioned"))
@@ -299,7 +315,6 @@ def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
             "{diffed}\n".format(
                 diffed=indented_lines(diffed)))
 
-##### End of block to be moved #####################################
 
 COPY_TO_LOCAL_SVN_PROJECTS =  ".arcadia-sync-ng-projects.json"
 
@@ -432,6 +447,39 @@ def action_pull(ctx, args):
         ctx.svn_relpath,
         revision=args.revision,
         recent_push=args.recent_push)
+
+
+def action_cherry_pick(ctx, args):
+    # 1. Найти коммит, который мы хотим черри-пикнуть.
+    revision_to_commit = extract_git_svn_revision_to_commit_mapping_as_dict(ctx.git, ctx.arc_url, make_remote_ref(ctx.arc_git_remote))
+    commit = revision_to_commit.get(args.revision, None)
+    if commit is None:
+        raise ArcadiaSyncError(
+            "Cannot find revision {revision}. Make sure that you fetched it from arcadia:\n"
+            " $ {argv0} fetch {project}\n"
+            .format(
+                revision=args.revision,
+                argv0=ARGV0,
+                project=args.project)
+        )
+
+    with temporary_directory() as tmp_dir_name:
+        ctx.git.call(
+            "format-patch",
+            "--output-directory", tmp_dir_name,
+            "{commit}^..{commit}".format(commit=commit)
+        )
+
+        file_list = []
+        for name in os.listdir(tmp_dir_name):
+            file_list.append(os.path.join(tmp_dir_name, name))
+            
+        ctx.git.call(
+            "am",
+            "--directory", ctx.git_relpath,
+            *file_list
+        )
+
 
 def action_copy_to_local_svn(ctx_list, args):
     local_svn = LocalSvn(args.arcadia)
@@ -719,13 +767,18 @@ def main():
 
     pull_parser = add_single_project_parser(
         "pull", help="initiate a merge from arcadia to github")
-    pull_parser.add_argument("--revision", "-r", help="revision to merge", type=int)
+    pull_parser.add_argument("--revision", "-r", help="svn revision to merge", type=int)
     pull_parser.add_argument(
         "--recent-push",
         metavar="<svn-revision>:<git-commit>",
         type=parse_git_svn_correspondence,
         help="recent push svn revision and corresponding git-commit (by default it is determined automatically)")
     pull_parser.set_defaults(action=action_pull)
+
+    cherry_pick_parser = add_single_project_parser(
+        "cherry-pick", help="cherry pick given revision from arcadia")
+    cherry_pick_parser.add_argument("--revision", "-r", help="svn revision to cherry-pick", type=int, required=True)
+    cherry_pick_parser.set_defaults(action=action_cherry_pick)
 
     def add_arcadia_argument(p):
         p.add_argument("-a", "--arcadia", required=True, help="path to local svn working copy")
@@ -759,7 +812,7 @@ def main():
 
     try:
         args.main(args)
-    except CheckError as e:
+    except (ArcadiaSyncError, CheckError) as e:
         msg = str(e)
         print >>sys.stderr, msg
         if not msg.endswith("\n"):
