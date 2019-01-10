@@ -39,6 +39,8 @@ if yatest_common is not None:
     @pytest.fixture(scope="session", autouse=True)
     def prepare_path(request):
         destination = os.path.join(yatest_common.work_path(), "build")
+        if os.path.exists(destination):
+            return
         os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(destination)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
