@@ -6,6 +6,8 @@
 
 #include <yt/core/actions/public.h>
 
+#include <yt/core/concurrency/public.h>
+
 #include <yt/core/misc/range.h>
 
 namespace NYT::NTabletNode {
@@ -67,7 +69,8 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    int minConcurrency);
+    int minConcurrency,
+    NConcurrency::IThroughputThrottlerPtr throttler);
 
 ////////////////////////////////////////////////////////////////////////////////
 
