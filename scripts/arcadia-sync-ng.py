@@ -433,14 +433,6 @@ def action_pull(ctx, args):
         revision=args.revision,
         recent_push=args.recent_push)
 
-
-def action_cherry_pick(ctx, args):
-    # 1. Найти коммит, который мы хотим черри-пикнуть.
-    # 2. git format patch
-    # 3. git am
-    pass
-
-
 def action_copy_to_local_svn(ctx_list, args):
     local_svn = LocalSvn(args.arcadia)
     try:
@@ -727,18 +719,13 @@ def main():
 
     pull_parser = add_single_project_parser(
         "pull", help="initiate a merge from arcadia to github")
-    pull_parser.add_argument("--revision", "-r", help="svn revision to merge", type=int)
+    pull_parser.add_argument("--revision", "-r", help="revision to merge", type=int)
     pull_parser.add_argument(
         "--recent-push",
         metavar="<svn-revision>:<git-commit>",
         type=parse_git_svn_correspondence,
         help="recent push svn revision and corresponding git-commit (by default it is determined automatically)")
     pull_parser.set_defaults(action=action_pull)
-
-    cherry_pick_parser = add_single_project_parser(
-        "cherry-pick", help="cherry pick given revision from arcadia")
-    pull_parser.add_argument("--revision", "-r", help="svn revision to cherry-pick", type=int, required=True)
-    cherry_pick_parser.set_defaults(action=action_cherry_pick)
 
     def add_arcadia_argument(p):
         p.add_argument("-a", "--arcadia", required=True, help="path to local svn working copy")
