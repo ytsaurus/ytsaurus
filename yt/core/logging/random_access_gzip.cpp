@@ -33,9 +33,8 @@ constexpr int ExtraFlag = 1 << 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRandomAccessGZipFile::TRandomAccessGZipFile(const TString& path, int blockSize)
+TRandomAccessGZipFile::TRandomAccessGZipFile(const TString& path, int /*blockSize*/)
     : File_(path, OpenAlways|RdWr|CloseOnExec)
-    , BlockSize_(blockSize)
 {
     Repair();
     Reset();

@@ -274,7 +274,6 @@ public:
 
 private:
     const TLayerLocationConfigPtr Config_;
-    const NCellNode::TBootstrap* Bootstrap_;
 
     const IPortoExecutorPtr Executor_;
 
