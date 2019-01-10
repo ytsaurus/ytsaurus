@@ -1,33 +1,30 @@
 #!/bin/bash
 
-# TODO(max42): generalize this.
+set -x -e
 
-if [ $# -ne 1 ] ; then
-    echo "The only argument should be path to the node config" >&2
-    exit 2
+cluster=$1
+if [[ "$cluster" == "" ]] ; then
+    echo "Specify cluster name as the only command-line argument."
+    exit 1
 fi
 
+export YT_PROXY=$cluster
 yt create map_node //sys/clickhouse
-
-yt create map_node //sys/clickhouse/config_files
-
-yt create file //sys/clickhouse/config_files/config.xml
-cat /home/max42/yt_arc/source/yt/tests/integration/tests/test_clickhouse/config.xml | yt write-file //sys/clickhouse/config_files/config.xml
-
-yt create file //sys/clickhouse/config_files/config.yson
-python -c """
-import yt.yson as yson
-config = yson.loads(open('/home/max42/yt_arc/source/yt/tests/integration/tests/test_clickhouse/config.yson').read())
-config['cluster_connection'] = yson.loads(open('$1').read())['cluster_connection']
-print yson.dumps(config, yson_format='pretty')
-""" | yt write-file //sys/clickhouse/config_files/config.yson
-
-yt create map_node //sys/clickhouse/configuration
-
-yt create document //sys/clickhouse/configuration/server
-cat /home/max42/yt_arc/source/yt/tests/integration/tests/test_clickhouse/server.yson | yt set //sys/clickhouse/configuration/server
-
-yt create document //sys/clickhouse/configuration/users
-cat /home/max42/yt_arc/source/yt/tests/integration/tests/test_clickhouse/users.yson | yt set //sys/clickhouse/configuration/users
-
+yt create document //sys/clickhouse/config --attributes "{value={}}"
+yt set //sys/clickhouse/config <config.yson
+if [[ "$(yt exists //sys/@cluster_connection)" == "true" ]] ; then
+    yt get //sys/@cluster_connection | yt set //sys/clickhouse/config/cluster_connection
+else
+    echo "!!! //sys/@cluster_connection is missing; make sure to specify //sys/clichouse/config/cluster_connection by yourself."
+fi
 yt create map_node //sys/clickhouse/bin
+yt create map_node //sys/clickhouse/cliques
+
+if [[ "$(yt exists //sys/users/yt-clickhouse)" == "false" ]] ; then
+    yt create user --attribute "{name=yt-clickhouse}"
+fi
+
+yt set //sys/clickhouse/@acl/end '{permissions=[read;write;use;administer;remove]; action=allow; subjects=[yt-clickhouse]}'
+yt set //sys/accounts/sys/@acl/end '{permissions=[use]; action=allow; subjects=[yt-clickhouse]}'
+
+echo "!!! Clickhouse is set up. Now run deploy.sh to deploy the latest CH release binary."
