@@ -369,33 +369,50 @@ void TBootstrap::DoRun()
         createThrottler(Config->DataNode->SkynetOutThrottler, "SkynetOut")
     });
 
-    TabletCompactionAndPartitioningInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+    DataNodeTabletCompactionAndPartitioningInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalInThrottler,
-        createThrottler(Config->DataNode->TabletCompactionAndPartitioningInThrottler, "TabletCompactionAndPartitioningIn")
+        createThrottler(Config->DataNode->TabletCompactionAndPartitioningInThrottler, "DataNodeTabletCompactionAndPartitioningIn")
     });
-    TabletCompactionAndPartitioningOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+    DataNodeTabletCompactionAndPartitioningOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalOutThrottler,
         createThrottler(Config->DataNode->TabletCompactionAndPartitioningOutThrottler, "TabletCompactionAndPartitioningOut")
     });
-    TabletLoggingInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+    DataNodeTabletLoggingInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalInThrottler,
-        createThrottler(Config->DataNode->TabletLoggingInThrottler, "TabletLoggingIn")
+        createThrottler(Config->DataNode->TabletLoggingInThrottler, "DataNodeTabletLoggingIn")
     });
-    TabletPreloadOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+    DataNodeTabletPreloadOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalOutThrottler,
-        createThrottler(Config->DataNode->TabletPreloadOutThrottler, "TabletPreloadOut")
+        createThrottler(Config->DataNode->TabletPreloadOutThrottler, "DataNodeTabletPreloadOut")
     });
-    TabletSnapshotInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+    DataNodeTabletSnapshotInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalInThrottler,
-        createThrottler(Config->DataNode->TabletSnapshotInThrottler, "TabletSnapshotIn")
+        createThrottler(Config->DataNode->TabletSnapshotInThrottler, "DataNodeTabletSnapshotIn")
     });
-    TabletStoreFlushInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+    DataNodeTabletStoreFlushInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalInThrottler,
-        createThrottler(Config->DataNode->TabletStoreFlushInThrottler, "TabletStoreFlushIn")
+        createThrottler(Config->DataNode->TabletStoreFlushInThrottler, "DataNodeTabletStoreFlushIn")
     });
-    TabletRecoveryOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+    DataNodeTabletRecoveryOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalOutThrottler,
-        createThrottler(Config->DataNode->TabletRecoveryOutThrottler, "TabletRecoveryOut")
+        createThrottler(Config->DataNode->TabletRecoveryOutThrottler, "DataNodeTabletRecoveryOut")
+    });
+
+    TabletNodeCompactionAndPartitioningInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->TabletNode->StoreCompactionAndPartitioningInThrottler, "TabletNodeCompactionAndPartitioningIn")
+    });
+    TabletNodeCompactionAndPartitioningOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->TabletNode->StoreCompactionAndPartitioningOutThrottler, "TabletNodeCompactionAndPartitioningOut")
+    });
+    TabletNodeStoreFlushOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->TabletNode->StoreFlushOutThrottler, "TabletNodeStoreFlushOut")
+    });
+    TabletNodePreloadInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->TabletNode->InMemoryManager->PreloadThrottler, "TabletNodePreloadIn")
     });
 
     ReadRpsOutThrottler = createThrottler(Config->DataNode->ReadRpsOutThrottler, "ReadRpsOut");
@@ -871,16 +888,16 @@ const IThroughputThrottlerPtr& TBootstrap::GetInThrottler(const TWorkloadDescrip
 
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
-            return TabletCompactionAndPartitioningInThrottler;
+            return DataNodeTabletCompactionAndPartitioningInThrottler;
 
         case EWorkloadCategory::SystemTabletLogging:
-            return TabletLoggingInThrottler;
+            return DataNodeTabletLoggingInThrottler;
 
         case EWorkloadCategory::SystemTabletSnapshot:
-            return TabletSnapshotInThrottler;
+            return DataNodeTabletSnapshotInThrottler;
 
         case EWorkloadCategory::SystemTabletStoreFlush:
-            return TabletStoreFlushInThrottler;
+            return DataNodeTabletStoreFlushInThrottler;
 
         default:
             return TotalInThrottler;
@@ -901,13 +918,43 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
 
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
-            return TabletCompactionAndPartitioningOutThrottler;
+            return DataNodeTabletCompactionAndPartitioningOutThrottler;
 
         case EWorkloadCategory::SystemTabletPreload:
-            return TabletPreloadOutThrottler;
+            return DataNodeTabletPreloadOutThrottler;
 
         case EWorkloadCategory::SystemTabletRecovery:
-            return TabletRecoveryOutThrottler;
+            return DataNodeTabletRecoveryOutThrottler;
+
+        default:
+            return TotalOutThrottler;
+    }
+}
+
+const IThroughputThrottlerPtr& TBootstrap::GetTabletNodeInThrottler(EWorkloadCategory category) const
+{
+    switch (category) {
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletNodeCompactionAndPartitioningInThrottler;
+
+        case EWorkloadCategory::SystemTabletPreload:
+            return TabletNodePreloadInThrottler;
+
+        default:
+            return TotalInThrottler;
+    }
+}
+
+const IThroughputThrottlerPtr& TBootstrap::GetTabletNodeOutThrottler(EWorkloadCategory category) const
+{
+    switch (category) {
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+            return TabletNodeCompactionAndPartitioningOutThrottler;
+
+        case EWorkloadCategory::SystemTabletStoreFlush:
+            return TabletNodeStoreFlushOutThrottler;
 
         default:
             return TotalOutThrottler;

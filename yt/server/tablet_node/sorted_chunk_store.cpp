@@ -120,7 +120,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientBlockReadOptions& blockReadOptions)
+    const TClientBlockReadOptions& blockReadOptions,
+    IThroughputThrottlerPtr throttler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -148,7 +149,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             blockReadOptions);
     }
 
-    auto chunkReader = GetChunkReader(GetUnlimitedThrottler());
+    auto chunkReader = GetChunkReader(throttler);
     auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
 
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
