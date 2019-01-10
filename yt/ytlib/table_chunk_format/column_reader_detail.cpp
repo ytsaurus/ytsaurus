@@ -85,7 +85,7 @@ std::pair<ui32, ui32> TDenseVersionedValueExtractorBase::GetValueIndexRange(i64 
 std::pair<ui32, ui32> TDenseVersionedValueExtractorBase::GetValueIndexRange(i64 segmentRowIndex)
 {
     return std::make_pair(
-        GetLowerValueIndex(segmentRowIndex), 
+        GetLowerValueIndex(segmentRowIndex),
         GetLowerValueIndex(segmentRowIndex + 1));
 }
 

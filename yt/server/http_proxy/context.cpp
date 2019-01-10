@@ -42,44 +42,44 @@ static const THashMap<TString, TString> V2CommandMapping = {
 };
 
 static const THashSet<TString> V2CommandWhitelist = {
-    "abort_tx", 
-    "add_member", 
-    "get_version", 
-    "remove_member", 
-    "ping_tx", 
-    "reduce", 
-    "check_permission", 
-    "commit_tx", 
-    "lock", 
-    "remote_copy", 
-    "list_operations", 
-    "exists", 
-    "map_reduce", 
-    "set", 
-    "list", 
-    "resume_op", 
-    "concatenate", 
-    "sort", 
-    "merge", 
-    "remove", 
-    "link", 
-    "create", 
-    "get_in_sync_replicas", 
-    "locate_skynet_share", 
-    "erase", 
-    "start_op", 
-    "map", 
-    "start_tx", 
-    "suspend_op", 
-    "copy", 
-    "parse_ypath", 
-    "abort_op", 
-    "get", 
-    "move", 
-    "read", 
-    "write", 
-    "download", 
-    "upload", 
+    "abort_tx",
+    "add_member",
+    "get_version",
+    "remove_member",
+    "ping_tx",
+    "reduce",
+    "check_permission",
+    "commit_tx",
+    "lock",
+    "remote_copy",
+    "list_operations",
+    "exists",
+    "map_reduce",
+    "set",
+    "list",
+    "resume_op",
+    "concatenate",
+    "sort",
+    "merge",
+    "remove",
+    "link",
+    "create",
+    "get_in_sync_replicas",
+    "locate_skynet_share",
+    "erase",
+    "start_op",
+    "map",
+    "start_tx",
+    "suspend_op",
+    "copy",
+    "parse_ypath",
+    "abort_op",
+    "get",
+    "move",
+    "read",
+    "write",
+    "download",
+    "upload",
 };
 
 std::optional<TString> CommandNameV2ToV3(TString commandName)
@@ -218,7 +218,7 @@ bool TContext::TryParseCommandName()
             DispatchJson([this] (auto consumer) {
                 BuildYsonFluently(consumer)
                     .Value(Api_->GetDriverV3()->GetCommandDescriptors());
-            });            
+            });
         } else if (*ApiVersion_ == 4) {
             Response_->SetStatus(EStatusCode::OK);
             DispatchJson([this] (auto consumer) {
@@ -226,7 +226,7 @@ bool TContext::TryParseCommandName()
                     .Value(Api_->GetDriverV4()->GetCommandDescriptors());
             });
         }
-        
+
         return false;
     }
 
@@ -322,7 +322,7 @@ bool TContext::TryCheckMethod()
         ReplyFakeError(Format("Command %Qv have to be executed with the %Qv HTTP method",
             Descriptor_->CommandName,
             ToHttpString(expectedMethod)));
-    
+
         return false;
     }
 
@@ -335,7 +335,7 @@ bool TContext::TryCheckAvailability()
         DispatchUnavailable("60", "This proxy is banned");
         return false;
     }
-    
+
     return true;
 }
 
@@ -412,7 +412,7 @@ bool TContext::TryGetInputCompression()
         if (!IsCompressionSupported(compression)) {
             Response_->SetStatus(EStatusCode::UnsupportedMediaType);
             ReplyFakeError("Unsupported Content-Encoding");
-            return false;            
+            return false;
         }
 
         InputContentEncoding_ = compression;
@@ -528,7 +528,7 @@ void TContext::CaptureParameters()
         if (body.Size() == 0) {
             return;
         }
-        
+
         if (InputContentEncoding_ != IdentityContentEncoding) {
             THROW_ERROR_EXCEPTION("Content-Encoding not supported in POST body");
         }
@@ -664,7 +664,7 @@ void TContext::SetupOutputStream()
         MemoryOutput_ = New<TSharedRefOutputStream>();
         DriverRequest_.OutputStream = MemoryOutput_;
     } else {
-        DriverRequest_.OutputStream = Response_;        
+        DriverRequest_.OutputStream = Response_;
     }
 
     if (IdentityContentEncoding != OutputContentEncoding_) {
@@ -822,7 +822,7 @@ void TContext::Finalize()
         if (!Error_.IsOK()) {
             Response_->GetHeaders()->Remove("Content-Encoding");
             Response_->GetHeaders()->Remove("Vary");
-            
+
             FillYTErrorHeaders(Response_, Error_);
             DispatchJson([&] (auto producer) {
                 BuildYsonFluently(producer).Value(Error_);

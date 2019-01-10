@@ -62,7 +62,7 @@ TString GetOrGeneratePeerId(const TString& filename)
     std::array<char, 8> entropy;
     TUnbufferedFileInput urandom("/dev/urandom");
     urandom.LoadOrFail(entropy.data(), entropy.size());
-    
+
     auto peerId = to_lower(HexEncode(entropy.data(), entropy.size()));
     TFileOutput file(filename);
     file.Write(peerId);

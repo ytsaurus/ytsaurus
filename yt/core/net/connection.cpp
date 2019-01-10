@@ -387,7 +387,7 @@ public:
             }
             protector = TShutdownProtector(this);
         }
-        
+
         if (Any(control & EPollControl::Write)) {
             DoIO(&WriteDirection_, true, std::move(protector));
         }
@@ -576,7 +576,7 @@ public:
 
         if (deadline) {
             WriteTimeoutCookie_ = TDelayedExecutor::Submit(AbortFromWriteTimeout_, deadline);
-        }        
+        }
     }
 
 private:
@@ -687,7 +687,7 @@ private:
 
     TClosure AbortFromReadTimeout_;
     TClosure AbortFromWriteTimeout_;
-    
+
     TDelayedExecutorCookie ReadTimeoutCookie_;
     TDelayedExecutorCookie WriteTimeoutCookie_;
 
@@ -695,10 +695,10 @@ private:
     {
         AbortFromReadTimeout_ = BIND(&TFDConnectionImpl::AbortFromReadTimeout, MakeWeak(this));
         AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
-    
+
         ReadDirection_.PollFlag = EPollControl::Read;
         WriteDirection_.PollFlag = EPollControl::Write;
-        
+
         Poller_->Register(this);
     }
 
@@ -733,7 +733,7 @@ private:
                     THROW_ERROR_EXCEPTION("Another IO operation is in progress")
                         << TErrorAttribute("connection", Name_);
                 }
-            
+
                 direction->Operation = std::move(operation);
                 direction->StartBusyTimer();
                 protector = TShutdownProtector(this);

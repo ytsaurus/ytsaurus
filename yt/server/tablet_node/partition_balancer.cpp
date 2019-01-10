@@ -496,7 +496,7 @@ private:
             samples.push_back(sample.Key);
         }
 
-        // NB(psushin): This filtering is typically redundant (except for the first pivot), 
+        // NB(psushin): This filtering is typically redundant (except for the first pivot),
         // since fetcher already returns samples within given limits.
         samples.erase(
             std::remove_if(

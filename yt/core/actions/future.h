@@ -100,7 +100,7 @@ void swap(TPromise<T>& lhs, TPromise<T>& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 // A bunch of widely-used preset futures.
- 
+
 //! A pre-set successful |void| future.
 extern const TFuture<void> VoidFuture;
 
@@ -283,7 +283,7 @@ private:
     template <class U>
     friend TFuture<U> MakeWellKnownFuture(TErrorOr<U> value);
     template <class U>
-    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625 
+    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625
     friend class NYT::TFutureBase;
     template <class U>
     friend class TPromiseBase;

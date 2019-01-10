@@ -10,7 +10,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TMemoryTagGuard::TMemoryTagGuard(TMemoryTag tag)
-{ 
+{
     if (auto* scheduler = TryGetCurrentScheduler()) {
         if (auto* fiber = scheduler->GetCurrentFiber()) {
             Active_ = true;

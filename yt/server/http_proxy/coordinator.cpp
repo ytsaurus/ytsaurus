@@ -313,7 +313,7 @@ TLivenessPtr TCoordinator::GetSelfLiveness()
     liveness->LoadAverage = loadAverage;
 
     auto networkStatistics = GetNetworkStatistics();
-    
+
     if (!StatisticsUpdatedAt_ || !LastStatistics_ || !networkStatistics) {
         // Take conservative approach.
         liveness->NetworkCoef = 1.0;
@@ -323,7 +323,7 @@ TLivenessPtr TCoordinator::GetSelfLiveness()
         auto deltaTime = std::max(1e-6, (liveness->UpdatedAt - StatisticsUpdatedAt_).MicroSeconds() / 1e-6);
 
         auto tenGigabits = 10_GB / 8;
-        
+
         auto txLoad = deltaTx / tenGigabits / deltaTime;
         auto rxLoad = deltaRx / tenGigabits / deltaTime;
         liveness->NetworkCoef = ClampVal(std::max(txLoad, rxLoad), 0.0, 1.0);
@@ -400,7 +400,7 @@ void THostsHandler::HandleRequest(
                 return proxy->GetHost();
             }
         };
-    
+
         auto proxies = Coordinator_->ListProxies(role);
         if (returnJson) {
             ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {

@@ -351,7 +351,7 @@ template <unsigned...>
 struct TSequence { };
 
 template <unsigned N, unsigned... Indexes>
-struct TGenerateSequence 
+struct TGenerateSequence
     : TGenerateSequence<N - 1, N - 1, Indexes...>
 { };
 

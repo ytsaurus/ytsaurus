@@ -82,7 +82,7 @@ struct ITabletCellBalancer
 
 std::unique_ptr<ITabletCellBalancer> CreateTabletCellBalancer(
     ITabletCellBalancerProviderPtr provider);
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer

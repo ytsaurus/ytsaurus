@@ -640,7 +640,7 @@ public:
 
     TFluentYsonWriterState(NYson::EYsonFormat format, NYson::EYsonType type)
         : Writer(&Output, format, type, true /* enableRaw */)
-        , Type(type)    
+        , Type(type)
     { }
 
     NYson::TYsonString GetValue()

@@ -469,7 +469,7 @@ private:
         ValidateEnabled();
 
         auto id = TLayerId::Create();
-        try {   
+        try {
             YT_LOG_DEBUG("Ensure that cached layer archive is not in use (LayerId: %v, ArchivePath: %v, Tag: %v)",
                 id,
                 archivePath,

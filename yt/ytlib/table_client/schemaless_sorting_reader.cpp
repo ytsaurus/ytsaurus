@@ -37,14 +37,14 @@ public:
         : RowReorderer_(nameTable, keyColumns)
         , UnderlyingReader_(underlyingReader)
         , KeyColumns_(keyColumns)
-    { 
+    {
         ReadyEvent_ = BIND(&TSchemalessSortingReader::DoOpen,
             MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
 
-    void DoOpen() 
+    void DoOpen()
     {
         std::vector<TUnversionedRow> rows;
         rows.reserve(RowsPerRead);

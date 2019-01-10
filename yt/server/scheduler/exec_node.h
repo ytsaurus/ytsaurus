@@ -98,7 +98,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TJobToRelease>, JobsToRemove);
 
     DEFINE_BYVAL_RO_PROPERTY(double, IOWeight);
-    
+
     //! Mark that node has large job archivation queues.
     DEFINE_BYVAL_RW_PROPERTY(bool, JobReporterQueueIsTooLarge);
 

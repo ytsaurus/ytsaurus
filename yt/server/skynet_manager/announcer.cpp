@@ -283,7 +283,7 @@ TFuture<void> TAnnouncer::AddOutOfOrderAnnounce(const TString& cluster, const TR
     return BIND([this, this_ = MakeStrong(this), cluster, resourceId] () {
         auto& state = Resources_[resourceId];
         bool needsAnnouncer = !state.IsAlive();
-        
+
         state.LastOutOfOrderUpdate = std::make_pair(cluster, TInstant::Now() + Config_->OutOfOrderUpdateTtl);
 
         if (!needsAnnouncer) {
@@ -409,7 +409,7 @@ void TAnnouncer::RunAnnounceLoop()
             if (Resources_.find(resourceId) == Resources_.end()) {
                 continue;
             }
-        
+
             const auto& tracker = Trackers_[trackerId].second;
             auto asynResult = tracker->Announce(resourceId, EAnnounceState::Seeding);
             auto result = WaitFor(asynResult);

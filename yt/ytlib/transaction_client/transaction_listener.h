@@ -22,7 +22,7 @@ protected:
     //! Checks if any of transactions that we are listening to were aborted.
     //! If so, raises an exception.
     void ValidateAborted() const;
-    
+
     //! Returns aborted flag.
     bool IsAborted() const;
 

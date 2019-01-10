@@ -927,7 +927,7 @@ private:
 
     static TYPath GetNodePath(const TString& address)
     {
-        // TODO(babenko): use GetClusterNodesPath 
+        // TODO(babenko): use GetClusterNodesPath
         return "//sys/nodes/" + ToYPathLiteral(address);
     }
 

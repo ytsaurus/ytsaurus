@@ -109,7 +109,7 @@ void Deserialize(
             }
             ace.Subjects.push_back(subject);
         }
-         
+
         // Permissions
         ace.Permissions = ParsePermissions(serializableAce->Permissions);
 

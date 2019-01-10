@@ -17,7 +17,7 @@ TEST(TRingQueueTest, PodRandomOperations)
 
     const int N = 100000;
     // We perform same sequence of operations on this deque.
-    std::deque<int> deque; 
+    std::deque<int> deque;
 
     for (int i = 0; i < N; ++i) {
         EXPECT_EQ(queue.size(), deque.size());
@@ -94,7 +94,7 @@ TEST(TRingQueueTest, TestLifetimeWithRefCount)
 
     {
         TRingQueue<TFooPtr> queue;
-        
+
         for (int i = 0; i < N; ++i) {
             queue.push(New<TFoo>(counter));
             EXPECT_EQ(counter, queue.size());

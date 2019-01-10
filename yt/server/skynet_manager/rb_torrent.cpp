@@ -311,7 +311,7 @@ TResourceDescription ConvertResource(const NProto::TResource& resource, bool nee
                     })
             .EndMap();
     };
-    
+
     TResourceDescription description;
     if (needHash) {
         TBencodeWriter head;

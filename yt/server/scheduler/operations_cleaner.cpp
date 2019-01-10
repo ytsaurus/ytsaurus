@@ -351,7 +351,7 @@ class TOperationsCleaner::TImpl
 {
 public:
     DEFINE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsArchived);
-    
+
     TImpl(
         TOperationsCleanerConfigPtr config,
         IOperationsCleanerHost* host,

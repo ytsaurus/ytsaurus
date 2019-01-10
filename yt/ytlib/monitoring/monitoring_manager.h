@@ -11,7 +11,7 @@
 namespace NYT::NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 //! Exposes a tree assembled from results returned by a set of
 //! registered NYson::TYsonProducer-s.
 /*!

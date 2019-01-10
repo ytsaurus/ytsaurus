@@ -37,7 +37,7 @@ class TPeerBlockTable
 {
 public:
     explicit TPeerBlockTable(TPeerBlockTableConfigPtr config, NCellNode::TBootstrap* bootstrap);
-    
+
     //! Gets peers where a particular block was sent to.
     /*!
      *  Also sweeps expired peers.

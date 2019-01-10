@@ -465,7 +465,7 @@ TEST(TYamrParserTest, IncorrectPlaceOfEOM)
         "\x06\x00\x00\x00" "value1"
 
         "\xff\xff\xff\xff" "\x01\x00\x00\x00"
-        
+
         "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
 
         "\x04\x00\x00\x00" "key2"
@@ -482,7 +482,7 @@ TEST(TYamrParserTest, IncorrectPlaceOfEOM)
         "\x04\x00\x00\x00" "key2"
 
         "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
-        
+
         "\x06\x00\x00\x00" "value2"
         , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
     );
@@ -504,7 +504,7 @@ TEST(TYamrParserTest, IncorrectEOM)
         "\x06\x00\x00\x00" "value1"
 
         "\xff\xff\xff\xff" "\x01\x00\x00\x00"
-        
+
         "\xfb\xff\xff\xff" "\x01\x00\x00\x00\x00\x00\x00\x00"
 
         "\x04\x00\x00\x00" "key2"
@@ -565,7 +565,7 @@ TEST(TYamrParserTest, UnsupportedEOMInTextMode)
         "\x06\x00\x00\x00" "value1"
 
         "\xff\xff\xff\xff" "\x01\x00\x00\x00"
-        
+
 
         "\x04\x00\x00\x00" "key2"
         "\x06\x00\x00\x00" "value2"
@@ -583,7 +583,7 @@ TEST(TYamrParserTest, UnexpectedEOM)
     config->HasSubkey = false;
     config->Lenval = true;
     config->EnableEom = false;
-    
+
     TString input = TString(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"

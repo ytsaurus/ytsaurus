@@ -203,7 +203,7 @@ protected:
                     data = ConvertMessageToFormat(data, format, NYson::ReflectProtobufMessageType<TResponseMessage>());
                 }
             }
-            
+
             this->UnderlyingContext_->SetResponseBody(std::move(data));
         }
         this->UnderlyingContext_->Reply(error);

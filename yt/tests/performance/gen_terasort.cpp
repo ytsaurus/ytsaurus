@@ -3,7 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <cstdlib>
-    
+
 std::vector<char> symbols;
 
 std::string generate(int len) {
@@ -20,13 +20,13 @@ int main(int argc, char** argv) {
         std::cerr << "You should pas number of records to generate and format" << std::endl;
         return 1;
     }
-    
+
     int len;
     {
         std::istringstream is(argv[1]);
         is >> len;
     }
-    
+
     for (char i = 0; i < 26; ++i) {
         symbols.push_back('a' + i);
         symbols.push_back('A' + i);

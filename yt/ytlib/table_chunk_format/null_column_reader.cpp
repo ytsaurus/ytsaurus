@@ -62,7 +62,7 @@ public:
             return std::make_pair(upperRowIndex, upperRowIndex);
         }
     }
-    
+
     virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
         DoReadValues(rows);
