@@ -1,4 +1,4 @@
-BIN="/home/max42/yt_arc/build-rel/bin/ytserver-clickhouse"
+BIN="/home/max42/yt/build-rel/bin/ytserver-clickhouse"
 VERSION="$($BIN --version)"
 CYPRESS_PATH="//sys/clickhouse/bin/ytserver-clickhouse-$VERSION"
 CYPRESS_PATH_LINK="//sys/clickhouse/bin/ytserver-clickhouse"
