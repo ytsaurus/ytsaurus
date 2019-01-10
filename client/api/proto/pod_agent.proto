@@ -524,6 +524,9 @@ enum EBoxState {
 
     // Box находится в невалидном состоянии и значит будет полнотью пересобран
     EBoxState_INVALID = 9 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+
+    // Ждет пока заимпортятся статические ресурсы
+    EBoxState_WAITING_FOR_STATIC_RESOURCES = 10 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_static_resources"];
 }
 
 //Q: Почему нет DEBUG состояния, чтобы поотлаживать упавшую джобу
