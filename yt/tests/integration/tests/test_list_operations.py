@@ -4,8 +4,6 @@ from yt_commands import *
 
 from yt.common import YT_DATETIME_FORMAT_STRING
 
-from operations_archive import clean_operations
-
 import pytest
 
 from time import sleep
@@ -455,23 +453,14 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
                 "clean_delay": 0,
             },
             "static_orchid_cache_update_period": 100,
-            "alerts_update_period": 100
-        }
+            "alerts_update_period": 100,
+        },
     }
 
     @classmethod
     def setup_class(cls):
         super(TestListOperationsArchiveOnly, cls).setup_class()
-
-        def has_operations():
-            for entry in ls("//sys/operations"):
-                if len(entry) != 2:
-                    return True
-                if len(ls("//sys/operations/" + entry)) != 0:
-                    return True
-            return False
-
-        wait(lambda: not has_operations())
+        wait(lambda: not operation_nodes_exist())
 
     def test_owned_by_filter_is_not_supported(self):
         with pytest.raises(YtError):
