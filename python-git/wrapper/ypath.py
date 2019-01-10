@@ -33,7 +33,7 @@ def ypath_join(*paths):
 
         if slash_count == 2:
             result.append(path[1:])
-        else: # slash_count <= 1
+        else:  # slash_count <= 1
             if (slash_count == 0 and result) or result == ["/"]:
                 result.append("/")
             result.append(path)
@@ -104,7 +104,7 @@ def escape_ypath_literal(literal):
         num = ord(ch)
         if num >= 256:
             raise YtError("YPath literals should consist of bytes with code in [0, 255]")
-        if num < 32: # or num >= 128:
+        if num < 32:  # or num >= 128:
             return "\\x" + string.hexdigits[num // 16] + string.hexdigits[num % 16]
         return ch
 

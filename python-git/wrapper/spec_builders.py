@@ -145,10 +145,8 @@ class Finalizer(object):
                         "This may cause suboptimal system performance. "
                         "If this table is not temporary then consider running the following command:\n"
                         "yt merge --mode {1} --proxy {3} --src {0} --dst {0} "
-                        "--spec '{{"
-                           "combine_chunks=true;"
-                           "data_size_per_job={2}"
-                        "}}'".format(table, mode, data_size_per_job, get_config(self.client)["proxy"]["url"]))
+                        "--spec '{{combine_chunks=true;data_size_per_job={2}}}'"
+                        .format(table, mode, data_size_per_job, get_config(self.client)["proxy"]["url"]))
 
 class Toucher(object):
     """Entity for touch operation files in case of retries.
@@ -395,8 +393,8 @@ class UserJobSpecBuilder(object):
         builder_func(self)
         return spec_builder
 
-    def _prepare_job_files(self, spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files, input_format,
-                           output_format, input_table_count, output_table_count, client):
+    def _prepare_job_files(self, spec, group_by, should_process_key_switch, operation_type, local_files_to_remove,
+                           uploaded_files, input_format, output_format, input_table_count, output_table_count, client):
         file_uploader = FileUploader(client=client)
         local_files = []
         files = []
@@ -542,7 +540,10 @@ class UserJobSpecBuilder(object):
             input_format, output_format = _prepare_operation_formats(
                 format_, spec.get("input_format"), spec.get("output_format"), spec["command"],
                 input_tables, output_tables, client)
-            if getattr(input_format, "control_attributes_mode", None) == "iterator" and _is_python_function(spec["command"]) and (enable_key_switch is None or enable_key_switch) and group_by is not None:
+            if getattr(input_format, "control_attributes_mode", None) == "iterator" \
+                    and _is_python_function(spec["command"]) \
+                    and (enable_key_switch is None or enable_key_switch) \
+                    and group_by is not None:
                 if "control_attributes" not in job_io_spec:
                     job_io_spec["control_attributes"] = {}
                 job_io_spec["control_attributes"]["enable_key_switch"] = True
@@ -553,8 +554,9 @@ class UserJobSpecBuilder(object):
             input_format, output_format = None, None
 
         spec = self._prepare_ld_library_path(spec, client)
-        spec, tmpfs_size, disk_size = self._prepare_job_files(spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
-                                                              input_format, output_format, len(input_tables), len(output_tables), client)
+        spec, tmpfs_size, disk_size = self._prepare_job_files(
+            spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
+            input_format, output_format, len(input_tables), len(output_tables), client)
         spec.setdefault("use_yamr_descriptors",
                         get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"])
         spec.setdefault("check_input_fully_consumed",

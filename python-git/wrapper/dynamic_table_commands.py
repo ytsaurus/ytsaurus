@@ -97,7 +97,7 @@ class DynamicTableRequestRetrier(Retrier):
 
     def except_action(self, error, attempt):
         logger.warning('Request "%s" has failed with error %s, message: %s',
-                        self.command, str(type(error)), str(error))
+                       self.command, str(type(error)), str(error))
 
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,

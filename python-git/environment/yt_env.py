@@ -675,6 +675,8 @@ class YTInstance(object):
         info = {}
         if self.has_http_proxy:
             info["http_proxies"] = [{"address": address} for address in self.get_http_proxy_addresses()]
+            if len(self.get_http_proxy_addresses()) == 1:
+                info["proxy"] = {"address": self.get_http_proxy_addresses()[0]}
         with open(os.path.join(self.path, "info.yson"), "wb") as fout:
             yson.dump(info, fout, yson_format="pretty")
 
@@ -949,6 +951,11 @@ class YTInstance(object):
         self._run_yt_component("scheduler")
 
         def schedulers_ready():
+            def check_node_state(node):
+                if "state" in node:
+                    return node["state"] == "online"
+                return node["scheduler_state"] == "online" and node["master_state"] == "online"
+
             self._validate_processes_are_running("scheduler")
 
             instances = client.list("//sys/scheduler/instances")
@@ -983,7 +990,7 @@ class YTInstance(object):
 
                 if not self.defer_node_start:
                     nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/scheduler/nodes")))
-                    return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
+                    return len(nodes) == self.node_count and all(check_node_state(node) for node in nodes)
 
                 return True
 
