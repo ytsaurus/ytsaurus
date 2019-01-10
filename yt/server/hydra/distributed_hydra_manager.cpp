@@ -191,7 +191,7 @@ public:
 
         ControlState_ = EPeerState::Elections;
 
-        IncrementRestartCounter("Initialization");
+        ProfileRestart("Initialization");
 
         Participate();
     }
@@ -462,9 +462,6 @@ private:
 
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
-
-    THashMap<TString, NProfiling::TMonotonicCounter> RestartCounters_;
-
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
@@ -902,17 +899,16 @@ private:
             BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
-    void IncrementRestartCounter(const TString& message)
+    void ProfileRestart(const TString& message)
     {
-        auto it = RestartCounters_.find(message);
-        if (it == RestartCounters_.end()) {
-            auto tagIds = Options_.ProfilingTagIds;
-            tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("reason", message));
-            auto counter = NProfiling::TMonotonicCounter("/restart_count", tagIds);
-            it = RestartCounters_.insert(std::make_pair(message, counter)).first;
-        }
+        auto tagIds = Options_.ProfilingTagIds;
+        tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("reason", message));
 
-        Profiler.Increment(it->second);
+        Profiler.Enqueue(
+            "/restart_count",
+            1,
+            NProfiling::EMetricType::Gauge,
+            tagIds);
     }
 
     void Restart(TEpochId epochId, const TError& error)
@@ -950,7 +946,7 @@ private:
 
         YT_LOG_WARNING(error, "Restarting Hydra instance");
 
-        IncrementRestartCounter(error.GetMessage());
+        ProfileRestart(error.GetMessage());
 
         ElectionManager_->Abandon();
     }
