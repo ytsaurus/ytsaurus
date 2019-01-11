@@ -161,7 +161,7 @@ public:
     // NB: This function is public for testing purposes.
     void OnFairShareEssentialLoggingAt(TInstant now);
 
-    void RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& jobs);
+    void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs);
 
     void BuildPoolsInformation(NYTree::TFluentMap fluent);
 

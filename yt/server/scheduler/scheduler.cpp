@@ -2310,7 +2310,7 @@ private:
             jobs.size());
 
         // First, unfreeze operation and register jobs in strategy. Do this synchronously as we are in the scheduler control thread.
-        Strategy_->RegisterJobs(operation->GetId(), jobs);
+        Strategy_->RegisterJobsFromRevivedOperation(operation->GetId(), jobs);
 
         // Second, register jobs on the corresponding node shards.
         std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());

@@ -135,7 +135,7 @@ struct ISchedulerStrategy
     virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) = 0;
 
     //! Register jobs that are already created somewhere outside strategy.
-    virtual void RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& job) = 0;
+    virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& job) = 0;
 
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
