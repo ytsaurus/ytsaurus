@@ -792,7 +792,7 @@ void TFairShareTree::OnFairShareEssentialLoggingAt(TInstant now)
     }
 }
 
-void TFairShareTree::RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& jobs)
+void TFairShareTree::RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
