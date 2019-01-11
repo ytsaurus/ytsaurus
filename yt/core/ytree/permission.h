@@ -42,7 +42,6 @@ DEFINE_BIT_ENUM(EPermission,
  */
 using EPermissionSet = EPermission;
 
-const EPermissionSet AllPermissions = EPermissionSet(0xffff);
 const EPermissionSet NonePermissions = EPermissionSet(0x0000);
 
 EPermissionSet ParsePermissions(const std::vector<TString>& items);
