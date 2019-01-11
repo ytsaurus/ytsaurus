@@ -120,9 +120,13 @@ class YpTestEnvironment(object):
         if start:
             self._start()
         else:
-            self.yp_instance.prepare()
+            self._prepare()
         self.yt_client = self.yp_instance.create_yt_client()
         self.sync_access_control()
+
+    def _prepare(self):
+        self.yp_instance.prepare()
+        self.yp_client = None
 
     def _start(self):
         try:
@@ -148,6 +152,8 @@ class YpTestEnvironment(object):
 
     def cleanup(self):
         try:
+            if self.yp_client is not None:
+                self.yp_client.close()
             self.yp_instance.stop()
             if yatest_common is not None:
                 self._save_yatest_working_files()

@@ -1,5 +1,3 @@
-from yp.client import YpClient
-
 import yp_proto.yp.client.api.proto.object_service_pb2 as object_service_pb2
 import yp_proto.yp.client.api.proto.object_type_pb2 as object_type_pb2
 import yp_proto.yp.client.api.proto.data_model_pb2 as data_model_pb2
@@ -40,13 +38,14 @@ class TestGrpcStubs(object):
         assert list(imap(yson._loads_from_native_str, rsp.result.values)) == ["unknown", pod_id, pod_set_id]
 
     def test_grpc_client(self, yp_env):
-        self._test_some_methods(yp_env.yp_instance.create_client(transport="grpc"))
+        with yp_env.yp_instance.create_client(transport="grpc") as yp_client:
+            self._test_some_methods(yp_client)
 
     def test_http_client(self, yp_env):
-        self._test_some_methods(yp_env.yp_instance.create_client(transport="http"))
+        with yp_env.yp_instance.create_client(transport="http") as yp_client:
+            self._test_some_methods(yp_client)
 
-    def test_proto_payload(self, yp_env):
-        yp_client = yp_env.yp_instance.create_client(transport="grpc")
+    def _test_proto_payload(self, yp_client):
         object_stub = yp_client.create_grpc_object_stub()
 
         req = object_service_pb2.TReqCreateObject()
@@ -77,3 +76,7 @@ class TestGrpcStubs(object):
         pod_meta_rsp = data_model_pb2.TPodMeta.FromString(rsp.result.value_payloads[0].protobuf)
         assert pod_meta_rsp.id == pod_id
         assert pod_meta_rsp.pod_set_id == pod_set_id
+
+    def test_proto_payload(self, yp_env):
+        with yp_env.yp_instance.create_client(transport="grpc") as yp_client:
+            self._test_proto_payload(yp_client)

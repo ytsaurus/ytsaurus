@@ -222,7 +222,9 @@ class TestClientYpMasterDiscovery(object):
             )
             return yp_env.yp_instance.create_client(config=dict(retries=retries_config))
 
-        with pytest.raises(ChaosMonkeyError):
-            create_client().get_masters(_allow_retries=False)
+        with create_client() as yp_client:
+            with pytest.raises(ChaosMonkeyError):
+                yp_client.get_masters(_allow_retries=False)
 
-        create_client().get_masters(_allow_retries=True)
+        with create_client() as yp_client:
+            yp_client.get_masters(_allow_retries=True)

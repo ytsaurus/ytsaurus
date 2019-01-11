@@ -1,5 +1,3 @@
-from yp.client import YpClient
-
 import pytest
 
 
@@ -19,18 +17,24 @@ class TestSsl(object):
         root_certificate_file = tmpdir.join("YandexInternalRootCA.crt")
         root_certificate_file.write(root_certificate)
 
-        client = yp_env_configurable.yp_instance.create_client(
-            config={"enable_ssl": True, "root_certificate": {"file_name": str(root_certificate_file)}},
-            transport=transport)
-
-        assert client.generate_timestamp() > 0
+        yp_client_config = dict(
+            enable_ssl=True,
+            root_certificate=dict(
+                file_name=str(root_certificate_file),
+            ),
+        )
+        with yp_env_configurable.yp_instance.create_client(config=yp_client_config, transport=transport) as yp_client:
+            assert yp_client.generate_timestamp() > 0
 
     @pytest.mark.parametrize("transport", ["grpc"])
     def test_via_value(self, yp_env_configurable, transport):
         root_certificate = get_root_certificate(yp_env_configurable)
 
-        client = yp_env_configurable.yp_instance.create_client(
-            config={"enable_ssl": True, "root_certificate": {"value": root_certificate}},
-            transport=transport)
-
-        assert client.generate_timestamp() > 0
+        yp_client_config = dict(
+            enable_ssl=True,
+            root_certificate=dict(
+                value=root_certificate,
+            ),
+        )
+        with yp_env_configurable.yp_instance.create_client(config=yp_client_config, transport=transport) as yp_client:
+            assert yp_client.generate_timestamp() > 0

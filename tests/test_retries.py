@@ -33,7 +33,8 @@ def get_default_client_config():
 @pytest.mark.usefixtures("yp_env")
 class TestRetries(object):
     def init_yp(self, yp_env):
-        yp_client = yp_env.yp_instance.create_client()
+        yp_client = yp_env.yp_client
+
         self.pod_set_id = yp_client.create_object("pod_set")
         self.pod_ids = []
         for _ in xrange(10):
@@ -52,16 +53,14 @@ class TestRetries(object):
 
         retries_config["count"] = 1
         chaos_monkey.set_values([True, False, False])
-        yp_flaky_client = yp_env.yp_instance.create_client(config=config, transport=transport)
+        with yp_env.yp_instance.create_client(config=config, transport=transport) as yp_flaky_client:
+            with pytest.raises(ChaosMonkeyError):
+                callback(yp_flaky_client)
 
         retries_config["count"] = 2
         chaos_monkey.set_values([True, False, False])
-        yp_flaky_client_with_retries = yp_env.yp_instance.create_client(config=config, transport=transport)
-
-        with pytest.raises(ChaosMonkeyError):
-            callback(yp_flaky_client)
-
-        check_result(callback(yp_flaky_client_with_retries))
+        with yp_env.yp_instance.create_client(config=config, transport=transport) as yp_flaky_client_with_retries:
+            check_result(callback(yp_flaky_client_with_retries))
 
     def do_test_pseudo_random(self, yp_env, transport, callback, check_result, config):
         retries_config = config["retries"]
@@ -72,24 +71,24 @@ class TestRetries(object):
         chaos_monkey = ControllableChaosMonkey()
         retries_config["_CHAOS_MONKEY_FACTORY"] = lambda: chaos_monkey
 
-        yp_client = yp_env.yp_instance.create_client(config=config, transport=transport)
-        # Prepare YP master discovery info.
-        yp_client.select_objects("pod", selectors=[""])
-
         def generate(count):
             result = []
             for _ in xrange(count):
                 result.append(random.choice([False, True]))
             return result
 
-        for _ in xrange(5):
-            chaos_monkey_values = generate(RETRIES_COUNT)
-            chaos_monkey.set_values(chaos_monkey_values)
-            if all(chaos_monkey_values):
-                with pytest.raises(ChaosMonkeyError):
-                    callback(yp_client)
-            else:
-                check_result(callback(yp_client))
+        with yp_env.yp_instance.create_client(config=config, transport=transport) as yp_client:
+            # Prepare YP master discovery info.
+            yp_client.select_objects("pod", selectors=[""])
+
+            for _ in xrange(5):
+                chaos_monkey_values = generate(RETRIES_COUNT)
+                chaos_monkey.set_values(chaos_monkey_values)
+                if all(chaos_monkey_values):
+                    with pytest.raises(ChaosMonkeyError):
+                        callback(yp_client)
+                else:
+                    check_result(callback(yp_client))
 
     def do_test(self, yp_env, transport, callback, check_result, config=None):
         if config is None:

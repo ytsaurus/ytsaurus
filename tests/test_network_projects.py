@@ -45,25 +45,25 @@ class TestNetworkProjects(object):
 
         yp_client.create_object("user", attributes={"meta": {"id": "u"}})
         yp_env.sync_access_control()
-        yp_client1 = yp_env.yp_instance.create_client(config={"user": "u"})
 
-        pod_set_id = yp_client1.create_object("pod_set")
+        with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
+            pod_set_id = yp_client1.create_object("pod_set")
 
-        def create_pod():
-            pod_id = yp_client1.create_object("pod", attributes={
-                "meta": {"pod_set_id": pod_set_id},
-                "spec": {
-                    "ip6_address_requests": [
-                        {"vlan_id": "somevlan", "network_id": "MYPROJECT"}
-                    ]
-                }
-            })
+            def create_pod():
+                pod_id = yp_client1.create_object("pod", attributes={
+                    "meta": {"pod_set_id": pod_set_id},
+                    "spec": {
+                        "ip6_address_requests": [
+                            {"vlan_id": "somevlan", "network_id": "MYPROJECT"}
+                        ]
+                    }
+                })
 
-        with pytest.raises(YtResponseError):
+            with pytest.raises(YtResponseError):
+                create_pod()
+
+            yp_client.update_object("network_project", "MYPROJECT", set_updates=[
+                {"path": "/meta/acl/end", "value": {"action": "allow", "permissions": ["use"], "subjects": ["u"]}}
+            ])
+
             create_pod()
-
-        yp_client.update_object("network_project", "MYPROJECT", set_updates=[
-            {"path": "/meta/acl/end", "value": {"action": "allow", "permissions": ["use"], "subjects": ["u"]}}
-        ])
-
-        create_pod()

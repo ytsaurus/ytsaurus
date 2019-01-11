@@ -22,14 +22,16 @@ class TestAuth(object):
         yp_client = yp_env_configurable.yp_client
         yp_client.create_object("user", attributes={"meta": {"id": "u"}})
 
-        yp_client1 = yp_env_configurable.yp_instance.create_client(config={"token": "VALIDTOKEN"})
-        yp_client2 = yp_env_configurable.yp_instance.create_client(config={"token": "INVALIDTOKEN"})
+        with yp_env_configurable.yp_instance.create_client(config={"token": "VALIDTOKEN"}) as yp_client1:
+            yp_env_configurable.sync_access_control()
 
-        yp_env_configurable.sync_access_control()
+            assert yp_client1.select_objects("pod", selectors=["/meta/id"]) == []
 
-        assert yp_client1.select_objects("pod", selectors=["/meta/id"]) == []
-        with pytest.raises(YtResponseError):
-            yp_client2.select_objects("pod", selectors=["/meta/id"])
+        with yp_env_configurable.yp_instance.create_client(config={"token": "INVALIDTOKEN"}) as yp_client2:
+            yp_env_configurable.sync_access_control()
+
+            with pytest.raises(YtResponseError):
+                yp_client2.select_objects("pod", selectors=["/meta/id"])
 
     def test_ban_user(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -41,18 +43,18 @@ class TestAuth(object):
 
         yp_env_configurable.sync_access_control()
 
-        yp_client_u = yp_env_configurable.yp_instance.create_client(config={"token": "VALIDTOKEN"})
-        assert yp_client_u.get_object("user", "u", selectors=["/meta/id"])[0] == "u"
+        with yp_env_configurable.yp_instance.create_client(config={"token": "VALIDTOKEN"}) as yp_client_u:
+            assert yp_client_u.get_object("user", "u", selectors=["/meta/id"])[0] == "u"
 
-        yp_client.update_object("user", "u", set_updates=[{"path": "/spec/banned", "value": True}])
+            yp_client.update_object("user", "u", set_updates=[{"path": "/spec/banned", "value": True}])
 
-        yp_env_configurable.sync_access_control()
+            yp_env_configurable.sync_access_control()
 
-        with pytest.raises(YtResponseError):
-            yp_client_u.get_object("user", "u", selectors=["/meta/id"])
+            with pytest.raises(YtResponseError):
+                yp_client_u.get_object("user", "u", selectors=["/meta/id"])
 
-        yp_client.update_object("user", "u", set_updates=[{"path": "/spec/banned", "value": False}])
+            yp_client.update_object("user", "u", set_updates=[{"path": "/spec/banned", "value": False}])
 
-        yp_env_configurable.sync_access_control()
+            yp_env_configurable.sync_access_control()
 
-        assert yp_client_u.get_object("user", "u", selectors=["/meta/id"])[0] == "u"
+            assert yp_client_u.get_object("user", "u", selectors=["/meta/id"])[0] == "u"

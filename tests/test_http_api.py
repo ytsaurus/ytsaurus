@@ -1,5 +1,3 @@
-from yp.client import YpClient
-
 from yp_proto.yp.client.api.proto.object_service_pb2 import TReqCreateObject, TRspCreateObject
 from yp_proto.yp.client.api.proto.object_type_pb2 import EObjectType
 
@@ -89,9 +87,7 @@ class TestHttpApi(object):
 
         json.loads(rsp.text)
 
-    def test_client(self, yp_env):
-        client = yp_env.yp_instance.create_client(transport="http")
-
+    def _test_client(self, client):
         ts1 = client.generate_timestamp()
         ts2 = client.generate_timestamp()
         assert ts1 < ts2
@@ -107,14 +103,19 @@ class TestHttpApi(object):
 
         assert client.get_object("pod_set", id, selectors=["/annotations/a"]) == [[1, 2]]
 
+    def test_client(self, yp_env):
+        with yp_env.yp_instance.create_client(transport="http") as client:
+            self._test_client(client)
+
     def test_client_custom_session(self, yp_env):
         session = CustomSession()
         assert session.get_request_count() == 0
-        client = yp_env.yp_instance.create_client(transport="http", _http_session=session)
-        ts1 = client.generate_timestamp()
-        ts2 = client.generate_timestamp()
-        assert ts1 < ts2
-        assert session.get_request_count() > 0
+
+        with yp_env.yp_instance.create_client(transport="http", _http_session=session) as client:
+            ts1 = client.generate_timestamp()
+            ts2 = client.generate_timestamp()
+            assert ts1 < ts2
+            assert session.get_request_count() > 0
 
     def test_client_connect_timeout(self, yp_env):
         def create_client(connect_timeout):
@@ -122,8 +123,10 @@ class TestHttpApi(object):
                 transport="http",
                 config=dict(connect_timeout=connect_timeout)
             )
-        client = create_client(0)
-        with pytest.raises(requests.ConnectionError):
+
+        with create_client(0) as client:
+            with pytest.raises(requests.ConnectionError):
+                client.generate_timestamp()
+
+        with create_client(2000) as client:
             client.generate_timestamp()
-        client2 = create_client(2000)
-        client2.generate_timestamp()
