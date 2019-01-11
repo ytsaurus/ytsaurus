@@ -2,27 +2,7 @@
 # -*- encoding: utf8 -*-
 
 """
-## Introduction
-
-This script provides the assistance functions to synchronize YT in Arcadia and in GitHub.
-
-`yt/` is mirrored from GitHub to Arcadia as a snapshot. `git-svn` is used to commit the appropriate
-subtree into SVN, and the lineage is preserved with the commit marks. Namely, every push commit in SVN
-contains the textual reference to the original Git commit. This information is used to properly pull changes
-from SVN to Git.
-
-## Glossary
-
-**(Git) Commit**. Changeset for a repository with lineage information. Identified by a SHA1 hash.
-
-**(Git) Reference**. Named pointed to a particular commit. Fully qualified reference starts with `refs/`.
-Examples: `HEAD`, `origin/master`, `refs/remotes/origin/master`, `branch`, `refs/heads/branch`.
-
-**(Svn) Revision**. Changeset for a repository. Identified by a natural number. Revisions are totally ordered.
-
-## Arcadia dependencies
-
-Arcadia dependencies (like util/, library/, etc) are managed via arcup.py script.
+https://wiki.yandex-team.ru/yt/internal/arcadia-sync-ng/
 """
 
 import sys
@@ -74,16 +54,18 @@ class ArcadiaSyncError(RuntimeError):
     pass
 
 
-def check_git_working_tree(git):
+def check_git_working_tree(git, can_be_disabled=True):
     git.call("update-index", "-q", "--refresh")
+
+    error_msg = "Git working tree has local modifications.\n"
+    if can_be_disabled:
+        error_msg += "Use --skip-git-working-tree-check flag to skip this check.\n"
+
     if (
         not git.test("diff-index", "HEAD", "--exit-code", "--quiet", "--ignore-submodules=untracked")
         or not git.test("diff-index", "--cached", "HEAD", "--exit-code", "--quiet")
     ):
-        raise CheckError(
-            "Git working tree has local modifications.\n"
-            "Use --skip-git-working-tree-check flag to skip this check.\n"
-        )
+        raise ArcadiaSyncError(error_msg)
 
 class LocalSvn(object):
     def __init__(self, root):
@@ -129,6 +111,30 @@ class LocalSvn(object):
 
     def revert(self, path):
         subprocess.check_call([self.ya, "svn", "revert", "--recursive", self.abspath(path)])
+
+    def create_review(self, msg):
+        msg += "REVIEW:NEW"
+        with tempfile.NamedTemporaryFile() as tmpf:
+            retcode = subprocess.call(
+                [self.ya, "svn", "ci", "-m", msg],
+                stderr=tmpf,
+                cwd=self.root,
+            )
+            assert retcode != 0, "Ooops, looks like commit was successful :("
+            tmpf.seek(0)
+            stderr = tmpf.read()
+
+        failed_to_create_review_msg = (
+            "svn commit stderr:\n"
+            "{stderr}"
+            "\n"
+            "Failed to create review.\n"
+            .format(stderr=stderr)
+        )
+        m = re.search(r"https://a[.]yandex-team[.]ru/review/(\d+)", stderr)
+        if m is None:
+            raise ArcadiaSyncError(failed_to_create_review_msg)
+        return int(m.group(1))
 
 
 def verify_recent_svn_revision_merged(git, git_svn_id):
@@ -316,44 +322,63 @@ def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
                 diffed=indented_lines(diffed)))
 
 
-COPY_TO_LOCAL_SVN_PROJECTS =  ".arcadia-sync-ng-projects.json"
+class PushState(object):
+    __slots__ = ["_data", "_arcadia_dir"]
 
-def save_projects(arcadia_dir, project_names):
-    with open(os.path.join(arcadia_dir, COPY_TO_LOCAL_SVN_PROJECTS), "w") as outf:
-        json.dump(project_names, outf)
+    def __init__(self, arcadia_dir, projects=None):
+        self._arcadia_dir = arcadia_dir
+        self._data = {}
+        if projects is not None:
+            self.project_list = projects
 
-def load_projects(arcadia_dir):
-    filename = os.path.join(arcadia_dir, COPY_TO_LOCAL_SVN_PROJECTS)
+    def _data_accessor_property(key):
+        def get_func(self):
+            return self._data.get(key, None)
 
-    copy_to_local_svn_cmd = "{ARGV0} copy-to-local-svn --arcadia {arcadia}".format(ARGV0=ARGV0, arcadia=arcadia_dir)
-    file_missing_msg = (
-        "File '{filename}' doesn't exist. Are you sure you have called:\n"
-        " $ {cmd} \n"
-        "???\n"
-        .format(
-            filename=filename,
-            cmd=copy_to_local_svn_cmd,
+        def set_func(self, value):
+            self._data[key] = value
+
+        return property(get_func, set_func)
+
+    project_list = _data_accessor_property("project_list")
+    commit = _data_accessor_property("commit")
+    review_id = _data_accessor_property("review_id")
+
+    def save(self):
+        file_name = self._get_file_name(self._arcadia_dir)
+        tmp_file_name = file_name + ".tmp"
+        with open(tmp_file_name, "w") as outf:
+            json.dump(self._data, outf)
+        os.rename(tmp_file_name, file_name)
+
+    @classmethod
+    def load(cls, arcadia_dir):
+        filename = cls._get_file_name(arcadia_dir)
+
+        copy_to_local_svn_cmd = "{ARGV0} copy-to-local-svn --arcadia {arcadia}".format(ARGV0=ARGV0, arcadia=arcadia_dir)
+        file_missing_msg = (
+            "File '{filename}' doesn't exist. Are you sure you have called:\n"
+            " $ {cmd} \n"
+            "???\n"
+            .format(
+                filename=filename,
+                cmd=copy_to_local_svn_cmd,
+            )
         )
-    )
-    file_is_corrupted_msg = (
-        "File '{filename}' looks corrupted. Please rerun:\n"
-        " $ {cmd} \n"
-        .format(
-            filename=filename,
-            cmd=copy_to_local_svn_cmd,
-        )
-    )
 
-    if not os.path.exists(filename):
-        raise CheckError(file_missing_msg)
+        if not os.path.exists(filename):
+            raise CheckError(file_missing_msg)
 
-    with open(filename) as outf:
-        projects = json.load(outf)
+        result = PushState(arcadia_dir)
+        with open(filename) as outf:
+            result._data = json.load(outf)
 
-    if not isinstance(projects, list) or len(projects) == 0:
-        raise CheckError(filename)
+        return result
 
-    return projects
+    @staticmethod
+    def _get_file_name(arcadia_dir):
+        return os.path.join(arcadia_dir, ".arcadia-sync.push-status.json")
+
 
 def checked_get_common_git(ctx_list):
     """
@@ -480,126 +505,131 @@ def action_cherry_pick(ctx, args):
         )
 
 
+class ArcadiaPush(object):
+    def __init__(
+        self,
+        args,
+        ctx_list=None,
+        check_svn_is_clean=True,
+    ):
+        self.args = args
+        self.local_svn = LocalSvn(args.arcadia)
+        if ctx_list is None:
+            self.push_state = PushState.load(args.arcadia)
+            self.ctx_list = [create_project_context(p) for p in self.push_state.project_list]
+        else:
+            self.push_state = PushState(args.arcadia, [ctx.name for ctx in ctx_list])
+            self.ctx_list = ctx_list
+
+        self.common_git = checked_get_common_git(self.ctx_list)
+
+        logging.info("checking that working tree is clean")
+        check_git_working_tree(self.common_git, can_be_disabled=False)
+
+        if args.check_head_is_pushed:
+            logger.info("checking that HEAD is present at github")
+            git_verify_head_pushed(self.common_git)
+
+        for ctx in self.ctx_list:
+            if args.check_unmerged_svn_commits:
+                logger.info("check that svn doesn't have any commits that are not merged to github (project: {project})".format(project=ctx.name))
+                verify_recent_svn_revision_merged(ctx.git, ctx.arc_git_remote)
+
+        if check_svn_is_clean:
+            for ctx in self.ctx_list:
+                logger.info("check svn repository for local modifications (project: {project})".format(project=ctx.name))
+                changed_files = list(local_svn_iter_changed_files(self.local_svn, ctx.svn_relpath))
+                if changed_files and not args.ignore_svn_modifications:
+                    raise CheckError(
+                        "svn repository has uncommited changed:\n"
+                        "{changed_files}\n"
+                        "Use --ignore-svn-modifications to ignore them.\n".format(
+                            changed_files=indented_lines(["{0} {1}".format(s.status, s.relpath) for s in changed_files])))
+                self.local_svn.revert(ctx.svn_relpath)
+
+    def copy_to_local_svn(self):
+        for ctx in self.ctx_list:
+            logger.info("copying files to arcadia directory (project: {project})".format(project=ctx.name))
+            rmrf(self.local_svn.abspath(ctx.svn_relpath))
+
+            # Copy files
+            git_rel_file_list = list(git_iter_files_to_sync(ctx.git, ":/" + ctx.git_relpath))
+            svn_rel_file_list = list(iter_relpath_translate(git_rel_file_list, ctx.git_relpath, ctx.svn_relpath))
+            assert len(git_rel_file_list) == len(svn_rel_file_list)
+            for rel_git_file, rel_svn_file in itertools.izip(git_rel_file_list, svn_rel_file_list):
+                git_file = git_abspath(ctx.git, rel_git_file)
+                svn_file = self.local_svn.abspath(rel_svn_file)
+
+                svn_dir = os.path.dirname(svn_file)
+                if not os.path.exists(svn_dir):
+                    os.makedirs(svn_dir)
+                shutil.copy2(git_file, svn_file)
+
+            logger.info("notify svn about changes (project: {project})".format(project=ctx.name))
+            notify_svn(self.local_svn, ctx.svn_relpath, svn_rel_file_list)
+        self.push_state.save()
+
+    
+    def create_review(self):
+        head = self.common_git.resolve_ref("HEAD")
+        commit_message = (
+            "Push {svn_path_list} to arcadia\n"
+            "\n"
+            "__BYPASS_CHECKS__\n"
+            "yt:git_commit:{head}\n".format(
+                svn_path_list=", ".join(ctx.svn_relpath + "/" for ctx in self.ctx_list),
+                head=head
+            )
+        )
+        for project in self.push_state.project_list:
+            commit_message += "yt:arcadia-sync:project:{project}\n".format(project=project)
+
+        review_id = self.local_svn.create_review(commit_message)
+        self.push_state.review_id = review_id
+        self.push_state.commit = head
+        self.push_state.save()
+
+
+    def get_arcadia_abspath(self, relpath):
+        return self.local_svn.abspath(relpath)
+
+    def get_review_id(self):
+        return self.push_state.review_id
+
+
 def action_copy_to_local_svn(ctx_list, args):
-    local_svn = LocalSvn(args.arcadia)
-    try:
-        checked_get_common_git(ctx_list)
-    except CheckError as e:
-        raise CheckError("Cannot push to arcadia projects that belongs to different repos.\n" + str(e))
-
-    for ctx in ctx_list:
-        if args.check_unmerged_svn_commits:
-            # TODO (ermolovd): merged --> pushed
-            logger.info("check that svn doesn't have any commits that are not pushed to github (project: {project})".format(project=ctx.name))
-            verify_recent_svn_revision_merged(ctx.git, ctx.arc_git_remote)
-
-    for ctx in ctx_list:
-        logger.info("check svn repository for local modifications (project: {project})".format(project=ctx.name))
-        changed_files = list(local_svn_iter_changed_files(local_svn, ctx.svn_relpath))
-        if changed_files and not args.ignore_svn_modifications:
-            raise CheckError(
-                "svn repository has uncommited changed:\n"
-                "{changed_files}\n"
-                "Use --ignore-svn-modifications to ignore them.\n".format(
-                    changed_files=indented_lines(["{0} {1}".format(s.status, s.relpath) for s in changed_files])))
-        local_svn.revert(ctx.svn_relpath)
-
-    for ctx in ctx_list:
-        logger.info("copying files to arcadia directory (project: {project})".format(project=ctx.name))
-        rmrf(local_svn.abspath(ctx.svn_relpath))
-
-        # Copy files
-        git_rel_file_list = list(git_iter_files_to_sync(ctx.git, ":/" + ctx.git_relpath))
-        svn_rel_file_list = list(iter_relpath_translate(git_rel_file_list, ctx.git_relpath, ctx.svn_relpath))
-        assert len(git_rel_file_list) == len(svn_rel_file_list)
-        for rel_git_file, rel_svn_file in itertools.izip(git_rel_file_list, svn_rel_file_list):
-            git_file = git_abspath(ctx.git, rel_git_file)
-            svn_file = local_svn.abspath(rel_svn_file)
-
-            svn_dir = os.path.dirname(svn_file)
-            if not os.path.exists(svn_dir):
-                os.makedirs(svn_dir)
-            shutil.copy2(git_file, svn_file)
-
-        logger.info("notify svn about changes (project: {project})".format(project=ctx.name))
-        notify_svn(local_svn, ctx.svn_relpath, svn_rel_file_list)
-
-    logger.info("checking that HEAD is present at github")
-    upushed_ctx_list = []
-    for ctx in ctx_list:
-        try:
-            git_verify_head_pushed(ctx.git)
-        except CheckError as e:
-            upushed_ctx_list.append(ctx)
-
-    save_projects(args.arcadia, [ctx.name for ctx in ctx_list])
+    arcadia_push = ArcadiaPush(args, ctx_list=ctx_list)
+    arcadia_push.copy_to_local_svn()
 
     print >>sys.stderr, (
         "====================================================\n"
         "All files have beed copied to svn working copy. Changed directories:\n"
         "{arcadia_project_path}"
         "Please go to svn working copy and make sure that everything is ok. Once you are done run:\n"
-        " $ {script} svn-commit --arcadia {arcadia}"
+        " $ {script} create-review --arcadia {arcadia}\n"
+        "to create review request."
     ).format(
-        arcadia=local_svn.abspath(""),
-        arcadia_project_path=indented_lines(local_svn.abspath(ctx.svn_relpath) for ctx in ctx_list),
-        script=sys.argv[0])
+        arcadia=arcadia_push.get_arcadia_abspath(""),
+        arcadia_project_path=indented_lines(arcadia_push.get_arcadia_abspath(ctx.svn_relpath) for ctx in ctx_list),
+        script=sys.argv[0]
+    )
 
-    if upushed_ctx_list:
-        print >>sys.stderr, ""
-        print >>sys.stderr, "===================================================="
-        print >>sys.stderr, (
-            "WARNING: github doesn't contain HEAD of projects:\n"
-            "{projects}"
-            "You can check for compileability but you will need to push changes to github before commit.\n"
-        ).format(
-            projects=indented_lines(ctx.name for ctx in upushed_ctx_list)
-        )
 
-def action_svn_commit(args):
-    project_list = load_projects(args.arcadia)
-    ctx_list = [create_project_context(p) for p in project_list]
-    local_svn = LocalSvn(args.arcadia)
+def action_create_review(args):
+    arcadia_push = ArcadiaPush(args, check_svn_is_clean=False)
+    arcadia_push.create_review()
 
-    common_git = checked_get_common_git(ctx_list)
+    print >>sys.stderr, "Review is created: https://a.yandex-team.ru/review/{}".format(arcadia_push.get_review_id())
+    # TODO: help about next steps
 
-    logging.info("checking that working tree is clean")
-    check_git_working_tree(common_git)
 
-    logger.info("checking that HEAD is present at github")
-    git_verify_head_pushed(common_git)
+def action_update_review(args):
+    arcadia_push = ArcadiaPush(args, check_svn_is_clean=False)
+    arcadia_push.update_review()
 
-    for ctx in ctx_list:
-        if args.check_unmerged_svn_commits:
-            logger.info("check that svn doesn't have any commits that are not merged to github (project: {project})".format(
-                project=ctx.name,
-            ))
-            verify_recent_svn_revision_merged(ctx.git, ctx.arc_git_remote)
+    # TODO: проверять, что HEAD соответствует ревизии, которая указана в ревью.
 
-        logger.info("comparing svn copy and git copy (project: {project})".format(
-            project=ctx.name,
-        ))
-        verify_svn_match_git(ctx.git, ctx.git_relpath, local_svn, ctx.svn_relpath)
-
-    logger.info("prepare commit")
-    head = common_git.resolve_ref("HEAD")
-    commit_message_file_name = os.path.join(args.arcadia, "arcadia-sync-ng-commit-msg")
-    with open(commit_message_file_name, 'w') as outf:
-        outf.write(
-            "Push {svn_path_list} to arcadia\n"
-            "\n"
-            "__BYPASS_CHECKS__\n"
-            "yt:git_commit:{head}\n".format(
-                svn_path_list=", ".join(ctx.svn_relpath + "/" for ctx in ctx_list),
-                head=head))
-        if args.review:
-            outf.write("\nREVIEW:new\n")
-
-    print >>sys.stderr, "Commit is prepared, now run:\n"
-    print >>sys.stderr, "$ {ya_path} svn commit {arcadia_yp_path} -F {commit_message_file_name}".format(
-        ya_path=os.path.join(args.arcadia, "ya"),
-        arcadia_yp_path=" ".join(local_svn.abspath(ctx.svn_relpath) for ctx in ctx_list),
-        commit_message_file_name=commit_message_file_name)
+    print >>sys.stderr, "Review is updated: https://a.yandex-team.ru/review/{}".format(arcadia_push.get_review_id())
 
 
 class BaseCtx(object):
@@ -786,19 +816,23 @@ def main():
         p.add_argument("--ignore-unmerged-svn-commits", dest="check_unmerged_svn_commits", default=True, action="store_false",
                        help="do not complain when svn has commits that are not merged into github")
 
+    def add_ignore_not_pushed_head_argument(p):
+        p.add_argument("--ignore-not-pushed-head", dest="check_head_is_pushed", default=True, action="store_false",
+                       help="do not complain when HEAD is not pushed to github")
+
     copy_to_local_svn_parser = add_multiple_project_parser("copy-to-local-svn", help="push current git snapshot to svn working copy")
     copy_to_local_svn_parser.add_argument("--ignore-svn-modifications", default=False, action="store_true",
                                           help="ignore and override changes in svn working copy")
     add_arcadia_argument(copy_to_local_svn_parser)
     add_ignore_unmerged_svn_commits_argument(copy_to_local_svn_parser)
+    add_ignore_not_pushed_head_argument(copy_to_local_svn_parser)
     copy_to_local_svn_parser.set_defaults(action=action_copy_to_local_svn)
 
-    svn_commit_parser = add_no_projects_parser("svn-commit", help="prepare commit of yt snapshot to svn")
-    add_arcadia_argument(svn_commit_parser)
-    add_ignore_unmerged_svn_commits_argument(svn_commit_parser)
-    svn_commit_parser.add_argument("--no-review", dest='review', default=True, action='store_false',
-                                   help="do not create review, commit right away")
-    svn_commit_parser.set_defaults(action=action_svn_commit)
+    create_review_parser = add_no_projects_parser("create-review", help="create new review")
+    add_arcadia_argument(create_review_parser)
+    add_ignore_unmerged_svn_commits_argument(create_review_parser)
+    add_ignore_not_pushed_head_argument(create_review_parser)
+    create_review_parser.set_defaults(action=action_create_review)
 
     args = parser.parse_args()
 
