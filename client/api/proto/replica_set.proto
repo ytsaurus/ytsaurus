@@ -120,6 +120,19 @@ message TReplicaSetStatus
     }
 
     map<string, TRevision> revisions = 3 [(NYT.NYson.NProto.yson_map) = true];
+
+    message TControllerAttempt
+    {
+        TCondition succeeded = 1;
+        string revision_id = 2;
+    }
+
+    message TControllerStatus
+    {
+        TControllerAttempt last_attempt = 1;
+    }
+
+    TControllerStatus controller_status = 4;
 }
 
 message TReplicaSet
