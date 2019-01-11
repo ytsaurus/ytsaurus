@@ -56,7 +56,7 @@ public:
 
 private:
     const TPeerBlockTableConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    [[maybe_unused]] NCellNode::TBootstrap* const Bootstrap_;
 
     //! Each vector is sorted by decreasing expiration time.
     THashMap<TBlockId, std::vector<TPeerInfo>> Table_;
