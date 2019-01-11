@@ -54,6 +54,10 @@ class ArcadiaSyncError(RuntimeError):
     pass
 
 
+def get_review_url(review_id):
+    return "https://a.yandex-team.ru/review/{}".format(review_id)
+
+
 def check_git_working_tree(git, can_be_disabled=True):
     git.call("update-index", "-q", "--refresh")
 
@@ -112,17 +116,21 @@ class LocalSvn(object):
     def revert(self, path):
         subprocess.check_call([self.ya, "svn", "revert", "--recursive", self.abspath(path)])
 
-    def create_review(self, msg):
-        msg += "REVIEW:NEW"
+    def _svn_ci(self, msg):
         with tempfile.NamedTemporaryFile() as tmpf:
             retcode = subprocess.call(
                 [self.ya, "svn", "ci", "-m", msg],
                 stderr=tmpf,
                 cwd=self.root,
             )
-            assert retcode != 0, "Ooops, looks like commit was successful :("
             tmpf.seek(0)
             stderr = tmpf.read()
+            return retcode, stderr
+
+    def create_review(self, msg):
+        msg += "REVIEW:NEW"
+        retcode, stderr = self._svn_ci(msg)
+        assert retcode != 0, "Ooops, looks like commit was successful please revert it :("
 
         failed_to_create_review_msg = (
             "svn commit stderr:\n"
@@ -135,6 +143,43 @@ class LocalSvn(object):
         if m is None:
             raise ArcadiaSyncError(failed_to_create_review_msg)
         return int(m.group(1))
+
+    def update_review(self, review_id):
+        commit_message = (
+            "__BYPASS_CHECKS__\n"
+            "REVIEW_UPLOAD:{review_id}\n"
+            .format(review_id=review_id)
+        )
+        retcode, stderr = self._svn_ci(commit_message)
+        assert retcode != 0, "Ooops, looks like commit was successful please revert it :("
+
+        failed_to_update_review_msg = (
+            "svn commit stderr:\n"
+            "{stderr}"
+            "\n"
+            "Failed to update review.\n"
+            .format(stderr=stderr)
+        )
+        m = re.search(r"https://a[.]yandex-team[.]ru/review/(\d+)", stderr)
+        if m is None:
+            raise ArcadiaSyncError(failed_to_create_review_msg)
+        assert int(m.group(1)) == review_id
+
+    def merge_review(self, review_id):
+        commit_message = (
+            "__BYPASS_CHECKS__\n"
+            "REVIEW_MERGE:{review_id}\n"
+            .format(review_id=review_id)
+        )
+        retcode, stderr = self._svn_ci(commit_message)
+        error_msg = (
+            "svn commit stderr:\n"
+            "{stderr}\n"
+            "Failed to merge review."
+            .format(stderr=stderr)
+        )
+        if retcode != 0:
+            raise ArcadiaSyncError(error_msg)
 
 
 def verify_recent_svn_revision_merged(git, git_svn_id):
@@ -375,6 +420,9 @@ class PushState(object):
 
         return result
 
+    def drop(self):
+        os.remove(self._get_file_name(self._arcadia_dir))
+
     @staticmethod
     def _get_file_name(arcadia_dir):
         return os.path.join(arcadia_dir, ".arcadia-sync.push-status.json")
@@ -511,6 +559,7 @@ class ArcadiaPush(object):
         args,
         ctx_list=None,
         check_svn_is_clean=True,
+        check_head_matches_push_state=True,
     ):
         self.args = args
         self.local_svn = LocalSvn(args.arcadia)
@@ -525,6 +574,26 @@ class ArcadiaPush(object):
 
         logging.info("checking that working tree is clean")
         check_git_working_tree(self.common_git, can_be_disabled=False)
+
+        if check_head_matches_push_state:
+            head = self.common_git.resolve_ref("HEAD")
+            error_msg = (
+                "Review\n"
+                "  {url}\n"
+                "was created from git commit\n"
+                "  {expected_head}\n"
+                "which is not current HEAD ({actual_head}).\n"
+                "Please reset HEAD to that commit or recreate review request.\n"
+                .format(
+                    url=get_review_url(self.push_state.review_id),
+                    expected_head=self.push_state.commit,
+                    actual_head=head
+                )
+            )
+            if head != self.push_state.commit:
+                raise ArcadiaSyncError(error_msg)
+
+
 
         if args.check_head_is_pushed:
             logger.info("checking that HEAD is present at github")
@@ -589,6 +658,12 @@ class ArcadiaPush(object):
         self.push_state.commit = head
         self.push_state.save()
 
+    def update_review(self):
+        self.local_svn.update_review(self.push_state.review_id)
+
+    def merge_review(self):
+        self.local_svn.merge_review(self.push_state.review_id)
+        self.push_state.drop()
 
     def get_arcadia_abspath(self, relpath):
         return self.local_svn.abspath(relpath)
@@ -598,7 +673,11 @@ class ArcadiaPush(object):
 
 
 def action_copy_to_local_svn(ctx_list, args):
-    arcadia_push = ArcadiaPush(args, ctx_list=ctx_list)
+    arcadia_push = ArcadiaPush(
+        args,
+        ctx_list=ctx_list,
+        check_head_matches_push_state=False
+    )
     arcadia_push.copy_to_local_svn()
 
     print >>sys.stderr, (
@@ -616,20 +695,44 @@ def action_copy_to_local_svn(ctx_list, args):
 
 
 def action_create_review(args):
-    arcadia_push = ArcadiaPush(args, check_svn_is_clean=False)
+    arcadia_push = ArcadiaPush(
+        args,
+        check_svn_is_clean=False,
+        check_head_matches_push_state=False
+    )
     arcadia_push.create_review()
 
-    print >>sys.stderr, "Review is created: https://a.yandex-team.ru/review/{}".format(arcadia_push.get_review_id())
-    # TODO: help about next steps
+    print >>sys.stderr, (
+        "Review is created: {url}\n"
+        "To commit it when all checks are done and 'Ship It' received use:\n"
+        " $ {argv0} merge-review --arcadia {arcadia}\n"
+        "To update review use:\n"
+        " $ {argv0} update-review --arcadia {arcadia}\n"
+        .format(
+            url=get_review_url(arcadia_push.get_review_id()),
+            argv0=ARGV0,
+            arcadia=arcadia_push.get_arcadia_abspath(""),
+        )
+    )
+
+
+def action_print_active_review(args):
+    push_state = PushState.load(args.arcadia)
+    if push_state.review_id is None:
+        raise ArcadiaSyncError("Cannot find active review")
+    print get_review_url(push_state.review_id)
 
 
 def action_update_review(args):
     arcadia_push = ArcadiaPush(args, check_svn_is_clean=False)
     arcadia_push.update_review()
-
-    # TODO: проверять, что HEAD соответствует ревизии, которая указана в ревью.
-
     print >>sys.stderr, "Review is updated: https://a.yandex-team.ru/review/{}".format(arcadia_push.get_review_id())
+
+
+def action_merge_review(args):
+    arcadia_push = ArcadiaPush(args, check_svn_is_clean=False)
+    arcadia_push.merge_review()
+    print >>sys.stderr, "Review is merged.".format(arcadia_push.get_review_id())
 
 
 class BaseCtx(object):
@@ -828,11 +931,21 @@ def main():
     add_ignore_not_pushed_head_argument(copy_to_local_svn_parser)
     copy_to_local_svn_parser.set_defaults(action=action_copy_to_local_svn)
 
-    create_review_parser = add_no_projects_parser("create-review", help="create new review")
+    create_review_parser = add_no_projects_parser("create-review", help="create new review request")
     add_arcadia_argument(create_review_parser)
     add_ignore_unmerged_svn_commits_argument(create_review_parser)
     add_ignore_not_pushed_head_argument(create_review_parser)
     create_review_parser.set_defaults(action=action_create_review)
+
+    print_active_review_parser = add_no_projects_parser("print-active-review", help="print link to the active review request")
+    add_arcadia_argument(print_active_review_parser)
+    print_active_review_parser.set_defaults(action=action_print_active_review)
+
+    update_review_parser = add_no_projects_parser("update-review", help="update existing review request")
+    add_arcadia_argument(update_review_parser)
+    add_ignore_unmerged_svn_commits_argument(update_review_parser)
+    add_ignore_not_pushed_head_argument(update_review_parser)
+    update_review_parser.set_defaults(action=action_update_review)
 
     args = parser.parse_args()
 
