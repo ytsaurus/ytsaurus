@@ -596,7 +596,7 @@ enum EContainerState {
 //A: Я считаю, что в данном случае сливать статистику в обратную связь бесполезно, т.к. нет возможности строить графики
 //    если статистика реально нужна, то её надо выливать в какой-то из существующих сервисов: YT, solomon, golovan, statface
 message TContainerStatus {
-    reserved 1, 2, 3, 4, 5, 12, 13, 14;
+    reserved 1, 2, 3, 4, 5, 7, 12, 13, 14;
 
     message TAttemptFeedback {
         EContainerState State = 1;
@@ -615,7 +615,7 @@ message TContainerStatus {
     TAttemptFeedback Last = 17;
 
     uint32 ZeroReturnCodeCounter = 6;
-    uint32 NonZeroReturnCodeCounter = 7;
+    uint32 PositiveReturnCodeCounter = 18;
     uint32 OomCounter = 8;
     uint32 TimeoutCounter = 9;
     uint32 KilledExternallyCounter = 10;
