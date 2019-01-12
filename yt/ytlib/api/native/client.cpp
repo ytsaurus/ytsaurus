@@ -6424,72 +6424,87 @@ private:
         }
     }
 
-    void UpdateJobsList(const std::vector<TJob>& delta, std::vector<TJob>* result)
+    void MergeJob(TJob* target, const TJob& source)
     {
-        auto mergeJob = [] (TJob* target, const TJob& source) {
 #define MERGE_FIELD(name) target->name = source.name
 #define MERGE_NULLABLE_FIELD(name) \
-            if (source.name) { \
-                target->name = source.name; \
-            }
-            MERGE_FIELD(Type);
-            MERGE_FIELD(State);
-            MERGE_FIELD(StartTime);
-            MERGE_NULLABLE_FIELD(FinishTime);
-            MERGE_FIELD(Address);
-            MERGE_NULLABLE_FIELD(Progress);
-            MERGE_NULLABLE_FIELD(StderrSize);
-            MERGE_NULLABLE_FIELD(Error);
-            MERGE_NULLABLE_FIELD(BriefStatistics);
-            MERGE_NULLABLE_FIELD(InputPaths);
-            MERGE_NULLABLE_FIELD(CoreInfos);
+        if (source.name) { \
+            target->name = source.name; \
+        }
+        MERGE_FIELD(Type);
+        MERGE_FIELD(State);
+        MERGE_FIELD(StartTime);
+        MERGE_NULLABLE_FIELD(FinishTime);
+        MERGE_FIELD(Address);
+        MERGE_NULLABLE_FIELD(Progress);
+        MERGE_NULLABLE_FIELD(StderrSize);
+        MERGE_NULLABLE_FIELD(Error);
+        MERGE_NULLABLE_FIELD(BriefStatistics);
+        MERGE_NULLABLE_FIELD(InputPaths);
+        MERGE_NULLABLE_FIELD(CoreInfos);
 #undef MERGE_FIELD
 #undef MERGE_NULLABLE_FIELD
-        };
+    }
 
-        auto mergeJobs = [&] (const std::vector<TJob>& source1, const std::vector<TJob>& source2) {
-            std::vector<TJob> result;
+    // Return the result of merging sorted vectors |origin| and |delta| by |Id| field.
+    // Jobs with same ids are merged and the attributes of the one from |delta| take precedence
+    // over the attributes of the one from |origin|.
+    // If |ignoreNewJobs| is |true|, new entries from |delta| (with new id's) are not added.
+    std::vector<TJob> MergeJobLists(
+        const std::vector<TJob>& origin,
+        const std::vector<TJob>& delta,
+        bool ignoreNewJobs = false)
+    {
+        std::vector<TJob> result;
+        result.reserve(origin.size() + delta.size());
 
-            auto it1 = source1.begin();
-            auto end1 = source1.end();
+        auto originIt = origin.begin();
+        auto deltaIt = delta.begin();
 
-            auto it2 = source2.begin();
-            auto end2 = source2.end();
-
-            while (it1 != end1 && it2 != end2) {
-                if (it1->Id == it2->Id) {
-                    result.push_back(*it1);
-                    mergeJob(&result.back(), *it2);
-                    ++it1;
-                    ++it2;
-                } else if (it1->Id < it2->Id) {
-                    result.push_back(*it1);
-                    ++it1;
-                } else {
-                    result.push_back(*it2);
-                    ++it2;
+        while (originIt != origin.end() && deltaIt != delta.end()) {
+            if (originIt->Id == deltaIt->Id) {
+                result.push_back(*originIt);
+                MergeJob(&result.back(), *deltaIt);
+                ++originIt;
+                ++deltaIt;
+            } else if (originIt->Id < deltaIt->Id) {
+                result.push_back(*originIt);
+                ++originIt;
+            } else {
+                if (!ignoreNewJobs) {
+                    result.push_back(*deltaIt);
                 }
+                ++deltaIt;
             }
+        }
 
-            result.insert(result.end(), it1, end1);
-            result.insert(result.end(), it2, end2);
+        result.insert(result.end(), originIt, origin.end());
+        if (!ignoreNewJobs) {
+            result.insert(result.end(), deltaIt, delta.end());
+        }
 
-            return result;
-        };
+        return result;
+    }
 
+    // Merge |*result| and |delta| by |Id| field and update |*result| to the merged vector.
+    // If |ignoreNewJobs| is |true|, new entries from |delta| (with new |Id|) are not added.
+    //
+    // NOTE: |*result| must be sorted by |Id| on entry to this function.
+    void UpdateJobList(std::vector<TJob>* result, std::vector<TJob> delta, bool ignoreNewJobs = false)
+    {
         if (result->empty()) {
-            *result = delta;
+            *result = std::move(delta);
             return;
         }
 
-        auto sortedDelta = delta;
         std::sort(
-            sortedDelta.begin(),
-            sortedDelta.end(),
+            delta.begin(),
+            delta.end(),
             [] (const TJob& lhs, const TJob& rhs) {
                 return lhs.Id < rhs.Id;
             });
-        *result = mergeJobs(*result, sortedDelta);
+
+        *result = MergeJobLists(*result, delta, ignoreNewJobs);
     }
 
     TListJobsResult DoListJobs(
@@ -6521,7 +6536,7 @@ private:
         switch (dataSource) {
             case EDataSource::Archive:
                 includeCypress = false;
-                includeControllerAgent = false;
+                includeControllerAgent = true;
                 includeArchive = true;
                 break;
             case EDataSource::Runtime:
@@ -6576,9 +6591,9 @@ private:
                     << archiveJobsOrError;
             }
 
-            const auto& archiveJobs = archiveJobsOrError.Value();
+            auto& archiveJobs = archiveJobsOrError.Value();
             statistics = archiveJobs.second;
-            UpdateJobsList(archiveJobs.first, &result.Jobs);
+            UpdateJobList(&result.Jobs, std::move(archiveJobs.first));
 
             result.ArchiveJobCount = 0;
             for (const auto& count : archiveJobs.second.TypeCounts) {
@@ -6589,9 +6604,9 @@ private:
         if (includeCypress) {
             auto cypressJobsOrError = WaitFor(cypressJobsFuture);
             if (cypressJobsOrError.IsOK()) {
-                const auto& cypressJobs = cypressJobsOrError.Value();
+                auto& cypressJobs = cypressJobsOrError.Value();
                 result.CypressJobCount = cypressJobs.second;
-                UpdateJobsList(cypressJobs.first, &result.Jobs);
+                UpdateJobList(&result.Jobs, std::move(cypressJobs.first));
             } else if (cypressJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 // No such operation in Cypress.
                 result.CypressJobCount = 0;
@@ -6603,9 +6618,12 @@ private:
         if (includeControllerAgent) {
             auto controllerAgentJobsOrError = WaitFor(controllerAgentJobsFuture);
             if (controllerAgentJobsOrError.IsOK()) {
-                const auto& controllerAgentJobs = controllerAgentJobsOrError.Value();
+                auto& controllerAgentJobs = controllerAgentJobsOrError.Value();
                 result.ControllerAgentJobCount = controllerAgentJobs.second;
-                UpdateJobsList(controllerAgentJobs.first, &result.Jobs);
+                UpdateJobList(
+                    &result.Jobs,
+                    std::move(controllerAgentJobs.first),
+                    /* ignoreNewJobs */ dataSource == EDataSource::Archive);
             } else if (controllerAgentJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 // No such operation in the scheduler.
                 result.ControllerAgentJobCount = 0;
