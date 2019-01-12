@@ -14,9 +14,16 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TLeaderLease::IsValid() const
+bool TLeaderLease::IsValid()
 {
-    return NProfiling::GetCpuInstant() < Deadline_.load();
+    if (ReportedInvalid_.load()) {
+        return false;
+    }
+    bool valid = (NProfiling::GetCpuInstant() < Deadline_.load());
+    if (!valid) {
+        ReportedInvalid_.store(true);
+    }
+    return valid;
 }
 
 void TLeaderLease::SetDeadline(NProfiling::TCpuInstant deadline)
