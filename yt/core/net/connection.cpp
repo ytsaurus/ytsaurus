@@ -592,6 +592,7 @@ private:
         explicit TShutdownProtector(TFDConnectionImplPtr owner)
             : Owner_(std::move(owner))
         {
+            VERIFY_SPINLOCK_AFFINITY(Owner_->Lock_);
             ++Owner_->ShutdownProtectorCount_;
         }
 
@@ -676,7 +677,7 @@ private:
     TIODirection ReadDirection_;
     TIODirection WriteDirection_;
     bool ShutdownRequested_ = false;
-    std::atomic<int> ShutdownProtectorCount_ = {0};
+    int ShutdownProtectorCount_ = 0;
     std::atomic<int> SynchronousIOCount_ = {0};
     TError Error_;
     TPromise<void> ShutdownPromise_ = NewPromise<void>();
