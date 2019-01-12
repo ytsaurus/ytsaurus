@@ -420,7 +420,7 @@ public:
 
     virtual void CleanProcesses() override
     {
-        Instance_->Kill(SIGKILL);
+        Instance_->Destroy();
     }
 
     virtual void SetIOThrottle(i64 operations) override
