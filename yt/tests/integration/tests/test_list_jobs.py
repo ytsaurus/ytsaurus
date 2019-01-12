@@ -178,7 +178,7 @@ class TestListJobs(YTEnvSetup):
             "error",
             "statistics",
             "size",
-            "uncompressed_data_size"
+            "uncompressed_data_size",
         ])
 
         completed_jobs = []
@@ -249,6 +249,7 @@ class TestListJobs(YTEnvSetup):
                 assert res["state_counts"][key] == correct
             assert res["cypress_job_count"] == 6
             assert res["scheduler_job_count"] == 0
+            assert res["controller_agent_job_count"] == 0
             assert res["archive_job_count"] == yson.YsonEntity()
 
             res = list_jobs(op.id, job_state="failed", **options)["jobs"]
@@ -313,7 +314,14 @@ class TestListJobs(YTEnvSetup):
         for options in (manual_options, archive_options, auto_options):
             res = list_jobs(op.id, **options)
             assert res["cypress_job_count"] == yson.YsonEntity()
-            assert res["scheduler_job_count"] == yson.YsonEntity()
+            if options["data_source"] in ("archive", "auto"):
+                # Archive mode actually requests running jobs info from controller agent,
+                # so we get 0 not YsonEntity in the "scheduler_job_count" and "controller_agent_job_count".
+                correct_controller_agent_job_count = 0
+            else:
+                correct_controller_agent_job_count = yson.YsonEntity()
+            assert res["scheduler_job_count"] == correct_controller_agent_job_count
+            assert res["controller_agent_job_count"] == correct_controller_agent_job_count
             assert res["archive_job_count"] == 6
 
             for key in res["type_counts"]:
