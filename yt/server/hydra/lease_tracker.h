@@ -26,12 +26,13 @@ class TLeaderLease
     : public TIntrinsicRefCounted
 {
 public:
-    bool IsValid() const;
+    bool IsValid();
     void SetDeadline(NProfiling::TCpuInstant deadline);
     void Invalidate();
 
 private:
     std::atomic<NProfiling::TCpuInstant> Deadline_ = {0};
+    std::atomic<bool> ReportedInvalid_ = {false};
 
 };
 
