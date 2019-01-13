@@ -1,13 +1,11 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/native/public.h>
-
 namespace NYT::NClickHouseServer::NEngine {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterTableFunctions(NNative::IStoragePtr storage);
+void RegisterFunctions();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClickHouseServer::NEngine
+} // NYT::NClickHouseServer::NEngine
