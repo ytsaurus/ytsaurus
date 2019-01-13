@@ -370,6 +370,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        
+        // NB: This is monotonic: once in read-only mode, cannot leave it.
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -385,10 +387,12 @@ public:
                         "Leader has not yet recovered"));
                 }
 
-                if (!LeaderLease_->IsValid()) {
+                if (!LeaderLease_->IsValid() || AutomatonEpochContext_->LeaderLeaseExpired) {
                     auto error = TError(
                         NRpc::EErrorCode::Unavailable,
                         "Leader lease is no longer valid");
+                    // Ensure monotonicity: once Hydra rejected a mutation, no more mutations are accepted.
+                    AutomatonEpochContext_->LeaderLeaseExpired = true;
                     Restart(AutomatonEpochContext_, error);
                     return MakeFuture<TMutationResponse>(error);
                 }
