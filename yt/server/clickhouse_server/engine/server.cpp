@@ -3,6 +3,7 @@
 #include "auth_token.h"
 #include "cluster_tracker.h"
 #include "database.h"
+#include "functions.h"
 #include "http_handler.h"
 #include "logger.h"
 #include "runtime_components_factory.h"
@@ -276,7 +277,8 @@ private:
         registerAggregateFunctions();
         registerTableFunctions();
 
-        RegisterTableFunctionsExt(Storage);
+        RegisterFunctions();
+        RegisterTableFunctions(Storage);
         RegisterConcatenatingTableFunctions(Storage, ExecutionClusterNodeTracker);
 
         RegisterTableDictionarySource(Storage, ServerAuthToken);

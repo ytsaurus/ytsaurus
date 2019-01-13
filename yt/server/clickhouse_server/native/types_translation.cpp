@@ -26,10 +26,10 @@ bool IsYtTypeSupported(EValueType valueType)
         case EValueType::Double:
         case EValueType::Boolean:
         case EValueType::String:
+        case EValueType::Any:
             return true;
 
         case EValueType::Null:
-        case EValueType::Any:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
@@ -60,10 +60,10 @@ EColumnType RepresentYtType(EValueType valueType)
 
         /// String value.
         case EValueType::String:
+        case EValueType::Any:
             return EColumnType::String;
 
         case EValueType::Null:
-        case EValueType::Any:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:

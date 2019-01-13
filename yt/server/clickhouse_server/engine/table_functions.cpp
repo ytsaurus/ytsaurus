@@ -268,7 +268,7 @@ StoragePtr TGetTableData::Execute(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterTableFunctionsExt(NNative::IStoragePtr storage)
+void RegisterTableFunctions(NNative::IStoragePtr storage)
 {
     auto& factory = TableFunctionFactory::instance();
 
