@@ -1129,7 +1129,7 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
 
     for (const auto& pair : *descriptors) {
         const auto& descriptor = pair.second;
-        if (descriptor.CanSchedule(filter)) {
+        if (descriptor.Online && descriptor.CanSchedule(filter)) {
             statistics.Usage += descriptor.ResourceUsage;
             statistics.Limits += descriptor.ResourceLimits;
         }
