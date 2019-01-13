@@ -1358,8 +1358,6 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
         --JobReporterQueueIsTooLargeNodeCount_;
     }
 
-    //YCHECK(IdToNode_.erase(node->GetId()) == 1);
-
     node->SetSchedulerState(ENodeState::Offline);
 
     const auto& address = node->GetDefaultAddress();
