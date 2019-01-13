@@ -46,6 +46,7 @@ struct TEpochContext
     NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor;
 
     bool Restarting = false;
+    bool LeaderLeaseExpired = false;
 
     TPromise<void> ActiveUpstreamSyncPromise;
     TPromise<void> PendingUpstreamSyncPromise;
