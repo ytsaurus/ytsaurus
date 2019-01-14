@@ -184,16 +184,10 @@ private:
         for (size_t index = 0; index < request->block_ids_size(); ++index) {
             auto blockId = FromProto<TBlockId>(request->block_ids(index));
 
-            TSharedRef data;
-            {
-                TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-                data = TSharedRef::MakeCopy<TPreloadedBlockTag>(request->Attachments()[index]);
-            }
-
             session->InterceptingBlockCache->Put(
                 blockId,
                 session->InterceptingBlockCache->GetSupportedBlockTypes(),
-                TBlock(data),
+                TBlock(request->Attachments()[index]),
                 std::nullopt);
         }
 
