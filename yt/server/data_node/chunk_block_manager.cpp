@@ -89,18 +89,7 @@ public:
             return;
         }
 
-        TBlock block;
-        {
-            // NB: Copy block to move data to undumpable memory and to
-            // prevent cache from holding the whole block sequence.
-            TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-            block = TBlock(
-                TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data),
-                data.Checksum,
-                data.BlockOrigin);
-        }
-
-        auto cachedBlock = New<TCachedBlock>(blockId, block, source);
+        auto cachedBlock = New<TCachedBlock>(blockId, data, source);
         cookie.EndInsert(cachedBlock);
     }
 
