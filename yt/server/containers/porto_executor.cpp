@@ -255,7 +255,13 @@ private:
 
     void DoDestroy(const TString& name)
     {
-        RunWithRetries([&] () { return Api_->Destroy(name); }, "Destroy");
+        try {
+            RunWithRetries([&] () { return Api_->Destroy(name); }, "Destroy");
+        } catch (const TErrorException& ex) {
+            if (!ex.Error().FindMatching(EError::ContainerDoesNotExist)) {
+                throw;
+            }
+        }
     }
 
     void DoStart(const TString& name)
