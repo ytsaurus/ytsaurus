@@ -156,9 +156,9 @@ class Command(object):
         result = self._impl(args, capture=capture, input=input, cwd=cwd)
         if result.returncode != 0 and raise_on_error:
             if capture:
-                raise CheckError("Call {} failed, stderr:\n{}\n".format(args, result.stderr))
+                raise ArcadiaSyncError("Call {} failed, stderr:\n{}\n".format(args, result.stderr))
             else:
-                raise CheckError("Call {} failed, stderr is not captured".format(args))
+                raise ArcadiaSyncError("Call {} failed, stderr is not captured".format(args))
         else:
             return result.stdout
 
@@ -484,7 +484,7 @@ def extract_git_svn_revision_to_commit_mapping_as_dict(git, svn_url, ref):
     """
     mapping = extract_git_svn_revision_to_commit_mapping_as_list(git, svn_url, ref)
     if len(mapping) != len(set(map(lambda _: _[0], mapping))):
-        raise CheckError("SVN revisions are not unique in the commit tree rooted at '%s' (WTF?)" % ref)
+        raise ArcadiaSyncError("SVN revisions are not unique in the commit tree rooted at '%s' (WTF?)" % ref)
     mapping = dict(mapping)
     return mapping
 
@@ -536,12 +536,12 @@ def fetch_git_svn(git, svn, git_svn_remote, one_by_one=False, force=False):
                     capture=False)
                 success = True
                 break
-            except CheckError:
+            except ArcadiaSyncError:
                 logger.debug("Call failed, sleeping for 1s")
                 time.sleep(1)
 
         if not success:
-            raise CheckError("Failed to fetch revisions")
+            raise ArcadiaSyncError("Failed to fetch revisions")
 
         logger.debug("Fetched revisions %s:%s", from_revision, to_revision)
 
@@ -598,7 +598,7 @@ def check_striped_symlink_tree_equal(git, treeish1, treeish2):
         )
     )
     if strip_tree_of_symlinks(git, treeish1) != strip_tree_of_symlinks(git, treeish2):
-        raise CheckError(msg)
+        raise ArcadiaSyncError(msg)
 
 
 def pull_git_svn(git, svn, svn_url, git_svn_remote, git_prefix, svn_prefix, revision=None, recent_push=None):
@@ -617,7 +617,7 @@ def pull_git_svn(git, svn, svn_url, git_svn_remote, git_prefix, svn_prefix, revi
     else:
         push_history = extract_push_history(git, svn_prefix, git_svn_remote_ref)
         if not push_history:
-            raise CheckError("No pushes from Git to SVN were detected")
+            raise ArcadiaSyncError("No pushes from Git to SVN were detected")
         base_commit, push_commit = push_history[0]
         push_revision = translate_git_commit_to_svn_revision(git, git_svn_remote, push_commit)
 
@@ -634,8 +634,8 @@ def pull_git_svn(git, svn, svn_url, git_svn_remote, git_prefix, svn_prefix, revi
             git_commit=base_commit,
         )
         check_striped_symlink_tree_equal(git, base_commit + ":" + git_prefix, push_commit + ":")
-    except CheckError as e:
-        raise CheckError(error_msg + str(e))
+    except ArcadiaSyncError as e:
+        raise ArcadiaSyncError(error_msg + str(e))
 
     last_changed_revision = get_svn_last_changed_revision(svn, svn_url)
 
@@ -664,18 +664,18 @@ def pull_git_svn(git, svn, svn_url, git_svn_remote, git_prefix, svn_prefix, revi
         pull_revision = last_changed_revision
 
     if pull_revision == push_revision:
-        raise CheckError("Nothing to pull: everything is up-to-date")
+        raise ArcadiaSyncError("Nothing to pull: everything is up-to-date")
 
     if pull_revision <= push_revision or pull_revision > last_changed_revision:
-        raise CheckError("Pulled revision %s is out of range; expected > last push %s and <= last changed %s" % (
+        raise ArcadiaSyncError("Pulled revision %s is out of range; expected > last push %s and <= last changed %s" % (
             pull_revision, push_revision, last_changed_revision))
 
     if pull_revision <= last_pull_revision:
-        raise CheckError("Pulled revision %s is already merged during pull %s in commit %s" % (
+        raise ArcadiaSyncError("Pulled revision %s is already merged during pull %s in commit %s" % (
             pull_revision, last_pull_revision, last_pull_commit))
 
     if pull_revision not in revision_to_commit:
-        raise CheckError("Pulled revision %s is missing in remote history" % pull_revision)
+        raise ArcadiaSyncError("Pulled revision %s is missing in remote history" % pull_revision)
 
     pull_commit = revision_to_commit[pull_revision]
 
@@ -684,16 +684,16 @@ def pull_git_svn(git, svn, svn_url, git_svn_remote, git_prefix, svn_prefix, revi
         push_revision, pull_revision, abbrev(push_commit), abbrev(pull_commit))
 
     if not git.is_ancestor(base_commit, "HEAD"):
-        raise CheckError("Most recent push is not an ancestor of HEAD")
+        raise ArcadiaSyncError("Most recent push is not an ancestor of HEAD")
 
     if not git.is_ancestor(push_commit, git_svn_remote_ref):
-        raise CheckError("Most recent push is missing in SVN history (diverged git-svn sync?)")
+        raise ArcadiaSyncError("Most recent push is missing in SVN history (diverged git-svn sync?)")
 
     merge_branch = "arcadia_merge_%s" % pull_revision
     head_branch = git.call("symbolic-ref", "--short", "HEAD").strip()
 
     if git.has_ref(make_head_ref(merge_branch)):
-        raise CheckError("Merge branch '%s' already exists; delete it before pulling" % merge_branch)
+        raise ArcadiaSyncError("Merge branch '%s' already exists; delete it before pulling" % merge_branch)
 
     if last_pull_revision < push_revision:
         logger.debug("Using last push as merge base")
@@ -729,15 +729,15 @@ def check_git_version(git):
     version = git.call("version")
     match = re.match(r"git version (\d+)\.(\d+)", version)
     if not match:
-        raise CheckError("Unable to determine git version")
+        raise ArcadiaSyncError("Unable to determine git version")
     major, minor = map(int, [match.group(1), match.group(2)])
     if (major, minor) < (1, 8):
-        raise CheckError("git >= 1.8 is required")
+        raise ArcadiaSyncError("git >= 1.8 is required")
 
 
 def check_svn_url(svn, url):
     if not svn.test("info", url):
-        raise CheckError("Cannot establish connection to SVN or URL is missing")
+        raise ArcadiaSyncError("Cannot establish connection to SVN or URL is missing")
 
 
 def verify_recent_svn_revision_merged(git, git_svn_id):
@@ -751,7 +751,7 @@ def verify_recent_svn_revision_merged(git, git_svn_id):
     git_log_pattern = "^git-svn-id: {}@{}".format(svn_url, recent_revision)
     log = git.call("log", "--grep", git_log_pattern)
     if not log.strip():
-        raise CheckError("Svn revision {} is not merged to git.\n"
+        raise ArcadiaSyncError("Svn revision {} is not merged to git.\n"
                          "Use --ignore-unmerged-svn-commits flag to skip this check.\n".format(recent_revision))
 
 def svn_get_last_modified_revision(svn, url):
@@ -854,7 +854,7 @@ def notify_svn(local_svn, project_relpath, file_relpaths):
 def git_verify_head_pushed(git):
     output = git.call("branch", "--remote", "--contains", "HEAD")
     if not output:
-        raise CheckError("remote repo doesn't contain HEAD")
+        raise ArcadiaSyncError("remote repo doesn't contain HEAD")
 
 def check_head_is_attached(git):
     msg = (
@@ -867,10 +867,10 @@ def check_head_is_attached(git):
             "git", "symbolic-ref", "HEAD"
         ], cwd=git.work_dir)
     except subprocess.CalledProcessError:
-        raise CheckError(msg)
+        raise ArcadiaSyncError(msg)
 
     if not ref.startswith("refs/heads/"):
-        raise CheckError(msg)
+        raise ArcadiaSyncError(msg)
 
 
 def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
@@ -889,7 +889,7 @@ def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
     only_in_git = git_rel_paths - svn_tracked_rel_paths
     only_in_svn = svn_tracked_rel_paths - git_rel_paths
     if only_in_git or only_in_svn:
-        raise CheckError(
+        raise ArcadiaSyncError(
             "svn working copy doesn't match git repo\n"
             "files that are in git and not in svn:\n\n"
             "{only_in_git}\n"
@@ -906,7 +906,7 @@ def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
         if not filecmp.cmp(svn_path, git_path):
             diffed.append(relpath)
     if diffed:
-        raise CheckError(
+        raise ArcadiaSyncError(
             "Some files in svn working copy differs from corresponding files from git repo:\n"
             "{diffed}\n".format(
                 diffed=indented_lines(diffed)))
@@ -957,7 +957,7 @@ class PushState(object):
         )
 
         if not os.path.exists(filename):
-            raise CheckError(file_missing_msg)
+            raise ArcadiaSyncError(file_missing_msg)
 
         result = PushState(arcadia_dir)
         with open(filename) as outf:
@@ -975,7 +975,7 @@ class PushState(object):
 
 def checked_get_common_git(ctx_list):
     """
-    If contexts belongs to different git repositories raises CheckError.
+    If contexts belongs to different git repositories raises ArcadiaSyncError.
     Otherwise return common git instance.
     """
 
@@ -990,7 +990,7 @@ def checked_get_common_git(ctx_list):
         return git_dir_map.values()[0][0].git
 
     first_ctx_list, second_ctx_list = git_dir_map.values()[:2]
-    raise CheckError(
+    raise ArcadiaSyncError(
         "Projects '{first_name}' and '{second_name}' belong to different git repos.".format(
             first_name=first_ctx_list[0].name,
             second_name=second_ctx_list[0].name,
@@ -1002,7 +1002,7 @@ def get_abi_major_minor_from_git_branch(git):
     ref = git.call("rev-parse", "--abbrev-ref", "HEAD").strip()
     match = re.match(r"^(?:pre)?stable[^/]*/(\d+).(\d+)$", ref)
     if not match:
-        raise CheckError("Current branch must be either 'prestable/X.Y' or 'stable/X.Y'")
+        raise ArcadiaSyncError("Current branch must be either 'prestable/X.Y' or 'stable/X.Y'")
     major, minor = map(int, [match.group(1), match.group(2)])
     return major, minor
 
@@ -1036,7 +1036,7 @@ def stitch_git_svn(git, ref, svn_remote, svn_url):
             replaced_commit = git.resolve_ref("refs/replace/%s" % head_commit)
             if replaced_commit:
                 if replaced_commit != remote_commit:
-                    raise CheckError("Git is screwed up badly ://")
+                    raise ArcadiaSyncError("Git is screwed up badly ://")
             else:
                 logger.warn(
                     "SVN commit for revision %s was rewritten: %s -> %s",
@@ -1158,7 +1158,7 @@ class ArcadiaPush(object):
                 logger.info("check svn repository for local modifications (project: {project})".format(project=ctx.name))
                 changed_files = list(local_svn_iter_changed_files(self.local_svn, ctx.svn_relpath))
                 if changed_files and not args.ignore_svn_modifications:
-                    raise CheckError(
+                    raise ArcadiaSyncError(
                         "svn repository has uncommited changed:\n"
                         "{changed_files}\n"
                         "Use --ignore-svn-modifications to ignore them.\n".format(
@@ -1362,7 +1362,7 @@ PROJECTS = {
 }
 
 def create_project_context(project):
-    err = CheckError(
+    err = ArcadiaSyncError(
             "Invalid project: '{project}'.\n"
             "Choose one of:\n"
             "{project_list}".format(
@@ -1512,7 +1512,7 @@ def main():
 
     try:
         args.main(args)
-    except (ArcadiaSyncError, CheckError) as e:
+    except ArcadiaSyncError as e:
         msg = str(e)
         print >>sys.stderr, msg
         if not msg.endswith("\n"):
