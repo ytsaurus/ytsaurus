@@ -1028,7 +1028,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
                 auto* parent = operationElement->GetParent();
                 while (parent) {
                     discountedPools.insert(parent);
-                    context->DynamicAttributes(parent).ResourceUsageDiscount += job->ResourceUsage();
+                    context->DynamicAttributesFor(parent).ResourceUsageDiscount += job->ResourceUsage();
                     parent = parent->GetParent();
                 }
                 context->SchedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
@@ -1092,7 +1092,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     // Reset discounts.
     context->SchedulingContext->ResourceUsageDiscount() = ZeroJobResources();
     for (const auto& pool : discountedPools) {
-        context->DynamicAttributes(pool.Get()).ResourceUsageDiscount = ZeroJobResources();
+        context->DynamicAttributesFor(pool.Get()).ResourceUsageDiscount = ZeroJobResources();
     }
 
     // Preempt jobs if needed.
