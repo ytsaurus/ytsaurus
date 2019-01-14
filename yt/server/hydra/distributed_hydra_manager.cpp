@@ -387,17 +387,13 @@ public:
                         "Leader has not yet recovered"));
                 }
 
-                if (!LeaderLease_->IsValid() || epochContext->LeaderLeaseExpired) {
+                if (!LeaderLease_->IsValid() || AutomatonEpochContext_->LeaderLeaseExpired) {
                     auto error = TError(
                         NRpc::EErrorCode::Unavailable,
                         "Leader lease is no longer valid");
-<<<<<<< HEAD
-                    Restart(AutomatonEpochContext_, error);
-=======
                     // Ensure monotonicity: once Hydra rejected a mutation, no more mutations are accepted.
-                    epochContext->LeaderLeaseExpired = true;
-                    Restart(epochContext, error);
->>>>>>> Ensure monotonicity of TLeaderLease::IsValid, take two
+                    AutomatonEpochContext_->LeaderLeaseExpired = true;
+                    Restart(AutomatonEpochContext_, error);
                     return MakeFuture<TMutationResponse>(error);
                 }
 
