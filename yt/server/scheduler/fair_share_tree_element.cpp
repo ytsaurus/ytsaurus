@@ -89,7 +89,7 @@ void TFairShareContext::Initialize(int treeSize, const std::vector<TSchedulingTa
     }
 }
 
-TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerElement* element)
+TDynamicAttributes& TFairShareContext::DynamicAttributesFor(const TSchedulerElement* element)
 {
     int index = element->GetTreeIndex();
     YCHECK(index != UnassignedTreeIndex && index < DynamicAttributesList.size());
@@ -884,7 +884,7 @@ void TCompositeSchedulerElement::IncreaseRunningOperationCount(int delta)
 
 void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled)
 {
-    auto& attributes = context->DynamicAttributes(this);
+    auto& attributes = context->DynamicAttributesFor(this);
 
     if (!IsAlive()) {
         ++context->DeactivationReasons[EDeactivationReason::IsNotAlive];
@@ -940,7 +940,7 @@ bool TCompositeSchedulerElement::HasAggressivelyStarvingElements(TFairShareConte
 
 bool TCompositeSchedulerElement::ScheduleJob(TFairShareContext* context)
 {
-    auto& attributes = context->DynamicAttributes(this);
+    auto& attributes = context->DynamicAttributesFor(this);
     if (!attributes.Active) {
         return false;
     }
@@ -2160,7 +2160,7 @@ void TOperationElement::UpdateControllerConfig(const TFairShareStrategyOperation
 
 void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled)
 {
-    auto& attributes = context->DynamicAttributes(this);
+    auto& attributes = context->DynamicAttributesFor(this);
 
     attributes.Active = true;
 
@@ -2245,7 +2245,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     auto disableOperationElement = [&] (EDeactivationReason reason) {
         ++context->DeactivationReasons[reason];
         OnOperationDeactivated(reason);
-        context->DynamicAttributes(this).Active = false;
+        context->DynamicAttributesFor(this).Active = false;
         updateAncestorsAttributes();
     };
 
