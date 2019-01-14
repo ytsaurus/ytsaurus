@@ -1055,6 +1055,18 @@ def clean_artifacts(options, build_context, n=10):
         else:
             os.unlink(path)
 
+@cleanup_step
+def clean_ya_cache(options, build_context):
+    ya_cache_dir = get_ya_cache_dir(options)
+    for name in os.listdir(ya_cache_dir):
+        if name == "logs":
+            continue
+        path = os.path.join(ya_cache_dir, name)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.unlink(path)
+
 
 @cleanup_step
 def clean_failed_tests(options, build_context, max_allowed_size=None):
