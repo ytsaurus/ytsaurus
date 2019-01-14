@@ -84,16 +84,7 @@ void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 void TClusterResources::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 400) {
-        DiskSpace[DefaultStoreMediumIndex] = Load<i64>(context);
-    } else if (context.GetVersion() < 700) {
-        i64 oldDiskSpace[MaxMediumCount] = {};
-        Load(context, oldDiskSpace);
-        std::copy(oldDiskSpace, oldDiskSpace + MaxMediumCount, DiskSpace.begin());
-    } else {
-        Load(context, DiskSpace);
-    }
+    Load(context, DiskSpace);
     // COMPAT(shakurov)
     if (context.GetVersion() < 818) {
         NodeCount = Load<int>(context);
@@ -102,18 +93,8 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
         Load(context, NodeCount);
         Load(context, ChunkCount);
     }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 604) {
-        Load(context, TabletCount);
-        Load(context, TabletStaticMemory);
-    } else {
-        TabletCount = 1000000;
-        TabletStaticMemory = 100 * (1LL << 40);
-    }
-    //COMPAT(savrus)
-    if (context.GetVersion() == 604) {
-        TabletStaticMemory = 100 * (1LL << 40);
-    }
+    Load(context, TabletCount);
+    Load(context, TabletStaticMemory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

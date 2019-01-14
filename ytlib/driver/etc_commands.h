@@ -159,4 +159,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBalanceTabletCellsCommand
+    : public TTypedCommand<NApi::TBalanceTabletCellsOptions>
+{
+public:
+    TBalanceTabletCellsCommand();
+
+private:
+    TString TabletCellBundle;
+    std::vector<NYPath::TYPath> MovableTables;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

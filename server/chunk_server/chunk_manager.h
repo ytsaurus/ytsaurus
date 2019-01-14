@@ -139,7 +139,6 @@ public:
     void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree);
     void ScheduleChunkSeal(TChunk* chunk);
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
-    void MaybeRecomputeChunkRequisitions();
 
     const THashSet<TChunk*>& LostVitalChunks() const;
     const THashSet<TChunk*>& LostChunks() const;

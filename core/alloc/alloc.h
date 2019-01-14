@@ -19,14 +19,14 @@ namespace NYT::NYTAlloc {
 //!
 //! #dumpable is a hint to allocator indicating that object may be
 //! ommited from the core dump.
-void* Allocate(size_t size, bool dumpable = true);
+void* Allocate(size_t size);
 
 //! Allocates a chunk of memory of (at least) #size bytes.
 //! The returned pointer is guaranteed to be 4K-byte aligned.
 //!
 //! #dumpable is a hint to allocator indicating that object may be
 //! ommited from the core dump.
-void* AllocatePageAligned(size_t size, bool dumpable = true);
+void* AllocatePageAligned(size_t size);
 
 //! Frees a chunk of memory previously allocated via YTAlloc* functions.
 //! Does nothing if #ptr is null.

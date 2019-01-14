@@ -363,14 +363,14 @@ private:
             incarnationId,
             operationId);
 
-        auto runtimeParameters = ConvertTo<TOperationRuntimeParametersPtr>(TYsonString(request->parameters()));
+        auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(TYsonString(request->parameters()));
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
         WrapAgentException([&] {
-            WaitFor(controllerAgent->UpdateOperationRuntimeParameters(operationId, std::move(runtimeParameters)))
+            WaitFor(controllerAgent->UpdateOperationRuntimeParameters(operationId, std::move(update)))
                 .ThrowOnError();
 
             context->Reply();

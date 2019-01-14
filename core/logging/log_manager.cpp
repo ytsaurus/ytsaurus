@@ -55,6 +55,7 @@ namespace NYT::NLogging {
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -242,6 +243,84 @@ void ReloadSignalHandler(int signal)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TElement>
+class TExpiringSet
+{
+public:
+    TExpiringSet()
+    {
+        Reconfigure(TDuration::Zero());
+    }
+
+    explicit TExpiringSet(TDuration livetime)
+    {
+        Reconfigure(livetime);
+    }
+
+    void Update(std::vector<TElement> elements)
+    {
+        RemoveExpired();
+        Insert(std::move(elements));
+    }
+
+    bool Contains(const TElement& element)
+    {
+        return Set_.contains(element);
+    }
+
+    void Reconfigure(TDuration livetime)
+    {
+        Livetime_ = DurationToCpuDuration(livetime);
+    }
+
+    void Clear()
+    {
+        Set_.clear();
+        ExpirationQueue_ = std::priority_queue<TPack>();
+    }
+
+private:
+    struct TPack
+    {
+        std::vector<TElement> Elements;
+        TCpuInstant ExpirationTime;
+
+        bool operator<(const TPack& other) const
+        {
+            // Reversed ordering for the priority queue.
+            return ExpirationTime > other.ExpirationTime;
+        }
+    };
+
+    TCpuDuration Livetime_;
+    THashSet<TElement> Set_;
+    std::priority_queue<TPack> ExpirationQueue_;
+
+
+    void Insert(std::vector<TElement> elements)
+    {
+        for (const auto& element : elements) {
+            Set_.insert(element);
+        }
+
+        ExpirationQueue_.push(TPack{std::move(elements), GetCpuInstant() + Livetime_});
+    }
+
+    void RemoveExpired()
+    {
+        auto now = GetCpuInstant();
+        while (!ExpirationQueue_.empty() && ExpirationQueue_.top().ExpirationTime < now) {
+            for (const auto& element : ExpirationQueue_.top().Elements) {
+                Set_.erase(element);
+            }
+
+            ExpirationQueue_.pop();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLogManager::TImpl
     : public TRefCounted
 {
@@ -360,13 +439,7 @@ public:
         } else {
             // Wait for all previously enqueued messages to be flushed
             // but no more than ShutdownGraceTimeout to prevent hanging.
-            auto now = TInstant::Now();
-            auto enqueuedEvents = EnqueuedEvents_.load();
-            while (enqueuedEvents > FlushedEvents_.load() &&
-                   TInstant::Now() - now < Config_->ShutdownGraceTimeout)
-            {
-                SchedYield();
-            }
+            Synchronize(TInstant::Now() + Config_->ShutdownGraceTimeout);
         }
 
         EventQueue_->Shutdown();
@@ -502,6 +575,27 @@ public:
         return PerThreadBatchingPeriod;
     }
 
+    void SuppressTrace(TTraceId traceId)
+    {
+        if (traceId == InvalidTraceId) {
+            return;
+        }
+
+        if (!TraceSuppressionEnabled_) {
+            return;
+        }
+
+        SuppressedTraceIdQueue_.Enqueue(traceId);
+    }
+
+    void Synchronize(TInstant deadline = TInstant::Max())
+    {
+        auto enqueuedEvents = EnqueuedEvents_.load();
+        while (enqueuedEvents > FlushedEvents_.load() && TInstant::Now() < deadline) {
+            SchedYield();
+        }
+    }
+
 private:
     struct TConfigEvent
     {
@@ -509,7 +603,7 @@ private:
         TPromise<void> Promise = NewPromise<void>();
     };
 
-    using TLoggerQueueItem = TVariant<
+    using TLoggerQueueItem = std::variant<
         TLogEvent,
         std::vector<TLogEvent>,
         TConfigEvent
@@ -722,11 +816,19 @@ private:
             Config_ = logConfig;
             HighBacklogWatermark_ = Config_->HighBacklogWatermark;
             LowBacklogWatermark_ = Config_->LowBacklogWatermark;
+            TraceSuppressionEnabled_ = Config_->TraceSuppressionTimeout != TDuration::Zero();
 
             guard.Release();
 
             // writers and cachedWriters will die here where we don't
             // hold the spinlock anymore.
+        }
+
+        if (TraceSuppressionEnabled_) {
+            SuppressedTraceIdSet_.Reconfigure((Config_->TraceSuppressionTimeout + DequeuePeriod) * 2);
+        } else {
+            SuppressedTraceIdSet_.Clear();
+            SuppressedTraceIdQueue_.DequeueAll();
         }
 
         for (const auto& pair : Config_->WriterConfigs) {
@@ -898,31 +1000,21 @@ private:
 
         auto writtenEvents = WrittenEvents_.load();
         auto enqueuedEvents = EnqueuedEvents_.load();
+        auto suppressedEvents = SuppressedEvents_.load();
 
         Profiler.Enqueue("/enqueued_events", enqueuedEvents, EMetricType::Counter);
         Profiler.Enqueue("/written_events", writtenEvents, EMetricType::Counter);
         Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Counter);
+        Profiler.Enqueue("/suppressed_events", suppressedEvents, EMetricType::Counter);
     }
 
     void OnDequeue()
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        int eventsWritten = 0;
-        while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& item) {
-            if (auto* event = item.TryAs<TConfigEvent>()) {
-                UpdateConfig(*event);
-            } else if (const auto* event = item.TryAs<TLogEvent>()) {
-                WriteEvent(*event);
-                ++eventsWritten;
-            } else if (const auto* events = item.TryAs<std::vector<TLogEvent>>()) {
-                WriteEvents(*events);
-                eventsWritten += events->size();
-            } else {
-                Y_UNREACHABLE();
-            }
-        }))
-        { }
+        int eventsWritten = TraceSuppressionEnabled_
+            ? DequeueWithTraceSuppressionEnabled()
+            : DequeueWithTraceSuppressionDisabled();
 
         if (eventsWritten == 0) {
             return;
@@ -936,6 +1028,101 @@ private:
         }
     }
 
+    int DequeueWithTraceSuppressionDisabled()
+    {
+        int eventsWritten = ProcessTraceSuppressionBuffer();
+
+        while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& item) {
+            if (auto* event = std::get_if<TConfigEvent>(&item)) {
+                UpdateConfig(*event);
+            } else if (const auto* event = std::get_if<TLogEvent>(&item)) {
+                WriteEvent(*event);
+                ++eventsWritten;
+            } else if (const auto* events = std::get_if<std::vector<TLogEvent>>(&item)) {
+                WriteEvents(*events);
+                eventsWritten += events->size();
+            } else {
+                Y_UNREACHABLE();
+            }
+        }))
+        { }
+
+        return eventsWritten;
+    }
+
+    int ProcessTraceSuppressionBuffer()
+    {
+        if (TraceSuppressionEnabled_) {
+            SuppressedTraceIdSet_.Update(SuppressedTraceIdQueue_.DequeueAll());
+        }
+
+        auto deadline = GetCpuInstant() - DurationToCpuDuration(Config_->TraceSuppressionTimeout);
+
+        int eventsWritten = 0;
+        int suppressed = 0;
+        while (!TraceSuppressionBuffer_.empty()) {
+            auto& event = TraceSuppressionBuffer_.front();
+
+            if (TraceSuppressionEnabled_ && event.Instant > deadline) {
+                break;
+            }
+
+            ++eventsWritten;
+
+            if (SuppressedTraceIdSet_.Contains(event.TraceId)) {
+                ++suppressed;
+            } else {
+                WriteEvent(event);
+            }
+
+            TraceSuppressionBuffer_.pop_front();
+        }
+
+        SuppressedEvents_ += suppressed;
+
+        return eventsWritten;
+    }
+
+    void MoveEventsToTraceSuppressionBuffer()
+    {
+        TraceSuppressionBuffer_.clear();
+
+        LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& item) {
+            if (auto* event = std::get_if<TConfigEvent>(&item)) {
+                UpdateConfig(*event);
+            } else if (auto* event = std::get_if<TLogEvent>(&item)) {
+                TraceSuppressionBuffer_.push_back(std::move(*event));
+            } else if (auto* events = std::get_if<std::vector<TLogEvent>>(&item)) {
+                for (auto& event : *events) {
+                    TraceSuppressionBuffer_.push_back(event);
+                }
+            } else {
+                Y_UNREACHABLE();
+            }
+        });
+
+        std::sort(TraceSuppressionBuffer_.begin(), TraceSuppressionBuffer_.end(), [] (const auto& lhs, const auto& rhs) {
+            return lhs.Instant < rhs.Instant;
+        });
+    }
+
+    int DequeueWithTraceSuppressionEnabled()
+    {
+        int totalEventsWritten = 0;
+        int eventsWritten;
+
+        do {
+            if (TraceSuppressionBuffer_.empty()) {
+                MoveEventsToTraceSuppressionBuffer();
+            }
+
+            eventsWritten = ProcessTraceSuppressionBuffer();
+            totalEventsWritten += eventsWritten;
+
+        } while (eventsWritten > 0);
+
+        return totalEventsWritten;
+    }
 
     void DoUpdateCategory(TLoggingCategory* category)
     {
@@ -1002,12 +1189,17 @@ private:
     std::once_flag Started_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<TTraceId> SuppressedTraceIdQueue_;
+
+    std::deque<TLogEvent> TraceSuppressionBuffer_;
+    TExpiringSet<TTraceId> SuppressedTraceIdSet_;
 
     THashMap<TString, TMonotonicCounter> CategoryToEvents_;
 
     std::atomic<ui64> EnqueuedEvents_ = {0};
     std::atomic<ui64> WrittenEvents_ = {0};
     std::atomic<ui64> FlushedEvents_ = {0};
+    std::atomic<ui64> SuppressedEvents_ = {0};
 
     THashMap<TString, ILogWriterPtr> Writers_;
     THashMap<TLogWritersCacheKey, std::vector<ILogWriterPtr>> CachedWriters_;
@@ -1015,6 +1207,7 @@ private:
 
     std::atomic<bool> ReopenRequested_ = {false};
     std::atomic<bool> ShutdownRequested_ = {false};
+    std::atomic<bool> TraceSuppressionEnabled_ = {false};
 
     TPeriodicExecutorPtr FlushExecutor_;
     TPeriodicExecutorPtr WatchExecutor_;
@@ -1098,6 +1291,16 @@ void TLogManager::SetPerThreadBatchingPeriod(TDuration value)
 TDuration TLogManager::GetPerThreadBatchingPeriod() const
 {
     return Impl_->GetPerThreadBatchingPeriod();
+}
+
+void TLogManager::SuppressTrace(TTraceId traceId)
+{
+    Impl_->SuppressTrace(traceId);
+}
+
+void TLogManager::Synchronize(TInstant deadline)
+{
+    Impl_->Synchronize(deadline);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

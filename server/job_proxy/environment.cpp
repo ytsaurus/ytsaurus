@@ -345,19 +345,8 @@ public:
         memoryStatistics.Rss = ResourceUsage_[EStatField::Rss].Value();
         memoryStatistics.MappedFile = ResourceUsage_[EStatField::MappedFiles].Value();
         memoryStatistics.MajorPageFaults = ResourceUsage_[EStatField::MajorFaults].Value();
+
         return memoryStatistics;
-    }
-
-    i64 GetMaxMemoryUsage() const
-    {
-        UpdateResourceUsage();
-
-        auto guard = Guard(SpinLock_);
-        auto error = CheckErrors(ResourceUsage_, EStatField::MaxMemoryUsage);
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get max memory statistics");
-
-        return ResourceUsage_[EStatField::MaxMemoryUsage].Value();
     }
 
 private:
@@ -380,7 +369,6 @@ private:
                 EStatField::IOOperations,
                 EStatField::Rss,
                 EStatField::MappedFiles,
-                EStatField::MaxMemoryUsage,
                 EStatField::MajorFaults
             });
 
@@ -443,7 +431,11 @@ public:
     virtual TMemoryStatistics GetMemoryStatistics() const
     {
         if (UsePortoMemoryTracking_) {
-            return ResourceTracker_->GetMemoryStatistics();
+            auto memoryStatistics = ResourceTracker_->GetMemoryStatistics();
+            if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage_) {
+                MaxMemoryUsage_ = memoryStatistics.Rss + memoryStatistics.MappedFile;
+            }
+            return memoryStatistics;
         } else {
             return TMemoryTrackerBase::GetMemoryStatistics();
         }
@@ -451,11 +443,7 @@ public:
 
     virtual i64 GetMaxMemoryUsage() const override
     {
-        if (UsePortoMemoryTracking_) {
-            return ResourceTracker_->GetMaxMemoryUsage();
-        } else {
-            return MaxMemoryUsage_;
-        }
+        return MaxMemoryUsage_;
     }
 
     virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const std::optional<TString>& coreHandlerSocketPath) override

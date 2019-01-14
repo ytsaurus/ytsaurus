@@ -144,7 +144,9 @@ private:
         // Slow path: notify the subscribers in a dedicated thread.
         GetFinalizerInvoker()->Invoke(BIND([=] () {
             // Set the promise if the value is still missing.
-            TrySet(MakeAbandonedError());
+            if (!Set_) {
+                TrySet(MakeAbandonedError());
+            }
             // Kill the fake weak reference.
             UnrefFuture();
         }));
@@ -1338,8 +1340,13 @@ protected:
     std::vector<TFuture<TItem>> Futures_;
     TPromise<TResult> Promise_ = NewPromise<TResult>();
 
+    std::atomic_flag Canceled_ = ATOMIC_FLAG_INIT;
+
     void CancelFutures()
     {
+        if (Canceled_.test_and_set()) {
+            return;
+        }
         for (size_t index = 0; index < Futures_.size(); ++index) {
             Futures_[index].Cancel();
         }
@@ -1530,23 +1537,6 @@ TFuture<std::vector<TErrorOr<T>>> CombineAll(
 {
     return New<NDetail::TAllFutureCombiner<T>>(std::move(futures))
         ->Run();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-TFuture<T> AnyOf(std::vector<TFuture<T>> futures)
-{
-    auto promise = NewPromise<T>();
-    for (auto& future : futures) {
-        promise.TrySetFrom(future);
-    }
-    promise.OnCanceled(BIND([futures = std::move(futures)] () mutable {
-        for (auto& future : futures) {
-            future.Cancel();
-        }
-    }));
-    return promise.ToFuture();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

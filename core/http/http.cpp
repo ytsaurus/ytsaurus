@@ -49,7 +49,7 @@ TUrlRef ParseUrl(TStringBuf url)
 
         return TStringBuf();
     };
-    
+
     urlRef.Protocol = convertField(UF_SCHEMA);
     urlRef.User = convertField(UF_USERINFO);
     urlRef.Host = convertField(UF_HOST);
@@ -60,7 +60,7 @@ TUrlRef ParseUrl(TStringBuf url)
     if (parsed.field_set & (1 << UF_PORT)) {
         urlRef.Port = parsed.port;
     }
-    
+
     return urlRef;
 }
 

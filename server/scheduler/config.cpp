@@ -46,6 +46,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .InRange(0.0, 1.0)
         .Default(0.8);
 
+    RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
+        .Default(false);
+
     RegisterParameter("max_unpreemptable_running_job_count", MaxUnpreemptableRunningJobCount)
         .Default(10);
 
@@ -85,7 +88,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .GreaterThan(0);
 
     RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
-        .Default(0.5)
+        .Default(0.2)
         .GreaterThan(0);
 
     RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
@@ -410,6 +413,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("pool_change_is_allowed", PoolChangeIsAllowed)
         .Default(false);
+
+    RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
+        .Default(TDuration::Hours(12));
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

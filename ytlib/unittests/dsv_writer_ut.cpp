@@ -165,7 +165,7 @@ TEST(TDsvWriterTest, SimpleTabular)
     controlAttributes->EnableTableIndex = true;
     auto writer = CreateSchemalessWriterForDsv(
         config,
-        nameTable, 
+        nameTable,
         CreateAsyncAdapter(static_cast<IOutputStream*>(&outputStream)),
         false,
         controlAttributes,
@@ -196,7 +196,7 @@ TEST(TDsvWriterTest, AnyTabular)
     auto controlAttributes = New<TControlAttributesConfig>();
     auto writer = CreateSchemalessWriterForDsv(
         New<TDsvFormatConfig>(),
-        nameTable, 
+        nameTable,
         CreateAsyncAdapter(static_cast<IOutputStream*>(&outputStream)),
         false,
         controlAttributes,
@@ -216,17 +216,17 @@ TEST(TTskvWriterTest, SimpleTabular)
     auto tableIndexId = nameTable->RegisterName(TableIndexColumnName);
     auto rowIndexId = nameTable->RegisterName(RowIndexColumnName);
     auto rangeIndexId = nameTable->RegisterName(RangeIndexColumnName);
-    
+
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedInt64Value(2, tableIndexId));
     row1.AddValue(MakeUnversionedInt64Value(42, rowIndexId));
     row1.AddValue(MakeUnversionedInt64Value(1, rangeIndexId));
 
-    
+
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedStringValue("1", id1));
     row2.AddValue(MakeUnversionedInt64Value(100500, id2));
-    
+
     TUnversionedRowBuilder row3;
     row3.AddValue(MakeUnversionedStringValue("2", id1));
     row3.AddValue(MakeUnversionedInt64Value(20025, id2));
@@ -240,7 +240,7 @@ TEST(TTskvWriterTest, SimpleTabular)
     auto controlAttributes = New<TControlAttributesConfig>();
     auto writer = CreateSchemalessWriterForDsv(
         config,
-        nameTable, 
+        nameTable,
         CreateAsyncAdapter(static_cast<IOutputStream*>(&outputStream)),
         false,
         controlAttributes,
@@ -266,7 +266,7 @@ TEST(TTskvWriterTest, Escaping)
     auto nameTable = New<TNameTable>();
     auto id1 = nameTable->RegisterName(key1);
     auto id2 = nameTable->RegisterName("Escaping in in key: \r \t \n \\ =");
-    
+
     TUnversionedRowBuilder row;
     row.AddValue(MakeUnversionedStringValue(key1, id1));
     row.AddValue(MakeUnversionedStringValue("Escaping in value: \r \t \n \\ =", id2));
@@ -280,7 +280,7 @@ TEST(TTskvWriterTest, Escaping)
     auto controlAttributes = New<TControlAttributesConfig>();
     auto writer = CreateSchemalessWriterForDsv(
         config,
-        nameTable, 
+        nameTable,
         CreateAsyncAdapter(static_cast<IOutputStream*>(&outputStream)),
         false,
         controlAttributes,

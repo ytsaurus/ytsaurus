@@ -1295,9 +1295,7 @@ private:
 
     virtual bool ValidateSnapshotVersion(int version) override
     {
-        return
-            version == 2 ||
-            version == 3;
+        return version == 3;
     }
 
     virtual int GetCurrentSnapshotVersion() override

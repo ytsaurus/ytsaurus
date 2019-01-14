@@ -31,7 +31,6 @@
 
 #include <yt/client/table_client/name_table.h>
 
-#include <yt/client/table_client/schemaful_writer_adapter.h>
 #include <yt/client/table_client/table_consumer.h>
 
 namespace NYT::NFormats {
@@ -266,12 +265,11 @@ IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
             auto webJsonFormatConfig = ConvertTo<TSchemalessWebJsonFormatConfigPtr>(&format.Attributes());
             webJsonFormatConfig->SkipSystemColumns = false;
 
-            return CreateSchemafulWriterAdapter(
-                CreateSchemalessWriterForWebJson(
-                    std::move(webJsonFormatConfig),
-                    std::move(output),
-                    // WebJson expects that columns are unique, SafeFromSchema checks this fact.
-                    TNameTable::SafeFromSchema(schema)));
+            return CreateSchemalessWriterForWebJson(
+                std::move(webJsonFormatConfig),
+                std::move(output),
+                // WebJson expects that columns are unique, SafeFromSchema checks this fact.
+                TNameTable::SafeFromSchema(schema));
         }
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %Qlv",

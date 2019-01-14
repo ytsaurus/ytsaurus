@@ -5,6 +5,7 @@
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
 #include "tablet.h"
+#include "tablet_action_manager.h"
 #include "tablet_balancer.h"
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
@@ -150,6 +151,7 @@ public:
         , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
         , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
         , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Config_->TabletCellDecommissioner, Bootstrap_))
+        , TabletActionManager_(New<TTabletActionManager>(Config_->TabletActionManager, Bootstrap_))
         , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->MulticellGossipConfig->TableStatisticsGossipThrottler,
             TabletServerLogger))
@@ -190,6 +192,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCreateTabletAction, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraDestroyTabletActions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletCellStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)));
@@ -725,12 +728,13 @@ public:
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const std::optional<int>& tabletCount,
         bool skipFreezing,
-        bool keepFinished)
+        TGuid correlationId,
+        TInstant expirationTime)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (tablets.empty()) {
-            THROW_ERROR_EXCEPTION("Invalud number of tablets: expected more than zero");
+            THROW_ERROR_EXCEPTION("Invalid number of tablets: expected more than zero");
         }
 
         auto* table = tablets[0]->GetTable();
@@ -823,7 +827,8 @@ public:
             tabletCount,
             freeze,
             skipFreezing,
-            keepFinished);
+            correlationId,
+            expirationTime);
 
         OnTabletActionStateChanged(action);
         return action;
@@ -839,7 +844,8 @@ public:
         const std::optional<int>& tabletCount,
         bool freeze,
         bool skipFreezing,
-        bool keepFinished)
+        TGuid correlationId,
+        TInstant expirationTime)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -875,7 +881,12 @@ public:
         action->SetTabletCount(tabletCount);
         action->SetSkipFreezing(skipFreezing);
         action->SetFreeze(freeze);
-        action->SetKeepFinished(keepFinished);
+        action->SetCorrelationId(correlationId);
+        action->SetExpirationTime(expirationTime);
+        auto* bundle = action->Tablets()[0]->GetTable()->GetTabletCellBundle();
+        action->SetTabletCellBundle(bundle);
+        bundle->TabletActions().insert(action);
+        bundle->IncreaseActiveTabletActionCount();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action created (%v)",
             *action);
@@ -917,9 +928,16 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         UnbindTabletAction(action);
+        if (auto* bundle = action->GetTabletCellBundle()) {
+            bundle->TabletActions().erase(action);
+            if (!action->IsFinished()) {
+                bundle->DecreaseActiveTabletActionCount();
+            }
+        }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action destroyed (ActionId: %v)",
-            action->GetId());
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action destroyed (ActionId: %v, TabletBalancerCorrelationId: %v)",
+            action->GetId(),
+            action->GetCorrelationId());
     }
 
     std::vector<TOwningKey> CalculatePivotKeys(
@@ -1021,9 +1039,10 @@ public:
                             tablet->GetState());
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error mounting missed in action tablet (TabletId: %v, ActionId: %v)",
+                YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error mounting missed in action tablet (TabletId: %v, ActionId: %v, TabletBalancerCorrelationid: %v)",
                     tablet->GetId(),
-                    action->GetId());
+                    action->GetId(),
+                    action->GetCorrelationId());
             }
         }
     }
@@ -1083,9 +1102,10 @@ public:
     void ChangeTabletActionState(TTabletAction* action, ETabletActionState state, bool recursive = true)
     {
         action->SetState(state);
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %v, TabletBalancerCorrelationId: %v)",
             action->GetId(),
-            state);
+            state,
+            action->GetCorrelationId());
         if (recursive) {
             OnTabletActionStateChanged(action);
         }
@@ -1352,8 +1372,9 @@ public:
             }
 
             case ETabletActionState::Failing: {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), action->Error(), "Tablet action failed (ActionId: %v)",
-                    action->GetId());
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), action->Error(), "Tablet action failed (ActionId: %v, TabletBalancerCorrelationId: %v)",
+                    action->GetId(),
+                    action->GetCorrelationId());
 
                 MountMissedInActionTablets(action);
                 UnbindTabletAction(action);
@@ -1367,11 +1388,13 @@ public:
                 }
                 // No break intentionally.
             case ETabletActionState::Failed: {
-                if (!action->GetKeepFinished()) {
-                    UnbindTabletAction(action);
-
+                UnbindTabletAction(action);
+                if (action->GetExpirationTime() <= Now()) {
                     const auto& objectManager = Bootstrap_->GetObjectManager();
                     objectManager->UnrefObject(action);
+                }
+                if (auto* bundle = action->GetTabletCellBundle()) {
+                    bundle->DecreaseActiveTabletActionCount();
                 }
                 break;
             }
@@ -1849,7 +1872,8 @@ public:
             std::optional<int>(),
             freeze,
             false,
-            false);
+            TGuid{},
+            TInstant::Zero());
     }
 
     void PrepareUnmountTable(
@@ -2647,6 +2671,44 @@ public:
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
     }
 
+    void SetSyncTabletActionsKeepalive(const std::vector<TTabletActionId>& actionIds)
+    {
+        const auto expirationTime = Now() + DefaultSyncTabletActionKeepalivePeriod;
+        for (const auto& id : actionIds) {
+            auto* action = GetTabletAction(id);
+            action->SetExpirationTime(expirationTime);
+        }
+    }
+
+    std::vector<TTabletActionId> SyncBalanceCells(
+        TTabletCellBundle* bundle,
+        const std::optional<std::vector<NTableServer::TTableNode*>>& tables,
+        bool keepActions)
+    {
+        auto actions = TabletBalancer_->SyncBalanceCells(bundle, tables);
+        if (keepActions) {
+            SetSyncTabletActionsKeepalive(actions);
+        }
+        return actions;
+    }
+
+    std::vector<TTabletActionId> SyncBalanceTablets(NTableServer::TTableNode* table, bool keepActions)
+    {
+        if (!table->IsDynamic()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard a static table");
+        }
+
+        if (table->IsReplicated() && !table->IsEmpty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
+        }
+
+        auto actions = TabletBalancer_->SyncBalanceTablets(table);
+        if (keepActions) {
+            SetSyncTabletActionsKeepalive(actions);
+        }
+        return actions;
+    }
+
     void ValidateCloneTable(
         TTableNode* sourceTable,
         TTableNode* clonedTable,
@@ -2722,8 +2784,10 @@ public:
                     Y_UNREACHABLE();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Unexpected exception while cloning table (TableId: %v)",
-                sourceTable->GetId());
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            YT_LOG_ERROR(ex, "Unexpected error: exception while cloning table (TableId: %v, User: %v)",
+                sourceTable->GetId(),
+                securityManager->GetAuthenticatedUserName());
         }
 
         // Undo the harm done in TChunkOwnerTypeHandler::DoClone.
@@ -3160,6 +3224,7 @@ private:
     const TTabletBalancerPtr TabletBalancer_;
     const TBundleNodeTrackerPtr BundleNodeTracker_;
     const TTabletCellDecommissionerPtr TabletCellDecommissioner_;
+    const TTabletActionManagerPtr TabletActionManager_;
 
     TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
     TEntityMap<TTabletCell> TabletCellMap_;
@@ -3201,12 +3266,9 @@ private:
 
     IReconfigurableThroughputThrottlerPtr TableStatisticsGossipThrottler_;
 
-    bool InitializeCellBundles_ = false;
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
-    bool UpdateChunkListsKind_ = false;
-    bool RecomputeTabletCountByState_ = false;
     bool RecomputeTabletCellStatistics_ = false;
     bool RecomputeTabletErrorCount_ = false;
     bool RecomputeExpectedTabletStates_ = false;
@@ -3274,14 +3336,8 @@ private:
         TabletCellBundleMap_.LoadKeys(context);
         TabletCellMap_.LoadKeys(context);
         TabletMap_.LoadKeys(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 400) {
-            TableReplicaMap_.LoadKeys(context);
-        }
-        // COMPAT(savrus)
-        if (context.GetVersion() >= 600) {
-            TabletActionMap_.LoadKeys(context);
-        }
+        TableReplicaMap_.LoadKeys(context);
+        TabletActionMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -3291,25 +3347,13 @@ private:
         TabletCellBundleMap_.LoadValues(context);
         TabletCellMap_.LoadValues(context);
         TabletMap_.LoadValues(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 400) {
-            TableReplicaMap_.LoadValues(context);
-        }
-        // COMPAT(savrus)
-        if (context.GetVersion() >= 600) {
-            TabletActionMap_.LoadValues(context);
-        }
+        TableReplicaMap_.LoadValues(context);
+        TabletActionMap_.LoadValues(context);
         // COMPAT(savrus)
         if (context.GetVersion() >= 800) {
             Load(context, TableStatisticsUpdates_);
         }
 
-        // COMPAT(babenko)
-        InitializeCellBundles_ = (context.GetVersion() < 400);
-        // COMPAT(savrus)
-        UpdateChunkListsKind_ = (context.GetVersion() < 600);
-        // COMPAT(savrus)
-        RecomputeTabletCountByState_ = (context.GetVersion() <= 608);
         // COMPAT(savrus)
         RecomputeTabletCellStatistics_ = (context.GetVersion() < 800);
         // COMPAT(ifsmirnov)
@@ -3353,83 +3397,6 @@ private:
 
         BundleNodeTracker_->OnAfterSnapshotLoaded();
         InitBuiltins();
-
-        // COMPAT(babenko)
-        if (InitializeCellBundles_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        table->SetTabletCellBundle(DefaultTabletCellBundle_);
-                        DefaultTabletCellBundle_->RefObject();
-                    }
-                }
-            }
-
-            for (const auto& pair : TabletCellMap_) {
-                auto* cell = pair.second;
-                cell->SetCellBundle(DefaultTabletCellBundle_);
-                DefaultTabletCellBundle_->RefObject();
-            }
-        }
-
-        // COMPAT(savrus)
-        if (UpdateChunkListsKind_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        auto* rootChunkList = table->GetChunkList();
-                        YCHECK(rootChunkList->GetKind() == EChunkListKind::Static);
-                        rootChunkList->SetKind(table->IsPhysicallySorted()
-                            ? EChunkListKind::SortedDynamicRoot
-                            : EChunkListKind::OrderedDynamicRoot);
-                        YCHECK(rootChunkList->Children().size() == table->Tablets().size());
-                        for (int index = 0; index < table->Tablets().size(); ++index) {
-                            auto* child = rootChunkList->Children()[index];
-                            auto* tabletChunkList = child->AsChunkList();
-
-                            auto newKind = table->IsPhysicallySorted()
-                                ? EChunkListKind::SortedDynamicTablet
-                                : EChunkListKind::OrderedDynamicTablet;
-                            auto newPivotKey = table->Tablets()[index]->GetPivotKey();
-                            if (tabletChunkList->GetKind() == EChunkListKind::Static) {
-                                tabletChunkList->SetKind(newKind);
-                                tabletChunkList->SetPivotKey(newPivotKey);
-                            } else {
-                                YCHECK(tabletChunkList->GetKind() == newKind);
-                                YCHECK(tabletChunkList->GetPivotKey() == newPivotKey);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // COMPAT(savrus)
-        if (RecomputeTabletCountByState_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-                            if (table->TabletCountByState().IsDomainValue(state)) {
-                                table->MutableTabletCountByState()[state] = 0;
-                            }
-                        }
-                        for (const auto* tablet : table->Tablets()) {
-                            ++table->MutableTabletCountByState()[tablet->GetState()];
-                        }
-                    }
-                }
-            }
-        }
 
         // COMPAT(savrus)
         if (RecomputeTabletCellStatistics_) {
@@ -5182,10 +5149,19 @@ private:
         auto tabletIds = FromProto<std::vector<TTabletId>>(request->tablet_ids());
         auto cellIds = FromProto<std::vector<TTabletId>>(request->cell_ids());
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
-        bool keepFinished = request->keep_finished();
+        TInstant expirationTime = TInstant::Zero();
+        if (request->has_expiration_time()) {
+            expirationTime = FromProto<TInstant>(request->expiration_time());
+        }
         std::optional<int> tabletCount = request->has_tablet_count()
             ? std::make_optional(request->tablet_count())
             : std::nullopt;
+
+        TGuid correlationId;
+        if (request->has_correlation_id()) {
+            FromProto(&correlationId, request->correlation_id());
+        }
+
         std::vector<TTablet*> tablets;
         std::vector<TTabletCell*> cells;
 
@@ -5206,18 +5182,32 @@ private:
                 pivotKeys,
                 tabletCount,
                 false,
-                keepFinished);
+                correlationId,
+                expirationTime);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, Tablets: %v, TabletCellsL %v, PivotKeys %v, TabletCount %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, Tablets: %v, TabletCellsL %v, PivotKeys %v, TabletCount %v, TabletBalancerCorrelationId: %v)",
                 kind,
                 tablets,
                 cells,
                 pivotKeys,
                 tabletCount,
+                correlationId,
                 TError(ex));
         }
     }
 
+    void HydraDestroyTabletActions(TReqDestroyTabletActions* request)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto actionIds = FromProto<std::vector<TTabletActionId>>(request->tablet_action_ids());
+        for (const auto& id : actionIds) {
+            auto* action = FindTabletAction(id);
+            if (IsObjectAlive(action)) {
+                UnbindTabletAction(action);
+                objectManager->UnrefObject(action);
+            }
+        }
+    }
 
     virtual void OnLeaderActive() override
     {
@@ -5239,6 +5229,7 @@ private:
 
         TabletCellDecommissioner_->Start();
         TabletBalancer_->Start();
+        TabletActionManager_->Start();
 
         TabletCellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
@@ -5266,6 +5257,7 @@ private:
         TabletTracker_->Stop();
         TabletCellDecommissioner_->Stop();
         TabletBalancer_->Stop();
+        TabletActionManager_->Stop();
 
         if (CleanupExecutor_) {
             CleanupExecutor_->Stop();
@@ -6453,25 +6445,40 @@ void TTabletManager::AlterTableReplica(
         std::move(preserveTimestamps));
 }
 
+std::vector<TTabletActionId> TTabletManager::SyncBalanceCells(
+    TTabletCellBundle* bundle,
+    const std::optional<std::vector<NTableServer::TTableNode*>>& tables,
+    bool keepActions)
+{
+    return Impl_->SyncBalanceCells(bundle, tables, keepActions);
+}
+
+std::vector<TTabletActionId> TTabletManager::SyncBalanceTablets(NTableServer::TTableNode* table, bool keepActions)
+{
+    return Impl_->SyncBalanceTablets(table, keepActions);
+}
+
 TTabletAction* TTabletManager::CreateTabletAction(
     NObjectClient::TObjectId hintId,
     ETabletActionKind kind,
-    const std::vector<TTablet*>& tabletIds,
-    const std::vector<TTabletCell*>& cellIds,
+    const std::vector<TTablet*>& tablets,
+    const std::vector<TTabletCell*>& cells,
     const std::vector<NTableClient::TOwningKey>& pivotKeys,
     const std::optional<int>& tabletCount,
     bool skipFreezing,
-    bool keepFinished)
+    TGuid correlationId,
+    TInstant expirationTime)
 {
     return Impl_->CreateTabletAction(
         hintId,
         kind,
-        tabletIds,
-        cellIds,
+        tablets,
+        cells,
         pivotKeys,
         tabletCount,
         skipFreezing,
-        keepFinished);
+        correlationId,
+        expirationTime);
 }
 
 void TTabletManager::DestroyTabletAction(TTabletAction* action)

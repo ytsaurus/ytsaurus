@@ -5,13 +5,15 @@
 #include "ref_counted.h"
 #endif
 
+#include "yt_alloc.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE void TRefCountedBase::operator delete(void* ptr) noexcept
 {
-    ::free(ptr);
+    NYTAlloc::Free(ptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +86,7 @@ Y_FORCE_INLINE int TRefCounter<false>::GetRefCount() const noexcept
 Y_FORCE_INLINE void TRefCounter<false>::DestroyAndDispose(const TRefCountedBase* object)
 {
     // Dtor is virtual.
-    // operator delete calls ::free.
+    // operator delete calls YTAlloc::Free.
     delete object;
 }
 
@@ -163,7 +165,7 @@ Y_FORCE_INLINE void TRefCounter<true>::Destroy(const TRefCountedBase* object)
 Y_FORCE_INLINE void TRefCounter<true>::Dispose()
 {
     Y_ASSERT(Ptr_);
-    ::free(Ptr_);
+    NYTAlloc::Free(Ptr_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

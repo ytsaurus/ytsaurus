@@ -27,7 +27,7 @@ public:
     TBuildingYsonConsumerViaTreeBuilder(NYson::EYsonType ysonType)
         : TreeBuilder_(CreateBuilderFromFactory(GetEphemeralNodeFactory()))
         , YsonType_(ysonType)
-    { 
+    {
         TreeBuilder_->BeginTree();
 
         switch (YsonType_) {
@@ -60,7 +60,7 @@ public:
         T result;
         Deserialize(result, TreeBuilder_->EndTree());
         return result;
-    } 
+    }
 
 private:
     std::unique_ptr<ITreeBuilder> TreeBuilder_;

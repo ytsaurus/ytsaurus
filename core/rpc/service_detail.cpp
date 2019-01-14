@@ -13,6 +13,8 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
+#include <yt/core/logging/log_manager.h>
+
 #include <yt/core/net/local_address.h>
 #include <yt/core/net/address.h>
 
@@ -380,6 +382,8 @@ private:
             Profiler.Increment(PerformanceCounters_->FailedRequestCounter);
         }
 
+        HandleLoggingSuppression();
+
         Profiler.Increment(
             PerformanceCounters_->ResponseMessageBodySizeCounter,
             GetMessageBodySize(responseMessage));
@@ -388,6 +392,27 @@ private:
             GetTotalMessageAttachmentSize(responseMessage));
 
         Finalize();
+    }
+
+    void HandleLoggingSuppression()
+    {
+        auto traceId = NTracing::GetCurrentTraceContext().GetTraceId();
+        if (traceId == NTracing::InvalidTraceId) {
+            return;
+        }
+
+        auto timeout = RuntimeInfo_->Descriptor.LoggingSuppressionTimeout;
+        if (RequestHeader_->has_logging_suppression_timeout()) {
+            timeout = FromProto<TDuration>(RequestHeader_->logging_suppression_timeout());
+        }
+
+        if (TotalTime_ >= timeout ||
+            (!Error_.IsOK() && RequestHeader_->disable_logging_suppression_if_request_failed()))
+        {
+            return;
+        }
+
+        NLogging::TLogManager::Get()->SuppressTrace(traceId);
     }
 
     void DoSetComplete()
@@ -727,9 +752,8 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
     {
         TGuard<TSpinLock> guard(CancelableRequestLock_);
         auto it = ReplyBusToContexts_.find(bus);
-        if (it == ReplyBusToContexts_.end()) {
+        if (it == ReplyBusToContexts_.end())
             return;
-        }
 
         for (auto* rawContext : it->second) {
             auto context = TServiceContext::DangerousGetPtr(rawContext);
@@ -853,9 +877,6 @@ void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
         if (it != ReplyBusToContexts_.end()) {
             auto& contexts = it->second;
             contexts.erase(context);
-            if (contexts.empty()) {
-                ReplyBusToContexts_.erase(it);
-            }
         }
     }
 }
@@ -963,6 +984,7 @@ void TServiceBase::Configure(INodePtr configNode)
             descriptor.SetMaxQueueSize(methodConfig->MaxQueueSize);
             descriptor.SetMaxConcurrency(methodConfig->MaxConcurrency);
             descriptor.SetLogLevel(methodConfig->LogLevel);
+            descriptor.SetLoggingSuppressionTimeout(methodConfig->LoggingSuppressionTimeout);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",

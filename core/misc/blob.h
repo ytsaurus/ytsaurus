@@ -25,10 +25,10 @@ class TBlob
 {
 public:
     //! Constructs a blob with a given size.
-    TBlob(TRefCountedTypeCookie tagCookie, size_t size, bool initiailizeStorage, size_t alignment = 1, bool dumpable = true);
+    TBlob(TRefCountedTypeCookie tagCookie, size_t size, bool initiailizeStorage, size_t alignment = 1);
 
     //! Copies a chunk of memory into a new instance.
-    TBlob(TRefCountedTypeCookie tagCookie, const void* data, size_t size, size_t alignment = 1, bool dumpable = true);
+    TBlob(TRefCountedTypeCookie tagCookie, const void* data, size_t size, size_t alignment = 1);
 
     //! Constructs an empty blob.
     template <class TTag = TDefaultBlobTag>
@@ -38,14 +38,14 @@ public:
 
     //! Constructs a blob with a given size.
     template <class TTag>
-    explicit TBlob(TTag, size_t size, bool initiailizeStorage = true, size_t alignment = 1, bool dumpable = true)
-        : TBlob(GetRefCountedTypeCookie<TTag>(), size, initiailizeStorage, alignment, dumpable)
+    explicit TBlob(TTag, size_t size, bool initiailizeStorage = true, size_t alignment = 1)
+        : TBlob(GetRefCountedTypeCookie<TTag>(), size, initiailizeStorage, alignment)
     { }
 
     //! Copies a chunk of memory into a new instance.
     template <class TTag>
-    TBlob(TTag, const void* data, size_t size, size_t alignment = 1, bool dumpable = true)
-        : TBlob(GetRefCountedTypeCookie<TTag>(), data, size, alignment, dumpable)
+    TBlob(TTag, const void* data, size_t size, size_t alignment = 1)
+        : TBlob(GetRefCountedTypeCookie<TTag>(), data, size, alignment)
     { }
 
     //! Remind user about the tag argument.

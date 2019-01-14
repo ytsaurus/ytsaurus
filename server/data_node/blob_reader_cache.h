@@ -28,7 +28,7 @@ public:
      *  A rule of thumb is to invoke it from IO thread only.
      *
      *  The returned reader is already open.
-     *  
+     *
      *  This method throws on failure.
      */
     NChunkClient::TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk);

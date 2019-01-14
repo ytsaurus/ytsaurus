@@ -61,7 +61,7 @@ protected:
         return objectManager->GetProxy(object);
     }
 };
-   
+
 template <class TValue>
 NYTree::IYPathServicePtr CreateVirtualObjectMap(
     NCellMaster::TBootstrap* bootstrap,

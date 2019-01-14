@@ -200,7 +200,12 @@ protected:
         auto it = JobProxyProcesses_.find(slotIndex);
         if (it != JobProxyProcesses_.end()) {
             if (kill) {
-                it->second.Process->Kill(SIGKILL);
+                try {
+                    it->second.Process->Kill(SIGKILL);
+                } catch (const TErrorException& ex) {
+                    // If we failed to kill container we ignore it for now.
+                    YT_LOG_WARNING(ex, "Failed to kill container properly (SlotIndex: %v)", slotIndex);
+                }
             }
 
             // Ensure that job proxy process finished.

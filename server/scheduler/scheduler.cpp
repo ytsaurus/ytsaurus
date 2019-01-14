@@ -25,16 +25,18 @@
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
+
+#include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/client/table_client/name_table.h>
-#include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/table_consumer.h>
 
@@ -89,7 +91,6 @@ using namespace NChunkClient;
 using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
-using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NSecurityClient;
@@ -437,13 +438,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (auto* id = idOrAlias.TryAs<TOperationId>()) {
+        if (const auto* id = std::get_if<TOperationId>(&idOrAlias)) {
             auto it = IdToOperation_.find(*id);
             return it == IdToOperation_.end() ? nullptr : it->second;
-        } else {
-            const auto& alias = idOrAlias.As<TString>();
-            auto it = OperationAliases_.find(alias);
+        } else if (const auto* alias = std::get_if<TString>(&idOrAlias)) {
+            auto it = OperationAliases_.find(*alias);
             return it == OperationAliases_.end() ? nullptr : it->second.Operation;
+        } else {
+            Y_UNREACHABLE();
         }
     }
 
@@ -630,12 +632,15 @@ public:
         auto runtimeParams = New<TOperationRuntimeParameters>();
         Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, user, type);
 
+        auto annotations = specNode->FindChild("annotations");
+
         auto operation = New<TOperation>(
             operationId,
             type,
             mutationId,
             transactionId,
             specNode,
+            annotations ? annotations->AsMap() : nullptr,
             secureVault,
             runtimeParams,
             user,
@@ -886,41 +891,8 @@ public:
 
     void DoUpdateOperationParameters(
         TOperationPtr operation,
-        const TOperationRuntimeParametersPtr& runtimeParams)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto codicilGuard = operation->MakeCodicilGuard();
-
-        Strategy_->ValidateOperationRuntimeParameters(operation.Get(), runtimeParams);
-
-        if (runtimeParams->Owners && operation->GetOwners() != *runtimeParams->Owners) {
-            operation->SetOwners(*runtimeParams->Owners);
-        }
-        operation->SetRuntimeParameters(runtimeParams);
-        Strategy_->ApplyOperationRuntimeParameters(operation.Get());
-
-        // Updating ACL and other attributes.
-        WaitFor(MasterConnector_->FlushOperationNode(operation))
-            .ThrowOnError();
-
-        auto controller = operation->GetController();
-        if (controller) {
-            WaitFor(controller->UpdateRuntimeParameters(runtimeParams))
-                .ThrowOnError();
-        }
-
-        WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams))
-            .ThrowOnError();
-
-        LogEventFluently(ELogEventType::RuntimeParametersInfo)
-            .Item("runtime_params").Value(runtimeParams);
-
-        YT_LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
-            operation->GetId());
-    }
-
-    TFuture<void> UpdateOperationParameters(TOperationPtr operation, const TString& user, INodePtr parameters)
+        const TString& user,
+        INodePtr parameters)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -928,28 +900,54 @@ public:
 
         ValidateOperationAccess(user, operation->GetId(), EAccessType::Ownership);
 
-        auto userRuntimeParams = New<TUserFriendlyOperationRuntimeParameters>();
-        Deserialize(userRuntimeParams, parameters);
+        auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(parameters);
 
         // TODO(renadeen): remove this someday
         if (!Config_->PoolChangeIsAllowed) {
-            if (userRuntimeParams->Pool) {
+            if (update->Pool) {
                 THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
             }
-            for (const auto& pair : userRuntimeParams->SchedulingOptionsPerPoolTree) {
+            for (const auto& pair : update->SchedulingOptionsPerPoolTree) {
                 if (pair.second->Pool) {
                     THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
                 }
             }
         }
 
-        auto newRuntimeParams = userRuntimeParams->UpdateParameters(operation->GetRuntimeParameters());
+        auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
 
-        auto updateFuture = BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this))
+        Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams);
+
+        operation->SetRuntimeParameters(newParams);
+        Strategy_->ApplyOperationRuntimeParameters(operation.Get());
+
+        // Updating ACL and other attributes.
+        WaitFor(MasterConnector_->FlushOperationNode(operation))
+            .ThrowOnError();
+
+        if (auto controller = operation->GetController()) {
+            WaitFor(controller->UpdateRuntimeParameters(update))
+                .ThrowOnError();
+        }
+
+        WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, newParams))
+            .ThrowOnError();
+
+        LogEventFluently(ELogEventType::RuntimeParametersInfo)
+            .Item("runtime_params").Value(newParams);
+
+        YT_LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
+            operation->GetId());
+    }
+
+    TFuture<void> UpdateOperationParameters(
+        const TOperationPtr& operation,
+        const TString& user,
+        INodePtr parameters)
+    {
+        return BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this), operation, user, std::move(parameters))
             .AsyncVia(operation->GetCancelableControlInvoker())
-            .Run(operation, newRuntimeParams);
-
-        return updateFuture;
+            .Run();
     }
 
     TFuture<TYsonString> Strace(TJobId jobId, const TString& user)
@@ -2080,7 +2078,7 @@ private:
 
             for (const auto& pair : *CachedExecNodeDescriptors_) {
                 const auto& descriptor = pair.second;
-                if (filter.CanSchedule(descriptor.Tags)) {
+                if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
                     ++result[RoundUp(descriptor.ResourceLimits.GetMemory(), 1_GB)];
                 }
             }
@@ -2312,7 +2310,7 @@ private:
             jobs.size());
 
         // First, unfreeze operation and register jobs in strategy. Do this synchronously as we are in the scheduler control thread.
-        Strategy_->RegisterJobs(operation->GetId(), jobs);
+        Strategy_->RegisterJobsFromRevivedOperation(operation->GetId(), jobs);
 
         // Second, register jobs on the corresponding node shards.
         std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());

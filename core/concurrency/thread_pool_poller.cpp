@@ -111,7 +111,7 @@ public:
 
         Combine(shutdownResults)
             .Get();
-        
+
         YT_LOG_INFO("Shutting down poller threads");
 
         for (const auto& thread : Threads_) {
@@ -216,7 +216,7 @@ private:
         {
             return !UnregisterLock.test_and_set();
         }
-        
+
         const IPollablePtr Pollable;
         std::atomic<int> UnregisterSeenBy = {0};
         std::atomic_flag UnregisterLock = ATOMIC_FLAG_INIT;
@@ -319,7 +319,7 @@ private:
         void HandleUnregister()
         {
             auto entries = UnregisterEntries_.DequeueAll();
-            
+
             std::vector<TPollableEntryPtr> deadEntries;
             for (const auto& entry : entries) {
                 if (++entry->UnregisterSeenBy == Poller_->ThreadCount_) {

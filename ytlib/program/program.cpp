@@ -88,7 +88,7 @@ int TProgram::Run(int argc, const char** argv)
         }
     } else {
         run();
-        return Exit(EProgramExitCode::OK);        
+        return Exit(EProgramExitCode::OK);
     }
 }
 

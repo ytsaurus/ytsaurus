@@ -49,11 +49,7 @@ void TFileNode::Load(NCellMaster::TLoadContext& context)
     TChunkOwnerBase::Load(context);
 
     using NYT::Load;
-
-    // COMPAT(ostyakov)
-    if (context.GetVersion() >= 627) {
-        Load(context, MD5Hasher_);
-    }
+    Load(context, MD5Hasher_);
 }
 
 void TFileNode::EndUpload(

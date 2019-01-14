@@ -44,7 +44,6 @@ using namespace NJobTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
-using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NShell;
@@ -56,6 +55,8 @@ using NScheduler::NProto::TSchedulerJobResultExt;
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+using ENodeMasterState = NNodeTrackerServer::ENodeState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -329,7 +330,8 @@ void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vec
     for (const auto& job : jobs) {
         auto node = GetOrRegisterNode(
             job->GetRevivalNodeId(),
-            TNodeDescriptor(job->GetRevivalNodeAddress()));
+            TNodeDescriptor(job->GetRevivalNodeAddress()),
+            ENodeState::Online);
         job->SetNode(node);
         SetJobWaitingForConfirmation(job);
         RemoveRecentlyFinishedJob(job->GetId());
@@ -429,7 +431,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
 
-    auto node = GetOrRegisterNode(nodeId, descriptor);
+    auto node = GetOrRegisterNode(nodeId, descriptor, ENodeState::Online);
 
     if (request->has_job_reporter_queue_is_too_large()) {
         auto oldValue = node->GetJobReporterQueueIsTooLarge();
@@ -452,7 +454,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     TLeaseManager::RenewLease(node->GetLease());
 
-    if (node->GetMasterState() != ENodeState::Online) {
+    if (node->GetMasterState() != ENodeMasterState::Online) {
         auto error = TError("Node is not online");
         if (!node->GetRegistrationError().IsOK()) {
             error = error << node->GetRegistrationError();
@@ -583,13 +585,27 @@ void TNodeShard::UpdateExecNodeDescriptors()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    auto now = TInstant::Now();
+
+    std::vector<TNodeId> nodeIdsToRemove;
+
     auto result = New<TRefCountedExecNodeDescriptorMap>();
     result->reserve(IdToNode_.size());
     for (const auto& pair : IdToNode_) {
+        auto nodeId = pair.first;
         const auto& node = pair.second;
-        if (node->GetMasterState() == ENodeState::Online) {
+        if (node->GetLastSeenTime() + Config_->MaxOfflineNodeAge > now) {
             YCHECK(result->emplace(node->GetId(), node->BuildExecDescriptor()).second);
+        } else {
+            if (node->GetMasterState() == ENodeMasterState::Offline && node->GetSchedulerState() == ENodeState::Offline) {
+                TLeaseManager::CloseLease(node->GetLease());
+                nodeIdsToRemove.push_back(nodeId);
+            }
         }
+    }
+
+    for (auto nodeId : nodeIdsToRemove) {
+        YCHECK(IdToNode_.erase(nodeId));
     }
 
     {
@@ -598,18 +614,24 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 }
 
-void TNodeShard::UpdateNodeState(const TExecNodePtr& node, ENodeState newState, TError error)
+void TNodeShard::UpdateNodeState(const TExecNodePtr& node, ENodeMasterState newMasterState, ENodeState newSchedulerState, TError error)
 {
-    auto oldState = node->GetMasterState();
-    node->SetMasterState(newState);
+    auto oldMasterState = node->GetMasterState();
+    node->SetMasterState(newMasterState);
+
+    auto oldSchedulerState = node->GetSchedulerState();
+    node->SetSchedulerState(newSchedulerState);
+
     node->SetRegistrationError(error);
 
-    if (oldState != newState) {
-        YT_LOG_INFO("Node state changed (NodeId: %v, NodeAddress: %v, State: %v -> %v)",
+    if (oldMasterState != newMasterState || oldSchedulerState != newSchedulerState) {
+        YT_LOG_INFO("Node state changed (NodeId: %v, NodeAddress: %v, MasterState: %v -> %v, SchedulerState: %v -> %v)",
             node->GetId(),
             node->NodeDescriptor().GetDefaultAddress(),
-            oldState,
-            newState);
+            oldMasterState,
+            newMasterState,
+            oldSchedulerState,
+            newSchedulerState);
     }
 }
 
@@ -634,7 +656,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         const auto& attributes = nodeMap.second->Attributes();
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
-        auto newState = attributes.Get<ENodeState>("state");
+        auto newState = attributes.Get<ENodeMasterState>("state");
         auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
 
         YT_LOG_DEBUG("Handling node attributes (NodeId: %v, NodeAddress: %v, ObjectId: %v, NewState: %v)",
@@ -645,32 +667,40 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
 
-        if (IdToNode_.find(nodeId) == IdToNode_.end()) {
-            if (newState == ENodeState::Online) {
-                YT_LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
-                    nodeId,
-                    address);
+        auto nodeIt = IdToNode_.find(nodeId);
+        if (nodeIt == IdToNode_.end()) {
+            if (newState != ENodeMasterState::Offline) {
+                RegisterNode(nodeId, TNodeDescriptor(address), ENodeState::Offline);
+            } else {
+                // Skip nodes that offline both at master and at scheduler.
+                continue;
             }
-            continue;
         }
 
         auto execNode = IdToNode_[nodeId];
+
+        if (execNode->GetSchedulerState() == ENodeState::Offline && newState == ENodeMasterState::Online) {
+            YT_LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
+                nodeId,
+                address);
+        }
+
         execNode->SetIOWeights(ioWeights);
 
         auto oldState = execNode->GetMasterState();
         auto tags = attributes.Get<THashSet<TString>>("tags");
 
-        if (oldState == ENodeState::Online && newState != ENodeState::Online) {
+        if (oldState == ENodeMasterState::Online && newState != ENodeMasterState::Online) {
             // NOTE: Tags will be validated when node become online, no need in additional check here.
             execNode->Tags() = tags;
             SubtractNodeResources(execNode);
             AbortAllJobsAtNode(execNode);
-            UpdateNodeState(execNode, newState);
+            UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
             ++nodeChangesCount;
             continue;
         }
 
-        if ((oldState != ENodeState::Online && newState == ENodeState::Online) || execNode->Tags() != tags) {
+        if ((oldState != ENodeMasterState::Online && newState == ENodeMasterState::Online) || execNode->Tags() != tags) {
             auto updateResult = WaitFor(Host_->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
                 auto error = TError("Node tags update failed")
@@ -681,17 +711,17 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                 YT_LOG_WARNING(error);
                 errors.push_back(error);
 
-                if (oldState == ENodeState::Online) {
+                if (oldState == ENodeMasterState::Online && execNode->GetSchedulerState() == ENodeState::Online) {
                     SubtractNodeResources(execNode);
                     AbortAllJobsAtNode(execNode);
-                    UpdateNodeState(execNode, ENodeState::Offline, error);
                 }
+                UpdateNodeState(execNode, newState, ENodeState::Offline, error);
             } else {
-                if (oldState != ENodeState::Online && newState == ENodeState::Online) {
+                if (oldState != ENodeMasterState::Online && newState == ENodeMasterState::Online) {
                     AddNodeResources(execNode);
                 }
                 execNode->Tags() = tags;
-                UpdateNodeState(execNode, newState);
+                UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
             }
             ++nodeChangesCount;
         }
@@ -1250,16 +1280,18 @@ int TNodeShard::GetJobReporterQueueIsTooLargeNodeCount()
     return JobReporterQueueIsTooLargeNodeCount_.load();
 }
 
-TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)
+TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor, ENodeState state)
 {
     auto it = IdToNode_.find(nodeId);
     if (it == IdToNode_.end()) {
-        return RegisterNode(nodeId, descriptor);
+        return RegisterNode(nodeId, descriptor, state);
     }
 
     auto node = it->second;
-    // Update the current descriptor, just in case.
+    // Update the current descriptor and state, just in case.
     node->NodeDescriptor() = descriptor;
+    node->SetSchedulerState(state);
+
     return node;
 }
 
@@ -1277,18 +1309,20 @@ void TNodeShard::OnNodeLeaseExpired(TNodeId nodeId)
     UnregisterNode(node);
 }
 
-TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)
+TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor, ENodeState state)
 {
-    auto node = New<TExecNode>(nodeId, descriptor);
+    auto node = New<TExecNode>(nodeId, descriptor, state);
     const auto& address = node->GetDefaultAddress();
 
     auto lease = TLeaseManager::CreateLease(
         Config_->NodeHeartbeatTimeout,
         BIND(&TNodeShard::OnNodeLeaseExpired, MakeWeak(this), node->GetId())
             .Via(GetInvoker()));
-
     node->SetLease(lease);
+
     YCHECK(IdToNode_.insert(std::make_pair(node->GetId(), node)).second);
+
+    node->SetLastSeenTime(TInstant::Now());
 
     YT_LOG_INFO("Node registered (Address: %v)", address);
 
@@ -1308,7 +1342,7 @@ void TNodeShard::UnregisterNode(const TExecNodePtr& node)
 
 void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 {
-    if (node->GetMasterState() == ENodeState::Online) {
+    if (node->GetMasterState() == ENodeMasterState::Online && node->GetSchedulerState() == ENodeState::Online) {
         SubtractNodeResources(node);
     }
 
@@ -1324,7 +1358,9 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
         --JobReporterQueueIsTooLargeNodeCount_;
     }
 
-    YCHECK(IdToNode_.erase(node->GetId()) == 1);
+    //YCHECK(IdToNode_.erase(node->GetId()) == 1);
+
+    node->SetSchedulerState(ENodeState::Offline);
 
     const auto& address = node->GetDefaultAddress();
 
@@ -1775,23 +1811,24 @@ void TNodeShard::UpdateNodeResources(
 {
     auto oldResourceLimits = node->GetResourceLimits();
 
-    // NB: Total limits are updated separately in heartbeat.
+    YCHECK(node->GetSchedulerState() == ENodeState::Online);
+
     if (limits.GetUserSlots() > 0) {
-        if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == ENodeState::Online) {
+        if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == ENodeMasterState::Online) {
             ExecNodeCount_ += 1;
         }
         node->SetResourceLimits(limits);
         node->SetResourceUsage(usage);
         node->SetDiskInfo(diskInfo);
     } else {
-        if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == ENodeState::Online) {
+        if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == ENodeMasterState::Online) {
             ExecNodeCount_ -= 1;
         }
         node->SetResourceLimits(ZeroJobResources());
         node->SetResourceUsage(ZeroJobResources());
     }
 
-    if (node->GetMasterState() == ENodeState::Online) {
+    if (node->GetMasterState() == ENodeMasterState::Online) {
         TWriterGuard guard(ResourcesLock_);
 
         // Clear cache if node has come with non-zero usage.

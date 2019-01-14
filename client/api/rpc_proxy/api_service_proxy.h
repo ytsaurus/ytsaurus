@@ -48,6 +48,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, FreezeTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnfreezeTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReshardTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReshardTableAutomatic);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, TrimTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AlterTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AlterTableReplica);
@@ -57,6 +58,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SelectRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetInSyncReplicas);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetTabletInfos);
+
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BalanceTabletCells);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ModifyRows);
 

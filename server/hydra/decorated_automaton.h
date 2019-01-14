@@ -45,7 +45,7 @@ struct TEpochContext
     TLeaseTrackerPtr LeaseTracker;
     NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor;
 
-    std::atomic<bool> Restarting = {false};
+    bool Restarting = false;
 
     TPromise<void> ActiveUpstreamSyncPromise;
     TPromise<void> PendingUpstreamSyncPromise;

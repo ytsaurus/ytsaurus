@@ -526,6 +526,9 @@ public:
         auto descriptors = Host->CalculateExecNodeDescriptors(TSchedulingTagFilter());
         for (const auto& idDescriptorPair : *descriptors) {
             const auto& descriptor = idDescriptorPair.second;
+            if (!descriptor.Online) {
+                continue;
+            }
             for (const auto& idTreePair : IdToTree_) {
                 const auto& treeId = idTreePair.first;
                 const auto& tree = idTreePair.second;
@@ -755,7 +758,7 @@ public:
         }
     }
 
-    virtual void RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
+    virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -769,7 +772,7 @@ public:
             auto tree = FindTree(pair.first);
             // NB: operation can be missing in tree since ban.
             if (tree && tree->HasOperation(operationId)) {
-                tree->RegisterJobs(operationId, pair.second);
+                tree->RegisterJobsFromRevivedOperation(operationId, pair.second);
             }
         }
     }
@@ -900,7 +903,7 @@ private:
     {
         THashMap<TString, TPoolName> pools;
         for (const auto& pair : runtimeParams->SchedulingOptionsPerPoolTree) {
-            pools.emplace(pair.first, *pair.second->Pool);
+            pools.emplace(pair.first, pair.second->Pool);
         }
         return pools;
     }

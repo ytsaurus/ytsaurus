@@ -9,7 +9,7 @@ namespace NYT {
 TUtf8Transcoder::TUtf8Transcoder(bool enableEscaping)
     : EnableEncoding_(enableEscaping)
 { }
-    
+
 TStringBuf TUtf8Transcoder::Encode(TStringBuf str)
 {
     if (!EnableEncoding_) {

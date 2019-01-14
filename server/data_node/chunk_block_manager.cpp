@@ -19,6 +19,8 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
 
+#include <yt/core/misc/memory_zone.h>
+
 namespace NYT::NDataNode {
 
 using namespace NObjectClient;
@@ -87,8 +89,19 @@ public:
             return;
         }
 
-        auto block = New<TCachedBlock>(blockId, data, source);
-        cookie.EndInsert(block);
+        TBlock block;
+        {
+            // NB: Copy block to move data to undumpable memory and to
+            // prevent cache from holding the whole block sequence.
+            TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
+            block = TBlock(
+                TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data),
+                data.Checksum,
+                data.BlockOrigin);
+        }
+
+        auto cachedBlock = New<TCachedBlock>(blockId, block, source);
+        cookie.EndInsert(cachedBlock);
     }
 
     TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId)

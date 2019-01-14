@@ -12,6 +12,7 @@
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/permission.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NSecurityServer {
 
@@ -34,8 +35,7 @@ struct TAccessControlEntry
     EPermissionSet Permissions;
     EAceInheritanceMode InheritanceMode;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    void Persist(NCellMaster::TPersistenceContext& context);
 };
 
 void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
@@ -68,7 +68,7 @@ class TAccessControlDescriptor
 
 public:
     explicit TAccessControlDescriptor(NObjectServer::TObjectBase* object = nullptr);
-    
+
     void Clear();
 
     TSubject* GetOwner() const;
@@ -88,5 +88,21 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TSerializableAccessControlEntry
+    : public NYTree::TYsonSerializable
+{
+    ESecurityAction Action;
+    std::vector<TString> Subjects;
+    std::vector<TString> Permissions;
+    EAceInheritanceMode InheritanceMode;
+
+    TSerializableAccessControlEntry();
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializableAccessControlEntry);
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT::NSecurityServer

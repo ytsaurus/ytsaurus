@@ -108,6 +108,12 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
+        if (ReadDeadline_) {
+            if (TInstant::Now() >= ReadDeadline_) {
+                THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::ReaderDeadlineExpired, "Reader deadline expired");
+            }
+        }
+
         rows->clear();
 
         if (IsAborted()) {
@@ -186,6 +192,8 @@ private:
 
     NLogging::TLogger Logger = ApiLogger;
 
+    TInstant ReadDeadline_;
+
     void DoOpen()
     {
         UnderlyingReader_ = WaitFor(CreateSchemalessMultiChunkReader(
@@ -200,6 +208,10 @@ private:
 
         if (Transaction_) {
             StartListenTransaction(Transaction_);
+        }
+
+        if (Config_->MaxReadDuration) {
+            ReadDeadline_ = TInstant::Now() + *Config_->MaxReadDuration;
         }
     }
 };

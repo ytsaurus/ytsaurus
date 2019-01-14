@@ -93,8 +93,53 @@ class TestNodeTracker(YTEnvSetup):
     def test_create_cluster_node(self):
         kwargs = {"type": "cluster_node"}
         with pytest.raises(YtError): execute_command("create", kwargs)
-        
+
 ##################################################################
 
 class TestNodeTrackerMulticell(TestNodeTracker):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+################################################################################
+
+class TestNodesCreatedBanned(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    DEFER_NODE_START = True
+
+    def test_new_nodes_created_banned(self):
+        set("//sys/@config/node_tracker/total_node_statistics_update_period", 1000)
+
+        assert get("//sys/nodes/@count") == 0
+        assert get("//sys/nodes/@online_node_count") == 0
+
+        assert not get("//sys/@config/node_tracker/ban_new_nodes")
+        set("//sys/@config/node_tracker/ban_new_nodes", True)
+
+        self.Env.start_nodes(sync=False)
+
+        wait(lambda: get("//sys/nodes/@count") == 3)
+        wait(lambda: get("//sys/nodes/@online_node_count") == 0)
+
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 3
+
+        for node in nodes:
+            assert get("//sys/nodes/{0}/@banned".format(node))
+            ban_message = get("//sys/nodes/{0}/@ban_message".format(node))
+            assert "banned" in ban_message and "provisionally" in ban_message
+            assert get("//sys/nodes/{0}/@state".format(node)) == "offline"
+
+        for node in nodes:
+            set("//sys/nodes/{0}/@banned".format(node), False)
+
+        self.Env.synchronize()
+
+        wait(lambda: get("//sys/nodes/@online_node_count") == 3)
+
+        create("table", "//tmp/t")
+
+        write_table("//tmp/t", {"a" : "b"})
+        read_table("//tmp/t")
+
+class TestNodesCreatedBannedMulticell(TestNodesCreatedBanned):
     NUM_SECONDARY_MASTER_CELLS = 2

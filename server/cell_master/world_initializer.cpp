@@ -270,7 +270,7 @@ private:
                     .BeginMap()
                         .Item("external").Value(false)
                     .EndMap());
-            
+
             ScheduleCreateNode(
                 "//sys/controller_agents/instances",
                 transactionId,

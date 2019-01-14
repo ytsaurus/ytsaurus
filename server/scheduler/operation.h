@@ -162,8 +162,6 @@ class TOperation
     , public IOperationStrategyHost
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
-
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
 
     DEFINE_BYVAL_RO_PROPERTY(EOperationState, State);
@@ -178,8 +176,6 @@ public:
 
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
-
-    DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParametersPtr, RuntimeParameters);
 
     DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeDataPtr, RuntimeData);
 
@@ -231,8 +227,12 @@ public:
     //! Alias for the operation.
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Alias);
 
+    DEFINE_BYREF_RO_PROPERTY(NYTree::IMapNodePtr, Annotations);
+
     //! Returns operation id.
     TOperationId GetId() const override;
+
+    EOperationType GetType() const override;
 
     //! Returns operation start time.
     TInstant GetStartTime() const override;
@@ -284,6 +284,9 @@ public:
     const std::vector<TString>& GetOwners() const;
     void SetOwners(std::vector<TString> owners);
 
+    TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
+    void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
+
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;
     void SetAlert(EOperationAlertType alertType, const TError& error, std::optional<TDuration> timeout = std::nullopt);
@@ -312,6 +315,7 @@ public:
         NRpc::TMutationId mutationId,
         NTransactionClient::TTransactionId userTransactionId,
         NYTree::IMapNodePtr spec,
+        NYTree::IMapNodePtr annotations,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParams,
         const TString& authenticatedUser,
@@ -324,6 +328,7 @@ public:
 
 private:
     const TOperationId Id_;
+    const EOperationType Type_;
     const TInstant StartTime_;
     const TString AuthenticatedUser_;
     const NYTree::IMapNodePtr Spec_;
@@ -336,7 +341,7 @@ private:
 
     THashMap<TString, int> TreeIdToSlotIndex_;
 
-    std::vector<TString> Owners_;
+    TOperationRuntimeParametersPtr RuntimeParameters_;
 
     TOperationAlertMap Alerts_;
 

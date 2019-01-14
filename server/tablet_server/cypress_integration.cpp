@@ -77,7 +77,7 @@ private:
     {
         auto key = GetParent()->AsMap()->GetChildKeyOrThrow(this);
         auto id = TTabletCellId::FromString(key);
-     
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* cell = tabletManager->GetTabletCellOrThrow(id);
 

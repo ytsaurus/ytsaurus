@@ -6158,10 +6158,10 @@ void TOperationControllerBase::Dispose()
     ReleaseJobs(jobIdsToRelease);
 }
 
-void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimeParametersPtr& runtimeParameters)
+void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update)
 {
-    if (runtimeParameters->Owners) {
-        Owners = *runtimeParameters->Owners;
+    if (update->Owners) {
+        Owners = *update->Owners;
     }
 }
 
@@ -6397,6 +6397,10 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
         .DoIf(Spec_->Title.operator bool(), [&] (TFluentMap fluent) {
             fluent
                 .Item("title").Value(*Spec_->Title);
+        })
+        .DoIf(Spec_->Alias.operator bool(), [&] (TFluentMap fluent) {
+            fluent
+                .Item("alias").Value(*Spec_->Alias);
         })
         .Item("input_table_paths").ListLimited(inputPaths, 1)
         .Item("output_table_paths").ListLimited(outputPaths, 1);
@@ -7140,17 +7144,32 @@ void TOperationControllerBase::GetExecNodesInformation()
         return;
     }
 
-    ExecNodeCount_ = Host->GetExecNodeCount();
+    OnlineExecNodeCount_ = Host->GetOnlineExecNodeCount();
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
+
+    OnlineExecNodesDescriptors_->clear();
+    for (const auto& pair : *ExecNodesDescriptors_) {
+        if (pair.second.Online) {
+            YCHECK(OnlineExecNodesDescriptors_->insert(pair).second);
+        }
+    }
+
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerExecNodeInfoUpdatePeriod);
+
     OnExecNodesUpdated();
-    YT_LOG_DEBUG("Exec nodes information updated (ExecNodeCount: %v)", ExecNodeCount_);
+    YT_LOG_DEBUG("Exec nodes information updated (SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)", ExecNodesDescriptors_->size(), OnlineExecNodeCount_);
 }
 
-int TOperationControllerBase::GetExecNodeCount()
+int TOperationControllerBase::GetOnlineExecNodeCount()
 {
     GetExecNodesInformation();
-    return ExecNodeCount_;
+    return OnlineExecNodeCount_;
+}
+
+const TExecNodeDescriptorMap& TOperationControllerBase::GetOnlineExecNodeDescriptors()
+{
+    GetExecNodesInformation();
+    return *OnlineExecNodesDescriptors_;
 }
 
 const TExecNodeDescriptorMap& TOperationControllerBase::GetExecNodeDescriptors()
@@ -7161,8 +7180,7 @@ const TExecNodeDescriptorMap& TOperationControllerBase::GetExecNodeDescriptors()
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()
 {
-    auto nodeCount = GetExecNodeCount();
-    if (nodeCount < Config->SafeOnlineNodeCount) {
+    if (GetOnlineExecNodeCount() < Config->SafeOnlineNodeCount) {
         return true;
     }
 
@@ -7462,6 +7480,10 @@ TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate(
             .Item("min_upload_replication_factor").Value(1)
             .Item("populate_cache").Value(true)
             .Item("sync_on_close").Value(false)
+            .DoIf(Spec_->IntermediateDataReplicationFactor > 1, [&] (TFluentMap fluent) {
+                // Set reduced rpc_timeout if replication_factor is greater than one.
+                fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
+            })
         .EndMap();
 
     descriptor.RequiresRecoveryInfo = true;

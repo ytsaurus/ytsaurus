@@ -184,6 +184,9 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     parts.push_back(request.AuthenticatedUser);
     parts.push_back(FormatEnum(request.State));
     parts.push_back(FormatEnum(request.OperationType));
+    if (auto node = specMapNode->FindChild("annotations")) {
+        parts.push_back(ConvertToYsonString(node, EYsonFormat::Text).GetData());
+    }
 
     for (const auto& key : {"pool", "title"}) {
         auto node = specMapNode->FindChild(key);
@@ -281,6 +284,10 @@ TUnversionedRow BuildOrderedByIdTableRow(
         builder.AddValue(MakeUnversionedAnyValue(request.SlotIndexPerPoolTree.GetData(), index.SlotIndexPerPoolTree));
     }
 
+    if (version >= 29 && request.Annotations) {
+        builder.AddValue(MakeUnversionedAnyValue(request.Annotations.GetData(), index.Annotations));
+    }
+
     return rowBuffer->Capture(builder.GetRow());
 }
 
@@ -344,7 +351,7 @@ class TOperationsCleaner::TImpl
 {
 public:
     DEFINE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsArchived);
-    
+
     TImpl(
         TOperationsCleanerConfigPtr config,
         IOperationsCleanerHost* host,

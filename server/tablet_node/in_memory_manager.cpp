@@ -42,6 +42,7 @@
 #include <yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/memory_zone.h>
 
 #include <yt/core/rpc/local_channel.h>
 
@@ -131,10 +132,7 @@ public:
             NChunkClient::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
-        , Throttler_(CreateReconfigurableThroughputThrottler(
-            config->PreloadThrottler,
-            Logger,
-            TabletNodeProfiler.AppendPath("/in_memory_manager/preload_throttler")))
+        , Throttler_(Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPreload))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
@@ -600,7 +598,13 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         std::vector<TBlock> cachedBlocks;
         switch (mode) {
             case EInMemoryMode::Compressed: {
-                cachedBlocks = std::move(compressedBlocks);
+                for (const auto& compressedBlock : compressedBlocks) {
+                    TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
+                    auto undumpableData = TSharedRef::MakeCopy<TPreloadedBlockTag>(compressedBlock.Data);
+                    auto block = TBlock(undumpableData, compressedBlock.Checksum, compressedBlock.BlockOrigin);
+                    cachedBlocks.push_back(std::move(block));
+                }
+
                 break;
             }
 
@@ -614,6 +618,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                 for (auto& compressedBlock : compressedBlocks) {
                     asyncUncompressedBlocks.push_back(
                         BIND([&] {
+                                TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
                                 NProfiling::TCpuTimer timer;
                                 auto block = codec->Decompress(compressedBlock.Data);
                                 return std::make_pair(std::move(block), timer.GetElapsedTime());

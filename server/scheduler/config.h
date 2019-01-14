@@ -83,6 +83,8 @@ public:
     TDuration FairSharePreemptionTimeoutLimit;
     double FairShareStarvationToleranceLimit;
 
+    bool EnableAggressiveStarvation;
+
     //! Any operation with less than this number of running jobs cannot be preempted.
     int MaxUnpreemptableRunningJobCount;
 
@@ -443,6 +445,8 @@ public:
     TOperationsCleanerConfigPtr OperationsCleaner;
 
     bool PoolChangeIsAllowed;
+
+    TDuration MaxOfflineNodeAge;
 
     TSchedulerConfig();
 };

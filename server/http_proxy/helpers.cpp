@@ -1,10 +1,13 @@
 #include "helpers.h"
 
+#include "coordinator.h"
 #include "private.h"
 
 #include <yt/core/http/http.h>
+#include <yt/core/http/helpers.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/proc.h>
 
@@ -16,10 +19,11 @@
 
 namespace NYT::NHttpProxy {
 
+using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
 
-static auto& Logger = HttpProxyLogger;
+static const auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -312,6 +316,50 @@ std::optional<TNetworkStatistics> GetNetworkStatistics()
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to read network statistics");
         return {};
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ReplyError(const IResponseWriterPtr& response, const TError& error)
+{
+    FillYTErrorHeaders(response, error);
+    ReplyJson(response, [&] (NYson::IYsonConsumer* consumer) {
+        NYTree::BuildYsonFluently(consumer)
+            .Value(error);
+    });
+}
+
+void ProcessDebugHeaders(const IRequestPtr& request, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
+{
+    response->GetHeaders()->Add("X-YT-Request-Id", ToString(request->GetRequestId()));
+    response->GetHeaders()->Add("X-YT-Proxy", coordinator->GetSelf()->GetHost());
+}
+
+void RedirectToDataProxy(const IRequestPtr& request, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
+{
+    auto target = coordinator->AllocateProxy("data");
+    if (target) {
+        auto url = request->GetUrl();
+        TString protocol{url.Protocol};
+        if (protocol.empty()) {
+            protocol = "http";
+        }
+        auto location = Format("%v://%v%v?%v",
+            protocol,
+            target->GetHost(),
+            url.Path,
+            url.RawQuery);
+
+        response->SetStatus(EStatusCode::TemporaryRedirect);
+        response->GetHeaders()->Set("Location", location);
+        response->AddConnectionCloseHeader();
+        WaitFor(response->Close())
+            .ThrowOnError();
+    } else {
+        response->SetStatus(EStatusCode::ServiceUnavailable);
+        response->GetHeaders()->Set("Retry-After", "60");
+        ReplyError(response, TError("There are no data proxies available"));
     }
 }
 

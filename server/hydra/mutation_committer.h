@@ -130,7 +130,7 @@ private:
         TInstant Timestamp;
         TPromise<TMutationResponse> CommitPromise;
     };
-    
+
     bool LoggingSuspended_ = false;
     std::vector<TPendingMutation> PendingMutations_;
 

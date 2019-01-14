@@ -41,7 +41,6 @@ TTask::TTask()
     : Logger(ControllerLogger)
     , CachedPendingJobCount_(-1)
     , CachedTotalJobCount_(-1)
-    , DemandSanityCheckDeadline_(0)
     , CompletedFired_(false)
 { }
 
@@ -52,7 +51,6 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors
     , TentativeTreeEligibility_(taskHost->GetSpec()->TentativeTreeEligibility)
     , CachedPendingJobCount_(0)
     , CachedTotalJobCount_(0)
-    , DemandSanityCheckDeadline_(0)
     , CompletedFired_(false)
     , InputChunkMapping_(New<TInputChunkMapping>())
 { }
@@ -468,10 +466,7 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, InputChunkMapping_);
 
-    // COMPAT(max42)
-    if (context.IsSave() || context.GetVersion() >= 202195) {
-        Persist(context, TaskJobIndexGenerator_);
-    }
+    Persist(context, TaskJobIndexGenerator_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)

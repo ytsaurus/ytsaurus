@@ -532,6 +532,7 @@ void TSchedulerThread::SetCurrentFiber(TFiberPtr fiber)
 {
     CurrentFiber_ = std::move(fiber);
     SetCurrentMemoryTag(CurrentFiber_->GetMemoryTag());
+    SetCurrentMemoryZone(CurrentFiber_->GetMemoryZone());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

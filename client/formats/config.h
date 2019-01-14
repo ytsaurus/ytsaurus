@@ -229,7 +229,7 @@ public:
             .Default(' ');
         RegisterParameter("enable_eom", EnableEom)
             .Default(false);
-            
+
         RegisterPreprocessor([&] {
             if (EnableEom && !Lenval) {
                 THROW_ERROR_EXCEPTION("EOM marker is not supported in YAMR text mode");

@@ -100,7 +100,7 @@ void swap(TPromise<T>& lhs, TPromise<T>& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 // A bunch of widely-used preset futures.
- 
+
 //! A pre-set successful |void| future.
 extern const TFuture<void> VoidFuture;
 
@@ -283,7 +283,7 @@ private:
     template <class U>
     friend TFuture<U> MakeWellKnownFuture(TErrorOr<U> value);
     template <class U>
-    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625 
+    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625
     friend class NYT::TFutureBase;
     template <class U>
     friend class TPromiseBase;
@@ -548,11 +548,6 @@ TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
 template <class T>
 TFuture<std::vector<TErrorOr<T>>> CombineAll(
     std::vector<TFuture<T>> futures);
-
-//! Takes a number of same-typed futures and returns a new one that
-//! is set when any of the given onces is set.
-template <class T>
-TFuture<T> AnyOf(std::vector<TFuture<T>> futures);
 
 //! Executes given #callbacks, allowing up to #concurrencyLimit simultaneous invocations.
 template <class T>

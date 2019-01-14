@@ -279,7 +279,7 @@ private:
         } else {
             auto socket = Socket_;
             Socket_ = INVALID_SOCKET;
-            
+
             int error = GetSocketError(socket);
             if (error != 0) {
                 YCHECK(TryClose(socket, false));
@@ -287,7 +287,7 @@ private:
                 Error_ = TError(NRpc::EErrorCode::TransportError, "Connect error")
                     << TError::FromSystem(error);
             }
-            
+
             OnFinished_(Error_.IsOK() ? TErrorOr<SOCKET>(socket) : TErrorOr<SOCKET>(Error_));
         }
     }

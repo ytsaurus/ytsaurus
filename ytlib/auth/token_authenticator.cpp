@@ -259,7 +259,7 @@ public:
             auto guard = Guard(Lock_);
             LastUserIP_[credentials.Token] = credentials.UserIP;
         }
-    
+
         return Get(credentials.Token);
     }
 
@@ -280,7 +280,7 @@ private:
                 credentials.UserIP = it->second;
             }
         }
-        
+
         return TokenAuthenticator_->Authenticate(credentials);
     }
 

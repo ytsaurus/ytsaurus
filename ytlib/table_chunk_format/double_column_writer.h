@@ -7,14 +7,14 @@ namespace NYT::NTableChunkFormat {
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedDoubleColumnWriter(
-    int columnIndex, 
+    int columnIndex,
     TDataBlockWriter* blockWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedDoubleColumnWriter(
-    int columnId, 
-    bool aggregate, 
+    int columnId,
+    bool aggregate,
     TDataBlockWriter* blockWriter);
 
 ////////////////////////////////////////////////////////////////////////////////

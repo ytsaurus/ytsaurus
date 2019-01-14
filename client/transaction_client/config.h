@@ -18,7 +18,7 @@ public:
     //! Timeout for RPC requests to timestamp provider.
     TDuration RpcTimeout;
 
-    //! Interval between consecutive current timestamp updates. 
+    //! Interval between consecutive current timestamp updates.
     TDuration UpdatePeriod;
 
     TRemoteTimestampProviderConfig()

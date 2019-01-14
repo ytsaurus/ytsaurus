@@ -57,10 +57,8 @@ struct IServer
     //! Stops the server.
     /*!
      *  Can be called multiple times (and even if not started).
-     *  The returned future is set when the acceptor fiber is reliably stopped.
-     *  This, however, tells nothing about the connections being active.
      */
-    virtual TFuture<void> Stop() = 0;
+    virtual void Stop() = 0;
 
 
     // Extension methods

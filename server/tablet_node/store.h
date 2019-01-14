@@ -11,6 +11,8 @@
 #include <yt/core/actions/signal.h>
 #include <yt/core/actions/future.h>
 
+#include <yt/core/concurrency/throughput_throttler.h>
+
 #include <yt/core/misc/range.h>
 
 #include <yt/core/yson/public.h>
@@ -167,7 +169,8 @@ struct ISortedStore
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions) = 0;
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) = 0;
 
     //! Creates a reader for the set of |keys|.
     /*!

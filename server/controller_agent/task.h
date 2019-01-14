@@ -255,7 +255,6 @@ private:
     TJobResources CachedTotalNeededResources_;
     mutable std::optional<NScheduler::TExtendedJobResources> CachedMinNeededResources_;
 
-    NProfiling::TCpuInstant DemandSanityCheckDeadline_;
     bool CompletedFired_;
 
     using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IChunkPoolInput*>;

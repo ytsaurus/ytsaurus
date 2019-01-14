@@ -10,22 +10,22 @@ using namespace NChunkClient;
 
 TInputChunkPtr TOutputOrder::TEntry::GetTeleportChunk() const
 {
-    return Content_.As<TInputChunkPtr>();
+    return std::get<TInputChunkPtr>(Content_);
 }
 
 TOutputOrder::TCookie TOutputOrder::TEntry::GetCookie() const
 {
-    return Content_.As<TCookie>();
+    return std::get<TCookie>(Content_);
 }
 
 bool TOutputOrder::TEntry::IsCookie() const
 {
-    return Content_.Is<TCookie>();
+    return std::holds_alternative<TCookie>(Content_);
 }
 
 bool TOutputOrder::TEntry::IsTeleportChunk() const
 {
-    return Content_.Is<TInputChunkPtr>();
+    return std::holds_alternative<TInputChunkPtr>(Content_);
 }
 
 TOutputOrder::TEntry::TEntry(TInputChunkPtr teleportChunk)
@@ -91,7 +91,7 @@ std::vector<TChunkTreeId> TOutputOrder::ArrangeOutputChunkTrees(
         YCHECK(chunkTrees.empty());
         return {};
     }
-    
+
     std::vector<TChunkTreeId> chunkTreeByPosition;
     chunkTreeByPosition.resize(Pool_.size());
     for (const auto& pair : chunkTrees) {

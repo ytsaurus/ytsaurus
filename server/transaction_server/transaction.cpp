@@ -68,18 +68,11 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
 void TTransaction::Load(NCellMaster::TLoadContext& context)
 {
     TNonversionedObjectBase::Load(context);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 500) {
-        TTransactionBase::Load(context);
-    }
+    TTransactionBase::Load(context);
 
     using NYT::Load;
     Load(context, State_);
     Load(context, Timeout_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 700) {
-        Load<bool>(context); // drop AccountingEnabled_
-    }
     Load(context, Title_);
     Load(context, SecondaryCellTags_);
     Load(context, NestedTransactions_);
@@ -98,11 +91,8 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 702 && context.GetVersion() < 804) {
         Load<bool>(context); // drop System_
     }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 706) {
-        Load(context, PrerequisiteTransactions_);
-        Load(context, DependentTransactions_);
-    }
+    Load(context, PrerequisiteTransactions_);
+    Load(context, DependentTransactions_);
     // COMPAT(ignat)
     if (context.GetVersion() >= 810) {
         Load(context, Deadline_);

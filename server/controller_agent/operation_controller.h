@@ -240,7 +240,7 @@ struct IOperationControllerHost
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
     virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
 
-    virtual int GetExecNodeCount() = 0;
+    virtual int GetOnlineExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
     virtual NScheduler::TIncarnationId GetIncarnationId() = 0;
@@ -408,7 +408,7 @@ struct IOperationControllerSchedulerHost
     virtual void Dispose() = 0;
 
     //! Updates runtime parameters.
-    virtual void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersPtr& runtimeParameters) = 0;
+    virtual void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& runtimeParameters) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)

@@ -8,7 +8,6 @@ SET(PROTO_NAMESPACE ${YT_ROOT})
 
 SET(YT_ARCADIA_CXXFLAGS
   -Wno-sign-compare
-  -Wno-unused-private-field
   -Wno-unused-function
   -Wno-unused-parameter
   -Wno-unused-value

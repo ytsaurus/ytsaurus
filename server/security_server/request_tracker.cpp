@@ -108,11 +108,11 @@ void TRequestTracker::DoChargeUser(
 
         auto* entry = Request_.add_entries();
         ToProto(entry->mutable_user_id(), user->GetId());
-    
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->EphemeralRefObject(user);
     }
-    
+
     auto now = NProfiling::GetInstant();
     auto* entry = Request_.mutable_entries(index);
     auto* statistics = entry->mutable_statistics();

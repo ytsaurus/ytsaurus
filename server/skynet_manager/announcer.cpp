@@ -20,11 +20,11 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NNet;
 
-static auto& Logger = SkynetManagerLogger;
+static const auto& Logger = SkynetManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ui32 ClientPacketMagic = 4079332072;
+static const ui32 ClientPacketMagic = 4079332072;
 
 TTrackerConnection::TTrackerConnection(
     IPacketConnectionPtr connection,
@@ -40,7 +40,7 @@ TTrackerConnection::TTrackerConnection(
     , FailedPackets_("/failed_packets", {
         TProfileManager::Get()->RegisterTag({"tracker_address", ToString(trackerAddress)})
     })
-    , TimedoutPackets_("/timedout_packets", {
+    , TimedOutPackets_("/timed_out_packets", {
         TProfileManager::Get()->RegisterTag({"tracker_address", ToString(trackerAddress)})
     })
 { }
@@ -69,7 +69,7 @@ TFuture<TDuration> TTrackerConnection::Connect(ui16 dataPort)
 
     return Send(transactionId, request)
         .Apply(BIND([] (const TErrorOr<INodePtr>& reply) {
-            return TDuration::Seconds(ConvertTo<int>(reply.ValueOrThrow()->AsList()->FindChild(2)));
+            return TDuration::Seconds(ConvertTo<int>(reply.ValueOrThrow()->AsList()->GetChild(2)));
         }));
 }
 
@@ -89,26 +89,26 @@ TFuture<std::optional<TDuration>> TTrackerConnection::Announce(TResourceId resou
 
     return Send(transactionId, request)
         .Apply(BIND([state] (const TErrorOr<INodePtr>& reply) -> std::optional<TDuration> {
-            if (state == EAnnounceState::Seeding) {
-                return TDuration::Seconds(ConvertTo<int>(reply.ValueOrThrow()->AsList()->FindChild(2)));
+            if (state != EAnnounceState::Seeding) {
+                return std::nullopt;
             }
-
-            return std::nullopt;
+            return TDuration::Seconds(ConvertTo<int>(reply.ValueOrThrow()->AsList()->GetChild(2)));
         }));
 }
 
 void TTrackerConnection::OnTrackerPacket(const TSharedRef& packet)
 {
     auto msg = ParseFromMsgpack(packet);
-    auto transactionId = ConvertTo<TTrackerTransactionId>(msg->AsList()->FindChild(0));
+    auto transactionId = ConvertTo<TTrackerTransactionId>(msg->AsList()->GetChild(0));
 
     auto request = ActiveRequests_.find(transactionId);
     if (request == ActiveRequests_.end()) {
-        YT_LOG_WARNING("Received packet with unknown transaction id (TransactionId: %v)", transactionId);
+        YT_LOG_WARNING("Received packet with unknown transaction id (TransactionId: %v)",
+            transactionId);
         return;
     }
 
-    auto errorCode = ConvertTo<int>(msg->AsList()->FindChild(1));
+    auto errorCode = ConvertTo<int>(msg->AsList()->GetChild(1));
     if (errorCode != 0) {
         SkynetManagerProfiler.Increment(FailedPackets_);
         request->second.Reply.TrySet(TError("Tracker returned an error")
@@ -128,7 +128,8 @@ TFuture<INodePtr> TTrackerConnection::Send(TTrackerTransactionId id, INodePtr re
     context.Reply = NewPromise<INodePtr>();
     context.Deadline = TInstant::Now() + TDuration::Seconds(5);
 
-    YT_LOG_DEBUG("Sending packet to tracker (TrackerAddress: %v)", TrackerAddress_);
+    YT_LOG_DEBUG("Sending packet to tracker (TrackerAddress: %v)",
+        TrackerAddress_);
     Connection_->SendTo(packet, TrackerAddress_);
     return context.Reply.ToFuture();
 }
@@ -136,20 +137,20 @@ TFuture<INodePtr> TTrackerConnection::Send(TTrackerTransactionId id, INodePtr re
 void TTrackerConnection::ExpireRequests()
 {
     std::vector<TTrackerTransactionId> toRemove;
-    for (auto&& context : ActiveRequests_) {
-        if (context.second.Deadline > TInstant::Now()) {
+    for (auto& [id, context] : ActiveRequests_) {
+        if (context.Deadline > TInstant::Now()) {
             continue;
         }
-        context.second.Reply.TrySet(TError("Tracker request timed out"));
-        toRemove.push_back(context.first);
+        context.Reply.TrySet(TError("Tracker request timed out"));
+        toRemove.push_back(id);
     }
 
     for (auto id : toRemove) {
-        YT_LOG_ERROR("Tracker request expired (TrackerAddress: %v, TransactionId: %d)",
+        YT_LOG_ERROR("Tracker request expired (TrackerAddress: %v, TransactionId: %v)",
             TrackerAddress_,
             id);
         ActiveRequests_.erase(id);
-        SkynetManagerProfiler.Increment(TimedoutPackets_);
+        SkynetManagerProfiler.Increment(TimedOutPackets_);
     }
 }
 
@@ -179,17 +180,17 @@ void TAnnounceScheduler::PutRestored(TResourceId resourceId, TTrackerId trackerC
 {
     const TDuration StartupSplay = TDuration::Hours(3);
     for (int i = 0; i < trackerCount; i++) {
-        PutWithTTL(resourceId, i, RandomDuration(StartupSplay));
+        PutWithTtl(resourceId, i, RandomDuration(StartupSplay));
     }
 }
 
 void TAnnounceScheduler::PutRetry(TResourceId resourceId, TTrackerId failedTrackerId)
 {
-    const TDuration ErrorBackoff = TDuration::Seconds(5);
-    PutWithTTL(resourceId, failedTrackerId, RandomDuration(ErrorBackoff));
+    const auto ErrorBackoff = TDuration::Seconds(5);
+    PutWithTtl(resourceId, failedTrackerId, RandomDuration(ErrorBackoff));
 }
 
-void TAnnounceScheduler::PutWithTTL(TResourceId resourceId, TTrackerId trackerId, TDuration ttl)
+void TAnnounceScheduler::PutWithTtl(TResourceId resourceId, TTrackerId trackerId, TDuration ttl)
 {
     Timers_.emplace(TInstant::Now() + ttl, std::make_pair(resourceId, trackerId));
 }
@@ -260,15 +261,21 @@ bool TAnnouncer::IsHealthy()
 
 void TAnnouncer::Start()
 {
-    for (auto&& tracker : Trackers_) {
-        BIND(&TAnnouncer::RunConnectLoop, MakeStrong(this), tracker.second).AsyncVia(Invoker_).Run();
+    for (const auto& [id, trackerConnection] : Trackers_) {
+        BIND(&TAnnouncer::RunConnectLoop, MakeStrong(this), trackerConnection)
+            .AsyncVia(Invoker_)
+            .Run();
     }
 
-    BIND(&TAnnouncer::RunReceiveLoop, MakeStrong(this)).AsyncVia(Invoker_).Run();
+    BIND(&TAnnouncer::RunReceiveLoop, MakeStrong(this))
+        .AsyncVia(Invoker_)
+        .Run();
 
     ExpireRequests_->Start();
 
-    BIND(&TAnnouncer::RunAnnounceLoop, MakeStrong(this)).AsyncVia(Invoker_).Run();
+    BIND(&TAnnouncer::RunAnnounceLoop, MakeStrong(this))
+        .AsyncVia(Invoker_)
+        .Run();
 }
 
 TFuture<void> TAnnouncer::AddOutOfOrderAnnounce(const TString& cluster, const TResourceId& resourceId)
@@ -276,7 +283,7 @@ TFuture<void> TAnnouncer::AddOutOfOrderAnnounce(const TString& cluster, const TR
     return BIND([this, this_ = MakeStrong(this), cluster, resourceId] () {
         auto& state = Resources_[resourceId];
         bool needsAnnouncer = !state.IsAlive();
-        
+
         state.LastOutOfOrderUpdate = std::make_pair(cluster, TInstant::Now() + Config_->OutOfOrderUpdateTtl);
 
         if (!needsAnnouncer) {
@@ -288,7 +295,7 @@ TFuture<void> TAnnouncer::AddOutOfOrderAnnounce(const TString& cluster, const TR
             auto& tracker = Trackers_[trackerId].second;
             auto result = WaitFor(tracker->Announce(resourceId, EAnnounceState::Seeding));
             if (result.IsOK()) {
-                Scheduler_.PutWithTTL(resourceId, trackerId, *result.Value());
+                Scheduler_.PutWithTtl(resourceId, trackerId, *result.Value());
             } else {
                 Scheduler_.PutRetry(resourceId, trackerId);
             }
@@ -324,14 +331,14 @@ void TAnnouncer::SyncResourceList(
         }
 
         SkynetManagerProfiler.Update(ResourceCount_, Resources_.size());
-        YT_LOG_INFO("Finished synchronizing resource list (Cluster: %s, Added: %d, Removed: %d)",
+        YT_LOG_INFO("Finished synchronizing resource list (Cluster: %v, Added: %v, Removed: %v)",
             cluster,
             updated.size(),
             toRemove.size());
         for (auto&& resourceId : toRemove) {
             Resources_.erase(resourceId);
-            for (auto& tracker : Trackers_) {
-                tracker.second->Announce(resourceId, EAnnounceState::Stopped);
+            for (const auto& [id, trackerConnection] : Trackers_) {
+                trackerConnection->Announce(resourceId, EAnnounceState::Stopped);
             }
         }
     })
@@ -373,7 +380,7 @@ TString TAnnouncer::FindResourceCluster(const TResourceId& resourceId)
     auto resourceCluster = BIND([this, this_ = MakeStrong(this), resourceId] () {
         auto it = Resources_.find(resourceId);
         if (it == Resources_.end()) {
-            THROW_ERROR_EXCEPTION("Resource not found in announcer cache; Unable to determine resource cluster")
+            THROW_ERROR_EXCEPTION("Resource not found in announcer cache; unable to determine resource cluster")
                 << TErrorAttribute("resource_id", resourceId);
         }
 
@@ -395,39 +402,42 @@ void TAnnouncer::RunAnnounceLoop()
 {
     while (true) {
         auto batch = Scheduler_.GetNextBatch();
-        YT_LOG_INFO("Started backgroud announce iteration (QueueSize: %d, BatchSize: %d)",
+        YT_LOG_INFO("Started background announce iteration (QueueSize: %v, BatchSize: %v)",
             Scheduler_.QueueSize(),
             batch.size());
-        for (auto&& resource : batch) {
-            if (Resources_.find(resource.first) == Resources_.end()) {
+        for (const auto& [resourceId, trackerId] : batch) {
+            if (Resources_.find(resourceId) == Resources_.end()) {
                 continue;
             }
-        
-            const auto& tracker = Trackers_[resource.second].second;
-            auto reply = tracker->Announce(resource.first, EAnnounceState::Seeding);
-            auto result = WaitFor(reply);
+
+            const auto& tracker = Trackers_[trackerId].second;
+            auto asynResult = tracker->Announce(resourceId, EAnnounceState::Seeding);
+            auto result = WaitFor(asynResult);
 
             if (result.IsOK()) {
-                Scheduler_.PutWithTTL(resource.first, resource.second, *result.Value());
+                Scheduler_.PutWithTtl(resourceId, trackerId, *result.Value());
             } else {
-                YT_LOG_ERROR(result, "Error is background announcer (ResourceId: %v)", resource.first);
-                Scheduler_.PutRetry(resource.first, resource.second);
+                YT_LOG_ERROR(result, "Error is background announcer (ResourceId: %v)",
+                    resourceId);
+                Scheduler_.PutRetry(resourceId, trackerId);
             }
         }
 
-        YT_LOG_INFO("Finished backgroud announce iteration (QueueSize: %d)",
+        YT_LOG_INFO("Finished background announce iteration (QueueSize: %v)",
             Scheduler_.QueueSize());
+
         TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
     }
 }
 
-void TAnnouncer::RunConnectLoop(TTrackerConnectionPtr tracker)
+void TAnnouncer::RunConnectLoop(const TTrackerConnectionPtr& tracker)
 {
     while (true) {
         bool connected = false;
         try {
             YT_LOG_INFO("Sending connect message to tracker");
-            auto ttl = WaitFor(tracker->Connect(SelfDataPort_)).ValueOrThrow();
+            auto ttl = WaitFor(tracker->Connect(SelfDataPort_))
+                .ValueOrThrow();
             YT_LOG_INFO("Connected to tracker (Ttl: %v)", ttl);
             if (!connected) {
                 connected = true;
@@ -450,24 +460,24 @@ void TAnnouncer::RunReceiveLoop()
 {
     auto buffer = TSharedMutableRef::Allocate(4096);
     while (true) {
-        auto msg = WaitFor(Connection_->ReceiveFrom(buffer));
-
-        if (!msg.IsOK()) {
-            YT_LOG_ERROR(msg, "Error receiving packet from tracker");
+        auto messageOrError = WaitFor(Connection_->ReceiveFrom(buffer));
+        if (!messageOrError.IsOK()) {
+            YT_LOG_ERROR(messageOrError, "Error receiving packet from tracker");
             continue;
         }
 
-        YT_LOG_DEBUG("Received tracker packet (TrackerAddress: %v)", msg.ValueOrThrow().second);
+        const auto& message = messageOrError.Value();
+        YT_LOG_DEBUG("Received tracker packet (TrackerAddress: %v)", message.second);
         bool found = true;
-        for (auto&& trackerConnection : Trackers_) {
-            if (trackerConnection.first != msg.ValueOrThrow().second) {
+        for (const auto& [address, trackerConnection] : Trackers_) {
+            if (address != message.second) {
                 continue;
             }
 
             found = true;
 
             try {
-                trackerConnection.second->OnTrackerPacket(buffer.Slice(0, msg.ValueOrThrow().first));
+                trackerConnection->OnTrackerPacket(buffer.Slice(0, message.first));
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Error in tracker packet handler");
             }
@@ -475,16 +485,18 @@ void TAnnouncer::RunReceiveLoop()
         }
 
         if (!found) {
-            YT_LOG_ERROR("Received packet from unknown address (Address: %v)", msg.ValueOrThrow().second);
+            YT_LOG_ERROR("Received packet from unknown address (Address: %v)",
+                message.second);
         }
     }
 }
 
 void TAnnouncer::ExpireRequests()
 {
-    for (auto&& tracker : Trackers_) {
-        YT_LOG_INFO("Expiring requests from tracker (TrackerAddress: %v)", tracker.first);
-        tracker.second->ExpireRequests();
+    for (const auto& [address, trackerConnection] : Trackers_) {
+        YT_LOG_INFO("Expiring requests from tracker (TrackerAddress: %v)",
+            address);
+        trackerConnection->ExpireRequests();
     }
 }
 

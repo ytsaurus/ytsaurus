@@ -29,7 +29,7 @@ if (n >= 1) {
 if (n >= 7) {
     __asm__("cpuid" : "=b"(F7b_), "=c"(F7c_) : "a"(7), "c"(0) : "edx");
 }
-#endif    
+#endif
 }
 
 const TCpuId CpuId;

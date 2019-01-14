@@ -12,6 +12,8 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/core/misc/memory_zone.h>
+
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
@@ -49,7 +51,17 @@ public:
             const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
             chunkBlockManager->PutCachedBlock(id, data, source);
         } else {
-            UnderlyingCache_->Put(id, type, data, source);
+            TBlock block;
+            {
+                // NB: Copy block to move data to undumpable memory and to
+                // prevent cache from holding the whole block sequence.
+                TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
+                block = TBlock(
+                    TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data),
+                    data.Checksum,
+                    data.BlockOrigin);
+            }
+            UnderlyingCache_->Put(id, type, block, source);
         }
     }
 

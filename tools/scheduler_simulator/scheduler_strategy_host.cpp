@@ -77,7 +77,7 @@ std::vector<NNodeTrackerClient::TNodeId> TSchedulerStrategyHost::GetExecNodeIds(
         }
     }
     return result;
-}  
+}
 
 TString TSchedulerStrategyHost::GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const
 {

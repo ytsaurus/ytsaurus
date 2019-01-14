@@ -149,7 +149,7 @@ private:
             explicit TStopTag(TServerPtr owner)
                 : Owner_(std::move(owner))
             { }
-            
+
             virtual void Run(bool success, int /*cookie*/) override
             {
                 YCHECK(success);
@@ -748,7 +748,7 @@ private:
                     "Service is not registered")
                     << TErrorAttribute("service", ServiceName_);
                 YT_LOG_WARNING(error);
-                
+
                 auto responseMessage = CreateErrorResponseMessage(RequestId_, error);
                 replyBus->Send(std::move(responseMessage), NBus::TSendOptions(EDeliveryTrackingLevel::None));
             }
@@ -777,10 +777,10 @@ private:
         void OnResponseMessage(TSharedRefArray message)
         {
             auto guard = Guard(SpinLock_);
-            
+
             YCHECK(!ResponseMessage_);
             ResponseMessage_ = std::move(message);
-            
+
             if (Stage_ == EServerCallStage::WaitingForService) {
                 SendResponse(guard);
             }
@@ -846,7 +846,7 @@ private:
                 auto guard = Guard(SpinLock_);
                 Stage_ = EServerCallStage::Done;
             }
-            
+
             if (success) {
                 YT_LOG_DEBUG("Response sent (RequestId: %v)",
                     RequestId_);

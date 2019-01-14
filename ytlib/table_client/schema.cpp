@@ -429,7 +429,7 @@ TError ValidateTableSchemaCompatibility(
     // If output schema is strict, check that input columns are subset of output columns.
     if (outputSchema.GetStrict()) {
         if (!inputSchema.GetStrict()) {
-            return addAttributes(TError("Incompatible strictness: input schema is not strict while output schema is not"));
+            return addAttributes(TError("Incompatible strictness: input schema is not strict while output schema is"));
         }
 
         for (const auto& inputColumn : inputSchema.Columns()) {

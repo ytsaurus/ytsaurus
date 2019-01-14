@@ -49,11 +49,11 @@ struct TModifyRowsOptions
 //! Represents a client-controlled transaction.
 /*
  *  Transactions are created by calling IClientBase::Transaction.
- *  
+ *
  *  For some table operations (e.g. #WriteRows), the transaction instance
  *  buffers all modifications and flushes them during #Commit. This, in
  *  particular, explains why these methods return |void|.
- *  
+ *
  *  Thread affinity: any
  */
 struct ITransaction
@@ -79,24 +79,23 @@ struct ITransaction
 
     // Tables
 
-    // TODO(sandello): Make write & delete non-virtual wrappers around ModifyRows.
-    virtual void WriteRows(
+    void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TUnversionedRow> rows,
-        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
+        const TModifyRowsOptions& options = TModifyRowsOptions());
 
-    virtual void WriteRows(
+    void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TVersionedRow> rows,
-        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
+        const TModifyRowsOptions& options = TModifyRowsOptions());
 
-    virtual void DeleteRows(
+    void DeleteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TKey> keys,
-        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
+        const TModifyRowsOptions& options = TModifyRowsOptions());
 
     virtual void ModifyRows(
         const NYPath::TYPath& path,

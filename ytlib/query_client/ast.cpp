@@ -211,25 +211,25 @@ bool operator != (const TQuery& lhs, const TQuery& rhs)
 
 void FormatLiteralValue(TStringBuilder* builder, const TLiteralValue& value)
 {
-    switch (value.Tag()) {
-        case TLiteralValue::TagOf<TNullLiteralValue>():
+    switch (value.index()) {
+        case VariantIndexV<TNullLiteralValue, TLiteralValue>:
             builder->AppendString("null");
             break;
-        case TLiteralValue::TagOf<i64>():
-            builder->AppendFormat("%v", value.As<i64>());
+        case VariantIndexV<i64, TLiteralValue>:
+            builder->AppendFormat("%v", std::get<i64>(value));
             break;
-        case TLiteralValue::TagOf<ui64>():
-            builder->AppendFormat("%vu", value.As<ui64>());
+        case VariantIndexV<ui64, TLiteralValue>:
+            builder->AppendFormat("%vu", std::get<ui64>(value));
             break;
-        case TLiteralValue::TagOf<double>():
-            builder->AppendFormat("%v", value.As<double>());
+        case VariantIndexV<double, TLiteralValue>:
+            builder->AppendFormat("%v", std::get<double>(value));
             break;
-        case TLiteralValue::TagOf<bool>():
-            builder->AppendFormat("%v", value.As<bool>() ? "true" : "false");
+        case VariantIndexV<bool, TLiteralValue>:
+            builder->AppendFormat("%v", std::get<bool>(value) ? "true" : "false");
             break;
-        case TLiteralValue::TagOf<TString>():
+        case VariantIndexV<TString, TLiteralValue>:
             builder->AppendChar('"');
-            builder->AppendString(EscapeC(value.As<TString>()));
+            builder->AppendString(EscapeC(std::get<TString>(value)));
             builder->AppendChar('"');
             break;
         default:

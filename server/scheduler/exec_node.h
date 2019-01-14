@@ -67,6 +67,9 @@ public:
     //! State of node at master.
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
 
+    //! State of node at scheduler.
+    DEFINE_BYVAL_RW_PROPERTY(ENodeState, SchedulerState);
+
     //! Error of node registration.
     DEFINE_BYVAL_RW_PROPERTY(TError, RegistrationError);
 
@@ -95,14 +98,15 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TJobToRelease>, JobsToRemove);
 
     DEFINE_BYVAL_RO_PROPERTY(double, IOWeight);
-    
+
     //! Mark that node has large job archivation queues.
     DEFINE_BYVAL_RW_PROPERTY(bool, JobReporterQueueIsTooLarge);
 
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
-        const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor);
+        const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
+        ENodeState state);
 
     const TString& GetDefaultAddress() const;
 
@@ -161,6 +165,7 @@ struct TExecNodeDescriptor
         NNodeTrackerClient::TNodeId id,
         const TString& address,
         double ioWeight,
+        bool online,
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
         const THashSet<TString>& tags);
@@ -170,6 +175,7 @@ struct TExecNodeDescriptor
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     TString Address;
     double IOWeight = 0.0;
+    bool Online = false;
     TJobResources ResourceUsage;
     TJobResources ResourceLimits;
     THashSet<TString> Tags;

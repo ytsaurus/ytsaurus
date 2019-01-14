@@ -124,7 +124,7 @@ std::vector<TString> ToVector(TRange<TStringBuf> range)
 {
     std::vector<TString> result;
     for (auto item : range) {
-        result.push_back(TString(item));
+        result.emplace_back(item);
     }
     return result;
 }

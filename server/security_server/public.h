@@ -47,6 +47,8 @@ struct TAccessControlEntry;
 struct TAccessControlList;
 class TAccessControlDescriptor;
 
+DECLARE_REFCOUNTED_STRUCT(TSerializableAccessControlEntry);
+
 struct TPermissionCheckResult;
 
 struct TUserWorkload;

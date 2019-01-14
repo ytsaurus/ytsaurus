@@ -149,7 +149,7 @@ private:
     struct TPostponedChangelogRotation
     { };
 
-    using TPostponedAction = TVariant<TPostponedMutation, TPostponedChangelogRotation>;
+    using TPostponedAction = std::variant<TPostponedMutation, TPostponedChangelogRotation>;
 
     TSpinLock SpinLock_;
     std::vector<TPostponedAction> PostponedActions_;

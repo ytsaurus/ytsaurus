@@ -77,7 +77,7 @@ private:
     TMutex Mutex_;
     std::atomic<bool> HasCachedDataFile_ = {false};
     TFuture<std::shared_ptr<TFileHandle>> CachedDataFile_;
-    
+
     TFuture<std::vector<TBlock>> DoReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,

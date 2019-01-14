@@ -103,7 +103,7 @@ TEST(TAutoMergeTest, ForceFlush)
     // merge jobs with < 5 chunks any more. Force-flush mode becomes disabled.
     EXPECT_FALSE(director.CanScheduleMergeJob(4));
     director.OnMergeJobFinished(4);
-    
+
     // Now we are able to schedule the long-waiting job.
     EXPECT_TRUE(director.CanScheduleTaskJob(12));
 }

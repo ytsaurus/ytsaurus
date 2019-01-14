@@ -199,9 +199,9 @@ TMemoryTagQueue* TOperationControllerHost::GetMemoryTagQueue()
     return Bootstrap_->GetControllerAgent()->GetMemoryTagQueue();
 }
 
-int TOperationControllerHost::GetExecNodeCount()
+int TOperationControllerHost::GetOnlineExecNodeCount()
 {
-    return Bootstrap_->GetControllerAgent()->GetExecNodeCount();
+    return Bootstrap_->GetControllerAgent()->GetOnlineExecNodeCount();
 }
 
 TRefCountedExecNodeDescriptorMapPtr TOperationControllerHost::GetExecNodeDescriptors(const TSchedulingTagFilter& filter)
