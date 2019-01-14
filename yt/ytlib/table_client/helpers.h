@@ -37,10 +37,7 @@ class TTableOutput
     : public IOutputStream
 {
 public:
-    TTableOutput(const NFormats::TFormat& format, NYson::IYsonConsumer* consumer);
     explicit TTableOutput(std::unique_ptr<NFormats::IParser> parser);
-
-    ~TTableOutput();
 
 private:
     void DoWrite(const void* buf, size_t len);

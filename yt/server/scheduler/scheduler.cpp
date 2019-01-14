@@ -25,16 +25,18 @@
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
+
+#include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/client/table_client/name_table.h>
-#include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/table_consumer.h>
 
@@ -437,13 +439,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (auto* id = idOrAlias.TryAs<TOperationId>()) {
+        if (const auto* id = std::get_if<TOperationId>(&idOrAlias)) {
             auto it = IdToOperation_.find(*id);
             return it == IdToOperation_.end() ? nullptr : it->second;
-        } else {
-            const auto& alias = idOrAlias.As<TString>();
-            auto it = OperationAliases_.find(alias);
+        } else if (const auto* alias = std::get_if<TString>(&idOrAlias)) {
+            auto it = OperationAliases_.find(*alias);
             return it == OperationAliases_.end() ? nullptr : it->second.Operation;
+        } else {
+            Y_UNREACHABLE();
         }
     }
 
@@ -630,12 +633,15 @@ public:
         auto runtimeParams = New<TOperationRuntimeParameters>();
         Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, user, type);
 
+        auto annotations = specNode->FindChild("annotations");
+
         auto operation = New<TOperation>(
             operationId,
             type,
             mutationId,
             transactionId,
             specNode,
+            annotations ? annotations->AsMap() : nullptr,
             secureVault,
             runtimeParams,
             user,

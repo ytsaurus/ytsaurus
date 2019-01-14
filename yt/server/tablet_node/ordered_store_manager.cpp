@@ -30,6 +30,8 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/misc/memory_zone.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
@@ -197,6 +199,10 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
+        TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
+            ? EMemoryZone::Normal
+            : EMemoryZone::Undumpable);
+
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);

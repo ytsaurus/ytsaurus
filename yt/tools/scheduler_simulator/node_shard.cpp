@@ -135,9 +135,20 @@ void TSimulatorNodeShard::RunOnce()
 
 void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
 {
-    YT_LOG_DEBUG("Heartbeat started (VirtualTimestamp: %v, NodeId: %v)", event.Time, event.NodeId);
-
     const auto& node = IdToNode_[event.NodeId];
+
+    YT_LOG_DEBUG(
+        "Heartbeat started "
+        "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
+        "ResourceUsage: %v, JobCount: %v)",
+        event.Time,
+        event.NodeId,
+        node->GetDefaultAddress(),
+        FormatResourceUsage(
+            TJobResources(node->GetResourceUsage()),
+            TJobResources(node->GetResourceLimits()),
+            node->GetDiskInfo()),
+        node->Jobs().size());
 
     // Prepare scheduling context.
     const auto& jobsSet = node->Jobs();
@@ -202,7 +213,28 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         nextHeartbeat.Time += TDuration::MilliSeconds(Config_->HeartbeatPeriod);
         Events_->InsertNodeShardEvent(ShardId_, nextHeartbeat);
     }
-    YT_LOG_DEBUG("Heartbeat finished (VirtualTimestamp: %v, NodeId: %v)", event.Time, event.NodeId);
+
+    const auto statistics = context->GetSchedulingStatistics();
+    YT_LOG_DEBUG(
+        "Heartbeat finished "
+        "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
+        "StartedJobs: %v, PreemptedJobs: %v, "
+        "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
+        "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
+        "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingElements: %v)",
+        event.Time,
+        event.NodeId,
+        node->GetDefaultAddress(),
+        context->StartedJobs().size(),
+        context->PreemptedJobs().size(),
+        statistics.ScheduledDuringPreemption,
+        statistics.PreemptableJobCount,
+        FormatResources(statistics.ResourceUsageDiscount),
+        statistics.ControllerScheduleJobCount,
+        statistics.NonPreemptiveScheduleJobAttempts,
+        statistics.PreemptiveScheduleJobAttempts,
+        statistics.HasAggressivelyStarvingElements);
+
 }
 
 void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)

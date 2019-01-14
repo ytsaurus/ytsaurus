@@ -9,14 +9,14 @@ namespace NYT::NYTAlloc {
 
 #ifdef YT_ALLOC_ENABLED
 
-void* Allocate(size_t size, bool dumpable)
+void* Allocate(size_t size)
 {
-    return AllocateInline(size, dumpable);
+    return AllocateInline(size);
 }
 
-void* AllocatePageAligned(size_t size, bool dumpable)
+void* AllocatePageAligned(size_t size)
 {
-    return AllocatePageAlignedInline(size, dumpable);
+    return AllocatePageAlignedInline(size);
 }
 
 void Free(void* ptr)
@@ -31,12 +31,12 @@ size_t GetAllocationSize(void* ptr)
 
 #else
 
-void* Allocate(size_t size, bool dumpable)
+void* Allocate(size_t size)
 {
     return ::malloc(size);
 }
 
-void* AllocatePageAligned(size_t size, bool /*dumpable*/)
+void* AllocatePageAligned(size_t size)
 {
     return ::valloc(size);
 }
@@ -80,6 +80,19 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Memory zone API bridge
+
+void SetCurrentMemoryZone(EMemoryZone zone)
+{
+    NYTAlloc::TThreadManager::SetCurrentMemoryZone(zone);
+}
+
+EMemoryZone GetCurrentMemoryZone()
+{
+    return NYTAlloc::TThreadManager::GetCurrentMemoryZone();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
@@ -94,12 +107,12 @@ using namespace NYT::NYTAlloc;
 
 extern "C" YTALLOC_WEAK void* malloc(size_t size)
 {
-    return AllocateInline(size, true);
+    return AllocateInline(size);
 }
 
 extern "C" YTALLOC_WEAK void* valloc(size_t size)
 {
-    return AllocatePageAlignedInline(size, true);
+    return AllocatePageAlignedInline(size);
 }
 
 extern "C" YTALLOC_WEAK void* aligned_alloc(size_t alignment, size_t size)
@@ -110,9 +123,9 @@ extern "C" YTALLOC_WEAK void* aligned_alloc(size_t alignment, size_t size)
     YCHECK(alignment <= PageSize);
     if (alignment <= 16) {
         // Proper alignment here is automatic.
-        return Allocate(size, true);
+        return Allocate(size);
     } else {
-        return AllocatePageAligned(size, true);
+        return AllocatePageAligned(size);
     }
 }
 

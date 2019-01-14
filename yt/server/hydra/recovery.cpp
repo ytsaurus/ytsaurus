@@ -424,18 +424,13 @@ void TFollowerRecovery::DoRun()
             postponedActions.size());
 
         for (const auto& action : postponedActions) {
-            switch (action.Tag()) {
-                case TPostponedAction::TagOf<TPostponedMutation>():
-                    DecoratedAutomaton_->LogFollowerMutation(action.As<TPostponedMutation>().RecordData, nullptr);
-                    break;
-
-                case TPostponedAction::TagOf<TPostponedChangelogRotation>():
-                    WaitFor(DecoratedAutomaton_->RotateChangelog())
-                        .ThrowOnError();
-                    break;
-
-                default:
-                    Y_UNREACHABLE();
+            if (const auto* mutation = std::get_if<TPostponedMutation>(&action)) {
+                DecoratedAutomaton_->LogFollowerMutation(mutation->RecordData, nullptr);
+            } else if (std::holds_alternative<TPostponedChangelogRotation>(action)) {
+                WaitFor(DecoratedAutomaton_->RotateChangelog())
+                    .ThrowOnError();
+            } else {
+                Y_UNREACHABLE();
             }
         }
     }

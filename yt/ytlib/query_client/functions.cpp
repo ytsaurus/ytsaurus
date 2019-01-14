@@ -12,7 +12,7 @@ size_t TFunctionTypeInferrer::GetNormalizedConstraints(
     std::unordered_map<TTypeArgument, size_t> idToIndex;
 
     auto getIndex = [&] (const TType& type) {
-        if (auto* genericId = type.TryAs<TTypeArgument>()) {
+        if (auto* genericId = std::get_if<TTypeArgument>(&type)) {
             auto itIndex = idToIndex.find(*genericId);
             if (itIndex != idToIndex.end()) {
                 return itIndex->second;
@@ -34,11 +34,11 @@ size_t TFunctionTypeInferrer::GetNormalizedConstraints(
                 idToIndex.emplace(*genericId, index);
                 return index;
             }
-        } else if (auto* fixedType = type.TryAs<EValueType>()) {
+        } else if (auto* fixedType = std::get_if<EValueType>(&type)) {
             size_t index = typeConstraints->size();
             typeConstraints->push_back(TTypeSet({*fixedType}));
             return index;
-        } else if (auto* unionType = type.TryAs<TUnionType>()) {
+        } else if (auto* unionType = std::get_if<TUnionType>(&type)) {
             size_t index = typeConstraints->size();
             typeConstraints->push_back(TTypeSet(unionType->begin(), unionType->end()));
             return index;
@@ -51,8 +51,8 @@ size_t TFunctionTypeInferrer::GetNormalizedConstraints(
         formalArguments->push_back(getIndex(argumentType));
     }
 
-    if (!(RepeatedArgumentType_.Is<EValueType>() && RepeatedArgumentType_.As<EValueType>() == EValueType::Null)) {
-        *repeatedType = std::make_pair(getIndex(RepeatedArgumentType_), RepeatedArgumentType_.TryAs<TUnionType>());
+    if (!(std::holds_alternative<EValueType>(RepeatedArgumentType_) && std::get<EValueType>(RepeatedArgumentType_) == EValueType::Null)) {
+        *repeatedType = std::make_pair(getIndex(RepeatedArgumentType_), std::get_if<TUnionType>(&RepeatedArgumentType_));
     }
 
     return getIndex(ResultType_);
@@ -69,11 +69,11 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
     }
 
     auto setType = [&] (const TType& targetType, bool allowGeneric) -> std::optional<EValueType> {
-        if (auto* fixedType = targetType.TryAs<EValueType>()) {
+        if (auto* fixedType = std::get_if<EValueType>(&targetType)) {
             return *fixedType;
         }
         if (allowGeneric) {
-            if (auto* typeId = targetType.TryAs<TTypeArgument>()) {
+            if (auto* typeId = std::get_if<TTypeArgument>(&targetType)) {
                 auto found = TypeArgumentConstraints_.find(*typeId);
                 if (found != TypeArgumentConstraints_.end()) {
                     return std::nullopt;
@@ -83,15 +83,15 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
         THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);
     };
 
-    if (auto* unionType = ArgumentType_.TryAs<TUnionType>()) {
+    if (auto* unionType = std::get_if<TUnionType>(&ArgumentType_)) {
         *constraint = TTypeSet(unionType->begin(), unionType->end());
         *resultType = setType(ResultType_, false);
         *stateType = setType(StateType_, false);
-    } else if (auto* fixedType = ArgumentType_.TryAs<EValueType>()) {
+    } else if (auto* fixedType = std::get_if<EValueType>(&ArgumentType_)) {
         *constraint = TTypeSet({*fixedType});
         *resultType = setType(ResultType_, false);
         *stateType = setType(StateType_, false);
-    } else if (auto* typeId = ArgumentType_.TryAs<TTypeArgument>()) {
+    } else if (auto* typeId = std::get_if<TTypeArgument>(&ArgumentType_)) {
         auto found = TypeArgumentConstraints_.find(*typeId);
         if (found == TypeArgumentConstraints_.end()) {
             THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);

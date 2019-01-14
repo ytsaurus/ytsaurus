@@ -79,24 +79,23 @@ struct ITransaction
 
     // Tables
 
-    // TODO(sandello): Make write & delete non-virtual wrappers around ModifyRows.
-    virtual void WriteRows(
+    void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TUnversionedRow> rows,
-        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
+        const TModifyRowsOptions& options = TModifyRowsOptions());
 
-    virtual void WriteRows(
+    void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TVersionedRow> rows,
-        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
+        const TModifyRowsOptions& options = TModifyRowsOptions());
 
-    virtual void DeleteRows(
+    void DeleteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TKey> keys,
-        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
+        const TModifyRowsOptions& options = TModifyRowsOptions());
 
     virtual void ModifyRows(
         const NYPath::TYPath& path,

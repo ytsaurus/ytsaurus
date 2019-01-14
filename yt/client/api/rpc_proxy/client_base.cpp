@@ -72,7 +72,6 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     }
     // XXX(sandello): Better? Remove these fields from the protocol at all?
     // TODO(babenko): prerequisite transactions are not supported
-    req->set_auto_abort(false);
     bool sticky = type == ETransactionType::Tablet
         ? true
         : options.Sticky;

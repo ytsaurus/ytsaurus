@@ -1592,7 +1592,8 @@ private:
 
     bool IsBackingStoreRequired(TTablet* tablet)
     {
-        return tablet->GetAtomicity() == EAtomicity::Full;
+        return tablet->GetAtomicity() == EAtomicity::Full &&
+            tablet->GetConfig()->BackingStoreRetentionTime != TDuration::Zero();
     }
 
     void HydraCommitUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)

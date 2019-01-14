@@ -52,6 +52,9 @@ public:
     const NDriver::IDriverPtr& GetDriverV4() const;
     const TCoordinatorPtr& GetCoordinator() const;
     const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
+    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
+    const NConcurrency::IPollerPtr& GetPoller() const;
+    const NApi::IClientPtr& GetClickHouseClient() const;
 
     virtual void HandleRequest(
         const NHttp::IRequestPtr& req,
@@ -69,7 +72,7 @@ private:
     NHttp::IServerPtr MonitoringServer_;
 
     NApi::NNative::IConnectionPtr Connection_;
-    NApi::IClientPtr Client_;
+    NApi::IClientPtr RootClient_;
     NDriver::IDriverPtr DriverV3_;
     NDriver::IDriverPtr DriverV4_;
 
@@ -81,12 +84,17 @@ private:
     NHttp::IServerPtr ApiHttpsServer_;
     TApiPtr Api_;
 
+    NApi::IClientPtr ClickHouseClient_;
+    TClickHouseHandlerPtr ClickHouseHandler_;
+
     TCoordinatorPtr Coordinator_;
     THostsHandlerPtr HostsHandler_;
     TPingHandlerPtr PingHandler_;
     TDiscoverVersionsHandlerPtr DiscoverVersionsHandler_;
 
     void RegisterRoutes(const NHttp::IServerPtr& server);
+
+    void SetupClients();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

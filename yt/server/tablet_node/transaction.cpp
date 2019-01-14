@@ -107,10 +107,7 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, PersistentSignature_);
     TransientSignature_ = PersistentSignature_;
     Load(context, ReplicatedRowsPrepared_);
-    // COMPAT(gridem)
-    if (context.GetVersion() >= 100006) {
-        Load(context, User_);
-    }
+    Load(context, User_);
 }
 
 TCallback<void(TSaveContext&)> TTransaction::AsyncSave()

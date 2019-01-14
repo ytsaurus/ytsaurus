@@ -1861,8 +1861,6 @@ private:
     virtual bool ValidateSnapshotVersion(int version) override
     {
         return
-            version == 3 ||
-            version == 4 ||
             version == 5 || // babenko
             version == 6 || // savrus: Add User to TCommit
             version == 7;   // savrus: Add tablet cell life stage

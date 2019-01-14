@@ -71,48 +71,21 @@ TDataStatistics TChunkTreeStatistics::ToDataStatistics() const
     return result;
 }
 
-void TChunkTreeStatistics::Save(NCellMaster::TSaveContext& context) const
+void TChunkTreeStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
-    using NYT::Save;
-    Save(context, RowCount);
-    Save(context, LogicalRowCount);
-    Save(context, UncompressedDataSize);
-    Save(context, CompressedDataSize);
-    Save(context, DataWeight);
-    Save(context, RegularDiskSpace);
-    Save(context, ErasureDiskSpace);
-    Save(context, ChunkCount);
-    Save(context, LogicalChunkCount);
-    Save(context, ChunkListCount);
-    Save(context, Rank);
-    Save(context, Sealed);
-}
-
-void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, RowCount);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 400) {
-        Load(context, LogicalRowCount);
-    } else {
-        LogicalRowCount = RowCount;
-    }
-    Load(context, UncompressedDataSize);
-    Load(context, CompressedDataSize);
-    Load(context, DataWeight);
-    Load(context, RegularDiskSpace);
-    Load(context, ErasureDiskSpace);
-    Load(context, ChunkCount);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 400) {
-        Load(context, LogicalChunkCount);
-    } else {
-        LogicalChunkCount = ChunkCount;
-    }
-    Load(context, ChunkListCount);
-    Load(context, Rank);
-    Load(context, Sealed);
+    using NYT::Persist;
+    Persist(context, RowCount);
+    Persist(context, LogicalRowCount);
+    Persist(context, UncompressedDataSize);
+    Persist(context, CompressedDataSize);
+    Persist(context, DataWeight);
+    Persist(context, RegularDiskSpace);
+    Persist(context, ErasureDiskSpace);
+    Persist(context, ChunkCount);
+    Persist(context, LogicalChunkCount);
+    Persist(context, ChunkListCount);
+    Persist(context, Rank);
+    Persist(context, Sealed);
 }
 
 bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const

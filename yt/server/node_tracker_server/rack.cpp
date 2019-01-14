@@ -29,10 +29,7 @@ void TRack::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Name_);
     Load(context, Index_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= 400) {
-        Load(context, DataCenter_);
-    }
+    Load(context, DataCenter_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

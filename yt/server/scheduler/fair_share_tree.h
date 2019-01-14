@@ -235,7 +235,6 @@ private:
         TRootElementPtr RootElement;
         TOperationElementByIdMap OperationIdToElement;
         TFairShareStrategyTreeConfigPtr Config;
-        std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
 
         TOperationElement* FindOperationElement(TOperationId operationId) const
         {
@@ -268,7 +267,7 @@ private:
                 .Run();
         }
 
-        virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta)
+        virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) override
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);

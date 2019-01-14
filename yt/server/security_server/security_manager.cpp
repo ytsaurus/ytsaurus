@@ -1425,7 +1425,7 @@ private:
 
     TFls<TUser*> AuthenticatedUser_;
 
-    // COMPAT(babenko)
+    // COMPAT(shakurov)
     bool RecomputeAccountResourceUsage_ = false;
     bool ValidateAccountResourceUsage_ = false;
 
@@ -1764,9 +1764,6 @@ private:
             return;
         }
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->MaybeRecomputeChunkRequisitions();
-
         // NB: transaction resource usage isn't recomputed.
 
         // For migration purposes, assume all chunks except for staged ones
@@ -1834,6 +1831,7 @@ private:
             }
         };
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
 
         for (const auto& pair : chunkManager->Chunks()) {

@@ -862,6 +862,7 @@ struct TOperation
     NYson::TYsonString Spec;
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
+    NYson::TYsonString Annotations;
 
     NYson::TYsonString BriefProgress;
     NYson::TYsonString Progress;

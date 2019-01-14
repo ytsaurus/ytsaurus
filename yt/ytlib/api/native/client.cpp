@@ -1982,7 +1982,7 @@ private:
         const TSelectRowsOptions& options)
     {
         auto parsedQuery = ParseSource(queryString, EParseMode::Query);
-        auto* astQuery = &parsedQuery->AstHead.Ast.As<NAst::TQuery>();
+        auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
         auto optionalClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
         if (optionalClusterName) {
             auto replicaClient = CreateReplicaClient(*optionalClusterName);
@@ -2039,8 +2039,7 @@ private:
 
         for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
             if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
-                const auto& ast = parsedQuery->AstHead.Ast.As<NAst::TQuery>();
-
+                const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
                 THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
                     "the query is inefficient, consider rewriting it")
                     << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
@@ -3839,6 +3838,7 @@ private:
         "operation_type",
         "progress",
         "spec",
+        "annotations",
         "full_spec",
         "unrecognized_spec",
         "brief_progress",
@@ -3891,6 +3891,10 @@ private:
                 result.push_back("id_lo");
             } else if (attribute == "type") {
                 result.push_back("operation_type");
+            } else if (attribute == "annotations") {
+                if (DoGetOperationsArchiveVersion() >= 29) {
+                    result.push_back(attribute);
+                }
             } else {
                 result.push_back(attribute);
             }
@@ -4213,14 +4217,14 @@ private:
         auto deadline = timeout.ToDeadLine();
 
         TOperationId operationId;
-        if (operationIdOrAlias.Is<TOperationId>()) {
-            operationId = operationIdOrAlias.As<TOperationId>();
+        if (std::holds_alternative<TOperationId>(operationIdOrAlias)) {
+            operationId = std::get<TOperationId>(operationIdOrAlias);
         } else if (!options.IncludeRuntime) {
             THROW_ERROR_EXCEPTION(
                 "Operation alias cannot be resolved without using runtime information; "
-                "consider setting include_runtime = true");
+                "consider setting include_runtime = %true");
         } else {
-            operationId = ResolveOperationAlias(operationIdOrAlias.As<TString>(), options, deadline);
+            operationId = ResolveOperationAlias(std::get<TString>(operationIdOrAlias), options, deadline);
         }
 
         if (auto result = DoGetOperationFromCypress(operationId, deadline, options)) {
@@ -4938,6 +4942,9 @@ private:
         if (operation.Type) {
             textFactors.push_back(ToString(*operation.Type));
         }
+        if (operation.Annotations) {
+            textFactors.push_back(ConvertToYsonString(operation.Annotations, EYsonFormat::Text).GetData());
+        }
 
         if (operation.BriefSpec) {
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
@@ -5119,6 +5126,10 @@ private:
             operation.SlotIndexPerPoolTree = nodeAttributes.FindYson("slot_index_per_pool_tree");
         }
 
+        if (!attributes || attributes->contains("annotations")) {
+            operation.Annotations = nodeAttributes.FindYson("annotations");
+        }
+
         return operation;
     }
 
@@ -5209,7 +5220,11 @@ private:
             auto hashStr = Format("%02x", hash);
             auto req = TYPathProxy::List("//sys/operations/" + hashStr);
             SetCachingHeader(req, options);
-            ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(LightAttributes));
+            auto attributes = LightAttributes;
+            if (options.SubstrFilter) {
+                attributes.emplace("annotations");
+            }
+            ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(attributes));
             listBatchReq->AddRequest(req, "list_operations_" + hashStr);
         }
 

@@ -98,6 +98,26 @@ DEFINE_REFCOUNTED_TYPE(TApiConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClickHouseConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString DiscoveryPath;
+    NHttp::TClientConfigPtr HttpClient;
+
+    TClickHouseConfig()
+    {
+        RegisterParameter("discovery_path", DiscoveryPath)
+            .Default("//sys/clickhouse/cliques");
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TClickHouseConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProxyConfig
     : public TServerConfig
 {
@@ -113,6 +133,8 @@ public:
 
     TCoordinatorConfigPtr Coordinator;
     TApiConfigPtr Api;
+
+    TClickHouseConfigPtr ClickHouse;
 
     TString UIRedirectUrl;
 
@@ -144,6 +166,9 @@ public:
         RegisterParameter("coordinator", Coordinator)
             .DefaultNew();
         RegisterParameter("api", Api)
+            .DefaultNew();
+
+        RegisterParameter("clickhouse", ClickHouse)
             .DefaultNew();
 
         RegisterParameter("cypress_annotations", CypressAnnotations)

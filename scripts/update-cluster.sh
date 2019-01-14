@@ -71,6 +71,9 @@ case $CLUSTER in
     MASTERS="m0[1-5].yp-sas.yt.yandex.net"
     NODES="m0[1-5].yp-sas.yt.yandex.net"
     ;;
+    hahn)
+    MASTERS="m0[1-5]-sas.hahn.yt.yandex.net,m[1-10][1-3]-sas.hahn.yt.yandex.net"
+    ;;
     *)
     echo "Error: unknown cluster \"${CLUSTER}\""
     exit 1
@@ -139,12 +142,14 @@ buildsnapshot "${MASTERS}" "${READONLY}"
 if [ $? -eq 0 ]; then echo "Snapshot built"; else echo "Snapshot failed"; exit; fi
 
 command="restart"
+update $SCHEDULERS "sudo sv stop yt_scheduler"
 update $MASTERS "sudo sv ${command} yt_master"
 update $PROXIES "sudo sv ${command} yt_http_proxy"
-update $SCHEDULERS "sudo sv ${command} yt_scheduler"
 update $CONTROLLERAGENTS "sudo sv ${command} yt_controller_agent"
 update $NODES "sudo sv ${command} yt_node"
 update $RPCPROXIES "sudo sv ${command} yt_proxy"
+
+#update $SCHEDULERS "sudo sv start yt_scheduler"
 
 #update $NODES "sudo rm -f /var/lock/yt-is-crashing ; sudo sv restart yt_node"
 

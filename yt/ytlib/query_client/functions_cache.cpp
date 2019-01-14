@@ -717,15 +717,15 @@ void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer)
 
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("tag").Value(ETypeCategory(value.Type.Tag()))
-            .DoIf(value.Type.TryAs<TTypeArgument>(), [&] (TFluentMap fluent) {
-                fluent.Item("value").Value(value.Type.As<TTypeArgument>());
+            .Item("tag").Value(static_cast<ETypeCategory>(value.Type.index()))
+            .DoIf(std::holds_alternative<TTypeArgument>(value.Type), [&] (TFluentMap fluent) {
+                fluent.Item("value").Value(std::get<TTypeArgument>(value.Type));
             })
-            .DoIf(value.Type.TryAs<TUnionType>(), [&] (TFluentMap fluent) {
-                fluent.Item("value").Value(value.Type.As<TUnionType>());
+            .DoIf(std::holds_alternative<TUnionType>(value.Type), [&] (TFluentMap fluent) {
+                fluent.Item("value").Value(std::get<TUnionType>(value.Type));
             })
-            .DoIf(value.Type.TryAs<EValueType>(), [&] (TFluentMap fluent) {
-                fluent.Item("value").Value(value.Type.As<EValueType>());
+            .DoIf(std::holds_alternative<EValueType>(value.Type), [&] (TFluentMap fluent) {
+                fluent.Item("value").Value(std::get<EValueType>(value.Type));
             })
         .EndMap();
 }

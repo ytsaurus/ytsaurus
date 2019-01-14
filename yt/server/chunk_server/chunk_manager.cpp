@@ -1259,46 +1259,6 @@ public:
         return &ChunkRequisitionRegistry_;
     }
 
-    void MaybeRecomputeChunkRequisitions()
-    {
-        if (ChunkRequisitionsRecomputed_) {
-            return;
-        }
-
-        // Recompute requisitions' ref counts.
-        if (NeedRecomputeRequisitionRefCounts_) {
-            for (const auto& pair : ChunkMap_) {
-                const auto* chunk = pair.second;
-                chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
-            }
-        }
-
-        // COMPAT(shakurov)
-        if (NeedToFixExportRequisitionIndexes_) {
-            for (const auto& pair : ChunkMap_) {
-                auto* chunk = pair.second;
-                chunk->FixExportRequisitionIndexes();
-            }
-        }
-
-        // COMPAT(shakurov)
-        if (NeedToInitializeAggregatedRequisitionIndexes_) {
-            auto* registry = GetChunkRequisitionRegistry();
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-
-            for (const auto& pair : ChunkMap_) {
-                auto* chunk = pair.second;
-                // NB: this may have no effect for those rare chunks that have no trunk owners.
-                // In that case, the aggregated requisition will be left equal to migration requisition.
-                // This will be corrected on chunk's next requisition update (which is bound to
-                // happen since having no trunk owners is always a temporary state).
-                chunk->UpdateAggregatedRequisitionIndex(registry, objectManager);
-            }
-        }
-
-        ChunkRequisitionsRecomputed_ = true;
-    }
-
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
@@ -1317,14 +1277,7 @@ private:
     int TotalReplicaCount_ = 0;
 
     bool NeedToRecomputeStatistics_ = false;
-    bool NeedResetDataWeight_ = false;
-    bool NeedInitializeMediumMaxReplicasPerRack_ = false;
     bool NeedInitializeMediumMaxReplicationFactor_ = false;
-    bool NeedRecomputeRequisitionRefCounts_ = false;
-    bool NeedToFixExportRequisitionIndexes_ = false;
-    bool NeedToInitializeAggregatedRequisitionIndexes_ = false;
-
-    bool ChunkRequisitionsRecomputed_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -2250,10 +2203,7 @@ private:
     {
         ChunkMap_.LoadKeys(context);
         ChunkListMap_.LoadKeys(context);
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= 400) {
-            MediumMap_.LoadKeys(context);
-        }
+        MediumMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2261,37 +2211,17 @@ private:
         ChunkMap_.LoadValues(context);
 
         ChunkListMap_.LoadValues(context);
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= 400) {
-            MediumMap_.LoadValues(context);
-        }
-        //COMPAT(savrus)
-        NeedResetDataWeight_ = context.GetVersion() < 612;
+        MediumMap_.LoadValues(context);
 
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= 700) {
-            Load(context, ChunkRequisitionRegistry_);
-        }
+        Load(context, ChunkRequisitionRegistry_);
 
         // COMPAT(shakurov)
         if (context.GetVersion() >= 809) {
             Load(context, ChunkListsAwaitingRequisitionTraverse_);
         }
 
-        //COMPAT(savrus)
-        NeedInitializeMediumMaxReplicasPerRack_ = context.GetVersion() < 629;
-
         // COMPAT(shakurov)
         NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < 817;
-
-        // COMPAT(shakurov)
-        NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 710;
-
-        // COMPAT(shakurov)
-        NeedToFixExportRequisitionIndexes_ = context.GetVersion() >= 700 && context.GetVersion() < 707;
-
-        // COMPAT(shakurov)
-        NeedToInitializeAggregatedRequisitionIndexes_ = context.GetVersion() < 710;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2299,30 +2229,12 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedToRecomputeStatistics_ = false;
-        NeedResetDataWeight_ = false;
-        NeedInitializeMediumMaxReplicasPerRack_ = false;
         NeedInitializeMediumMaxReplicationFactor_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        //COMPAT(savrus)
-        if (NeedResetDataWeight_) {
-            for (const auto& pair : ChunkListMap_) {
-                auto* chunkList = pair.second;
-                chunkList->Statistics().DataWeight = -1;
-            }
-
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                if (auto* node = dynamic_cast<TChunkOwnerBase*>(pair.second)) {
-                    node->SnapshotStatistics().set_data_weight(-1);
-                    node->DeltaStatistics().set_data_weight(-1);
-                }
-            }
-        }
 
         // Populate nodes' chunk replica sets.
         // Compute chunk replica count.
@@ -2360,19 +2272,9 @@ private:
 
         InitBuiltins();
 
-        MaybeRecomputeChunkRequisitions();
-
         if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
             NeedToRecomputeStatistics_ = false;
-        }
-
-        if (NeedInitializeMediumMaxReplicasPerRack_) {
-            for (const auto& pair : MediumMap_) {
-                auto* medium = pair.second;
-                InitializeMediumMaxReplicasPerRack(medium);
-            }
-            NeedInitializeMediumMaxReplicasPerRack_ = false;
         }
 
         if (NeedInitializeMediumMaxReplicationFactor_) {
@@ -3083,7 +2985,6 @@ private:
         InitializeMediumMaxReplicationFactor(medium);
     }
 
-    // COMPAT(savrus)
     void InitializeMediumMaxReplicasPerRack(TMedium* medium)
     {
         medium->Config()->MaxReplicasPerRack = Config_->MaxReplicasPerRack;
@@ -3505,11 +3406,6 @@ TMedium* TChunkManager::GetMediumByNameOrThrow(const TString& name) const
 TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
 {
     return Impl_->GetChunkRequisitionRegistry();
-}
-
-void TChunkManager::MaybeRecomputeChunkRequisitions()
-{
-    return Impl_->MaybeRecomputeChunkRequisitions();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)

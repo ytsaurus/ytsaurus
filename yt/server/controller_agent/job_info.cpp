@@ -73,12 +73,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
 
     using NYT::Persist;
     Persist(context, Task);
-
-    // COMPAT(max42)
-    if (context.IsSave() || context.GetVersion() >= 202195) {
-        Persist(context, TaskJobIndex);
-    }
-
+    Persist(context, TaskJobIndex);
     Persist(context, JobIndex);
     Persist(context, StartRowIndex);
     Persist(context, Restarted);

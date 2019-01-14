@@ -13,9 +13,11 @@ TBlock::TBlock(
 
 TBlock::TBlock(
     TSharedRef block,
-    TChecksum checksum)
+    TChecksum checksum,
+    EBlockOrigin origin)
     : Data(std::move(block))
     , Checksum(checksum)
+    , BlockOrigin(origin)
 { }
 
 std::vector<TBlock> TBlock::Wrap(const std::vector<TSharedRef>& blocks)
