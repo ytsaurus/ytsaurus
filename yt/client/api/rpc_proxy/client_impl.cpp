@@ -150,6 +150,8 @@ ITransactionPtr TClient::AttachTransaction(
 
     auto req = proxy.AttachTransaction();
     ToProto(req->mutable_transaction_id(), transactionId);
+    // COMPAT(kiselyovp): remove auto_abort from the protocol
+    req->set_auto_abort(false);
     req->set_sticky(options.Sticky);
     if (options.PingPeriod) {
         req->set_ping_period(options.PingPeriod->GetValue());
