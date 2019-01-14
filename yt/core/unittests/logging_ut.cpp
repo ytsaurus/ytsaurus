@@ -284,14 +284,16 @@ TEST(TRandomAccessGZipTest, Write)
     NFs::Remove("test.txt.gz");
 
     {
-        TRandomAccessGZipFile file("test.txt.gz");
+        TFile rawFile("test.txt.gz", OpenAlways|RdWr|CloseOnExec);
+        TRandomAccessGZipFile file(&rawFile);
         file << "foo\n";
         file.Flush();
         file << "bar\n";
         file.Finish();
     }
     {
-        TRandomAccessGZipFile file("test.txt.gz");
+        TFile rawFile("test.txt.gz", OpenAlways|RdWr|CloseOnExec);
+        TRandomAccessGZipFile file(&rawFile);
         file << "zog\n";
         file.Finish();
     }
@@ -307,7 +309,8 @@ TEST(TRandomAccessGZipTest, RepairIncompleteBlocks)
 {
     NFs::Remove("test.txt.gz");
     {
-        TRandomAccessGZipFile file("test.txt.gz");
+        TFile rawFile("test.txt.gz", OpenAlways|RdWr|CloseOnExec);
+        TRandomAccessGZipFile file(&rawFile);
         file << "foo\n";
         file.Flush();
         file << "bar\n";
@@ -318,13 +321,17 @@ TEST(TRandomAccessGZipTest, RepairIncompleteBlocks)
     {
         TFile file("test.txt.gz", OpenAlways|RdWr);
         fullSize = file.GetLength();
-        file.Resize(fullSize-1);
+        file.Resize(fullSize - 1);
     }
 
     {
-        TRandomAccessGZipFile gzip("test.txt.gz");
+        TFile rawFile("test.txt.gz", OpenAlways | RdWr | CloseOnExec);
+        TRandomAccessGZipFile file(&rawFile);
+    }
+
+    {
         TFile file("test.txt.gz", OpenAlways|RdWr);
-        EXPECT_LE(file.GetLength(), fullSize-1);
+        EXPECT_LE(file.GetLength(), fullSize - 1);
     }
 
     NFs::Remove("test.txt.gz");

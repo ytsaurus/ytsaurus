@@ -15,6 +15,11 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TLogger Logger(SystemLoggingCategoryName);
+static constexpr size_t BufferSize = 1 << 16;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRateLimitCounter::TRateLimitCounter(
     std::optional<size_t> limit,
     const TMonotonicCounter& bytesCounter,
@@ -81,10 +86,6 @@ i64 TRateLimitCounter::GetAndResetLastSkippedEventsCount()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static const TLogger Logger(SystemLoggingCategoryName);
-static constexpr size_t BufferSize = 1 << 16;
-
 
 TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> formatter, TString name)
     : LogFormatter(std::move(formatter))
@@ -230,15 +231,13 @@ TFileLogWriter::~TFileLogWriter() = default;
 
 IOutputStream* TFileLogWriter::GetOutputStream() const noexcept
 {
-    if (Y_LIKELY(!Disabled_.load(std::memory_order_acquire))) {
-        if (Compressed_) {
-            return Compressed_.get();
-        }
-
-        return FileOutput_.get();
-    } else {
+    if (Y_UNLIKELY(Disabled_.load(std::memory_order_acquire))) {
         return nullptr;
     }
+    if (CompressedOutput_) {
+        return CompressedOutput_.get();
+    }
+    return FileOutput_.get();
 }
 
 void TFileLogWriter::OnException(const std::exception& ex)
@@ -282,19 +281,22 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
 
 void TFileLogWriter::Open()
 {
+    Disabled_ = false;
     try {
         NFS::MakeDirRecursive(NFS::GetDirectoryName(FileName_));
-        if (!EnableCompression_) {
-            File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+
+        File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+
+        if (EnableCompression_) {
+            CompressedOutput_.reset(new TRandomAccessGZipFile(File_.get()));
+        } else {
             FileOutput_.reset(new TFixedBufferFileOutput(*File_, BufferSize));
             FileOutput_->SetFinishPropagateMode(true);
+        }
 
-            // Emit a delimiter for ease of navigation.
-            if (File_->GetLength() > 0) {
-                *GetOutputStream() << Endl;
-            }
-        } else {
-            Compressed_.reset(new TRandomAccessGZipFile(FileName_));
+        // Emit a delimiter for ease of navigation.
+        if (File_->GetLength() > 0) {
+            *GetOutputStream() << Endl;
         }
 
         LogFormatter->WriteLogStartEvent(GetOutputStream());
@@ -311,29 +313,23 @@ void TFileLogWriter::Open()
 void TFileLogWriter::Close()
 {
     try {
-        if (!EnableCompression_) {
-            if (FileOutput_) {
-                FileOutput_->Flush();
-                FileOutput_->Finish();
-            }
-            if (File_) {
-                File_->Close();
-            }
-        } else {
-            Compressed_->Finish();
+        if (CompressedOutput_) {
+            CompressedOutput_->Finish();
+            CompressedOutput_.reset();
         }
 
-    } catch (const std::exception& ex) {
-        Disabled_ = true;
-        YT_LOG_ERROR(ex, "Failed to close log file %v", FileName_);
-    } catch (...) {
-        Y_UNREACHABLE();
-    }
+        if (FileOutput_) {
+            FileOutput_->Flush();
+            FileOutput_->Finish();
+            FileOutput_.reset();
+        }
 
-    try {
-        Compressed_.reset();
-        FileOutput_.reset();
-        File_.reset();
+        if (File_) {
+            File_->Close();
+            File_.reset();
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to close log file; ignored (FileName: %v)", FileName_);
     } catch (...) {
         Y_UNREACHABLE();
     }
