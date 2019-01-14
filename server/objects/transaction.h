@@ -40,7 +40,7 @@ struct TRemoveUpdateRequest
 
 void FromProto(TRemoveUpdateRequest* request, const NClient::NApi::NProto::TRemoveUpdate& protoRequest);
 
-using TUpdateRequest = NYT::TVariant<
+using TUpdateRequest = std::variant<
     TSetUpdateRequest,
     TRemoveUpdateRequest
 >;

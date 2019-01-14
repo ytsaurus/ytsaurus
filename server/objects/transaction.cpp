@@ -1974,7 +1974,7 @@ private:
         THashSet<TAttributeSchema*> updatedAttributes;
         for (const auto& match : matcher.Matches()) {
             auto* schema = match.Schema;
-            const auto& request = match.Request.As<TSetUpdateRequest>();
+            const auto& request = std::get<TSetUpdateRequest>(match.Request);
             context->AddSetter([=] {
                 try {
                     schema->RunSetter(
@@ -2070,11 +2070,11 @@ private:
 
     static const TYPath& GetRequestPath(const TUpdateRequest& request)
     {
-        switch (request.Tag()) {
-            case TUpdateRequest::TagOf<TSetUpdateRequest>():
-                return request.As<TSetUpdateRequest>().Path;
-            case TUpdateRequest::TagOf<TRemoveUpdateRequest>():
-                return request.As<TRemoveUpdateRequest>().Path;
+        switch (request.index()) {
+            case VariantIndexV<TSetUpdateRequest, TUpdateRequest>:
+                return std::get<TSetUpdateRequest>(request).Path;
+            case VariantIndexV<TRemoveUpdateRequest, TUpdateRequest>:
+                return std::get<TRemoveUpdateRequest>(request).Path;
             default:
                 Y_UNREACHABLE();
         }
@@ -2085,12 +2085,12 @@ private:
         const TUpdateRequest& request,
         const TYPath& path)
     {
-        switch (request.Tag()) {
-            case TUpdateRequest::TagOf<TSetUpdateRequest>(): {
-                const auto& updateRequest = request.As<TSetUpdateRequest>();
+        switch (request.index()) {
+            case VariantIndexV<TSetUpdateRequest, TUpdateRequest>: {
+                const auto& updateRequest = std::get<TSetUpdateRequest>(request);
                 return TSetUpdateRequest{path, updateRequest.Value, updateRequest.Recursive};
             }
-            case TUpdateRequest::TagOf<TRemoveUpdateRequest>():
+            case VariantIndexV<TRemoveUpdateRequest, TUpdateRequest>:
                 return TRemoveUpdateRequest{path};
             default:
                 Y_UNREACHABLE();
@@ -2150,20 +2150,20 @@ private:
         const auto& request = match.Request;
 
         try {
-            switch (request.Tag()) {
-                case TUpdateRequest::TagOf<TSetUpdateRequest>():
+            switch (request.index()) {
+                case VariantIndexV<TSetUpdateRequest, TUpdateRequest>:
                     ApplyAttributeSetUpdate(
                         transaction,
                         object,
                         match.Schema,
-                        request.As<TSetUpdateRequest>());
+                        std::get<TSetUpdateRequest>(request));
                     break;
-                case TUpdateRequest::TagOf<TRemoveUpdateRequest>():
+                case VariantIndexV<TRemoveUpdateRequest, TUpdateRequest>:
                     ApplyAttributeRemoveUpdate(
                         transaction,
                         object,
                         match.Schema,
-                        request.As<TRemoveUpdateRequest>());
+                        std::get<TRemoveUpdateRequest>(request));
                     break;
                 default:
                     Y_UNREACHABLE();

@@ -466,7 +466,7 @@ TExpressionPtr BuildFilterExpression(
     } rewriter(context);
 
     auto parsedQuery = NQueryClient::ParseSource(filter.Query, NQueryClient::EParseMode::Expression);
-    auto queryExpr = parsedQuery->AstHead.Ast.As<TExpressionPtr>();
+    auto queryExpr = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
     return rewriter.Run(queryExpr);
 }
 
