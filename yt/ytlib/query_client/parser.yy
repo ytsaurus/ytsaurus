@@ -187,14 +187,14 @@ parse-expression
             if ($expr.size() != 1) {
                 THROW_ERROR_EXCEPTION("Expected scalar expression, got %Qv", GetSource(@$, source));
             }
-            head->Ast.As<TExpressionPtr>() = $expr.front();
+            std::get<TExpressionPtr>(head->Ast) = $expr.front();
         }
 ;
 
 select-clause
     : comma-expr[projections]
         {
-            head->Ast.As<TQuery>().SelectExprs = $projections;
+            std::get<TQuery>(head->Ast).SelectExprs = $projections;
         }
     | Asterisk
         { }
@@ -218,7 +218,7 @@ table-descriptor
 from-clause
     : KwFrom table-descriptor[table] join-clause
         {
-            head->Ast.As<TQuery>().Table = $table;
+            std::get<TQuery>(head->Ast).Table = $table;
         }
 ;
 
@@ -233,11 +233,11 @@ join-predicate
 join-clause
     : join-clause is-left[isLeft] KwJoin table-descriptor[table] KwUsing identifier-list[fields] join-predicate[predicate]
         {
-            head->Ast.As<TQuery>().Joins.emplace_back($isLeft, $table, $fields, $predicate);
+            std::get<TQuery>(head->Ast).Joins.emplace_back($isLeft, $table, $fields, $predicate);
         }
     | join-clause is-left[isLeft] KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs] join-predicate[predicate]
         {
-            head->Ast.As<TQuery>().Joins.emplace_back($isLeft, $table, $lhs, $rhs, $predicate);
+            std::get<TQuery>(head->Ast).Joins.emplace_back($isLeft, $table, $lhs, $rhs, $predicate);
         }
     |
 ;
@@ -256,7 +256,7 @@ is-left
 where-clause
     : KwWhere or-op-expr[predicate]
         {
-            head->Ast.As<TQuery>().WherePredicate = $predicate;
+            std::get<TQuery>(head->Ast).WherePredicate = $predicate;
         }
     |
 ;
@@ -264,7 +264,7 @@ where-clause
 group-by-clause
     : KwGroupBy comma-expr[exprs] group-by-clause-tail[totalsMode]
         {
-            head->Ast.As<TQuery>().GroupExprs = std::make_pair($exprs, $totalsMode);
+            std::get<TQuery>(head->Ast).GroupExprs = std::make_pair($exprs, $totalsMode);
         }
     |
 ;
@@ -295,14 +295,14 @@ group-by-clause-tail
 having-clause
     : KwHaving or-op-expr[predicate]
         {
-            head->Ast.As<TQuery>().HavingPredicate = $predicate;
+            std::get<TQuery>(head->Ast).HavingPredicate = $predicate;
         }
 ;
 
 order-by-clause
     : KwOrderBy order-expr-list[exprs]
         {
-            head->Ast.As<TQuery>().OrderExpressions = $exprs;
+            std::get<TQuery>(head->Ast).OrderExpressions = $exprs;
         }
     |
 ;
@@ -337,7 +337,7 @@ is-desc
 limit-clause
     : KwLimit Int64Literal[limit]
         {
-            head->Ast.As<TQuery>().Limit = $limit;
+            std::get<TQuery>(head->Ast).Limit = $limit;
         }
     |
 ;
@@ -619,11 +619,11 @@ const-value
         {
             switch ($op) {
                 case EUnaryOp::Minus: {
-                    if (auto data = $value->TryAs<i64>()) {
+                    if (const auto* data = std::get_if<i64>(&$value)) {
                         $$ = -*data;
-                    } else if (auto data = $value->TryAs<ui64>()) {
+                    } else if (const auto* data = std::get_if<ui64>(&$value)) {
                         $$ = -*data;
-                    } else if (auto data = $value->TryAs<double>()) {
+                    } else if (const auto* data = std::get_if<double>(&$value)) {
                         $$ = -*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Negation of unsupported type");
@@ -634,9 +634,9 @@ const-value
                     $$ = $value;
                     break;
                 case EUnaryOp::BitNot: {
-                    if (auto data = $value->TryAs<i64>()) {
+                    if (const auto* data = std::get_if<i64>(&$value)) {
                         $$ = ~*data;
-                    } else if (auto data = $value->TryAs<ui64>()) {
+                    } else if (const auto* data = std::get_if<ui64>(&$value)) {
                         $$ = ~*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Bitwise negation of unsupported type");

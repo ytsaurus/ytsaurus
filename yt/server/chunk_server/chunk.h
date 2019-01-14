@@ -268,15 +268,6 @@ public:
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
-    // COMPAT(shakurov)
-    void FixExportRequisitionIndexes();
-
-    // COMPAT(shakurov)
-    // TODO(shakurov): make this private once everything's at v. 710+.
-    void UpdateAggregatedRequisitionIndex(
-        TChunkRequisitionRegistry* registry,
-        const NObjectServer::TObjectManagerPtr& objectManager);
-
 private:
     TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
 
@@ -318,6 +309,10 @@ private:
 
     const TReplicasData& ReplicasData() const;
     TReplicasData* MutableReplicasData();
+
+    void UpdateAggregatedRequisitionIndex(
+        TChunkRequisitionRegistry* registry,
+        const NObjectServer::TObjectManagerPtr& objectManager);
 
     static const TCachedReplicas EmptyCachedReplicas;
     static const TReplicasData EmptyReplicasData;

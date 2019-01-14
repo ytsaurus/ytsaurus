@@ -134,19 +134,20 @@ class TSchedulerElementSharedState
 {
 public:
     TJobResources GetResourceUsage();
-    TJobResources GetResourceUsagePrecommit();
     TJobResources GetTotalResourceUsageWithPrecommit();
     TJobMetrics GetJobMetrics();
 
     void CommitResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
     void IncreaseResourceUsage(const TJobResources& delta);
     void IncreaseResourceUsagePrecommit(const TJobResources& delta);
+    bool CheckDemand(
+        const TJobResources& delta,
+        const TJobResources& resourceDemand,
+        const TJobResources& resourceDiscount);
     bool TryIncreaseResourceUsagePrecommit(
         const TJobResources& delta,
         const TJobResources& resourceLimits,
-        const TJobResources& resourceDemand,
         const TJobResources& resourceDiscount,
-        bool checkDemand,
         TJobResources* availableResourceLimitsOutput);
     void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
@@ -250,39 +251,15 @@ public:
     virtual void CheckForStarvation(TInstant now) = 0;
 
     TJobResources GetLocalResourceUsage() const;
-    TJobResources GetLocalResourceUsagePrecommit() const;
     TJobResources GetTotalLocalResourceUsageWithPrecommit() const;
     TJobMetrics GetJobMetrics() const;
     double GetLocalResourceUsageRatio() const;
 
     virtual TString GetTreeId() const;
 
-    TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
-    TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
-
-    void CommitLocalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
-    void IncreaseLocalResourceUsage(const TJobResources& delta);
-    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
-    bool TryIncreaseLocalResourceUsagePrecommit(
-        const TJobResources& delta,
-        const TFairShareContext& context,
-        bool checkDemand,
-        TJobResources* availableResourceLimitsOutput);
-
-    void CommitHierarchicalResourceUsage(
-        const TJobResources& resourceUsageDelta,
-        const TJobResources& precommittedResources);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
-    void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
-    bool TryIncreaseHierarchicalResourceUsagePrecommit(
-        const TJobResources& delta,
-        const TFairShareContext& context,
-        bool checkDemand,
-        TJobResources* availableResourceLimitsOutput);
 
     void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
-
-    virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) = 0;
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
 
@@ -322,8 +299,24 @@ protected:
 
     TString GetLoggingAttributesString(const TDynamicAttributesList& dynamicAttributesList) const;
 
+    TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
+    TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
+
+    bool CheckDemand(const TJobResources& delta, const TFairShareContext& context);
+
+    bool TryIncreaseLocalResourceUsagePrecommit(
+        const TJobResources& delta,
+        const TFairShareContext& context,
+        TJobResources* availableResourceLimitsOutput);
+
+    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
+    void IncreaseLocalResourceUsage(const TJobResources& delta);
+    void CommitLocalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
+
 private:
     void UpdateAttributes();
+
+    friend class TOperationElement;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElement)
@@ -383,8 +376,6 @@ public:
     virtual bool ScheduleJob(TFairShareContext* context) override;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
-
-    virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
     virtual bool IsExplicit() const;
     virtual bool IsAggressiveStarvationEnabled() const;
@@ -607,85 +598,7 @@ public:
     void Enable();
 
 private:
-    template <typename T>
-    class TListWithSize
-    {
-    public:
-        using iterator = typename std::list<T>::iterator;
-
-        void push_front(const T& value)
-        {
-            Impl_.push_front(value);
-            ++Size_;
-        }
-
-        void push_back(const T& value)
-        {
-            Impl_.push_back(value);
-            ++Size_;
-        }
-
-        void pop_front()
-        {
-            Impl_.pop_front();
-            --Size_;
-        }
-
-        void pop_back()
-        {
-            Impl_.pop_back();
-            --Size_;
-        }
-
-        void erase(iterator it)
-        {
-            Impl_.erase(it);
-            --Size_;
-        }
-
-        iterator begin()
-        {
-            return Impl_.begin();
-        }
-
-        iterator end()
-        {
-            return Impl_.end();
-        }
-
-        const T& front() const
-        {
-            return Impl_.front();
-        }
-
-        const T& back() const
-        {
-            return Impl_.back();
-        }
-
-        size_t size() const
-        {
-            return Size_;
-        }
-
-        bool empty() const
-        {
-            return Size_ == 0;
-        }
-
-        void clear()
-        {
-            Impl_.clear();
-            Size_ = 0;
-        }
-
-    private:
-        std::list<T> Impl_;
-        size_t Size_ = 0;
-
-    };
-
-    typedef TListWithSize<TJobId> TJobIdList;
+    using TJobIdList = std::list<TJobId>;
 
     TJobIdList NonpreemptableJobs_;
     TJobIdList AggressivelyPreemptableJobs_;
@@ -803,7 +716,7 @@ public:
     virtual void CheckForStarvation(TInstant now) override;
     bool IsPreemptionAllowed(const TFairShareContext& context, const TFairShareStrategyTreeConfigPtr& config) const;
 
-    virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
+    void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
     void IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta);
 
@@ -845,6 +758,18 @@ public:
 
     void Disable();
     void Enable();
+
+    bool TryIncreaseHierarchicalResourceUsagePrecommit(
+        const TJobResources& delta,
+        const TFairShareContext& context,
+        bool checkDemand,
+        TJobResources* availableResourceLimitsOutput);
+
+    void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
+
+    void CommitHierarchicalResourceUsage(
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParams);
 
@@ -929,6 +854,8 @@ public:
     virtual double GetFairShareStarvationTolerance() const override;
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
+
+    virtual bool IsAggressiveStarvationEnabled() const override;
 
     virtual void CheckForStarvation(TInstant now) override;
 

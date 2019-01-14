@@ -227,6 +227,8 @@ public:
     //! Alias for the operation.
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Alias);
 
+    DEFINE_BYREF_RO_PROPERTY(NYTree::IMapNodePtr, Annotations);
+
     //! Returns operation id.
     TOperationId GetId() const override;
 
@@ -313,6 +315,7 @@ public:
         NRpc::TMutationId mutationId,
         NTransactionClient::TTransactionId userTransactionId,
         NYTree::IMapNodePtr spec,
+        NYTree::IMapNodePtr annotations,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParams,
         const TString& authenticatedUser,

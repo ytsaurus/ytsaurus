@@ -58,8 +58,7 @@ struct TChunkTreeStatistics
 
     NChunkClient::NProto::TDataStatistics ToDataStatistics() const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    void Persist(NCellMaster::TPersistenceContext& context);
 
     bool operator == (const TChunkTreeStatistics& other) const;
     bool operator != (const TChunkTreeStatistics& other) const;

@@ -30,7 +30,7 @@ public:
 
         void Persist(const TPersistenceContext& context);
     private:
-        using TContentType = TVariant<NChunkClient::TInputChunkPtr, int>;
+        using TContentType = std::variant<NChunkClient::TInputChunkPtr, int>;
         TContentType Content_;
     };
 

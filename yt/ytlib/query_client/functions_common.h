@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/client/table_client/row_base.h>
+
 #include <yt/core/misc/variant.h>
 
 namespace NYT::NQueryClient {
@@ -13,7 +14,7 @@ using NTableClient::EValueType;
 
 using TTypeArgument = int;
 using TUnionType = std::vector<EValueType>;
-using TType = TVariant<EValueType, TTypeArgument, TUnionType>;
+using TType = std::variant<EValueType, TTypeArgument, TUnionType>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,10 +23,14 @@ DEFINE_ENUM(ECallingConvention,
     (UnversionedValue)
 );
 
+constexpr auto TypeArgumentCategoryIndex = VariantIndexV<TTypeArgument, TType>;
+constexpr auto UnionTypeCategoryIndex = VariantIndexV<TUnionType, TType>;
+constexpr auto ConcreteTypeCategoryIndex = VariantIndexV<EValueType, TType>;
+
 DEFINE_ENUM(ETypeCategory,
-    ((TypeArgument) (TType::TagOf<TTypeArgument>()))
-    ((UnionType)    (TType::TagOf<TUnionType>()))
-    ((ConcreteType) (TType::TagOf<EValueType>()))
+    ((TypeArgument) (TypeArgumentCategoryIndex))
+    ((UnionType)    (UnionTypeCategoryIndex))
+    ((ConcreteType) (ConcreteTypeCategoryIndex))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

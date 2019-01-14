@@ -242,11 +242,6 @@ void TCompositeNodeBase::Load(NCellMaster::TLoadContext& context)
 {
     TCypressNodeBase::Load(context);
 
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 701) {
-        return;
-    }
-
     using NYT::Load;
     TUniquePtrSerializer<>::Load(context, Attributes_);
 }
@@ -668,13 +663,7 @@ void TLinkNode::Load(NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
 
     using NYT::Load;
-    // COMPAT(babenko)
-    if (context.GetVersion() < 400) {
-        auto id = Load<TNodeId>(context);
-        TargetPath_ = FromObjectId(id);
-    } else {
-        Load(context, TargetPath_);
-    }
+    Load(context, TargetPath_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

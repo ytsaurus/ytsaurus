@@ -179,7 +179,7 @@ struct TCompressedUnsignedVectorUnrolledReader
 template <class T, int Width>
 struct TCompressedUnsignedVectorUnrolledReader<T, Width, 0>
 {
-    static Y_FORCE_INLINE void Do(ui64& data, T*& output, ui64 mask)
+    static Y_FORCE_INLINE void Do(ui64& /*data*/, T*& /*output*/, ui64 /*mask*/)
     { }
 };
 

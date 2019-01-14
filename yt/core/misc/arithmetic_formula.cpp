@@ -270,14 +270,14 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
 #define APPLY_BINARY_OP(op) \
     YCHECK(stack.size() >= 2); \
     { \
-        YCHECK(stack.back().Is<i64>()); \
-        i64 top = stack.back().As<i64>(); \
+        YCHECK(std::holds_alternative<i64>(stack.back())); \
+        auto top = std::get<i64>(stack.back()); \
         stack.pop_back(); \
-        YCHECK(stack.back().Is<i64>()); \
-        stack.back() = static_cast<i64>(stack.back().As<i64>() op top); \
+        YCHECK(std::holds_alternative<i64>(stack.back())); \
+        stack.back() = static_cast<i64>(std::get<i64>(stack.back()) op top); \
     }
 
-    std::vector<TVariant<i64, std::vector<i64>>> stack;
+    std::vector<std::variant<i64, std::vector<i64>>> stack;
     for (const auto& token : ParsedFormula_) {
         switch (token.Type) {
             case EFormulaTokenType::Variable:
@@ -289,8 +289,8 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
                 break;
             case EFormulaTokenType::LogicalNot:
                 YCHECK(!stack.empty());
-                YCHECK(stack.back().Is<i64>());
-                stack.back() = static_cast<i64>(!stack.back().As<i64>());
+                YCHECK(std::holds_alternative<i64>(stack.back()));
+                stack.back() = static_cast<i64>(!std::get<i64>(stack.back()));
                 break;
             case EFormulaTokenType::LogicalOr:
                 APPLY_BINARY_OP(||);
@@ -338,48 +338,48 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
             case EFormulaTokenType::Modulus:
                 YCHECK(stack.size() >= 2);
                 {
-                    YCHECK(stack.back().Is<i64>());
-                    i64 top = stack.back().As<i64>();
+                    YCHECK(std::holds_alternative<i64>(stack.back()));
+                    i64 top = std::get<i64>(stack.back());
                     if (top == 0) {
                         THROW_ERROR_EXCEPTION("Division by zero in formula %Qv", Formula_)
                             << TErrorAttribute("values", values);
                     }
                     stack.pop_back();
-                    YCHECK(stack.back().Is<i64>());
-                    if (stack.back().As<i64>() == std::numeric_limits<i64>::min() && top == -1) {
+                    YCHECK(std::holds_alternative<i64>(stack.back()));
+                    if (std::get<i64>(stack.back()) == std::numeric_limits<i64>::min() && top == -1) {
                         THROW_ERROR_EXCEPTION("Division of INT64_MIN by -1 in formula %Qv", Formula_)
                             << TErrorAttribute("values", values);
                     }
                     if (token.Type == EFormulaTokenType::Divides) {
-                        stack.back() = stack.back().As<i64>() / top;
+                        stack.back() = std::get<i64>(stack.back()) / top;
                     } else {
-                        stack.back() = stack.back().As<i64>() % top;
+                        stack.back() = std::get<i64>(stack.back()) % top;
                     }
                 }
                 break;
             case EFormulaTokenType::Comma:
                 YCHECK(stack.size() >= 2);
                 {
-                    YCHECK(stack.back().Is<i64>());
-                    i64 top = stack.back().As<i64>();
+                    YCHECK(std::holds_alternative<i64>(stack.back()));
+                    i64 top = std::get<i64>(stack.back());
                     stack.pop_back();
-                    if (stack.back().Is<i64>()) {
-                        std::vector<i64> vector{stack.back().As<i64>(), top};
+                    if (std::holds_alternative<i64>(stack.back())) {
+                        std::vector<i64> vector{std::get<i64>(stack.back()), top};
                         stack.back() = vector;
                     } else {
-                        stack.back().As<std::vector<i64>>().push_back(top);
+                        std::get<std::vector<i64>>(stack.back()).push_back(top);
                     }
                 }
                 break;
             case EFormulaTokenType::In:
                 YCHECK(stack.size() >= 2);
                 {
-                    auto set = stack.back().Is<i64>()
-                        ? std::vector<i64>{stack.back().As<i64>()}
-                        : std::move(stack.back().As<std::vector<i64>>());
+                    auto set = std::holds_alternative<i64>(stack.back())
+                        ? std::vector<i64>{std::get<i64>(stack.back())}
+                        : std::move(std::get<std::vector<i64>>(stack.back()));
                     stack.pop_back();
-                    YCHECK(stack.back().Is<i64>());
-                    i64 element = stack.back().As<i64>();
+                    YCHECK(std::holds_alternative<i64>(stack.back()));
+                    i64 element = std::get<i64>(stack.back());
                     stack.pop_back();
                     stack.push_back(static_cast<i64>(std::find(
                         set.begin(),
@@ -398,8 +398,8 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
         return true;
     }
     YCHECK(stack.size() == 1);
-    YCHECK(stack.back().Is<i64>());
-    return stack[0].As<i64>();
+    YCHECK(std::holds_alternative<i64>(stack.back()));
+    return std::get<i64>(stack[0]);
 
 #undef APPLY_BINARY_OP
 }

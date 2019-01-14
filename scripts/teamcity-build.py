@@ -205,6 +205,8 @@ def ya_make_args(options):
     args = ["--build", options.ya_build_type]
     if options.use_thinlto:
         args += ["--thinlto"]
+    if options.ya_target_platform:
+        args += ["--target-platform", options.ya_target_platform]
     return args
 
 @build_step
@@ -252,6 +254,7 @@ def prepare(options, build_context):
     extra_repositories = filter(lambda x: x != "", map(str.strip, os.environ.get("EXTRA_REPOSITORIES", "").split(",")))
     options.repositories = ["yt-" + codename] + extra_repositories
     options.yson_bindings_repositories = ["yt-" + codename, "yandex-" + codename]
+    options.ya_target_platform = os.environ.get("YA_TARGET_PLATFORM", None)  # None is for default
 
     if options.build_system != "ya":
         # Now determine the compiler.

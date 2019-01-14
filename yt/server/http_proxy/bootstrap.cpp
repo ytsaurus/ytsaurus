@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 
+#include "clickhouse.h"
 #include "config.h"
 #include "coordinator.h"
 #include "api.h"
@@ -36,6 +37,8 @@
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
+#include <yt/server/clickhouse_server/native/public.h>
+
 namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
@@ -47,6 +50,7 @@ using namespace NDriver;
 using namespace NNative;
 using namespace NMonitoring;
 using namespace NProfiling;
+using namespace NAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,14 +98,14 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetBuildAttributes(orchidRoot, "http_proxy");
 
     Connection_ = CreateConnection(ConvertTo<NNative::TConnectionConfigPtr>(Config_->Driver));
-    TClientOptions options;
-    options.PinnedUser = NSecurityClient::RootUserName;
-    Client_ = Connection_->CreateClient(options);
+    SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
-    DiscoverVersionsHandler_ = New<TDiscoverVersionsHandler>(Connection_, Client_);
+    DiscoverVersionsHandler_ = New<TDiscoverVersionsHandler>(Connection_, RootClient_);
+
+    ClickHouseHandler_ = New<TClickHouseHandler>(this);
 
     auto driverV3Config = CloneNode(Config_->Driver);
     driverV3Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(3));
@@ -111,10 +115,10 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     driverV4Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(4));
     DriverV4_ = CreateDriver(Connection_, ConvertTo<TDriverConfigPtr>(driverV4Config));
 
-    auto authenticationManager = New<NAuth::TAuthenticationManager>(
+    auto authenticationManager = New<TAuthenticationManager>(
         Config_->Auth,
         Poller_,
-        Client_);
+        RootClient_);
     TokenAuthenticator_ = authenticationManager->GetTokenAuthenticator();
     CookieAuthenticator_ = authenticationManager->GetCookieAuthenticator();
 
@@ -131,6 +135,21 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 }
 
 TBootstrap::~TBootstrap() = default;
+
+void TBootstrap::SetupClients()
+{
+    {
+        TClientOptions options;
+        options.PinnedUser = NSecurityClient::RootUserName;
+        RootClient_ = Connection_->CreateClient(options);
+    }
+
+    {
+        TClientOptions options;
+        options.PinnedUser = ClickHouseUserName;
+        ClickHouseClient_ = Connection_->CreateClient(options);
+    }
+}
 
 void TBootstrap::HandleRequest(
     const NHttp::IRequestPtr& req,
@@ -180,7 +199,7 @@ const TProxyConfigPtr& TBootstrap::GetConfig() const
 
 const NApi::IClientPtr& TBootstrap::GetRootClient() const
 {
-    return Client_;
+    return RootClient_;
 }
 
 const NDriver::IDriverPtr& TBootstrap::GetDriverV3() const
@@ -203,6 +222,21 @@ const THttpAuthenticatorPtr& TBootstrap::GetHttpAuthenticator() const
     return HttpAuthenticator_;
 }
 
+const ITokenAuthenticatorPtr& TBootstrap::GetTokenAuthenticator() const
+{
+    return TokenAuthenticator_;
+}
+
+const IPollerPtr& TBootstrap::GetPoller() const
+{
+    return Poller_;
+}
+
+const NApi::IClientPtr& TBootstrap::GetClickHouseClient() const
+{
+    return ClickHouseClient_;
+}
+
 void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
 {
     server->AddHandler("/auth/whoami", HttpAuthenticator_);
@@ -216,6 +250,9 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
 
     server->AddHandler("/version", MakeStrong(this));
     server->AddHandler("/service", MakeStrong(this));
+
+    // ClickHouse.
+    server->AddHandler("/query", ClickHouseHandler_);
 
     if (!Config_->UIRedirectUrl.empty()) {
         server->AddHandler("/", New<TCallbackHandler>(BIND([config=Config_] (

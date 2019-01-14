@@ -25,6 +25,10 @@ NChunkClient::EBlockType MapInMemoryModeToBlockType(NTabletClient::EInMemoryMode
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPreloadedBlockTag { };
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Contains all relevant data (e.g. blocks) for in-memory chunks.
 struct TInMemoryChunkData
     : public TIntrinsicRefCounted

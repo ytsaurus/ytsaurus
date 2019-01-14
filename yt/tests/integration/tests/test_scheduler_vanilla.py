@@ -355,6 +355,11 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     "fail_on_job_restart": True,
                 })
 
+    def test_operation_limits(self):
+        with pytest.raises(YtError):
+            vanilla(spec={"tasks": {"task_" + str(i): {"job_count": 1, "command": "true"} for i in range(101)}})
+        with pytest.raises(YtError):
+            vanilla(spec={"tasks": {"main": {"job_count": 100 * 1000 + 1, "command": "true"}}})
 
 ##################################################################
 

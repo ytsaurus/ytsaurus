@@ -144,7 +144,9 @@ private:
         // Slow path: notify the subscribers in a dedicated thread.
         GetFinalizerInvoker()->Invoke(BIND([=] () {
             // Set the promise if the value is still missing.
-            TrySet(MakeAbandonedError());
+            if (!Set_) {
+                TrySet(MakeAbandonedError());
+            }
             // Kill the fake weak reference.
             UnrefFuture();
         }));

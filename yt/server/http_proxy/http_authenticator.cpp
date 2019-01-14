@@ -82,7 +82,9 @@ TErrorOr<TAuthenticationResult> THttpAuthenticator::Authenticate(
 
         TTokenCredentials credentials;
         credentials.Token = authorizationHeader->substr(prefix.Size());
-        return WaitFor(TokenAuthenticator_->Authenticate(credentials));
+        if (!credentials.Token.empty()) {
+            return WaitFor(TokenAuthenticator_->Authenticate(credentials));
+        }
     }
 
     auto cookieHeader = request->GetHeaders()->Find("Cookie");

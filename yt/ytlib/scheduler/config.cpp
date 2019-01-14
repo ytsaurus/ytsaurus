@@ -9,6 +9,8 @@
 
 namespace NYT::NScheduler {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const int MaxAllowedProfilingTagCount = 200;
@@ -352,6 +354,11 @@ TOperationSpecBase::TOperationSpecBase()
         if (Alias && !Alias->StartsWith(OperationAliasPrefix)) {
             THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
                 << TErrorAttribute("operation_alias", Alias);
+        }
+
+        constexpr int MaxAnnotationsYsonTextLength = 10_KB;
+        if (ConvertToYsonString(Annotations, EYsonFormat::Text).GetData().size() > MaxAnnotationsYsonTextLength) {
+            THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v", MaxAnnotationsYsonTextLength);
         }
     });
 }

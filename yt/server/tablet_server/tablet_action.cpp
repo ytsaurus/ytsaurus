@@ -43,11 +43,8 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
     Load(context, TabletCells_);
     Load(context, PivotKeys_);
     Load(context, TabletCount_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 600) {
-        Load(context, SkipFreezing_);
-        Load(context, Freeze_);
-    }
+    Load(context, SkipFreezing_);
+    Load(context, Freeze_);
     Load(context, Error_);
     Load(context, KeepFinished_);
 }

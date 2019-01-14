@@ -260,6 +260,12 @@ private:
 class TFairShareTreeTest
     : public testing::Test
 {
+public:
+    TFairShareTreeTest()
+    {
+        TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
+    }
+
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();

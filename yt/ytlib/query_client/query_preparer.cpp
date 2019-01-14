@@ -182,18 +182,18 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
 
 EValueType GetType(const NAst::TLiteralValue& literalValue)
 {
-    switch (literalValue.Tag()) {
-        case NAst::TLiteralValue::TagOf<NAst::TNullLiteralValue>():
+    switch (literalValue.index()) {
+        case VariantIndexV<NAst::TNullLiteralValue, NAst::TLiteralValue>:
             return EValueType::Null;
-        case NAst::TLiteralValue::TagOf<i64>():
+        case VariantIndexV<i64, NAst::TLiteralValue>:
             return EValueType::Int64;
-        case NAst::TLiteralValue::TagOf<ui64>():
+        case VariantIndexV<ui64, NAst::TLiteralValue>:
             return EValueType::Uint64;
-        case NAst::TLiteralValue::TagOf<double>():
+        case VariantIndexV<double, NAst::TLiteralValue>:
             return EValueType::Double;
-        case NAst::TLiteralValue::TagOf<bool>():
+        case VariantIndexV<bool, NAst::TLiteralValue>:
             return EValueType::Boolean;
-        case NAst::TLiteralValue::TagOf<TString>():
+        case VariantIndexV<TString, NAst::TLiteralValue>:
             return EValueType::String;
         default:
             Y_UNREACHABLE();
@@ -202,8 +202,8 @@ EValueType GetType(const NAst::TLiteralValue& literalValue)
 
 TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
 {
-    switch (literalValue.Tag()) {
-        case NAst::TLiteralValue::TagOf<NAst::TNullLiteralValue>():
+    switch (literalValue.index()) {
+        case VariantIndexV<NAst::TNullLiteralValue, NAst::TLiteralValue>:
             return TTypeSet({
                 EValueType::Null,
                 EValueType::Int64,
@@ -212,22 +212,22 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
                 EValueType::Boolean,
                 EValueType::String,
                 EValueType::Any});
-        case NAst::TLiteralValue::TagOf<i64>():
+        case VariantIndexV<i64, NAst::TLiteralValue>:
             return TTypeSet({
                 EValueType::Int64,
                 EValueType::Uint64,
                 EValueType::Double});
-        case NAst::TLiteralValue::TagOf<ui64>():
+        case VariantIndexV<ui64, NAst::TLiteralValue>:
             return TTypeSet({
                 EValueType::Uint64,
                 EValueType::Double});
-        case NAst::TLiteralValue::TagOf<double>():
+        case VariantIndexV<double, NAst::TLiteralValue>:
             return TTypeSet({
                 EValueType::Double});
-        case NAst::TLiteralValue::TagOf<bool>():
+        case VariantIndexV<bool, NAst::TLiteralValue>:
             return TTypeSet({
                 EValueType::Boolean});
-        case NAst::TLiteralValue::TagOf<TString>():
+        case VariantIndexV<TString, NAst::TLiteralValue>:
             return TTypeSet({
                 EValueType::String});
         default:
@@ -237,19 +237,19 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
 
 TValue GetValue(const NAst::TLiteralValue& literalValue)
 {
-    switch (literalValue.Tag()) {
-        case NAst::TLiteralValue::TagOf<NAst::TNullLiteralValue>():
+    switch (literalValue.index()) {
+        case VariantIndexV<NAst::TNullLiteralValue, NAst::TLiteralValue>:
             return MakeUnversionedSentinelValue(EValueType::Null);
-        case NAst::TLiteralValue::TagOf<i64>():
-            return MakeUnversionedInt64Value(literalValue.As<i64>());
-        case NAst::TLiteralValue::TagOf<ui64>():
-            return MakeUnversionedUint64Value(literalValue.As<ui64>());
-        case NAst::TLiteralValue::TagOf<double>():
-            return MakeUnversionedDoubleValue(literalValue.As<double>());
-        case NAst::TLiteralValue::TagOf<bool>():
-            return MakeUnversionedBooleanValue(literalValue.As<bool>());
-        case NAst::TLiteralValue::TagOf<TString>():{
-            const auto& data = literalValue.As<TString>();
+        case VariantIndexV<i64, NAst::TLiteralValue>:
+            return MakeUnversionedInt64Value(std::get<i64>(literalValue));
+        case VariantIndexV<ui64, NAst::TLiteralValue>:
+            return MakeUnversionedUint64Value(std::get<ui64>(literalValue));
+        case VariantIndexV<double, NAst::TLiteralValue>:
+            return MakeUnversionedDoubleValue(std::get<double>(literalValue));
+        case VariantIndexV<bool, NAst::TLiteralValue>:
+            return MakeUnversionedBooleanValue(std::get<bool>(literalValue));
+        case VariantIndexV<TString, NAst::TLiteralValue>: {
+            const auto& data = std::get<TString>(literalValue);
             return MakeUnversionedStringValue(TStringBuf(data.c_str(), data.length()));
         }
 
@@ -2368,7 +2368,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     auto Logger = MakeQueryLogger(query);
 
-    const auto& ast = parsedSource.AstHead.Ast.As<NAst::TQuery>();
+    const auto& ast = std::get<NAst::TQuery>(parsedSource.AstHead.Ast);
     const auto& aliasMap = parsedSource.AstHead.AliasMap;
 
     auto functionNames = ExtractFunctionNames(ast, aliasMap);
@@ -2728,7 +2728,7 @@ TQueryPtr PrepareJobQuery(
         source,
         NAst::TParser::token::StrayWillParseJobQuery);
 
-    const auto& ast = astHead.Ast.As<NAst::TQuery>();
+    const auto& ast = std::get<NAst::TQuery>(astHead.Ast);
     const auto& aliasMap = astHead.AliasMap;
 
     if (ast.Limit) {
@@ -2788,7 +2788,7 @@ TConstExpressionPtr PrepareExpression(
     const TConstTypeInferrerMapPtr& functions,
     THashSet<TString>* references)
 {
-    auto expr = parsedSource.AstHead.Ast.As<NAst::TExpressionPtr>();
+    const auto& expr = std::get<NAst::TExpressionPtr>(parsedSource.AstHead.Ast);
     const auto& aliasMap = parsedSource.AstHead.AliasMap;
 
     std::vector<TColumnDescriptor> mapping;

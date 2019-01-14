@@ -617,48 +617,48 @@ struct TOptionalSerializer
     }
 };
 
-template <class... Ts>
+template <size_t Index, class... Ts>
 struct TVariantSerializerTraits;
 
-template <class T, class... Ts>
-struct TVariantSerializerTraits<T, Ts...>
+template <size_t Index, class T, class... Ts>
+struct TVariantSerializerTraits<Index, T, Ts...>
 {
     template <class C, class V>
-    static void Save(C& context, int tag, const V& variant)
+    static void Save(C& context, const V& variant)
     {
-        if (tag == 0) {
-            NYT::Save(context, variant.template As<T>());
+        if (Index == variant.index()) {
+            NYT::Save(context, std::get<T>(variant));
         } else {
-            TVariantSerializerTraits<Ts...>::Save(context, tag - 1, variant);
+            TVariantSerializerTraits<Index + 1, Ts...>::Save(context, variant);
         }
     }
 
     template <class C, class V>
-    static void Load(C& context, int tag, V& variant)
+    static void Load(C& context, size_t index, V& variant)
     {
-        if (tag == 0) {
-            variant = T();
-            NYT::Load(context, variant.template As<T>());
+        if (Index == index) {
+            variant = V(std::in_place_index_t<Index>());
+            NYT::Load(context, std::get<T>(variant));
         } else {
-            TVariantSerializerTraits<Ts...>::Load(context, tag - 1, variant);
+            TVariantSerializerTraits<Index + 1, Ts...>::Load(context, index, variant);
         }
     }
 };
 
-template <>
-struct TVariantSerializerTraits<>
+template <size_t Index>
+struct TVariantSerializerTraits<Index>
 {
     template <class C, class V>
-    static void Save(C& /*context*/, int /*tag*/, const V& /*variant*/)
+    static void Save(C& /*context*/, const V& /*variant*/)
     {
-        // Invalid TVariant tag.
+        // Invalid variant index.
         Y_UNREACHABLE();
     }
 
     template <class C, class V>
-    static void Load(C& /*context*/, int /*tag*/, V& /*variant*/)
+    static void Load(C& /*context*/, size_t /*index*/, V& /*variant*/)
     {
-        // Invalid TVariant tag.
+        // Invalid variant index.
         Y_UNREACHABLE();
     }
 };
@@ -666,17 +666,17 @@ struct TVariantSerializerTraits<>
 struct TVariantSerializer
 {
     template <class... Ts, class C>
-    static void Save(C& context, const TVariant<Ts...>& variant)
+    static void Save(C& context, const std::variant<Ts...>& variant)
     {
-        NYT::Save(context, variant.Tag());
-        TVariantSerializerTraits<Ts...>::Save(context, variant.Tag(), variant);
+        NYT::Save<ui32>(context, variant.index());
+        TVariantSerializerTraits<0, Ts...>::Save(context, variant);
     }
 
     template <class... Ts, class C>
-    static void Load(C& context, TVariant<Ts...>& variant)
+    static void Load(C& context, std::variant<Ts...>& variant)
     {
-        int tag = NYT::Load<int>(context);
-        TVariantSerializerTraits<Ts...>::Load(context, tag, variant);
+        size_t index = NYT::Load<ui32>(context);
+        TVariantSerializerTraits<0, Ts...>::Load(context, index, variant);
     }
 };
 
@@ -1513,7 +1513,7 @@ struct TSerializerTraits<std::optional<T>, C, void>
 };
 
 template <class... Ts, class C>
-struct TSerializerTraits<TVariant<Ts...>, C, void>
+struct TSerializerTraits<std::variant<Ts...>, C, void>
 {
     typedef TVariantSerializer TSerializer;
 };

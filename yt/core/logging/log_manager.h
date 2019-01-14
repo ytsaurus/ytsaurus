@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/shutdownable.h>
 
+#include <yt/core/tracing/public.h>
+
 #include <yt/core/ytree/public.h>
 
 namespace NYT::NLogging {
@@ -48,6 +50,10 @@ public:
 
     void SetPerThreadBatchingPeriod(TDuration value);
     TDuration GetPerThreadBatchingPeriod() const;
+
+    void SuppressTrace(NTracing::TTraceId traceId);
+
+    void Synchronize(TInstant deadline = TInstant::Max());
 
 private:
     TLogManager();

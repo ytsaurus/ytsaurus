@@ -32,8 +32,6 @@ public:
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp);
 
-    void ProcessDebugHeaders();
-
     bool TryParseRequest();
     bool TryParseCommandName();
     bool TryParseUser();

@@ -3203,12 +3203,9 @@ private:
 
     IReconfigurableThroughputThrottlerPtr TableStatisticsGossipThrottler_;
 
-    bool InitializeCellBundles_ = false;
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
-    bool UpdateChunkListsKind_ = false;
-    bool RecomputeTabletCountByState_ = false;
     bool RecomputeTabletCellStatistics_ = false;
     bool RecomputeTabletErrorCount_ = false;
     bool RecomputeExpectedTabletStates_ = false;
@@ -3276,14 +3273,8 @@ private:
         TabletCellBundleMap_.LoadKeys(context);
         TabletCellMap_.LoadKeys(context);
         TabletMap_.LoadKeys(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 400) {
-            TableReplicaMap_.LoadKeys(context);
-        }
-        // COMPAT(savrus)
-        if (context.GetVersion() >= 600) {
-            TabletActionMap_.LoadKeys(context);
-        }
+        TableReplicaMap_.LoadKeys(context);
+        TabletActionMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -3293,25 +3284,13 @@ private:
         TabletCellBundleMap_.LoadValues(context);
         TabletCellMap_.LoadValues(context);
         TabletMap_.LoadValues(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 400) {
-            TableReplicaMap_.LoadValues(context);
-        }
-        // COMPAT(savrus)
-        if (context.GetVersion() >= 600) {
-            TabletActionMap_.LoadValues(context);
-        }
+        TableReplicaMap_.LoadValues(context);
+        TabletActionMap_.LoadValues(context);
         // COMPAT(savrus)
         if (context.GetVersion() >= 800) {
             Load(context, TableStatisticsUpdates_);
         }
 
-        // COMPAT(babenko)
-        InitializeCellBundles_ = (context.GetVersion() < 400);
-        // COMPAT(savrus)
-        UpdateChunkListsKind_ = (context.GetVersion() < 600);
-        // COMPAT(savrus)
-        RecomputeTabletCountByState_ = (context.GetVersion() <= 608);
         // COMPAT(savrus)
         RecomputeTabletCellStatistics_ = (context.GetVersion() < 800);
         // COMPAT(ifsmirnov)
@@ -3355,83 +3334,6 @@ private:
 
         BundleNodeTracker_->OnAfterSnapshotLoaded();
         InitBuiltins();
-
-        // COMPAT(babenko)
-        if (InitializeCellBundles_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        table->SetTabletCellBundle(DefaultTabletCellBundle_);
-                        DefaultTabletCellBundle_->RefObject();
-                    }
-                }
-            }
-
-            for (const auto& pair : TabletCellMap_) {
-                auto* cell = pair.second;
-                cell->SetCellBundle(DefaultTabletCellBundle_);
-                DefaultTabletCellBundle_->RefObject();
-            }
-        }
-
-        // COMPAT(savrus)
-        if (UpdateChunkListsKind_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        auto* rootChunkList = table->GetChunkList();
-                        YCHECK(rootChunkList->GetKind() == EChunkListKind::Static);
-                        rootChunkList->SetKind(table->IsPhysicallySorted()
-                            ? EChunkListKind::SortedDynamicRoot
-                            : EChunkListKind::OrderedDynamicRoot);
-                        YCHECK(rootChunkList->Children().size() == table->Tablets().size());
-                        for (int index = 0; index < table->Tablets().size(); ++index) {
-                            auto* child = rootChunkList->Children()[index];
-                            auto* tabletChunkList = child->AsChunkList();
-
-                            auto newKind = table->IsPhysicallySorted()
-                                ? EChunkListKind::SortedDynamicTablet
-                                : EChunkListKind::OrderedDynamicTablet;
-                            auto newPivotKey = table->Tablets()[index]->GetPivotKey();
-                            if (tabletChunkList->GetKind() == EChunkListKind::Static) {
-                                tabletChunkList->SetKind(newKind);
-                                tabletChunkList->SetPivotKey(newPivotKey);
-                            } else {
-                                YCHECK(tabletChunkList->GetKind() == newKind);
-                                YCHECK(tabletChunkList->GetPivotKey() == newPivotKey);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // COMPAT(savrus)
-        if (RecomputeTabletCountByState_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-                            if (table->TabletCountByState().IsDomainValue(state)) {
-                                table->MutableTabletCountByState()[state] = 0;
-                            }
-                        }
-                        for (const auto* tablet : table->Tablets()) {
-                            ++table->MutableTabletCountByState()[tablet->GetState()];
-                        }
-                    }
-                }
-            }
-        }
 
         // COMPAT(savrus)
         if (RecomputeTabletCellStatistics_) {

@@ -104,6 +104,7 @@ TOperation::TOperation(
     TMutationId mutationId,
     TTransactionId userTransactionId,
     IMapNodePtr spec,
+    IMapNodePtr annotations,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParams,
     const TString& authenticatedUser,
@@ -122,6 +123,7 @@ TOperation::TOperation(
     , Events_(events)
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
+    , Annotations_(std::move(annotations))
     , Id_(id)
     , Type_(type)
     , StartTime_(startTime)

@@ -54,7 +54,7 @@ struct TCrossCellMessage
         NRpc::IServiceContextPtr Context;
     };
 
-    TVariant<
+    std::variant<
         TClientMessage,
         TProtoMessage,
         TServiceMessage

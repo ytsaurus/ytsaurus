@@ -56,57 +56,12 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ChunkList_);
     Load(context, UpdateMode_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 400) {
-        PrimaryMediumIndex_ = DefaultStoreMediumIndex;
-        Replication_[DefaultStoreMediumIndex].SetReplicationFactor(Load<int>(context));
-        Replication_.SetVital(Load<bool>(context));
-    } else {
-        Load(context, Replication_);
-        PrimaryMediumIndex_ = Load<int>(context);
-    }
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 700) {
-        Load<bool>(context); // drop ChunkPropertiesUpdateNeeded_
-    }
+    Load(context, Replication_);
+    Load(context, PrimaryMediumIndex_);
     Load(context, SnapshotStatistics_);
     Load(context, DeltaStatistics_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 601) {
-        Load(context, CompressionCodec_);
-        Load(context, ErasureCodec_);
-    } else {
-        if (Attributes_) {
-            auto& attributes = Attributes_->Attributes();
-            {
-                static const TString compressionCodecAttributeName("compression_codec");
-                auto it = attributes.find(compressionCodecAttributeName);
-                if (it != attributes.end()) {
-                    const auto& value = it->second;
-                    try {
-                        CompressionCodec_.Set(NYTree::ConvertTo<NCompression::ECodec>(value));
-                    } catch (...) {
-                    }
-                    attributes.erase(it);
-                }
-            }
-            {
-                static const TString erasureCodecAttributeName("erasure_codec");
-                auto it = attributes.find(erasureCodecAttributeName);
-                if (it != attributes.end()) {
-                    const auto& value = it->second;
-                    try {
-                        ErasureCodec_.Set(NYTree::ConvertTo<NErasure::ECodec>(value));
-                    } catch (...) {
-                    }
-                    attributes.erase(it);
-                }
-            }
-            if (Attributes_->Attributes().empty()) {
-                Attributes_.reset();
-            }
-        }
-    }
+    Load(context, CompressionCodec_);
+    Load(context, ErasureCodec_);
 }
 
 const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const

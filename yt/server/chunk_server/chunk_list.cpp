@@ -84,56 +84,13 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Children_);
     Load(context, Parents_);
-    // COMPAT(babenko)
-    if (context.GetVersion() < 355) {
-        auto owningNodes = Load<std::vector<TChunkOwnerBase*>>(context);
-        // NB: Node is not fully loaded yet, its IsTrunk method may not work properly.
-        for (auto* node : owningNodes) {
-            if (node->GetVersionedId().TransactionId) {
-                BranchedOwningNodes_.PushBack(node);
-            } else {
-                TrunkOwningNodes_.PushBack(node);
-            }
-        }
-    } else {
-        Load(context, TrunkOwningNodes_);
-        Load(context, BranchedOwningNodes_);
-    }
+    Load(context, TrunkOwningNodes_);
+    Load(context, BranchedOwningNodes_);
     Load(context, Statistics_);
-
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 400) {
-        Load(context, CumulativeStatistics_);
-    } else {
-        std::vector<i64> rowCountSums, chunkCountSums, dataSizeSums;
-        Load(context, rowCountSums);
-        Load(context, chunkCountSums);
-        Load(context, dataSizeSums);
-        YCHECK(rowCountSums.size() == chunkCountSums.size() && rowCountSums.size() == dataSizeSums.size());
-        for (int index = 0; index < rowCountSums.size(); ++index) {
-            CumulativeStatistics_.push_back({
-                rowCountSums[index],
-                chunkCountSums[index],
-                dataSizeSums[index]
-            });
-        }
-    }
-
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 400) {
-        // COMPAT(savrus)
-        if (context.GetVersion() >= 600) {
-            Load(context, Kind_);
-        } else {
-            Load<bool>(context);
-        }
-        Load(context, TrimmedChildCount_);
-    }
-
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 600) {
-        Load(context, PivotKey_);
-    }
+    Load(context, CumulativeStatistics_);
+    Load(context, Kind_);
+    Load(context, TrimmedChildCount_);
+    Load(context, PivotKey_);
 
     if (!IsOrdered()) {
         for (int index = 0; index < Children_.size(); ++index) {

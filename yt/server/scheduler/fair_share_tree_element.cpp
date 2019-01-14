@@ -129,13 +129,6 @@ TJobResources TSchedulerElementSharedState::GetResourceUsage()
     return ResourceUsage_;
 }
 
-TJobResources TSchedulerElementSharedState::GetResourceUsagePrecommit()
-{
-    TReaderGuard guard(ResourceUsageLock_);
-
-    return ResourceUsagePrecommit_;
-}
-
 TJobResources TSchedulerElementSharedState::GetTotalResourceUsageWithPrecommit()
 {
     TReaderGuard guard(ResourceUsageLock_);
@@ -174,12 +167,25 @@ void TSchedulerElementSharedState::IncreaseResourceUsagePrecommit(const TJobReso
     ResourceUsagePrecommit_ += delta;
 }
 
+bool TSchedulerElementSharedState::CheckDemand(
+    const TJobResources& delta,
+    const TJobResources& resourceDemand,
+    const TJobResources& resourceDiscount)
+{
+    TReaderGuard guard(ResourceUsageLock_);
+
+    auto availableDemand = ComputeAvailableResources(
+        resourceDemand,
+        ResourceUsage_ + ResourceUsagePrecommit_,
+        resourceDiscount);
+
+    return Dominates(availableDemand, delta);
+}
+
 bool TSchedulerElementSharedState::TryIncreaseResourceUsagePrecommit(
     const TJobResources& delta,
     const TJobResources& resourceLimits,
-    const TJobResources& resourceDemand,
     const TJobResources& resourceDiscount,
-    bool checkDemand,
     TJobResources* availableResourceLimitsOutput)
 {
     TWriterGuard guard(ResourceUsageLock_);
@@ -191,17 +197,6 @@ bool TSchedulerElementSharedState::TryIncreaseResourceUsagePrecommit(
 
     if (!Dominates(availableResourceLimits, delta)) {
         return false;
-    }
-
-    if (checkDemand) {
-        auto availableDemand = ComputeAvailableResources(
-            resourceDemand,
-            ResourceUsage_ + ResourceUsagePrecommit_,
-            resourceDiscount);
-
-        if (!Dominates(availableDemand, delta)) {
-            return false;
-        }
     }
 
     ResourceUsagePrecommit_ += delta;
@@ -304,9 +299,8 @@ void TSchedulerElement::UpdateAttributes()
     Attributes_.DemandRatio =
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
-    double possibleUsageRatio = Attributes_.DemandRatio;
     auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
-    possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
+    double possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
 
     Attributes_.MaxPossibleUsageRatio = std::min(
         possibleUsageRatio,
@@ -438,11 +432,6 @@ TJobResources TSchedulerElement::GetLocalResourceUsage() const
     return resourceUsage;
 }
 
-TJobResources TSchedulerElement::GetLocalResourceUsagePrecommit() const
-{
-    return SharedState_->GetResourceUsagePrecommit();
-}
-
 TJobResources TSchedulerElement::GetTotalLocalResourceUsageWithPrecommit() const
 {
     return SharedState_->GetTotalResourceUsageWithPrecommit();
@@ -482,18 +471,20 @@ void TSchedulerElement::IncreaseLocalResourceUsagePrecommit(const TJobResources&
     SharedState_->IncreaseResourceUsagePrecommit(delta);
 }
 
+bool TSchedulerElement::CheckDemand(const TJobResources& delta, const TFairShareContext& context)
+{
+    return SharedState_->CheckDemand(delta, ResourceDemand(), context.DynamicAttributes(this).ResourceUsageDiscount);
+}
+
 bool TSchedulerElement::TryIncreaseLocalResourceUsagePrecommit(
     const TJobResources& delta,
     const TFairShareContext& context,
-    bool checkDemand,
     TJobResources* availableResourceLimitsOutput)
 {
     return SharedState_->TryIncreaseResourceUsagePrecommit(
         delta,
         ResourceLimits(),
-        ResourceDemand(),
         context.DynamicAttributes(this).ResourceUsageDiscount,
-        checkDemand,
         availableResourceLimitsOutput);
 }
 
@@ -518,17 +509,6 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShar
         context.DynamicAttributes(this).ResourceUsageDiscount);
 }
 
-void TSchedulerElement::CommitHierarchicalResourceUsage(
-    const TJobResources& resourceUsageDelta,
-    const TJobResources& precommittedResources)
-{
-    auto* currentElement = this;
-    while (currentElement) {
-        currentElement->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
-        currentElement = currentElement->GetParent();
-    }
-}
-
 void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& delta)
 {
     auto* currentElement = this;
@@ -536,57 +516,6 @@ void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& d
         currentElement->IncreaseLocalResourceUsage(delta);
         currentElement = currentElement->GetParent();
     }
-}
-
-void TSchedulerElement::DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources)
-{
-    auto* currentElement = this;
-    while (currentElement) {
-        currentElement->IncreaseLocalResourceUsagePrecommit(-precommittedResources);
-        currentElement = currentElement->GetParent();
-    }
-}
-
-bool TSchedulerElement::TryIncreaseHierarchicalResourceUsagePrecommit(
-    const TJobResources& delta,
-    const TFairShareContext& context,
-    bool checkDemand,
-    TJobResources* availableResourceLimitsOutput)
-{
-    auto availableResourceLimits = InfiniteJobResources();
-    TSchedulerElement* failedParent = nullptr;
-
-    {
-        auto* currentElement = this;
-        while (currentElement) {
-            TJobResources localAvailableResourceLimits;
-            bool succesfullyUpdated = currentElement->TryIncreaseLocalResourceUsagePrecommit(
-                delta,
-                context,
-                checkDemand,
-                &localAvailableResourceLimits);
-            if (!succesfullyUpdated) {
-                failedParent = currentElement;
-                break;
-            }
-            availableResourceLimits = Min(availableResourceLimits, localAvailableResourceLimits);
-            currentElement = currentElement->GetParent();
-        }
-    }
-
-    if (failedParent != nullptr) {
-        auto* currentElement = this;
-        while (currentElement != failedParent) {
-            currentElement->IncreaseLocalResourceUsagePrecommit(-delta);
-            currentElement = currentElement->GetParent();
-        }
-        return false;
-    }
-
-    if (availableResourceLimitsOutput != nullptr) {
-        *availableResourceLimitsOutput = availableResourceLimits;
-    }
-    return true;
 }
 
 TSchedulerElement::TSchedulerElement(
@@ -957,8 +886,6 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
 {
     auto& attributes = context->DynamicAttributes(this);
 
-    attributes.Active = true;
-
     if (!IsAlive()) {
         ++context->DeactivationReasons[EDeactivationReason::IsNotAlive];
         attributes.Active = false;
@@ -974,15 +901,17 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
         return;
     }
 
+    attributes.Active = true;
+
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
     if (Starving_ && aggressiveStarvationEnabled) {
         context->SchedulingStatistics.HasAggressivelyStarvingElements = true;
     }
 
     // If pool is starving, any child will do.
-    bool starvingOnlyChildren = Starving_ ? false : starvingOnly;
+    bool starvingOnlyForChildren = Starving_ ? false : starvingOnly;
     for (const auto& child : EnabledChildren_) {
-        child->PrescheduleJob(context, starvingOnlyChildren, aggressiveStarvationEnabled);
+        child->PrescheduleJob(context, starvingOnlyForChildren, aggressiveStarvationEnabled);
     }
 
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
@@ -1028,15 +957,6 @@ bool TCompositeSchedulerElement::ScheduleJob(TFairShareContext* context)
     // NB: Ignore the child's result.
     bestLeafDescendant->ScheduleJob(context);
     return true;
-}
-
-void TCompositeSchedulerElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
-{
-    auto* currentElement = this;
-    while (currentElement) {
-        currentElement->ApplyJobMetricsDeltaLocal(delta);
-        currentElement = currentElement->GetParent();
-    }
 }
 
 bool TCompositeSchedulerElement::IsExplicit() const
@@ -1626,7 +1546,7 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 {
     YCHECK(!Cloned_);
 
-    Config_ = newConfig;
+    Config_ = std::move(newConfig);
     FifoSortParameters_ = Config_->FifoSortParameters;
     Mode_ = Config_->Mode;
     SchedulingTagFilter_ = TSchedulingTagFilter(Config_->SchedulingTagFilter);
@@ -2130,10 +2050,10 @@ TOperationElement::TOperationElement(
     const TString& treeId)
     : TSchedulerElement(host, treeHost, treeConfig, treeId)
     , TOperationElementFixedState(operation, controllerConfig)
-    , RuntimeParams_(runtimeParams)
+    , RuntimeParams_(std::move(runtimeParams))
     , Spec_(spec)
     , SharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod))
-    , Controller_(controller)
+    , Controller_(std::move(controller))
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
     , LastNonStarvingTime_(TInstant::Now())
 { }
@@ -2294,7 +2214,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
 
-bool TOperationElement::HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const
+bool TOperationElement::HasAggressivelyStarvingElements(TFairShareContext* /*context*/, bool /*aggressiveStarvationEnabled*/) const
 {
     // TODO(ignat): Support aggressive starvation by starving operation.
     return false;
@@ -2541,8 +2461,11 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
 
 void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
 {
-    ApplyJobMetricsDeltaLocal(delta);
-    GetParent()->ApplyJobMetricsDelta(delta);
+    TSchedulerElement* currentElement = this;
+    while (currentElement) {
+        currentElement->ApplyJobMetricsDeltaLocal(delta);
+        currentElement = currentElement->GetParent();
+    }
 }
 
 void TOperationElement::IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta)
@@ -2793,6 +2716,69 @@ void TOperationElement::UpdatePreemptableJobsList()
     }
 }
 
+bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
+    const TJobResources& delta,
+    const TFairShareContext& context,
+    bool checkDemand,
+    TJobResources* availableResourceLimitsOutput)
+{
+    auto availableResourceLimits = InfiniteJobResources();
+    TSchedulerElement* failedParent = nullptr;
+
+    if (checkDemand && !CheckDemand(delta, context)) {
+        return false;
+    }
+
+    TSchedulerElement* currentElement = this;
+    while (currentElement) {
+        TJobResources localAvailableResourceLimits;
+        bool successfullyUpdated = currentElement->TryIncreaseLocalResourceUsagePrecommit(
+            delta,
+            context,
+            &localAvailableResourceLimits);
+        if (!successfullyUpdated) {
+            failedParent = currentElement;
+            break;
+        }
+        availableResourceLimits = Min(availableResourceLimits, localAvailableResourceLimits);
+        currentElement = currentElement->GetParent();
+    }
+
+    if (failedParent != nullptr) {
+        currentElement = this;
+        while (currentElement != failedParent) {
+            currentElement->IncreaseLocalResourceUsagePrecommit(-delta);
+            currentElement = currentElement->GetParent();
+        }
+        return false;
+    }
+
+    if (availableResourceLimitsOutput != nullptr) {
+        *availableResourceLimitsOutput = availableResourceLimits;
+    }
+    return true;
+}
+
+void TOperationElement::DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources)
+{
+    TSchedulerElement* currentElement = this;
+    while (currentElement) {
+        currentElement->IncreaseLocalResourceUsagePrecommit(-precommittedResources);
+        currentElement = currentElement->GetParent();
+    }
+}
+
+void TOperationElement::CommitHierarchicalResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
+{
+    TSchedulerElement* currentElement = this;
+    while (currentElement) {
+        currentElement->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
+        currentElement = currentElement->GetParent();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRootElement::TRootElement(
@@ -2892,6 +2878,11 @@ TDuration TRootElement::GetMinSharePreemptionTimeout() const
 TDuration TRootElement::GetFairSharePreemptionTimeout() const
 {
     return TreeConfig_->FairSharePreemptionTimeout;
+}
+
+bool TRootElement::IsAggressiveStarvationEnabled() const
+{
+    return TreeConfig_->EnableAggressiveStarvation;
 }
 
 void TRootElement::CheckForStarvation(TInstant now)

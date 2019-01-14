@@ -48,7 +48,7 @@ struct IYPathService
         TYPath Path;
     };
 
-    using TResolveResult = TVariant<
+    using TResolveResult = std::variant<
         TResolveResultHere,
         TResolveResultThere
     >;

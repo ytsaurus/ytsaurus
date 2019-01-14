@@ -45,4 +45,18 @@ std::optional<TNetworkStatistics> GetNetworkStatistics();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ReplyError(const NHttp::IResponseWriterPtr& response, const TError& error);
+
+void ProcessDebugHeaders(
+    const NHttp::IRequestPtr& request,
+    const NHttp::IResponseWriterPtr& response,
+    const TCoordinatorPtr& coordinator);
+
+void RedirectToDataProxy(
+    const NHttp::IRequestPtr& request,
+    const NHttp::IResponseWriterPtr& response,
+    const TCoordinatorPtr& coordinator);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHttpProxy
