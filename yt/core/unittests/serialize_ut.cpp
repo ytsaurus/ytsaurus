@@ -13,6 +13,25 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETestEnum,
+    (One)
+    (FortyTwo)
+);
+
+DEFINE_BIT_ENUM(ETestBitEnum,
+    ((Red)    (0x0001))
+    ((Yellow) (0x0002))
+    ((Green)  (0x0004))
+)
+
+template <typename TOriginal, typename TResult = TOriginal>
+void TestSerializationDeserialization(const TOriginal& original)
+{
+    auto yson = ConvertToYsonString(original);
+    auto deserialized = ConvertTo<TResult>(yson);
+    EXPECT_EQ(original, deserialized);
+}
+
 TString RemoveSpaces(const TString& str)
 {
     TString res = str;
@@ -40,9 +59,7 @@ TEST(TYTreeSerializationTest, All)
 TEST(TCustomTypeSerializationTest, TInstant)
 {
     TInstant value = TInstant::MilliSeconds(100500);
-    auto yson = ConvertToYsonString(value);
-    auto deserializedValue = ConvertTo<TInstant>(yson);
-    EXPECT_EQ(value, deserializedValue);
+    TestSerializationDeserialization(value);
 }
 
 TEST(TCustomTypeSerializationTest, Optional)
@@ -78,33 +95,25 @@ TEST(TSerializationTest, PackRefs)
 TEST(TSerializationTest, Map)
 {
     std::map<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, Set)
 {
     std::set<TString> original{"First", "Second", "Third"};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, MultiSet)
 {
     std::multiset<TString> original{"First", "Second", "Third", "Second", "Third", "Third"};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, MultiMap)
 {
     std::multimap<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, MultiMapErrorDuplicateKey)
@@ -117,33 +126,25 @@ TEST(TSerializationTest, MultiMapErrorDuplicateKey)
 TEST(TSerializationTest, UnorderedMap)
 {
     std::unordered_map<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, UnorderedSet)
 {
     const std::unordered_set<TString> original{"First", "Second", "Third"};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, UnorderedMultiSet)
 {
     const std::unordered_multiset<TString> original{"First", "Second", "Third", "Second", "Third", "Third"};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, UnorderedMultiMap)
 {
     const std::unordered_multimap<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, UnorderedMultiMapErrorDuplicateKey)
@@ -156,41 +157,31 @@ TEST(TSerializationTest, UnorderedMultiMapErrorDuplicateKey)
 TEST(TSerializationTest, Vector)
 {
     const std::vector<TString> original{"First", "Second", "Third"};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, Pair)
 {
     auto original = std::make_pair<size_t, TString>(1U, "Second");
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, Atomic)
 {
     std::atomic<size_t> original(42U);
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<size_t>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization<std::atomic<size_t>, size_t>(original);
 }
 
 TEST(TSerializationTest, Array)
 {
     std::array<TString, 4> original{{"One", "Two", "3", "4"}};
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, Tuple)
 {
     auto original = std::make_tuple<int, TString, size_t>(43, "TString", 343U);
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, VectorOfTuple)
@@ -201,9 +192,7 @@ TEST(TSerializationTest, VectorOfTuple)
         std::make_tuple<int, TString, size_t>(2323, "Third", 9U)
     };
 
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
 }
 
 TEST(TSerializationTest, MapOnArray)
@@ -215,9 +204,23 @@ TEST(TSerializationTest, MapOnArray)
         {"rel", {{233U, 9763U, 0U}}}
     };
 
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
-    EXPECT_EQ(original, deserialized);
+    TestSerializationDeserialization(original);
+}
+
+TEST(TSerializationTest, Enum)
+{
+    for (const auto original : TEnumTraits<ETestEnum>::GetDomainValues()) {
+        TestSerializationDeserialization(original);
+    }
+}
+
+TEST(TSerializationTest, BitEnum)
+{
+    for (const auto original : TEnumTraits<ETestBitEnum>::GetDomainValues()) {
+        TestSerializationDeserialization(original);
+    }
+    TestSerializationDeserialization(ETestBitEnum::Green | ETestBitEnum::Red);
+    TestSerializationDeserialization(ETestBitEnum::Green | ETestBitEnum::Red | ETestBitEnum::Yellow);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

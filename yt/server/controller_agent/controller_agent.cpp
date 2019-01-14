@@ -384,7 +384,7 @@ public:
                             NScheduler::BuildOperationAce(
                                 operation->GetOwners(),
                                 operation->GetAuthenticatedUser(),
-                                std::vector<EPermission>{EPermission::Read, EPermission::Write},
+                                EPermission::Read | EPermission::Write,
                                 fluent);
                         })
                         .Items(OperationsEffectiveAcl_->AsList())
