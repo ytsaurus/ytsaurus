@@ -96,7 +96,7 @@ TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerElement
     return DynamicAttributesList[index];
 }
 
-const TDynamicAttributes& TFairShareContext::DynamicAttributes(const TSchedulerElement* element) const
+const TDynamicAttributes& TFairShareContext::DynamicAttributesFor(const TSchedulerElement* element) const
 {
     int index = element->GetTreeIndex();
     YCHECK(index != UnassignedTreeIndex && index < DynamicAttributesList.size());
@@ -473,7 +473,7 @@ void TSchedulerElement::IncreaseLocalResourceUsagePrecommit(const TJobResources&
 
 bool TSchedulerElement::CheckDemand(const TJobResources& delta, const TFairShareContext& context)
 {
-    return SharedState_->CheckDemand(delta, ResourceDemand(), context.DynamicAttributes(this).ResourceUsageDiscount);
+    return SharedState_->CheckDemand(delta, ResourceDemand(), context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
 
 bool TSchedulerElement::TryIncreaseLocalResourceUsagePrecommit(
@@ -484,7 +484,7 @@ bool TSchedulerElement::TryIncreaseLocalResourceUsagePrecommit(
     return SharedState_->TryIncreaseResourceUsagePrecommit(
         delta,
         ResourceLimits(),
-        context.DynamicAttributes(this).ResourceUsageDiscount,
+        context.DynamicAttributesFor(this).ResourceUsageDiscount,
         availableResourceLimitsOutput);
 }
 
@@ -498,7 +498,7 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceDemand(const TFairShar
     return ComputeAvailableResources(
         ResourceDemand(),
         GetTotalLocalResourceUsageWithPrecommit(),
-        context.DynamicAttributes(this).ResourceUsageDiscount);
+        context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
 
 TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShareContext& context) const
@@ -506,7 +506,7 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShar
     return ComputeAvailableResources(
         ResourceLimits(),
         GetTotalLocalResourceUsageWithPrecommit(),
-        context.DynamicAttributes(this).ResourceUsageDiscount);
+        context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
 
 void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& delta)

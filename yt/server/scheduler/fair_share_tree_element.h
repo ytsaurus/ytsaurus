@@ -63,7 +63,7 @@ struct TFairShareContext
     void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
     TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element);
-    const TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element) const;
+    const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
 
     bool Initialized = false;
 
