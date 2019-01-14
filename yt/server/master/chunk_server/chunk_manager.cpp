@@ -1452,10 +1452,6 @@ private:
 
     void OnNodeRegistered(TNode* node)
     {
-        if (ChunkPlacement_) {
-            ChunkPlacement_->OnNodeRegistered(node);
-        }
-
         if (ChunkReplicator_) {
             ChunkReplicator_->OnNodeRegistered(node);
         }
@@ -1507,7 +1503,7 @@ private:
         auto* newDataCenter = node->GetDataCenter();
         auto* oldDataCenter = oldRack ? oldRack->GetDataCenter() : nullptr;
         if (newDataCenter != oldDataCenter) {
-            ChunkReplicator_->HandleNodeDataCenterChange(node, oldDataCenter);
+            HandleNodeDataCenterChange(node, oldDataCenter);
         }
 
         OnNodeChanged(node);
@@ -1515,10 +1511,22 @@ private:
 
     void OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCenter)
     {
-        YCHECK(node->GetDataCenter() != oldDataCenter);
-        ChunkReplicator_->HandleNodeDataCenterChange(node, oldDataCenter);
+        HandleNodeDataCenterChange(node, oldDataCenter);
 
         OnNodeChanged(node);
+    }
+
+    void HandleNodeDataCenterChange(TNode* node, TDataCenter* oldDataCenter)
+    {
+        YCHECK(node->GetDataCenter() != oldDataCenter);
+
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnNodeDataCenterChanged(node, oldDataCenter);
+        }
+
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnNodeDataCenterChanged(node, oldDataCenter);
+        }
     }
 
     void OnFullHeartbeat(
@@ -2520,7 +2528,7 @@ private:
         for (const auto& pair : nodeTracker->Nodes()) {
             auto* node = pair.second;
             ChunkReplicator_->OnNodeRegistered(node);
-            ChunkPlacement_->OnNodeRegistered(node);
+            ChunkPlacement_->OnNodeUpdated(node);
         }
     }
 

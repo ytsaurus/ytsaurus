@@ -107,7 +107,7 @@ public:
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove);
 
-    void HandleNodeDataCenterChange(TNode* node, NNodeTrackerServer::TDataCenter* oldDataCenter);
+    void OnNodeDataCenterChanged(TNode* node, NNodeTrackerServer::TDataCenter* oldDataCenter);
 
     bool IsEnabled();
 
@@ -339,7 +339,7 @@ private:
 
     void InitInterDCEdges();
     void UpdateInterDCEdgeCapacities();
-    void UpdateUnsaturatedInterDCEdges();
+    void InitUnsaturatedInterDCEdges();
     void UpdateInterDCEdgeConsumption(
         const TJobPtr& job,
         const NNodeTrackerServer::TDataCenter* srcDataCenter,
