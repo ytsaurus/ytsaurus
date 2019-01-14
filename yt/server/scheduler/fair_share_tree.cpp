@@ -959,7 +959,7 @@ void TFairShareTree::DoScheduleJobsWithoutPreemption(
 
         TWallTimer scheduleTimer;
         while (context->SchedulingContext->CanStartMoreJobs() &&
-            GetCpuInstant() < startTime + DurationToCpuDuration(ControllerConfig->ScheduleJobsTimeout))
+            context->SchedulingContext->GetNow() < startTime + DurationToCpuDuration(ControllerConfig->ScheduleJobsTimeout))
         {
             if (!prescheduleExecuted) {
                 TWallTimer prescheduleTimer;
@@ -1057,7 +1057,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
 
         TWallTimer timer;
         while (context->SchedulingContext->CanStartMoreJobs() &&
-            GetCpuInstant() < startTime + DurationToCpuDuration(ControllerConfig->ScheduleJobsTimeout))
+            context->SchedulingContext->GetNow() < startTime + DurationToCpuDuration(ControllerConfig->ScheduleJobsTimeout))
         {
             if (!prescheduleExecuted) {
                 TWallTimer prescheduleTimer;
@@ -1218,7 +1218,7 @@ void TFairShareTree::DoScheduleJobs(
     };
 
     bool enableSchedulingInfoLogging = false;
-    auto now = GetCpuInstant();
+    auto now = schedulingContext->GetNow();
     const auto& config = rootElementSnapshot->Config;
     if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
         enableSchedulingInfoLogging = true;

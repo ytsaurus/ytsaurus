@@ -294,7 +294,6 @@ bool TSharedJobAndOperationCounter::HasUnfinishedOperations() const
 
 TSharedOperationStatisticsOutput::TSharedOperationStatisticsOutput(const TString& filename)
     : OutputStream_(filename)
-    , HeaderPrinted_(false)
 { }
 
 void TSharedOperationStatisticsOutput::PrintEntry(TOperationId id, TOperationStatistics stats)

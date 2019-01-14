@@ -173,7 +173,7 @@ public:
 
 private:
     std::ofstream OutputStream_;
-    bool HeaderPrinted_;
+    bool HeaderPrinted_ = false;
     TAdaptiveLock Lock_;
 };
 
