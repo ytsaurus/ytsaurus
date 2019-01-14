@@ -391,8 +391,13 @@ def extract_pull_history(git, svn_prefix, ref):
     """
 
     lines = git.call(
-        "log", "--grep=^yt:svn_revision:", "--grep=^Pull %s" % svn_prefix, "--all-match",
-        "--pretty=format:BEGIN %H%n%s%n%n%b%nEND%n", ref).splitlines()
+        "log",
+        "--grep=^yt:svn_revision:",
+        "--grep=^Pull %s" % svn_prefix,
+        "--all-match",
+        "--pretty=format:BEGIN %H%n%s%n%n%b%nEND%n",
+        ref
+    ).splitlines()
 
     mapping = []
     commit = None
@@ -409,7 +414,7 @@ def extract_pull_history(git, svn_prefix, ref):
             revision = None
     return mapping
 
-def extract_push_history(git, svn_prefix, ref):
+def extract_push_history(project_name, git, svn_prefix, ref):
     """
     Extracts the push history.
 
@@ -427,24 +432,37 @@ def extract_push_history(git, svn_prefix, ref):
     newest-to-oldest, which is used later to help merges.
     """
 
-    lines = git.call(
+    git_log_output = git.call(
         "--no-replace-objects",
-        "log", "--grep=^yt:git_commit:", "--all-match",
-        "--pretty=format:BEGIN %H%n%s%n%n%b%nEND%n", ref).splitlines()
+        "log",
+        "--grep=^yt:git_commit:",
+        "--all-match",
+        "-z",
+        "--pretty=format:%H%n%s%n%n%b%n",
+        ref
+    )
+    commit_info_list = git_log_output.strip('\0').split('\0')
+
+    project_pattern = "yt:arcadia-sync:project:{project}".format(project=project_name)
 
     mapping = []
     push_commit = None
     base_commit = None
-    for line in lines:
-        if line.startswith("BEGIN"):
-            push_commit = line.split()[1]
-        if line.startswith("yt:git_commit:"):
-            base_commit = line.split(":")[2]
-        if line.startswith("END"):
-            if push_commit and base_commit:
-                mapping.append((base_commit, push_commit))
-            push_commit = None
-            base_commit = None
+    for commit_info in commit_info_list:
+        push_commit, commit_message = commit_info.split('\n', 1)
+        m = re.search(r"yt:git_commit:([0-9a-fA-F]+)$", commit_message, re.MULTILINE)
+        assert m is not None
+        base_commit = m.group(1)
+
+        synced_projects = set()
+        for m in re.finditer("^yt:arcadia-sync:project:(.*)$", commit_message, re.MULTILINE):
+            synced_projects.add(m.group(1))
+
+        # If synced_projects is empty this is probably old commit,
+        # before we started to write projects in commit message.
+        if not synced_projects or project_name in synced_projects:
+            mapping.append((base_commit, push_commit))
+
     return mapping
 
 def extract_git_svn_revision_to_commit_mapping_as_list(git, svn_url, ref):
@@ -599,130 +617,6 @@ def check_striped_symlink_tree_equal(git, treeish1, treeish2):
     )
     if strip_tree_of_symlinks(git, treeish1) != strip_tree_of_symlinks(git, treeish2):
         raise ArcadiaSyncError(msg)
-
-
-def pull_git_svn(git, svn, svn_url, git_svn_remote, git_prefix, svn_prefix, revision=None, recent_push=None):
-    logger.info("Pulling SVN revisions")
-
-    git_svn_remote_ref = make_remote_ref(git_svn_remote)
-
-    pull_history = extract_pull_history(git, svn_prefix, "HEAD")
-    revision_to_commit = extract_git_svn_revision_to_commit_mapping_as_dict(
-        git, svn_url, git_svn_remote_ref)
-
-    if recent_push:
-        base_commit = recent_push.git_commit
-        push_revision = recent_push.svn_revision
-        push_commit = translate_svn_revision_to_git_commit(git, git_svn_remote, push_revision)
-    else:
-        push_history = extract_push_history(git, svn_prefix, git_svn_remote_ref)
-        if not push_history:
-            raise ArcadiaSyncError("No pushes from Git to SVN were detected")
-        base_commit, push_commit = push_history[0]
-        push_revision = translate_git_commit_to_svn_revision(git, git_svn_remote, push_commit)
-
-    logger.info(
-        "Most recent push was from commit %s to revision %s (%s)",
-        abbrev(base_commit), push_revision, abbrev(push_commit))
-
-    try:
-        error_msg = (
-            "Content of revision {svn_revision} in svn doesn't match content of git commit {git_commit}\n"
-            "Please use --recent-push option to set svn revision and git commit that match each other\n"
-        ).format(
-            svn_revision=push_revision,
-            git_commit=base_commit,
-        )
-        check_striped_symlink_tree_equal(git, base_commit + ":" + git_prefix, push_commit + ":")
-    except ArcadiaSyncError as e:
-        raise ArcadiaSyncError(error_msg + str(e))
-
-    last_changed_revision = get_svn_last_changed_revision(svn, svn_url)
-
-    if last_changed_revision in revision_to_commit:
-        logger.info(
-            "Last changed revision is %s (%s)",
-            last_changed_revision, abbrev(revision_to_commit[last_changed_revision]))
-    else:
-        logger.warning(
-            "Last changed revision is %s, but it is missing in git-svn log (try fetch latest revisions)",
-            last_changed_revision)
-
-    if pull_history:
-        last_pull_revision, last_pull_commit = pull_history[0]
-        logger.info(
-            "Last pulled revision is %s (%s) in %s",
-            last_pull_revision, abbrev(last_pull_commit), abbrev(last_pull_commit))
-    else:
-        last_pull_revision, last_pull_commit = 0, None
-        logger.info(
-            "No pulls from SVN to Git were detected")
-
-    if revision:
-        pull_revision = revision
-    else:
-        pull_revision = last_changed_revision
-
-    if pull_revision == push_revision:
-        raise ArcadiaSyncError("Nothing to pull: everything is up-to-date")
-
-    if pull_revision <= push_revision or pull_revision > last_changed_revision:
-        raise ArcadiaSyncError("Pulled revision %s is out of range; expected > last push %s and <= last changed %s" % (
-            pull_revision, push_revision, last_changed_revision))
-
-    if pull_revision <= last_pull_revision:
-        raise ArcadiaSyncError("Pulled revision %s is already merged during pull %s in commit %s" % (
-            pull_revision, last_pull_revision, last_pull_commit))
-
-    if pull_revision not in revision_to_commit:
-        raise ArcadiaSyncError("Pulled revision %s is missing in remote history" % pull_revision)
-
-    pull_commit = revision_to_commit[pull_revision]
-
-    logger.info(
-        "Pulling revisions %s:%s (%s..%s)",
-        push_revision, pull_revision, abbrev(push_commit), abbrev(pull_commit))
-
-    if not git.is_ancestor(base_commit, "HEAD"):
-        raise ArcadiaSyncError("Most recent push is not an ancestor of HEAD")
-
-    if not git.is_ancestor(push_commit, git_svn_remote_ref):
-        raise ArcadiaSyncError("Most recent push is missing in SVN history (diverged git-svn sync?)")
-
-    merge_branch = "arcadia_merge_%s" % pull_revision
-    head_branch = git.call("symbolic-ref", "--short", "HEAD").strip()
-
-    if git.has_ref(make_head_ref(merge_branch)):
-        raise ArcadiaSyncError("Merge branch '%s' already exists; delete it before pulling" % merge_branch)
-
-    if last_pull_revision < push_revision:
-        logger.debug("Using last push as merge base")
-        git.call("branch", merge_branch, base_commit)
-        git.call("checkout", merge_branch)
-        graft_message = (
-            "Graft Arcadia push-commit %s\n"
-            "\n"
-            "yt:git_base_commit:%s\n"
-            "yt:git_push_commit:%s\n"
-            "yt:svn_revision:%s\n"
-        ) % (abbrev(push_commit), base_commit, push_commit, push_revision)
-        git.call("merge", "-X", "subtree=" + git_prefix, "-m", graft_message, "--allow-unrelated-histories", push_commit)
-    else:
-        logger.debug("Using last pull as merge base")
-        git.call("branch", merge_branch, last_pull_commit)
-        git.call("checkout", merge_branch)
-
-    merge_message = (
-        "Pull %s from Arcadia revision %s\n"
-        "\n"
-        "yt:git_svn_commit:%s\n"
-        "yt:svn_revision:%s\n"
-    ) % (svn_prefix, pull_revision, pull_commit, pull_revision)
-
-    git.call("merge", "-X", "subtree=" + git_prefix, "-m", merge_message, pull_commit)
-    git.call("checkout", head_branch)
-
-    logger.info("Now, run 'git merge %s'" % merge_branch)
 
 
 def check_git_version(git):
@@ -1061,16 +955,132 @@ def action_stitch(ctx, args):
     stitch_git_svn(ctx.git, "HEAD", ctx.arc_git_remote, ctx.arc_url)
 
 def action_pull(ctx, args):
-    check_head_is_attached(ctx.git)
-    pull_git_svn(
-        ctx.git,
-        ctx.svn,
-        ctx.arc_url,
-        ctx.arc_git_remote,
-        ctx.git_relpath,
-        ctx.svn_relpath,
-        revision=args.revision,
-        recent_push=args.recent_push)
+    logger.info("Pulling SVN revisions")
+
+    git = ctx.git
+    check_head_is_attached(git)
+
+    git_svn_remote_ref = make_remote_ref(ctx.arc_git_remote)
+
+    pull_history = extract_pull_history(git, ctx.svn_relpath, "HEAD")
+    revision_to_commit = extract_git_svn_revision_to_commit_mapping_as_dict(git, ctx.arc_url, ctx.arc_git_remote)
+
+    if args.recent_push:
+        base_commit = args.recent_push.git_commit
+        push_revision = args.recent_push.svn_revision
+        push_commit = translate_svn_revision_to_git_commit(git, ctx.arc_git_remote, push_revision)
+    else:
+        push_history = extract_push_history(ctx.name, git, ctx.svn_relpath, git_svn_remote_ref)
+        if not push_history:
+            raise ArcadiaSyncError("No pushes from Git to SVN were detected")
+        base_commit, push_commit = push_history[0]
+        push_revision = translate_git_commit_to_svn_revision(git, ctx.arc_git_remote, push_commit)
+
+    logger.info(
+        "Most recent push was from commit %s to revision %s (%s)",
+        abbrev(base_commit), push_revision, abbrev(push_commit))
+
+    try:
+        error_msg = (
+            "Content of revision {svn_revision} in svn doesn't match content of git commit {git_commit}\n"
+            "Please use --recent-push option to set svn revision and git commit that match each other\n"
+        ).format(
+            svn_revision=push_revision,
+            git_commit=base_commit,
+        )
+        check_striped_symlink_tree_equal(git, base_commit + ":" + ctx.git_relpath, push_commit + ":")
+    except ArcadiaSyncError as e:
+        raise ArcadiaSyncError(error_msg + str(e))
+
+    last_changed_revision = get_svn_last_changed_revision(ctx.svn, ctx.arc_url)
+
+    if last_changed_revision in revision_to_commit:
+        logger.info(
+            "Last changed revision is %s (%s)",
+            last_changed_revision, abbrev(revision_to_commit[last_changed_revision]))
+    else:
+        logger.warning(
+            "Last changed revision is %s, but it is missing in git-svn log (try fetch latest revisions)",
+            last_changed_revision)
+
+    if pull_history:
+        last_pull_revision, last_pull_commit = pull_history[0]
+        logger.info(
+            "Last pulled revision is %s (%s) in %s",
+            last_pull_revision, abbrev(last_pull_commit), abbrev(last_pull_commit))
+    else:
+        last_pull_revision, last_pull_commit = 0, None
+        logger.info(
+            "No pulls from SVN to Git were detected")
+
+    if args.revision:
+        pull_revision = args.revision
+    else:
+        pull_revision = last_changed_revision
+
+    if pull_revision == push_revision:
+        raise ArcadiaSyncError("Nothing to pull: everything is up-to-date")
+
+    if pull_revision <= push_revision or pull_revision > last_changed_revision:
+        raise ArcadiaSyncError("Pulled revision %s is out of range; expected > last push %s and <= last changed %s" % (
+            pull_revision, push_revision, last_changed_revision))
+
+    if pull_revision <= last_pull_revision:
+        raise ArcadiaSyncError("Pulled revision %s is already merged during pull %s in commit %s" % (
+            pull_revision, last_pull_revision, last_pull_commit))
+
+    if pull_revision not in revision_to_commit:
+        raise ArcadiaSyncError("Pulled revision %s is missing in remote history" % pull_revision)
+
+    pull_commit = revision_to_commit[pull_revision]
+
+    logger.info(
+        "Pulling revisions %s:%s (%s..%s)",
+        push_revision, pull_revision, abbrev(push_commit), abbrev(pull_commit))
+
+    if not git.is_ancestor(base_commit, "HEAD"):
+        raise ArcadiaSyncError("Most recent push is not an ancestor of HEAD")
+
+    if not git.is_ancestor(push_commit, git_svn_remote_ref):
+        raise ArcadiaSyncError("Most recent push is missing in SVN history (diverged git-svn sync?)")
+
+    merge_branch = "arcadia_merge_%s" % pull_revision
+    head_branch = git.call("symbolic-ref", "--short", "HEAD").strip()
+
+    if git.has_ref(make_head_ref(merge_branch)):
+        raise ArcadiaSyncError("Merge branch '%s' already exists; delete it before pulling" % merge_branch)
+
+    if last_pull_revision < push_revision:
+        logger.debug("Using last push as merge base")
+        git.call("branch", merge_branch, base_commit)
+        git.call("checkout", merge_branch)
+        graft_message = (
+            "Graft Arcadia push-commit %s\n"
+            "\n"
+            "yt:git_base_commit:%s\n"
+            "yt:git_push_commit:%s\n"
+            "yt:svn_revision:%s\n"
+        ) % (abbrev(push_commit), base_commit, push_commit, push_revision)
+        git.call("merge", "-X", "subtree=" + ctx.git_relpath, "-m", graft_message, "--allow-unrelated-histories", push_commit)
+    else:
+        logger.debug("Using last pull as merge base")
+        git.call("branch", merge_branch, last_pull_commit)
+        git.call("checkout", merge_branch)
+
+    merge_message = (
+        "Pull %s from Arcadia revision %s\n"
+        "\n"
+        "yt:git_svn_commit:%s\n"
+        "yt:svn_revision:%s\n"
+    ) % (ctx.svn_relpath, pull_revision, pull_commit, pull_revision)
+
+    git.call("merge", "-X", "subtree=" + ctx.git_relpath, "-m", merge_message, pull_commit)
+    git.call("checkout", head_branch)
+
+    print >>sys.stderr, (
+        "Now, run:\n"
+        " $ git merge {branch}\n"
+    ).format(branch=merge_branch)
 
 
 def action_cherry_pick(ctx, args):
