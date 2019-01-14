@@ -176,8 +176,13 @@ class Transaction(object):
 
     def __enter__(self):
         self._stack.append(self.transaction_id, self._ping_ancestor_transactions)
+        enable_params_logging = get_config(self._client)["enable_logging_for_params_changes"]
+        if enable_params_logging:
+            logger.debug("Setting \"transaction_id\" and \"ping_ancestor_transactions\" to params (pid: %d)", os.getpid())
         set_command_param("transaction_id", self.transaction_id, self._client)
         set_command_param("ping_ancestor_transactions", self._ping_ancestor_transactions, self._client)
+        if enable_params_logging:
+            logger.debug("Set finished (pid: %d)", os.getpid())
         self._used_with_statement = True
         return self
 
@@ -220,8 +225,13 @@ class Transaction(object):
             if _get_ping_failed_mode(self._client) == "send_signal":
                 signal.signal(signal.SIGUSR1, self._old_sigusr_handler)
             transaction_id, ping_ancestor_transactions = self._stack.get()
+            enable_params_logging = get_config(self._client)["enable_logging_for_params_changes"]
+            if enable_params_logging:
+                logger.debug("Setting \"transaction_id\" and \"ping_ancestor_transactions\" to params (pid: %d)", os.getpid())
             set_command_param("transaction_id", transaction_id, self._client)
             set_command_param("ping_ancestor_transactions", ping_ancestor_transactions, self._client)
+            if enable_params_logging:
+                logger.debug("Set finished (pid: %d)", os.getpid())
 
     def _stop_pinger(self):
         if self._ping:
