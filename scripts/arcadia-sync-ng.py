@@ -593,9 +593,7 @@ class ArcadiaPush(object):
             if head != self.push_state.commit:
                 raise ArcadiaSyncError(error_msg)
 
-
-
-        if args.check_head_is_pushed:
+        if getattr(args, "check_head_is_pushed", True):
             logger.info("checking that HEAD is present at github")
             git_verify_head_pushed(self.common_git)
 
@@ -946,6 +944,11 @@ def main():
     add_ignore_unmerged_svn_commits_argument(update_review_parser)
     add_ignore_not_pushed_head_argument(update_review_parser)
     update_review_parser.set_defaults(action=action_update_review)
+
+    merge_review_parser = add_no_projects_parser("merge-review", help="commit review")
+    add_arcadia_argument(merge_review_parser)
+    add_ignore_unmerged_svn_commits_argument(merge_review_parser)
+    merge_review_parser.set_defaults(action=action_merge_review)
 
     args = parser.parse_args()
 
