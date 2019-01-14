@@ -9,7 +9,7 @@ class TReaderFactory
 {
 public:
     TReaderFactory(
-        std::function<IReaderBasePtr()> factory, 
+        std::function<IReaderBasePtr()> factory,
         i64 memoryFootprint,
         const TDataSliceDescriptor& dataSliceDescriptor)
         : Factory_(factory)
@@ -41,7 +41,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IReaderFactoryPtr CreateReaderFactory(
-    std::function<IReaderBasePtr()> factory, 
+    std::function<IReaderBasePtr()> factory,
     i64 memoryFootprint,
     const TDataSliceDescriptor& dataSliceDescriptor)
 {

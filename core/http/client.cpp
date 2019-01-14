@@ -91,7 +91,7 @@ public:
             return IResponsePtr(response);
         }));
     }
-    
+
 private:
     const TClientConfigPtr Config_;
     const IDialerPtr Dialer_;

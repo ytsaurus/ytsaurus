@@ -33,9 +33,8 @@ constexpr int ExtraFlag = 1 << 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRandomAccessGZipFile::TRandomAccessGZipFile(const TString& path, int blockSize)
+TRandomAccessGZipFile::TRandomAccessGZipFile(const TString& path, int /*blockSize*/)
     : File_(path, OpenAlways|RdWr|CloseOnExec)
-    , BlockSize_(blockSize)
 {
     Repair();
     Reset();
@@ -54,7 +53,7 @@ void TRandomAccessGZipFile::Repair()
             File_.Resize(OutputPosition_);
             return;
         }
-        
+
         File_.Pread(&header, sizeof(header), OutputPosition_);
         // Wrong magic.
         if (header.FixedHeader.Id[0] != 0x1f || header.FixedHeader.Id[1] != 0x8b) {
@@ -87,7 +86,7 @@ void TRandomAccessGZipFile::DoFlush()
 {
     Compressor_->Finish();
     auto buffer = Output_.Buffer();
-    
+
     TGZipExtendedHeader header;
     memcpy(&header.FixedHeader, buffer.Data() + HeaderGrowth, sizeof(header.FixedHeader));
 

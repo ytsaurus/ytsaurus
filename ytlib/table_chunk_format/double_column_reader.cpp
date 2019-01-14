@@ -154,8 +154,8 @@ public:
         i64 upperRowIndex) override
     {
         return DoGetEqualRange<EValueType::Double>(
-            value, 
-            lowerRowIndex, 
+            value,
+            lowerRowIndex,
             upperRowIndex);
     }
 
@@ -163,7 +163,7 @@ private:
     virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
     {
         typedef TDenseUnversionedSegmentReader<
-            EValueType::Double, 
+            EValueType::Double,
             TUnversionedDoubleValueExtractor> TSegmentReader;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);

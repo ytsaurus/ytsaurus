@@ -104,7 +104,7 @@ public:
         }
         RpcAuthenticator_ = CreateCompositeAuthenticator(std::move(rpcAuthenticators));
     }
-    
+
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const
     {
         return RpcAuthenticator_;

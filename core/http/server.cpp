@@ -76,24 +76,16 @@ public:
         YCHECK(!Started_);
         Started_ = true;
 
-        BIND(&TServer::MainLoop, MakeStrong(this))
-            .AsyncVia(Poller_->GetInvoker())
-            .Run();
+        YT_LOG_INFO("Server started");
+
+        AsyncAcceptConnection();
     }
 
-    virtual TFuture<void> Stop() override
+    virtual void Stop() override
     {
-        if (!Started_) {
-            return VoidFuture;
-        }
+        Stopped_.store(true);
 
-        if (StoppedPromise_) {
-            return StoppedPromise_.ToFuture();
-        }
-
-        StoppedPromise_ = NewPromise<void>();
-        StoppingPromise_.Set(TError("Server stopped"));
-        return StoppedPromise_.ToFuture();
+        YT_LOG_INFO("Server stopped");
     }
 
 private:
@@ -102,8 +94,7 @@ private:
     const IPollerPtr Poller_;
 
     bool Started_ = false;
-    TPromise<IConnectionPtr> StoppingPromise_ = NewPromise<IConnectionPtr>();
-    TPromise<void> StoppedPromise_;
+    std::atomic<bool> Stopped_ = {false};
 
     TRequestPathMatcher Handlers_;
 
@@ -112,40 +103,45 @@ private:
     TMonotonicCounter ConnectionsDroppedCounter_{"/connections_dropped"};
 
 
-    void MainLoop()
+    void AsyncAcceptConnection()
     {
-        YT_LOG_INFO("Server started");
-        try {
-            while (true) {
-                auto asyncConnection = AnyOf(std::vector<TFuture<IConnectionPtr>>{
-                    Listener_->Accept(),
-                    StoppingPromise_.ToFuture()
-                });
-                auto connection = WaitFor(asyncConnection)
-                    .ValueOrThrow();
+        Listener_->Accept().Subscribe(
+            BIND(&TServer::OnConnectionAccepted, MakeWeak(this))
+                .Via(Poller_->GetInvoker()));
+    }
 
-                HttpProfiler.Increment(ConnectionsAcceptedCounter_);
-                if (HttpProfiler.Increment(ConnectionsActiveGauge_, +1) >= Config_->MaxSimultaneousConnections) {
-                    HttpProfiler.Increment(ConnectionsDroppedCounter_);
-                    HttpProfiler.Increment(ConnectionsActiveGauge_, -1);
-                    YT_LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
-                        connection->RemoteAddress());
-                    continue;
-                }
-
-                auto connectionId = TGuid::Create();
-                YT_LOG_DEBUG("Connection accepted (ConnectionId: %v, RemoteAddress: %v, LocalAddress: %v)",
-                    connectionId,
-                    connection->RemoteAddress(),
-                    connection->LocalAddress());
-                Poller_->GetInvoker()->Invoke(
-                    BIND(&TServer::HandleConnection, MakeStrong(this), std::move(connection), connectionId));
-            }
-        } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Server loop finished");
+    void OnConnectionAccepted(const TErrorOr<IConnectionPtr>& connectionOrError)
+    {
+        if (Stopped_.load()) {
+            return;
         }
 
-        StoppedPromise_.Set();
+        AsyncAcceptConnection();
+
+        if (!connectionOrError.IsOK()) {
+            YT_LOG_INFO(connectionOrError, "Error accepting connection");
+            return;
+        }
+
+        auto connection = connectionOrError.ValueOrThrow();
+
+        HttpProfiler.Increment(ConnectionsAcceptedCounter_);
+        if (HttpProfiler.Increment(ConnectionsActiveGauge_, +1) >= Config_->MaxSimultaneousConnections) {
+            HttpProfiler.Increment(ConnectionsDroppedCounter_);
+            HttpProfiler.Increment(ConnectionsActiveGauge_, -1);
+            YT_LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
+                connection->RemoteAddress());
+            return;
+        }
+
+        auto connectionId = TGuid::Create();
+        YT_LOG_DEBUG("Connection accepted (ConnectionId: %v, RemoteAddress: %v, LocalAddress: %v)",
+            connectionId,
+            connection->RemoteAddress(),
+            connection->LocalAddress());
+
+        Poller_->GetInvoker()->Invoke(
+            BIND(&TServer::HandleConnection, MakeStrong(this), std::move(connection), connectionId));
     }
 
     bool HandleRequest(const THttpInputPtr& request, const THttpOutputPtr& response)
@@ -248,7 +244,7 @@ private:
             auto requestId = TGuid::Create();
             request->SetRequestId(requestId);
             response->SetRequestId(requestId);
-        
+
             bool ok = HandleRequest(request, response);
             if (!ok) {
                 break;

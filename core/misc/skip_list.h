@@ -13,7 +13,7 @@ namespace NYT {
 /*!
  *  All mutating methods (including ctor and dtor) must be called from a single (writer) thread.
  *  All const methods can be called from arbitrary (reader) threads.
- *  
+ *
  *  Kudos to Yandex RTMR Team :)
  */
 template <class TKey, class TComparer>

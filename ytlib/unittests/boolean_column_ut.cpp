@@ -62,7 +62,7 @@ TEST_F(TUnversionedBooleanColumnTest, ReadValues)
     std::vector<std::optional<bool>> expected;
     AppendVector(&expected, CreateDirectDense());
     AppendVector(&expected, CreateDirectRle());
-    
+
     Validate(CreateRows(expected), 1111, 15555);
 }
 

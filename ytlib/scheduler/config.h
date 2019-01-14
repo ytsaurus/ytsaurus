@@ -1021,9 +1021,7 @@ class TOperationFairShareTreeRuntimeParameters
 {
 public:
     std::optional<double> Weight;
-
-    std::optional<TPoolName> Pool;
-
+    TPoolName Pool;
     TResourceLimitsConfigPtr ResourceLimits;
 
     TOperationFairShareTreeRuntimeParameters();
@@ -1031,14 +1029,11 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParameters)
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TOperationRuntimeParameters
     : public NYTree::TYsonSerializable
 {
 public:
-    std::optional<std::vector<TString>> Owners;
-
+    std::vector<TString> Owners;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
 
     TOperationRuntimeParameters();
@@ -1048,20 +1043,47 @@ DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserFriendlyOperationRuntimeParameters
-    : public TOperationRuntimeParameters
+class TOperationFairShareTreeRuntimeParametersUpdate
+    : public NYTree::TYsonSerializable
 {
 public:
     std::optional<double> Weight;
+    std::optional<TPoolName> Pool;
+    TResourceLimitsConfigPtr ResourceLimits;
 
-    std::optional<TString> Pool;
-
-    TUserFriendlyOperationRuntimeParameters();
-
-    TOperationRuntimeParametersPtr UpdateParameters(const TOperationRuntimeParametersPtr& old);
+    TOperationFairShareTreeRuntimeParametersUpdate();
 };
 
-DEFINE_REFCOUNTED_TYPE(TUserFriendlyOperationRuntimeParameters)
+DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParametersUpdate)
+
+class TOperationRuntimeParametersUpdate
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<double> Weight;
+    std::optional<TString> Pool;
+    std::optional<std::vector<TString>> Owners;
+    THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
+
+    TOperationRuntimeParametersUpdate();
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParametersUpdate)
+
+//! Return new fair share tree runtime parameters applying |update| to |origin|.
+//! |origin| can be |nullptr|, in this case an attempt
+//! to create a new parameters object from |update| will be taken.
+//! |origin| object is not changed.
+TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters(
+    const TOperationFairShareTreeRuntimeParametersPtr& origin,
+    const TOperationFairShareTreeRuntimeParametersUpdatePtr& update);
+
+//! Return new runtime parameters applying |update| to |origin|.
+//! |origin| object is not changed.
+//! NOTE: |origin| can not be |nullptr|.
+TOperationRuntimeParametersPtr UpdateRuntimeParameters(
+    const TOperationRuntimeParametersPtr& origin,
+    const TOperationRuntimeParametersUpdatePtr& update);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -176,6 +176,14 @@ struct TReshardTableOptions
     , public TTabletRangeOptions
 { };
 
+struct TReshardTableAutomaticOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+    , public TTabletRangeOptions
+{
+    bool KeepActions = false;
+};
+
 struct TAlterTableOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -213,6 +221,13 @@ struct TTabletInfo
 {
     i64 TotalRowCount = 0;
     i64 TrimmedRowCount = 0;
+};
+
+struct TBalanceTabletCellsOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{
+    bool KeepActions = false;
 };
 
 struct TAddMemberOptions
@@ -862,6 +877,7 @@ struct TOperation
     NYson::TYsonString Spec;
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
+    NYson::TYsonString Annotations;
 
     NYson::TYsonString BriefProgress;
     NYson::TYsonString Progress;
@@ -1122,6 +1138,10 @@ struct IClient
         int tabletCount,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
+    virtual TFuture<std::vector<NTabletClient::TTabletActionId>> ReshardTableAutomatic(
+        const NYPath::TYPath& path,
+        const TReshardTableAutomaticOptions& options = TReshardTableAutomaticOptions()) = 0;
+
     virtual TFuture<void> TrimTable(
         const NYPath::TYPath& path,
         int tabletIndex,
@@ -1146,6 +1166,11 @@ struct IClient
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
         const TGetTabletsInfoOptions& options = TGetTabletsInfoOptions()) = 0;
+
+    virtual TFuture<std::vector<NTabletClient::TTabletActionId>> BalanceTabletCells(
+        const TString& tabletCellBundle,
+        const std::vector<NYPath::TYPath>& movableTables,
+        const TBalanceTabletCellsOptions& options) = 0;
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,

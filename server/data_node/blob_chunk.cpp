@@ -21,6 +21,8 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/misc/memory_zone.h>
+
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
@@ -162,8 +164,8 @@ void TBlobChunkBase::SetBlocksExt(const TRefCountedChunkMetaPtr& meta)
 
 bool TBlobChunkBase::IsFatalError(const TError& error) const
 {
-    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange) || 
-        error.FindMatching(NYT::EErrorCode::Canceled)) 
+    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange) ||
+        error.FindMatching(NYT::EErrorCode::Canceled))
     {
         return false;
     }
@@ -248,8 +250,8 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(const TReadBlockSetSessionPtr& s
     const auto& outThrottler = Location_->GetOutThrottler(session->Options.WorkloadDescriptor);
     auto throttleFuture = VoidFuture;
     if (!outThrottler->TryAcquire(pendingDataSize)) {
-        YT_LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)", 
-            pendingDataSize, 
+        YT_LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)",
+            pendingDataSize,
             session->Options.WorkloadDescriptor);
         throttleFuture = outThrottler->Throttle(pendingDataSize);
     }
@@ -342,11 +344,11 @@ void TBlobChunkBase::DoReadBlockSet(
             session->Blocks[entry.LocalIndex] = data;
 
             if (entry.Cookie.IsActive()) {
-                struct TCachedBlobChunkBlockTag {};
-
-                // NB: Prevent cache from holding the whole block sequence.
-                if (blocks.size() > 1) {
-                    data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data, /* dumpable */ false);
+                // NB: Copy block to move data to undumpable memory and to
+                // prevent cache from holding the whole block sequence.
+                {
+                    TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
+                    data.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data);
                 }
 
                 auto blockId = TBlockId(Id_, entry.BlockIndex);

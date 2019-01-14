@@ -363,9 +363,12 @@ class YTEnvSetup(object):
     START_SECONDARY_MASTER_CELLS = True
     ENABLE_SECONDARY_CELLS_CLEANUP = True
     NUM_NODES = 5
+    DEFER_NODE_START = False
     NUM_SCHEDULERS = 0
     NUM_CONTROLLER_AGENTS = None
     ENABLE_PROXY = False
+    NUM_HTTP_PROXIES = 1
+    HTTP_PROXY_PORTS = None
     ENABLE_RPC_PROXY = None
     NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
@@ -447,11 +450,12 @@ class YTEnvSetup(object):
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
             secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
             node_count=cls.get_param("NUM_NODES", index),
+            defer_node_start=cls.get_param("DEFER_NODE_START", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
-            has_proxy=cls.get_param("ENABLE_PROXY", index),
-            has_rpc_proxy=cls.get_param("ENABLE_RPC_PROXY", index),
-            rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index),
+            http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_PROXY", index) else 0,
+            http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
+            rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
             skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
@@ -578,8 +582,9 @@ class YTEnvSetup(object):
             configs["node"][index] = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
             cls.modify_node_config(configs["node"][index])
 
-        configs["proxy"] = update_inplace(configs["proxy"], cls.get_param("DELTA_PROXY_CONFIG", cluster_index))
-        cls.modify_proxy_config(configs["proxy"])
+        for index, config in enumerate(configs["http_proxy"]):
+            configs["http_proxy"][index] = update_inplace(config, cls.get_param("DELTA_PROXY_CONFIG", cluster_index))
+            cls.modify_proxy_config(configs["http_proxy"])
 
         for index, config in enumerate(configs["rpc_proxy"]):
             configs["rpc_proxy"][index] = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))

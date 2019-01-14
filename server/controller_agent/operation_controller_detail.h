@@ -327,7 +327,7 @@ public:
 
     virtual void Dispose() override;
 
-    virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersPtr& runtimeParameters) override;
+    virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override;
 
     virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta() override;
 
@@ -831,6 +831,7 @@ protected:
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
 
     const TExecNodeDescriptorMap& GetExecNodeDescriptors();
+    const TExecNodeDescriptorMap& GetOnlineExecNodeDescriptors();
 
     void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
     void InferSchemaFromInputOrdered();
@@ -966,8 +967,9 @@ private:
 
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
-    int ExecNodeCount_ = 0;
+    int OnlineExecNodeCount_ = 0;
     TRefCountedExecNodeDescriptorMapPtr ExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
+    TRefCountedExecNodeDescriptorMapPtr OnlineExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
 
@@ -1069,7 +1071,7 @@ private:
     virtual void OnExecNodesUpdated();
 
     void GetExecNodesInformation();
-    int GetExecNodeCount();
+    int GetOnlineExecNodeCount();
 
     void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
     void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary);

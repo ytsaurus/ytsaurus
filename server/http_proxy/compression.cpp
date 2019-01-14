@@ -146,17 +146,17 @@ private:
             Compressor_.reset(new TSnappyCompress(this, DefaultStreamBufferSize));
             return;
         }
-        
+
         THROW_ERROR_EXCEPTION("Unsupported content encoding")
             << TErrorAttribute("content_encoding", ToString(ContentEncoding_));
     }
-    
+
     virtual void DoWrite(const void* buf, size_t len) override
     {
         if (Destroying_) {
             return;
         }
-    
+
         WaitFor(Underlying_->Write(TSharedRef(buf, len, New<TStreamHolder>(this))))
             .ThrowOnError();
     }
@@ -169,7 +169,7 @@ private:
         if (Destroying_) {
             return;
         }
-    
+
         WaitFor(Underlying_->Close())
             .ThrowOnError();
     }
@@ -241,7 +241,7 @@ private:
             return;
         }
 #endif
-        
+
         if (ContentEncoding_ == "gzip" || ContentEncoding_ == "deflate") {
             Decompressor_.reset(new TZLibDecompress(this));
             return;
@@ -271,7 +271,7 @@ private:
             Decompressor_.reset(new TSnappyDecompress(this));
             return;
         }
-        
+
         THROW_ERROR_EXCEPTION("Unsupported content encoding")
             << TErrorAttribute("content_encoding", ContentEncoding_);
     }
@@ -312,7 +312,7 @@ bool IsCompressionSupported(const TContentEncoding& contentEncoding)
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -328,7 +328,7 @@ TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEn
             bestPosition = position;
         }
     };
-    
+
     for (const auto& candidate : SupportedCompressions) {
         if (candidate == "x-lzop") {
             continue;
@@ -350,7 +350,7 @@ TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEn
     if (!bestEncoding.empty()) {
         return bestEncoding;
     }
-    
+
     return TError("Could not determine feasible Content-Encoding given Accept-Encoding constraints")
         << TErrorAttribute("client_accept_encoding", clientAcceptEncodingHeader);
 }

@@ -53,7 +53,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TUserStatistics*, LocalStatisticsPtr);
     DEFINE_BYREF_RW_PROPERTY(TUserStatistics, ClusterStatistics);
     DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex);
-    
+
 public:
     explicit TUser(TUserId id);
 

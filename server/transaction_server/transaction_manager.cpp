@@ -82,7 +82,6 @@ public:
     }
 
 private:
-    TImpl* const Owner_;
     const EObjectType ObjectType_;
 
 
@@ -869,9 +868,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TransactionMap_.LoadKeys(context);
-
-        // COMPAT(babenko)
-        YCHECK(context.GetVersion() >= 400 || TransactionMap_.GetSize() == 0);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -996,7 +992,6 @@ TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(
     TImpl* owner,
     EObjectType objectType)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TransactionMap_)
-    , Owner_(owner)
     , ObjectType_(objectType)
 { }
 

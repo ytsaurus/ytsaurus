@@ -65,24 +65,13 @@ void TYsonString::Save(TStreamSaveContext& context) const
 void TYsonString::Load(TStreamLoadContext& context)
 {
     using NYT::Load;
-    // COMPAT(babenko)
-    if (context.GetVersion() < 501) {
-        Load(context, Data_);
-        if (Data_.empty()) {
-            Null_ = true;
-        } else {
-            Null_ = false;
-            Type_ = EYsonType::Node;
-        }
+    Type_ = static_cast<EYsonType>(Load<i32>(context));
+    if (static_cast<i32>(Type_) == -1) {
+        Null_ = true;
+        Data_.clear();
     } else {
-        Type_ = static_cast<EYsonType>(Load<i32>(context));
-        if (static_cast<i32>(Type_) == -1) {
-            Null_ = true;
-            Data_.clear();
-        } else {
-            Null_ = false;
-            Load(context, Data_);
-        }
+        Null_ = false;
+        Load(context, Data_);
     }
 }
 

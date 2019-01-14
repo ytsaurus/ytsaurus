@@ -45,8 +45,8 @@ private:
 
         attributes->push_back(EInternedAttributeKey::Kind);
         attributes->push_back(EInternedAttributeKey::State);
-        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::KeepFinished)
-            .SetWritable(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTime)
+            .SetPresent(action->GetExpirationTime() != TInstant::Zero()));
         attributes->push_back(EInternedAttributeKey::SkipFreezing);
         attributes->push_back(EInternedAttributeKey::Freeze);
         attributes->push_back(EInternedAttributeKey::TabletIds);
@@ -77,9 +77,12 @@ private:
                     .Value(action->GetState());
                 return true;
 
-            case EInternedAttributeKey::KeepFinished:
+            case EInternedAttributeKey::ExpirationTime:
+                if (action->GetExpirationTime() == TInstant::Zero()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
-                    .Value(action->GetKeepFinished());
+                    .Value(action->GetExpirationTime());
                 return true;
 
             case EInternedAttributeKey::SkipFreezing:
@@ -142,28 +145,6 @@ private:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
-    }
-
-    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
-    {
-        auto* action = GetThisImpl();
-
-        switch (key) {
-            case EInternedAttributeKey::KeepFinished:
-                if (action->GetState() == ETabletActionState::Completed ||
-                    action->GetState() == ETabletActionState::Failed)
-                {
-                    THROW_ERROR_EXCEPTION("Tablet action is already in %Qlv state",
-                        action->GetState());
-                }
-
-                action->SetKeepFinished(ConvertTo<bool>(value));
-                return true;
-            default:
-                break;
-        }
-
-        return TBase::SetBuiltinAttribute(key, value);
     }
 };
 

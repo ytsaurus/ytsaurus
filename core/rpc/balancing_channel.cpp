@@ -122,7 +122,7 @@ private:
     struct TTooManyConcurrentRequests { };
     struct TNoMorePeers { };
 
-    using TPickPeerResult = TVariant<
+    using TPickPeerResult = std::variant<
         TString,
         TTooManyConcurrentRequests,
         TNoMorePeers>;
@@ -165,16 +165,16 @@ private:
             while (true) {
                 auto pickResult = PickPeer();
 
-                if (pickResult.Is<TTooManyConcurrentRequests>()) {
+                if (std::holds_alternative<TTooManyConcurrentRequests>(pickResult)) {
                     break;
                 }
 
-                if (pickResult.Is<TNoMorePeers>()) {
+                if (std::holds_alternative<TNoMorePeers>(pickResult)) {
                     OnFinished();
                     break;
                 }
 
-                QueryPeer(pickResult.As<TString>());
+                QueryPeer(std::get<TString>(pickResult));
             }
         }
 

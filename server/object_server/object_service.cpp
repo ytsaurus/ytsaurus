@@ -190,7 +190,9 @@ public:
 
     ~TExecuteSession()
     {
-        YT_LOG_DEBUG_UNLESS(Finished_, "Request is not finished (RequestId: %v)",
+        YT_LOG_DEBUG_IF(User_ && !Finished_, "User reference leaked due to unfinished request (RequestId: %v)",
+            RequestId_);
+        YT_LOG_DEBUG_IF(RequestQueueSizeIncreased_ && !Finished_, "Request queue size increment leaked due to unfinished request (RequestId: %v)",
             RequestId_);
     }
 
@@ -246,7 +248,7 @@ public:
     void Finish()
     {
         Finished_ = true;
-        
+
         if (!EpochCancelableContext_) {
             return;
         }
@@ -255,12 +257,12 @@ public:
             return;
         }
 
-        if (User_) {
-            ObjectManager_->EphemeralUnrefObject(User_);
-        }
-
         if (RequestQueueSizeIncreased_ && IsObjectAlive(User_)) {
             SecurityManager_->DecreaseRequestQueueSize(User_);
+        }
+
+        if (User_) {
+            ObjectManager_->EphemeralUnrefObject(User_);
         }
     }
 
@@ -798,6 +800,10 @@ private:
                         SubresponseCount_.load(),
                         SubrequestCount_);
                     Reply();
+                } else if (CurrentSubrequestIndex_ == 0) {
+                    YT_LOG_DEBUG("Dropping request since no subrequests have started running (RequestId: %v)",
+                        RequestId_);
+                    ScheduleFinish();
                 }
                 return;
             }
@@ -841,7 +847,7 @@ void TObjectService::ProcessSessions()
     auto deadlineTime = startTime + NProfiling::DurationToCpuDuration(Config_->YieldTimeout);
 
     ProcessSessionsCallbackEnqueued_.store(false);
-    
+
     FinishedSessions_.DequeueAll(false, [&] (const TExecuteSessionPtr& session) {
         session->Finish();
     });

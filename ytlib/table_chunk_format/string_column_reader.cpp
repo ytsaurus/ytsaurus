@@ -38,7 +38,7 @@ protected:
 
     ui32 GetOffset(i64 offsetIndex) const
     {
-        return StringMeta_.expected_length() * (offsetIndex + 1) + 
+        return StringMeta_.expected_length() * (offsetIndex + 1) +
             ZigZagDecode32(OffsetsReader_[offsetIndex]);
     }
 
@@ -400,8 +400,8 @@ public:
         i64 upperRowIndex) override
     {
         return DoGetEqualRange<ValueType>(
-            value, 
-            lowerRowIndex, 
+            value,
+            lowerRowIndex,
             upperRowIndex);
     }
 

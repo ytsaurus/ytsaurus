@@ -115,7 +115,7 @@ void TVersionedColumnWriterBase::AddPendingValues(
         }
 
         for (const auto& value : values) {
-            
+
             bool isNull = value.Type == EValueType::Null;
 
             onValue(value);

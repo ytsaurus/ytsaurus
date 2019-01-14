@@ -2,6 +2,12 @@
 
 #include "public.h"
 
+#include "config.h"
+
+#include <yt/server/cell_node/public.h>
+
+#include <yt/core/concurrency/periodic_executor.h>
+
 namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +33,7 @@ class TGpuManager
 public:
     using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
 
+    TGpuManager(NCellNode::TBootstrap* bootstrap, TGpuManagerConfigPtr config);
     TGpuManager();
 
     static const std::vector<TString>& GetMetaGpuDeviceNames();
@@ -38,10 +45,21 @@ public:
     TGpuSlotPtr AcquireGpuSlot();
 
 private:
+    const NCellNode::TBootstrap* Bootstrap_;
+    const TGpuManagerConfigPtr Config_;
+    const bool EnableHealthCheck_ = true;
+    NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
+
+    THashSet<int> HealthyGpuDeviceNumbers_;
+
     TSpinLock SpinLock_;
     std::vector<TGpuSlot> FreeSlots_;
 
     std::vector<TString> GpuDevices_;
+    bool Disabled_ = false;
+
+    void OnHealthCheck();
+    void Init();
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManager)

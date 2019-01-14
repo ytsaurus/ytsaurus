@@ -191,7 +191,7 @@ public:
 
         ControlState_ = EPeerState::Elections;
 
-        IncrementRestartCounter("Initialization");
+        ProfileRestart("Initialization");
 
         Participate();
     }
@@ -376,13 +376,6 @@ public:
                 "Read-only mode is active"));
         }
 
-        auto epochContext = AutomatonEpochContext_;
-        if (epochContext && epochContext->Restarting) {
-            return MakeFuture<TMutationResponse>(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Peer is restarting"));
-        }
-
         auto state = GetAutomatonState();
         switch (state) {
             case EPeerState::Leading:
@@ -396,11 +389,11 @@ public:
                     auto error = TError(
                         NRpc::EErrorCode::Unavailable,
                         "Leader lease is no longer valid");
-                    Restart(epochContext, error);
+                    Restart(AutomatonEpochContext_, error);
                     return MakeFuture<TMutationResponse>(error);
                 }
 
-                return epochContext->LeaderCommitter->Commit(std::move(request));
+                return AutomatonEpochContext_->LeaderCommitter->Commit(std::move(request));
 
             case EPeerState::Following:
                 if (!FollowerRecovered_) {
@@ -415,7 +408,7 @@ public:
                         "Leader mutation forwarding is not allowed"));
                 }
 
-                return epochContext->FollowerCommitter->Forward(std::move(request));
+                return AutomatonEpochContext_->FollowerCommitter->Forward(std::move(request));
 
             default:
                 return MakeFuture<TMutationResponse>(TError(
@@ -470,9 +463,6 @@ private:
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    THashMap<TString, NProfiling::TMonotonicCounter> RestartCounters_;
-
-    
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -909,17 +899,16 @@ private:
             BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
-    void IncrementRestartCounter(const TString& message)
+    void ProfileRestart(const TString& message)
     {
-        auto it = RestartCounters_.find(message);
-        if (it == RestartCounters_.end()) {
-            auto tagIds = Options_.ProfilingTagIds;
-            tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("reason", message));
-            auto counter = NProfiling::TMonotonicCounter("/restart_count", tagIds);
-            it = RestartCounters_.insert(std::make_pair(message, counter)).first;
-        }
+        auto tagIds = Options_.ProfilingTagIds;
+        tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("reason", message));
 
-        Profiler.Increment(it->second);
+        Profiler.Enqueue(
+            "/restart_count",
+            1,
+            NProfiling::EMetricType::Gauge,
+            tagIds);
     }
 
     void Restart(TEpochId epochId, const TError& error)
@@ -946,18 +935,18 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!ControlEpochContext_ || ControlEpochContext_->EpochId != epochId) {
+        if (!ControlEpochContext_ ||
+            ControlEpochContext_->EpochId != epochId ||
+            ControlEpochContext_->Restarting)
+        {
             return;
         }
 
-        bool expected = false;
-        if (!ControlEpochContext_->Restarting.compare_exchange_strong(expected, true)) {
-            return;
-        }
+        ControlEpochContext_->Restarting = true;
 
         YT_LOG_WARNING(error, "Restarting Hydra instance");
 
-        IncrementRestartCounter(error.GetMessage());
+        ProfileRestart(error.GetMessage());
 
         ElectionManager_->Abandon();
     }
@@ -1080,7 +1069,7 @@ private:
     void RotateChangelogAndWatch()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        
+
         auto changelogResult = AutomatonEpochContext_->Checkpointer->RotateChangelog();
         WatchChangelogRotation(changelogResult);
     }
@@ -1168,7 +1157,7 @@ private:
 
         YCHECK(!AutomatonEpochContext_);
         AutomatonEpochContext_ = epochContext;
-        
+
         DecoratedAutomaton_->OnStartLeading(epochContext);
 
         StartLeading_.Fire();
@@ -1268,11 +1257,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ResetAutomatonEpochContext();
-        
+
         leaderCommitter->Stop();
-        
+
         DecoratedAutomaton_->OnStopLeading();
-        
+
         StopLeading_.Fire();
 
         Participate();
@@ -1359,7 +1348,7 @@ private:
         YT_LOG_INFO("Stopped following");
 
         // Save for later to respect the thread affinity.
-        auto followerCommitter = ControlEpochContext_->LeaderCommitter;
+        auto followerCommitter = ControlEpochContext_->FollowerCommitter;
 
         StopEpoch();
 
@@ -1370,9 +1359,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ResetAutomatonEpochContext();
-        
+
+        followerCommitter->Stop();
+
         DecoratedAutomaton_->OnStopFollowing();
-        
+
         StopFollowing_.Fire();
 
         Participate();
@@ -1493,7 +1484,7 @@ private:
         }
 
         ControlEpochContext_->CancelableContext->Cancel();
-        
+
         ControlEpochContext_.Reset();
     }
 
@@ -1514,7 +1505,7 @@ private:
         trySetPromise(AutomatonEpochContext_->ActiveUpstreamSyncPromise);
         trySetPromise(AutomatonEpochContext_->PendingUpstreamSyncPromise);
         trySetPromise(AutomatonEpochContext_->LeaderSyncPromise);
-        
+
         AutomatonEpochContext_.Reset();
     }
 

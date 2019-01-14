@@ -148,8 +148,8 @@ void Chmod(const TString& path, int mode);
 
 //! Copies file chunk after chunk, releasing thread between chunks.
 void ChunkedCopy(
-    const TString& existingPath, 
-    const TString& newPath, 
+    const TString& existingPath,
+    const TString& newPath,
     i64 chunkSize);
 
 TError AttachLsofOutput(TError error, const TString& path);
@@ -160,7 +160,7 @@ TError AttachFindOutput(TError error, const TString& path);
 } // namespace NYT::NFS
 
 namespace NYT {
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetDirectorySizeAsRootTool

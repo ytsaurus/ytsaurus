@@ -585,14 +585,7 @@ void TChunkRequisitionRegistry::TIndexedItem::Save(NCellMaster::TSaveContext& co
 void TChunkRequisitionRegistry::TIndexedItem::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= 710) {
-        Load(context, RefCount);
-    } else if (context.GetVersion() >= 704) {
-        // Throw away RefCount; it doesn't account for aggregated requisition indexes
-        // and will be recomputed by the chunk manager.
-        Load<i64>(context);
-    } // Else refcounts are recomputed by the chunk manager.
+    Load(context, RefCount);
     Load(context, Requisition);
     Replication = Requisition.ToReplication();
 }
@@ -689,11 +682,6 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     YCHECK(IndexToItem_.contains(MigrationChunkRequisitionIndex));
     YCHECK(IndexToItem_.contains(MigrationRF2ChunkRequisitionIndex));
     YCHECK(IndexToItem_.contains(MigrationErasureChunkRequisitionIndex));
-
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 710) {
-        FakeRefBuiltinRequisitions();
-    }
 
     Load(context, NextIndex_);
 

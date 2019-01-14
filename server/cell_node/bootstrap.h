@@ -100,6 +100,9 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const;
     const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
+    const NConcurrency::IThroughputThrottlerPtr& GetTabletNodeInThrottler(EWorkloadCategory category) const;
+    const NConcurrency::IThroughputThrottlerPtr& GetTabletNodeOutThrottler(EWorkloadCategory category) const;
+
     const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const;
 
     NObjectClient::TCellId GetCellId() const;
@@ -167,17 +170,22 @@ private:
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheInThrottler;
     NConcurrency::IThroughputThrottlerPtr ArtifactCacheOutThrottler;
     NConcurrency::IThroughputThrottlerPtr SkynetOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningInThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletLoggingInThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler;
-    NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletCompactionAndPartitioningInThrottler;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletCompactionAndPartitioningOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletStoreFlushInThrottler;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletLoggingInThrottler;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletPreloadOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletSnapshotInThrottler;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletRecoveryOutThrottler;
+
+    NConcurrency::IThroughputThrottlerPtr TabletNodeCompactionAndPartitioningInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeCompactionAndPartitioningOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeStoreFlushOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler;
 
     NConcurrency::IThroughputThrottlerPtr ReadRpsOutThrottler;
 
     NTabletNode::TSlotManagerPtr TabletSlotManager;
-    NConcurrency::IThroughputThrottlerPtr TabletStoreFlushInThrottler;
     NTabletNode::TSecurityManagerPtr SecurityManager;
     NTabletNode::IInMemoryManagerPtr InMemoryManager;
     NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager;

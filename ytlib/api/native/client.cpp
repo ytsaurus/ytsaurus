@@ -99,6 +99,7 @@
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
+#include <yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
 #include <yt/ytlib/tablet_client/table_replica_ypath.h>
 #include <yt/ytlib/tablet_client/master_tablet_service.h>
 
@@ -618,6 +619,10 @@ public:
         int tabletCount,
         const TReshardTableOptions& options),
         (path, tabletCount, options))
+    IMPLEMENT_METHOD(std::vector<NTabletClient::TTabletActionId>, ReshardTableAutomatic, (
+        const TYPath& path,
+        const TReshardTableAutomaticOptions& options),
+        (path, options))
     IMPLEMENT_METHOD(void, AlterTable, (
         const TYPath& path,
         const TAlterTableOptions& options),
@@ -632,7 +637,11 @@ public:
         TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options),
         (replicaId, options))
-
+    IMPLEMENT_METHOD(std::vector<NTabletClient::TTabletActionId>, BalanceTabletCells, (
+        const TString& tabletCellBundle,
+        const std::vector<TYPath>& movableTables,
+        const TBalanceTabletCellsOptions& options),
+        (tabletCellBundle, movableTables, options))
 
     IMPLEMENT_METHOD(TYsonString, GetNode, (
         const TYPath& path,
@@ -1982,7 +1991,7 @@ private:
         const TSelectRowsOptions& options)
     {
         auto parsedQuery = ParseSource(queryString, EParseMode::Query);
-        auto* astQuery = &parsedQuery->AstHead.Ast.As<NAst::TQuery>();
+        auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
         auto optionalClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
         if (optionalClusterName) {
             auto replicaClient = CreateReplicaClient(*optionalClusterName);
@@ -2039,8 +2048,7 @@ private:
 
         for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
             if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
-                const auto& ast = parsedQuery->AstHead.Ast.As<NAst::TQuery>();
-
+                const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
                 THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
                     "the query is inefficient, consider rewriting it")
                     << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
@@ -2327,7 +2335,12 @@ private:
         return results;
     }
 
-    void ResolveExternalNode(const TYPath path, TTableId* tableId, TCellTag* cellTag, TString* fullPath = nullptr)
+    std::unique_ptr<IAttributeDictionary> ResolveExternalNode(
+        const TYPath& path,
+        TTableId* tableId,
+        TCellTag* cellTag,
+        TString* fullPath = nullptr,
+        const std::vector<TString>& extraAttributes = {})
     {
         auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
         auto batchReq = proxy->ExecuteBatch();
@@ -2337,6 +2350,9 @@ private:
             std::vector<TString> attributeKeys{"id", "external_cell_tag"};
             if (fullPath) {
                 attributeKeys.push_back("path");
+            }
+            for (const auto& attribute : extraAttributes) {
+                attributeKeys.push_back(attribute);
             }
             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
             batchReq->AddRequest(req, "get_attributes");
@@ -2353,6 +2369,7 @@ private:
         if (fullPath) {
             *fullPath = attributes->Get<TString>("path");
         }
+        return attributes;
     }
 
     template <class TReq>
@@ -2647,6 +2664,58 @@ private:
         }
     }
 
+    std::vector<TTabletActionId> DoReshardTableAutomatic(
+        const TYPath& path,
+        const TReshardTableAutomaticOptions& options)
+    {
+        if (options.FirstTabletIndex || options.LastTabletIndex) {
+            THROW_ERROR_EXCEPTION("Tablet indices cannot be specified for automatic reshard");
+        }
+
+        TTableId tableId;
+        TCellTag cellTag;
+        auto attributes = ResolveExternalNode(
+            path,
+            &tableId,
+            &cellTag,
+            nullptr /*fullPath*/,
+            {"tablet_cell_bundle", "dynamic"});
+
+        if (TypeFromId(tableId) != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Invalid object type: expected %v, got %v", EObjectType::Table, TypeFromId(tableId))
+                << TErrorAttribute("path", path);
+        }
+
+        if (!attributes->Get<bool>("dynamic")) {
+            THROW_ERROR_EXCEPTION("Table must be dynamic")
+                << TErrorAttribute("path", path);
+        }
+
+
+        auto optionalBundle = attributes->Find<TString>("tablet_cell_bundle");
+        if (!optionalBundle) {
+            THROW_ERROR_EXCEPTION("Table has no tablet cell bundle")
+                << TErrorAttribute("path", path);
+        }
+
+        DoCheckPermission(
+            Options_.GetUser(),
+            "//sys/tablet_cell_bundles/" + *optionalBundle,
+            EPermission::Write,
+            TCheckPermissionOptions{})
+            .ToError(Options_.GetUser(), EPermission::Write)
+            .ThrowOnError();
+
+        auto req = TTableYPathProxy::ReshardAutomatic(FromObjectId(tableId));
+        SetMutationId(req, options);
+        req->set_keep_actions(options.KeepActions);
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+        auto protoRsp = WaitFor(proxy->Execute(req))
+            .ValueOrThrow();
+        return FromProto<std::vector<TTabletActionId>>(protoRsp->tablet_actions());
+    }
+
+
     void DoAlterTable(
         const TYPath& path,
         const TAlterTableOptions& options)
@@ -2721,6 +2790,89 @@ private:
         auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
+    }
+
+    std::vector<TTabletActionId> DoBalanceTabletCells(
+        const TString& tabletCellBundle,
+        const std::vector<TYPath>& movableTables,
+        const TBalanceTabletCellsOptions& options)
+    {
+        DoCheckPermission(
+            Options_.GetUser(),
+            "//sys/tablet_cell_bundles/" + tabletCellBundle,
+            EPermission::Write,
+            TCheckPermissionOptions{})
+            .ToError(Options_.GetUser(), EPermission::Write)
+            .ThrowOnError();
+
+        std::vector<TFuture<TTabletCellBundleYPathProxy::TRspBalanceTabletCellsPtr>> cellResponses;
+
+        if (movableTables.empty()) {
+            auto cellTags = Connection_->GetSecondaryMasterCellTags();
+            cellTags.push_back(Connection_->GetPrimaryMasterCellTag());
+            auto req = TTabletCellBundleYPathProxy::BalanceTabletCells("//sys/tablet_cell_bundles/" + tabletCellBundle);
+            SetMutationId(req, options);
+            req->set_keep_actions(options.KeepActions);
+            for (const auto& cellTag : cellTags) {
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+                cellResponses.emplace_back(proxy->Execute(req));
+            }
+        } else {
+            THashMap<TCellTag, std::vector<TTableId>> tablesByCells;
+
+            for (const auto& path : movableTables) {
+                TTableId tableId;
+                TCellTag cellTag;
+                auto attributes = ResolveExternalNode(
+                    path,
+                    &tableId,
+                    &cellTag,
+                    nullptr /*fullPath*/,
+                    {"dynamic", "tablet_cell_bundle"});
+
+                if (TypeFromId(tableId) != EObjectType::Table) {
+                    THROW_ERROR_EXCEPTION(
+                        "Invalid object type: expected %v, got %v",
+                        EObjectType::Table, TypeFromId(tableId))
+                        << TErrorAttribute("path", path);
+                }
+
+                if (!attributes->Get<bool>("dynamic")) {
+                    THROW_ERROR_EXCEPTION("Table must be dynamic")
+                        << TErrorAttribute("path", path);
+                }
+
+                auto actualBundle = attributes->Find<TString>("tablet_cell_bundle");
+                if (!actualBundle || *actualBundle != tabletCellBundle) {
+                    THROW_ERROR_EXCEPTION("All tables must be from the tablet cell bundle %Qv", tabletCellBundle);
+                }
+
+                tablesByCells[cellTag].push_back(tableId);
+            }
+
+            for (const auto& [cellTag, tableIds] : tablesByCells) {
+                auto req = TTabletCellBundleYPathProxy::BalanceTabletCells("//sys/tablet_cell_bundles/" + tabletCellBundle);
+                req->set_keep_actions(options.KeepActions);
+                SetMutationId(req, options);
+                ToProto(req->mutable_movable_tables(), tableIds);
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+                cellResponses.emplace_back(proxy->Execute(req));
+            }
+        }
+
+        std::vector<TTabletActionId> tabletActions;
+        for (auto& future : cellResponses) {
+            auto errorOrRsp = WaitFor(future);
+            if (errorOrRsp.IsOK()) {
+                auto protoRsp = errorOrRsp.Value();
+                auto tabletActionsFromCell = FromProto<std::vector<TTabletActionId>>(protoRsp->tablet_actions());
+                tabletActions.insert(tabletActions.end(), tabletActionsFromCell.begin(), tabletActionsFromCell.end());
+            } else {
+                YT_LOG_DEBUG(errorOrRsp, "\"balance_tablet_cells\" subrequest to master cell failed");
+            }
+        }
+
+        return tabletActions;
     }
 
     TYsonString DoGetNode(
@@ -3839,6 +3991,7 @@ private:
         "operation_type",
         "progress",
         "spec",
+        "annotations",
         "full_spec",
         "unrecognized_spec",
         "brief_progress",
@@ -3891,6 +4044,10 @@ private:
                 result.push_back("id_lo");
             } else if (attribute == "type") {
                 result.push_back("operation_type");
+            } else if (attribute == "annotations") {
+                if (DoGetOperationsArchiveVersion() >= 29) {
+                    result.push_back(attribute);
+                }
             } else {
                 result.push_back(attribute);
             }
@@ -4213,14 +4370,14 @@ private:
         auto deadline = timeout.ToDeadLine();
 
         TOperationId operationId;
-        if (operationIdOrAlias.Is<TOperationId>()) {
-            operationId = operationIdOrAlias.As<TOperationId>();
+        if (std::holds_alternative<TOperationId>(operationIdOrAlias)) {
+            operationId = std::get<TOperationId>(operationIdOrAlias);
         } else if (!options.IncludeRuntime) {
             THROW_ERROR_EXCEPTION(
                 "Operation alias cannot be resolved without using runtime information; "
-                "consider setting include_runtime = true");
+                "consider setting include_runtime = %true");
         } else {
-            operationId = ResolveOperationAlias(operationIdOrAlias.As<TString>(), options, deadline);
+            operationId = ResolveOperationAlias(std::get<TString>(operationIdOrAlias), options, deadline);
         }
 
         if (auto result = DoGetOperationFromCypress(operationId, deadline, options)) {
@@ -4938,6 +5095,9 @@ private:
         if (operation.Type) {
             textFactors.push_back(ToString(*operation.Type));
         }
+        if (operation.Annotations) {
+            textFactors.push_back(ConvertToYsonString(operation.Annotations, EYsonFormat::Text).GetData());
+        }
 
         if (operation.BriefSpec) {
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
@@ -5119,6 +5279,10 @@ private:
             operation.SlotIndexPerPoolTree = nodeAttributes.FindYson("slot_index_per_pool_tree");
         }
 
+        if (!attributes || attributes->contains("annotations")) {
+            operation.Annotations = nodeAttributes.FindYson("annotations");
+        }
+
         return operation;
     }
 
@@ -5209,7 +5373,11 @@ private:
             auto hashStr = Format("%02x", hash);
             auto req = TYPathProxy::List("//sys/operations/" + hashStr);
             SetCachingHeader(req, options);
-            ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(LightAttributes));
+            auto attributes = LightAttributes;
+            if (options.SubstrFilter) {
+                attributes.emplace("annotations");
+            }
+            ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(attributes));
             listBatchReq->AddRequest(req, "list_operations_" + hashStr);
         }
 

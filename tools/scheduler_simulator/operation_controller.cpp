@@ -195,7 +195,6 @@ public:
 private:
     using TJobBuckets = THashMap<EJobType, std::unique_ptr<TJobBucket>>;
 
-    const TOperation* Operation_;
     const TOperationDescription* OperationDescription_;
     const TJobBuckets JobBuckets_;
 
@@ -296,10 +295,9 @@ auto TSimulatorOperationController::InitializeJobBuckets(const TOperationDescrip
 }
 
 TSimulatorOperationController::TSimulatorOperationController(
-    const TOperation* operation,
+    const TOperation* /*operation*/,
     const TOperationDescription* operationDescription)
-    : Operation_(operation)
-    , OperationDescription_(operationDescription)
+    : OperationDescription_(operationDescription)
     , JobBuckets_(InitializeJobBuckets(operationDescription))
     , Logger("OperationController")
 {

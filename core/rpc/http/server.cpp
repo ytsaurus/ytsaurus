@@ -182,7 +182,7 @@ public:
         if (MaybeHandleCors(req, rsp)) {
             return;
         }
-    
+
         auto header = std::make_unique<NRpc::NProto::TRequestHeader>();
         auto error = TranslateRequest(req, header.get());
         if (!error.IsOK()) {
@@ -225,12 +225,12 @@ private:
         if (req->GetMethod() != EMethod::Post) {
             return TError("Invalid method; POST expected");
         }
-    
+
         const auto& url = req->GetUrl();
         if (url.Path.Size() <= BaseUrl_.Size()) {
             return TError("Invalid URL");
         }
-    
+
         rpcHeader->set_service(Underlying_->GetServiceId().ServiceName);
         rpcHeader->set_method(TString(url.Path.SubStr(BaseUrl_.Size())));
 

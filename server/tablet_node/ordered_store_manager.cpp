@@ -30,6 +30,8 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/misc/memory_zone.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
@@ -196,7 +198,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
-    return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
+    return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction, IThroughputThrottlerPtr throttler) {
+        TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
+            ? EMemoryZone::Normal
+            : EMemoryZone::Undumpable);
+
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
@@ -212,6 +218,10 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto blockCache = WaitFor(asyncBlockCache)
             .ValueOrThrow();
 
+        throttler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+            std::move(throttler),
+            tabletSnapshot->FlushThrottler});
+
         auto chunkWriter = CreateConfirmingWriter(
             writerConfig,
             writerOptions,
@@ -222,7 +232,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             Client_,
             blockCache,
             nullptr,
-            tabletSnapshot->FlushThrottler);
+            std::move(throttler));
 
         TChunkTimestamps chunkTimestamps;
         chunkTimestamps.MinTimestamp = orderedDynamicStore->GetMinTimestamp();

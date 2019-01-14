@@ -89,6 +89,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletService)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancer)
 DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissioner)
+DECLARE_REFCOUNTED_CLASS(TTabletActionManager)
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableTracker)
 DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
 
@@ -98,6 +99,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissionerConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletActionManagerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTabletBalancerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTabletCellBalancerMasterConfig)
@@ -125,6 +127,8 @@ extern const TTimeFormula DefaultTabletBalancerSchedule;
 
 constexpr int ReplicationErrorCountViewLimit = 3;
 constexpr int TabletErrorCountViewLimit = 10;
+
+constexpr auto DefaultSyncTabletActionKeepalivePeriod = TDuration::Minutes(1);
 
 using TTabletCellSet = SmallVector<std::pair<const TTabletCell*, int>, NTabletClient::TypicalTabletSlotCount>;
 

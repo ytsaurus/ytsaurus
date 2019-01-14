@@ -30,7 +30,7 @@
 
 namespace NYT::NHttpProxy {
 
-static auto& Logger = HttpProxyLogger;
+static const auto& Logger = HttpProxyLogger;
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -63,7 +63,7 @@ TProxyEntry::TProxyEntry()
         .Default(false);
     RegisterParameter("liveness", Liveness)
         .DefaultNew();
-    RegisterParameter("ban_message", BanMessage)
+    RegisterParameter(BanMessageAttributeName, BanMessage)
         .Default();
 }
 
@@ -187,7 +187,7 @@ std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
 {
     TListNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
-    options.Attributes = {"role", "banned", "liveness", "ban_message"};
+    options.Attributes = {"role", "banned", "liveness", BanMessageAttributeName};
 
     auto proxiesYson = WaitFor(Client_->ListNode("//sys/proxies", options))
         .ValueOrThrow();
@@ -313,7 +313,7 @@ TLivenessPtr TCoordinator::GetSelfLiveness()
     liveness->LoadAverage = loadAverage;
 
     auto networkStatistics = GetNetworkStatistics();
-    
+
     if (!StatisticsUpdatedAt_ || !LastStatistics_ || !networkStatistics) {
         // Take conservative approach.
         liveness->NetworkCoef = 1.0;
@@ -323,7 +323,7 @@ TLivenessPtr TCoordinator::GetSelfLiveness()
         auto deltaTime = std::max(1e-6, (liveness->UpdatedAt - StatisticsUpdatedAt_).MicroSeconds() / 1e-6);
 
         auto tenGigabits = 10_GB / 8;
-        
+
         auto txLoad = deltaTx / tenGigabits / deltaTime;
         auto rxLoad = deltaRx / tenGigabits / deltaTime;
         liveness->NetworkCoef = ClampVal(std::max(txLoad, rxLoad), 0.0, 1.0);
@@ -384,7 +384,7 @@ void THostsHandler::HandleRequest(
                             .Item("name").Value(proxy->Endpoint)
                             .Item("role").Value(proxy->Role)
                             .Item("banned").Value(proxy->IsBanned)
-                            .Item("ban_message").Value(proxy->BanMessage)
+                            .Item(BanMessageAttributeName).Value(proxy->BanMessage)
                             .Item("dead").Value(Coordinator_->IsDead(proxy, TInstant::Now()))
                             .Item("liveness").Value(proxy->Liveness)
                         .EndMap();
@@ -400,7 +400,7 @@ void THostsHandler::HandleRequest(
                 return proxy->GetHost();
             }
         };
-    
+
         auto proxies = Coordinator_->ListProxies(role);
         if (returnJson) {
             ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {

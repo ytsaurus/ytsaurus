@@ -83,7 +83,7 @@ TSharedRef THttpParser::Feed(const TSharedRef& input)
         size_t contextEnd = std::min(read + 64, input.Size());
 
         TString errorContext(input.Begin() + contextStart, contextEnd - contextStart);
-    
+
         THROW_ERROR_EXCEPTION("HTTP parse error: %s", yt_http_errno_description(http_errno))
             << TErrorAttribute("parser_error_name", yt_http_errno_name(http_errno))
             << TErrorAttribute("error_context", EscapeC(errorContext));
@@ -151,9 +151,9 @@ void THttpParser::MaybeFlushHeader(bool trailer)
         Trailers_->Set(NextField_.Flush(), NextValue_.Flush());
     } else {
         Headers_->Set(NextField_.Flush(), NextValue_.Flush());
-    }     
+    }
 }
-    
+
 int THttpParser::OnUrl(http_parser* parser, const char *at, size_t length)
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
@@ -180,11 +180,11 @@ int THttpParser::OnHeaderValue(http_parser* parser, const char *at, size_t lengt
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
     that->NextValue_.AppendString(TStringBuf(at, length));
-    
+
     return 0;
 }
 
-int THttpParser::OnHeadersComplete(http_parser* parser) 
+int THttpParser::OnHeadersComplete(http_parser* parser)
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
     that->MaybeFlushHeader(that->State_ == EParserState::HeadersFinished);
@@ -209,7 +209,7 @@ int THttpParser::OnMessageComplete(http_parser* parser)
 
     that->State_ = EParserState::MessageFinished;
     that->ShouldKeepAlive_ = yt_http_should_keep_alive(parser);
-    yt_http_parser_pause(parser, 1);    
+    yt_http_parser_pause(parser, 1);
     return 0;
 }
 
@@ -369,7 +369,7 @@ bool THttpInput::ReceiveHeaders()
 
     while (true) {
         MaybeLogSlowProgress();
-    
+
         bool eof = false;
         if (UnconsumedData_.Empty()) {
             auto asyncReadResult = Connection_->Read(InputBuffer_);
@@ -460,7 +460,7 @@ TSharedRef THttpInput::DoRead()
 
         // EOF must be handled by HTTP parser.
         YCHECK(!eof);
-    }    
+    }
 }
 
 void THttpInput::MaybeLogSlowProgress()
@@ -700,7 +700,7 @@ TFuture<void> THttpOutput::Close()
 TFuture<void> THttpOutput::FinishChunked()
 {
     std::vector<TSharedRef> writeRefs;
-    
+
     if (Trailers_) {
         writeRefs.emplace_back(ZeroCrLf);
         writeRefs.emplace_back(GetTrailersPart());
@@ -720,7 +720,7 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
     YCHECK(!HeadersFlushed_ && !MessageFinished_);
 
     TSharedRefArray writeRefs;
-    if (Trailers_) {        
+    if (Trailers_) {
         writeRefs = TSharedRefArray({
             GetHeadersPart(smallBody.Size()),
             GetTrailersPart(),

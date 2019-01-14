@@ -387,7 +387,7 @@ public:
             }
             protector = TShutdownProtector(this);
         }
-        
+
         if (Any(control & EPollControl::Write)) {
             DoIO(&WriteDirection_, true, std::move(protector));
         }
@@ -419,17 +419,6 @@ public:
             canShutdownNow = ShutdownProtectorCount_ == 0;
         }
 
-        // At this point Error_, ReadDirection_, WriteDirection_ can't change.
-        // We access them directly, without spinlock.
-        if (ReadDirection_.Operation) {
-            ReadDirection_.Operation->Abort(Error_);
-            ReadDirection_.Operation.reset();
-        }
-        if (WriteDirection_.Operation) {
-            WriteDirection_.Operation->Abort(Error_);
-            WriteDirection_.Operation.reset();
-        }
-
         if (canShutdownNow) {
             FinishShutdown();
         }
@@ -454,7 +443,7 @@ public:
 
     void SendTo(const TSharedRef& buffer, const TNetworkAddress& address)
     {
-        auto guard = EnterSychronousIO();
+        auto guard = EnterSynchronousIO();
         auto res = HandleEintr(
             ::sendto,
             FD_,
@@ -471,13 +460,13 @@ public:
 
     bool SetNoDelay()
     {
-        auto guard = EnterSychronousIO();
+        auto guard = EnterSynchronousIO();
         return TrySetSocketNoDelay(FD_);
     }
 
     bool SetKeepAlive()
     {
-        auto guard = EnterSychronousIO();
+        auto guard = EnterSynchronousIO();
         return TrySetSocketKeepAlive(FD_);
     }
 
@@ -587,7 +576,7 @@ public:
 
         if (deadline) {
             WriteTimeoutCookie_ = TDelayedExecutor::Submit(AbortFromWriteTimeout_, deadline);
-        }        
+        }
     }
 
 private:
@@ -629,6 +618,7 @@ private:
     public:
         TSynchronousIOGuard(TFDConnectionImplPtr owner, TShutdownProtector protector)
             : Owner_(std::move(owner))
+            , Protector_(std::move(protector))
         {
             ++Owner_->SynchronousIOCount_;
         }
@@ -658,8 +648,6 @@ private:
         TDuration IdleDuration;
         TDuration BusyDuration;
         TCpuInstant StartTime = GetCpuInstant();
-
-        TCallback<void(TShutdownProtector)> DoIO;
         EPollControl PollFlag;
 
         void StartBusyTimer()
@@ -699,7 +687,7 @@ private:
 
     TClosure AbortFromReadTimeout_;
     TClosure AbortFromWriteTimeout_;
-    
+
     TDelayedExecutorCookie ReadTimeoutCookie_;
     TDelayedExecutorCookie WriteTimeoutCookie_;
 
@@ -707,17 +695,14 @@ private:
     {
         AbortFromReadTimeout_ = BIND(&TFDConnectionImpl::AbortFromReadTimeout, MakeWeak(this));
         AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
-    
-        ReadDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeWeak(this), &ReadDirection_, false);
+
         ReadDirection_.PollFlag = EPollControl::Read;
-        
-        WriteDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeWeak(this), &WriteDirection_, false);
         WriteDirection_.PollFlag = EPollControl::Write;
-        
+
         Poller_->Register(this);
     }
 
-    TSynchronousIOGuard EnterSychronousIO()
+    TSynchronousIOGuard EnterSynchronousIO()
     {
         auto guard = Guard(Lock_);
         Error_.ThrowOnError();
@@ -741,7 +726,6 @@ private:
     {
         TError error;
         TShutdownProtector protector;
-
         {
             auto guard = Guard(Lock_);
             if (Error_.IsOK()) {
@@ -749,8 +733,7 @@ private:
                     THROW_ERROR_EXCEPTION("Another IO operation is in progress")
                         << TErrorAttribute("connection", Name_);
                 }
-            
-                YCHECK(!direction->Operation);
+
                 direction->Operation = std::move(operation);
                 direction->StartBusyTimer();
                 protector = TShutdownProtector(this);
@@ -764,13 +747,19 @@ private:
             return;
         }
 
-        Poller_->GetInvoker()->Invoke(BIND(direction->DoIO, Passed(std::move(protector))));
+        Poller_->GetInvoker()->Invoke(
+            BIND(&TFDConnectionImpl::DoIO, MakeWeak(this), direction, false, Passed(std::move(protector))));
     }
 
     void DoIO(TIODirection* direction, bool filterSpuriousEvent, TShutdownProtector /*protector*/)
     {
         {
             auto guard = Guard(Lock_);
+
+            if (!Error_.IsOK()) {
+                return;
+            }
+
             // We use Poller in a way that generates spurious
             // notifications. Do nothing if we are not interested in
             // this event.
@@ -855,6 +844,15 @@ private:
 
     void FinishShutdown()
     {
+        if (ReadDirection_.Operation) {
+            ReadDirection_.Operation->Abort(Error_);
+            ReadDirection_.Operation.reset();
+        }
+        if (WriteDirection_.Operation) {
+            WriteDirection_.Operation->Abort(Error_);
+            WriteDirection_.Operation.reset();
+        }
+
         YCHECK(TryClose(FD_, false));
         FD_ = -1;
 

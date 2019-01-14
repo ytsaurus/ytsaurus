@@ -576,13 +576,12 @@ TError TFairShareTree::CheckOperationUnschedulable(
 
 void TFairShareTree::UpdateOperationRuntimeParameters(
     TOperationId operationId,
-    const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams)
+    const TOperationFairShareTreeRuntimeParametersPtr& newParams)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-    const auto& element = FindOperationElement(operationId);
-    if (element) {
-        element->SetRuntimeParams(runtimeParams);
+    if (const auto& element = FindOperationElement(operationId)) {
+        element->SetRuntimeParams(newParams);
     }
 }
 
@@ -793,7 +792,7 @@ void TFairShareTree::OnFairShareEssentialLoggingAt(TInstant now)
     }
 }
 
-void TFairShareTree::RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& jobs)
+void TFairShareTree::RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1181,7 +1180,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     }
 
     if (!Dominates(context->SchedulingContext->ResourceLimits(), context->SchedulingContext->ResourceUsage())) {
-        YT_LOG_INFO("Resource usage exceeds node resorce limits even after preemption.");
+        YT_LOG_INFO("Resource usage exceeds node resource limits even after preemption.");
     }
 }
 
@@ -1617,7 +1616,6 @@ TFairShareTree::TRootElementSnapshotPtr TFairShareTree::CreateRootElementSnapsho
     auto snapshot = New<TRootElementSnapshot>();
     snapshot->RootElement = RootElement->Clone();
     snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
-    snapshot->RegisteredSchedulingTagFilters = RegisteredSchedulingTagFilters;
     snapshot->Config = Config;
     return snapshot;
 }

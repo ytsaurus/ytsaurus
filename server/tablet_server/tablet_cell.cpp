@@ -63,19 +63,10 @@ void TTabletCell::Load(TLoadContext& context)
     TNonversionedObjectBase::Load(context);
 
     using NYT::Load;
-    // COMPAT(babenko)
-    if (context.GetVersion() < 400) {
-        Load<int>(context);
-    }
     Load(context, LeadingPeerId_);
     Load(context, Peers_);
     Load(context, ConfigVersion_);
     Load(context, *Config_);
-    // COMPAT(babenko)
-    if (context.GetVersion() < 400) {
-        auto options = New<TTabletCellOptions>();
-        Load(context, *options);
-    }
     Load(context, Tablets_);
     Load(context, ClusterStatistics_);
     // COMPAT(savrus)
@@ -83,10 +74,7 @@ void TTabletCell::Load(TLoadContext& context)
         Load(context, MulticellStatistics_);
     }
     Load(context, PrerequisiteTransaction_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 400) {
-        Load(context, CellBundle_);
-    }
+    Load(context, CellBundle_);
     // COMPAT(savrus)
     if (context.GetVersion() >= 713) {
         if (context.GetVersion() >= 820) {

@@ -3619,10 +3619,11 @@ class TestControllerMemoryUsage(YTEnvSetup):
         # pairs of boundary keys of length 250kb, resulting in about 20mb of
         # memory. First job should stuck, protecting this check from the race
         # against operation completion.
-        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 10 * 10**6 and
-                     get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 10 * 10**6)
-
-        assert get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6
+        # NB: all these checks should have form of wait(...) since memory usage may sometimes decrease,
+        # so waiting for only one of the conditions and immediately checking the remaining ones is not enough.
+        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 10 * 10**6)
+        wait(lambda: get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 10 * 10**6)
+        wait(lambda: get_operation(op.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
 
         op.abort()
 
@@ -4037,7 +4038,7 @@ class TestOperationAliasesBase(YTEnvSetup):
         # Init operations archive.
         sync_create_cells(1)
 
-    def _test_aliases(self):
+    def _test_aliases(self, is_native):
         with pytest.raises(YtError):
             # Alias should start with *.
             vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
@@ -4050,6 +4051,9 @@ class TestOperationAliasesBase(YTEnvSetup):
 
         assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
         assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
+        wait(lambda: op.get_state() == "running")
+        if is_native:
+            assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
 
         # It is not allowed to use alias of already running operation.
         with pytest.raises(YtError):
@@ -4128,7 +4132,7 @@ class TestOperationAliasesBase(YTEnvSetup):
 
 class TestOperationAliasesNative(TestOperationAliasesBase):
     def test_aliases(self):
-        self._test_aliases()
+        self._test_aliases(True)
 
     def test_get_operation_latest_archive_version(self):
         self._test_get_operation_latest_archive_version()
@@ -4140,7 +4144,7 @@ class TestOperationAliasesRpc(TestOperationAliasesBase):
     ENABLE_PROXY = True
 
     def test_aliases(self):
-        self._test_aliases()
+        self._test_aliases(False)
 
     def test_get_operation_latest_archive_version(self):
         self._test_get_operation_latest_archive_version()

@@ -37,11 +37,16 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTabletBalancerConfigPtr, TabletBalancerConfig);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletCell*>, TabletCells);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, TabletActions);
+    DEFINE_BYVAL_RO_PROPERTY(int, ActiveTabletActionCount);
 
     DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagId, ProfilingTag);
 
 public:
     explicit TTabletCellBundle(TTabletCellBundleId id);
+
+    void IncreaseActiveTabletActionCount();
+    void DecreaseActiveTabletActionCount();
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

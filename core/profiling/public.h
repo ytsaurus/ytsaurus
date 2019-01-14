@@ -22,7 +22,7 @@ struct TQueuedSample;
 //! Generic value for samples.
 using TValue = i64;
 
-using TCpuInstant = ui64;
+using TCpuInstant = i64;
 using TCpuDuration = i64;
 
 using TTagId = int;

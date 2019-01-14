@@ -271,61 +271,21 @@ TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& /*options*/)
     return SendAbort();
 }
 
-void TTransaction::WriteRows(
-    const TYPath& path,
-    TNameTablePtr nameTable,
-    TSharedRange<TUnversionedRow> rows,
-    const TModifyRowsOptions& options)
-{
-    ValidateTabletTransaction(Id_);
-
-    std::vector<TRowModification> modifications;
-    modifications.reserve(rows.Size());
-    for (auto row : rows) {
-        modifications.push_back({ERowModificationType::Write, row.ToTypeErasedRow()});
-    }
-
-    ModifyRows(
-        path,
-        std::move(nameTable),
-        MakeSharedRange(std::move(modifications), rows.GetHolder()),
-        options);
-}
-
-void TTransaction::WriteRows(
-    const NYPath::TYPath&,
-    NTableClient::TNameTablePtr,
-    TSharedRange<NTableClient::TVersionedRow>,
-    const NApi::TModifyRowsOptions&)
-{
-    Y_UNIMPLEMENTED();
-}
-
-void TTransaction::DeleteRows(
-    const TYPath& path,
-    TNameTablePtr nameTable,
-    TSharedRange<TKey> keys,
-    const TModifyRowsOptions& options)
-{
-    std::vector<TRowModification> modifications;
-    modifications.reserve(keys.Size());
-    for (auto key : keys) {
-        modifications.push_back({ERowModificationType::Delete, key.ToTypeErasedRow()});
-    }
-
-    ModifyRows(
-        path,
-        std::move(nameTable),
-        MakeSharedRange(std::move(modifications), keys.GetHolder()),
-        options);
-}
-
 void TTransaction::ModifyRows(
     const TYPath& path,
     TNameTablePtr nameTable,
     TSharedRange<TRowModification> modifications,
     const TModifyRowsOptions& options)
 {
+    ValidateTabletTransaction(GetId());
+
+    for (const auto& modification : modifications) {
+        // TODO(sandello): handle versioned rows
+        YCHECK(
+            modification.Type == ERowModificationType::Write ||
+            modification.Type == ERowModificationType::Delete);
+    }
+
     const auto& config = Connection_->GetConfig();
 
     TApiServiceProxy proxy(Channel_);
@@ -365,10 +325,6 @@ void TTransaction::ModifyRows(
     std::vector<TUnversionedRow> rows;
     rows.reserve(modifications.Size());
     for (const auto& modification : modifications) {
-        // TODO(sandello): handle versioned rows
-        YCHECK(
-            modification.Type == ERowModificationType::Write ||
-            modification.Type == ERowModificationType::Delete);
         rows.emplace_back(modification.Row);
         req->add_row_modification_types(static_cast<NProto::ERowModificationType>(modification.Type));
     }

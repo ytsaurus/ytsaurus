@@ -35,6 +35,9 @@ message TRequestHeader
 
     optional string user_agent = 18;
 
+    optional int64 logging_suppression_timeout = 20 [default = 0];
+    optional bool disable_logging_suppression_if_request_failed = 21 [default = false];
+
     extensions 100 to max;
 }
 

@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include <yt/core/misc/range.h>
 
@@ -52,7 +52,7 @@ private:
     template <class S>
     void UnpackValuesAligned();
     void UnpackValuesFallback();
-    
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

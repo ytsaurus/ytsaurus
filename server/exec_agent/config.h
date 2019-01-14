@@ -99,7 +99,7 @@ public:
     std::optional<TString> ExternalJobRootVolume;
 
     THashMap<TString, TString> ExternalBinds;
-    
+
     double JobsIOWeight;
     double NodeDedicatedCpu;
 

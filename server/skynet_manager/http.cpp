@@ -106,7 +106,7 @@ public:
         MD5_.reset();
         Sha1_.reset();
     }
-    
+
     virtual void OnValue(const TUnversionedValue& value)
     {
         auto valueToString = [&] (auto columnName) {
@@ -126,7 +126,7 @@ public:
 
             return value.Data.Int64;
         };
-    
+
         if (value.Id == FilenameId_) {
             Filename_ = valueToString("filename");
         } else if (value.Id == Sha1Id_) {
@@ -152,7 +152,7 @@ public:
             THROW_ERROR_EXCEPTION("Missing columns");
         }
 
-        // Key changed    
+        // Key changed
         if (Shards_.empty() || Shards_.back().Key != key) {
             Shards_.emplace_back();
             Shards_.back().Key = key;
@@ -176,7 +176,7 @@ public:
         file->set_row_count(file->row_count() + 1);
         *(file->mutable_sha1sum()) += *Sha1_;
         file->set_md5sum(*MD5_);
-        
+
         if (ProgressCallback_) {
             ProgressCallback_(RowIndex_);
         }
@@ -274,7 +274,7 @@ std::vector<TTableShard> ReadSkynetMetaFromTable(
         path,
         shards.size(),
         startRowIndex,
-        consumer.GetRowIndex()); 
+        consumer.GetRowIndex());
     return shards;
 }
 
@@ -353,7 +353,7 @@ std::vector<TRowRangeLocation> FetchSkynetPartsLocations(
         for (auto nodeId : spec.Replicas) {
             location.Nodes.push_back(nodeAddresses.at(nodeId));
         }
-        
+
         locations.push_back(location);
     }
 

@@ -62,6 +62,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TabletCountByExpectedState);
     Save(context, ActualTabletState);
     Save(context, PrimaryLastMountTransactionId);
+    Save(context, CurrentMountTransactionId);
     Save(context, *TabletBalancerConfig);
 }
 
@@ -85,19 +86,13 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, TabletBalancerConfig->MaxTabletSize);
         Load(context, TabletBalancerConfig->DesiredTabletSize);
     }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 621) {
-        Load(context, InMemoryMode);
-    }
+    Load(context, InMemoryMode);
     // COMPAT(savrus)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= 622 && context.GetVersion() < 821) {
         Load(context, TabletBalancerConfig->DesiredTabletCount);
     }
-    // COMPAT(iskhakovt)
-    if (context.GetVersion() >= 628) {
-        Load(context, TabletErrorCount);
-    }
+    Load(context, TabletErrorCount);
     // COMPAT(savrus)
     if (context.GetVersion() >= 800) {
         Load(context, ForcedCompactionRevision);
@@ -116,14 +111,18 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     if (context.GetVersion() >= 803) {
         Load(context, PrimaryLastMountTransactionId);
     }
-
     // COMPAT(savrus)
-    if (context.GetVersion() < 800) {
-        Dynamic = !Tablets.empty();
+    if (context.GetVersion() >= 822) {
+        Load(context, CurrentMountTransactionId);
     }
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= 821) {
         Load(context, *TabletBalancerConfig);
+    }
+
+    // COMPAT(savrus)
+    if (context.GetVersion() < 800) {
+        Dynamic = !Tablets.empty();
     }
 }
 
@@ -264,12 +263,6 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
 {
     TChunkOwnerBase::Load(context);
 
-    // COMPAT(savrus)
-    if (context.GetVersion() < 609) {
-        LoadPre609(context);
-        return;
-    }
-
     using NYT::Load;
     LoadTableSchema(context);
     Load(context, SchemaMode_);
@@ -344,74 +337,6 @@ void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
         Save(context, ESchemaSerializationMethod::TableIdWithSameSchema);
         Save(context, previousId);
     }
-}
-
-void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
-{
-    auto dynamic = std::make_unique<TDynamicTableAttributes>();
-
-    using NYT::Load;
-    LoadTableSchema(context);
-    Load(context, SchemaMode_);
-    Load(context, dynamic->Tablets);
-    Load(context, dynamic->Atomicity);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 400) {
-        Load(context, dynamic->CommitOrdering);
-        Load(context, dynamic->TabletCellBundle);
-        Load(context, dynamic->LastCommitTimestamp);
-        Load(context, RetainedTimestamp_);
-        Load(context, UnflushedTimestamp_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 600 && context.GetVersion() <= 601) {
-        Load<int>(context); // replication mode
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 602) {
-        Load(context, dynamic->UpstreamReplicaId);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 601) {
-        Load(context, OptimizeFor_);
-    } else {
-        if (Attributes_) {
-            auto& attributes = Attributes_->Attributes();
-            {
-                static const TString optimizeForAttributeName("optimize_for");
-                auto it = attributes.find(optimizeForAttributeName);
-                if (it != attributes.end()) {
-                    const auto& value = it->second;
-                    try {
-                        OptimizeFor_.Set(NYTree::ConvertTo<EOptimizeFor>(value));
-                    } catch (...) {
-                    }
-                    attributes.erase(it);
-                }
-            }
-            if (Attributes_->Attributes().empty()) {
-                Attributes_.reset();
-            }
-        }
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 607) {
-        Load(context, dynamic->TabletCountByState);
-    }
-
-    // COMPAT(savrus)
-    if (!dynamic->Tablets.empty() ||
-        dynamic->Atomicity != DefaultDynamicTableAttributes_.Atomicity ||
-        dynamic->CommitOrdering != DefaultDynamicTableAttributes_.CommitOrdering ||
-        dynamic->UpstreamReplicaId != DefaultDynamicTableAttributes_.UpstreamReplicaId ||
-        dynamic->TabletCellBundle != DefaultDynamicTableAttributes_.TabletCellBundle ||
-        dynamic->LastCommitTimestamp != DefaultDynamicTableAttributes_.LastCommitTimestamp)
-    {
-        DynamicTableAttributes_ = std::move(dynamic);
-    }
-
-    // NB: All COMPAT's after version 609 should be in this function.
-    LoadCompatAfter609(context);
 }
 
 void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
@@ -578,8 +503,20 @@ void TTableNode::UpdateExpectedTabletState(ETabletState state)
     }
 }
 
+void TTableNode::ValidateNoCurrentMountTransaction(TStringBuf message) const
+{
+    const auto* trunkTable = GetTrunkNode();
+    const auto& transactionId = trunkTable->GetCurrentMountTransactionId();
+    if (transactionId) {
+        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::InvalidTabletState, "%v since node is locked by mount-unmount operation", message)
+            << TErrorAttribute("current_mount_transaction_id", transactionId);
+    }
+}
+
 void TTableNode::ValidateTabletStateFixed(TStringBuf message) const
 {
+    ValidateNoCurrentMountTransaction(message);
+
     const auto* trunkTable = GetTrunkNode();
     const auto& transactionId = trunkTable->GetLastMountTransactionId();
     if (transactionId) {

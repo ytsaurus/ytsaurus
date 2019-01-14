@@ -52,6 +52,7 @@
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/heap.h>
+#include <yt/core/misc/memory_zone.h>
 
 namespace NYT::NTabletNode {
 
@@ -786,6 +787,8 @@ private:
             auto beginInstant = TInstant::Now();
             eden->SetCompactionTime(beginInstant);
 
+            auto throttler = Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPartitioning);
+
             YT_LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "PartitionCount: %v, CompressedDataSize: %v, "
                 "ChunkCount: %v, CurrentTimestamp: %llx, RetentionConfig: %v)",
@@ -806,7 +809,8 @@ private:
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
                 blockReadOptions,
-                stores.size());
+                stores.size(),
+                throttler);
 
             NNative::ITransactionPtr transaction;
             {
@@ -971,6 +975,14 @@ private:
         auto blockCache = WaitFor(asyncBlockCache)
             .ValueOrThrow();
 
+        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->Config->InMemoryMode == EInMemoryMode::None
+            ? EMemoryZone::Normal
+            : EMemoryZone::Undumpable);
+
+        auto throttler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+            Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletPartitioning),
+            tabletSnapshot->CompactionThrottler});
+
         auto ensurePartitionStarted = [&] () {
             if (currentWriter)
                 return;
@@ -988,7 +1000,7 @@ private:
                 CellTagFromId(tabletSnapshot->TabletId),
                 transaction->GetId(),
                 NullChunkListId,
-                tabletSnapshot->PartitioningThrottler,
+                throttler,
                 blockCache);
         };
 
@@ -1205,6 +1217,8 @@ private:
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
+            auto throttler = Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletCompaction);
+
             YT_LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "RowCount: %v, CompressedDataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, RetentionConfig: %v)",
@@ -1227,7 +1241,8 @@ private:
                 currentTimestamp,
                 majorTimestamp,
                 blockReadOptions,
-                stores.size());
+                stores.size(),
+                throttler);
 
             NNative::ITransactionPtr transaction;
             {
@@ -1381,6 +1396,14 @@ private:
         auto blockCache = WaitFor(asyncBlockCache)
             .ValueOrThrow();
 
+        auto throttler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+            Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletCompaction),
+            tabletSnapshot->CompactionThrottler});
+
+        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->Config->InMemoryMode == EInMemoryMode::None
+            ? EMemoryZone::Normal
+            : EMemoryZone::Undumpable);
+
         auto writer = CreateVersionedMultiChunkWriter(
             writerConfig,
             writerOptions,
@@ -1389,7 +1412,7 @@ private:
             CellTagFromId(tabletSnapshot->TabletId),
             transaction->GetId(),
             NullChunkListId,
-            tabletSnapshot->CompactionThrottler,
+            throttler,
             blockCache);
 
         WaitFor(reader->Open())

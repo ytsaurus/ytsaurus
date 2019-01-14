@@ -140,6 +140,7 @@ private:
 
     TFuture<void> CheckLock()
     {
+        Y_UNUSED(Epoch_);
         // TODO(sandello): Currently broken. See YT-7421.
         return std::nullopt;
         /*

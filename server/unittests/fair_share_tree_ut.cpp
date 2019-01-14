@@ -75,7 +75,7 @@ struct TSchedulerStrategyHostMock
     {
         return {};
     }
-    
+
     virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override
     {
         Y_UNREACHABLE();
@@ -260,6 +260,12 @@ private:
 class TFairShareTreeTest
     : public testing::Test
 {
+public:
+    TFairShareTreeTest()
+    {
+        TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
+    }
+
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
@@ -314,7 +320,7 @@ protected:
         diskResources.mutable_disk_reports()->Add();
         diskResources.mutable_disk_reports(0)->set_limit(nodeResources.GetDiskQuota());
 
-        auto execNode = New<TExecNode>(id, NNodeTrackerClient::TNodeDescriptor());
+        auto execNode = New<TExecNode>(id, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
         execNode->SetResourceLimits(nodeResources.ToJobResources());
         execNode->SetDiskInfo(diskResources);
 

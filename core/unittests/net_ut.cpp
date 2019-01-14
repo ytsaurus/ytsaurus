@@ -80,7 +80,7 @@ TEST_F(TNetTest, BigTransfer)
 {
     const int N = 1024, K = 256 * 1024;
 
-    IConnectionPtr a, b;    
+    IConnectionPtr a, b;
     std::tie(a, b) = CreateConnectionPair(Poller);
 
     auto sender = BIND([=] {
@@ -116,7 +116,7 @@ TEST_F(TNetTest, BidirectionalTransfer)
 {
     const int N = 1024, K = 256 * 1024;
 
-    IConnectionPtr a, b;    
+    IConnectionPtr a, b;
     std::tie(a, b) = CreateConnectionPair(Poller);
 
     auto startSender = [&] (IConnectionPtr conn) {
@@ -131,7 +131,7 @@ TEST_F(TNetTest, BidirectionalTransfer)
             .AsyncVia(Poller->GetInvoker())
             .Run();
     };
-    
+
     auto startReceiver = [&] (IConnectionPtr conn) {
         return BIND([=] {
             auto buffer = TSharedMutableRef::Allocate(K * 4);
@@ -276,7 +276,7 @@ TEST_F(TNetTest, AbandonDial)
         .AsyncVia(Poller->GetInvoker())
         .Run()
         .Get()
-        .ThrowOnError();        
+        .ThrowOnError();
 }
 
 TEST_F(TNetTest, AbandonAccept)

@@ -150,7 +150,6 @@ ITransactionPtr TClient::AttachTransaction(
 
     auto req = proxy.AttachTransaction();
     ToProto(req->mutable_transaction_id(), transactionId);
-    req->set_auto_abort(options.AutoAbort);
     req->set_sticky(options.Sticky);
     if (options.PingPeriod) {
         req->set_ping_period(options.PingPeriod->GetValue());
@@ -319,6 +318,27 @@ TFuture<void> TClient::ReshardTable(
     return req->Invoke().As<void>();
 }
 
+TFuture<std::vector<TTabletActionId>> TClient::ReshardTableAutomatic(
+    const TYPath& path,
+    const TReshardTableAutomaticOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.ReshardTableAutomatic();
+    SetTimeoutOptions(*req, options);
+
+    req->set_path(path);
+    req->set_keep_actions(options.KeepActions);
+
+    ToProto(req->mutable_mutating_options(), options);
+    ToProto(req->mutable_tablet_range_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspReshardTableAutomaticPtr>& rspOrError) {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        return FromProto<std::vector<TTabletActionId>>(rsp->tablet_actions());
+    }));
+}
+
 TFuture<void> TClient::TrimTable(
     const TYPath& path,
     int tabletIndex,
@@ -439,6 +459,26 @@ TFuture<std::vector<NApi::TTabletInfo>> TClient::GetTabletInfos(
             result.TrimmedRowCount = protoTabletInfo.trimmed_row_count();
         }
         return tabletInfos;
+    }));
+}
+
+TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
+    const TString& tabletCellBundle,
+    const std::vector<NYPath::TYPath>& movableTables,
+    const NApi::TBalanceTabletCellsOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+
+    auto req = proxy.BalanceTabletCells();
+    SetTimeoutOptions(*req, options);
+
+    req->set_bundle(tabletCellBundle);
+    req->set_keep_actions(options.KeepActions);
+    ToProto(req->mutable_movable_tables(), movableTables);
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspBalanceTabletCellsPtr>& rspOrError) {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        return FromProto<std::vector<TTabletActionId>>(rsp->tablet_actions());
     }));
 }
 

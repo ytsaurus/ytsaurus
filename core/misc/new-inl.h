@@ -5,6 +5,8 @@
 #include "new.h"
 #endif
 
+#include "yt_alloc.h"
+
 #include <yt/core/misc/memory_tag.h>
 
 namespace NYT {
@@ -72,7 +74,7 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewImpl(
     As&& ... args)
 {
     auto totalSize = sizeof(T) + extraSpaceSize;
-    auto* ptr = ::malloc(totalSize);
+    auto* ptr = NYTAlloc::Allocate(totalSize);
     auto* instance = static_cast<T*>(ptr);
 
     try {

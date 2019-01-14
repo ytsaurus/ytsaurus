@@ -16,6 +16,7 @@
 #include <yt/core/misc/size_literals.h>
 #include <yt/core/misc/intrusive_linked_list.h>
 #include <yt/core/misc/memory_tag.h>
+#include <yt/core/misc/memory_zone.h>
 #include <yt/core/misc/align.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/proc.h>
@@ -968,7 +969,7 @@ private:
         // Must not fail.
         YCHECK(result == 0);
     }
-    
+
     bool TryMadviseStockpile(size_t size)
     {
         auto result = ::madvise(nullptr, size, MADV_STOCKPILE);
@@ -1440,6 +1441,16 @@ public:
         CurrentMemoryTag_ = tag;
     }
 
+    Y_FORCE_INLINE static EMemoryZone GetCurrentMemoryZone()
+    {
+        return CurrentMemoryZone_;
+    }
+
+    Y_FORCE_INLINE static void SetCurrentMemoryZone(EMemoryZone zone)
+    {
+        CurrentMemoryZone_ = zone;
+    }
+
 private:
     static void DestroyThread(void*);
 
@@ -1490,6 +1501,9 @@ private:
     // See tagged allocations API.
     Y_POD_STATIC_THREAD(TMemoryTag) CurrentMemoryTag_;
 
+    // See memory zone API.
+    Y_POD_STATIC_THREAD(EMemoryZone) CurrentMemoryZone_;
+
     pthread_key_t ThreadDtorKey_;
 
     static constexpr size_t ThreadStatesBatchSize = 16;
@@ -1502,6 +1516,7 @@ private:
 Y_POD_THREAD(TThreadState*) TThreadManager::ThreadState_;
 Y_POD_THREAD(bool) TThreadManager::ThreadStateDestroyed_;
 Y_POD_THREAD(TMemoryTag) TThreadManager::CurrentMemoryTag_;
+Y_POD_THREAD(EMemoryZone) TThreadManager::CurrentMemoryZone_;
 
 TBox<TThreadManager> ThreadManager;
 
@@ -2654,7 +2669,7 @@ private:
             if (!blob) {
                 break;
             }
-            
+
             PARANOID_CHECK(blob->BytesAllocated == 0);
             auto bytesAcquired = blob->BytesAcquired;
 
@@ -2662,7 +2677,7 @@ private:
             bytesToReclaim -= bytesAcquired;
             bytesReclaimed += bytesAcquired;
             blobsReclaimed += 1;
-            
+
             auto* extent = blob->Extent;
             auto* ptr = reinterpret_cast<char*>(blob);
             ReleaseArenaPages(
@@ -3068,9 +3083,10 @@ TBox<THugeBlobAllocator> HugeBlobAllocator;
 class TBlobAllocator
 {
 public:
-    static void* Allocate(size_t size, bool dumpable)
+    static void* Allocate(size_t size)
     {
         InitializeGlobals();
+        bool dumpable = GetCurrentMemoryZone() != EMemoryZone::Undumpable;
         // NB: Account for the header. Also note that we may safely ignore the alignment since
         // HugeSizeThreshold is already page-aligned.
         if (size < HugeSizeThreshold - sizeof(TLargeBlobHeader)) {
@@ -3170,7 +3186,7 @@ protected:
     {
         Thread_.Start();
     }
-    
+
     bool IsDone(TDuration interval)
     {
         return StopEvent_.WaitT(interval);
@@ -3225,7 +3241,7 @@ public:
     }
 } BackgroundThreadInitializer;
 
-// Invokes madvise(MADV_STOCKPILE) periodically. 
+// Invokes madvise(MADV_STOCKPILE) periodically.
 class TStockpileThread
     : public TBackgroundThreadBase<TStockpileThread>
 {
@@ -3326,7 +3342,7 @@ void InitializeGlobals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE void* AllocateInline(size_t size, bool dumpable)
+Y_FORCE_INLINE void* AllocateInline(size_t size)
 {
 #define XX() \
     size_t rank; \
@@ -3336,7 +3352,7 @@ Y_FORCE_INLINE void* AllocateInline(size_t size, bool dumpable)
         if (Y_LIKELY(size < LargeSizeThreshold)) { \
             rank = SmallSizeToRank2[(size - 1) >> 8]; \
         } else { \
-            return TBlobAllocator::Allocate(size, dumpable); \
+            return TBlobAllocator::Allocate(size); \
         } \
     }
 
@@ -3359,9 +3375,9 @@ Y_FORCE_INLINE void* AllocateInline(size_t size, bool dumpable)
 #undef XX
 }
 
-Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size, bool dumpable)
+Y_FORCE_INLINE void* AllocatePageAlignedInline(size_t size)
 {
-    auto* ptr = TBlobAllocator::Allocate(size + PageSize, dumpable);
+    auto* ptr = TBlobAllocator::Allocate(size + PageSize);
     return AlignUp(ptr, PageSize);
 }
 

@@ -8,6 +8,7 @@ from yt.environment.helpers import assert_items_equal
 from flaky import flaky
 
 from time import sleep
+from datetime import datetime, timedelta
 
 from collections import Counter
 
@@ -1529,6 +1530,9 @@ class TestTabletActions(TestDynamicTablesBase):
                 "config_check_period": 100,
                 "balance_period": 100,
             },
+            "tablet_action_manager": {
+                "tablet_actions_cleanup_period": 100,
+            },
         }
     }
 
@@ -1644,6 +1648,22 @@ class TestTabletActions(TestDynamicTablesBase):
         assert action == ls("//sys/tablet_actions")[0]
         wait(lambda: get("#{0}/@state".format(action)) == "completed")
         self._validate_tablets("//tmp/t", state=[e, e], expected_state=[e, e])
+
+    def test_action_autoremove(self):
+        cells = sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        action = create("tablet_action", "", attributes={
+            "kind": "reshard",
+            "expiration_time": (datetime.utcnow() + timedelta(seconds=2)).isoformat(),
+            "tablet_ids": [tablet_id],
+            "pivot_keys": [[], [1]]})
+        wait(lambda: len(ls("//sys/tablet_actions")) > 0)
+        assert action == ls("//sys/tablet_actions")[0]
+        wait(lambda: get("#{0}/@state".format(action)) == "completed")
+        assert get("#{0}/@tablet_ids".format(action)) == []
+        wait(lambda: not exists("#{0}".format(action)))
 
     @pytest.mark.parametrize("freeze", [False, True])
     def test_cells_balance(self, freeze):
@@ -1996,6 +2016,11 @@ class TestTabletActions(TestDynamicTablesBase):
         self._configure_bundle("default")
         sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@max_partition_data_size", 320)
+        set("//tmp/t/@desired_partition_data_size", 256)
+        set("//tmp/t/@min_partition_data_size", 240)
+        set("//tmp/t/@compression_codec", "none")
+        set("//tmp/t/@chunk_writer", {"block_size": 64})
 
         # Create two chunks excelled from eden
         sync_reshard_table("//tmp/t", [[], [1]])
@@ -2271,6 +2296,105 @@ class TestTabletActions(TestDynamicTablesBase):
         assert not exists("//tmp/t/@enable_tablet_balancer")
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
         assert get("//tmp/t/@enable_tablet_balancer") == False
+
+    def test_sync_reshard(self):
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+        cells = sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+        sync_reshard_table_automatic("//tmp/t")
+        assert get("//tmp/t/@tablet_count") == 1
+        get("//sys/tablet_actions")
+        tablet_actions = get("//sys/tablet_actions", attributes=["state"])
+        assert len(tablet_actions) == 1
+        assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
+
+    def test_sync_move_all_tables(self):
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+        cells = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
+
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+        insert_rows("//tmp/t", [{"key": 0, "value": "a"}, {"key": 1, "value": "b"}])
+        sync_flush_table("//tmp/t")
+
+        sync_balance_tablet_cells("default")
+        tablet_actions = get("//sys/tablet_actions", attributes=["state"])
+        assert len(tablet_actions) == 1
+        assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
+        assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t/@tablets"))) == 2
+
+    def test_sync_move_one_table(self):
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+        cells = sync_create_cells(4)
+        if is_multicell:
+            self._create_sorted_table("//tmp/t1", external_cell_tag=1, in_memory_mode="uncompressed")
+            self._create_sorted_table("//tmp/t2", external_cell_tag=2, in_memory_mode="uncompressed")
+        else:
+            self._create_sorted_table("//tmp/t1", in_memory_mode="uncompressed")
+            self._create_sorted_table("//tmp/t2", in_memory_mode="uncompressed")
+
+        tables = ["//tmp/t1", "//tmp/t2"]
+        for idx, table in enumerate(tables):
+            sync_reshard_table(table, [[], [1]])
+            sync_mount_table(table, cell_id=cells[idx])
+            insert_rows(table, [{"key": 0, "value": "a"}, {"key": 1, "value": "b"}])
+            sync_flush_table(table)
+
+        sync_balance_tablet_cells("default", ["//tmp/t1"])
+        tablet_actions = get("//sys/tablet_actions", attributes=["state"])
+        assert len(tablet_actions) == 1
+        assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
+        assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t1/@tablets"))) == 2
+        assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t2/@tablets"))) == 1
+
+    def test_sync_tablet_balancer_acl(self):
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+        create_user("u")
+        create_tablet_cell_bundle("b")
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["read", "use"]))
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("deny", "u", ["write"]))
+        sync_create_cells(1, "b")
+
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+        with pytest.raises(YtError):
+            sync_balance_tablet_cells("b", authenticated_user="u")
+        with pytest.raises(YtError):
+            sync_balance_tablet_cells("b", ["//tmp/t"], authenticated_user="u")
+        with pytest.raises(YtError):
+            sync_reshard_table_automatic("//tmp/t", authenticated_user="u")
+
+        # Remove `deny` ACE.
+        remove("//sys/tablet_cell_bundles/b/@acl/-1")
+
+        sync_balance_tablet_cells("b", authenticated_user="u")
+        sync_balance_tablet_cells("b", ["//tmp/t"], authenticated_user="u")
+        sync_reshard_table_automatic("//tmp/t", authenticated_user="u")
+
+    def test_sync_tablet_balancer_wrong_type(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t", dynamic=False)
+
+        with pytest.raises(YtError):
+            sync_reshard_table_automatic("//tmp/t")
+        with pytest.raises(YtError):
+            sync_reshard_table_automatic("/")
+        with pytest.raises(YtError):
+            sync_balance_tablet_cells("nonexisting_bundle")
+        with pytest.raises(YtError):
+            sync_balance_tablet_cells("default", ["//tmp/t"])
+
+    def test_sync_move_table_wrong_bundle(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
+        sync_mount_table("//tmp/t")
+        sync_balance_tablet_cells("b")
+        with pytest.raises(YtError):
+            sync_balance_tablet_cells("b", ["//tmp/t"])
 
 ##################################################################
 

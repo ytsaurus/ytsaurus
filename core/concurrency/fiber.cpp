@@ -270,6 +270,16 @@ void TFiber::SetMemoryTag(TMemoryTag tag)
     MemoryTag_ = tag;
 }
 
+EMemoryZone TFiber::GetMemoryZone() const
+{
+    return MemoryZone_;
+}
+
+void TFiber::SetMemoryZone(EMemoryZone zone)
+{
+    MemoryZone_ = zone;
+}
+
 bool TFiber::CheckFreeStackSpace(size_t space) const
 {
     return reinterpret_cast<char*>(Stack_->GetStack()) + space < __builtin_frame_address(0);

@@ -438,7 +438,7 @@ TYPED_TEST(SmallVectorTest, MoveAssignTest) {
   // Set up our vector with a single element, but enough capacity for 4.
   this->theVector.reserve(4);
   this->theVector.push_back(Constructable(1));
-  
+
   // Set up the other vector with 2 elements.
   this->otherVector.push_back(Constructable(2));
   this->otherVector.push_back(Constructable(3));
@@ -452,12 +452,12 @@ TYPED_TEST(SmallVectorTest, MoveAssignTest) {
   // Make sure the # of constructor/destructor calls line up. There
   // are two live objects after clearing the other vector.
   this->otherVector.clear();
-  EXPECT_EQ(Constructable::getNumConstructorCalls()-2, 
+  EXPECT_EQ(Constructable::getNumConstructorCalls()-2,
             Constructable::getNumDestructorCalls());
 
   // There shouldn't be any live objects any more.
   this->theVector.clear();
-  EXPECT_EQ(Constructable::getNumConstructorCalls(), 
+  EXPECT_EQ(Constructable::getNumConstructorCalls(),
             Constructable::getNumDestructorCalls());
 }
 

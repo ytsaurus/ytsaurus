@@ -123,7 +123,13 @@ message TReqCreateTabletAction
     repeated NYT.NProto.TGuid cell_ids = 3;
     repeated bytes pivot_keys = 4;
     optional int32 tablet_count = 5;
-    optional bool keep_finished = 6 [default = false];
+    optional NYT.NProto.TGuid correlation_id = 7;
+    optional uint64 expiration_time = 8;
+}
+
+message TReqDestroyTabletActions
+{
+    repeated NYT.NProto.TGuid tablet_action_ids = 1;
 }
 
 message TReqKickOrphanedTabletActions

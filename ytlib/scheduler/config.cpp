@@ -9,6 +9,8 @@
 
 namespace NYT::NScheduler {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const int MaxAllowedProfilingTagCount = 200;
@@ -352,6 +354,11 @@ TOperationSpecBase::TOperationSpecBase()
         if (Alias && !Alias->StartsWith(OperationAliasPrefix)) {
             THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
                 << TErrorAttribute("operation_alias", Alias);
+        }
+
+        constexpr int MaxAnnotationsYsonTextLength = 10_KB;
+        if (ConvertToYsonString(Annotations, EYsonFormat::Text).GetData().size() > MaxAnnotationsYsonTextLength) {
+            THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v", MaxAnnotationsYsonTextLength);
         }
     });
 }
@@ -817,10 +824,12 @@ TSortOperationSpec::TSortOperationSpec()
 
         SortJobIO->TableReader->MaxBufferSize = 1_GB;
         SortJobIO->TableReader->RetryCount = 3;
+        SortJobIO->TableReader->PassCount = 50;
 
         // Output slices must be small enough to make reasonable jobs in sorted chunk pool.
         SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
         MergeJobIO->TableReader->RetryCount = 3;
+        MergeJobIO->TableReader->PassCount = 50;
 
         MapSelectivityFactor = 1.0;
     });
@@ -899,7 +908,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         SortJobIO->TableWriter->DesiredChunkWeight = 256_MB;
 
         SortJobIO->TableReader->RetryCount = 3;
+        SortJobIO->TableReader->PassCount = 50;
+
         MergeJobIO->TableReader->RetryCount = 3;
+        MergeJobIO->TableReader->PassCount = 50 ;
     });
 
     RegisterPostprocessor([&] () {
@@ -1166,41 +1178,78 @@ TStrategyOperationSpec::TStrategyOperationSpec()
 TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParameters()
 {
     RegisterParameter("weight", Weight)
-        .Default()
+        .Optional()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
-    RegisterParameter("pool", Pool)
-        .Default();
+    RegisterParameter("pool", Pool);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
 }
 
 TOperationRuntimeParameters::TOperationRuntimeParameters()
 {
-    RegisterParameter("owners", Owners)
-        .Default();
-    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
-        .Default()
-        .MergeBy(NYTree::EMergeStrategy::Combine);
+    RegisterParameter("owners", Owners);
+    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree);
 }
 
-TUserFriendlyOperationRuntimeParameters::TUserFriendlyOperationRuntimeParameters()
+TOperationFairShareTreeRuntimeParametersUpdate::TOperationFairShareTreeRuntimeParametersUpdate()
+{
+    RegisterParameter("weight", Weight)
+        .Optional()
+        .InRange(MinSchedulableWeight, MaxSchedulableWeight);
+    RegisterParameter("pool", Pool)
+        .Optional();
+    RegisterParameter("resource_limits", ResourceLimits)
+        .Default();
+}
+
+TOperationRuntimeParametersUpdate::TOperationRuntimeParametersUpdate()
 {
     RegisterParameter("pool", Pool)
-        .Default();
+        .Optional();
     RegisterParameter("weight", Weight)
-        .Default()
+        .Optional()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
+    RegisterParameter("owners", Owners)
+        .Optional();
+    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
+        .Default();
 }
 
-TOperationRuntimeParametersPtr TUserFriendlyOperationRuntimeParameters::UpdateParameters(const TOperationRuntimeParametersPtr& old)
+TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters(
+    const TOperationFairShareTreeRuntimeParametersPtr& origin,
+    const TOperationFairShareTreeRuntimeParametersUpdatePtr& update)
 {
-    auto result = UpdateYsonSerializable(old, NYTree::ConvertToNode(this));
-    for (const auto& pair : result->SchedulingOptionsPerPoolTree) {
-        if (Weight) {
-            pair.second->Weight = Weight;
+    try {
+        if (!origin) {
+            return NYTree::ConvertTo<TOperationFairShareTreeRuntimeParametersPtr>(ConvertToNode(update));
         }
-        if (Pool) {
-            pair.second->Pool = TPoolName(*Pool, std::nullopt);
+        return UpdateYsonSerializable(origin, ConvertToNode(update));
+    } catch (const std::exception& exception) {
+        THROW_ERROR_EXCEPTION("Error updating operation fair share tree runtime parameters")
+            << exception;
+    }
+}
+
+TOperationRuntimeParametersPtr UpdateRuntimeParameters(
+    const TOperationRuntimeParametersPtr& origin,
+    const TOperationRuntimeParametersUpdatePtr& update)
+{
+    YCHECK(origin);
+    auto result = CloneYsonSerializable(origin);
+    if (update->Owners) {
+        result->Owners = *update->Owners;
+    }
+    for (const auto& [poolTree, treeUpdate] : update->SchedulingOptionsPerPoolTree) {
+        auto& treeParams = result->SchedulingOptionsPerPoolTree[poolTree];
+        treeParams = UpdateFairShareTreeRuntimeParameters(treeParams, treeUpdate);
+
+        // TODO(levysotsky): Make sure the priority of these weight and pool
+        // should be like this (applied after per-tree update), or fix it.
+        if (update->Weight) {
+            treeParams->Weight = *update->Weight;
+        }
+        if (update->Pool) {
+            treeParams->Pool = TPoolName(*update->Pool, std::nullopt);
         }
     }
     return result;

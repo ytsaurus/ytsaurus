@@ -55,7 +55,7 @@ private:
         NTabletClient::ETabletState ExpectedTabletState = NTabletClient::ETabletState::Unmounted;
         NTransactionClient::TTransactionId LastMountTransactionId;
         NTransactionClient::TTransactionId PrimaryLastMountTransactionId;
-
+        NTransactionClient::TTransactionId CurrentMountTransactionId;
         TTabletBalancerConfigPtr TabletBalancerConfig;
 
         TDynamicTableAttributes();
@@ -91,6 +91,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExpectedTabletState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastMountTransactionId);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, PrimaryLastMountTransactionId);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, CurrentMountTransactionId);
 
     // COMPAT(ifsmirnov)
     DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);
@@ -151,6 +152,7 @@ public:
 
     void UpdateExpectedTabletState(NTabletClient::ETabletState state);
 
+    void ValidateNoCurrentMountTransaction(TStringBuf message) const;
     void ValidateTabletStateFixed(TStringBuf message) const;
     void ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const;
     void ValidateAllTabletsUnmounted(TStringBuf message) const;

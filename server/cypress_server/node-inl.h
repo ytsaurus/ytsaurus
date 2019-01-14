@@ -61,7 +61,7 @@ const T& TVersionedBuiltinAttribute<T>::Get(
     while (true) {
         Y_ASSERT(currentNode);
         const auto& attribute = currentNode->*member;
-        if (const auto* value = attribute.BoxedValue_.template TryAs<T>()) {
+        if (const auto* value = std::get_if<T>(&attribute.BoxedValue_)) {
             return *value;
         }
         currentNode = currentNode->GetOriginator()->template As<TOwner>();
@@ -94,13 +94,13 @@ void TVersionedBuiltinAttribute<T>::Merge(
     const TOwner* branchedNode)
 {
     const auto& branchedAttribute = branchedNode->*member;
-    if (branchedAttribute.BoxedValue_.template Is<TTombstone>()) {
+    if (std::holds_alternative<TTombstone>(branchedAttribute.BoxedValue_)) {
         if (originatingNode->IsTrunk()) {
             BoxedValue_ = TNull();
         } else {
             BoxedValue_ = TTombstone();
         }
-    } else if (const auto* value = branchedAttribute.BoxedValue_.template TryAs<T>()) {
+    } else if (const auto* value = std::get_if<T>(&branchedAttribute.BoxedValue_)) {
         BoxedValue_ = *value;
     }
 }

@@ -161,7 +161,7 @@ public:
     {
         return Automaton_;
     }
-    
+
     const IElectionManagerPtr& GetElectionManager() const
     {
         return ElectionManager_;

@@ -112,39 +112,6 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     }
 }
 
-namespace {
-
-// COMPAT(shakurov)
-// Compatibility stuff; used by Load().
-
-const int MaxSecondaryMasterCellsBefore711 = 8;
-
-struct TChunkExportDataBefore400
-{
-    ui32 RefCounter : 24;
-    bool Vital : 1;
-    ui8 ReplicationFactor : 7;
-};
-static_assert(sizeof(TChunkExportDataBefore400) == 4, "sizeof(TChunkExportDataBefore400) != 4");
-using TChunkExportDataListBefore400 = TChunkExportDataBefore400[MaxSecondaryMasterCellsBefore711];
-
-struct TChunkExportDataBefore619
-{
-    // Removing this ctor causes internal compiler error on gcc 4.9.2.
-    TChunkExportDataBefore619()
-        : RefCounter(0)
-    { }
-
-    ui32 RefCounter;
-    TChunkReplication Replication;
-};
-static_assert(sizeof(TChunkExportDataBefore619) == 12, "sizeof(TChunkExportDataBefore619) != 12");
-using TChunkExportDataListBefore619 = TChunkExportDataBefore619[MaxSecondaryMasterCellsBefore711];
-
-using TChunkExportDataListBefore711 = TChunkExportData[MaxSecondaryMasterCellsBefore711];
-
-} // namespace
-
 void TChunk::Load(NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
@@ -153,146 +120,31 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
 
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= 710) {
-        Load(context, AggregatedRequisitionIndex_);
-    } // Else it's recomputed by the chunk manager.
-
-    // COMPAT(shakurov)
-    // Previously, chunks didn't store info on which account requested which RF -
-    // just the maximum of those RFs. Chunk requisition can't be computed from
-    // such limited data. Thus, we have to fallback to default requisitions.
-    // This will be corrected by the next requisition update - which will happen
-    // soon since it's requested on each leader change.
-    // Important principles:
-    //   - attempt to preserve chunks' RFs to avoid unnecessary replication spike
-    //     while the cluster is migrating; this is done for default medium only to
-    //     keep the number of builtin requisitions reasonably low;
-    //   - never leave a chunk with zero effective RF (or empty effective requisition).
-    auto inferRequisitionIndexFromRF = [&](int replicationFactor) {
-        if (replicationFactor < 3 && !IsErasure()) {
-            switch (replicationFactor) {
-                case 1:
-                    return MigrationErasureChunkRequisitionIndex;
-                case 2:
-                    return MigrationRF2ChunkRequisitionIndex;
-                default:
-                    return MigrationChunkRequisitionIndex;
-            }
-        } else {
-            return IsErasure() ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex;
-        }
-    };
-
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 400) {
-        auto replicationFactor = Load<i8>(context);
-        LocalRequisitionIndex_ = inferRequisitionIndexFromRF(replicationFactor);
-    } else if (context.GetVersion() < 700) {
-        // Discard replication and leave LocalRequisitionIndex_ defaulted to the migration index.
-        auto replication = Load<TChunkReplication>(context);
-        // NB: the chunk may belong to a non-default medium and thus have zero RF on DefaultStoreMediumIndex.
-        // inferRequisitionIndexFromRF() will force non-zero RF in that case.
-        LocalRequisitionIndex_ =
-            inferRequisitionIndexFromRF(replication[DefaultStoreMediumIndex].GetReplicationFactor());
-    } else {
-        LocalRequisitionIndex_ = Load<TChunkRequisitionIndex>(context);
-    }
+    Load(context, AggregatedRequisitionIndex_);
+    Load(context, LocalRequisitionIndex_);
 
     SetReadQuorum(Load<i8>(context));
     SetWriteQuorum(Load<i8>(context));
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
-    // COMPAT(shakurov)
-    if (context.GetVersion() < 400) {
-        // Discard vitality and leave LocalRequisitionIndex_ defaulted to the migration index.
-        Load<bool>(context);
-    }
 
     Load(context, Parents_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 616) {
-        if (Load<bool>(context)) {
-            auto* data = MutableReplicasData();
-            Load(context, data->StoredReplicas);
-            Load(context, data->CachedReplicas);
-            Load(context, data->LastSeenReplicas);
-            Load(context, data->CurrentLastSeenReplicaIndex);
-        }
-    } else {
+    if (Load<bool>(context)) {
         auto* data = MutableReplicasData();
-        auto storedReplicas = Load<std::unique_ptr<TStoredReplicas>>(context);
-        if (storedReplicas) {
-            data->StoredReplicas = std::move(*storedReplicas);
-        }
+        Load(context, data->StoredReplicas);
         Load(context, data->CachedReplicas);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 603) {
-            Load(context, data->LastSeenReplicas);
-            Load(context, data->CurrentLastSeenReplicaIndex);
-        } else {
-            for (auto replica : StoredReplicas()) {
-                if (IsErasure()) {
-                    data->LastSeenReplicas[replica.GetReplicaIndex()] = replica.GetPtr()->GetId();
-                } else {
-                    data->LastSeenReplicas[data->CurrentLastSeenReplicaIndex] = replica.GetPtr()->GetId();
-                    data->CurrentLastSeenReplicaIndex = (data->CurrentLastSeenReplicaIndex + 1) % LastSeenReplicaCount;
-                }
-            }
-        }
-        if (data->StoredReplicas.empty() && !data->CachedReplicas) {
-            ReplicasData_.reset();
-        }
+        Load(context, data->LastSeenReplicas);
+        Load(context, data->CurrentLastSeenReplicaIndex);
     }
     Load(context, ExportCounter_);
     if (ExportCounter_ > 0) {
         ExportDataList_ = std::make_unique<TChunkExportData[]>(MaxSecondaryMasterCells);
-
-        // COMPAT(shakurov)
-        if (context.GetVersion() < 400) {
-            TChunkExportDataListBefore400 oldExportDataList = {};
-            TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
-            for (auto i = 0; i < MaxSecondaryMasterCellsBefore711; ++i) {
-                auto& exportData = ExportDataList_[i];
-                const auto& oldExportData = oldExportDataList[i];
-                exportData.RefCounter = oldExportData.RefCounter;
-                if (exportData.RefCounter != 0) {
-                    exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(oldExportData.ReplicationFactor);
-                } else {
-                    YCHECK(exportData.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
-                }
-                // Drop vitality.
-            }
-        } else if (context.GetVersion() < 700) {
-            TChunkExportDataListBefore619 oldExportDataList = {};
-            TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
-            for (auto i = 0; i < MaxSecondaryMasterCellsBefore711; ++i) {
-                auto& exportData = ExportDataList_[i];
-                const auto& oldExportData = oldExportDataList[i];
-                exportData.RefCounter = oldExportData.RefCounter;
-                // NB: the chunk may belong to a non-default medium and thus have zero RF on DefaultStoreMediumIndex.
-                // inferRequisitionIndexFromRF() will force non-zero RF in that case.
-                if (exportData.RefCounter != 0) {
-                    exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(
-                        oldExportData.Replication[DefaultStoreMediumIndex].GetReplicationFactor());
-                } else {
-                    YCHECK(exportData.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
-                }
-            }
-        } else if (context.GetVersion() < 711) {
-            TChunkExportDataListBefore711 oldExportDataList = {};
-            TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
-            for (auto i = 0; i < MaxSecondaryMasterCellsBefore711; ++i) {
-                ExportDataList_[i] = oldExportDataList[i];
-            }
-        } else {
-            TRangeSerializer::Load(context, TMutableRef(ExportDataList_.get(), MaxSecondaryMasterCells * sizeof(TChunkExportData)));
-        }
-
+        TRangeSerializer::Load(context, TMutableRef(ExportDataList_.get(), MaxSecondaryMasterCells * sizeof(TChunkExportData)));
         auto isActuallyExported = false;
         for (auto i = 0; i < MaxSecondaryMasterCells; ++i) {
             if (ExportDataList_[i].RefCounter != 0) {
                 isActuallyExported = true;
+                break;
             }
         }
         YCHECK(isActuallyExported);
@@ -585,30 +437,6 @@ void TChunk::Unexport(
     }
 }
 
-void TChunk::FixExportRequisitionIndexes()
-{
-    if (ExportCounter_ == 0) {
-        return;
-    }
-
-    YCHECK(ExportDataList_);
-
-    for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
-        auto& data = ExportDataList_[i];
-        if (data.RefCounter == 0 && data.ChunkRequisitionIndex != EmptyChunkRequisitionIndex) {
-            YCHECK(data.ChunkRequisitionIndex == MigrationErasureChunkRequisitionIndex ||
-                   data.ChunkRequisitionIndex == MigrationChunkRequisitionIndex);
-
-            data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
-            // NB: no need to unref as they haven't been reffed in the first place.
-        }
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
-
-Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore400);
-Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore619);
-Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore711);

@@ -31,7 +31,7 @@ bool ValidateSnapshotVersion(int version);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellMaster
-     
+
 #define SERIALIZE_INL_H_
 #include "serialize-inl.h"
 #undef SERIALIZE_INL_H_

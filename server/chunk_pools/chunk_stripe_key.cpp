@@ -36,17 +36,17 @@ TChunkStripeKey::TChunkStripeKey()
 
 bool TChunkStripeKey::IsIndex() const
 {
-    return Key_.template Is<int>();
+    return std::holds_alternative<int>(Key_);
 }
 
 bool TChunkStripeKey::IsBoundaryKeys() const
 {
-    return Key_.template Is<TBoundaryKeys>();
+    return std::holds_alternative<TBoundaryKeys>(Key_);
 }
 
 bool TChunkStripeKey::IsOutputOrderEntry() const
 {
-    return Key_.template Is<TOutputOrder::TEntry>();
+    return std::holds_alternative<TOutputOrder::TEntry>(Key_);
 }
 
 TChunkStripeKey::operator bool() const
@@ -56,32 +56,32 @@ TChunkStripeKey::operator bool() const
 
 int& TChunkStripeKey::AsIndex()
 {
-    return Key_.template As<int>();
+    return std::get<int>(Key_);
 }
 
-const int& TChunkStripeKey::AsIndex() const
+int TChunkStripeKey::AsIndex() const
 {
-    return Key_.template As<int>();
+    return std::get<int>(Key_);
 }
 
 TBoundaryKeys& TChunkStripeKey::AsBoundaryKeys()
 {
-    return Key_.template As<TBoundaryKeys>();
+    return std::get<TBoundaryKeys>(Key_);
 }
 
 const TBoundaryKeys& TChunkStripeKey::AsBoundaryKeys() const
 {
-    return Key_.template As<TBoundaryKeys>();
+    return std::get<TBoundaryKeys>(Key_);
 }
 
 TOutputOrder::TEntry& TChunkStripeKey::AsOutputOrderEntry()
 {
-    return Key_.template As<TOutputOrder::TEntry>();
+    return std::get<TOutputOrder::TEntry>(Key_);
 }
 
 const TOutputOrder::TEntry& TChunkStripeKey::AsOutputOrderEntry() const
 {
-    return Key_.template As<TOutputOrder::TEntry>();
+    return std::get<TOutputOrder::TEntry>(Key_);
 }
 
 void TChunkStripeKey::Persist(const TPersistenceContext& context)

@@ -112,6 +112,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidColumnFilter)        (309))
     ((InvalidColumnRenaming)      (310))
     ((IncompatibleKeyColumns)     (311))
+    ((ReaderDeadlineExpired)      (312))
 );
 
 DEFINE_ENUM(EControlAttribute,
@@ -179,6 +180,8 @@ DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemalessReader)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedWriter)
+
+using TSchemalessWriterFactory = std::function<IUnversionedWriterPtr(TNameTablePtr)>;
 
 DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedRowsetWriter)

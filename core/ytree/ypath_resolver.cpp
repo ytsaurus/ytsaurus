@@ -196,9 +196,9 @@ public:
         Parser_.Parse(input);
     }
 
-    typedef TVariant<TNullLiteralValue, bool, i64, ui64, double, TString> TResult;
+    typedef std::variant<TNullLiteralValue, bool, i64, ui64, double, TString> TResult;
 
-    DEFINE_BYREF_RO_PROPERTY(TResult, Result, TVariantTypeTag<TNullLiteralValue>());
+    DEFINE_BYREF_RO_PROPERTY(TResult, Result, std::in_place_type_t<TNullLiteralValue>());
 
 private:
     TTokenizer Tokenizer_;
@@ -311,7 +311,7 @@ std::optional<T> TryGetValue(TStringBuf yson, const TYPath& ypath, bool isAny = 
     TYPathResolver resolver(ypath, isAny);
     resolver.Parse(yson);
 
-    if (const auto* value = resolver.Result().TryAs<T>()) {
+    if (const auto* value = std::get_if<T>(&resolver.Result())) {
         return *value;
     }
 

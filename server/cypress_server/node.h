@@ -45,7 +45,7 @@ public:
     };
 
     // NB: Don't reorder the types; tags are used for persistence.
-    using TBoxedT = TVariant<TNull, TTombstone, T>;
+    using TBoxedT = std::variant<TNull, TTombstone, T>;
 
     template <class TOwner>
     const T& Get(

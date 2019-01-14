@@ -117,7 +117,7 @@ struct IOperationController
     virtual TFuture<void> Unregister() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::UpdateRuntimeParameters asynchronously.
-    virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersPtr runtimeParameters) = 0;
+    virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) = 0;
 
 
     // These methods can be called even without agent being assigned.

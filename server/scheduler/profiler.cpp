@@ -5,7 +5,7 @@ namespace NYT::NScheduler {
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 TProfileCollector::TProfileCollector(const TProfiler* profiler)
     : Profiler_(profiler)
 { }

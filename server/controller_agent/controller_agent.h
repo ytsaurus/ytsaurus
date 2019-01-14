@@ -117,7 +117,7 @@ public:
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
     TFuture<void> DisposeAndUnregisterOperation(TOperationId operationId);
-    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, NScheduler::TOperationRuntimeParametersPtr runtimeParameters);
+    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, NScheduler::TOperationRuntimeParametersUpdatePtr update);
     TFuture<TOperationControllerInitializeResult> InitializeOperation(
         const TOperationPtr& operation,
         const std::optional<TControllerTransactionIds>& transactions);
@@ -138,7 +138,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    int GetExecNodeCount() const;
+    int GetOnlineExecNodeCount() const;
 
     //! Returns the descriptors of online exec nodes matching a given #filter.
     /*!

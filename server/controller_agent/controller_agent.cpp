@@ -503,14 +503,14 @@ public:
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
-    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersPtr runtimeParameters)
+    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersUpdatePtr update)
     {
         auto operation = GetOperationOrThrow(operationId);
-        if (runtimeParameters->Owners) {
-            operation->SetOwners(*runtimeParameters->Owners);
+        if (update->Owners) {
+            operation->SetOwners(*update->Owners);
             const auto& controller = operation->GetController();
             if (controller) {
-                return BIND(&IOperationControllerSchedulerHost::UpdateRuntimeParameters, controller, std::move(runtimeParameters))
+                return BIND(&IOperationControllerSchedulerHost::UpdateRuntimeParameters, controller, std::move(update))
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
             }
@@ -701,12 +701,12 @@ public:
         return CachedExecNodeDescriptorsByTags_->Get(filter);
     }
 
-    int GetExecNodeCount() const
+    int GetOnlineExecNodeCount() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TReaderGuard guard(ExecNodeDescriptorsLock_);
-        return static_cast<int>(CachedExecNodeDescriptors_->size());
+        return OnlineExecNodeCount_;
     }
 
     const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const
@@ -770,6 +770,7 @@ private:
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
     const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
+    int OnlineExecNodeCount_ = 0;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
@@ -1192,15 +1193,21 @@ private:
         HandleScheduleJobRequests(rsp, GetExecNodeDescriptors({}));
 
         if (rsp->has_exec_nodes()) {
+            int onlineExecNodeCount = 0;
             auto execNodeDescriptors = New<TRefCountedExecNodeDescriptorMap>();
             for (const auto& protoDescriptor : rsp->exec_nodes().exec_nodes()) {
+                auto descriptor = FromProto<TExecNodeDescriptor>(protoDescriptor);
+                if (descriptor.Online) {
+                    ++onlineExecNodeCount;
+                }
                 YCHECK(execNodeDescriptors->emplace(
                     protoDescriptor.node_id(),
-                    FromProto<TExecNodeDescriptor>(protoDescriptor)).second);
+                    std::move(descriptor)).second);
             }
             {
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
+                OnlineExecNodeCount_ = onlineExecNodeCount;
             }
             YT_LOG_DEBUG("Exec node descriptors updated");
         }
@@ -1330,6 +1337,16 @@ private:
                         if (descriptorIt == execNodeDescriptors->end()) {
                             replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownNode);
                             YT_LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
+                                operationId,
+                                jobId,
+                                nodeId);
+                            return;
+                        }
+
+                        const auto& execNodeDescriptor = descriptorIt->second;
+                        if (!execNodeDescriptor.Online) {
+                            replyWithFailure(operationId, jobId, EScheduleJobFailReason::NodeOffline);
+                            YT_LOG_DEBUG("Failed to schedule job due to node is offline (OperationId: %v, JobId: %v, NodeId: %v)",
                                 operationId,
                                 jobId,
                                 nodeId);
@@ -1600,9 +1617,9 @@ TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(TOperationId opera
     return Impl_->DisposeAndUnregisterOperation(operationId);
 }
 
-TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersPtr runtimeParameters)
+TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(TOperationId operationId, TOperationRuntimeParametersUpdatePtr update)
 {
-    return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(runtimeParameters));
+    return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(update));
 }
 
 TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(
@@ -1662,9 +1679,9 @@ TFuture<TYsonString> TControllerAgent::BuildJobInfo(
     return Impl_->BuildJobInfo(operationId, jobId);
 }
 
-int TControllerAgent::GetExecNodeCount() const
+int TControllerAgent::GetOnlineExecNodeCount() const
 {
-    return Impl_->GetExecNodeCount();
+    return Impl_->GetOnlineExecNodeCount();
 }
 
 TRefCountedExecNodeDescriptorMapPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const

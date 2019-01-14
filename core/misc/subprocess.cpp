@@ -88,7 +88,7 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input)
     try {
         auto outputsOrError = WaitFor(Combine(futures));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            outputsOrError, 
+            outputsOrError,
             "IO error occurred during subprocess call");
 
         const auto& outputs = outputsOrError.Value();

@@ -269,9 +269,9 @@ public:
         Underlying_->Dispose();
     }
 
-    virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersPtr& runtimeParameters)
+    virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override
     {
-        Underlying_->UpdateRuntimeParameters(runtimeParameters);
+        Underlying_->UpdateRuntimeParameters(update);
     }
 
     virtual void OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds) override
