@@ -1,14 +1,15 @@
-from .driver import make_request
+from .driver import make_request, make_formatted_request
 from .table_helpers import _prepare_command_format, _to_chunk_stream
 from .common import set_param, require, is_master_transaction, YtError, get_value
 from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
-from .errors import YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted
+from .errors import YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted, YtResponseError
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
 from .transaction import null_transaction_id
 from .retries import Retrier, default_chaos_monkey
+from .batch_helpers import create_batch_client
 
 try:
     from cStringIO import StringIO as BytesIO
@@ -23,9 +24,13 @@ import time
 SYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff01
 ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 
-def _waiting_for_condition(condition, error_message, client=None):
-    check_interval = get_config(client)["tablets_check_interval"] / 1000.0
-    timeout = get_config(client)["tablets_ready_timeout"] / 1000.0
+TABLET_ACTION_KEEPALIVE_PERIOD = 55 # s
+
+def _waiting_for_condition(condition, error_message, check_interval=None, timeout=None, client=None):
+    if check_interval is None:
+        check_interval = get_config(client)["tablets_check_interval"] / 1000.0
+    if timeout is None:
+        timeout = get_config(client)["tablets_ready_timeout"] / 1000.0
 
     start_time = time.time()
     while not condition():
@@ -50,6 +55,46 @@ def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index
 def _waiting_for_tablet_transition(path, client=None):
     is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transient"
     _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
+
+def _waiting_for_sync_tablet_actions(tablet_action_ids, client=None):
+    def wait_func():
+        logger.debug("Waiting for tablet actions %s", tablet_action_ids)
+        batch_client = create_batch_client(client=client)
+        rsps = [batch_client.get("#{}/@".format(action_id)) for action_id in tablet_action_ids]
+        batch_client.commit_batch()
+
+        errors = [YtResponseError(rsp.get_error()) for rsp in rsps if not rsp.is_ok()]
+        if errors:
+            raise YtError("Waiting for tablet actions failed", inner_errors=errors)
+
+        for rsp in rsps:
+            attributes = rsp.get_result()
+            logger.debug("%s", attributes)
+            if attributes["state"] in ("completed", "failed"):
+                action_id = attributes["id"]
+                logger.info("Tablet action %s out of %s finished",
+                    total_action_count - len(tablet_action_ids) + 1, total_action_count)
+                tablet_action_ids.remove(action_id)
+                if attributes["state"] == "failed":
+                    logger.warning("Tablet action %s failed with error \"%s\"", action_id, attributes["error"])
+                    logger.warning("%s", attributes)
+
+        return len(tablet_action_ids) == 0
+
+    if not tablet_action_ids:
+        return
+
+    logger.info("Waiting for %s tablet action(s)", len(tablet_action_ids))
+
+    tablet_action_ids = list(tablet_action_ids)
+    total_action_count = len(tablet_action_ids)
+
+    _waiting_for_condition(
+        wait_func,
+        "Tablet actions did not finish in time",
+        timeout=TABLET_ACTION_KEEPALIVE_PERIOD,
+        check_interval=1.0,
+        client=client)
 
 def _check_transaction_type(client):
     transaction_id = get_command_param("transaction_id", client=client)
@@ -407,6 +452,52 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
         _waiting_for_tablet_transition(path, client)
 
     return response
+
+def reshard_table_automatic(path, sync=False, client=None):
+    """Automatically balance tablets of a mounted table according to tablet balancer config.
+
+    Only mounted tablets will be resharded.
+
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param bool sync: wait for the command to finish.
+    """
+
+    if sync and get_option("_client_type", client) == "batch":
+        raise YtError("Sync mode is not available with batch client")
+
+    params = {"path": TablePath(path, client=client)}
+
+    set_param(params, "keep_actions", sync)
+
+    tablet_action_ids = make_formatted_request("reshard_table_automatic", params, format=None, client=client)
+    if sync:
+        _waiting_for_sync_tablet_actions(tablet_action_ids, client=client)
+
+    return tablet_action_ids
+
+def balance_tablet_cells(bundle, tables=None, sync=False, client=None):
+    """Reassign tablets evenly among tablet cells.
+
+    :param str bundle: tablet cell bundle name.
+    :param list tables: if None, all tablets of bundle will be moved. If specified,
+        only tablets of `tables` will be moved.
+    :param bool sync: wait for the command to finish.
+    """
+
+    if sync and get_option("_client_type", client) == "batch":
+        raise YtError("Sync mode is not available with batch client")
+
+    params = {"bundle": bundle}
+
+    set_param(params, "tables", tables)
+    set_param(params, "keep_actions", sync)
+
+    tablet_action_ids = make_formatted_request("balance_tablet_cells", params, format=None, client=client)
+    if sync:
+        _waiting_for_sync_tablet_actions(tablet_action_ids, client=client)
+
+    return tablet_action_ids
 
 def trim_rows(path, tablet_index, trimmed_row_count, client=None):
     """Trim rows of the dynamic table.
