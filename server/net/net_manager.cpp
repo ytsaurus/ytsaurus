@@ -47,29 +47,6 @@ using namespace NYT::NNet;
 
 static const TString DnsRecordClass = "IN";
 
-class TDnsRecordSetBuilder
-{
-public:
-    explicit TDnsRecordSetBuilder(TDnsRecordSet* recordSet)
-        : RecordSet_(recordSet)
-    {
-        recordSet->Spec()->clear_records();
-    }
-
-    TDnsRecordSetBuilder& AddResourceRecord(EDnsResourceRecordType type, const TString& data)
-    {
-        auto* record = RecordSet_->Spec()->add_records();
-        record->set_class_(DnsRecordClass);
-        record->set_type(static_cast<NClient::NApi::NProto::TDnsRecordSetSpec_TResourceRecord_EType>(type));
-        record->set_data(data);
-
-        return *this;
-    }
-
-private:
-    TDnsRecordSet* const RecordSet_;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TString BuildIp6PtrDnsAddress(const TString& ip6Address)
@@ -313,6 +290,15 @@ private:
         const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
         const auto& ip6AddressAllocations = pod->Status().Other().Load().ip6_address_allocations();
 
+        THashMap<TString, NClient::NApi::NProto::TDnsRecordSetSpec> records;
+
+        auto addDnsResourceRecord = [&records] (const TString& key, EDnsResourceRecordType type, const TString& data) {
+            auto* record = records[key].add_records();
+            record->set_class_(DnsRecordClass);
+            record->set_type(static_cast<NClient::NApi::NProto::TDnsRecordSetSpec_TResourceRecord_EType>(type));
+            record->set_data(data);
+        };
+
         for (int index = 0; index < ip6AddressRequests.size(); ++index) {
             const auto& request = ip6AddressRequests[index];
             const auto& allocation = ip6AddressAllocations[index];
@@ -321,14 +307,14 @@ private:
                 continue;
             }
 
-            TDnsRecordSetBuilder(transaction->CreateDnsRecordSet(allocation.persistent_fqdn()))
-                .AddResourceRecord(EDnsResourceRecordType::AAAA, allocation.address());
+            addDnsResourceRecord(allocation.persistent_fqdn(), EDnsResourceRecordType::AAAA, allocation.address());
+            addDnsResourceRecord(allocation.transient_fqdn(), EDnsResourceRecordType::AAAA, allocation.address());
+            addDnsResourceRecord(BuildIp6PtrDnsAddress(allocation.address()), EDnsResourceRecordType::PTR, allocation.persistent_fqdn());
+        }
 
-            TDnsRecordSetBuilder(transaction->CreateDnsRecordSet(allocation.transient_fqdn()))
-                .AddResourceRecord(EDnsResourceRecordType::AAAA, allocation.address());
-
-            TDnsRecordSetBuilder(transaction->CreateDnsRecordSet(BuildIp6PtrDnsAddress(allocation.address())))
-                .AddResourceRecord(EDnsResourceRecordType::PTR, allocation.persistent_fqdn());
+        for (auto&& record : records) {
+            auto* dnsRecordSet = transaction->CreateDnsRecordSet(record.first);
+            dnsRecordSet->Spec() = std::move(record.second);
         }
     }
 
