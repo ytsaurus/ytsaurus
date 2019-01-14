@@ -3255,7 +3255,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     schedulerJobSpecExt->set_acl(BuildYsonStringFluently()
         .BeginList()
-            .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, std::vector<EPermission>({EPermission::Read}), _1))
+            .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, EPermission::Read, _1))
         .EndList()
         .GetData()
     );
@@ -4202,7 +4202,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             "create_intermediate",
             BuildYsonStringFluently()
                 .BeginList()
-                    .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, std::vector<EPermission>({EPermission::Read}), _1))
+                    .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, EPermission::Read, _1))
                     .DoFor(Spec_->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
                     })

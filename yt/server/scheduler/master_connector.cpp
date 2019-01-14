@@ -1245,7 +1245,7 @@ private:
                     &BuildOperationAce,
                     operation->GetOwners(),
                     operation->GetAuthenticatedUser(),
-                    std::vector<EPermission>({EPermission::Write, EPermission::Read}),
+                    EPermission::Write | EPermission::Read,
                     _1))
             .EndList();
     }

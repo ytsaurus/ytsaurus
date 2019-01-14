@@ -556,7 +556,7 @@ void ValidateOperationPermission(
 void BuildOperationAce(
     const std::vector<TString>& owners,
     const TString& authenticatedUser,
-    const std::vector<EPermission>& permissions,
+    EPermissionSet permissions,
     TFluentList fluent)
 {
     fluent
