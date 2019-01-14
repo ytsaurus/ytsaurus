@@ -1779,11 +1779,6 @@ int TOperationElementSharedState::GetAggressivelyPreemptableJobCount() const
     return AggressivelyPreemptableJobs_.size();
 }
 
-int TOperationElementSharedState::GetScheduledJobCount() const
-{
-    return ScheduledJobCount_;
-}
-
 std::optional<TJobResources> TOperationElementSharedState::AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
@@ -1806,7 +1801,6 @@ std::optional<TJobResources> TOperationElementSharedState::AddJob(TJobId jobId, 
     YCHECK(it.second);
 
     ++RunningJobCount_;
-    ++ScheduledJobCount_;
 
     IncreaseJobResourceUsage(&it.first->second, resourceUsage);
     return resourceUsage;
@@ -2277,8 +2271,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     TJobResources availableResources;
 
     auto deactivationReason = TryStartScheduleJob(now, minNeededResources, *context, &availableResources);
-    if (deactivationReason)
-    {
+    if (deactivationReason) {
         disableOperationElement(*deactivationReason);
         return false;
     }
@@ -2504,11 +2497,6 @@ int TOperationElement::GetAggressivelyPreemptableJobCount() const
 TPreemptionStatusStatisticsVector TOperationElement::GetPreemptionStatusStatistics() const
 {
     return SharedState_->GetPreemptionStatusStatistics();
-}
-
-int TOperationElement::GetScheduledJobCount() const
-{
-    return SharedState_->GetScheduledJobCount();
 }
 
 TInstant TOperationElement::GetLastNonStarvingTime() const
