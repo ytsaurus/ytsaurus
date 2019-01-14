@@ -5,36 +5,25 @@
 https://wiki.yandex-team.ru/yt/internal/arcadia-sync-ng/
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "git-svn"))
-
-from git_svn_lib import (
-    CheckError,
-    Git,
-    Svn,
-    check_git_version,
-    check_svn_url,
-    extract_git_svn_revision_to_commit_mapping_as_dict,
-    extract_git_svn_revision_to_commit_mapping_as_list,
-    fetch_git_svn,
-    get_svn_url_for_git_svn_remote,
-    init_git_svn,
-    make_remote_ref,
-    parse_git_svn_correspondence,
-    pull_git_svn,
-)
-
 import argparse
 import collections
 import filecmp
-import json
 import itertools
+import json
 import logging
+import os
 import re
 import shutil
-import subprocess
+import stat
+import sys
 import tempfile
+import time
+
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    import subprocess
+
 
 from xml.etree import ElementTree
 from contextlib import contextmanager
@@ -54,8 +43,59 @@ class ArcadiaSyncError(RuntimeError):
     pass
 
 
+###################################################################################################################
+## Helper functions
+###################################################################################################################
+
+
+def is_treeish(s):
+    """Check if string looks like a git treeish."""
+    if not isinstance(s, str):
+        return False
+    if len(s) != 40:
+        return False
+    if not re.match(r"^[0-9a-f]+$", s):
+        return False
+    return True
+
+
+def make_remote_ref(name):
+    """Make fully qualified Git remote reference."""
+    if name.startswith("refs/"):
+        return name
+    else:
+        return "refs/remotes/%s" % name
+
+
+def make_head_ref(name):
+    """Make fully qualified Git head reference."""
+    if name.startswith("refs/"):
+        return name
+    else:
+        return "refs/heads/%s" % name
+
+
+def abbrev(commit):
+    """Abbreviate the commit hash."""
+    if commit:
+        return commit[:8]
+    else:
+        return "(null)"
+
+
 def get_review_url(review_id):
     return "https://a.yandex-team.ru/review/{}".format(review_id)
+
+
+def parse_git_svn_correspondence(s):
+    GitSvnCorrespondence = collections.namedtuple("GitSvnCorrespondence", ["svn_revision", "git_commit"])
+
+    m = re.match("^r?([0-9]+):([0-9a-f]+)$", s.lower())
+    if not m:
+        raise ArcadiaSyncError("String '{0}' doesn't look like <svn-revision>:<git-revision>".format(s))
+    return GitSvnCorrespondence(
+        svn_revision=int(m.group(1)),
+        git_commit=m.group(2))
 
 
 def check_git_working_tree(git, can_be_disabled=True):
@@ -70,6 +110,117 @@ def check_git_working_tree(git, can_be_disabled=True):
         or not git.test("diff-index", "--cached", "HEAD", "--exit-code", "--quiet")
     ):
         raise ArcadiaSyncError(error_msg)
+
+
+def rmrf(path):
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+
+
+def xargs(cmd_func, arg_list, batch_size=100):
+    arg_list = list(arg_list)
+    while arg_list:
+        cmd_func(*arg_list[-batch_size:])
+        del arg_list[-batch_size:]
+
+
+
+###################################################################################################################
+## Commands
+###################################################################################################################
+
+
+class Command(object):
+    Result = collections.namedtuple("Result", ["returncode", "stdout", "stderr"])
+
+    def _impl(self, args, capture=True, input=None, cwd=None):
+        logger.debug("<< Calling %r", args)
+        stdfds = subprocess.PIPE if capture else None
+        stdinfd = subprocess.PIPE if input is not None else None
+        child = subprocess.Popen(args, bufsize=1, stdout=stdfds, stderr=stdfds, stdin=stdinfd, cwd=cwd)
+        stdoutdata, stderrdata = child.communicate(input=input)
+        logger.debug(
+            ">> Call completed with return code %s; stdout=%r; stderr=%r",
+            child.returncode, stdoutdata, stderrdata)
+        return Command.Result(returncode=child.returncode,
+                              stdout=stdoutdata, stderr=stderrdata)
+
+    def call(self, *args, **kwargs):
+        capture = kwargs.get("capture", True)
+        input = kwargs.get("input", None)
+        cwd = kwargs.get("cwd", None)
+        raise_on_error = kwargs.get("raise_on_error", True)
+        result = self._impl(args, capture=capture, input=input, cwd=cwd)
+        if result.returncode != 0 and raise_on_error:
+            if capture:
+                raise CheckError("Call {} failed, stderr:\n{}\n".format(args, result.stderr))
+            else:
+                raise CheckError("Call {} failed, stderr is not captured".format(args))
+        else:
+            return result.stdout
+
+    def test(self, *args):
+        result = self._impl(args)
+        return result.returncode == 0
+
+
+class Git(Command):
+    def __init__(self, repo=None, git_dir=None, work_dir=None):
+        super(Git, self).__init__()
+        if repo is not None:
+            assert git_dir is None
+            assert work_dir is None
+            self.work_dir = os.path.abspath(repo)
+            self.git_dir = os.path.join(self.work_dir, ".git")
+        if git_dir is not None or work_dir is not None:
+            assert repo is None
+            self.work_dir = work_dir
+            self.git_dir = git_dir
+
+    def _impl(self, args, **kwargs):
+        call_args = ["git"]
+        if self.git_dir:
+            call_args.append("--git-dir=" + str(self.git_dir))
+        if self.work_dir:
+            call_args.append("--work-tree=" + str(self.work_dir))
+        call_args.extend(args)
+        return super(Git, self)._impl(call_args, **kwargs)
+
+    def resolve_ref(self, ref):
+        result = self.call("rev-parse", "--quiet", "--verify", ref, raise_on_error=False).strip()
+        if not result:
+            return None
+        assert is_treeish(result)
+        return result
+
+    def has_ref(self, ref):
+        return self.resolve_ref(ref) is not None
+
+    def is_ancestor(self, child, parent):
+        return self.test("merge-base", "--is-ancestor", child, parent)
+
+
+class Svn(Command):
+    def __init__(self):
+        super(Svn, self).__init__()
+        self.last_call_at = 0.0
+
+    def _impl(self, args, **kwargs):
+        # it seems that Arcadia limits connection rate
+        # so we cap it to 1 call/s
+        now = time.time()
+        delay = now - self.last_call_at
+        if delay < 1.0:
+            time.sleep(1.0 - delay)
+        self.last_call_at = now
+        call_args = ["svn"]
+        call_args.extend(args)
+        return super(Svn, self)._impl(call_args, **kwargs)
+
+
 
 class LocalSvn(object):
     def __init__(self, root):
@@ -182,6 +333,413 @@ class LocalSvn(object):
             raise ArcadiaSyncError(error_msg)
 
 
+###################################################################################################################
+## Git / Svn library
+###################################################################################################################
+
+
+def get_svn_revisions(svn, url):
+    """Returns all SVN revisions that affect the given SVN URL."""
+
+    lines = svn.call("log", url).splitlines()
+
+    revisions = []
+    flag = False
+    for line in lines:
+        if line.startswith("r") and flag:
+            revision = int(line.split()[0][1:])
+            revisions.append(revision)
+        if line == "------------------------------------------------------------------------":
+            flag = True
+        else:
+            flag = False
+    return revisions
+
+def get_svn_last_changed_revision(svn, url):
+    """Returns the last changed revision for the given SVN URL."""
+
+    lines = svn.call("info", url).splitlines()
+
+    revision = None
+    for line in lines:
+        if line.startswith("Last Changed Rev"):
+            revision = int(line.split(":")[1])
+    return revision
+
+def get_svn_url_for_git_svn_remote(git, svn_remote):
+    """Returns the SVN URL for the `git-svn` remote."""
+
+    return git.call("config", "--local", "svn-remote.%s.url" % svn_remote).strip()
+
+def translate_git_commit_to_svn_revision(git, arc_git_remote, ref):
+    """Translates the single commit (given by the reference) into the revision."""
+
+    return int(git.call("svn", "--svn-remote", arc_git_remote, "find-rev", ref).strip())
+
+def translate_svn_revision_to_git_commit(git, arc_git_remote, revision):
+    """Translates the single commit (given by the reference) into the revision."""
+    if not isinstance(revision, int):
+        raise "Revision must be integer"
+    revision = "r{0}".format(revision)
+    return git.call("svn", "--svn-remote", arc_git_remote, "find-rev", revision, arc_git_remote).strip()
+
+def extract_pull_history(git, svn_prefix, ref):
+    """
+    Extracts the pull history.
+
+    This function returns a list of pairs, (revision, pull commit), newest-to-oldest.
+    """
+
+    lines = git.call(
+        "log", "--grep=^yt:svn_revision:", "--grep=^Pull %s" % svn_prefix, "--all-match",
+        "--pretty=format:BEGIN %H%n%s%n%n%b%nEND%n", ref).splitlines()
+
+    mapping = []
+    commit = None
+    revision = None
+    for line in lines:
+        if line.startswith("BEGIN"):
+            commit = line.split()[1]
+        if line.startswith("yt:svn_revision:"):
+            revision = int(line.split(":")[2])
+        if line.startswith("END"):
+            if commit and revision:
+                mapping.append((revision, commit))
+            commit = None
+            revision = None
+    return mapping
+
+def extract_push_history(git, svn_prefix, ref):
+    """
+    Extracts the push history.
+
+    Invokation of the `git svn commit-tree` command creates a new SVN revision
+    which basically overrides the repository content to match the current tree.
+
+    Therefore, during a next fetch from SVN, there will be a new, unmerged commit
+    in the `git-svn` remote branch with its tree matching the committed tree.
+
+    However, commit-wise, this new commit (called the 'push commit') does not have
+    the 'base commit' (one containing the committed tree) as its ancestor, which
+    makes a merge rather difficult.
+
+    This function returns a list of pairs, (base commit, push commit),
+    newest-to-oldest, which is used later to help merges.
+    """
+
+    lines = git.call(
+        "--no-replace-objects",
+        "log", "--grep=^yt:git_commit:", "--all-match",
+        "--pretty=format:BEGIN %H%n%s%n%n%b%nEND%n", ref).splitlines()
+
+    mapping = []
+    push_commit = None
+    base_commit = None
+    for line in lines:
+        if line.startswith("BEGIN"):
+            push_commit = line.split()[1]
+        if line.startswith("yt:git_commit:"):
+            base_commit = line.split(":")[2]
+        if line.startswith("END"):
+            if push_commit and base_commit:
+                mapping.append((base_commit, push_commit))
+            push_commit = None
+            base_commit = None
+    return mapping
+
+def extract_git_svn_revision_to_commit_mapping_as_list(git, svn_url, ref):
+    """
+    Extracts the revision to commit mapping from the repository.
+    Returns the list of pairs (revision, commit).
+    """
+
+    lines = git.call(
+        "--no-replace-objects",
+        "log", "--grep=^git-svn-id:",
+        "--pretty=format:BEGIN %H%n%s%n%n%b%nEND%n",
+        ref).splitlines()
+
+    mapping = []
+    commit = None
+    revision = None
+    for line in lines:
+        if line.startswith("BEGIN"):
+            commit = line.split()[1]
+        if line.startswith("git-svn-id:"):
+            url, rev = line.split()[1].split("@")
+            if url == svn_url:
+                revision = int(rev)
+        if line.startswith("END"):
+            if commit and revision:
+                mapping.append((revision, commit))
+            commit = None
+            revision = None
+    return mapping
+
+
+def extract_git_svn_revision_to_commit_mapping_as_dict(git, svn_url, ref):
+    """
+    Extracts the revision to commit mapping from the repository.
+    Returns the dictionary (revision -> commit).
+    """
+    mapping = extract_git_svn_revision_to_commit_mapping_as_list(git, svn_url, ref)
+    if len(mapping) != len(set(map(lambda _: _[0], mapping))):
+        raise CheckError("SVN revisions are not unique in the commit tree rooted at '%s' (WTF?)" % ref)
+    mapping = dict(mapping)
+    return mapping
+
+
+###################################################################################################################
+## High level routines.
+###################################################################################################################
+
+
+def init_git_svn(git, git_svn_remote, svn_url):
+    """Sets up the `git-svn` remote in the Git repository."""
+
+    logger.debug("Setting up the git-svn remote '%s' for '%s'", git_svn_remote, svn_url)
+
+    if git.test("config", "--local", "--get", "svn-remote.%s.url" % git_svn_remote):
+        git.call("config", "--local", "--remove-section", "svn-remote.%s" % git_svn_remote)
+
+    git.call("config", "--local", "svn-remote.%s.url" % git_svn_remote, svn_url)
+    git.call("config", "--local", "svn-remote.%s.fetch" % git_svn_remote, ":" + make_remote_ref(git_svn_remote))
+
+    git.call("svn", "--svn-remote", git_svn_remote, "migrate", capture=False)
+
+
+def fetch_git_svn(git, svn, git_svn_remote, one_by_one=False, force=False):
+    """Fetches all SVN revisions for the given `git-svn` remote."""
+
+    logger.debug("Fetching the `git-svn` remote '%s'")
+
+    def _impl(from_revision, to_revision, log_window_size=1):
+        if from_revision != "HEAD" and to_revision != "HEAD":
+            mark = "from-%s-to-%s" % (from_revision, to_revision)
+            mark = "svn-remote.%s.fetch-%s" % (git_svn_remote, mark)
+        else:
+            mark = None
+
+        if not force and mark:
+            if git.test("config", "--local", "--bool", "--get", mark):
+                logger.debug(
+                    "Skipping revisions %s:%s because they are marked as fetched",
+                    from_revision, to_revision)
+                return
+
+        success = False
+        for i in range(5):
+            try:
+                git.call(
+                    "svn", "--svn-remote", git_svn_remote, "fetch", "--log-window-size", str(log_window_size),
+                    "--revision", "%s:%s" % (from_revision, to_revision),
+                    capture=False)
+                success = True
+                break
+            except CheckError:
+                logger.debug("Call failed, sleeping for 1s")
+                time.sleep(1)
+
+        if not success:
+            raise CheckError("Failed to fetch revisions")
+
+        logger.debug("Fetched revisions %s:%s", from_revision, to_revision)
+
+        if not force and mark:
+            git.call("config", "--local", "--bool", mark, "true")
+
+    if one_by_one:
+        svn_url = get_svn_url_for_git_svn_remote(git, git_svn_remote)
+        svn_revisions = get_svn_revisions(svn, svn_url)
+        revisions = sorted(svn_revisions)
+    else:
+        revisions = [174922, 907137, 2359113]  # revisions that break the history
+
+    current_revision = 0
+    for next_revision in revisions:
+        _impl(current_revision, next_revision - 1, log_window_size=100000)
+        _impl(next_revision - 1, next_revision, log_window_size=1)
+        current_revision = next_revision
+    _impl(current_revision, "HEAD", log_window_size=100000)
+
+    logger.debug("Fetched git-svn remote '%s'", git_svn_remote)
+
+
+def strip_tree_of_symlinks(git, treeish):
+    tree_str = git.call("ls-tree", "-z", treeish, cwd=git.work_dir)
+    tree_item_list = tree_str.strip('\0').split('\0')
+    new_tree_str = ""
+    for item in tree_item_list:
+        meta, object_name = item.split('\t')
+        mode, object_type, object_hash = meta.split()
+        if stat.S_ISLNK(int(mode, 8)):
+            assert object_type == "blob"
+            continue
+        if object_type == "tree":
+            object_hash = strip_tree_of_symlinks(git, object_hash)
+        new_tree_str += "{mode} {object_type} {object_hash}\t{object_name}\0".format(
+            mode=mode,
+            object_type=object_type,
+            object_hash=object_hash,
+            object_name=object_name,
+        )
+    stripped_tree_hash = git.call("mktree", "-z", input=new_tree_str).rstrip("\n")
+    return stripped_tree_hash
+
+
+def check_striped_symlink_tree_equal(git, treeish1, treeish2):
+    msg = (
+        "Trees {tree1} and {tree2} are different.\n"
+        "Use following command to check the diff:\n"
+        " $ git --git-dir {git_dir} diff {tree1} {tree2}\n".format(
+            tree1=treeish1,
+            tree2=treeish2,
+            git_dir=git.git_dir,
+        )
+    )
+    if strip_tree_of_symlinks(git, treeish1) != strip_tree_of_symlinks(git, treeish2):
+        raise CheckError(msg)
+
+
+def pull_git_svn(git, svn, svn_url, git_svn_remote, git_prefix, svn_prefix, revision=None, recent_push=None):
+    logger.info("Pulling SVN revisions")
+
+    git_svn_remote_ref = make_remote_ref(git_svn_remote)
+
+    pull_history = extract_pull_history(git, svn_prefix, "HEAD")
+    revision_to_commit = extract_git_svn_revision_to_commit_mapping_as_dict(
+        git, svn_url, git_svn_remote_ref)
+
+    if recent_push:
+        base_commit = recent_push.git_commit
+        push_revision = recent_push.svn_revision
+        push_commit = translate_svn_revision_to_git_commit(git, git_svn_remote, push_revision)
+    else:
+        push_history = extract_push_history(git, svn_prefix, git_svn_remote_ref)
+        if not push_history:
+            raise CheckError("No pushes from Git to SVN were detected")
+        base_commit, push_commit = push_history[0]
+        push_revision = translate_git_commit_to_svn_revision(git, git_svn_remote, push_commit)
+
+    logger.info(
+        "Most recent push was from commit %s to revision %s (%s)",
+        abbrev(base_commit), push_revision, abbrev(push_commit))
+
+    try:
+        error_msg = (
+            "Content of revision {svn_revision} in svn doesn't match content of git commit {git_commit}\n"
+            "Please use --recent-push option to set svn revision and git commit that match each other\n"
+        ).format(
+            svn_revision=push_revision,
+            git_commit=base_commit,
+        )
+        check_striped_symlink_tree_equal(git, base_commit + ":" + git_prefix, push_commit + ":")
+    except CheckError as e:
+        raise CheckError(error_msg + str(e))
+
+    last_changed_revision = get_svn_last_changed_revision(svn, svn_url)
+
+    if last_changed_revision in revision_to_commit:
+        logger.info(
+            "Last changed revision is %s (%s)",
+            last_changed_revision, abbrev(revision_to_commit[last_changed_revision]))
+    else:
+        logger.warning(
+            "Last changed revision is %s, but it is missing in git-svn log (try fetch latest revisions)",
+            last_changed_revision)
+
+    if pull_history:
+        last_pull_revision, last_pull_commit = pull_history[0]
+        logger.info(
+            "Last pulled revision is %s (%s) in %s",
+            last_pull_revision, abbrev(last_pull_commit), abbrev(last_pull_commit))
+    else:
+        last_pull_revision, last_pull_commit = 0, None
+        logger.info(
+            "No pulls from SVN to Git were detected")
+
+    if revision:
+        pull_revision = revision
+    else:
+        pull_revision = last_changed_revision
+
+    if pull_revision == push_revision:
+        raise CheckError("Nothing to pull: everything is up-to-date")
+
+    if pull_revision <= push_revision or pull_revision > last_changed_revision:
+        raise CheckError("Pulled revision %s is out of range; expected > last push %s and <= last changed %s" % (
+            pull_revision, push_revision, last_changed_revision))
+
+    if pull_revision <= last_pull_revision:
+        raise CheckError("Pulled revision %s is already merged during pull %s in commit %s" % (
+            pull_revision, last_pull_revision, last_pull_commit))
+
+    if pull_revision not in revision_to_commit:
+        raise CheckError("Pulled revision %s is missing in remote history" % pull_revision)
+
+    pull_commit = revision_to_commit[pull_revision]
+
+    logger.info(
+        "Pulling revisions %s:%s (%s..%s)",
+        push_revision, pull_revision, abbrev(push_commit), abbrev(pull_commit))
+
+    if not git.is_ancestor(base_commit, "HEAD"):
+        raise CheckError("Most recent push is not an ancestor of HEAD")
+
+    if not git.is_ancestor(push_commit, git_svn_remote_ref):
+        raise CheckError("Most recent push is missing in SVN history (diverged git-svn sync?)")
+
+    merge_branch = "arcadia_merge_%s" % pull_revision
+    head_branch = git.call("symbolic-ref", "--short", "HEAD").strip()
+
+    if git.has_ref(make_head_ref(merge_branch)):
+        raise CheckError("Merge branch '%s' already exists; delete it before pulling" % merge_branch)
+
+    if last_pull_revision < push_revision:
+        logger.debug("Using last push as merge base")
+        git.call("branch", merge_branch, base_commit)
+        git.call("checkout", merge_branch)
+        graft_message = (
+            "Graft Arcadia push-commit %s\n"
+            "\n"
+            "yt:git_base_commit:%s\n"
+            "yt:git_push_commit:%s\n"
+            "yt:svn_revision:%s\n"
+        ) % (abbrev(push_commit), base_commit, push_commit, push_revision)
+        git.call("merge", "-X", "subtree=" + git_prefix, "-m", graft_message, "--allow-unrelated-histories", push_commit)
+    else:
+        logger.debug("Using last pull as merge base")
+        git.call("branch", merge_branch, last_pull_commit)
+        git.call("checkout", merge_branch)
+
+    merge_message = (
+        "Pull %s from Arcadia revision %s\n"
+        "\n"
+        "yt:git_svn_commit:%s\n"
+        "yt:svn_revision:%s\n"
+    ) % (svn_prefix, pull_revision, pull_commit, pull_revision)
+
+    git.call("merge", "-X", "subtree=" + git_prefix, "-m", merge_message, pull_commit)
+    git.call("checkout", head_branch)
+
+    logger.info("Now, run 'git merge %s'" % merge_branch)
+
+
+def check_git_version(git):
+    version = git.call("version")
+    match = re.match(r"git version (\d+)\.(\d+)", version)
+    if not match:
+        raise CheckError("Unable to determine git version")
+    major, minor = map(int, [match.group(1), match.group(2)])
+    if (major, minor) < (1, 8):
+        raise CheckError("git >= 1.8 is required")
+
+
+def check_svn_url(svn, url):
+    if not svn.test("info", url):
+        raise CheckError("Cannot establish connection to SVN or URL is missing")
+
+
 def verify_recent_svn_revision_merged(git, git_svn_id):
     svn_url = get_svn_url_for_git_svn_remote(git, git_svn_id)
     svn = Svn()
@@ -224,19 +782,6 @@ def temporary_directory():
 
 def local_svn_iter_changed_files(local_svn, relpath):
     return (status for status in local_svn.iter_status(relpath) if status.status not in ("normal", "unversioned"))
-
-def rmrf(path):
-    if os.path.exists(path):
-        if os.path.isdir(path):
-            shutil.rmtree(path)
-        else:
-            os.remove(path)
-
-def xargs(cmd_func, arg_list, batch_size=100):
-    arg_list = list(arg_list)
-    while arg_list:
-        cmd_func(*arg_list[-batch_size:])
-        del arg_list[-batch_size:]
 
 def git_ls_files(git, pathspec):
     output = git.call("ls-files", "-z", "--full-name", pathspec)
@@ -499,6 +1044,12 @@ def stitch_git_svn(git, ref, svn_remote, svn_url):
                 git.call("replace", head_commit, remote_commit)
 
     git.call("pack-refs", "--all")
+
+
+###################################################################################################################
+## Actions
+###################################################################################################################
+
 
 def action_init(ctx, args):
     init_git_svn(ctx.git, ctx.arc_git_remote, ctx.arc_url)
