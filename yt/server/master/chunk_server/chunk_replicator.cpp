@@ -1612,8 +1612,11 @@ void TChunkReplicator::ScheduleNewJobs(
             double targetFillFactor = *sourceFillFactor - Config_->MinChunkBalancingFillFactorDiff;
             if (hasSpareReplicationResources() &&
                 *sourceFillFactor > Config_->MinChunkBalancingFillFactor &&
-                ChunkPlacement_->HasBalancingTargets(medium, targetFillFactor) &&
-                HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
+                HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter) &&
+                ChunkPlacement_->HasBalancingTargets(
+                    UnsaturatedInterDCEdges[node->GetDataCenter()],
+                    medium,
+                    targetFillFactor))
             {
                 int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
                 auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(medium, node, maxJobs);
@@ -2464,7 +2467,7 @@ void TChunkReplicator::UpdateJobCountGauge(EJobType jobType, int delta)
     }
 }
 
-void TChunkReplicator::HandleNodeDataCenterChange(TNode* node, TDataCenter* oldDataCenter)
+void TChunkReplicator::OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCenter)
 {
     Y_ASSERT(node->GetDataCenter() != oldDataCenter);
 
@@ -2503,7 +2506,7 @@ void TChunkReplicator::RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWit
 void TChunkReplicator::InitInterDCEdges()
 {
     UpdateInterDCEdgeCapacities();
-    UpdateUnsaturatedInterDCEdges();
+    InitUnsaturatedInterDCEdges();
 }
 
 void TChunkReplicator::UpdateInterDCEdgeCapacities()
@@ -2522,14 +2525,14 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
 
     auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
         const std::optional<TString>& srcDataCenterName = srcDataCenter
-            ? static_cast<std::optional<TString>>(srcDataCenter->GetName())
+            ? std::optional<TString>(srcDataCenter->GetName())
             : std::nullopt;
         auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
         const auto& newInterDCEdgeCapacities = capacities[srcDataCenterName];
 
         auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
             const std::optional<TString>& dstDataCenterName = dstDataCenter
-                ? static_cast<std::optional<TString>>(dstDataCenter->GetName())
+                ? std::optional<TString>(dstDataCenter->GetName())
                 : std::nullopt;
             auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
             if (it != newInterDCEdgeCapacities.end()) {
@@ -2555,7 +2558,7 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
     InterDCEdgeCapacitiesLastUpdateTime = GetCpuInstant();
 }
 
-void TChunkReplicator::UpdateUnsaturatedInterDCEdges()
+void TChunkReplicator::InitUnsaturatedInterDCEdges()
 {
     UnsaturatedInterDCEdges.clear();
 
