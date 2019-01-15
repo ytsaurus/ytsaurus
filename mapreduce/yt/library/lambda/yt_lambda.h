@@ -7,19 +7,34 @@
  * ATTN! This implementation has some performance cost compared to classic YT C++ API because
  *       lambdas here are called by pointer, not inlined.
  *
- * Details: https://wiki.yandex-team.ru/yt/userdoc/cppapi/lambda/
+ * Details (in Russian): https://wiki.yandex-team.ru/yt/userdoc/cppapi/lambda/
  *
  * CopyIf            - copy records on whose the predicate is TRUE from src to dst table
+ *
  * TransformCopyIf   - transform records from src to dst (return false from lambda to drop current record)
  *                     ATTN: dst is a buffer that is NOT cleared between calls
- * AdditiveMapReduce - transform records using 1st lambda, sum them using 2nd lambda
- *                     ATTN: output is not sorted (as per MapReduce specifics)
- * AdditiveMapReduceSorted - same as AdditiveMapReduce, but the table is sorted after MR.
- * MapReduce[Sorted] - transform records using 1st lambda, reduce them using 2nd lambda, then
+ *
+ * [Additive]Reduce  - reduce input using 1st lambda, then
+ *                     (optionally) transform again to output format using 2nd lambda (finalizer).
+ *                     Additive* variant is only for associative reducer functions (see below).
+ *
+ * [Additive]MapReduce[Sorted] - transform records using 1st lambda, reduce them using 2nd lambda, then
  *                     (optionally) transform again to output format using 3rd lambda (finalizer).
+ *                     ATTN: as per YT MapReduce specifics, output of MR operation is not sorted.
+ *                     Use *Sorted variant so that the output is sorted after MR.
+ *                     Additive* variant is only for associative reducer functions (see below).
+ *                     NOTE: reducer (2nd lambda) is also automatically used as combiner.
+ *
  * MapReduceCombined[Sorted] - transform records using 1st lambda (mapper), reduce them first time using
  *                     2nd lambda (combiner), sum (reduce second time) them using 3rd lambda (reducer),
  *                     (optionally) transform again to output format using 4th lambda (finalizer).
+ *                     NOTE: If reducer and combiner are the same associative function,
+ *                     consider AdditiveMapReduce* instead.
+ *
+ * Note about associative reducer functions (for Additive wrappers):
+ *     - src and dst must be of the same type;
+ *     - basically, it should perform simple associative operations (such as addition) on all fields;
+ *     - see example below
  *
  * example:
  * NYT::CopyIf<TMyProtoMsg>(client, inTable, outTable,
@@ -76,6 +91,83 @@ void TransformCopyIf(const IClientBasePtr& client, const TRichYPath& from, const
 }
 
 template <class R, class W>
+void AdditiveReduce(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    void (*reducer)(const R&, R&),
+    void (*finalizer)(const R&, W&))
+{
+    auto spec = NDetail::PrepareReduceSpec<R, W>(from, to, reduceFields);
+
+    client->Reduce(
+        spec,
+        NDetail::ChooseReducer<TAdditiveLambdaBufReducer<R, W>>(
+            reducer, finalizer, reduceFields));
+}
+
+template <class T>
+void AdditiveReduce(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    void (*reducer)(const T&, T&))
+{
+    AdditiveReduce<T, T>(client, from, to, reduceFields, reducer, nullptr);
+}
+
+
+template <class R, class TReducerData, class W>
+void Reduce(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    void (*reducer)(const R&, TReducerData&),
+    void (*finalizer)(const TReducerData&, W&))
+{
+    auto spec = NDetail::PrepareReduceSpec<R, W>(from, to, reduceFields);
+
+    client->Reduce(
+        spec,
+        NDetail::ChooseReducer<TLambdaBufReducer<R, TReducerData, W>>(
+            reducer, finalizer, reduceFields));
+}
+
+template <class R, class W>
+void Reduce(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    void (*reducer)(const R&, W&))
+{
+    Reduce<R, W, W>(client, from, to, reduceFields, reducer, nullptr);
+}
+
+template <class R, class TCombined, class W>
+void AdditiveMapReduce(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TCombined&),
+    void (*reducer)(const TCombined&, TCombined&),
+    void (*finalizer)(const TCombined&, W&))
+{
+    auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
+
+    client->MapReduce(
+        spec,
+        mapper ? new TTransformMapper<R, TCombined>(mapper) : nullptr,
+        reducer ? new TAdditiveReducer<TCombined>(reducer) : nullptr,
+        NDetail::ChooseReducer<TAdditiveLambdaBufReducer<TCombined, W>>(
+            reducer, finalizer, reduceFields));
+}
+
+template <class R, class W>
 void AdditiveMapReduce(
     const IClientBasePtr& client,
     const TKeyBase<TRichYPath>& from,
@@ -84,13 +176,28 @@ void AdditiveMapReduce(
     bool (*mapper)(const R&, W&),
     void (*reducer)(const W&, W&))
 {
-    auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
+    AdditiveMapReduce<R, W, W>(client, from, to, reduceFields, mapper, reducer, nullptr);
+}
 
-    client->MapReduce(
-        spec,
-        mapper ? new TTransformMapper<R, W>(mapper) : nullptr,
-        reducer ? new TAdditiveReducer<W>(reducer) : nullptr,
-        reducer ? new TAdditiveReducer<W>(reducer) : nullptr);
+template <class R, class TCombined, class W>
+void AdditiveMapReduceSorted(
+    const IClientBasePtr& client,
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields,
+    bool (*mapper)(const R&, TCombined&),
+    void (*reducer)(const TCombined&, TCombined&),
+    void (*finalizer)(const TCombined&, W&))
+{
+    auto tx = client->StartTransaction();
+    AdditiveMapReduce(tx, from, to, reduceFields, mapper, reducer, finalizer);
+
+    tx->Sort(
+        TSortOperationSpec()
+            .AddInput(to)
+            .Output(to)
+            .SortBy(reduceFields));
+    tx->Commit();
 }
 
 template <class R, class W>
@@ -102,15 +209,7 @@ void AdditiveMapReduceSorted(
     bool (*mapper)(const R&, W&),
     void (*reducer)(const W&, W&))
 {
-    auto tx = client->StartTransaction();
-    AdditiveMapReduce(tx, from, to, reduceFields, mapper, reducer);
-
-    tx->Sort(
-        TSortOperationSpec()
-            .AddInput(to)
-            .Output(to)
-            .SortBy(reduceFields));
-    tx->Commit();
+    AdditiveMapReduceSorted<R, W, W>(client, from, to, reduceFields, mapper, reducer, nullptr);
 }
 
 template <class R, class TMapped, class TReducerData, class W>
@@ -125,22 +224,11 @@ void MapReduce(
 {
     auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
 
-    ::TIntrusivePtr<IReducerBase> reducerObj;
-
-    if (finalizer) {
-        reducerObj = new TLambdaBufReducer<TMapped, TReducerData, W>(reducer, finalizer, reduceFields);
-    } else {
-        if constexpr(std::is_same<TReducerData, W>::value) {
-            reducerObj = new TLambdaReducer<TMapped, W>(reducer, reduceFields);
-        } else {
-            ythrow yexception() << "finalizer can not be null";
-        }
-    }
-
     client->MapReduce(
         spec,
         mapper ? new TTransformMapper<R, TMapped>(mapper) : nullptr,
-        reducer ? reducerObj : nullptr);
+        NDetail::ChooseReducer<TLambdaBufReducer<TMapped, TReducerData, W>>(
+            reducer, finalizer, reduceFields));
 }
 
 template <class R, class TMapped, class W>
@@ -202,23 +290,12 @@ void MapReduceCombined(
 {
     auto spec = NDetail::PrepareMRSpec<R, W>(from, to, reduceFields);
 
-    ::TIntrusivePtr<IReducerBase> reducerObj;
-
-    if (finalizer) {
-        reducerObj = new TAdditiveLambdaBufReducer<TCombined, W>(reducer, finalizer, reduceFields);
-    } else {
-        if constexpr(std::is_same<TCombined, W>::value) {
-            reducerObj = new TAdditiveReducer<W>(reducer);
-        } else {
-            ythrow yexception() << "finalizer can not be null";
-        }
-    }
-
     client->MapReduce(
         spec,
         mapper ? new TTransformMapper<R, TMapped>(mapper) : nullptr,
         combiner ? new TLambdaReducer<TMapped, TCombined>(combiner, reduceFields) : nullptr,
-        reducer ? reducerObj : nullptr,
+        NDetail::ChooseReducer<TAdditiveLambdaBufReducer<TCombined, W>>(
+            reducer, finalizer, reduceFields),
         TOperationOptions().Spec(TNode()("force_reduce_combiners", true)));
 }
 
