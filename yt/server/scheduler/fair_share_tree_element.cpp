@@ -381,7 +381,12 @@ double TSchedulerElement::GetWeight() const
         parentMinShareRatio;
 }
 
-TCompositeSchedulerElement* TSchedulerElement::GetParent() const
+TCompositeSchedulerElement* TSchedulerElement::GetMutableParent()
+{
+    return Parent_;
+}
+
+const TCompositeSchedulerElement* TSchedulerElement::GetParent() const
 {
     return Parent_;
 }
@@ -514,7 +519,7 @@ void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& d
     auto* currentElement = this;
     while (currentElement) {
         currentElement->IncreaseLocalResourceUsage(delta);
-        currentElement = currentElement->GetParent();
+        currentElement = currentElement->GetMutableParent();
     }
 }
 
@@ -864,10 +869,10 @@ void TCompositeSchedulerElement::IncreaseOperationCount(int delta)
 {
     OperationCount_ += delta;
 
-    auto parent = GetParent();
+    auto parent = GetMutableParent();
     while (parent) {
         parent->OperationCount() += delta;
-        parent = parent->GetParent();
+        parent = parent->GetMutableParent();
     }
 }
 
@@ -875,10 +880,10 @@ void TCompositeSchedulerElement::IncreaseRunningOperationCount(int delta)
 {
     RunningOperationCount_ += delta;
 
-    auto parent = GetParent();
+    auto parent = GetMutableParent();
     while (parent) {
         parent->RunningOperationCount() += delta;
-        parent = parent->GetParent();
+        parent = parent->GetMutableParent();
     }
 }
 
@@ -2232,13 +2237,13 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     YCHECK(IsActive(context->DynamicAttributesList));
 
     auto updateAncestorsAttributes = [&] () {
-        auto* parent = GetParent();
+        auto* parent = GetMutableParent();
         while (parent) {
             parent->UpdateDynamicAttributes(context->DynamicAttributesList);
             if (!context->DynamicAttributesList[parent->GetTreeIndex()].Active) {
                 ++context->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
             }
-            parent = parent->GetParent();
+            parent = parent->GetMutableParent();
         }
     };
 
@@ -2457,7 +2462,7 @@ void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
     TSchedulerElement* currentElement = this;
     while (currentElement) {
         currentElement->ApplyJobMetricsDeltaLocal(delta);
-        currentElement = currentElement->GetParent();
+        currentElement = currentElement->GetMutableParent();
     }
 }
 
@@ -2729,14 +2734,14 @@ bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
             break;
         }
         availableResourceLimits = Min(availableResourceLimits, localAvailableResourceLimits);
-        currentElement = currentElement->GetParent();
+        currentElement = currentElement->GetMutableParent();
     }
 
     if (failedParent != nullptr) {
         currentElement = this;
         while (currentElement != failedParent) {
             currentElement->IncreaseLocalResourceUsagePrecommit(-delta);
-            currentElement = currentElement->GetParent();
+            currentElement = currentElement->GetMutableParent();
         }
         return false;
     }
@@ -2752,7 +2757,7 @@ void TOperationElement::DecreaseHierarchicalResourceUsagePrecommit(const TJobRes
     TSchedulerElement* currentElement = this;
     while (currentElement) {
         currentElement->IncreaseLocalResourceUsagePrecommit(-precommittedResources);
-        currentElement = currentElement->GetParent();
+        currentElement = currentElement->GetMutableParent();
     }
 }
 
@@ -2763,7 +2768,7 @@ void TOperationElement::CommitHierarchicalResourceUsage(
     TSchedulerElement* currentElement = this;
     while (currentElement) {
         currentElement->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
-        currentElement = currentElement->GetParent();
+        currentElement = currentElement->GetMutableParent();
     }
 }
 

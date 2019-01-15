@@ -238,7 +238,8 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const = 0;
     virtual TDuration GetFairSharePreemptionTimeout() const = 0;
 
-    TCompositeSchedulerElement* GetParent() const;
+    TCompositeSchedulerElement* GetMutableParent();
+    const TCompositeSchedulerElement* GetParent() const;
     void SetParent(TCompositeSchedulerElement* parent);
 
     TInstant GetStartTime() const;
