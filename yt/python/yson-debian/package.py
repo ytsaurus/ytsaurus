@@ -5,9 +5,12 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../scripts/teamcity-build/python"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../packaging"))
+
+from os_helpers import copy_content, clean_path, create_if_missing
 
 from teamcity import teamcity_message
-from helpers import (mkdirp, run, run_captured, cwd, rmtree)
+from helpers import (run, run_captured, cwd)
 
 import argparse
 import contextlib
@@ -18,35 +21,6 @@ import shutil
 import tempfile
 from cStringIO import StringIO
 
-def copy_element(src, dst, elem):
-    source = os.path.join(src, elem)
-    destination = os.path.join(dst, elem)
-    if os.path.isdir(source):
-        shutil.copytree(source, destination)
-    else:
-        shutil.copy(source, destination)
-
-def copy_content(src, dst):
-    for elem in os.listdir(src):
-        copy_element(src, dst, elem)
-
-def remove_content(path):
-    for elem in os.listdir(path):
-        elem_path = os.path.join(path, elem)
-        if os.path.isfile(elem_path):
-            os.remove(elem_path)
-        else:
-            shutil.rmtree(elem_path)
-
-def clean_path(path):
-    if os.path.exists(path):
-        rmtree(path)
-    mkdirp(path)
-
-def create_if_missing(directory):
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    return directory
 
 class PackagingContext(object):
     def __init__(self, module_path, checkout_directory, working_directory, codename):
@@ -206,7 +180,9 @@ def build_targets(
             for repository in repositories:
                 versions = get_package_versions(package_name, repository)
                 if package_version in versions:
-                    teamcity_message("Package {0}={1} is already uploaded to {2}, skipping this repo".format(package_name, package_version, repository))
+                    teamcity_message(
+                        "Package {0}={1} is already uploaded to {2}, skipping this repo"
+                        .format(package_name, package_version, repository))
                 else:
                     repositories_to_upload.append(repository)
 
@@ -370,7 +346,10 @@ def main():
 
     checkout_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
     module_path = "yt/python/yt_yson_bindings"
-    with packaging_context(module_path, checkout_directory, args.working_directory, keep_tmp_files=args.keep_tmp_files) as ctx:
+    with packaging_context(module_path,
+                           checkout_directory,
+                           args.working_directory,
+                           keep_tmp_files=args.keep_tmp_files) as ctx:
         build_targets(
             ctx,
             targets=target_map,
