@@ -2770,27 +2770,58 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     if (AvailableExecNodesObserved_ && now < LastAvailableExecNodesCheckTime_ + Config->BannedExecNodesCheckPeriod) {
         return;
     }
+    LastAvailableExecNodesCheckTime_ = now;
 
+    TExecNodeDescriptor observedExecNode;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
     for (const auto& nodePair : GetExecNodeDescriptors()) {
         const auto& descriptor = nodePair.second;
+
+        bool hasSuitableTree = false;
         for (const auto& treePair : PoolTreeToSchedulingTagFilter_) {
             const auto& filter = treePair.second;
             if (descriptor.CanSchedule(filter)) {
-                foundMatching = true;
-                if (BannedNodeIds_.find(descriptor.Id) == BannedNodeIds_.end()) {
-                    foundMatchingNotBanned = true;
-                }
+                hasSuitableTree = true;
+                break;
             }
         }
-        // foundMatchingNotBanned also implies foundMatching, hence we interrupt.
-        if (foundMatchingNotBanned) {
+        if (!hasSuitableTree) {
+            continue;
+        }
+
+        bool hasNonTrivialTasks = false;
+        bool hasEnoughResources = false;
+        for (const auto& task : Tasks) {
+            if (task->GetPendingJobCount() == 0) {
+                continue;
+            }
+            hasNonTrivialTasks = true;
+
+            const auto& neededResources = task->GetMinNeededResources();
+            if (Dominates(descriptor.ResourceLimits, neededResources.ToJobResources())) {
+                hasEnoughResources = true;
+                break;
+            }
+        }
+        if (hasNonTrivialTasks && !hasEnoughResources) {
+            continue;
+        }
+
+        observedExecNode = descriptor;
+        foundMatching = true;
+        if (BannedNodeIds_.find(descriptor.Id) == BannedNodeIds_.end()) {
+            foundMatchingNotBanned = true;
+            // foundMatchingNotBanned also implies foundMatching, hence we interrupt.
             break;
         }
     }
 
-    if (!AvailableExecNodesObserved_ && !foundMatching) {
+    if (foundMatching) {
+        AvailableExecNodesObserved_ = true;
+    }
+
+    if (!AvailableExecNodesObserved_) {
         OnOperationFailed(TError(
             EErrorCode::NoOnlineNodeToScheduleJob,
             "No online nodes match operation scheduling tag filter %Qv in trees %v",
@@ -2806,10 +2837,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         return;
     }
 
-    YT_LOG_DEBUG("Available nodes were observed");
-
-    AvailableExecNodesObserved_ = true;
-    LastAvailableExecNodesCheckTime_ = now;
+    YT_LOG_DEBUG("Available exec nodes check succeeded (ObservedNodeAddress: %v)",
+        observedExecNode.Address);
 }
 
 void TOperationControllerBase::AnalyzeTmpfsUsage()
