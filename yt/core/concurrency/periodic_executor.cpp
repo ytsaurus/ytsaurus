@@ -112,7 +112,7 @@ void TPeriodicExecutor::ScheduleOutOfBand()
 void TPeriodicExecutor::ScheduleNext()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    
+
     // There several reasons why this may fail:
     // 1) Calling ScheduleNext outside of the periodic action
     // 2) Calling ScheduleNext more than once
@@ -122,7 +122,7 @@ void TPeriodicExecutor::ScheduleNext()
 
     if (!Started_)
         return;
-    
+
     if (IdlePromise_ && IdlePromise_.IsSet()) {
         IdlePromise_ = TPromise<void>();
     }
@@ -142,7 +142,7 @@ void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
     TDelayedExecutor::CancelAndClear(Cookie_);
     Cookie_ = TDelayedExecutor::Submit(
         BIND(&TPeriodicExecutor::OnTimer, MakeWeak(this)),
-        delay); 
+        delay);
 }
 
 void TPeriodicExecutor::PostCallback()
@@ -196,7 +196,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
     if (executedPromise) {
         executedPromise.Set();
     }
-    
+
     if (Mode_ == EPeriodicExecutorMode::Automatic) {
         ScheduleNext();
     }

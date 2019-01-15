@@ -74,15 +74,15 @@ private:
     const bool ValidateBlockChecksums_;
     IBlocksExtCache* const BlocksExtCache_;
 
-    TMutex Mutex_;
-    std::atomic<bool> HasCachedDataFile_ = {false};
-    TFuture<std::shared_ptr<TFileHandle>> CachedDataFile_;
-    
+    TSpinLock DataFileLock_;
+    TFuture<std::shared_ptr<TFileHandle>> AsyncDataFile_;
+
     TFuture<std::vector<TBlock>> DoReadBlocks(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        TRefCountedBlocksExtPtr blocksExt = nullptr);
+        TRefCountedBlocksExtPtr blocksExt = nullptr,
+        std::shared_ptr<TFileHandle> dataFile = nullptr);
     std::vector<TBlock> OnDataBlock(
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
@@ -97,6 +97,7 @@ private:
         const TString& metaFileName,
         TChunkReaderStatisticsPtr chunkReaderStatistics,
         const TSharedMutableRef& data);
+
     void DumpBrokenBlock(
         int blockIndex,
         const NProto::TBlockInfo& blockInfo,
@@ -104,7 +105,7 @@ private:
     void DumpBrokenMeta(TRef block) const;
 
     TFuture<TRefCountedBlocksExtPtr> ReadBlocksExt(const TClientBlockReadOptions& options);
-    const std::shared_ptr<TFileHandle>& GetDataFile();
+    TFuture<std::shared_ptr<TFileHandle>> OpenDataFile();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileReader)

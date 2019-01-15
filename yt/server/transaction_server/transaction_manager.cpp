@@ -82,7 +82,6 @@ public:
     }
 
 private:
-    TImpl* const Owner_;
     const EObjectType ObjectType_;
 
 
@@ -993,7 +992,6 @@ TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(
     TImpl* owner,
     EObjectType objectType)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TransactionMap_)
-    , Owner_(owner)
     , ObjectType_(objectType)
 { }
 

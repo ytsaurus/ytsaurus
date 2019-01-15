@@ -59,7 +59,7 @@ public:
             std::swap(Queue_, queue);
             YCHECK(TryClose(ServerSocket_, false));
         }
-        
+
         for (auto& promise : queue) {
            promise.Set(Error_);
         }
@@ -121,9 +121,9 @@ private:
     void Abort(const TError& error)
     {
         YCHECK(!error.IsOK());
-        
+
         auto guard = Guard(Lock_);
-        
+
         if (!Error_.IsOK()) {
             return;
         }
@@ -203,7 +203,7 @@ IListenerPtr CreateListener(
         YCHECK(TryClose(serverSocket, false));
         throw;
     }
-}    
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -91,7 +91,7 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
     if (auto monitoringPort = legacyConfig->AsMap()->FindChild("monitoring_port")) {
         config->AsMap()->AddChild("monitoring_port", CloneNode(monitoringPort));
     }
-        
+
     if (auto node = legacyConfig->AsMap()->FindChild("cypress_annotations")) {
         config->AsMap()->AddChild("cypress_annotations", CloneNode(node));
     }
@@ -114,7 +114,7 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
 
     config = PatchNode(config, ConvertAuthFromLegacyConfig(legacyConfig));
     config = PatchNode(config, ConvertHttpsFromLegacyConfig(legacyConfig));
-        
+
     return config;
 }
 

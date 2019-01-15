@@ -33,9 +33,8 @@ constexpr int ExtraFlag = 1 << 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRandomAccessGZipFile::TRandomAccessGZipFile(const TString& path, int blockSize)
-    : File_(path, OpenAlways|RdWr|CloseOnExec)
-    , BlockSize_(blockSize)
+TRandomAccessGZipFile::TRandomAccessGZipFile(TFile* file, size_t /*blockSize*/)
+    : File_(file)
 {
     Repair();
     Reset();
@@ -43,7 +42,7 @@ TRandomAccessGZipFile::TRandomAccessGZipFile(const TString& path, int blockSize)
 
 void TRandomAccessGZipFile::Repair()
 {
-    auto fileSize = File_.GetLength();
+    auto fileSize = File_->GetLength();
     if (fileSize == 0) {
         return;
     }
@@ -51,20 +50,20 @@ void TRandomAccessGZipFile::Repair()
     while (OutputPosition_ != fileSize) {
         TGZipExtendedHeader header;
         if (fileSize - OutputPosition_ < sizeof(header)) {
-            File_.Resize(OutputPosition_);
+            File_->Resize(OutputPosition_);
             return;
         }
-        
-        File_.Pread(&header, sizeof(header), OutputPosition_);
+
+        File_->Pread(&header, sizeof(header), OutputPosition_);
         // Wrong magic.
         if (header.FixedHeader.Id[0] != 0x1f || header.FixedHeader.Id[1] != 0x8b) {
-            File_.Resize(OutputPosition_);
+            File_->Resize(OutputPosition_);
             return;
         }
 
         // Block is not fully flushed.
         if (OutputPosition_ + header.SmuggledBlockSize > fileSize || header.SmuggledBlockSize == 0) {
-            File_.Resize(OutputPosition_);
+            File_->Resize(OutputPosition_);
             return;
         }
 
@@ -87,7 +86,7 @@ void TRandomAccessGZipFile::DoFlush()
 {
     Compressor_->Finish();
     auto buffer = Output_.Buffer();
-    
+
     TGZipExtendedHeader header;
     memcpy(&header.FixedHeader, buffer.Data() + HeaderGrowth, sizeof(header.FixedHeader));
 
@@ -103,7 +102,7 @@ void TRandomAccessGZipFile::DoFlush()
 
     memcpy(buffer.Data(), &header, sizeof(header));
 
-    File_.Pwrite(buffer.Data(), buffer.Size(), OutputPosition_);
+    File_->Pwrite(buffer.Data(), buffer.Size(), OutputPosition_);
     OutputPosition_ += buffer.Size();
     Reset();
 }

@@ -14,8 +14,8 @@ using namespace NTableClient;
 
 void TestNameTableExpansion(ISchemalessFormatWriterPtr writer, TNameTablePtr nameTable)
 {
-    // We write five rows, on each iteration we double number of 
-    // columns in the NameTable. 
+    // We write five rows, on each iteration we double number of
+    // columns in the NameTable.
     for (int iteration = 0; iteration < 5; ++iteration) {
         TUnversionedOwningRowBuilder row;
         for (int index = 0; index < (1 << iteration); ++index) {

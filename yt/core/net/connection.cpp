@@ -387,7 +387,7 @@ public:
             }
             protector = TShutdownProtector(this);
         }
-        
+
         if (Any(control & EPollControl::Write)) {
             DoIO(&WriteDirection_, true, std::move(protector));
         }
@@ -576,7 +576,7 @@ public:
 
         if (deadline) {
             WriteTimeoutCookie_ = TDelayedExecutor::Submit(AbortFromWriteTimeout_, deadline);
-        }        
+        }
     }
 
 private:
@@ -592,6 +592,7 @@ private:
         explicit TShutdownProtector(TFDConnectionImplPtr owner)
             : Owner_(std::move(owner))
         {
+            VERIFY_SPINLOCK_AFFINITY(Owner_->Lock_);
             ++Owner_->ShutdownProtectorCount_;
         }
 
@@ -676,7 +677,7 @@ private:
     TIODirection ReadDirection_;
     TIODirection WriteDirection_;
     bool ShutdownRequested_ = false;
-    std::atomic<int> ShutdownProtectorCount_ = {0};
+    int ShutdownProtectorCount_ = 0;
     std::atomic<int> SynchronousIOCount_ = {0};
     TError Error_;
     TPromise<void> ShutdownPromise_ = NewPromise<void>();
@@ -687,7 +688,7 @@ private:
 
     TClosure AbortFromReadTimeout_;
     TClosure AbortFromWriteTimeout_;
-    
+
     TDelayedExecutorCookie ReadTimeoutCookie_;
     TDelayedExecutorCookie WriteTimeoutCookie_;
 
@@ -695,10 +696,10 @@ private:
     {
         AbortFromReadTimeout_ = BIND(&TFDConnectionImpl::AbortFromReadTimeout, MakeWeak(this));
         AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
-    
+
         ReadDirection_.PollFlag = EPollControl::Read;
         WriteDirection_.PollFlag = EPollControl::Write;
-        
+
         Poller_->Register(this);
     }
 
@@ -733,7 +734,7 @@ private:
                     THROW_ERROR_EXCEPTION("Another IO operation is in progress")
                         << TErrorAttribute("connection", Name_);
                 }
-            
+
                 direction->Operation = std::move(operation);
                 direction->StartBusyTimer();
                 protector = TShutdownProtector(this);

@@ -232,7 +232,7 @@ private:
 
         memcpy(Current_, buffer, size);
         memset(Current_ + size, 0, AlignUp(size) - size);
-        
+
         NSan::CheckMemIsInitialized(Current_, AlignUp(size));
         Current_ += AlignUp(size);
         Y_ASSERT(Current_ <= EndPreallocated_);

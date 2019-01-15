@@ -1587,17 +1587,24 @@ private:
         }
     }
 
-    void RegisterTagForDataCenter(const TDataCenter* dataCenter, THashMap<const TDataCenter*, TTagId>* dataCenterToTag)
+    void RegisterTagForSourceDataCenter(const TDataCenter* dataCenter)
     {
         auto dataCenterName = dataCenter ? dataCenter->GetName() : TString();
         auto tagId = TProfileManager::Get()->RegisterTag("source_data_center", dataCenterName);
-        YCHECK(dataCenterToTag->emplace(dataCenter, tagId).second);
+        YCHECK(SourceDataCenterToTag_.emplace(dataCenter, tagId).second);
+    }
+
+    void RegisterTagForDestinationDataCenter(const TDataCenter* dataCenter)
+    {
+        auto dataCenterName = dataCenter ? dataCenter->GetName() : TString();
+        auto tagId = TProfileManager::Get()->RegisterTag("destination_data_center", dataCenterName);
+        YCHECK(DestinationDataCenterToTag_.emplace(dataCenter, tagId).second);
     }
 
     void RegisterTagsForDataCenter(const TDataCenter* dataCenter)
     {
-        RegisterTagForDataCenter(dataCenter, &SourceDataCenterToTag_);
-        RegisterTagForDataCenter(dataCenter, &DestinationDataCenterToTag_);
+        RegisterTagForSourceDataCenter(dataCenter);
+        RegisterTagForDestinationDataCenter(dataCenter);
     }
 
     void UnregisterTagsForDataCenter(const TDataCenter* dataCenter)

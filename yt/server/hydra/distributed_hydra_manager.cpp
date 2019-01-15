@@ -191,7 +191,7 @@ public:
 
         ControlState_ = EPeerState::Elections;
 
-        IncrementRestartCounter("Initialization");
+        ProfileRestart("Initialization");
 
         Participate();
     }
@@ -370,6 +370,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        
+        // NB: This is monotonic: once in read-only mode, cannot leave it.
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -385,10 +387,12 @@ public:
                         "Leader has not yet recovered"));
                 }
 
-                if (!LeaderLease_->IsValid()) {
+                if (!LeaderLease_->IsValid() || AutomatonEpochContext_->LeaderLeaseExpired) {
                     auto error = TError(
                         NRpc::EErrorCode::Unavailable,
                         "Leader lease is no longer valid");
+                    // Ensure monotonicity: once Hydra rejected a mutation, no more mutations are accepted.
+                    AutomatonEpochContext_->LeaderLeaseExpired = true;
                     Restart(AutomatonEpochContext_, error);
                     return MakeFuture<TMutationResponse>(error);
                 }
@@ -463,9 +467,6 @@ private:
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    THashMap<TString, NProfiling::TMonotonicCounter> RestartCounters_;
-
-    
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -902,17 +903,16 @@ private:
             BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
-    void IncrementRestartCounter(const TString& message)
+    void ProfileRestart(const TString& message)
     {
-        auto it = RestartCounters_.find(message);
-        if (it == RestartCounters_.end()) {
-            auto tagIds = Options_.ProfilingTagIds;
-            tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("reason", message));
-            auto counter = NProfiling::TMonotonicCounter("/restart_count", tagIds);
-            it = RestartCounters_.insert(std::make_pair(message, counter)).first;
-        }
+        auto tagIds = Options_.ProfilingTagIds;
+        tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("reason", message));
 
-        Profiler.Increment(it->second);
+        Profiler.Enqueue(
+            "/restart_count",
+            1,
+            NProfiling::EMetricType::Gauge,
+            tagIds);
     }
 
     void Restart(TEpochId epochId, const TError& error)
@@ -950,7 +950,7 @@ private:
 
         YT_LOG_WARNING(error, "Restarting Hydra instance");
 
-        IncrementRestartCounter(error.GetMessage());
+        ProfileRestart(error.GetMessage());
 
         ElectionManager_->Abandon();
     }
@@ -1073,7 +1073,7 @@ private:
     void RotateChangelogAndWatch()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        
+
         auto changelogResult = AutomatonEpochContext_->Checkpointer->RotateChangelog();
         WatchChangelogRotation(changelogResult);
     }
@@ -1161,7 +1161,7 @@ private:
 
         YCHECK(!AutomatonEpochContext_);
         AutomatonEpochContext_ = epochContext;
-        
+
         DecoratedAutomaton_->OnStartLeading(epochContext);
 
         StartLeading_.Fire();
@@ -1261,11 +1261,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ResetAutomatonEpochContext();
-        
+
         leaderCommitter->Stop();
-        
+
         DecoratedAutomaton_->OnStopLeading();
-        
+
         StopLeading_.Fire();
 
         Participate();
@@ -1367,7 +1367,7 @@ private:
         followerCommitter->Stop();
 
         DecoratedAutomaton_->OnStopFollowing();
-        
+
         StopFollowing_.Fire();
 
         Participate();
@@ -1488,7 +1488,7 @@ private:
         }
 
         ControlEpochContext_->CancelableContext->Cancel();
-        
+
         ControlEpochContext_.Reset();
     }
 
@@ -1509,7 +1509,7 @@ private:
         trySetPromise(AutomatonEpochContext_->ActiveUpstreamSyncPromise);
         trySetPromise(AutomatonEpochContext_->PendingUpstreamSyncPromise);
         trySetPromise(AutomatonEpochContext_->LeaderSyncPromise);
-        
+
         AutomatonEpochContext_.Reset();
     }
 

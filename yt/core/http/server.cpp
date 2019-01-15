@@ -143,7 +143,7 @@ private:
         Poller_->GetInvoker()->Invoke(
             BIND(&TServer::HandleConnection, MakeStrong(this), std::move(connection), connectionId));
     }
-    
+
     bool HandleRequest(const THttpInputPtr& request, const THttpOutputPtr& response)
     {
         response->SetStatus(EStatusCode::InternalServerError);
@@ -244,7 +244,7 @@ private:
             auto requestId = TGuid::Create();
             request->SetRequestId(requestId);
             response->SetRequestId(requestId);
-        
+
             bool ok = HandleRequest(request, response);
             if (!ok) {
                 break;

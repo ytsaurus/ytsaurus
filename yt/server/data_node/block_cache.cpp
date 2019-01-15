@@ -51,17 +51,7 @@ public:
             const auto& chunkBlockManager =Bootstrap_->GetChunkBlockManager();
             chunkBlockManager->PutCachedBlock(id, data, source);
         } else {
-            TBlock block;
-            {
-                // NB: Copy block to move data to undumpable memory and to
-                // prevent cache from holding the whole block sequence.
-                TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-                block = TBlock(
-                    TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data.Data),
-                    data.Checksum,
-                    data.BlockOrigin);
-            }
-            UnderlyingCache_->Put(id, type, block, source);
+            UnderlyingCache_->Put(id, type, data, source);
         }
     }
 

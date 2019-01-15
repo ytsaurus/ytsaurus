@@ -1129,7 +1129,7 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
 
     for (const auto& pair : *descriptors) {
         const auto& descriptor = pair.second;
-        if (descriptor.CanSchedule(filter)) {
+        if (descriptor.Online && descriptor.CanSchedule(filter)) {
             statistics.Usage += descriptor.ResourceUsage;
             statistics.Limits += descriptor.ResourceLimits;
         }
@@ -1357,8 +1357,6 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
     if (node->GetJobReporterQueueIsTooLarge()) {
         --JobReporterQueueIsTooLargeNodeCount_;
     }
-
-    //YCHECK(IdToNode_.erase(node->GetId()) == 1);
 
     node->SetSchedulerState(ENodeState::Offline);
 

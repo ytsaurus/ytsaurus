@@ -27,7 +27,7 @@ struct IColumnReaderBase
     //! First row index outside the current block.
     virtual i64 GetBlockUpperRowIndex() const = 0;
 
-    //! First row index outside the range that is ready to be 
+    //! First row index outside the range that is ready to be
     //! read without block or segment change.
     virtual i64 GetReadyUpperRowIndex() const = 0;
 
@@ -43,7 +43,7 @@ struct IUnversionedColumnReader
 {
     /*!
      *  Caller must guarantee, that range of values between #lowerRowIndex
-     *  and #upperRowIndex is sorted and doesn't exceed current block. 
+     *  and #upperRowIndex is sorted and doesn't exceed current block.
      *  Returns range of row indexes with values equal to #value.
      */
     virtual std::pair<i64, i64> GetEqualRange(

@@ -68,7 +68,8 @@ void TSlotManager::Initialize()
                 Bootstrap_,
                 Format("slots%v", locationIndex),
                 JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path),
-                Config_->EnableTmpfs));
+                Config_->EnableTmpfs,
+                SlotCount_));
 
             if (Locations_.back()->IsEnabled()) {
                 AliveLocations_.push_back(Locations_.back());

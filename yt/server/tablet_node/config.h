@@ -646,10 +646,10 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr StoreFlushOutThrottler;
 
     //! Controls incoming bandwidth used by store compactions.
-    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionInThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionAndPartitioningInThrottler;
 
     //! Controls outcoming bandwidth used by store compactions.
-    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionOutThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionAndPartitioningOutThrottler;
 
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
@@ -706,9 +706,9 @@ public:
         RegisterParameter("store_flush_out_throttler", StoreFlushOutThrottler)
             .DefaultNew();
 
-        RegisterParameter("store_compaction_in_throttler", StoreCompactionInThrottler)
+        RegisterParameter("store_compaction_and_partitioning_in_throttler", StoreCompactionAndPartitioningInThrottler)
             .DefaultNew();
-        RegisterParameter("store_compaction_out_throttler", StoreCompactionOutThrottler)
+        RegisterParameter("store_compaction_and_partitioning_out_throttler", StoreCompactionAndPartitioningOutThrottler)
             .DefaultNew();
 
         RegisterParameter("slot_scan_period", SlotScanPeriod)

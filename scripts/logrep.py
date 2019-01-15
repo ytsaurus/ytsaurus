@@ -79,6 +79,7 @@ LOG_DIR_NAME_MAP = {info.log_dir_name : info for info in APPLICATION_TABLE}
 
 SSH_OPTS = [
     "-o", "StrictHostKeyChecking=no",
+    "-o", "CheckHostIP=no",
 ]
 
 

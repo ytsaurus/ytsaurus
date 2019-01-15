@@ -15,7 +15,7 @@ TGroup::TGroup(TGroupId id)
 void TGroup::Save(NCellMaster::TSaveContext& context) const
 {
     TSubject::Save(context);
-    
+
     using NYT::Save;
     Save(context, Members_);
 }

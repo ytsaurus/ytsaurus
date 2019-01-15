@@ -437,7 +437,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    int minConcurrency)
+    int minConcurrency,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
@@ -487,7 +488,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
                 AllCommittedTimestamp,
                 true,
                 TColumnFilter(),
-                blockReadOptions);
+                blockReadOptions,
+                throttler);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,

@@ -12,12 +12,16 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/concurrency/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using TStoreFlushResult = std::vector<NTabletNode::NProto::TAddStoreDescriptor>;
-using TStoreFlushCallback = TCallback<TStoreFlushResult(NApi::ITransactionPtr transaction)>;
+using TStoreFlushCallback = TCallback<TStoreFlushResult(
+    NApi::ITransactionPtr transaction,
+    NConcurrency::IThroughputThrottlerPtr)>;
 
 //! Provides a facade for modifying data within a given tablet.
 /*!

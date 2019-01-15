@@ -62,8 +62,8 @@ struct TFairShareContext
 
     void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
-    TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element);
-    const TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element) const;
+    TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
+    const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
 
     bool Initialized = false;
 
@@ -167,7 +167,7 @@ private:
     NConcurrency::TReaderWriterSpinLock JobMetricsLock_;
 
     // NB: Avoid false sharing between ResourceUsageLock_ and others.
-    char Padding[64];
+    [[maybe_unused]] char Padding[64];
 
     std::atomic<bool> Alive_ = {true};
 
@@ -238,7 +238,8 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const = 0;
     virtual TDuration GetFairSharePreemptionTimeout() const = 0;
 
-    TCompositeSchedulerElement* GetParent() const;
+    TCompositeSchedulerElement* GetMutableParent();
+    const TCompositeSchedulerElement* GetParent() const;
     void SetParent(TCompositeSchedulerElement* parent);
 
     TInstant GetStartTime() const;
@@ -579,8 +580,6 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    int GetScheduledJobCount() const;
-
     std::optional<TJobResources> AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force);
     std::optional<TJobResources> RemoveJob(TJobId jobId);
 
@@ -642,7 +641,6 @@ private:
     TSpinLock PreemptionStatusStatisticsLock_;
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
-    std::atomic<int> ScheduledJobCount_ = {0};
     TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons_;
 
     TInstant LastScheduleJobSuccessTime_;
@@ -729,8 +727,6 @@ public:
     int GetAggressivelyPreemptableJobCount() const;
 
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
-
-    int GetScheduledJobCount() const;
 
     TInstant GetLastNonStarvingTime() const;
     TInstant GetLastScheduleJobSuccessTime() const;

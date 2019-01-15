@@ -329,9 +329,11 @@ private:
             YT_LOG_INFO("Store flush transaction created (TransactionId: %v)",
                 transaction->GetId());
 
+            auto throttler = Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletStoreFlush);
+
             auto asyncFlushResult = flushCallback
                 .AsyncVia(ThreadPool_->GetInvoker())
-                .Run(transaction);
+                .Run(transaction, std::move(throttler));
 
             auto flushResult = WaitFor(asyncFlushResult)
                 .ValueOrThrow();

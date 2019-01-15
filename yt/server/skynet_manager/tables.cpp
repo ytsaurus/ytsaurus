@@ -219,7 +219,7 @@ TUnversionedRow ToRow(
     std::vector<TUnversionedRow>* filesRows)
 {
     auto row = rowBuffer->AllocateUnversioned(4);
-    
+
     auto resourceRowId = nameTable->GetIdOrRegisterName("resource_id");
     row[0] = rowBuffer->Capture(MakeUnversionedStringValue(resourceId, resourceRowId));
 
@@ -482,7 +482,7 @@ void TTables::EraseRequest(const TRequestKey& key)
     }
 
     WaitFor(tx->Commit())
-        .ValueOrThrow();    
+        .ValueOrThrow();
 }
 
 void TTables::GetResource(

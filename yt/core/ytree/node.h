@@ -65,7 +65,7 @@ struct INode
     //! Returns the parent of the node.
     //! |nullptr| indicates that the current node is the root.
     virtual ICompositeNodePtr GetParent() const = 0;
-    
+
     //! Sets the parent of the node.
     /*!
      *  This method is called automatically when one subtree (possibly)
@@ -365,7 +365,7 @@ DEFINE_REFCOUNTED_TYPE(IEntityNode)
 //! A factory for creating nodes.
 /*!
  *  All freshly created nodes are roots, i.e. have no parent.
- *  
+ *
  *  The factory also acts as a "transaction context" that holds all created nodes.
  *
  *  One must call #Commit at the end if the operation was a success.

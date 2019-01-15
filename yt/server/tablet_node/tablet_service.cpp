@@ -258,7 +258,7 @@ private:
     {
         return Slot_->GetHydraManager();
     }
-    
+
 };
 
 IServicePtr CreateTabletService(TTabletSlotPtr slot, NCellNode::TBootstrap* bootstrap)

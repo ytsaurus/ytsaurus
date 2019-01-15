@@ -37,7 +37,7 @@ class TPeerBlockTable
 {
 public:
     explicit TPeerBlockTable(TPeerBlockTableConfigPtr config, NCellNode::TBootstrap* bootstrap);
-    
+
     //! Gets peers where a particular block was sent to.
     /*!
      *  Also sweeps expired peers.
@@ -56,7 +56,7 @@ public:
 
 private:
     const TPeerBlockTableConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    [[maybe_unused]] NCellNode::TBootstrap* const Bootstrap_;
 
     //! Each vector is sorted by decreasing expiration time.
     THashMap<TBlockId, std::vector<TPeerInfo>> Table_;

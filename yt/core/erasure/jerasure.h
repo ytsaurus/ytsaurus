@@ -40,7 +40,7 @@ public:
     TMatrix(const TMatrix&) = delete;
 
     int* Get() const;
-    
+
     TMatrix(TMatrix&&);
     TMatrix& operator = (TMatrix&&);
     TMatrix operator = (const TMatrix&) = delete;

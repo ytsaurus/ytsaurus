@@ -31,7 +31,7 @@ public:
         : TRange<char>(static_cast<const char*>(begin), static_cast<const char*>(end))
     { }
 
-    
+
     //! Creates a non-owning TRef for a given blob.
     static TRef FromBlob(const TBlob& blob)
     {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/core/misc/size_literals.h>
+
 #include <memory>
 
 #include <util/generic/buffer.h>
@@ -17,11 +19,11 @@ class TRandomAccessGZipFile
     : public IOutputStream
 {
 public:
-    explicit TRandomAccessGZipFile(const TString& path, int blockSize = 256 * 1024);
+    explicit TRandomAccessGZipFile(TFile* file, size_t blockSize = 256_KB);
 
 private:
-    TFile File_;
-    const int BlockSize_;
+    TFile* const File_;
+
     i64 OutputPosition_ = 0;
 
     TBufferOutput Output_;

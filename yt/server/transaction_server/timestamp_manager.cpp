@@ -95,11 +95,11 @@ private:
 
     TActionQueuePtr TimestampQueue_;
     IInvokerPtr TimestampInvoker_;
-    
+
     TPeriodicExecutorPtr CalibrationExecutor_;
 
     // Timestamp thread affinity:
-    
+
     //! Can we generate timestamps?
     volatile bool Active_ = false;
 
@@ -171,7 +171,7 @@ private:
             YT_LOG_INFO("Spare timestamps are available again");
             BackingOff_ = false;
         }
-        
+
         // Make sure there's no overflow in the counter part.
         YCHECK(((CurrentTimestamp_ + count) >> TimestampCounterWidth) == (CurrentTimestamp_ >> TimestampCounterWidth));
 
@@ -194,7 +194,7 @@ private:
 
         ui64 nowSeconds = ::time(nullptr);
         ui64 prevSeconds = (CurrentTimestamp_ >> TimestampCounterWidth);
-        
+
         if (nowSeconds == prevSeconds)
             return;
 
