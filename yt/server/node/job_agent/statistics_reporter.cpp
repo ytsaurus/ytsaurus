@@ -433,8 +433,8 @@ private:
             if (statistics.Events()) {
                 builder.AddValue(MakeUnversionedAnyValue(*statistics.Events(), Table_.Index.Events));
             }
-            if (statistics.Stderr()) {
-                builder.AddValue(MakeUnversionedUint64Value(statistics.Stderr()->Size(), Table_.Index.StderrSize));
+            if (statistics.StderrSize()) {
+                builder.AddValue(MakeUnversionedUint64Value(*statistics.StderrSize(), Table_.Index.StderrSize));
             }
             if (GetSharedData()->GetOperationArchiveVersion() >= 18) {
                 builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), Table_.Index.UpdateTime));

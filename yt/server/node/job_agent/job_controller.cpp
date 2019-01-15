@@ -677,8 +677,12 @@ void TJobController::TImpl::RemoveJob(const IJobPtr& job, bool archiveJobSpec, b
     }
 
     if (archiveStderr) {
-        YT_LOG_INFO("Stderr archived (JobId: %v)", job->GetId());
+        YT_LOG_INFO("Archiving stderr (JobId: %v)", job->GetId());
         job->ReportStderr();
+    } else {
+        // We report zero stderr size to make dynamic tables with jobs and stderrs consistent.
+        YT_LOG_INFO("Stderr will not be archived, reporting zero stderr size (JobId: %v)", job->GetId());
+        job->SetStderrSize(0);
     }
 
     if (archiveFailContext) {

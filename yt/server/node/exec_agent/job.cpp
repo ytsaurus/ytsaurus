@@ -391,6 +391,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         StderrSize_ = value;
+
+        ReportStatistics(MakeDefaultJobStatistics()
+            .StderrSize(StderrSize_));
     }
 
     virtual void SetStderr(const TString& value) override
