@@ -115,12 +115,7 @@ public:
             GetType());
 
         JobEvents_.emplace_back(JobState_, JobPhase_);
-        ReportStatistics(
-            TJobStatistics()
-                .Type(GetType())
-                .State(GetState())
-                .StartTime(TInstant::Now()) // TODO(ignat): fill correct start time.
-                .Events(JobEvents_));
+        ReportStatistics(MakeDefaultJobStatistics());
     }
 
     virtual void Start() override
@@ -439,10 +434,8 @@ public:
 
         if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
             Statistics_ = statistics;
-            ReportStatistics(TJobStatistics()
-                .Statistics(Statistics_)
-                .Type(GetType())
-                .State(GetState()));
+            ReportStatistics(MakeDefaultJobStatistics()
+                .Statistics(Statistics_));
         }
     }
 
@@ -539,6 +532,20 @@ public:
         }
     }
 
+    TJobStatistics MakeDefaultJobStatistics()
+    {
+        auto statistics = TJobStatistics()
+            .Type(GetType())
+            .State(GetState())
+            .StartTime(GetStartTime())
+            .SpecVersion(0) // TODO: fill correct spec version.
+            .Events(JobEvents_);
+        if (FinishTime_) {
+            statistics.SetFinishTime(*FinishTime_);
+        }
+        return statistics;
+    }
+
     virtual void ReportStatistics(TJobStatistics&& statistics) override
     {
         Bootstrap_->GetStatisticsReporter()->ReportStatistics(
@@ -547,14 +554,8 @@ public:
 
     virtual void ReportSpec() override
     {
-        ReportStatistics(
-            TJobStatistics()
-                .Type(GetType())
-                .State(GetState())
-                .Spec(JobSpec_)
-                .StartTime(GetStartTime())
-                .SpecVersion(0) // TODO: fill correct spec version.
-                .Events(JobEvents_));
+        ReportStatistics(MakeDefaultJobStatistics()
+            .Spec(JobSpec_));
     }
 
     virtual void ReportStderr() override
@@ -710,14 +711,7 @@ private:
     void AddJobEvent(U&&... u)
     {
         JobEvents_.emplace_back(std::forward<U>(u)...);
-        auto statistics = TJobStatistics()
-            .Events(JobEvents_)
-            .State(JobState_);
-        if (FinishTime_) {
-            statistics.SetFinishTime(*FinishTime_);
-        }
-
-        ReportStatistics(std::move(statistics));
+        ReportStatistics(MakeDefaultJobStatistics());
     }
 
     void SetJobState(EJobState state)
