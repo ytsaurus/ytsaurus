@@ -767,6 +767,8 @@ class YTInstance(object):
             self._all_processes[p.pid] = (p, args)
             self._append_pid(p.pid)
 
+            logger.debug("Process %s started (pid: %d)", name, p.pid)
+
     def _run_yt_component(self, component, name=None):
         if name is None:
             name = component
