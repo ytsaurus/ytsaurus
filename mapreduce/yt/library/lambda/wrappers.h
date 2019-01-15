@@ -75,6 +75,22 @@ TMapReduceOperationSpec PrepareMRSpec(
     return spec;
 }
 
+template<class R, class W>
+TReduceOperationSpec PrepareReduceSpec(
+    const TKeyBase<TRichYPath>& from,
+    const TRichYPath& to,
+    const TKeyColumns& reduceFields)
+{
+    auto spec = TReduceOperationSpec()
+        .template AddOutput<W>(WithSchema<W>(to, reduceFields))
+        .ReduceBy(reduceFields);
+
+    for (auto& input : from.Parts_) {
+        spec.template AddInput<R>(input);
+    }
+    return spec;
+}
+
 template <class Mapper>
 bool RegisterMapperStatic() {
     REGISTER_MAPPER(Mapper);
@@ -85,6 +101,20 @@ template <class Reducer>
 bool RegisterReducerStatic() {
     REGISTER_REDUCER(Reducer);
     return true;
+}
+
+template<class Reducer, class TReduce, class TFinalize>
+TIntrusivePtr<IReducerBase> ChooseReducer(TReduce reducer, TFinalize finalizer, const TKeyColumns& reduceColumns) {
+    if (!reducer)
+        return nullptr; // let main API generate an exception
+
+    if (finalizer)
+        return new Reducer(reducer, finalizer, reduceColumns);
+
+    if (auto reducerObj = Reducer::SameWithoutFinalizer(reducer, reduceColumns))
+        return reducerObj;
+
+    ythrow yexception() << "finalizer can not be null";
 }
 
 // ==============================================
@@ -279,6 +309,13 @@ public:
         writer->AddRow(writeBuf);
     }
 
+    static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TKeyColumns& reduceColumns) {
+        if constexpr(std::is_same<TBuf, W>::value) {
+            return new TLambdaReducer<R, W>(reducer, reduceColumns);
+        }
+        return nullptr;
+    }
+
 private:
     static bool Registrator;
 };
@@ -327,6 +364,13 @@ public:
         TBase::FieldCopier(interim, writeBuf);
         TBase::Func.second(interim, writeBuf);
         writer->AddRow(writeBuf);
+    }
+
+    static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TKeyColumns&) {
+        if constexpr(std::is_same<R, W>::value) {
+            return new TAdditiveReducer<W>(reducer);
+        }
+        return nullptr;
     }
 
 private:

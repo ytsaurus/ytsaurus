@@ -7,7 +7,7 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-static void CreateTable(IClientPtr client, TString tableName, const TVector<TNode>& table) {
+static void CreateTable(IClientPtr client, const TRichYPath& tableName, const TVector<TNode>& table) {
     auto writer = client->CreateTableWriter<TNode>(tableName);
     for (auto& elem : table) {
         writer->AddRow(elem);
@@ -29,6 +29,13 @@ const TVector<TNode> InputTableData = {
     TNode()("Key", "second")("Val", 20u),
     TNode()("Key", "third")("Val", 300u),
     TNode()("Key", "first")("Val", 4000u),
+};
+
+const TVector<TNode> SortedInputTableData = {
+    TNode()("key", "first")("val", 1u),
+    TNode()("key", "first")("val", 4000u),
+    TNode()("key", "second")("val", 20u),
+    TNode()("key", "third")("val", 300u),
 };
 
 // Comparison with this works nicely only because (integer)/2.f is quite round
@@ -88,19 +95,146 @@ Y_UNIT_TEST_SUITE(Lambda) {
         CompareTable(client, "//testing/output", expectedOutput);
     }
 
+    Y_UNIT_TEST(AdditiveReduce) {
+        auto client = CreateTestClient();
+        CreateTable(client,
+            TRichYPath("//testing/input").SortedBy("key"),
+            SortedInputTableData);
+
+        AdditiveReduce<TNode, TNode>(client, "//testing/input",  "//testing/output",
+            { "key" },
+            [](auto& src, auto& dst) { // reducer
+                dst["val"] = dst["val"].AsUint64() + src["val"].AsUint64();
+            },
+            [](auto& src, auto& dst) { // finalizer
+                dst["inval"] = -(i64)src["val"].AsUint64();
+            });
+
+        TVector<TNode> expectedOutput = {
+            TNode()("key", "first")("inval", -4001),
+            TNode()("key", "second")("inval", -20),
+            TNode()("key", "third")("inval", -300),
+        };
+
+        CompareTable(client, "//testing/output", expectedOutput);
+    }
+
+    Y_UNIT_TEST(AdditiveReduceNoFinalizer) {
+        auto client = CreateTestClient();
+        CreateTable(client,
+            TRichYPath("//testing/input").SortedBy("key"),
+            SortedInputTableData);
+
+        AdditiveReduce<TNode>(client, "//testing/input",  "//testing/output",
+            { "key" },
+            [](auto& src, auto& dst) {
+                dst["val"] = dst["val"].AsUint64() + src["val"].AsUint64();
+            });
+
+        TVector<TNode> expectedOutput = {
+            TNode()("key", "first")("val", 4001u),
+            TNode()("key", "second")("val", 20u),
+            TNode()("key", "third")("val", 300u),
+        };
+
+        CompareTable(client, "//testing/output", expectedOutput);
+    }
+
+    // * TDispersionDataMsg could be used instead of this structure,
+    //   but look how clean the code is without Get/Set stuff.
+    struct TDispersionData {
+        ui64 Count = 0;
+        long double Sum = 0.;
+        long double SumSquared = 0.;
+    };
+
+    Y_UNIT_TEST(Reduce) {
+        auto client = CreateTestClient();
+        CreateTable(client,
+            TRichYPath("//testing/input").SortedBy("key"),
+            SortedInputTableData);
+
+        Reduce<TNode, TDispersionData, TNode>(client, "//testing/input",  "//testing/output",
+            { "key" },
+            [](auto& src, auto& dst) { // reducer
+                double value = src["val"].template ConvertTo<double>();
+                dst.Count++;
+                dst.Sum += value;
+                dst.SumSquared += value * value;
+            },
+            [](auto& src, auto& dst) { // finalizer
+                double mean = (double)src.Sum / src.Count;
+                double dispersion = (double)src.SumSquared / src.Count - mean * mean;
+                dst["mean"] = mean;
+                dst["sigma"] = std::sqrt(dispersion);
+            });
+
+        CompareTable(client, "//testing/output", ExpectedOutputStatistics);
+    }
+
+    Y_UNIT_TEST(ReduceNoFinalizer) {
+        auto client = CreateTestClient();
+        CreateTable(client,
+            TRichYPath("//testing/input").SortedBy("key"),
+            SortedInputTableData);
+
+        /* Note that the use of TNode here is inconvenient.
+           See MapReduceSortedNoFinalizer for similar protobuf usage.*/
+
+        Reduce<TNode, TNode>(client, "//testing/input",  "//testing/output",
+            { "key" },
+            [](auto& src, auto& dst) { // reducer
+                double value = src["val"].template ConvertTo<double>();
+                dst["count"] = (dst.HasKey("count") ? dst["count"].AsUint64() : 0u) + 1;
+                dst["sum"] = (dst.HasKey("sum") ? dst["sum"].AsDouble() : 0.) + value;
+                dst["sum_squared"] =
+                    (dst.HasKey("sum_squared") ? dst["sum_squared"].AsDouble() : 0.) + value * value;
+            });
+
+        CompareTable(client, "//testing/output", ExpectedOutputNF);
+    }
+
     Y_UNIT_TEST(AdditiveMapReduceSorted) {
         auto client = CreateTestClient();
         CreateTable(client, "//testing/input", InputTableData);
 
-        AdditiveMapReduceSorted<TNode, TNode>(client, "//testing/input",  "//testing/output",
+        AdditiveMapReduceSorted<TNode, TNode, TNode>(client, "//testing/input",  "//testing/output",
             { "Key1", "Key2" },
-            [](auto& src, auto& dst) {
+            [](auto& src, auto& dst) { // mapper
                 dst["Key1"] = src["Key"];
                 dst["Key2"] = TString(src["Key"].AsString().back()) + src["Key"].AsString();
                 dst["Val"] = src["Val"];
                 return true;
             },
-            [](auto& src, auto& dst) {
+            [](auto& src, auto& dst) { // reducer
+                dst["Val"] = dst["Val"].AsUint64() + src["Val"].AsUint64();
+            },
+            [](auto& src, auto& dst) { // finalizer
+                dst["Val"] = -(i64)src["Val"].AsUint64();
+            });
+
+        TVector<TNode> expectedOutput = {
+            TNode()("Key1", "first")("Key2", "tfirst")("Val", -4001),
+            TNode()("Key1", "second")("Key2", "dsecond")("Val", -20),
+            TNode()("Key1", "third")("Key2", "dthird")("Val", -300),
+        };
+
+        CompareTable(client, "//testing/output", expectedOutput);
+    }
+
+    Y_UNIT_TEST(AdditiveMapReduceSortedNoFinalizer) {
+        auto client = CreateTestClient();
+        CreateTable(client, "//testing/input", InputTableData);
+
+        AdditiveMapReduceSorted<TNode, TNode>(client, "//testing/input",  "//testing/output",
+            { "Key1", "Key2" },
+            [](auto& src, auto& dst) { // mapper
+                dst["Key1"] = src["Key"];
+                dst["Key2"] = TString(src["Key"].AsString().back()) + src["Key"].AsString();
+                dst["Val"] = src["Val"];
+                return true;
+            },
+            [](auto& src, auto& dst) { // reducer
                 dst["Val"] = dst["Val"].AsUint64() + src["Val"].AsUint64();
             });
 
@@ -112,16 +246,6 @@ Y_UNIT_TEST_SUITE(Lambda) {
 
         CompareTable(client, "//testing/output", expectedOutput);
     }
-
-    // * We could decrate this structure inside the function that uses it.
-    //   But that will result in quite an unreadable job title.
-    // * TDispersionDataMsg could be used instead of this structure,
-    //   but look how clean the code is without Get/Set stuff.
-    struct TDispersionData {
-        ui64 Count = 0;
-        long double Sum = 0.;
-        long double SumSquared = 0.;
-    };
 
     Y_UNIT_TEST(MapReduceSorted) {
         auto client = CreateTestClient();
