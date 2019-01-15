@@ -258,7 +258,7 @@ private:
         try {
             RunWithRetries([&] () { return Api_->Destroy(name); }, "Destroy");
         } catch (const TErrorException& ex) {
-            if (!ex.Error().FindMatching(EError::ContainerDoesNotExist)) {
+            if (!ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
                 throw;
             }
         }
