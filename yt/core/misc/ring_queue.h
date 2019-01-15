@@ -76,7 +76,7 @@ public:
         { }
 
         T* Ptr_;
-    
+
     };
 
     explicit TRingQueue(const TAllocator& allocator = TAllocator())
@@ -114,7 +114,7 @@ public:
             Allocator_.deallocate(Begin_, Capacity_);
         }
     }
-        
+
 
     T& front()
     {

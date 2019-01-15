@@ -59,7 +59,7 @@ public:
 
     //! Fired when a node gets registered.
     DECLARE_SIGNAL(void(TNode* node), NodeRegistered);
-    
+
     //! Fired when a node gets unregistered.
     DECLARE_SIGNAL(void(TNode* node), NodeUnregistered);
 

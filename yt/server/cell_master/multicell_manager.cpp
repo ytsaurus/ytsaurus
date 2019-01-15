@@ -420,7 +420,7 @@ private:
                 if (pair.first == cellTag) {
                     continue;
                 }
-                
+
                 {
                     // Inform others about the new secondary.
                     NProto::TReqRegisterSecondaryMasterAtSecondary request;

@@ -31,7 +31,7 @@ public:
         NLogging::TLogger logger,
         const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
 
-    //! Runs single health check. 
+    //! Runs single health check.
     //! Don't call after #Start(), otherwise two checks may interfere.
     TFuture<void> RunCheck();
 

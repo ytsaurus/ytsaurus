@@ -24,7 +24,7 @@ TSyncExpiringCache<TKey, TValue>::TSyncExpiringCache(
         expirationTimeout,
         NConcurrency::EPeriodicExecutorMode::Automatic))
 {
-    EvictionExecutor_->Start();   
+    EvictionExecutor_->Start();
 }
 
 template <class TKey, class TValue>

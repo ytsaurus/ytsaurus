@@ -113,7 +113,7 @@ public:
                 THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::ReaderDeadlineExpired, "Reader deadline expired");
             }
         }
-    
+
         rows->clear();
 
         if (IsAborted()) {

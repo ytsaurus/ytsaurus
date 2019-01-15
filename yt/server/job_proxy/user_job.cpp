@@ -533,26 +533,6 @@ private:
         }
     }
 
-    void KillUserProcesses()
-    {
-        if (JobEnvironmentType_ == EJobEnvironmentType::Simple) {
-            return;
-        }
-
-        BIND(&TUserJob::DoKillUserProcesses, MakeWeak(this))
-            .Via(PipeIOPool_->GetInvoker())
-            .Run();
-    }
-
-    void DoKillUserProcesses()
-    {
-        try {
-            SignalJob("SIGKILL");
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to kill user processes");
-        }
-    }
-
     IOutputStream* CreateStatisticsOutput()
     {
         StatisticsConsumer_.reset(new TStatisticsConsumer(
@@ -754,8 +734,8 @@ private:
     virtual void Fail() override
     {
         auto error = TError("Job failed by external request");
-        CleanupUserProcesses();
         JobErrorPromise_.TrySet(error);
+        CleanupUserProcesses();
     }
 
     void ValidatePrepared()
@@ -1117,7 +1097,7 @@ private:
 
         YT_LOG_ERROR(error, "%v", message);
 
-        KillUserProcesses();
+        CleanupUserProcesses();
 
         for (const auto& reader : TablePipeReaders_) {
             reader->Abort();

@@ -240,7 +240,7 @@ TAsyncSemaphoreGuard TAsyncSemaphoreGuard::TransferSlots(i64 slotsToTransfer)
     spawnedGuard.Semaphore_ = Semaphore_;
     spawnedGuard.Slots_ = slotsToTransfer;
     return spawnedGuard;
-} 
+}
 
 void TAsyncSemaphoreGuard::Release()
 {

@@ -82,7 +82,10 @@ public:
 
             YT_LOG_DEBUG("Clique id parsed (CliqueId: %v)", CliqueId_);
 
-            PickRandomInstance();
+            if (!TryPickRandomInstance()) {
+                return false;
+            }
+
             YT_LOG_DEBUG("Forwarding query to a randomly chosen instance (InstanceId: %v, Host: %v, HttpPort: %v)",
                 InstanceId_,
                 InstanceHost_,
@@ -187,7 +190,7 @@ private:
 
         YT_LOG_DEBUG("Alias resolved (Alias: %v, CliqueId: %v)", alias, CliqueId_);
         CgiParameters_.ReplaceUnescaped("database", CliqueId_);
-        
+
         return true;
     }
 
@@ -261,18 +264,23 @@ private:
         return true;
     }
 
-    void PickRandomInstance()
+    bool TryPickRandomInstance()
     {
         NApi::TListNodeOptions listOptions;
         listOptions.Attributes = {"http_port", "host"};
         auto listingYson = WaitFor(Client_->ListNode(Config_->DiscoveryPath + "/" + CliqueId_, listOptions))
             .ValueOrThrow();
         auto listingVector = ConvertTo<std::vector<IStringNodePtr>>(listingYson);
+        if (listingVector.empty()) {
+            ReplyWithError(EStatusCode::NotFound, TError("Clique %v has no running instances", CliqueId_));
+            return false;
+        }
         const auto& randomEntry = listingVector[RandomNumber(listingVector.size())];
         const auto& attributes = randomEntry->Attributes();
         InstanceId_ = randomEntry->GetValue();
         InstanceHost_ = attributes.Get<TString>("host");
         InstanceHttpPort_ = attributes.Get<TString>("http_port");
+        return true;
     }
 };
 

@@ -161,7 +161,7 @@ public:
     // NB: This function is public for testing purposes.
     void OnFairShareEssentialLoggingAt(TInstant now);
 
-    void RegisterJobs(TOperationId operationId, const std::vector<TJobPtr>& jobs);
+    void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs);
 
     void BuildPoolsInformation(NYTree::TFluentMap fluent);
 
@@ -391,9 +391,9 @@ private:
         const TOperationElementPtr& operationElement,
         TFairShareContext* context) const;
 
-    TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool);
+    const TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool);
 
-    TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element);
+    const TCompositeSchedulerElement* FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element);
 
     void AddOperationToPool(TOperationId operationId);
 

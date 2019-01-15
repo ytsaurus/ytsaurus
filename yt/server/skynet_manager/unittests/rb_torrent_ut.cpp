@@ -37,7 +37,7 @@ TEST(TRbTorrentTest, Sample)
     file2.set_file_size(file2Content.Size());
     md5 = TMD5Hasher().Append(file2Content).GetDigest();
     file2.set_md5sum(TString(md5.data(), md5.size()));
-    
+
     for (int i = 0; i < file2Content.Size(); i += 4 * 1024 * 1024) {
         auto sha1 = TSha1Hasher()
             .Append(TStringBuf(file2Content).SubStr(i, 4 * 1024 * 1024))

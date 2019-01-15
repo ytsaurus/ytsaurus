@@ -92,7 +92,7 @@ void TDiskHealthChecker::DoRunCheck()
                 TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
                 file.Write(writeData.data(), Config_->TestSize);
             }
-            PROFILE_TIMING("/disk_health_check/read") { 
+            PROFILE_TIMING("/disk_health_check/read") {
                 TFile file(fileName, OpenExisting | RdOnly | Seq | Direct);
                 if (file.GetLength() != Config_->TestSize) {
                     THROW_ERROR_EXCEPTION("Wrong test file size: %v instead of %v",
@@ -108,7 +108,7 @@ void TDiskHealthChecker::DoRunCheck()
         if (memcmp(readData.data(), writeData.data(), Config_->TestSize) != 0) {
             THROW_ERROR_EXCEPTION("Test file is corrupt");
         }
-            
+
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Disk health check failed at %v", Path_)
             << ex;

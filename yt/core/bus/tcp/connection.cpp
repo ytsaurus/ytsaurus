@@ -481,7 +481,7 @@ void TTcpConnection::OnEvent(EPollControl control)
 
         // For client sockets the first write notification means that
         // connection was established.
-        // This is handled here to avoid race between arming in Send() and OnSocketConnected(). 
+        // This is handled here to avoid race between arming in Send() and OnSocketConnected().
         if (Any(control & EPollControl::Write) &&
             ConnectionType_ == EConnectionType::Client &&
             State_ == EState::Opening)

@@ -27,7 +27,7 @@ class TSkipListTest
 public:
     TChunkedMemoryPool Pool;
     TSkipList<int, TComparer> List;
-    
+
     TSkipListTest()
         : List(&Pool, TComparer())
     { }

@@ -31,7 +31,7 @@ TDiskLocation::TDiskLocation(
 
 bool TDiskLocation::IsEnabled() const
 {
-    return Enabled_.load(); 
+    return Enabled_.load();
 }
 
 void TDiskLocation::ValidateLockFile() const
@@ -69,8 +69,8 @@ void TDiskLocation::ValidateMinimumSpace() const
         i64 minSpace = *Config_->MinDiskSpace;
         i64 totalSpace = GetTotalSpace();
         if (totalSpace < minSpace) {
-            THROW_ERROR_EXCEPTION("Minimum disk space requirement is not met") 
-                << TErrorAttribute("actual_space", totalSpace) 
+            THROW_ERROR_EXCEPTION("Minimum disk space requirement is not met")
+                << TErrorAttribute("actual_space", totalSpace)
                 << TErrorAttribute("required_space", minSpace);
         }
     }

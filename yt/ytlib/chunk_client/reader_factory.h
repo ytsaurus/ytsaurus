@@ -22,7 +22,7 @@ DEFINE_REFCOUNTED_TYPE(IReaderFactory)
 ////////////////////////////////////////////////////////////////////////////////
 
 IReaderFactoryPtr CreateReaderFactory(
-    std::function<IReaderBasePtr()> factory, 
+    std::function<IReaderBasePtr()> factory,
     i64 memoryFootprint,
     const TDataSliceDescriptor& dataSliceDescriptor);
 

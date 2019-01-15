@@ -120,7 +120,7 @@ protected:
     }
 
     using TSortedDynamicStoreTestBase::LookupRow;
-    
+
     TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
     {
         TSharedRef request;
@@ -158,7 +158,7 @@ protected:
             return TUnversionedOwningRow(row);
         }
     }
-    
+
     TSortedDynamicStorePtr GetActiveStore()
     {
         return Tablet_->GetActiveStore()->AsSortedDynamic();
@@ -410,7 +410,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteWriteConflictWithRotation2)
     auto transaction2 = StartTransaction();
 
     WriteRow(transaction1.get(), BuildRow("key=1;a=1"), false);
-    
+
     EXPECT_EQ(1, transaction1->LockedRows().size());
     auto rowRef1 = transaction1->LockedRows()[0];
 

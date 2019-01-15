@@ -591,7 +591,7 @@ public:
 
             HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
             HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-            
+
             HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
             HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
@@ -773,7 +773,7 @@ private:
     IHydraManagerPtr HydraManager_;
 
     TResponseKeeperPtr ResponseKeeper_;
-    
+
     THiveManagerPtr HiveManager_;
 
     TTabletManagerPtr TabletManager_;

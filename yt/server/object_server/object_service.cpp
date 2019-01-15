@@ -248,7 +248,7 @@ public:
     void Finish()
     {
         Finished_ = true;
-        
+
         if (!EpochCancelableContext_) {
             return;
         }
@@ -847,7 +847,7 @@ void TObjectService::ProcessSessions()
     auto deadlineTime = startTime + NProfiling::DurationToCpuDuration(Config_->YieldTimeout);
 
     ProcessSessionsCallbackEnqueued_.store(false);
-    
+
     FinishedSessions_.DequeueAll(false, [&] (const TExecuteSessionPtr& session) {
         session->Finish();
     });

@@ -57,8 +57,8 @@ class TDenseVersionedBooleanValueExtractor
 {
 public:
     TDenseVersionedBooleanValueExtractor(
-        TRef data, 
-        const TSegmentMeta& meta, 
+        TRef data,
+        const TSegmentMeta& meta,
         bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
     {
@@ -77,8 +77,8 @@ class TSparseVersionedBooleanValueExtractor
 {
 public:
     TSparseVersionedBooleanValueExtractor(
-        TRef data, 
-        const TSegmentMeta& meta, 
+        TRef data,
+        const TSegmentMeta& meta,
         bool aggregate)
         : TSparseVersionedValueExtractorBase(meta, aggregate)
     {
@@ -159,8 +159,8 @@ public:
         i64 upperRowIndex) override
     {
         return DoGetEqualRange<EValueType::Boolean>(
-            value, 
-            lowerRowIndex, 
+            value,
+            lowerRowIndex,
             upperRowIndex);
     }
 

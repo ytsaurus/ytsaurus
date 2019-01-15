@@ -111,7 +111,7 @@ void WriteToPacker(msgpack::packer<msgpack::sbuffer>* packer, const INodePtr& no
         buf[0] = static_cast<char>(0xdbu);
         _msgpack_store32(&buf[1], static_cast<uint32_t>(value.size()));
         packer->pack_str_body(buf, 5);
-        
+
         packer->pack_str_body(value.data(), value.size());
     };
 

@@ -182,7 +182,7 @@ TDnsResolver::TImpl::TImpl(
     EpollFD_ = HandleEintr(epoll_create1, EPOLL_CLOEXEC);
     YCHECK(EpollFD_ >= 0);
 #endif
-    
+
     int wakeupFD = WakeupHandle_.GetFD();
     OnSocketCreated(wakeupFD, AF_UNSPEC, this);
     OnSocketStateChanged(this, wakeupFD, 1, 0);

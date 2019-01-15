@@ -84,9 +84,9 @@ namespace std {
  * ---------------------+---------
  * make_unique          |  ok
  * aligned_union        |
- * is_trivially_*_ctor  |                
+ * is_trivially_*_ctor  |
  */
- 
+
 #if defined(__GLIBCXX__) && __GLIBCXX__ > 20140716 && !defined(__cpp_lib_make_unique)
 #undef YT_PLATFORM_HAS_MAKE_UNIQUE
 #endif

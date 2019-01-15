@@ -4,8 +4,6 @@ from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.test_helpers import wait
 
-from operations_archive import clean_operations
-
 import pytest
 
 def _get_orchid_operation_path(op_id):
@@ -24,6 +22,22 @@ class TestGetOperation(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100,
+        },
+    }
 
     def setup(self):
         sync_create_cells(1)
@@ -93,7 +107,7 @@ class TestGetOperation(YTEnvSetup):
 
         res_cypress_finished = _get_operation_from_cypress(op.id)
 
-        clean_operations(self.Env.create_native_client())
+        clean_operations()
 
         res_get_operation_archive = get_operation(op.id)
 
@@ -137,7 +151,7 @@ class TestGetOperation(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        clean_operations(self.Env.create_native_client())
+        clean_operations()
 
         requesting_attributes = ["progress", "runtime_parameters", "slot_index_per_pool_tree", "state"]
         res_get_operation_archive = get_operation(op.id, attributes=requesting_attributes)
@@ -163,7 +177,11 @@ class TestGetOperation(YTEnvSetup):
             child_key="completion_transaction_id",
             transaction_id=tx)
 
-        clean_operations(self.Env.create_native_client())
-        assert not exists("//sys/operations/" + op.id)
-        assert exists(op.get_path())
-        assert "state" in get_operation(op.id)
+        try:
+            cleaner_path = "//sys/scheduler/config/operations_cleaner"
+            set(cleaner_path + "/enable", True, recursive=True)
+            wait(lambda: not exists("//sys/operations/" + op.id))
+            wait(lambda: exists(op.get_path()))
+            wait(lambda: "state" in get_operation(op.id))
+        finally:
+            set(cleaner_path + "/enable", False)

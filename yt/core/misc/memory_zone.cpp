@@ -10,7 +10,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TMemoryZoneGuard::TMemoryZoneGuard(EMemoryZone zone)
-{ 
+{
     if (auto* scheduler = TryGetCurrentScheduler()) {
         if (auto* fiber = scheduler->GetCurrentFiber()) {
             Active_ = true;

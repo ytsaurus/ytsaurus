@@ -139,7 +139,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
             NProto::TChangelogMeta meta;
             meta.set_prev_record_count(currentVersion.RecordId);
-            
+
             changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
                 .ValueOrThrow();
         }
@@ -270,7 +270,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
         YCHECK(recordsNeeded >= 0);
         if (recordsNeeded == 0)
             break;
-    
+
         YT_LOG_INFO("Trying to read records %v-%v from changelog %v",
             startRecordId,
             targetRecordId - 1,
@@ -326,7 +326,7 @@ TLeaderRecovery::TLeaderRecovery(
 TFuture<void> TLeaderRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
+
     return BIND(&TLeaderRecovery::DoRun, MakeStrong(this))
         .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
         .Run();

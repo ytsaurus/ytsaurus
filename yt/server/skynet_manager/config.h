@@ -54,7 +54,7 @@ public:
 
     NConcurrency::TThroughputThrottlerConfigPtr UserRequestThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr BackgroundThrottler;
-    
+
     void LoadToken();
 
     TClusterConnectionConfig()

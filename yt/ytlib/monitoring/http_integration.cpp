@@ -73,13 +73,13 @@ public:
         auto writer = CreateJsonConsumer(syncOutput.get());
 
         Serialize(TYsonString(ypathRsp->value()), writer.get());
-        
+
         writer->Flush();
         syncOutput->Flush();
 
         WaitFor(rsp->Close())
             .ThrowOnError();
-    }    
+    }
 
 private:
     IYPathServicePtr Service_;

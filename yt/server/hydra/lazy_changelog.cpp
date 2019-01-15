@@ -128,7 +128,7 @@ private:
 
     //! If non-null then contains the underlying changelog.
     IChangelogPtr UnderlyingChangelog_;
-    
+
     //! Collects records while changelog is still opening.
     std::vector<TSharedRef> BacklogRecords_;
 
@@ -143,7 +143,7 @@ private:
     void OnUnderlyingChangelogReady(TErrorOr<IChangelogPtr> changelogOrError)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        
+
         if (!changelogOrError.IsOK()) {
             UnderlyingError_ = changelogOrError;
             auto promise = BacklogAppendPromise_;
@@ -154,7 +154,7 @@ private:
 
         YCHECK(!UnderlyingChangelog_);
         UnderlyingChangelog_ = changelogOrError.Value();
-        
+
         TFuture<void> lastBacklogAppendResult;
         for (const auto& record : BacklogRecords_) {
             lastBacklogAppendResult = UnderlyingChangelog_->Append(record);

@@ -89,7 +89,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TLockRequest, Request);
     DEFINE_BYVAL_RW_PROPERTY(TCypressNodeBase*, TrunkNode);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
-    
+
     // Not persisted.
     using TLockListIterator = std::list<TLock*>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TLockListIterator, LockListIterator);

@@ -14,8 +14,8 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 void DumpBooleanValues(
-    TSegmentInfo* segmentInfo, 
-    TAppendOnlyBitmap<ui64>& valueBitmap, 
+    TSegmentInfo* segmentInfo,
+    TAppendOnlyBitmap<ui64>& valueBitmap,
     TAppendOnlyBitmap<ui64> nullBitmap)
 {
     ui64 valueCount = valueBitmap.GetBitSize();
@@ -64,7 +64,7 @@ public:
             DumpSegment();
             Reset();
         }
-    }   
+    }
 
 private:
     TAppendOnlyBitmap<ui64> Values_;
@@ -90,13 +90,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedBooleanColumnWriter(
-    int columnId, 
-    bool aggregate, 
+    int columnId,
+    bool aggregate,
     TDataBlockWriter* blockWriter)
 {
     return std::make_unique<TVersionedBooleanColumnWriter>(
-        columnId, 
-        aggregate, 
+        columnId,
+        aggregate,
         blockWriter);
 }
 
@@ -182,7 +182,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedBooleanColumnWriter(
-    int columnIndex, 
+    int columnIndex,
     TDataBlockWriter* blockWriter)
 {
     return std::make_unique<TUnversionedBooleanColumnWriter>(columnIndex, blockWriter);

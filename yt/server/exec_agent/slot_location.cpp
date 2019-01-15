@@ -41,7 +41,8 @@ TSlotLocation::TSlotLocation(
     const NCellNode::TBootstrap* bootstrap,
     const TString& id,
     const IJobDirectoryManagerPtr& jobDirectoryManager,
-    bool enableTmpfs)
+    bool enableTmpfs,
+    int slotCount)
     : TDiskLocation(config, id, ExecAgentLogger)
     , Config_(config)
     , Bootstrap_(bootstrap)
@@ -63,6 +64,22 @@ TSlotLocation::TSlotLocation(
         HealthChecker_->RunCheck();
 
         ValidateMinimumSpace();
+
+        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
+            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
+
+                if (!NFS::Exists(sandboxPath)) {
+                    continue;
+                }
+
+                if (HasRootPermissions_) {
+                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                } else {
+                    NFS::RemoveRecursive(sandboxPath);
+                }
+            }
+        }
     } catch (const std::exception& ex) {
         auto error = TError("Failed to initialize slot location %v", Config_->Path) << ex;
         Disable(error);
@@ -303,7 +320,7 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
             THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
                 << ex;
         }
-        
+
         auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
             // Job will be aborted.
             auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)

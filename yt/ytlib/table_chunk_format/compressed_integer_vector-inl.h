@@ -278,7 +278,7 @@ void TCompressedUnsignedVectorReader<T, Scan>::UnpackValues()
         Values_ = reinterpret_cast<const T*>(Data_);
         return;
     }
-    
+
     // NB: Unrolled loop may unpack more values than actually needed.
     // Make sure we have enough room for them.
     auto valuesSize = Size_ + ((Width_ > 0) ? (64 / Width_ + 1) : 0);

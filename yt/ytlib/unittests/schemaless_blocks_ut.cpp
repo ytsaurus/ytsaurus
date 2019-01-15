@@ -66,11 +66,11 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
 {
     // Reorder value columns in reading schema.
     std::vector<TColumnIdMapping> idMapping = {
-        {0, -1}, 
-        {1, -1}, 
-        {2,  0}, 
-        {3, -1}, 
-        {4, -1}, 
+        {0, -1},
+        {1, -1},
+        {2,  0},
+        {3, -1},
+        {4, -1},
         {5, -1},
         {6, -1},
         {7,  1}};
@@ -96,13 +96,13 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
 {
     // Reorder value columns in reading schema.
     std::vector<TColumnIdMapping> idMapping = {
-        {0, 0}, 
-        {1, 1}, 
-        {2, 2}, 
-        {3, 3}, 
-        {4, 4}, 
-        {5, 5}, 
-        {6, 6}, 
+        {0, 0},
+        {1, 1},
+        {2, 2},
+        {3, 3},
+        {4, 4},
+        {5, 5},
+        {6, 6},
         {7, 7}};
 
     THorizontalSchemalessBlockReader blockReader(

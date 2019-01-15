@@ -30,7 +30,7 @@ TEST(TCoreDumpTest, WriteSparseFile)
     TFile coreFile(filename, CreateNew | WrOnly | Seq | CloseOnExec);
     auto dump = ss.Str();
     TStringInput si(dump);
-    
+
     EXPECT_EQ(64_KB, WriteSparseCoreDump(&si, &coreFile));
 
     TFileInput input(filename);

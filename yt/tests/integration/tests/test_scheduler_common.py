@@ -7,8 +7,6 @@ from yt.common import date_string_to_datetime, date_string_to_timestamp, update
 
 import yt.environment.init_operation_archive as init_operation_archive
 
-from operations_archive import clean_operations
-
 import pytest
 from flaky import flaky
 
@@ -3508,8 +3506,18 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
         },
     }
 
@@ -3538,22 +3546,17 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
             for key in ("state", "start_time", "finish_time"):
                 assert key in res_get_operation_archive
 
-        client = self.Env.create_native_client()
-
         op = self._run_op()
-        clean_operations(client)
+        clean_operations()
         assert not exists("//sys/operations/" + op.id)
         assert not exists(op.get_path())
         _check_attributes(op)
 
     def test_get_job_stderr(self):
-        client = self.Env.create_native_client()
-
         op = self._run_op()
         jobs_new = ls(op.get_path() + "/jobs")
         job_id = jobs_new[-1]
-
-        clean_operations(client)
+        clean_operations()
         assert get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n"
 
 ##################################################################

@@ -861,7 +861,6 @@ private:
     NHydra::TEntityMap<TDataCenter> DataCenterMap_;
 
     int AggregatedOnlineNodeCount_ = 0;
-    int LocalRegisteredNodeCount_ = 0;
 
     TCpuInstant TotalNodeStatisticsUpdateDeadline_ = 0;
     TTotalNodeStatistics TotalNodeStatistics_;
@@ -927,7 +926,7 @@ private:
 
     static TYPath GetNodePath(const TString& address)
     {
-        // TODO(babenko): use GetClusterNodesPath 
+        // TODO(babenko): use GetClusterNodesPath
         return "//sys/nodes/" + ToYPathLiteral(address);
     }
 

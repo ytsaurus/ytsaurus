@@ -150,17 +150,18 @@ protected:
     virtual void OnException(const std::exception& ex) override;
 
 private:
-    void Open();
-    void Close();
+    const TString FileName_;
+    const bool EnableCompression_;
 
-    TString FileName_;
-    bool EnableCompression_;
     std::atomic<bool> Disabled_ = {false};
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TFixedBufferFileOutput> FileOutput_;
 
-    std::unique_ptr<TRandomAccessGZipFile> Compressed_;
+    std::unique_ptr<TRandomAccessGZipFile> CompressedOutput_;
+
+    void Open();
+    void Close();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

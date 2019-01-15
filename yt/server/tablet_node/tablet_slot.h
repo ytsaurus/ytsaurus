@@ -51,7 +51,7 @@ public:
         TTabletNodeConfigPtr config,
         const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo,
         NCellNode::TBootstrap* bootstrap);
-    
+
     ~TTabletSlot();
 
     int GetIndex() const;

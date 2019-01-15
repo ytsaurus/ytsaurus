@@ -513,7 +513,7 @@ struct TDynamicRowRef
     { }
 
     TDynamicRowRef(const TDynamicRowRef& other) = default;
-    
+
     TDynamicRowRef(
         TStore* store,
         TStoreManager* storeManager,

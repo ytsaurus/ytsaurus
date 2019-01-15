@@ -12,11 +12,11 @@ namespace NYT::NRpc {
 /*!
  *  The channel determines if the request must be retried by calling
  *  #NRpc::IsRetriableError.
- *  
+ *
  *  The channel makes at most #TRetryingChannelConfig::RetryAttempts
  *  attempts totally spending at most #TRetryingChannelConfig::RetryTimeout time
  *  (if given).
- *  
+ *
  *  A delay of #TRetryingChannelConfig::RetryBackoffTime is inserted
  *  between any pair of consequent attempts.
  */
