@@ -3773,17 +3773,17 @@ private:
         auto destination = GetFilePathInCache(expectedMD5, options.CachePath);
         auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
 
-        // Move file.
+        // Copy file.
         {
             auto copyOptions = TCopyNodeOptions();
             copyOptions.TransactionId = transaction->GetId();
             copyOptions.Recursive = true;
-            copyOptions.Force = true;
+            copyOptions.IgnoreExisting = true;
             copyOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
             copyOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
 
             WaitFor(fileCacheClient->CopyNode(objectIdPath, destination, copyOptions))
-                .ValueOrThrow();
+                .ThrowOnError();
 
             YT_LOG_DEBUG(
                 "File has been copied to cache (Destination: %v)",
