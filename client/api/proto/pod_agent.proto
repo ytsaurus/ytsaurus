@@ -47,7 +47,7 @@ message TPodAgentSpec {
 
 // Конфигурация Пода, содержащая секреты
 // NOTE: В будущем Pod-agent будет принимать только это сообщение, сейчас он все еще принимает TPodAgentSpec отдельно для обратной совместимости
-// NOTE: Валидация - все id секретов различны
+// NOTE: Валидация - все alias секретов различны
 message TPodAgentRequest {
     // Конфигурация Пода
     TPodAgentSpec Spec = 1;
@@ -276,9 +276,12 @@ message TTimeLimitStatus {
 }
 
 // Id секрета из TPodAgentRequest.Secrets
+// Alias секрета из TPodAgentRequest.Secrets
 // В момент обработки спеки будет добавлена переменная окружения с значением равным value секрета
 message SecretEnvSelector {
-    string SecretId = 1;
+    string Id = 1;
+
+    string Alias = 2;
 }
 
 message LiteralEnvSelector {
