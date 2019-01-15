@@ -145,7 +145,7 @@ void TFairShareTree::ValidateAllOperationsCountsOnPoolChange(TOperationId operat
 {
     auto operationElement = GetOperationElement(operationId);
     std::vector<TString> oldPools;
-    TCompositeSchedulerElement* pool = operationElement->GetParent();
+    const auto* pool = operationElement->GetParent();
     while (pool) {
         oldPools.push_back(pool->GetId());
         pool = pool->GetParent();
@@ -309,7 +309,7 @@ TOperationUnregistrationResult TFairShareTree::UnregisterOperation(
 bool TFairShareTree::DetachOperation(const TFairShareStrategyOperationStatePtr& state, const TOperationElementPtr& operationElement)
 {
     auto operationId = state->GetHost()->GetId();
-    auto* pool = static_cast<TPool*>(operationElement->GetParent());
+    auto* pool = static_cast<TPool*>(operationElement->GetMutableParent());
 
     ReleaseOperationSlotIndex(state, pool->GetId());
 
@@ -349,7 +349,7 @@ void TFairShareTree::DisableOperation(const TFairShareStrategyOperationStatePtr&
     auto usage = operationElement->GetLocalResourceUsage();
     operationElement->Disable();
 
-    auto* parent = operationElement->GetParent();
+    auto* parent = operationElement->GetMutableParent();
     parent->IncreaseHierarchicalResourceUsage(-usage);
     parent->DisableChild(operationElement);
 }
@@ -361,8 +361,7 @@ void TFairShareTree::EnableOperation(const TFairShareStrategyOperationStatePtr& 
     auto operationId = state->GetHost()->GetId();
     auto operationElement = GetOperationElement(operationId);
 
-    auto* parent = operationElement->GetParent();
-    parent->EnableChild(operationElement);
+    operationElement->GetMutableParent()->EnableChild(operationElement);
 
     operationElement->Enable();
 }
@@ -520,7 +519,7 @@ bool TFairShareTree::ChangeOperationPool(
 
     auto wasActive = DetachOperation(state, element);
     YCHECK(AttachOperation(state, element, newPool));
-    element->GetParent()->EnableChild(element);
+    element->GetMutableParent()->EnableChild(element);
     return wasActive;
 }
 
@@ -1006,7 +1005,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
 
     // Compute discount to node usage.
     YT_LOG_TRACE("Looking for preemptable jobs");
-    THashSet<TCompositeSchedulerElementPtr> discountedPools;
+    THashSet<const TCompositeSchedulerElement *> discountedPools;
     std::vector<TJobPtr> preemptableJobs;
     PROFILE_AGGREGATED_TIMING(AnalyzePreemptableJobsTimeCounter) {
         for (const auto& job : context->SchedulingContext->RunningJobs()) {
@@ -1025,7 +1024,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             bool aggressivePreemptionEnabled = context->SchedulingStatistics.HasAggressivelyStarvingElements &&
                 operationElement->IsAggressiveStarvationPreemptionAllowed();
             if (operationElement->IsJobPreemptable(job->GetId(), aggressivePreemptionEnabled)) {
-                auto* parent = operationElement->GetParent();
+                const auto* parent = operationElement->GetParent();
                 while (parent) {
                     discountedPools.insert(parent);
                     context->DynamicAttributesFor(parent).ResourceUsageDiscount += job->ResourceUsage();
@@ -1092,7 +1091,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     // Reset discounts.
     context->SchedulingContext->ResourceUsageDiscount() = ZeroJobResources();
     for (const auto& pool : discountedPools) {
-        context->DynamicAttributesFor(pool.Get()).ResourceUsageDiscount = ZeroJobResources();
+        context->DynamicAttributesFor(pool).ResourceUsageDiscount = ZeroJobResources();
     }
 
     // Preempt jobs if needed.
@@ -1103,7 +1102,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             return lhs->GetStartTime() > rhs->GetStartTime();
         });
 
-    auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> TCompositeSchedulerElement* {
+    auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> const TCompositeSchedulerElement* {
         auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
         if (!operationElement) {
             return nullptr;
@@ -1286,7 +1285,7 @@ void TFairShareTree::PreemptJob(
     context->SchedulingContext->PreemptJob(job);
 }
 
-TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool)
+const TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -1299,9 +1298,9 @@ TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOperation
     return nullptr;
 }
 
-TCompositeSchedulerElementPtr TFairShareTree::FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element)
+const TCompositeSchedulerElement* TFairShareTree::FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element)
 {
-    auto current = element;
+    const TCompositeSchedulerElement* current = element.Get();
     while (current) {
         if (current->OperationCount() >= current->GetMaxOperationCount()) {
             return current;
@@ -1316,7 +1315,7 @@ void TFairShareTree::AddOperationToPool(TOperationId operationId)
     TForbidContextSwitchGuard contextSwitchGuard;
 
     const auto& operationElement = GetOperationElement(operationId);
-    auto* parent = operationElement->GetParent();
+    auto* parent = operationElement->GetMutableParent();
     parent->IncreaseRunningOperationCount(1);
 
     YT_LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
@@ -1537,7 +1536,7 @@ void TFairShareTree::SetPoolParent(const TPoolPtr& pool, const TCompositeSchedul
         return;
     }
 
-    auto* oldParent = pool->GetParent();
+    auto* oldParent = pool->GetMutableParent();
     if (oldParent) {
         oldParent->IncreaseHierarchicalResourceUsage(-pool->GetLocalResourceUsage());
         oldParent->IncreaseOperationCount(-pool->OperationCount());
@@ -1699,7 +1698,7 @@ void TFairShareTree::BuildEssentialOperationElementYson(const TSchedulerElementP
 TYPath TFairShareTree::GetPoolPath(const TCompositeSchedulerElementPtr& element)
 {
     std::vector<TString> tokens;
-    auto current = element;
+    const auto* current = element.Get();
     while (!current->IsRoot()) {
         if (current->IsExplicit()) {
             tokens.push_back(current->GetId());
