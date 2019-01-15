@@ -63,6 +63,7 @@ namespace NYT {
 namespace NDetail {
 
 static const ui64 DefaultExrtaTmpfsSize = 1024LL * 1024LL;
+static const bool LockCachedFilesWhenStartingOperation = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -396,7 +397,9 @@ public:
             jobStateSmallFile.Defined() <<
             jobCommandSuffix;
 
-        operationPreparer.LockFiles(&CachedFiles_, LockedFileSignatures_, GetCachePath());
+        if (LockCachedFilesWhenStartingOperation) {
+            operationPreparer.LockFiles(&CachedFiles_, LockedFileSignatures_, GetCachePath());
+        }
     }
 
     TVector<TRichYPath> GetFiles() const
