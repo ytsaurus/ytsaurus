@@ -6,6 +6,7 @@ from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.test_helpers import wait
 
 from yt.common import update_inplace
+import yt.logger
 
 import pytest
 
@@ -27,6 +28,8 @@ from threading import Thread
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
 SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
+
+yt.logger.LOGGER.setLevel(logging.DEBUG)
 
 ##################################################################
 
