@@ -65,10 +65,10 @@ struct TJobStatistics
 {
     size_t EstimateSize() const;
 
-    TJobStatistics ExtractSpec();
-    TJobStatistics ExtractStderr();
-    TJobStatistics ExtractFailContext();
-    TJobStatistics ExtractProfile();
+    TJobStatistics ExtractSpec() const;
+    TJobStatistics ExtractStderr() const;
+    TJobStatistics ExtractFailContext() const;
+    TJobStatistics ExtractProfile() const;
 
     bool IsEmpty() const;
 
@@ -83,6 +83,7 @@ struct TJobStatistics
     void SetSpecVersion(i64 specVersion);
     void SetStatistics(const NYson::TYsonString& statistics);
     void SetEvents(const TJobEvents& events);
+    void SetStderrSize(ui64 stderrSize);
     void SetStderr(const TString& stderr);
     void SetFailContext(const TString& failContext);
     void SetProfile(const TJobProfile& profile);
@@ -98,6 +99,7 @@ struct TJobStatistics
     DEFINE_FORWARD_RW_PROPERTY(std::optional<i64>, SpecVersion)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Statistics)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Events)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<ui64>, StderrSize)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Stderr)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, FailContext)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TJobProfile>, Profile)

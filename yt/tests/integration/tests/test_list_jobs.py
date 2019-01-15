@@ -178,7 +178,7 @@ class TestListJobs(YTEnvSetup):
             "error",
             "statistics",
             "size",
-            "uncompressed_data_size"
+            "uncompressed_data_size",
         ])
 
         completed_jobs = []
@@ -249,6 +249,7 @@ class TestListJobs(YTEnvSetup):
                 assert res["state_counts"][key] == correct
             assert res["cypress_job_count"] == 6
             assert res["scheduler_job_count"] == 0
+            assert res["controller_agent_job_count"] == 0
             assert res["archive_job_count"] == yson.YsonEntity()
 
             res = list_jobs(op.id, job_state="failed", **options)["jobs"]
@@ -314,6 +315,7 @@ class TestListJobs(YTEnvSetup):
             res = list_jobs(op.id, **options)
             assert res["cypress_job_count"] == yson.YsonEntity()
             assert res["scheduler_job_count"] == yson.YsonEntity()
+            assert res["controller_agent_job_count"] == yson.YsonEntity()
             assert res["archive_job_count"] == 6
 
             for key in res["type_counts"]:
@@ -378,7 +380,8 @@ class TestListJobs(YTEnvSetup):
 
             validate_address_filter(op, True, False, False)
 
-    def test_running_jobs_stderr_size(self):
+    @pytest.mark.parametrize("data_source", ["manual", "archive"])
+    def test_running_jobs_stderr_size(self, data_source):
         create("table", "//tmp/input")
         create("table", "//tmp/output")
 
@@ -390,21 +393,25 @@ class TestListJobs(YTEnvSetup):
             out="//tmp/output",
             command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"))
 
+        expected_stderr_size = len("MAPPER-STDERR-OUTPUT\n")
+
         jobs = wait_breakpoint()
         def get_stderr_size():
             return get(op.get_path() + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0]))
-        wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
+        wait(lambda: get_stderr_size() == expected_stderr_size)
 
-        options = dict(data_source="manual", include_cypress=False, include_controller_agent=True, include_archive=False)
+        options = dict(data_source=data_source)
+        if data_source == "manual":
+            options.update(include_cypress=False, include_controller_agent=True, include_archive=False)
 
         res = list_jobs(op.id, **options)
         assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
         for job in res["jobs"]:
-            assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
+            assert job["stderr_size"] == expected_stderr_size
 
         res = list_jobs(op.id, with_stderr=True, **options)
         for job in res["jobs"]:
-            assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
+            assert job["stderr_size"] == expected_stderr_size
         assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
 
         res = list_jobs(op.id, with_stderr=False, **options)

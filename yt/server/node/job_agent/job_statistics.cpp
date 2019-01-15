@@ -213,7 +213,7 @@ size_t TJobStatistics::EstimateSize() const
         Events_);
 }
 
-TJobStatistics TJobStatistics::ExtractSpec()
+TJobStatistics TJobStatistics::ExtractSpec() const
 {
     TJobStatistics copy;
     copy.JobId_ = JobId_;
@@ -223,7 +223,7 @@ TJobStatistics TJobStatistics::ExtractSpec()
     return copy;
 }
 
-TJobStatistics TJobStatistics::ExtractStderr()
+TJobStatistics TJobStatistics::ExtractStderr() const
 {
     TJobStatistics copy;
     copy.JobId_ = JobId_;
@@ -232,7 +232,7 @@ TJobStatistics TJobStatistics::ExtractStderr()
     return copy;
 }
 
-TJobStatistics TJobStatistics::ExtractFailContext()
+TJobStatistics TJobStatistics::ExtractFailContext() const
 {
     TJobStatistics copy;
     copy.JobId_ = JobId_;
@@ -241,7 +241,7 @@ TJobStatistics TJobStatistics::ExtractFailContext()
     return copy;
 }
 
-TJobStatistics TJobStatistics::ExtractProfile()
+TJobStatistics TJobStatistics::ExtractProfile() const
 {
     TJobStatistics copy;
     copy.JobId_ = JobId_;
@@ -252,7 +252,7 @@ TJobStatistics TJobStatistics::ExtractProfile()
 
 bool TJobStatistics::IsEmpty() const
 {
-    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_ || FailContext_ || Profile_);
+    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_);
 }
 
 void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)
@@ -315,9 +315,16 @@ void TJobStatistics::SetEvents(const TJobEvents& events)
     Events_ = ConvertToYsonString(events).GetData();
 }
 
+void TJobStatistics::SetStderrSize(ui64 stderrSize)
+{
+    YCHECK(!Stderr_.has_value());
+    StderrSize_ = stderrSize;
+}
+
 void TJobStatistics::SetStderr(const TString& stderr)
 {
     Stderr_ = stderr;
+    StderrSize_ = Stderr_->size();
 }
 
 void TJobStatistics::SetFailContext(const TString& failContext)
