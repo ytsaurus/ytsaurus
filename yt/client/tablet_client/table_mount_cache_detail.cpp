@@ -146,8 +146,11 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
     if (!error.IsOK()) {
         for (auto code : retriableCodes) {
             if (auto retriableError = error.FindMatching(code)) {
-                auto tabletId = retriableError->Attributes().Get<TTabletId>("tablet_id");
-                auto tabletInfo = FindTablet(tabletId);
+                auto tabletId = retriableError->Attributes().Find<TTabletId>("tablet_id");
+                if (!tabletId) {
+                    continue;
+                }
+                auto tabletInfo = FindTablet(*tabletId);
                 if (tabletInfo) {
                     YT_LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, CellId: %v, MountRevision: %llx, Owners: %v)",
                         tabletInfo->TabletId,
