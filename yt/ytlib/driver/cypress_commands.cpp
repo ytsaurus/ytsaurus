@@ -263,6 +263,8 @@ TCopyCommand::TCopyCommand()
     RegisterParameter("destination_path", DestinationPath);
     RegisterParameter("recursive", Options.Recursive)
         .Optional();
+    RegisterParameter("ignore_existing", Options.IgnoreExisting)
+        .Optional();
     RegisterParameter("force", Options.Force)
         .Optional();
     RegisterParameter("preserve_account", Options.PreserveAccount)

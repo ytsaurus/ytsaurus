@@ -522,6 +522,7 @@ struct TCopyNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool IgnoreExisting = false;
     bool Force = false;
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;

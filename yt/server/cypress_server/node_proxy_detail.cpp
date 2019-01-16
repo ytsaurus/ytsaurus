@@ -1274,7 +1274,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
             ThrowAlreadyExists(this);
         }
 
-        auto* impl = GetThisImpl();
+        const auto* impl = GetThisImpl();
         if (impl->GetType() != type && !force) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
@@ -1283,13 +1283,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
                 impl->GetType(),
                 type);
         }
-        auto* node = GetThisImpl();
-        ToProto(response->mutable_node_id(), node->GetId());
-        response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
+        ToProto(response->mutable_node_id(), impl->GetId());
+        response->set_cell_tag(impl->GetExternalCellTag() == NotReplicatedCellTag
             ? Bootstrap_->GetCellTag()
-            : node->GetExternalCellTag());
+            : impl->GetExternalCellTag());
         context->SetResponseInfo("ExistingNodeId: %v",
-            node->GetId());
+            impl->GetId());
         context->Reply();
         return;
     }
@@ -1364,12 +1363,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     bool preserveCreationTime = request->preserve_creation_time();
     bool removeSource = request->remove_source();
     auto recursive = request->recursive();
+    auto ignoreExisting = request->ignore_existing();
     auto force = request->force();
     auto targetPath = GetRequestYPath(context->RequestHeader());
 
     context->SetRequestInfo("SourcePath: %v, TransactionId: %v "
         "PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
-        "RemoveSource: %v, Recursive: %v, Force: %v",
+        "RemoveSource: %v, Recursive: %v, IgnoreExisting: %v, Force: %v",
         sourcePath,
         Transaction ? Transaction->GetId() : TTransactionId(),
         preserveAccount,
@@ -1377,11 +1377,28 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         preserveCreationTime,
         removeSource,
         recursive,
+        ignoreExisting,
         force);
+
+    if (ignoreExisting && force) {
+        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
+    }
+
+    if (ignoreExisting && removeSource) {
+        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"remove_source\" options simultaneously");
+    }
 
     bool replace = targetPath.empty();
     if (replace && !force) {
-        ThrowAlreadyExists(this);
+        if (!ignoreExisting) {
+            ThrowAlreadyExists(this);
+        }
+        const auto* impl = GetThisImpl();
+        ToProto(response->mutable_node_id(), impl->GetId());
+        context->SetResponseInfo("ExistingNodeId: %v",
+            impl->GetId());
+        context->Reply();
+        return;
     }
 
     if (!replace && !CanHaveChildren()) {

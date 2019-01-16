@@ -3098,6 +3098,7 @@ private:
         req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_preserve_creation_time(options.PreserveCreationTime);
         req->set_recursive(options.Recursive);
+        req->set_ignore_existing(options.IgnoreExisting);
         req->set_force(options.Force);
         batchReq->AddRequest(req);
 
