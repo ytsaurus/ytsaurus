@@ -33,6 +33,7 @@ DEFINE_ENUM(EWorkloadCategory,
     ((SystemTabletPartitioning)    (7))
     ((SystemTabletPreload)         (8))
     ((SystemTabletRecovery)       (10))
+    ((SystemTabletReplication)    (14))
     ((SystemTabletSnapshot)       (13))
     ((SystemTabletStoreFlush)     (12))
     ((UserBatch)                   (3))

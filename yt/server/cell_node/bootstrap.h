@@ -173,6 +173,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletPreloadOutThrottler;
     NConcurrency::IThroughputThrottlerPtr TabletSnapshotInThrottler;
     NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletReplicationOutThrottler;
 
     NConcurrency::IThroughputThrottlerPtr ReadRpsOutThrottler;
 

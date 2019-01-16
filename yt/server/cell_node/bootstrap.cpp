@@ -397,6 +397,10 @@ void TBootstrap::DoRun()
         TotalOutThrottler,
         createThrottler(Config->DataNode->TabletRecoveryOutThrottler, "TabletRecoveryOut")
     });
+    TabletReplicationOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->TabletReplicationOutThrottler, "TabletReplicationOut")
+    });
 
     ReadRpsOutThrottler = createThrottler(Config->DataNode->ReadRpsOutThrottler, "ReadRpsOut");
 
@@ -908,6 +912,9 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
 
         case EWorkloadCategory::SystemTabletRecovery:
             return TabletRecoveryOutThrottler;
+
+        case EWorkloadCategory::SystemTabletReplication:
+            return TabletReplicationOutThrottler;
 
         default:
             return TotalOutThrottler;
