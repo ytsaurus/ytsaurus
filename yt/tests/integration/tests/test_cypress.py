@@ -437,6 +437,20 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2/@compression_codec") == "zlib_6"
 
+    def test_copy_ignore_existing(self):
+        create("map_node", "//tmp/a")
+        create("map_node", "//tmp/b/c", recursive=True)
+
+        copy("//tmp/b", "//tmp/a", ignore_existing=True)
+        assert not exists("//tmp/a/c")
+
+        copy("//tmp/b", "//tmp/a", force=True)
+        assert exists("//tmp/a/c")
+
+        with pytest.raises(YtError): copy("//tmp/b", "//tmp/a")
+        # Two options simultaneously are forbidden.
+        with pytest.raises(YtError): copy("//tmp/b", "//tmp/new", ignore_existing=True, force=True)
+
     def test_compression_codec_in_tx(self):
         create("table", "//tmp/t", attributes={"compression_codec": "none"})
         assert get("//tmp/t/@compression_codec") == "none"

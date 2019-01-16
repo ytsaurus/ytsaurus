@@ -354,6 +354,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
     req->set_dst_path(dstPath);
 
     req->set_recursive(options.Recursive);
+    req->set_ignore_existing(options.IgnoreExisting);
     req->set_force(options.Force);
     req->set_preserve_account(options.PreserveAccount);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);

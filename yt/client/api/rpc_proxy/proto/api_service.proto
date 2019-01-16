@@ -717,6 +717,7 @@ message TReqCopyNode
     optional bool preserve_account = 5 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
     optional bool preserve_creation_time = 7 [default = false];
+    optional bool ignore_existing = 8 [default = false];
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;

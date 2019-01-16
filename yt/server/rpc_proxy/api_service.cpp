@@ -1265,6 +1265,9 @@ private:
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
+        if (request->has_ignore_existing()) {
+            options.IgnoreExisting = request->ignore_existing();
+        }
         if (request->has_force()) {
             options.Force = request->force();
         }
