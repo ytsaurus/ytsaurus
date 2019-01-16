@@ -83,6 +83,8 @@ TReplicaCounters::TReplicaCounters(const TTagIdList& list)
     , ReplicationTransactionCommitTime("/replica/replication_transaction_commit_time", list, EAggregateMode::All, TDuration::Seconds(1))
     , ReplicationRowsReadTime("/replica/replication_rows_read_time", list, EAggregateMode::All, TDuration::Seconds(1))
     , ReplicationRowsWriteTime("/replica/replication_rows_write_time", list, EAggregateMode::All, TDuration::Seconds(1))
+    , ReplicationBatchRowCount("/replica/replication_batch_row_count", list, EAggregateMode::All, TDuration::Seconds(1))
+    , ReplicationBatchDataWeight("/replica/replication_batch_data_weight", list, EAggregateMode::All, TDuration::Seconds(1))
     , Tags(list)
 { }
 
