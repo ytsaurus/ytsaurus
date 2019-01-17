@@ -477,7 +477,7 @@ void Deserialize(
                 value = ParseEnum<T>(node->GetValue<TString>());
                 break;
             default:
-                THROW_ERROR_EXCEPTION("Wrong type to deserialize bit enum from: %Qv",
+                THROW_ERROR_EXCEPTION("Cannot deserialize bit enum from %Qlv node",
                     node->GetType());
         }
     } else {
