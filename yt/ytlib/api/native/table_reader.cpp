@@ -587,6 +587,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             client,
             // HTTP proxy doesn't have a node descriptor.
             TNodeDescriptor(),
+            std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
             dataSourceDirectory,
@@ -617,6 +618,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateSchemalessMultiChunkReader(
             client,
             // HTTP proxy doesn't have a node descriptor.
             TNodeDescriptor(),
+            std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
             dataSourceDirectory,

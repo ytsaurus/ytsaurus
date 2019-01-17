@@ -42,9 +42,13 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-    YT_LOG_DEBUG("Updating peer (BlockId: %v, Address: %v, ExpirationTime: %v)",
+    const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
+    auto maybeNodeDescriptor = nodeDirectory->FindDescriptor(peer.NodeId);
+
+    YT_LOG_DEBUG("Updating peer (BlockId: %v, Address: %v, NodeId: %v, ExpirationTime: %v)",
         blockId,
-        peer.Descriptor.GetDefaultAddress(),
+        maybeNodeDescriptor,
+        peer.NodeId,
         peer.ExpirationTime);
 
     SweepAllExpiredPeers();
@@ -53,7 +57,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
     SweepExpiredPeers(peers); // In case when all expired peers were not swept
 
     for (auto it = peers.begin(); it != peers.end(); ++it) {
-        if (it->Descriptor.GetDefaultAddress() == peer.Descriptor.GetDefaultAddress()) {
+        if (it->NodeId == peer.NodeId   ) {
             peers.erase(it);
             break;
         }

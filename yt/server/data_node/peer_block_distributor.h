@@ -91,8 +91,8 @@ private:
     };
     TChosenBlocks ChooseBlocks();
 
-    std::vector<NNodeTrackerClient::TNodeDescriptor> ChooseDestinationNodes(
-        const std::vector<NNodeTrackerClient::TNodeDescriptor>& nodes) const;
+    std::vector<std::pair<NNodeTrackerClient::TNodeId, NNodeTrackerClient::TNodeDescriptor>> ChooseDestinationNodes(
+        const std::vector<std::pair<NNodeTrackerClient::TNodeId, NNodeTrackerClient::TNodeDescriptor>>& nodes) const;
 
     void UpdateTransmittedBytes();
 
@@ -101,6 +101,7 @@ private:
     void OnBlockDistributed(
         const TString& address,
         const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
+        const NNodeTrackerClient::TNodeId nodeId,
         const TBlockId& blockIds,
         i64 size,
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError);

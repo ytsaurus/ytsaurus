@@ -13,16 +13,16 @@ namespace NYT::NDataNode {
 //! Keeps information about a peer possibly holding a block.
 struct TPeerInfo
 {
-    NNodeTrackerClient::TNodeDescriptor Descriptor;
+    TNodeId NodeId;
     TInstant ExpirationTime;
 
     TPeerInfo()
     { }
 
     TPeerInfo(
-        const NNodeTrackerClient::TNodeDescriptor& descriptor,
+        const TNodeId& nodeId,
         TInstant expirationTime)
-        : Descriptor(descriptor)
+        : NodeId(nodeId)
         , ExpirationTime(expirationTime)
     { }
 };
