@@ -5,16 +5,25 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "python"))
 
-from teamcity import (build_step, teamcity_main, teamcity_message, teamcity_interact,
-                      StepFailedWithNonCriticalError)
+from teamcity import (
+    build_step,
+    cleanup_step,
+    teamcity_main,
+    teamcity_message,
+    teamcity_interact,
+    StepFailedWithNonCriticalError)
 
 from helpers import (mkdirp, run, run_captured, cwd, rm_content,
                      rmtree, parse_yes_no_bool, ChildHasNonZeroExitCode,
                      postprocess_junit_xml, sudo_rmtree, kill_by_name,
                      set_yt_binaries_suid_bit)
 
-from pytest_helpers import (copy_artifacts, find_core_dumps_with_report,
-                            copy_failed_tests_and_report_stderrs, prepare_python_bindings)
+from pytest_helpers import (
+    copy_artifacts,
+    find_core_dumps_with_report,
+    copy_failed_tests_and_report_stderrs,
+    prepare_python_bindings,
+    clean_failed_tests_directory)
 
 import argparse
 import tempfile
@@ -287,6 +296,9 @@ def build_packages(options):
             run(["dch", "-r", package_version, "'Resigned by teamcity'"])
         run(["./deploy.sh", package], cwd=options.checkout_directory, env={"TMPDIR": options.working_directory})
 
+@cleanup_step
+def clean_failed_tests(options, build_context, max_allowed_size=None):
+    clean_failed_tests_directory(options.failed_tests_path)
 
 ################################################################################
 # This is an entry-point. Just boiler-plate.
