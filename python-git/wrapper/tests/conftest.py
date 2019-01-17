@@ -206,6 +206,7 @@ class YtTestEnvironment(object):
         if config["backend"] != "rpc":
             self.config["driver_config"] = self.env.configs["driver"]
         self.config["local_temp_directory"] = local_temp_directory
+        self.config["enable_logging_for_params_changes"] = True
         self.reload_global_configuration()
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
