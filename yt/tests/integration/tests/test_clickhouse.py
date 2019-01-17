@@ -271,7 +271,7 @@ class TestCompositeTypes(ClickhouseTestBase):
             elif i == 4:
                 assert item.popitem()[1] == 57
             else:
-                assert item.popitem()[1] is None
+                assert item.popitem()[1] == 0
 
     def test_read_all_types_strict(self):
         query = "select YPathInt64Strict(v, '/i64') as i64, YPathUInt64Strict(v, '/ui64') as ui64, " \
@@ -291,3 +291,31 @@ class TestCompositeTypes(ClickhouseTestBase):
             "arr_dbl": [-1.1, 2.71],
             "arr_bool": [False, True, False],
         }]
+
+    def test_read_all_types_non_strict(self):
+        query = "select YPathInt64(v, '/i64') as i64, YPathUInt64(v, '/ui64') as ui64, " \
+                "YPathDouble(v, '/dbl') as dbl, YPathBoolean(v, '/bool') as bool, " \
+                "YPathString(v, '/str') as str, YPathArrayInt64(v, '/arr_i64') as arr_i64, " \
+                "YPathArrayUInt64(v, '/arr_ui64') as arr_ui64, YPathArrayDouble(v, '/arr_dbl') as arr_dbl, " \
+                "YPathArrayBoolean(v, '/arr_bool') as arr_bool from \"//tmp/t\" where i = 3"
+        result = self._make_query(self.clique, query)
+        assert result["data"] == [{
+            "i64": 0,
+            "ui64": 0,
+            "bool": False,
+            "dbl": 0.0,
+            "str": "",
+            "arr_i64": [],
+            "arr_ui64": [],
+            "arr_dbl": [],
+            "arr_bool": [],
+        }]
+
+    def test_const_args(self):
+        result = self._make_query(self.clique, "select YPathString('{a=[1;2;{b=xyz}]}', '/a/2/b') as str")
+        assert result["data"] == [{"str": "xyz"}]
+
+    def test_nulls(self):
+        result = self._make_query(self.clique, "select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, "
+                                               "YPathString('{a=1}', NULL) as c")
+        assert result["data"] == [{"a": None, "b": None, "c": None}]

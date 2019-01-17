@@ -52,13 +52,15 @@ using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TYTOutputType, bool Strict>
+template <class TYTOutputType, bool Strict, class TName>
 class TYPathFunctionBase : public IFunction
 {
 public:
+    static constexpr auto name = TName::Name;
+
     virtual std::string getName() const override
     {
-        return "TYPathFunctionBase";
+        return name;
     }
 
     virtual size_t getNumberOfArguments() const override
@@ -84,12 +86,12 @@ public:
 
     virtual bool useDefaultImplementationForNulls() const override
     {
-        return false;
+        return true;
     }
 
     virtual bool useDefaultImplementationForConstants() const override
     {
-        return false;
+        return true;
     }
 
     void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) override
@@ -174,17 +176,14 @@ protected:
     DataTypePtr OutputDataType_;
 };
 
-template <class TCHOutputDataType, class TYTOutputType, bool Strict>
+template <class TCHOutputDataType, class TYTOutputType, bool Strict, class TName>
 class TScalarYPathFunction
-    : public TYPathFunctionBase<TYTOutputType, Strict>
+    : public TYPathFunctionBase<TYTOutputType, Strict, TName>
 {
 public:
     TScalarYPathFunction()
     {
         this->OutputDataType_ = std::make_shared<TCHOutputDataType>();
-        if constexpr (!Strict) {
-            this->OutputDataType_ = makeNullable(this->OutputDataType_);
-        }
     }
 
     static FunctionPtr create(const Context& /* context */)
@@ -193,17 +192,14 @@ public:
     }
 };
 
-template <class TCHOutputElementDataType, class TYTOutputType, bool Strict>
+template <class TCHOutputElementDataType, class TYTOutputType, bool Strict, class TName>
 class TArrayYPathFunction
-    : public TYPathFunctionBase<TYTOutputType, Strict>
+    : public TYPathFunctionBase<TYTOutputType, Strict, TName>
 {
 public:
     TArrayYPathFunction()
     {
         this->OutputDataType_ = std::make_shared<DataTypeArray>(std::make_shared<TCHOutputElementDataType>());
-        if constexpr (!Strict) {
-            this->OutputDataType_ = makeNullable(this->OutputDataType_);
-        }
     }
 
     static FunctionPtr create(const Context& /* context */)
@@ -214,31 +210,81 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// The boilerplate code below is an adaptation of similar technique from
+// https://github.com/yandex/ClickHouse/blob/master/dbms/src/Functions/FunctionsExternalDictionaries.h#L867
+// Note that we should implement not only the virtual getName() const method of the class,
+// but also the constexpr name field, which is taken from the TName template argument.
+struct TNameYPathInt64Strict { static constexpr auto Name = "YPathInt64Strict"; };
+struct TNameYPathUInt64Strict { static constexpr auto Name = "YPathUInt64Strict"; };
+struct TNameYPathBooleanStrict { static constexpr auto Name = "YPathBooleanStrict"; };
+struct TNameYPathDoubleStrict { static constexpr auto Name = "YPathDoubleStrict"; };
+struct TNameYPathStringStrict { static constexpr auto Name = "YPathStringStrict"; };
+
+struct TNameYPathInt64 { static constexpr auto Name = "YPathInt64"; };
+struct TNameYPathUInt64 { static constexpr auto Name = "YPathUInt64"; };
+struct TNameYPathBoolean { static constexpr auto Name = "YPathBoolean"; };
+struct TNameYPathDouble { static constexpr auto Name = "YPathDouble"; };
+struct TNameYPathString { static constexpr auto Name = "YPathString"; };
+
+struct TNameYPathArrayInt64Strict { static constexpr auto Name = "YPathArrayInt64Strict"; };
+struct TNameYPathArrayUInt64Strict { static constexpr auto Name = "YPathArrayUInt64Strict"; };
+struct TNameYPathArrayBooleanStrict { static constexpr auto Name = "YPathArrayBooleanStrict"; };
+struct TNameYPathArrayDoubleStrict { static constexpr auto Name = "YPathArrayDoubleStrict"; };
+
+struct TNameYPathArrayInt64 { static constexpr auto Name = "YPathArrayInt64"; };
+struct TNameYPathArrayUInt64 { static constexpr auto Name = "YPathArrayUInt64"; };
+struct TNameYPathArrayBoolean { static constexpr auto Name = "YPathArrayBoolean"; };
+struct TNameYPathArrayDouble { static constexpr auto Name = "YPathArrayDouble"; };
+
+
+using TFunctionYPathInt64Strict = TScalarYPathFunction<DataTypeInt64, i64, true, TNameYPathInt64Strict>;
+using TFunctionYPathUInt64Strict = TScalarYPathFunction<DataTypeUInt64, ui64, true, TNameYPathUInt64Strict>;
+using TFunctionYPathBooleanStrict = TScalarYPathFunction<DataTypeUInt8, bool, true, TNameYPathBooleanStrict>;
+using TFunctionYPathDoubleStrict = TScalarYPathFunction<DataTypeFloat64, double, true, TNameYPathDoubleStrict>;
+using TFunctionYPathStringStrict = TScalarYPathFunction<DataTypeString, TString, true, TNameYPathStringStrict>;
+
+using TFunctionYPathInt64 = TScalarYPathFunction<DataTypeInt64, i64, false, TNameYPathInt64>;
+using TFunctionYPathUInt64 = TScalarYPathFunction<DataTypeUInt64, ui64, false, TNameYPathUInt64>;
+using TFunctionYPathBoolean = TScalarYPathFunction<DataTypeUInt8, bool, false, TNameYPathBoolean>;
+using TFunctionYPathDouble = TScalarYPathFunction<DataTypeFloat64, double, false, TNameYPathDouble>;
+using TFunctionYPathString = TScalarYPathFunction<DataTypeString, TString, false, TNameYPathString>;
+
+using TFunctionYPathArrayInt64Strict = TArrayYPathFunction<DataTypeInt64, std::vector<i64>, true, TNameYPathArrayInt64Strict>;
+using TFunctionYPathArrayUInt64Strict = TArrayYPathFunction<DataTypeUInt64, std::vector<ui64>, true, TNameYPathArrayUInt64Strict>;
+using TFunctionYPathArrayBooleanStrict = TArrayYPathFunction<DataTypeUInt8, std::vector<bool>, true, TNameYPathArrayBooleanStrict>;
+using TFunctionYPathArrayDoubleStrict = TArrayYPathFunction<DataTypeFloat64, std::vector<double>, true, TNameYPathArrayDoubleStrict>;
+
+using TFunctionYPathArrayInt64 = TArrayYPathFunction<DataTypeInt64, std::vector<i64>, false, TNameYPathArrayInt64>;
+using TFunctionYPathArrayUInt64 = TArrayYPathFunction<DataTypeUInt64, std::vector<ui64>, false, TNameYPathArrayUInt64>;
+using TFunctionYPathArrayBoolean = TArrayYPathFunction<DataTypeUInt8, std::vector<bool>, false, TNameYPathArrayBoolean>;
+using TFunctionYPathArrayDouble = TArrayYPathFunction<DataTypeFloat64, std::vector<double>, false, TNameYPathArrayDouble>;
+
 void RegisterFunctions()
 {
     auto& factory = FunctionFactory::instance();
 
-    factory.registerFunction<TScalarYPathFunction<DataTypeInt64, i64, true>>("YPathInt64Strict");
-    factory.registerFunction<TScalarYPathFunction<DataTypeUInt64, ui64, true>>("YPathUInt64Strict");
-    factory.registerFunction<TScalarYPathFunction<DataTypeUInt8, bool, true>>("YPathBooleanStrict");
-    factory.registerFunction<TScalarYPathFunction<DataTypeFloat64, double, true>>("YPathDoubleStrict");
-    factory.registerFunction<TScalarYPathFunction<DataTypeString, TString, true>>("YPathStringStrict");
+    factory.registerFunction<TFunctionYPathInt64Strict>();
+    factory.registerFunction<TFunctionYPathUInt64Strict>();
+    factory.registerFunction<TFunctionYPathBooleanStrict>();
+    factory.registerFunction<TFunctionYPathDoubleStrict>();
+    factory.registerFunction<TFunctionYPathStringStrict>();
 
-    factory.registerFunction<TArrayYPathFunction<DataTypeInt64, std::vector<i64>, true>>("YPathArrayInt64Strict");
-    factory.registerFunction<TArrayYPathFunction<DataTypeUInt64, std::vector<ui64>, true>>("YPathArrayUInt64Strict");
-    factory.registerFunction<TArrayYPathFunction<DataTypeUInt8, std::vector<bool>, true>>("YPathArrayBooleanStrict");
-    factory.registerFunction<TArrayYPathFunction<DataTypeFloat64, std::vector<double>, true>>("YPathArrayDoubleStrict");
+    factory.registerFunction<TFunctionYPathInt64>();
+    factory.registerFunction<TFunctionYPathUInt64>();
+    factory.registerFunction<TFunctionYPathBoolean>();
+    factory.registerFunction<TFunctionYPathDouble>();
+    factory.registerFunction<TFunctionYPathString>();
 
-    factory.registerFunction<TScalarYPathFunction<DataTypeInt64, i64, false>>("YPathInt64");
-    factory.registerFunction<TScalarYPathFunction<DataTypeUInt64, ui64, false>>("YPathUInt64");
-    factory.registerFunction<TScalarYPathFunction<DataTypeUInt8, bool, false>>("YPathBoolean");
-    factory.registerFunction<TScalarYPathFunction<DataTypeFloat64, double, false>>("YPathDouble");
-    factory.registerFunction<TScalarYPathFunction<DataTypeString, TString, false>>("YPathString");
+    factory.registerFunction<TFunctionYPathArrayInt64Strict>();
+    factory.registerFunction<TFunctionYPathArrayUInt64Strict>();
+    factory.registerFunction<TFunctionYPathArrayDoubleStrict>();
+    factory.registerFunction<TFunctionYPathArrayBooleanStrict>();
 
-    factory.registerFunction<TArrayYPathFunction<DataTypeInt64, std::vector<i64>, false>>("YPathArrayInt64");
-    factory.registerFunction<TArrayYPathFunction<DataTypeUInt64, std::vector<ui64>, false>>("YPathArrayUInt64");
-    factory.registerFunction<TArrayYPathFunction<DataTypeUInt8, std::vector<bool>, false>>("YPathArrayBoolean64");
-    factory.registerFunction<TArrayYPathFunction<DataTypeFloat64, std::vector<double>, false>>("YPathArrayDouble64");
+    factory.registerFunction<TFunctionYPathArrayInt64>();
+    factory.registerFunction<TFunctionYPathArrayUInt64>();
+    factory.registerFunction<TFunctionYPathArrayDouble>();
+    factory.registerFunction<TFunctionYPathArrayBoolean>();
+
 }
 
 /////////////////////////////////////////////////////////////////////////////
