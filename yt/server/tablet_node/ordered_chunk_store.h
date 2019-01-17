@@ -39,7 +39,8 @@ public:
         i64 lowerRowIndex,
         i64 upperRowIndex,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions) override;
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) override;
 
 private:
     class TReader;

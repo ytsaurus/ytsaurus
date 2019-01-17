@@ -55,7 +55,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TRowRange>& bounds,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions)
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
     YCHECK(bounds.Size() > 0);
@@ -146,7 +147,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
                 timestamp,
                 false,
                 columnFilter,
-                blockReadOptions);
+                blockReadOptions,
+                throttler);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,
@@ -163,7 +165,8 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp /*timestamp*/,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions)
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     // Deduce tablet index and row range from lower and upper bound.
     YCHECK(lowerBound.GetCount() >= 1);
@@ -265,7 +268,8 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
                 lowerRowIndex,
                 upperRowIndex,
                 columnFilter,
-                blockReadOptions);
+                blockReadOptions,
+                throttler);
         });
     }
 
@@ -278,7 +282,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions)
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     if (tabletSnapshot->PhysicalSchema.IsSorted()) {
         return CreateSchemafulSortedTabletReader(
@@ -286,7 +291,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             columnFilter,
             MakeSingletonRowRange(lowerBound, upperBound),
             timestamp,
-            blockReadOptions);
+            blockReadOptions,
+            throttler);
     } else {
         return CreateSchemafulOrderedTabletReader(
             std::move(tabletSnapshot),
@@ -294,7 +300,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             std::move(lowerBound),
             std::move(upperBound),
             timestamp,
-            blockReadOptions);
+            blockReadOptions,
+            throttler);
     }
 }
 
@@ -309,7 +316,8 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    TRowBufferPtr rowBuffer)
+    TRowBufferPtr rowBuffer,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     auto minKey = *keys.Begin();
     auto maxKey = *(keys.End() - 1);
@@ -354,7 +362,8 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
                     timestamp,
                     false,
                     columnFilter,
-                    blockReadOptions);
+                    blockReadOptions,
+                    throttler);
             } else {
                 return nullptr;
             }
@@ -368,7 +377,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions)
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
@@ -416,7 +426,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
                 partitionedKeys[index],
                 timestamp,
                 blockReadOptions,
-                rowBuffer);
+                rowBuffer,
+                throttler);
             ++index;
             return reader;
         } else {

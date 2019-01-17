@@ -185,9 +185,10 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
-    const TClientBlockReadOptions& blockReadOptions)
+    const TClientBlockReadOptions& blockReadOptions,
+    IThroughputThrottlerPtr throttler)
 {
-    auto chunkReader = GetChunkReader(NConcurrency::GetUnlimitedThrottler());
+    auto chunkReader = GetChunkReader(throttler);
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,

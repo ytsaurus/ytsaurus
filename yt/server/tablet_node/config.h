@@ -651,6 +651,12 @@ public:
     //! Controls outcoming bandwidth used by store compactions.
     NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionAndPartitioningOutThrottler;
 
+    //! Controls incoming bandwidth used by table replication.
+    NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
+
+    //! Controls outcoming bandwidth used by table replication.
+    NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
+
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
 
@@ -709,6 +715,11 @@ public:
         RegisterParameter("store_compaction_and_partitioning_in_throttler", StoreCompactionAndPartitioningInThrottler)
             .DefaultNew();
         RegisterParameter("store_compaction_and_partitioning_out_throttler", StoreCompactionAndPartitioningOutThrottler)
+            .DefaultNew();
+
+        RegisterParameter("replication_in_throttler", ReplicationInThrottler)
+            .DefaultNew();
+        RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
             .DefaultNew();
 
         RegisterParameter("slot_scan_period", SlotScanPeriod)

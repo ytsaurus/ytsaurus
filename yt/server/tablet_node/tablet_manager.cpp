@@ -2894,7 +2894,9 @@ private:
             Bootstrap_->GetMasterClient()->GetNativeConnection(),
             Slot_,
             Bootstrap_->GetTabletSlotManager(),
-            CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker())));
+            CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
+            Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletReplication),
+            Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletReplication)));
         if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
             replicaInfo->GetReplicator()->Enable();
         }
