@@ -177,6 +177,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr DataNodeTabletPreloadOutThrottler;
     NConcurrency::IThroughputThrottlerPtr DataNodeTabletSnapshotInThrottler;
     NConcurrency::IThroughputThrottlerPtr DataNodeTabletRecoveryOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr DataNodeTabletReplicationOutThrottler;
 
     NConcurrency::IThroughputThrottlerPtr TabletNodeCompactionAndPartitioningInThrottler;
     NConcurrency::IThroughputThrottlerPtr TabletNodeCompactionAndPartitioningOutThrottler;
