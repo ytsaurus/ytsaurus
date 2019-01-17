@@ -45,6 +45,22 @@ message TPodAgentSpec {
     repeated TMutableWorkload MutableWorkloads = 9;
 }
 
+// Кэш ресурсы, которые надо скачать на под
+// Хеш ресурса считается как hash(Url, Checksum), т.е. он не зависит от Id/Revision/Meta/CheckPeriodMs/..
+// Если в спеке пода окажется layer или ресурс, у которого совпал хеш с каким-то ресурсом из кэша,
+// то этот ресурс не будет закачиваться заново, а просто подставится из кэша
+// NOTE: Для всех TResource с одинаковым хешом выбирается минимальное из времен TVerification::CheckPeriodMs,
+// т.е. если в спеку пода придет TResource, который лежит в кэше, но его период верификации меньше
+// периода верификации кэш ресурса, этот ресурс начнет верифицироваться с меньшим периодом
+// NOTE: Валидация - сущности имеют уникальные в рамках пода идентификаторы (Пара Id, Revision)
+message TPodAgentResourceCacheSpec {
+    // Кэш слои
+    repeated TCacheLayer Layers = 1;
+
+    // Кэш ресурсы
+    repeated TCacheResource StaticResources = 2;
+}
+
 // Конфигурация Пода, содержащая секреты
 // NOTE: В будущем Pod-agent будет принимать только это сообщение, сейчас он все еще принимает TPodAgentSpec отдельно для обратной совместимости
 // NOTE: Валидация - все alias секретов различны
@@ -54,6 +70,9 @@ message TPodAgentRequest {
 
     // Секреты (raw, unencrypted)
     repeated NYP.NClient.NApi.NProto.TSecret Secrets = 2;
+
+    // Кэш ресурсы для пода
+    TPodAgentResourceCacheSpec ResourceCacheSpec = 3;
 }
 
 // Текущее состояние Пода, возвращаемое из Pod-agent
@@ -88,6 +107,8 @@ message TPodAgentStatus {
     // Иначе обращается в EConditionStatus_FALSE.
     // LastTransitionTime -- максимальное значение InProgress.LastTransitionTime среди всех вложеных T*Status
     TCondition InProgress = 9;
+
+    TResourceGangStatus ResourceCache = 10;
 }
 
 // Спека для получения расширенного debug состояния pod_agent
@@ -170,6 +191,13 @@ message TResource {
     }
 }
 
+message TCacheResource {
+    // Ревизия кэш ресурса
+    uint32 Revision = 1;
+
+    TResource Resource = 2;
+}
+
 message TLayer {
     // Уникальный идентификатор (произвольная строка)
     string Id = 1;
@@ -189,6 +217,13 @@ message TLayer {
     // URL для скачивания, протоколы: http, https, rbtorrent
     // Для записи строчки в файл URL должен быть равен "raw:<строка>"
     string Url = 5;
+}
+
+message TCacheLayer {
+    // Ревизия кэш слоя
+    uint32 Revision = 1;
+
+    TLayer Layer = 2;
 }
 
 enum EVolumeMountMode {
