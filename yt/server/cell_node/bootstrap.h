@@ -183,6 +183,8 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletNodeCompactionAndPartitioningOutThrottler;
     NConcurrency::IThroughputThrottlerPtr TabletNodeStoreFlushOutThrottler;
     NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationOutThrottler;
 
     NConcurrency::IThroughputThrottlerPtr ReadRpsOutThrottler;
 

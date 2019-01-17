@@ -112,7 +112,7 @@ IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
 //! enforced by a set of underlying #throttlers.
 //! Note that IThroughputThrotter::TryAcquire is not implemented.
 IThroughputThrottlerPtr CreateCombinedThrottler(
-    const std::vector<IThroughputThrottlerPtr>& throttler);
+    const std::vector<IThroughputThrottlerPtr>& throttlers);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1797,7 +1797,8 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/)
+    const NChunkClient::TClientBlockReadOptions&,
+    IThroughputThrottlerPtr /*throttler*/)
 {
     return New<TLookupReader>(
         this,

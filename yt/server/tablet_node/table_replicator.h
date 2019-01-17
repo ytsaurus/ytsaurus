@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/api/native/public.h>
 
+#include <yt/core/concurrency/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +23,9 @@ public:
         NApi::NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
-        IInvokerPtr workerInvoker);
+        IInvokerPtr workerInvoker,
+        NConcurrency::IThroughputThrottlerPtr nodeInThrottler,
+        NConcurrency::IThroughputThrottlerPtr nodeOutThrottler);
     ~TTableReplicator();
 
     void Enable();

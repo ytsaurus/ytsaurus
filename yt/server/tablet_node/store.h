@@ -192,7 +192,8 @@ struct ISortedStore
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions) = 0;
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) = 0;
 
     //! Checks that the transaction attempting to take locks indicated by #lockMask
     //! has no conflicts within the store. Returns the error.
@@ -237,7 +238,8 @@ struct IOrderedStore
         i64 lowerRowIndex,
         i64 upperRowIndex,
         const NTableClient::TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions) = 0;
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOrderedStore)

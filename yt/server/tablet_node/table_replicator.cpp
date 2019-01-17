@@ -73,7 +73,9 @@ public:
         NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
-        IInvokerPtr workerInvoker)
+        IInvokerPtr workerInvoker,
+        IThroughputThrottlerPtr nodeInThrottler,
+        IThroughputThrottlerPtr nodeOutThrottler)
         : Config_(std::move(config))
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
@@ -91,10 +93,13 @@ public:
                 TabletId_,
                 ReplicaId_))
         , Profiler(TabletNodeProfiler)
-        , Throttler_(CreateReconfigurableThroughputThrottler(
-            MountConfig_->ReplicationThrottler,
-            Logger,
-            Profiler.AppendPath("/replica/replication_data_weight_throttler").AddTags(replicaInfo->GetCounters()->Tags)))
+        , NodeInThrottler_(std::move(nodeInThrottler))
+        , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+            std::move(nodeOutThrottler),
+            CreateReconfigurableThroughputThrottler(
+                MountConfig_->ReplicationThrottler,
+                Logger,
+                Profiler.AppendPath("/replica/replication_data_weight_throttler").AddTags(replicaInfo->GetCounters()->Tags))}))
     { }
 
     void Enable()
@@ -136,7 +141,8 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
 
-    const IReconfigurableThroughputThrottlerPtr Throttler_;
+    const IThroughputThrottlerPtr NodeInThrottler_;
+    const IThroughputThrottlerPtr Throttler_;
 
     TFuture<void> FiberFuture_;
 
@@ -347,7 +353,8 @@ private:
             MakeRowBound(rowIndex),
             MakeRowBound(rowIndex + 1),
             NullTimestamp,
-            blockReadOptions);
+            blockReadOptions,
+            NodeInThrottler_);
 
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(1);
@@ -459,7 +466,8 @@ private:
             MakeRowBound(startRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
             NullTimestamp,
-            blockReadOptions);
+            blockReadOptions,
+            NodeInThrottler_);
 
         int timestampCount = 0;
         int rowCount = 0;
@@ -850,7 +858,9 @@ TTableReplicator::TTableReplicator(
     NNative::IConnectionPtr localConnection,
     TTabletSlotPtr slot,
     TSlotManagerPtr slotManager,
-    IInvokerPtr workerInvoker)
+    IInvokerPtr workerInvoker,
+    IThroughputThrottlerPtr nodeInThrottler,
+    IThroughputThrottlerPtr nodeOutThrottler)
     : Impl_(New<TImpl>(
         std::move(config),
         tablet,
@@ -858,7 +868,9 @@ TTableReplicator::TTableReplicator(
         std::move(localConnection),
         std::move(slot),
         std::move(slotManager),
-        std::move(workerInvoker)))
+        std::move(workerInvoker),
+        std::move(nodeInThrottler),
+        std::move(nodeOutThrottler)))
 { }
 
 TTableReplicator::~TTableReplicator() = default;
