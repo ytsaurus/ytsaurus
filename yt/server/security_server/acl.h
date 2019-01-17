@@ -89,20 +89,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSerializableAccessControlEntry
-    : public NYTree::TYsonSerializable
-{
-    ESecurityAction Action;
-    std::vector<TString> Subjects;
-    std::vector<TString> Permissions;
-    EAceInheritanceMode InheritanceMode;
-
-    TSerializableAccessControlEntry();
-};
-
-DEFINE_REFCOUNTED_TYPE(TSerializableAccessControlEntry);
-
-////////////////////////////////////////////////////////////////////////////////
-
-
 } // namespace NYT::NSecurityServer

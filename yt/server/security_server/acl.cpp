@@ -4,6 +4,8 @@
 
 #include <yt/server/cell_master/serialize.h>
 
+#include <yt/ytlib/security_client/acl.h>
+
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/permission.h>
@@ -68,15 +70,6 @@ void Save(NCellMaster::TSaveContext& context, const TAccessControlList& acl)
     Save(context, acl.Entries);
 }
 
-TSerializableAccessControlEntry::TSerializableAccessControlEntry()
-{
-    RegisterParameter("action", Action);
-    RegisterParameter("subjects", Subjects);
-    RegisterParameter("permissions", Permissions);
-    RegisterParameter("inheritance_mode", InheritanceMode)
-        .Default(EAceInheritanceMode::ObjectAndDescendants);
-}
-
 void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
@@ -89,15 +82,15 @@ void Deserialize(
     TSecurityManagerPtr securityManager,
     std::vector<TString>* missingSubjects)
 {
-    auto serializableAces = ConvertTo<std::vector<TSerializableAccessControlEntryPtr>>(node);
-    for (const auto& serializableAce : serializableAces) {
+    auto serializableAcl = ConvertTo<TSerializableAccessControlList>(node);
+    for (const auto& serializableAce : serializableAcl.Entries) {
         TAccessControlEntry ace;
 
         // Action
-        ace.Action = serializableAce->Action;
+        ace.Action = serializableAce.Action;
 
         // Subject
-        for (const auto& name : serializableAce->Subjects) {
+        for (const auto& name : serializableAce.Subjects) {
             auto* subject = securityManager->FindSubjectByName(name);
             if (missingSubjects && !subject) {
                 missingSubjects->push_back(name);
@@ -111,10 +104,10 @@ void Deserialize(
         }
 
         // Permissions
-        ace.Permissions = ParsePermissions(serializableAce->Permissions);
+        ace.Permissions = serializableAce.Permissions;
 
         // Inheritance mode
-        ace.InheritanceMode = serializableAce->InheritanceMode;
+        ace.InheritanceMode = serializableAce.InheritanceMode;
 
         acl.Entries.push_back(ace);
     }
