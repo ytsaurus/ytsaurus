@@ -36,15 +36,13 @@ from pytest_helpers import (
     archive_core_dumps_if_any,
     get_sandbox_dirs,
     save_failed_test,
-    find_core_dumps_with_report,
-    copy_artifacts,
+    clean_failed_tests_directory,
     prepare_python_bindings,
 )
 
 from datetime import datetime
 
 import argparse
-import collections
 import contextlib
 import fnmatch
 import functools
@@ -1070,30 +1068,7 @@ def clean_ya_cache(options, build_context):
 
 @cleanup_step
 def clean_failed_tests(options, build_context, max_allowed_size=None):
-    if options.is_bare_metal:
-        max_allowed_size = 700 * 1024 * 1024 * 1024
-    else:
-        max_allowed_size = 50 * 1024 * 1024 * 1024
-
-    should_remove = False
-    total_size = 0
-    for path in ls(options.failed_tests_path,
-                   select=os.path.isdir,
-                   stop=sys.maxint):
-        size = get_size(path, enable_cache=True)
-        if total_size + size > max_allowed_size:
-            should_remove = True
-
-        if should_remove:
-            teamcity_message("Removing {0}...".format(path), status="WARNING")
-            if os.path.isdir(path):
-                rmtree(path)
-                if os.path.exists(path + ".size"):
-                    os.remove(path + ".size")
-            else:
-                os.unlink(path)
-        else:
-            total_size += size
+    clean_failed_tests_directory(options.failed_tests_path)
 
 
 ################################################################################
