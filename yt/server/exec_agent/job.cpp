@@ -1052,9 +1052,6 @@ private:
         }
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
-        TNodeDirectoryBuilder inputNodeDirectoryBuilder(
-            nodeDirectory,
-            schedulerJobSpecExt->mutable_input_node_directory());
 
         for (int attempt = 1;; ++attempt) {
             if (JobPhase_ != EJobPhase::PreparingNodeDirectory) {
@@ -1065,8 +1062,7 @@ private:
 
             auto validateNodeIds = [&] (
                 const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-                const TNodeDirectoryPtr& nodeDirectory,
-                TNodeDirectoryBuilder* nodeDirectoryBuilder)
+                const TNodeDirectoryPtr& nodeDirectory)
             {
                 for (const auto& chunkSpec : chunkSpecs) {
                     auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
@@ -1077,16 +1073,13 @@ private:
                             unresolvedNodeId = nodeId;
                             return;
                         }
-                        if (nodeDirectoryBuilder) {
-                            nodeDirectoryBuilder->Add(replica);
-                        }
                     }
                 }
             };
 
             auto validateTableSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
                 for (const auto& tableSpec : tableSpecs) {
-                    validateNodeIds(tableSpec.chunk_specs(), nodeDirectory, &inputNodeDirectoryBuilder);
+                    validateNodeIds(tableSpec.chunk_specs(), nodeDirectory);
                 }
             };
 
@@ -1095,11 +1088,11 @@ private:
 
             // NB: No need to add these descriptors to the input node directory.
             for (const auto& artifact : Artifacts_) {
-                validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory, nullptr);
+                validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory);
             }
 
             for (const auto& artifactKey : LayerArtifactKeys_) {
-                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory, nullptr);
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
             }
 
             if (!unresolvedNodeId) {
@@ -1117,7 +1110,8 @@ private:
             TDelayedExecutor::WaitForDuration(Config_->NodeDirectoryPrepareBackoffTime);
         }
 
-        YT_LOG_INFO("Node directory is constructed locally");
+        nodeDirectory->DumpTo(schedulerJobSpecExt->mutable_input_node_directory());
+        YT_LOG_INFO("All node ids were resolved");
     }
 
     TJobProxyConfigPtr CreateConfig()

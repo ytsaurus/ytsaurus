@@ -457,7 +457,7 @@ private:
                 auto* peerDescriptor = response->add_peer_descriptors();
                 peerDescriptor->set_block_index(blockIndex);
                 for (const auto& peer : peers) {
-                    ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
+                    peerDescriptor->add_node_ids(peer.NodeId);
                 }
                 YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
                     blockId,
@@ -506,10 +506,9 @@ private:
         i64 blocksSize = GetByteSize(response->Attachments());
 
         // Register the peer that we had just sent the reply to.
-        if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
-            auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
+        if (request->has_peer_node_id() && request->has_peer_expiration_time()) {
             auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
-            TPeerInfo peerInfo(descriptor, expirationTime);
+            TPeerInfo peerInfo(request->peer_node_id(), expirationTime);
             for (int blockIndex : request->block_indexes()) {
                 peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peerInfo);
             }
@@ -1268,12 +1267,15 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
-        auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
         auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
-        TPeerInfo peer(descriptor, expirationTime);
+        TPeerInfo peer(request->peer_node_id(), expirationTime);
 
-        context->SetRequestInfo("Descriptor: %v, ExpirationTime: %v, BlockCount: %v",
-            descriptor,
+        const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
+        auto maybeNodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
+
+        context->SetRequestInfo("PeerNodeId: %v, Descriptor: %v, ExpirationTime: %v, BlockCount: %v",
+            request->peer_node_id(),
+            maybeNodeDescriptor,
             expirationTime,
             request->block_ids_size());
 

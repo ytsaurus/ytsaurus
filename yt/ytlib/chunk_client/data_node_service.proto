@@ -128,12 +128,16 @@ message TReqGetBlockSet
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated int32 block_indexes = 2;
-    optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 3;
+
+    // Deprecated.
+    // optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 3;
+
     optional uint64 peer_expiration_time = 4;
     optional bool populate_cache = 5 [default = true];
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
     optional bool fetch_from_cache = 7 [default = true];
     optional bool fetch_from_disk = 8 [default = true];
+    optional int32 peer_node_id = 9;
 }
 
 message TRspGetBlockSet
@@ -141,7 +145,11 @@ message TRspGetBlockSet
     message TPeerDescriptor
     {
         required int32 block_index = 1;
-        repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptors = 2;
+
+        // Deprecated.
+        // repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptors = 2;
+
+        repeated int32 node_ids = 3;
     }
 
     repeated TPeerDescriptor peer_descriptors = 1;
@@ -225,8 +233,10 @@ message TRspGetChunkMeta
 message TReqUpdatePeer
 {
     repeated TBlockId block_ids = 1;
-    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 2;
+    // Deprecated.
+    // required NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 2;
     required uint64 peer_expiration_time = 3;
+    required int32 peer_node_id = 4;
 }
 
 message TRspUpdatePeer
