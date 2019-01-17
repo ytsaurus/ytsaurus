@@ -22,6 +22,7 @@ public:
 
     const TResourceCapacities& GetTotalCapacities() const;
     const TResourceCapacities& GetAllocatedCapacities() const;
+    TResourceCapacities GetFreeCapacities() const;
 
 protected:
     TResourceCapacities TotalCapacities_ = {};
@@ -38,6 +39,7 @@ public:
     THomogeneousResource() = default;
     THomogeneousResource(const THomogeneousResource&) = default;
 
+    bool CanAllocate(const TResourceCapacities& capacities) const;
     bool TryAllocate(const TResourceCapacities& capacities);
 };
 

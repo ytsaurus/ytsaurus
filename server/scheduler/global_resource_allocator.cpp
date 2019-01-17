@@ -9,6 +9,7 @@
 #include "label_filter_cache.h"
 #include "helpers.h"
 #include "config.h"
+#include "pod_node_score.h"
 
 #include <yt/core/misc/random.h>
 
@@ -172,8 +173,11 @@ class TBasicGlobalResourceAllocator
     : public IGlobalResourceAllocator
 {
 public:
-    explicit TBasicGlobalResourceAllocator(EAllocatorNodeSelectionStrategy nodeSelectionStrategy)
+    TBasicGlobalResourceAllocator(
+        EAllocatorNodeSelectionStrategy nodeSelectionStrategy,
+        TPodNodeScoreConfigPtr podNodeScoreConfig)
         : NodeSelectionStrategy_(nodeSelectionStrategy)
+        , PodNodeScore_(CreatePodNodeScore(std::move(podNodeScoreConfig)))
     { }
 
     virtual void ReconcileState(const TClusterPtr& cluster) override
@@ -228,10 +232,9 @@ public:
                     SampleSize,
                     [] (size_t max) { return RandomNumber(max); });
 
-                for (auto* node : sampledNodes) {
-                    if (TryAllocation(node, pod, &statistics)) {
-                        return node;
-                    }
+                auto* resultNode = AllocateMinimumScoreNode(pod, sampledNodes, &statistics);
+                if (resultNode) {
+                    return resultNode;
                 }
 
                 return TError("No matching node from a random sample of size %v could be allocated for pod due to errors %v",
@@ -239,10 +242,9 @@ public:
                     statistics.FormatErrors());
             }
             case EAllocatorNodeSelectionStrategy::Every: {
-                for (auto* node : nodes) {
-                    if (TryAllocation(node, pod, &statistics)) {
-                        return node;
-                    }
+                auto* resultNode = AllocateMinimumScoreNode(pod, nodes, &statistics);
+                if (resultNode) {
+                    return resultNode;
                 }
 
                 return TError("No matching alive node (from %v in total after filtering) could be allocated for pod due to errors %v",
@@ -256,19 +258,77 @@ public:
 
 private:
     const EAllocatorNodeSelectionStrategy NodeSelectionStrategy_;
+    const IPodNodeScorePtr PodNodeScore_;
 
     TClusterPtr Cluster_;
+
+    struct TAllocationContext
+    {
+        TAllocationContext(TNode* node, TPod* pod, const TClusterPtr& cluster)
+            : NodeAllocationContext(node, pod)
+            , InternetAddressAllocationContext(
+                cluster->FindNetworkModule(node->Spec().network_module_id()),
+                pod)
+        { }
+
+        TNodeAllocationContext NodeAllocationContext;
+        TInternetAddressAllocationContext InternetAddressAllocationContext;
+    };
+
+    TNode* AllocateMinimumScoreNode(
+        TPod* pod,
+        const std::vector<TNode*>& nodes,
+        TGlobalResourceAllocatorStatistics* statistics)
+    {
+        TNode* resultNode = nullptr;
+        TPodNodeScoreValue resultScore{};
+        for (auto* node : nodes) {
+            if (TryAllocation(node, pod, statistics)) {
+                auto score = PodNodeScore_->Compute(node, pod);
+                if (!resultNode || score < resultScore) {
+                    resultNode = node;
+                    resultScore = score;
+                }
+            }
+        }
+        if (resultNode) {
+            YT_LOG_DEBUG("Found node for pod with minimum score (Score: %v, Pod: %v, Node: %v)",
+                resultScore,
+                pod->GetId(),
+                resultNode->GetId());
+            Allocate(resultNode, pod);
+        }
+        return resultNode;
+    }
+
+    void Allocate(TNode* node, TPod* pod)
+    {
+        TGlobalResourceAllocatorStatistics statistics;
+        TAllocationContext allocationContext(node, pod, Cluster_);
+        if (!TryAllocation(&allocationContext, pod, &statistics)) {
+            THROW_ERROR_EXCEPTION("Could not allocate resources for pod %Qv on node %Qv",
+                pod->GetId(),
+                node->GetId());
+        }
+        CommitAllocation(&allocationContext);
+    }
 
     bool TryAllocation(
         TNode* node,
         TPod* pod,
         TGlobalResourceAllocatorStatistics* statistics)
     {
-        auto* networkModule = Cluster_->FindNetworkModule(node->Spec().network_module_id());
-        TNodeAllocationContext nodeAllocationContext(node, pod);
-        TInternetAddressAllocationContext internetAddressAllocationContext(
-            networkModule,
-            pod);
+        TAllocationContext allocationContext(node, pod, Cluster_);
+        return TryAllocation(&allocationContext, pod, statistics);
+    }
+
+    bool TryAllocation(
+        TAllocationContext* allocationContext,
+        TPod* pod,
+        TGlobalResourceAllocatorStatistics* statistics)
+    {
+        auto& nodeAllocationContext = allocationContext->NodeAllocationContext;
+        auto& internetAddressAllocationContext = allocationContext->InternetAddressAllocationContext;
 
         bool result = true;
 
@@ -322,12 +382,13 @@ private:
             statistics->RegisterError(EAllocationErrorType::DiskUnsatisfied);
         }
 
-        if (result) {
-            nodeAllocationContext.Commit();
-            internetAddressAllocationContext.Commit();
-        }
-
         return result;
+    }
+
+    static void CommitAllocation(TAllocationContext* allocationContext)
+    {
+        allocationContext->NodeAllocationContext.Commit();
+        allocationContext->InternetAddressAllocationContext.Commit();
     }
 };
 
@@ -340,9 +401,13 @@ public:
     explicit TCompositeGlobalResourceAllocator(TGlobalResourceAllocatorConfigPtr config)
         : Config_(std::move(config))
         , RandomNodeSelectionAllocator_(
-            New<TBasicGlobalResourceAllocator>(EAllocatorNodeSelectionStrategy::Random))
+            New<TBasicGlobalResourceAllocator>(
+                EAllocatorNodeSelectionStrategy::Random,
+                Config_->PodNodeScore))
         , EveryNodeSelectionAllocator_(
-            New<TBasicGlobalResourceAllocator>(EAllocatorNodeSelectionStrategy::Every))
+            New<TBasicGlobalResourceAllocator>(
+                EAllocatorNodeSelectionStrategy::Every,
+                Config_->PodNodeScore))
     {
         YCHECK(Config_->EveryNodeSelectionStrategy->Enable);
     }
@@ -486,7 +551,9 @@ IGlobalResourceAllocatorPtr CreateGlobalResourceAllocator(TGlobalResourceAllocat
     if (config->EveryNodeSelectionStrategy->Enable) {
         return New<TCompositeGlobalResourceAllocator>(std::move(config));
     }
-    return New<TBasicGlobalResourceAllocator>(EAllocatorNodeSelectionStrategy::Random);
+    return New<TBasicGlobalResourceAllocator>(
+        EAllocatorNodeSelectionStrategy::Random,
+        std::move(config->PodNodeScore));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

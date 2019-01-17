@@ -37,6 +37,7 @@ DECLARE_REFCOUNTED_CLASS(TResourceManager)
 DECLARE_REFCOUNTED_CLASS(TScheduler)
 
 DECLARE_REFCOUNTED_CLASS(TEveryNodeSelectionStrategyConfig)
+DECLARE_REFCOUNTED_CLASS(TPodNodeScoreConfig)
 DECLARE_REFCOUNTED_CLASS(TGlobalResourceAllocatorConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 
@@ -47,6 +48,16 @@ using NObjects::TObjectId;
 using NObjects::EResourceKind;
 
 extern const TString TopologyLabel;
+
+DECLARE_REFCOUNTED_STRUCT(IPodNodeScore)
+
+DEFINE_ENUM(EPodNodeScoreType,
+    (NodeRandomHash)
+    (FreeCpuMemoryShareVariance)
+    (FreeCpuMemoryShareSquaredMinDelta)
+);
+
+using TPodNodeScoreValue = double;
 
 ////////////////////////////////////////////////////////////////////////////////
 

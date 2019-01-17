@@ -36,6 +36,8 @@ using namespace NYT::NConcurrency;
 
 using NYT::FromProto;
 
+static const TYsonString NullYsonString{"#"};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectService
@@ -191,6 +193,43 @@ private:
                 Y_UNREACHABLE();
         }
         return payload;
+    }
+
+    TUpdateRequest ParseRemoveUpdate(const NClient::NApi::NProto::TRemoveUpdate& protoUpdate)
+    {
+        return TRemoveUpdateRequest{
+            protoUpdate.path()
+        };
+    }
+
+    template <class TContextPtr>
+    TUpdateRequest ParseSetUpdate(
+        const TContextPtr& context,
+        EObjectType type,
+        const NClient::NApi::NProto::TSetUpdate& protoUpdate,
+        bool* deprecatedPayloadFormatLogged)
+    {
+        const auto& path = protoUpdate.path();
+        TYsonString value;
+        if (protoUpdate.has_value()) {
+            value = TYsonString(protoUpdate.value());
+            if (!*deprecatedPayloadFormatLogged) {
+                LogDeprecatedPayloadFormat(context);
+                *deprecatedPayloadFormatLogged = true;
+            }
+        } else if (protoUpdate.has_value_payload()) {
+            value = PayloadToYsonString(protoUpdate.value_payload(), type, path);
+            if (!value) {
+                value = NullYsonString;
+            }
+        } else {
+            THROW_ERROR_EXCEPTION("Neither \"value\" nor \"value_payload\" is given");
+        }
+        return TSetUpdateRequest{
+            path,
+            ConvertToNode(value),
+            protoUpdate.recursive()
+        };
     }
 
 
@@ -448,16 +487,17 @@ private:
         Y_UNUSED(response);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto objectType = static_cast<NObjects::EObjectType>(request->object_type());
+        auto objectType = CheckedEnumCast<NObjects::EObjectType>(request->object_type());
         auto objectId = FromProto<TObjectId>(request->object_id());
 
+        bool deprecatedPayloadFormatLogged = false;
         std::vector<TUpdateRequest> updates;
         updates.reserve(request->set_updates().size() + request->remove_updates().size());
         for (const auto& update : request->set_updates()) {
-            updates.push_back(FromProto<TSetUpdateRequest>(update));
+            updates.push_back(ParseSetUpdate(context, objectType, update, &deprecatedPayloadFormatLogged));
         }
         for (const auto& update : request->remove_updates()) {
-            updates.push_back(FromProto<TRemoveUpdateRequest>(update));
+            updates.push_back(ParseRemoveUpdate(update));
         }
 
         context->SetRequestInfo("TransactionId: %v, ObjectType: %v, ObjectId: %v, UpdateCount: %v",
@@ -492,22 +532,21 @@ private:
             std::vector<TUpdateRequest> Updates;
         };
 
+        bool deprecatedPayloadFormatLogged = false;
         std::vector<TSubrequest> subrequests;
         subrequests.reserve(request->subrequests_size());
         for (const auto& subrequest : request->subrequests()) {
+            auto objectType = CheckedEnumCast<NObjects::EObjectType>(subrequest.object_type());
+            auto objectId = FromProto<TObjectId>(subrequest.object_id());
             std::vector<TUpdateRequest> updates;
             updates.reserve(subrequest.set_updates_size() + subrequest.remove_updates_size());
             for (const auto& update : subrequest.set_updates()) {
-                updates.push_back(FromProto<TSetUpdateRequest>(update));
+                updates.push_back(ParseSetUpdate(context, objectType, update, &deprecatedPayloadFormatLogged));
             }
             for (const auto& update : subrequest.remove_updates()) {
-                updates.push_back(FromProto<TRemoveUpdateRequest>(update));
+                updates.push_back(ParseRemoveUpdate(update));
             }
-            subrequests.push_back({
-                static_cast<NObjects::EObjectType>(subrequest.object_type()),
-                FromProto<TObjectId>(subrequest.object_id()),
-                std::move(updates)
-            });
+            subrequests.push_back({objectType, std::move(objectId), std::move(updates)});
         }
 
         context->SetRequestInfo("TransactionId: %v, Subrequests: %v",

@@ -1,5 +1,7 @@
 from .conftest import ZERO_RESOURCE_REQUESTS
 
+from yp.local import set_account_infinite_resource_limits
+
 from yp.common import YtResponseError, wait, WaitFailed
 
 from yt.packages.six.moves import xrange
@@ -14,8 +16,23 @@ from functools import partial
 import time
 
 
+def _get_pod_scheduling_status(yp_client, pod_id):
+    return yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0]
+
+def _is_assigned_pod_scheduling_status(scheduling_status):
+    return "error" not in scheduling_status and \
+        scheduling_status.get("state", None) == "assigned" and \
+        scheduling_status.get("node_id", "") != ""
+
+def _is_error_pod_scheduling_status(scheduling_status):
+    return "error" in scheduling_status and \
+        scheduling_status.get("state", None) != "assigned" and \
+        scheduling_status.get("node_id", None) is None
+
+DEFAULT_ACCOUNT_ID = "tmp"
+
 DEFAULT_POD_SET_SPEC = {
-        "account_id": "tmp",
+        "account_id": DEFAULT_ACCOUNT_ID,
         "node_segment_id": "default"
     }
 
@@ -459,15 +476,12 @@ class TestScheduler(object):
             },
         }
 
-        def get_scheduling_status(pod_id):
-            return yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0]
-
         def wait_for_scheduling_status(pod_id, check_status):
             try:
-                wait(lambda: check_status(get_scheduling_status(pod_id)))
+                wait(lambda: check_status(_get_pod_scheduling_status(yp_client, pod_id)))
             except WaitFailed as exception:
                 raise WaitFailed("Wait for pod scheduling failed: /status/scheduling = '{}')".format(
-                    get_scheduling_status(pod_id)))
+                    _get_pod_scheduling_status(yp_client, pod_id)))
 
         if exclusive_first:
             exclusive_pod_id = yp_client.create_object("pod", attributes=exclusive_pod_attributes)
@@ -512,9 +526,6 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         seconds_per_iteration = (scheduler_config["loop_period"] + scheduler_config["failed_allocation_backoff_time"]) / 1000.0
         return seconds_per_iteration * (max_possible_iteration_period + 5)
 
-    def _get_scheduling_status(self, yp_client, pod_id):
-        return yp_client.get_object("pod", pod_id, selectors=["/status/scheduling"])[0]
-
     def _get_default_resource_capacities(self):
         return dict(
             cpu_total_capacity=10 ** 3,
@@ -526,15 +537,12 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         _create_nodes(yp_env_configurable, node_count=self._NODE_COUNT, **self._get_default_resource_capacities())
         pod_set_id = yp_client.create_object("pod_set", attributes=dict(spec=DEFAULT_POD_SET_SPEC))
         pod_id = _create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
-        wait(lambda: status_check(self._get_scheduling_status(yp_client, pod_id)))
+        wait(lambda: status_check(_get_pod_scheduling_status(yp_client, pod_id)))
 
     def _error_status_check(self, allocation_error_string, status):
-        return "error" in status and \
+        return _is_error_pod_scheduling_status(status) and \
             "{}: {}".format(allocation_error_string, self._SCHEDULER_SAMPLE_SIZE) in str(status["error"]) and \
             "{}: {}".format(allocation_error_string, self._NODE_COUNT) in str(status["error"])
-
-    def _assigned_status_check(self, status):
-        return "error" not in status and status.get("state", None) == "assigned"
 
     def test_internet_address_scheduling_error(self, yp_env_configurable):
         pod_spec = dict(
@@ -577,13 +585,13 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
             preallocated_pod_ids.append(_create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec))
 
         def preallocated_status_check():
-            statuses = map(partial(self._get_scheduling_status, yp_client), preallocated_pod_ids)
-            return all(map(self._assigned_status_check, statuses))
+            statuses = map(partial(_get_pod_scheduling_status, yp_client), preallocated_pod_ids)
+            return all(map(_is_assigned_pod_scheduling_status, statuses))
 
         wait(preallocated_status_check)
 
         pod_id = _create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
-        wait(lambda: self._error_status_check("AntiaffinityUnsatisfied", self._get_scheduling_status(yp_client, pod_id)))
+        wait(lambda: self._error_status_check("AntiaffinityUnsatisfied", _get_pod_scheduling_status(yp_client, pod_id)))
 
     def test_cpu_scheduling_error(self, yp_env_configurable):
         cpu_total_capacity = self._get_default_resource_capacities()["cpu_total_capacity"]
@@ -675,6 +683,104 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
 
         # Expect scheduler to correctly identify different objects with equal ids.
         wait(lambda: all(
-            self._assigned_status_check(self._get_scheduling_status(yp_client, pod_id))
+            _is_assigned_pod_scheduling_status(_get_pod_scheduling_status(yp_client, pod_id))
             for pod_id in pod_ids
         ))
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class _TestSchedulerPodNodeScore(object):
+    def test(self, yp_env_configurable):
+        NODE_COUNT = 10
+        POD_PER_NODE_COUNT = 10
+        POD_CPU_CAPACITY = 3 * 1000
+        POD_MEMORY_CAPACITY = 16 * (1024 ** 3)
+        POD_DISK_CAPACITY = 100 * (1024 ** 3)
+
+        yp_client = yp_env_configurable.yp_client
+
+        set_account_infinite_resource_limits(yp_client, DEFAULT_ACCOUNT_ID)
+
+        _create_nodes(
+            yp_env_configurable,
+            NODE_COUNT,
+            rack_count=1,
+            hfsm_state="up",
+            cpu_total_capacity=POD_CPU_CAPACITY * POD_PER_NODE_COUNT,
+            memory_total_capacity=POD_MEMORY_CAPACITY * POD_PER_NODE_COUNT,
+            disk_total_capacity=POD_DISK_CAPACITY * POD_PER_NODE_COUNT,
+            disk_total_volume_slots=POD_PER_NODE_COUNT,
+        )
+
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
+
+        pod_spec = dict(
+            enable_scheduling=True,
+            resource_requests=dict(
+                vcpu_guarantee=POD_CPU_CAPACITY,
+                memory_limit=POD_MEMORY_CAPACITY,
+            ),
+            disk_volume_requests=[
+                dict(
+                    id="disk1",
+                    storage_class="hdd",
+                    quota_policy=dict(capacity=POD_DISK_CAPACITY),
+                ),
+            ],
+        )
+
+        pod_ids = []
+        for pod_index in range(NODE_COUNT * POD_PER_NODE_COUNT):
+            pod_ids.append(
+                _create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec, pod_id=str(pod_index))
+            )
+
+        wait(lambda: all(
+            _is_assigned_pod_scheduling_status(_get_pod_scheduling_status(yp_client, pod_id))
+            for pod_id in pod_ids
+        ))
+
+        failed_pod_id = _create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec, pod_id="failed-pod")
+
+        wait(lambda: _is_error_pod_scheduling_status(_get_pod_scheduling_status(yp_client, failed_pod_id)))
+
+class TestSchedulerNodeRandomHashPodNodeScore(_TestSchedulerPodNodeScore):
+    YP_MASTER_CONFIG = {
+        "scheduler": {
+            "loop_period": 100,
+            "failed_allocation_backoff_time": 150,
+            "global_resource_allocator": {
+                "pod_node_score": {
+                    "type": "node_random_hash",
+                    "parameters": {
+                        "seed": 100500,
+                    },
+                },
+            },
+        },
+    }
+
+class TestSchedulerFreeCpuMemoryShareVariancePodNodeScore(_TestSchedulerPodNodeScore):
+    YP_MASTER_CONFIG = {
+        "scheduler": {
+            "loop_period": 100,
+            "failed_allocation_backoff_time": 150,
+            "global_resource_allocator": {
+                "pod_node_score": {
+                    "type": "free_cpu_memory_share_variance",
+                },
+            },
+        },
+    }
+
+class TestSchedulerFreeCpuMemoryShareSquaredMinDeltaPodNodeScore(_TestSchedulerPodNodeScore):
+    YP_MASTER_CONFIG = {
+        "scheduler": {
+            "loop_period": 100,
+            "failed_allocation_backoff_time": 150,
+            "global_resource_allocator": {
+                "pod_node_score": {
+                    "type": "free_cpu_memory_share_squared_min_delta",
+                },
+            },
+        },
+    }

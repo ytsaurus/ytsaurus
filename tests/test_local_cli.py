@@ -1,0 +1,79 @@
+from .conftest import Cli, generate_uuid, prepare_yp_test_sandbox, save_yatest_working_files
+
+from yp.client import YpClient
+from yp.common import GrpcUnavailableError
+
+import contextlib
+import os
+import pytest
+import re
+import sys
+
+
+class YpLocalCli(Cli):
+    def __init__(self):
+        super(YpLocalCli, self).__init__("python/yp/bin", "yp_local_make", "yp-local")
+
+
+@contextlib.contextmanager
+def start_yp_local():
+    cli = YpLocalCli()
+
+    sandbox_path = prepare_yp_test_sandbox()
+    sandbox_name = os.path.basename(sandbox_path)
+    sandbox_directory_path = os.path.dirname(sandbox_path)
+
+    os.chdir(sandbox_directory_path)
+
+    try:
+        cli_stderr_file_path = os.path.join(sandbox_path, "yp_local_stderr_" + generate_uuid())
+        with open(cli_stderr_file_path, "w") as cli_stderr_file:
+            cli.check_call(
+                ["start", "--id", sandbox_name],
+                stdout=sys.stdout,
+                stderr=cli_stderr_file
+            )
+
+        cli_stderr = open(cli_stderr_file_path).read().strip()
+
+        sys.stderr.write(cli_stderr)
+
+        matches = re.findall("Grpc address: (localhost:[0-9]+)", cli_stderr)
+        assert len(matches) == 1
+
+        yield dict(yp_master_grpc_address=matches[0])
+    finally:
+        try:
+            cli.check_output(["stop", sandbox_name])
+        finally:
+            save_yatest_working_files(sandbox_name)
+
+
+class TestLocalCli(object):
+    def test(self):
+        yp_client = None
+        with start_yp_local() as yp_local:
+            yp_client = YpClient(
+                address=yp_local["yp_master_grpc_address"],
+                transport="grpc",
+                config=dict(enable_ssl=False),
+            )
+
+            yp_client.create_object("pod_set", attributes=dict(meta=dict(id="podsetid")))
+            yp_client.create_object(
+                "pod",
+                attributes=dict(
+                    meta=dict(
+                        id="podid",
+                        pod_set_id="podsetid",
+                    )
+                )
+            )
+
+            responses = yp_client.select_objects("pod", selectors=["/meta/id"])
+            pod_ids = set(map(lambda response: response[0], responses))
+            assert "podid" in pod_ids
+
+        assert yp_client is not None
+        with pytest.raises(GrpcUnavailableError):
+            yp_client.select_objects("pod", selectors=["/meta/id"])

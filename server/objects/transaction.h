@@ -31,8 +31,6 @@ struct TSetUpdateRequest
     bool Recursive = false;
 };
 
-void FromProto(TSetUpdateRequest* request, const NClient::NApi::NProto::TSetUpdate& protoRequest);
-
 struct TRemoveUpdateRequest
 {
     NYT::NYPath::TYPath Path;

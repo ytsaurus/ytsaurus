@@ -71,20 +71,6 @@ static const TString AnnotationsTableAliasPrefix("c");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TSetUpdateRequest* request, const NClient::NApi::NProto::TSetUpdate& protoRequest)
-{
-    request->Path = protoRequest.path();
-    request->Value = ConvertToNode(NYson::TYsonString(protoRequest.value()));
-    request->Recursive = protoRequest.recursive();
-}
-
-void FromProto(TRemoveUpdateRequest* request, const NClient::NApi::NProto::TRemoveUpdate& protoRequest)
-{
-    request->Path = protoRequest.path();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TString ToString(const TAttributeSelector& selector)
 {
     return Format("{Paths: %v}", selector.Paths);

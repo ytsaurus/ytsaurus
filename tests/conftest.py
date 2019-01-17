@@ -76,16 +76,71 @@ class Cli(object):
                 os.environ.get("PYTHON_BINARY", sys.executable),
                 os.path.normpath(binary_path),
             ]
-        self._env = None
+        self._env_patch = None
 
-    def update_env(self, env):
-        self._env = update(copy.deepcopy(os.environ), env)
+    def _get_env(self):
+        env = copy.deepcopy(os.environ)
+        if self._env_patch is not None:
+            env = update(env, self._env_patch)
+        return env
 
-    def _check_output(self, *args, **kwargs):
-        return subprocess.check_output(*args, env=self._env, stderr=sys.stderr, **kwargs)
+    def set_env_patch(self, env_patch):
+        self._env_patch = copy.deepcopy(env_patch)
 
-    def __call__(self, *args):
-        return self._check_output(self._cli_execute + list(args)).strip()
+    def get_args(self, args):
+        return self._cli_execute + args
+
+    def check_call(self, args, stdout, stderr):
+        return subprocess.check_call(
+            self.get_args(args),
+            stdout=stdout,
+            env=self._get_env(),
+            stderr=stderr,
+        )
+
+    def check_output(self, args):
+        return subprocess.check_output(
+            self.get_args(args),
+            env=self._get_env(),
+            stderr=sys.stderr
+        ).strip()
+
+
+def _insert_environ_path(path):
+    assert len(path) > 0
+    tokens = set(os.environ.get("PATH", "").split(os.pathsep))
+    if path not in tokens:
+        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+
+
+def prepare_yp_test_sandbox():
+    test_sandbox_base_path = TESTS_SANDBOX
+    if yatest_common is not None:
+        destination = os.path.join(yatest_common.work_path(), "yt_build_" + generate_uuid())
+        os.makedirs(destination)
+
+        path = arcadia_interop.prepare_yt_environment(destination)
+
+        ypserver_master_binary = yatest_common.binary_path("yp/server/master/bin/ypserver-master")
+        os.symlink(ypserver_master_binary, os.path.join(path, "ypserver-master"))
+
+        _insert_environ_path(path)
+
+        ram_drive_path = yatest_common.get_param("ram_drive_path")
+        if ram_drive_path is None:
+            test_sandbox_base_path = yatest_common.output_path()
+        else:
+            test_sandbox_base_path = ram_drive_path
+    test_sandbox_path = os.path.join(test_sandbox_base_path, "yp_" + generate_uuid())
+    os.makedirs(test_sandbox_path)
+    return test_sandbox_path
+
+def save_yatest_working_files(sandbox_path):
+    if yatest_common is None or yatest_common.get_param("ram_drive_path") is None:
+        return
+    shutil.copytree(
+        sandbox_path,
+        os.path.join(yatest_common.output_path(), os.path.basename(sandbox_path)))
 
 
 class YpTestEnvironment(object):
@@ -95,21 +150,8 @@ class YpTestEnvironment(object):
                  start=True,
                  db_version=ACTUAL_DB_VERSION,
                  local_yt_options=None):
-        if yatest_common is not None:
-            destination = os.path.join(yatest_common.work_path(), "yt_build_" + generate_uuid())
-            os.makedirs(destination)
-            path = arcadia_interop.prepare_yt_environment(destination)
-            os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
-
-            self.ram_drive_path = yatest_common.get_param("ram_drive_path")
-            if self.ram_drive_path is None:
-                self.test_sandbox_base_path = yatest_common.output_path()
-            else:
-                self.test_sandbox_base_path = self.ram_drive_path
-            self.test_sandbox_path = os.path.join(self.test_sandbox_base_path, "yp_" + generate_uuid())
-        else:
-            self.test_sandbox_base_path = TESTS_SANDBOX
-            self.test_sandbox_path = os.path.join(TESTS_SANDBOX, "yp_" + generate_uuid())
+        self.test_sandbox_path = prepare_yp_test_sandbox()
+        self.test_sandbox_base_path = os.path.dirname(self.test_sandbox_path)
 
         self.yp_instance = YpInstance(self.test_sandbox_path,
                                       yp_master_config=yp_master_config,
@@ -143,7 +185,7 @@ class YpTestEnvironment(object):
 
             wait(touch_pod_set)
         except:
-            self._save_yatest_working_files()
+            save_yatest_working_files(self.test_sandbox_path)
             raise
 
     def sync_access_control(self):
@@ -155,18 +197,18 @@ class YpTestEnvironment(object):
             if self.yp_client is not None:
                 self.yp_client.close()
             self.yp_instance.stop()
-            if yatest_common is not None:
-                self._save_yatest_working_files()
+            save_yatest_working_files(self.test_sandbox_path)
         except:
             # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
             logger.exception("YpTestEnvironment cleanup failed")
             raise
 
     def _save_yatest_working_files(self):
-        if self.ram_drive_path is not None:
-            shutil.copytree(
-                self.test_sandbox_path,
-                os.path.join(yatest_common.output_path(), os.path.basename(self.test_sandbox_path)))
+        if (yatest_common is None) or (yatest_common.get_param("ram_drive_path") is None):
+            return
+        shutil.copytree(
+            self.test_sandbox_path,
+            os.path.join(yatest_common.output_path(), os.path.basename(self.test_sandbox_path)))
 
 def test_method_setup(yp_env):
     print("\n", file=sys.stderr)

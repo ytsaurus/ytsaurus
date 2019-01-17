@@ -1,59 +1,11 @@
 #include <yt/core/test_framework/framework.h>
 
+#include "mock_objects.h"
+
 #include <yp/server/scheduler/allocation_plan.h>
-#include <yp/server/scheduler/node.h>
-#include <yp/server/scheduler/pod.h>
 
-#include <yp/server/objects/helpers.h>
-
-#include <yp/server/objects/proto/objects.pb.h>
-
-#include <memory>
-
-namespace NYP::NServer::NScheduler {
+namespace NYP::NServer::NScheduler::NTests {
 namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NYP::NServer::NObjects::GenerateUuid;
-
-TObjectId GenerateUniqueId()
-{
-    static int lastObjectIndex = 0;
-    return "mock_object_" + ToString(lastObjectIndex++);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<TPod> CreateMockPod()
-{
-    NServer::NObjects::NProto::TMetaOther metaOther;
-    metaOther.set_uuid(GenerateUuid());
-
-    return std::make_unique<TPod>(
-        GenerateUniqueId(),
-        /* podSet */ nullptr,
-        std::move(metaOther),
-        /* node */ nullptr,
-        NObjects::NProto::TPodSpecOther(),
-        /* node */ nullptr,
-        NObjects::NProto::TPodStatusOther(),
-        /* labels */ NYT::NYson::TYsonString());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<TNode> CreateMockNode()
-{
-    return std::make_unique<TNode>(
-        GenerateUniqueId(),
-        /* labels */ NYT::NYson::TYsonString(),
-        std::vector<TTopologyZone*>(),
-        NObjects::EHfsmState::Unknown,
-        NObjects::ENodeMaintenanceState::None,
-        /* hasUnknownPods */ false,
-        NClient::NApi::NProto::TNodeSpec());
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,4 +33,4 @@ TEST(TAllocationPlanTest, GetNodeCount)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYP::NServer::NScheduler
+} // namespace NYP::NServer::NScheduler::NTests

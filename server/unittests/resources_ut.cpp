@@ -3,7 +3,7 @@
 #include <yp/server/scheduler/helpers.h>
 #include <yp/server/scheduler/node.h>
 
-namespace NYP::NServer::NScheduler {
+namespace NYP::NServer::NScheduler::NTests {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,4 +56,4 @@ TEST(TDiskResourceTest, ExclusiveUsage)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYP::NServer::NScheduler
+} // namespace NYP::NServer::NScheduler::NTests

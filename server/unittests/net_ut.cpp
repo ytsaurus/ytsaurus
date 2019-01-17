@@ -2,7 +2,7 @@
 
 #include <yp/server/net/net_manager.h>
 
-namespace NYP::NServer::NNet {
+namespace NYP::NServer::NNet::NTests {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,5 +22,4 @@ TEST(TestNetManager, TestShortIp6ToPtrDnsRecord)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYP::NServer::NNet
-
+} // namespace NYP::NServer::NNet::NTests

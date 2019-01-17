@@ -27,6 +27,23 @@ const TResourceCapacities& TResourceBase::GetAllocatedCapacities() const
     return AllocatedCapacities_;
 }
 
+TResourceCapacities TResourceBase::GetFreeCapacities() const
+{
+    auto freeCapacities = TotalCapacities_;
+    for (size_t index = 0; index < MaxResourceDimensions; ++index) {
+        YCHECK(freeCapacities[index] >= AllocatedCapacities_[index]);
+        freeCapacities[index] -= AllocatedCapacities_[index];
+    }
+    return freeCapacities;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool THomogeneousResource::CanAllocate(const TResourceCapacities& capacities) const
+{
+    return Dominates(TotalCapacities_, AllocatedCapacities_ + capacities);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool THomogeneousResource::TryAllocate(const TResourceCapacities& capacities)
