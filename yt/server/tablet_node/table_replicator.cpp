@@ -251,7 +251,7 @@ private:
 
             // TODO(savrus) profile chunk reader statistics.
             TClientBlockReadOptions blockReadOptions;
-            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
+            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
             blockReadOptions.ReadSessionId = TReadSessionId::Create();
             blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
