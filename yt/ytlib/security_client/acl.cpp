@@ -15,12 +15,12 @@ using namespace NYTree;
 void Serialize(const TSerializableAccessControlEntry& acl, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
-    .BeginMap()
-        .Item("action").Value(acl.Action)
-        .Item("subjects").Value(acl.Subjects)
-        .Item("permissions").Value(acl.Permissions)
-        .Item("inheritance_mode").Value(acl.InheritanceMode)
-    .EndMap();
+        .BeginMap()
+            .Item("action").Value(acl.Action)
+            .Item("subjects").Value(acl.Subjects)
+            .Item("permissions").Value(acl.Permissions)
+            .Item("inheritance_mode").Value(acl.InheritanceMode)
+        .EndMap();
 }
 
 void Deserialize(TSerializableAccessControlEntry& acl, NYTree::INodePtr node)
