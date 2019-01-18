@@ -3100,6 +3100,7 @@ private:
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
         req->set_force(options.Force);
+        req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -3127,6 +3128,7 @@ private:
         req->set_remove_source(true);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
+        req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())

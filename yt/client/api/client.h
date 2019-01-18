@@ -527,6 +527,7 @@ struct TCopyNodeOptions
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
     bool PreserveCreationTime = false;
+    bool PessimisticQuotaCheck = true;
 };
 
 struct TMoveNodeOptions
@@ -539,6 +540,7 @@ struct TMoveNodeOptions
     bool Force = false;
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
+    bool PessimisticQuotaCheck = true;
 };
 
 struct TLinkNodeOptions
