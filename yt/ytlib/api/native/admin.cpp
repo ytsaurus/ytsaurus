@@ -63,7 +63,7 @@ public:
     virtual TFuture<returnType> method signature override \
     { \
         return Execute( \
-            #method, \
+            AsStringBuf(#method), \
             BIND( \
                 &TAdmin::Do ## method, \
                 MakeStrong(this), \
@@ -96,7 +96,7 @@ private:
 
 
     template <class T>
-    TFuture<T> Execute(const TString& commandName, TCallback<T()> callback)
+    TFuture<T> Execute(TStringBuf commandName, TCallback<T()> callback)
     {
         return BIND([=, this_ = MakeStrong(this)] () {
                 try {

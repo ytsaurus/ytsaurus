@@ -366,6 +366,8 @@ public:
         : Connection_(std::move(connection))
         , Options_(options)
         , ConcurrentRequestsSemaphore_(New<TAsyncSemaphore>(Connection_->GetConfig()->MaxConcurrentRequests))
+        , Logger(NLogging::TLogger(ApiLogger)
+            .AddTag("ClientId: %v", TGuid::Create()))
     {
         auto wrapChannel = [&] (IChannelPtr channel) {
             channel = CreateAuthenticatedChannel(channel, options.GetUser());
@@ -424,8 +426,6 @@ public:
             Connection_->GetConfig()->FunctionRegistryCache,
             MakeWeak(this),
             Connection_->GetInvoker());
-
-        Logger.AddTag("ClientId: %v", TGuid::Create());
     }
 
 
@@ -551,7 +551,7 @@ public:
     virtual TFuture<returnType> method signature override \
     { \
         return Execute( \
-            #method, \
+            AsStringBuf(#method), \
             options, \
             BIND( \
                 &TClient::doMethod, \
@@ -896,6 +896,8 @@ private:
 
     const IConnectionPtr Connection_;
     const TClientOptions Options_;
+    const TAsyncSemaphorePtr ConcurrentRequestsSemaphore_;
+    const NLogging::TLogger Logger;
 
     TEnumIndexedVector<THashMap<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
@@ -907,41 +909,44 @@ private:
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
-    TAsyncSemaphorePtr ConcurrentRequestsSemaphore_;
-
-    NLogging::TLogger Logger = ApiLogger;
-
 
     template <class T>
     TFuture<T> Execute(
-        const TString& commandName,
+        TStringBuf commandName,
         const TTimeoutOptions& options,
         TCallback<T()> callback)
     {
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(ConcurrentRequestsSemaphore_);
-        if (!guard) {
-            return MakeFuture<T>(TError(EErrorCode::TooManyConcurrentRequests, "Too many concurrent requests"));
-        }
-
-        return
-            BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this), guard = std::move(guard)] () {
+        auto promise = NewPromise<T>();
+        ConcurrentRequestsSemaphore_->AsyncAcquire(
+            BIND([commandName, promise, callback = std::move(callback), this_ = MakeWeak(this)] (TAsyncSemaphoreGuard /*guard*/) mutable {
                 auto client = this_.Lock();
                 if (!client) {
-                    THROW_ERROR_EXCEPTION("Client was abandoned");
+                    return;
                 }
+
+                if (promise.IsCanceled()) {
+                    return;
+                }
+
+                auto canceler = NConcurrency::GetCurrentFiberCanceler();
+                if (canceler) {
+                    promise.OnCanceled(std::move(canceler));
+                }
+
                 const auto& Logger = client->Logger;
                 try {
                     YT_LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
                     YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
-                    return result.Unwrap();
+                    result.SetPromise(promise);
                 } catch (const std::exception& ex) {
                     YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
-                    throw;
+                    promise.Set(TError(ex));
                 }
-            })
-            .AsyncVia(Connection_->GetInvoker())
-            .Run()
+            }),
+            Connection_->GetInvoker());
+        return promise
+            .ToFuture()
             .WithTimeout(options.Timeout);
     }
 

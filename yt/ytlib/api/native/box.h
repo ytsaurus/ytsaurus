@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/core/actions/future.h>
+
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,6 +17,11 @@ public:
     T Unwrap()
     {
         return std::move(Value_);
+    }
+
+    void SetPromise(TPromise<T>& promise)
+    {
+        promise.Set(Value_);
     }
 
 private:
@@ -33,6 +40,11 @@ public:
 
     void Unwrap()
     { }
+
+    void SetPromise(TPromise<void>& promise)
+    {
+        promise.Set();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
