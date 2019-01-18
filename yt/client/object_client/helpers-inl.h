@@ -89,6 +89,13 @@ inline bool IsUserType(EObjectType type)
         type == EObjectType::Document;
 }
 
+inline bool IsTableType(EObjectType type)
+{
+    return
+        type == EObjectType::Table ||
+        type == EObjectType::ReplicatedTable;
+}
+
 inline EObjectType TypeFromId(TObjectId id)
 {
     return EObjectType(id.Parts32[1] & 0xffff);
