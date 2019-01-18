@@ -894,6 +894,7 @@ void FromProto(const NTabletClient::TTableMountInfoPtr& mountInfo, const NProto:
     mountInfo->Schemas[ETableSchemaKind::Delete] = primarySchema.ToDelete();
     mountInfo->Schemas[ETableSchemaKind::Query] = primarySchema.ToQuery();
     mountInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema.ToLookup();
+    mountInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex] = primarySchema.WithTabletIndex();
 
     mountInfo->UpstreamReplicaId = FromProto<NTabletClient::TTableReplicaId>(mountInfoProto.upstream_replica_id());
     mountInfo->Dynamic = mountInfoProto.dynamic();

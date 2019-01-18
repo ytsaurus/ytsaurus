@@ -120,6 +120,8 @@ public:
     std::optional<i64> MaxUnversionedBlockSize;
     std::optional<int> CriticalOverlappingStoreCount;
 
+    bool PreserveTabletIndex;
+
     TTableMountConfig()
     {
         RegisterParameter("tablet_cell_bundle", TabletCellBundle)
@@ -271,6 +273,9 @@ public:
         RegisterParameter("max_unversioned_block_size", MaxUnversionedBlockSize)
             .GreaterThan(0)
             .Optional();
+
+        RegisterParameter("preserve_tablet_index", PreserveTabletIndex)
+            .Default(false);
 
         RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {

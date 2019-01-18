@@ -434,6 +434,18 @@ TTableSchema TTableSchema::ToWrite() const
     return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
 }
 
+TTableSchema TTableSchema::WithTabletIndex() const
+{
+    if (IsSorted()) {
+        return *this;
+    } else {
+        auto columns = Columns_;
+        columns.push_back(TColumnSchema(TabletIndexColumnName, ELogicalValueType::Int64));
+
+        return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
+    }
+}
+
 TTableSchema TTableSchema::ToVersionedWrite() const
 {
     return *this;
@@ -561,6 +573,7 @@ TTableSchema TTableSchema::ToReplicationLog() const
             columns.push_back(
                 TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
         }
+        columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + TabletIndexColumnName, ELogicalValueType::Int64));
     }
     return TTableSchema(std::move(columns), true, false);
 }
