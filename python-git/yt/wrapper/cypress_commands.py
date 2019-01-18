@@ -92,9 +92,9 @@ def set(path, value, format=None, recursive=False, force=None, client=None):
         client=client)
 
 def copy(source_path, destination_path,
-         recursive=None, preserve_account=None,
+         recursive=None, ignore_existing=None, preserve_account=None,
          preserve_expiration_time=None, preserve_creation_time=None,
-         force=None, client=None):
+         force=None, pessimistic_quota_check=None, client=None):
     """Copies Cypress node.
 
     :param source_path: source path.
@@ -102,10 +102,12 @@ def copy(source_path, destination_path,
     :param destination_path: destination path.
     :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
+    :param bool ignore_existing: ignore existing.
     :param bool preserve_account: preserve account.
     :param bool preserve_expiration_time: preserve expiration time.
     :param bool preserve_creation_time: preserve creation time.
     :param bool force: force.
+    :param bool pessimistic_quota_check: pessimistic quota check.
 
     .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#copy>`_
     """
@@ -114,14 +116,17 @@ def copy(source_path, destination_path,
 
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     set_param(params, "recursive", recursive)
+    set_param(params, "ignore_existing", ignore_existing)
     set_param(params, "force", force)
     set_param(params, "preserve_account", preserve_account)
     set_param(params, "preserve_expiration_time", preserve_expiration_time)
     set_param(params, "preserve_creation_time", preserve_creation_time)
+    set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
 def move(source_path, destination_path,
-         recursive=None, preserve_account=None, preserve_expiration_time=False, force=None, client=None):
+         recursive=None, preserve_account=None, preserve_expiration_time=False, force=None,
+         pessimistic_quota_check=None, client=None):
     """Moves (renames) Cypress node.
 
     :param source_path: source path.
@@ -130,7 +135,9 @@ def move(source_path, destination_path,
     :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param bool preserve_account: preserve account.
+    :param bool preserve_expiration_time: preserve expiration time.
     :param bool force: force.
+    :param bool pessimistic_quota_check: pessimistic quota check.
 
     .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#move>`_
     """
@@ -142,6 +149,7 @@ def move(source_path, destination_path,
     set_param(params, "force", force)
     set_param(params, "preserve_account", preserve_account)
     set_param(params, "preserve_expiration_time", preserve_expiration_time)
+    set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
     return _make_formatted_transactional_request("move", params, format=None, client=client)
 
 class _ConcatenateRetrier(Retrier):
