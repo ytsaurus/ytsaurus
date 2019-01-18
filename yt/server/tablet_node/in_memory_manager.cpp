@@ -545,7 +545,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             store->GetId());
     }
 
-    auto codecId = NCompression::ECodec(miscExt.compression_codec());
+    auto codecId = CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec());
     auto* codec = NCompression::GetCodec(codecId);
 
     int startBlockIndex = 0;

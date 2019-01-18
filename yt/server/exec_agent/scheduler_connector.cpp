@@ -80,7 +80,7 @@ void TSchedulerConnector::SendHeartbeat()
 
     TJobTrackerServiceProxy proxy(client->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
-    req->SetCodec(NCompression::ECodec::Lz4);
+    req->SetRequestCodec(NCompression::ECodec::Lz4);
 
     const auto& jobController = Bootstrap_->GetJobController();
     const auto masterConnection = client->GetNativeConnection();

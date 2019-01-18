@@ -107,6 +107,18 @@ TDuration TTransaction::GetTimeout() const
     return Timeout_;
 }
 
+TApiServiceProxy TTransaction::CreateApiServiceProxy()
+{
+    TApiServiceProxy proxy(Channel_);
+    auto config = Connection_->GetConfig();
+    proxy.SetDefaultRequestCodec(config->RequestCodec);
+    proxy.SetDefaultRequestAttachmentCodec(config->RequestAttachmentCodec);
+    proxy.SetDefaultResponseCodec(config->ResponseCodec);
+    proxy.SetDefaultResponseAttachmentCodec(config->ResponseAttachmentCodec);
+
+    return proxy;
+}
+
 TFuture<void> TTransaction::Ping(const NApi::TTransactionPingOptions& /*options*/)
 {
     return SendPing();
@@ -231,7 +243,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
             const auto& config = Connection_->GetConfig();
 
-            TApiServiceProxy proxy(Channel_);
+            auto proxy = CreateApiServiceProxy();
 
             auto req = proxy.CommitTransaction();
             req->SetTimeout(config->RpcTimeout);
@@ -288,7 +300,7 @@ void TTransaction::ModifyRows(
 
     const auto& config = Connection_->GetConfig();
 
-    TApiServiceProxy proxy(Channel_);
+    auto proxy = CreateApiServiceProxy();
     auto req = proxy.ModifyRows();
     req->SetTimeout(config->RpcTimeout);
 
@@ -679,7 +691,7 @@ TFuture<void> TTransaction::SendAbort()
 
     const auto& config = Connection_->GetConfig();
 
-    TApiServiceProxy proxy(Channel_);
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AbortTransaction();
     req->SetTimeout(config->RpcTimeout);
@@ -714,7 +726,7 @@ TFuture<void> TTransaction::SendPing()
 
     const auto& config = Connection_->GetConfig();
 
-    TApiServiceProxy proxy(Channel_);
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.PingTransaction();
     req->SetTimeout(config->RpcTimeout);

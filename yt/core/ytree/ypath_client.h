@@ -109,8 +109,7 @@ public:
     void Deserialize(TSharedRefArray message);
 
 protected:
-    virtual void DeserializeBody(TRef data);
-
+    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt);
 };
 
 DEFINE_REFCOUNTED_TYPE(TYPathResponse)
@@ -123,9 +122,14 @@ class TTypedYPathResponse
     , public TResponseMessage
 {
 protected:
-    virtual void DeserializeBody(TRef data) override
+    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) override
     {
-        DeserializeProtoWithEnvelope(this, data);
+        if (codecId) {
+            DeserializeProtoWithCompression(this, data, *codecId);
+        } else {
+            // COMPAT(kiselyovp)
+            DeserializeProtoWithEnvelope(this, data);
+        }
     }
 };
 

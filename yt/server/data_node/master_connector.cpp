@@ -626,7 +626,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.FullHeartbeat();
-    request->SetCodec(NCompression::ECodec::Lz4);
+    request->SetRequestCodec(NCompression::ECodec::Lz4);
     request->SetTimeout(Config_->FullHeartbeatTimeout);
 
     YCHECK(NodeId_ != InvalidNodeId);
@@ -730,7 +730,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.IncrementalHeartbeat();
-    request->SetCodec(NCompression::ECodec::Lz4);
+    request->SetRequestCodec(NCompression::ECodec::Lz4);
     request->SetTimeout(Config_->IncrementalHeartbeatTimeout);
 
     YCHECK(NodeId_ != InvalidNodeId);

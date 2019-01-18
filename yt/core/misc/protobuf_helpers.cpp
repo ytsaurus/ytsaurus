@@ -5,6 +5,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/cast.h>
+
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -174,7 +176,11 @@ bool TryDeserializeProtoWithEnvelope(
         return false;
     }
 
-    auto codecId = NCompression::ECodec(envelope.codec());
+    NCompression::ECodec codecId;
+    if (!TryEnumCast(envelope.codec(), &codecId)) {
+        return false;
+    }
+
     if (fixedHeader->MessageSize + fixedHeader->EnvelopeSize + sizeof (*fixedHeader) > data.Size()) {
         return false;
     }
@@ -182,9 +188,13 @@ bool TryDeserializeProtoWithEnvelope(
     auto compressedMessage = TSharedRef(sourceMessage, fixedHeader->MessageSize, nullptr);
 
     auto* codec = NCompression::GetCodec(codecId);
-    auto serializedMessage = codec->Decompress(compressedMessage);
+    try {
+        auto serializedMessage = codec->Decompress(compressedMessage);
 
-    return TryDeserializeProto(message, serializedMessage);
+        return TryDeserializeProto(message, serializedMessage);
+    } catch (const std::exception& ex) {
+        return false;
+    }
 }
 
 void DeserializeProtoWithEnvelope(
@@ -192,6 +202,39 @@ void DeserializeProtoWithEnvelope(
     TRef data)
 {
     YCHECK(TryDeserializeProtoWithEnvelope(message, data));
+}
+
+TSharedRef SerializeProtoToRefWithCompression(
+    const google::protobuf::MessageLite& message,
+    NCompression::ECodec codecId,
+    bool partial)
+{
+    auto serializedMessage = SerializeProtoToRef(message, partial);
+    auto codec = NCompression::GetCodec(codecId);
+    return codec->Compress(serializedMessage);
+}
+
+bool TryDeserializeProtoWithCompression(
+    google::protobuf::MessageLite* message,
+    TRef data,
+    NCompression::ECodec codecId)
+{
+    auto compressedMessage = TSharedRef(data.Begin(), data.Size(), nullptr);
+    auto* codec = NCompression::GetCodec(codecId);
+    try {
+        auto serializedMessage = codec->Decompress(compressedMessage);
+        return TryDeserializeProto(message, serializedMessage);
+    } catch (const std::exception& ex) {
+        return false;
+    }
+}
+
+void DeserializeProtoWithCompression(
+    google::protobuf::MessageLite* message,
+    TRef data,
+    NCompression::ECodec codecId)
+{
+    YCHECK(TryDeserializeProtoWithCompression(message, data, codecId));
 }
 
 TSharedRef PopEnvelope(const TSharedRef& data)

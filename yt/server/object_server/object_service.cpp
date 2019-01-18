@@ -709,7 +709,7 @@ private:
 
         if (error.IsOK()) {
             auto& response = RpcContext_->Response();
-            auto& attachments = RpcContext_->ResponseAttachments();
+            auto& attachments = response.Attachments();
 
             YCHECK(SubrequestCount_ == 0 || CurrentSubrequestIndex_ != 0);
 

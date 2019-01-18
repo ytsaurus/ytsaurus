@@ -594,7 +594,9 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
-                [] (const TChunk* chunk) { return NCompression::ECodec(chunk->MiscExt().compression_codec()); });
+                [] (const TChunk* chunk) {
+                    return CheckedEnumCast<NCompression::ECodec>(chunk->MiscExt().compression_codec());
+                });
 
         case EInternedAttributeKey::ErasureStatistics:
             if (isExternal) {
@@ -1085,7 +1087,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     }
 
     if (request->has_compression_codec()) {
-        node->SetCompressionCodec(NCompression::ECodec(request->compression_codec()));
+        node->SetCompressionCodec(CheckedEnumCast<NCompression::ECodec>(request->compression_codec()));
     }
 
     if (request->has_erasure_codec()) {

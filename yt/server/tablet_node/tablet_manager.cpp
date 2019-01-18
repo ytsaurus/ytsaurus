@@ -1372,7 +1372,8 @@ private:
             return;
         }
 
-        auto codecId = ECodec(request->codec());
+        ECodec codecId;
+        YCHECK(TryEnumCast<ECodec>(request->codec(), &codecId));
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);

@@ -1,4 +1,6 @@
 #include <yt/core/compression/codec.h>
+
+#include <yt/core/misc/cast.h>
 #include <yt/core/misc/optional.h>
 
 #include <util/string/cast.h>
@@ -55,7 +57,7 @@ int main(int argc, char** argv)
 
     NCompression::ECodec codecId;
     if (IsNumber(codecName)) {
-        codecId = NCompression::ECodec(FromString<int>(codecName));
+        codecId = CheckedEnumCast<NCompression::ECodec>(FromString<int>(codecName));
     } else {
         codecId = ParseEnum<NCompression::ECodec>(codecName);
     }

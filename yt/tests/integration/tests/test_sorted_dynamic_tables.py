@@ -1,7 +1,7 @@
 import pytest
 import __builtin__
 
-from test_dynamic_tables import TestDynamicTablesBase
+from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import wait, skip_if_rpc_driver_backend, parametrize_external
 from yt_commands import *
@@ -14,7 +14,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestSortedDynamicTablesBase(TestDynamicTablesBase):
+class TestSortedDynamicTablesBase(DynamicTablesBase):
     def _create_simple_table(self, path, **attributes):
         if "schema" not in attributes:
             attributes.update({"schema": [

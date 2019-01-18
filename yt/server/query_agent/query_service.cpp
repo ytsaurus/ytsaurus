@@ -137,7 +137,7 @@ private:
             Config_->MaxQueryRetries,
             Logger,
             [&] () {
-                auto codecId = ECodec(request->response_codec());
+                auto codecId = CheckedEnumCast<ECodec>(request->response_codec());
                 auto writer = CreateWireProtocolRowsetWriter(
                     codecId,
                     Config_->DesiredUncompressedResponseBlockSize,
@@ -168,8 +168,8 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto timestamp = TTimestamp(request->timestamp());
-        auto requestCodecId = NCompression::ECodec(request->request_codec());
-        auto responseCodecId = NCompression::ECodec(request->response_codec());
+        auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
+        auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
 
         TClientBlockReadOptions blockReadOptions;
         // TODO(sandello): Extract this out of RPC request.
@@ -241,8 +241,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)
     {
-        auto requestCodecId = NCompression::ECodec(request->request_codec());
-        auto responseCodecId = NCompression::ECodec(request->response_codec());
+        auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
+        auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
         auto timestamp = TTimestamp(request->timestamp());
         // TODO(sandello): Extract this out of RPC request.
         TClientBlockReadOptions blockReadOptions;

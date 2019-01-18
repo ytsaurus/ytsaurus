@@ -33,8 +33,9 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     // Undo some work done by the base class's copy ctor and make some tweaks.
     Attachments_.clear();
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
-    SerializedBody_.Reset();
+    SerializedData_.Reset();
     Hash_.reset();
+
     FirstTimeSerialization_ = true;
 
     const auto otherBegin = other.InnerRequestDescriptors_.begin();
@@ -97,7 +98,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::PatchForRetry(const TS
     return SetRequestHeader(message, header);
 }
 
-TSharedRef TObjectServiceProxy::TReqExecuteSubbatch::SerializeBody() const
+TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
 {
     NProto::TReqExecute req;
     req.set_suppress_upstream_sync(SuppressUpstreamSync_);
@@ -109,7 +110,14 @@ TSharedRef TObjectServiceProxy::TReqExecuteSubbatch::SerializeBody() const
             req.add_part_counts(0);
         }
     }
-    return SerializeProtoToRefWithEnvelope(req);
+    auto body = SerializeProtoToRefWithEnvelope(req);
+
+    std::vector<TSharedRef> data;
+    data.reserve(Attachments_.size() + 1);
+    data.push_back(std::move(body));
+    data.insert(data.end(), Attachments_.begin(), Attachments_.end());
+
+    return TSharedRefArray(std::move(data));
 }
 
 size_t TObjectServiceProxy::TReqExecuteSubbatch::GetHash() const
@@ -336,10 +344,16 @@ void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
     Promise_.Reset();
 }
 
-void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(TRef data)
+void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
+    TRef data, std::optional<NCompression::ECodec> codecId)
 {
     NProto::TRspExecute body;
-    DeserializeProtoWithEnvelope(&body, data);
+    if (codecId) {
+        DeserializeProtoWithCompression(&body, data, *codecId);
+    } else {
+        // COMPAT(kiselyovp)
+        DeserializeProtoWithEnvelope(&body, data);
+    }
 
     int currentIndex = 0;
     PartRanges_.reserve(body.part_counts_size());
