@@ -131,6 +131,10 @@ public:
     //! but without |$timestamp| column, if any.
     TTableSchema ToWrite() const;
 
+    //! For sorted tables, return the current schema
+    //! For ordered tables, prepends the current schema with |(tablet_index)| key column
+    TTableSchema WithTabletIndex() const;
+
     //! Only applies to sorted replicated tables.
     //! Returns the current schema as-is.
     TTableSchema ToVersionedWrite() const;

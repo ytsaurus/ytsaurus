@@ -89,6 +89,8 @@ public:
         , ClusterName_(replicaInfo->GetClusterName())
         , ReplicaPath_(replicaInfo->GetReplicaPath())
         , MountConfig_(tablet->GetConfig())
+        , PreserveTabletIndex_(MountConfig_->PreserveTabletIndex)
+        , TabletIndexColumnId_(TableSchema_.ToReplicationLog().GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
         , Logger(NLogging::TLogger(TabletNodeLogger)
             .AddTag("TabletId: %v, ReplicaId: %v",
                 TabletId_,
@@ -138,6 +140,8 @@ private:
     const TString ClusterName_;
     const TYPath ReplicaPath_;
     const TTableMountConfigPtr MountConfig_;
+    const bool PreserveTabletIndex_;
+    const int TabletIndexColumnId_;
 
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
@@ -671,12 +675,21 @@ private:
     {
         int headerRows = 3;
         YCHECK(logRow.GetCount() >= headerRows);
+
         auto mutableReplicationRow = rowBuffer->AllocateUnversioned(logRow.GetCount() - headerRows);
+        int columnCount = 0;
         for (int index = headerRows; index < logRow.GetCount(); ++index) {
+            if (logRow[index].Id == TabletIndexColumnId_ && !PreserveTabletIndex_) {
+                continue;
+            }
+
             int id = index - headerRows;
             mutableReplicationRow.Begin()[id] = rowBuffer->Capture(logRow[index]);
             mutableReplicationRow.Begin()[id].Id = id;
+            columnCount++;
         }
+
+        mutableReplicationRow.SetCount(columnCount);
 
         *modificationType = ERowModificationType::Write;
         *replicationRow = mutableReplicationRow.ToTypeErasedRow();

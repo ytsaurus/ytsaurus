@@ -564,6 +564,9 @@ private:
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
 
+            const auto& primarySchemaWithTabletIndex = tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex];
+            const auto& primaryWithTabletIndexIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::PrimaryWithTabletIndex);
+
             const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
             const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
 
@@ -573,6 +576,9 @@ private:
             const auto& deleteSchema = tableInfo->Schemas[ETableSchemaKind::Delete];
             const auto& deleteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Delete);
 
+            const auto& modificationSchema = !tableInfo->IsReplicated() && !tableInfo->IsSorted() ? primarySchema : primarySchemaWithTabletIndex;
+            const auto& modificationIdMapping = !tableInfo->IsReplicated() && !tableInfo->IsSorted() ? primaryIdMapping : primaryWithTabletIndexIdMapping;
+
             const auto& rowBuffer = Transaction_->RowBuffer_;
 
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
@@ -580,7 +586,7 @@ private:
 
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
-            std::vector<bool> columnPresenceBuffer(primarySchema.GetColumnCount());
+            std::vector<bool> columnPresenceBuffer(modificationSchema.GetColumnCount());
 
             for (const auto& modification : Modifications_) {
                 switch (modification.Type) {
@@ -643,8 +649,8 @@ private:
                     case ERowModificationType::ReadLockWrite: {
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
                             TUnversionedRow(modification.Row),
-                            primarySchema,
-                            primaryIdMapping,
+                            modificationSchema,
+                            modificationIdMapping,
                             modification.Type == ERowModificationType::Write ? &columnPresenceBuffer : nullptr);
                         TTabletInfoPtr tabletInfo;
                         if (tableInfo->IsSorted()) {

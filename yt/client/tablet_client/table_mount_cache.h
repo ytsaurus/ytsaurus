@@ -74,6 +74,7 @@ DEFINE_ENUM(ETableSchemaKind,
     (VersionedWrite)
     // Schema used for looking up rows.
     (Lookup)
+    (PrimaryWithTabletIndex)
 );
 
 struct TTableMountInfo

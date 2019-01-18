@@ -58,6 +58,7 @@ private:
                 tableInfo->Schemas[ETableSchemaKind::Delete] = primarySchema.ToDelete();
                 tableInfo->Schemas[ETableSchemaKind::Query] = primarySchema.ToQuery();
                 tableInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema.ToLookup();
+                tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex] = primarySchema.WithTabletIndex();
 
                 tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
                 tableInfo->Dynamic = rsp->dynamic();
