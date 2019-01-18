@@ -1268,6 +1268,11 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
         auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
+
+        if (!request->has_peer_node_id()) {
+            THROW_ERROR_EXCEPTION("Peer-to-peer with older versions is not supported, update node to a more recent version");
+        }
+
         TPeerInfo peer(request->peer_node_id(), expirationTime);
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();

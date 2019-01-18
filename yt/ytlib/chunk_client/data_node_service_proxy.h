@@ -15,7 +15,7 @@ class TDataNodeServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TDataNodeServiceProxy, DataNodeService,
-        .SetProtocolVersion(7));
+        .SetProtocolVersion(6));
 
     DEFINE_RPC_PROXY_METHOD(NProto, StartChunk);
     DEFINE_RPC_PROXY_METHOD(NProto, FinishChunk);

@@ -57,7 +57,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
     SweepExpiredPeers(peers); // In case when all expired peers were not swept
 
     for (auto it = peers.begin(); it != peers.end(); ++it) {
-        if (it->NodeId == peer.NodeId   ) {
+        if (it->NodeId == peer.NodeId) {
             peers.erase(it);
             break;
         }
