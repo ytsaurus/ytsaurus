@@ -3206,6 +3206,7 @@ private:
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
+    bool RecomputeTabletCountByState_ = false;
     bool RecomputeTabletCellStatistics_ = false;
     bool RecomputeTabletErrorCount_ = false;
     bool RecomputeExpectedTabletStates_ = false;
@@ -3292,6 +3293,8 @@ private:
         }
 
         // COMPAT(savrus)
+        RecomputeTabletCountByState_ = (context.GetVersion() < 822);
+        // COMPAT(savrus)
         RecomputeTabletCellStatistics_ = (context.GetVersion() < 800);
         // COMPAT(ifsmirnov)
         RecomputeTabletErrorCount_ = (context.GetVersion() < 715);
@@ -3336,6 +3339,27 @@ private:
         InitBuiltins();
 
         // COMPAT(savrus)
+        if (RecomputeTabletCountByState_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                auto* node = pair.second;
+                if (node->IsTrunk() && IsTableType(node->GetType())) {
+                    auto* table = node->As<TTableNode>();
+                    if (table->IsDynamic()) {
+                        for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
+                            if (table->TabletCountByState().IsDomainValue(state)) {
+                                table->MutableTabletCountByState()[state] = 0;
+                            }
+                        }
+                        for (const auto* tablet : table->Tablets()) {
+                            ++table->MutableTabletCountByState()[tablet->GetState()];
+                        }
+                    }
+                }
+            }
+        }
+
+        // COMPAT(savrus)
         if (RecomputeTabletCellStatistics_) {
             for (const auto& pair : TabletCellMap_) {
                 auto* cell = pair.second;
@@ -3352,9 +3376,7 @@ private:
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             for (const auto& pair : cypressManager->Nodes()) {
                 auto* node = pair.second;
-                if (!node->IsTrunk() ||
-                    (node->GetType() != EObjectType::Table && node->GetType() != EObjectType::ReplicatedTable))
-                {
+                if (!node->IsTrunk() || !IsTableType(node->GetType())) {
                     continue;
                 }
 
@@ -3411,10 +3433,7 @@ private:
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             for (const auto& pair : cypressManager->Nodes()) {
                 auto* node = pair.second;
-                if (!node->IsTrunk() ||
-                    node->IsExternal() ||
-                    (node->GetType() != EObjectType::Table && node->GetType() != EObjectType::ReplicatedTable))
-                {
+                if (!node->IsTrunk() || node->IsExternal() || !IsTableType(node->GetType())) {
                     continue;
                 }
 
@@ -3629,7 +3648,7 @@ private:
                 continue;
             }
 
-            YCHECK(node->GetType() == EObjectType::Table || node->GetType() == EObjectType::ReplicatedTable);
+            YCHECK(IsTableType(node->GetType()));
             auto* table = node->As<TTableNode>();
 
             if (entry.has_tablet_resource_usage()) {
