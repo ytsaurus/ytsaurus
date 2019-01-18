@@ -7,13 +7,14 @@
 
 #include <yt/core/bus/client.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/core/compression/codec.h>
 
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/message.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/core/tracing/trace_context.h>
@@ -91,7 +92,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, Heavy, false);
-    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, Codec, NCompression::ECodec::None);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, RequestCodec);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, RequestAttachmentCodec);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, ResponseCodec);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, ResponseAttachmentCodec);
     DEFINE_BYVAL_RW_PROPERTY(bool, GenerateAttachmentChecksums, true);
 
 public:
@@ -124,9 +128,10 @@ public:
 protected:
     const IChannelPtr Channel_;
 
-    NProto::TRequestHeader Header_;
-    mutable TSharedRef SerializedBody_;
+    mutable NProto::TRequestHeader Header_;
+    mutable TSharedRefArray SerializedData_;
     mutable std::optional<size_t> Hash_;
+
     EMultiplexingBand MultiplexingBand_ = EMultiplexingBand::Default;
     bool FirstTimeSerialization_ = true;
 
@@ -142,7 +147,7 @@ protected:
 
     virtual bool IsHeavy() const override;
 
-    virtual TSharedRef SerializeBody() const = 0;
+    virtual TSharedRefArray SerializeData() const = 0;
 
     TClientContextPtr CreateClientContext();
 
@@ -150,7 +155,8 @@ protected:
 
 private:
     void TraceRequest(const NTracing::TTraceContext& traceContext);
-    const TSharedRef& GetSerializedBody() const;
+    void SetCodecsInHeader();
+    const TSharedRefArray& GetSerializedData() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,7 +178,7 @@ public:
     TFuture<typename TResponse::TResult> Invoke();
 
 private:
-    virtual TSharedRef SerializeBody() const override;
+    virtual TSharedRefArray SerializeData() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,6 +254,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
+    const NProto::TResponseHeader& Header() const;
     TSharedRefArray GetResponseMessage() const;
 
     //! Returns total size: response message size plus attachments.
@@ -256,11 +263,11 @@ public:
 protected:
     explicit TClientResponse(TClientContextPtr clientContext);
 
-    virtual void DeserializeBody(TRef data) = 0;
+    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) = 0;
 
 private:
+    NProto::TResponseHeader Header_;
     TSharedRefArray ResponseMessage_;
-
 
     // IClientResponseHandler implementation.
     virtual void HandleAcknowledgement() override;
@@ -289,7 +296,7 @@ private:
 
 
     virtual void SetPromise(const TError& error) override;
-    virtual void DeserializeBody(TRef data) override;
+    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -354,6 +361,10 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, DefaultTimeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck, true);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, DefaultRequestCodec);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, DefaultRequestAttachmentCodec);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, DefaultResponseCodec);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, DefaultResponseAttachmentCodec);
 
 protected:
     const IChannelPtr Channel_;

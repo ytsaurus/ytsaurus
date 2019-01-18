@@ -78,7 +78,7 @@ private:
         auto signature = request->signature();
         auto rowCount = request->row_count();
         auto dataWeight = request->data_weight();
-        auto requestCodecId = NCompression::ECodec(request->request_codec());
+        auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
         auto versioned = request->versioned();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
         auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());

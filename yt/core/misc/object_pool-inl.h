@@ -11,8 +11,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-TObjectPool<T>::~TObjectPool()
+template <class T, class TTraits>
+TObjectPool<T, TTraits>::~TObjectPool()
 {
     T* obj;
     while (PooledObjects_.Dequeue(&obj)) {
@@ -20,8 +20,8 @@ TObjectPool<T>::~TObjectPool()
     }
 }
 
-template <class T>
-auto TObjectPool<T>::Allocate() -> TObjectPtr
+template <class T, class TTraits>
+auto TObjectPool<T, TTraits>::Allocate() -> TObjectPtr
 {
     T* obj = nullptr;
     if (PooledObjects_.Dequeue(&obj)) {
@@ -29,22 +29,22 @@ auto TObjectPool<T>::Allocate() -> TObjectPtr
     }
 
     if (!obj) {
-        obj = TPooledObjectTraits<T>::Allocate();
+        obj = TTraits::Allocate();
     }
 
     return TObjectPtr(obj, [] (T* obj) {
-        ObjectPool<T>().Reclaim(obj);
+        ObjectPool<T, TTraits>().Reclaim(obj);
     });
 }
 
-template <class T>
-void TObjectPool<T>::Reclaim(T* obj)
+template <class T, class TTraits>
+void TObjectPool<T, TTraits>::Reclaim(T* obj)
 {
-    TPooledObjectTraits<T>::Clean(obj);
+    TTraits::Clean(obj);
 
     while (true) {
         auto poolSize = PoolSize_.load();
-        if (poolSize >= TPooledObjectTraits<T>::GetMaxPoolSize()) {
+        if (poolSize >= TTraits::GetMaxPoolSize()) {
             FreeInstance(obj);
             break;
         } else if (PoolSize_.compare_exchange_strong(poolSize, poolSize + 1)) {
@@ -53,7 +53,7 @@ void TObjectPool<T>::Reclaim(T* obj)
         }
     }
 
-    if (PoolSize_ > TPooledObjectTraits<T>::GetMaxPoolSize()) {
+    if (PoolSize_ > TTraits::GetMaxPoolSize()) {
         T* objToDestroy;
         if (PooledObjects_.Dequeue(&objToDestroy)) {
             --PoolSize_;
@@ -62,14 +62,14 @@ void TObjectPool<T>::Reclaim(T* obj)
     }
 }
 
-template <class T>
-int TObjectPool<T>::GetSize() const
+template <class T, class TTraits>
+int TObjectPool<T, TTraits>::GetSize() const
 {
     return PoolSize_;
 }
 
-template <class T>
-void TObjectPool<T>:: Release(int count)
+template <class T, class TTraits>
+void TObjectPool<T, TTraits>::Release(int count)
 {
     T* obj;
     while (count > 0 && PooledObjects_.Dequeue(&obj)) {
@@ -79,16 +79,16 @@ void TObjectPool<T>:: Release(int count)
     }
 }
 
-template <class T>
-void TObjectPool<T>::FreeInstance(T* obj)
+template <class T, class TTraits>
+void TObjectPool<T, TTraits>::FreeInstance(T* obj)
 {
     delete obj;
 }
 
-template <class T>
-TObjectPool<T>& ObjectPool()
+template <class T, class TTraits>
+TObjectPool<T, TTraits>& ObjectPool()
 {
-    return *Singleton<TObjectPool<T>>();
+    return *Singleton<TObjectPool<T, TTraits>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

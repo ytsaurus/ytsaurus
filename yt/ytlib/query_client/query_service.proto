@@ -15,6 +15,7 @@ message TReqExecute
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
     required TQueryOptions options = 2;
     repeated TDataRanges data_sources = 3;
+    // TODO(kiselyovp) move codec to header
     required int32 response_codec = 4; // ECodec
     repeated TTableMountInfo mount_infos = 7;
 }
@@ -32,6 +33,7 @@ message TReqRead
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 2;
     required uint64 timestamp = 3;
+    // TODO(kiselyovp) move codecs to header
     required int32 request_codec = 4; // ECodec
     required int32 response_codec = 5; // ECodec
     optional string retention_config = 6;
@@ -47,6 +49,7 @@ message TRspRead
 
 message TReqMultiread
 {
+    // TODO(kiselyovp) move codecs to header
     required int32 request_codec = 1; // ECodec
     required int32 response_codec = 2; // ECodec
     optional string retention_config = 3;

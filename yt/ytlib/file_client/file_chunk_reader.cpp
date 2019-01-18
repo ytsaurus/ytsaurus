@@ -389,7 +389,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 config,
                 std::move(remoteReader),
                 blockCache,
-                NCompression::ECodec(miscExt.compression_codec()),
+                CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()),
                 blockReadOptions,
                 startOffset,
                 endOffset);

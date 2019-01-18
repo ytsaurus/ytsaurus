@@ -18,7 +18,7 @@ import __builtin__
 
 ##################################################################
 
-class TestDynamicTablesBase(YTEnvSetup):
+class DynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 0
@@ -141,7 +141,7 @@ class TestDynamicTablesBase(YTEnvSetup):
 
 ##################################################################
 
-class TestDynamicTablesSingleCell(TestDynamicTablesBase):
+class DynamicTablesSingleCellBase(DynamicTablesBase):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_controller": {
@@ -157,6 +157,119 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         }
     }
 
+    def test_follower_start(self):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        for i in xrange(0, 10):
+            rows = [{"key": i, "value": "test"}]
+            keys = [{"key": i}]
+            insert_rows("//tmp/t", rows)
+            assert lookup_rows("//tmp/t", keys) == rows
+
+    def test_follower_catchup(self):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        peers = get("#" + cell_id + "/@peers")
+        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
+
+        set_node_decommissioned(follower_address, True)
+        sleep(3.0)
+        clear_metadata_caches()
+
+        assert get("#" + cell_id + "/@health") == "good"
+        for i in xrange(0, 100):
+            rows = [{"key": i, "value": "test"}]
+            keys = [{"key": i}]
+            insert_rows("//tmp/t", rows)
+            assert lookup_rows("//tmp/t", keys) == rows
+
+    def test_run_reassign_leader(self):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        peers = get("#" + cell_id + "/@peers")
+        leader_address = list(x["address"] for x in peers if x["state"] == "leading")[0]
+        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
+
+        set_node_decommissioned(leader_address, True)
+        sleep(3.0)
+        clear_metadata_caches()
+
+        assert get("#" + cell_id + "/@health") == "good"
+        peers = get("#" + cell_id + "/@peers")
+        leaders = list(x["address"] for x in peers if x["state"] == "leading")
+        assert len(leaders) == 1
+        assert leaders[0] == follower_address
+
+        assert lookup_rows("//tmp/t", keys) == rows
+
+    def test_run_reassign_all_peers(self):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        self._decommission_all_peers(cell_id)
+        sleep(3.0)
+
+        assert get("#" + cell_id + "/@health") == "good"
+        assert lookup_rows("//tmp/t", keys) == rows
+
+    def test_distributed_commit(self):
+        cell_count = 5
+        sync_create_cells(cell_count)
+        cell_ids = ls("//sys/tablet_cells")
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in xrange(cell_count - 1)])
+        for i in xrange(len(cell_ids)):
+            mount_table("//tmp/t", first_tablet_index=i, last_tablet_index=i, cell_id=cell_ids[i])
+        wait_for_tablet_state("//tmp/t", "mounted")
+        rows = [{"key": i * 100 - j, "value": "payload" + str(i)}
+                for i in xrange(cell_count)
+                for j in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        actual = select_rows("* from [//tmp/t]")
+        assert_items_equal(actual, rows)
+
+    def test_update_only_key_columns(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key": 1}], update=True)
+
+        assert len(select_rows("* from [//tmp/t]")) == 0
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "x"}])
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key": 1}], update=True)
+
+        assert len(select_rows("* from [//tmp/t]")) == 1
+
+##################################################################
+
+
+class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_force_unmount_on_remove(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -277,83 +390,6 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         assert len(cells) == 3
         for cell in cells:
             assert cell.attributes["tablet_count"] == 4
-
-    def test_follower_start(self):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
-        sync_create_cells(1, tablet_cell_bundle="b")
-        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
-        sync_mount_table("//tmp/t")
-
-        for i in xrange(0, 10):
-            rows = [{"key": i, "value": "test"}]
-            keys = [{"key": i}]
-            insert_rows("//tmp/t", rows)
-            assert lookup_rows("//tmp/t", keys) == rows
-
-    def test_follower_catchup(self):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
-        sync_create_cells(1, tablet_cell_bundle="b")
-        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
-        sync_mount_table("//tmp/t")
-
-        cell_id = ls("//sys/tablet_cells")[0]
-        peers = get("#" + cell_id + "/@peers")
-        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
-
-        set_node_decommissioned(follower_address, True)
-        sleep(3.0)
-        clear_metadata_caches()
-
-        assert get("#" + cell_id + "/@health") == "good"
-        for i in xrange(0, 100):
-            rows = [{"key": i, "value": "test"}]
-            keys = [{"key": i}]
-            insert_rows("//tmp/t", rows)
-            assert lookup_rows("//tmp/t", keys) == rows
-
-    def test_run_reassign_leader(self):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
-        sync_create_cells(1, tablet_cell_bundle="b")
-        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
-        sync_mount_table("//tmp/t")
-
-        rows = [{"key": 1, "value": "2"}]
-        keys = [{"key": 1}]
-        insert_rows("//tmp/t", rows)
-
-        cell_id = ls("//sys/tablet_cells")[0]
-        peers = get("#" + cell_id + "/@peers")
-        leader_address = list(x["address"] for x in peers if x["state"] == "leading")[0]
-        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
-
-        set_node_decommissioned(leader_address, True)
-        sleep(3.0)
-        clear_metadata_caches()
-
-        assert get("#" + cell_id + "/@health") == "good"
-        peers = get("#" + cell_id + "/@peers")
-        leaders = list(x["address"] for x in peers if x["state"] == "leading")
-        assert len(leaders) == 1
-        assert leaders[0] == follower_address
-
-        assert lookup_rows("//tmp/t", keys) == rows
-
-    def test_run_reassign_all_peers(self):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
-        sync_create_cells(1, tablet_cell_bundle="b")
-        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
-        sync_mount_table("//tmp/t")
-
-        rows = [{"key": 1, "value": "2"}]
-        keys = [{"key": 1}]
-        insert_rows("//tmp/t", rows)
-
-        cell_id = ls("//sys/tablet_cells")[0]
-        self._decommission_all_peers(cell_id)
-        sleep(3.0)
-
-        assert get("#" + cell_id + "/@health") == "good"
-        assert lookup_rows("//tmp/t", keys) == rows
 
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
     def test_in_memory_flush(self, mode):
@@ -519,22 +555,6 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
         assert cell_id in get("//sys/tablet_cell_bundles/b/@tablet_cell_ids")
         assert get("//sys/tablet_cells/" + cell_id + "/@tablet_cell_bundle") == "b"
         assert len(get("//sys/tablet_cells/" + cell_id + "/@peers")) == 2
-
-    def test_distributed_commit(self):
-        cell_count = 5
-        sync_create_cells(cell_count)
-        cell_ids = ls("//sys/tablet_cells")
-        self._create_sorted_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in xrange(cell_count - 1)])
-        for i in xrange(len(cell_ids)):
-            mount_table("//tmp/t", first_tablet_index=i, last_tablet_index=i, cell_id=cell_ids[i])
-        wait_for_tablet_state("//tmp/t", "mounted")
-        rows = [{"key": i * 100 - j, "value": "payload" + str(i)}
-                for i in xrange(cell_count)
-                for j in xrange(10)]
-        insert_rows("//tmp/t", rows)
-        actual = select_rows("* from [//tmp/t]")
-        assert_items_equal(actual, rows)
 
     def test_tablet_ops_require_exclusive_lock(self):
         sync_create_cells(1)
@@ -861,22 +881,6 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-    def test_update_only_key_columns(self):
-        sync_create_cells(1)
-        self._create_sorted_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-
-        with pytest.raises(YtError):
-            insert_rows("//tmp/t", [{"key": 1}], update=True)
-
-        assert len(select_rows("* from [//tmp/t]")) == 0
-
-        insert_rows("//tmp/t", [{"key": 1, "value": "x"}])
-        with pytest.raises(YtError):
-            insert_rows("//tmp/t", [{"key": 1}], update=True)
-
-        assert len(select_rows("* from [//tmp/t]")) == 1
-
     @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("is_sorted", [True, False])
     def test_column_selector_dynamic_tables(self, is_sorted):
@@ -1069,7 +1073,7 @@ class TestDynamicTablesSingleCell(TestDynamicTablesBase):
 
 ##################################################################
 
-class TestDynamicTablesPermissions(TestDynamicTablesBase):
+class TestDynamicTablesPermissions(DynamicTablesBase):
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "security_manager": {
@@ -1102,7 +1106,7 @@ class TestDynamicTablesPermissions(TestDynamicTablesBase):
 
 ##################################################################
 
-class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
+class TestDynamicTablesResourceLimits(DynamicTablesBase):
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "security_manager": {
@@ -1390,7 +1394,7 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
 
 ##################################################################
 
-class TestDynamicTableStateTransitions(TestDynamicTablesBase):
+class TestDynamicTableStateTransitions(DynamicTablesBase):
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
             "leader_reassignment_timeout" : 1000,
@@ -1520,7 +1524,7 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
 
 ##################################################################
 
-class TestTabletActions(TestDynamicTablesBase):
+class TestTabletActions(DynamicTablesBase):
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
             "leader_reassignment_timeout" : 1000,
@@ -2513,6 +2517,37 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_PROXY = True
+
+class TestDynamicTablesWithCompressionRpcProxy(DynamicTablesSingleCellBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+
+    DELTA_DRIVER_CONFIG = {
+        "request_codec": "lz4",
+        "request_attachment_codec": "lz4_high_compression",
+        "response_codec": "quick_lz",
+        "response_attachment_codec": "snappy"
+    }
+
+class TestDynamicTablesWithOldCompressionRpcProxy(DynamicTablesSingleCellBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+
+    DELTA_DRIVER_CONFIG = {
+        "request_codec": "lz4"
+    }
+
+class TestDynamicTablesWithOmittedCompressionRpcProxy(DynamicTablesSingleCellBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+
+    DELTA_DRIVER_CONFIG = {
+        "request_codec": "lz4",
+        "response_codec": "quick_lz"
+    }
 
 class TestDynamicTablesResourceLimitsRpcProxy(TestDynamicTablesResourceLimits):
     DRIVER_BACKEND = "rpc"

@@ -44,6 +44,21 @@ IConnectionPtr TClientBase::GetConnection()
     return GetRpcProxyConnection();
 }
 
+TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
+{
+    if (!channel) {
+        channel = GetChannel();
+    }
+    TApiServiceProxy proxy(channel);
+    auto config = GetRpcProxyConnection()->GetConfig();
+    proxy.SetDefaultRequestCodec(config->RequestCodec);
+    proxy.SetDefaultRequestAttachmentCodec(config->RequestAttachmentCodec);
+    proxy.SetDefaultResponseCodec(config->ResponseCodec);
+    proxy.SetDefaultResponseAttachmentCodec(config->ResponseAttachmentCodec);
+
+    return proxy;
+}
+
 TFuture<ITransactionPtr> TClientBase::StartTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)
@@ -57,7 +72,7 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     auto timeout = options.Timeout.value_or(config->DefaultTransactionTimeout);
     auto pingPeriod = options.PingPeriod.value_or(config->DefaultPingPeriod);
 
-    TApiServiceProxy proxy(channel);
+    auto proxy = CreateApiServiceProxy(channel);
 
     auto req = proxy.StartTransaction();
     req->SetTimeout(config->RpcTimeout);
@@ -127,7 +142,7 @@ TFuture<bool> TClientBase::NodeExists(
     const TYPath& path,
     const TNodeExistsOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.ExistsNode();
     SetTimeoutOptions(*req, options);
@@ -147,7 +162,7 @@ TFuture<TYsonString> TClientBase::GetNode(
     const TYPath& path,
     const TGetNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.GetNode();
     SetTimeoutOptions(*req, options);
@@ -181,7 +196,7 @@ TFuture<TYsonString> TClientBase::ListNode(
     const TYPath& path,
     const TListNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.ListNode();
     SetTimeoutOptions(*req, options);
@@ -216,7 +231,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::CreateNode(
     NObjectClient::EObjectType type,
     const TCreateNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.CreateNode();
     SetTimeoutOptions(*req, options);
@@ -249,7 +264,7 @@ TFuture<void> TClientBase::RemoveNode(
     const TYPath& path,
     const TRemoveNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.RemoveNode();
     SetTimeoutOptions(*req, options);
@@ -271,7 +286,7 @@ TFuture<void> TClientBase::SetNode(
     const TYsonString& value,
     const TSetNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.SetNode();
     SetTimeoutOptions(*req, options);
@@ -294,7 +309,7 @@ TFuture<TLockNodeResult> TClientBase::LockNode(
     NCypressClient::ELockMode mode,
     const TLockNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.LockNode();
     SetTimeoutOptions(*req, options);
@@ -326,7 +341,7 @@ TFuture<void> TClientBase::UnlockNode(
     const NYPath::TYPath& path,
     const NApi::TUnlockNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.UnlockNode();
     SetTimeoutOptions(*req, options);
@@ -345,7 +360,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
     const TYPath& dstPath,
     const TCopyNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.CopyNode();
     SetTimeoutOptions(*req, options);
@@ -375,7 +390,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::MoveNode(
     const TYPath& dstPath,
     const TMoveNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.MoveNode();
     SetTimeoutOptions(*req, options);
@@ -403,7 +418,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::LinkNode(
     const TYPath& dstPath,
     const TLinkNodeOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.LinkNode();
     SetTimeoutOptions(*req, options);
@@ -429,7 +444,7 @@ TFuture<void> TClientBase::ConcatenateNodes(
     const TYPath& dstPath,
     const TConcatenateNodesOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.ConcatenateNodes();
     SetTimeoutOptions(*req, options);
@@ -449,7 +464,7 @@ TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
     NObjectClient::EObjectType type,
     const NApi::TCreateObjectOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
     auto req = proxy.CreateObject();
 
     req->set_type(static_cast<i32>(type));
@@ -470,7 +485,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     const TSharedRange<NTableClient::TKey>& keys,
     const TLookupRowsOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.LookupRows();
     req->SetTimeout(options.Timeout);
@@ -502,7 +517,7 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     const TSharedRange<NTableClient::TKey>& keys,
     const TVersionedLookupRowsOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.VersionedLookupRows();
     req->SetTimeout(options.Timeout);
@@ -533,7 +548,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     const TString& query,
     const TSelectRowsOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.SelectRows();
     req->SetTimeout(options.Timeout.value_or(GetRpcProxyConnection()->GetConfig()->DefaultSelectRowsTimeout));

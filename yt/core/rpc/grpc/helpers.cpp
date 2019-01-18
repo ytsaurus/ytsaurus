@@ -349,7 +349,7 @@ TSharedRef ExtractMessageFromEnvelopedMessage(const TSharedRef& data)
 
     auto compressedMessage = data.Slice(sourceMessage, sourceMessage + fixedHeader->MessageSize);
 
-    auto codecId = NCompression::ECodec(envelope.codec());
+    auto codecId = CheckedEnumCast<NCompression::ECodec>(envelope.codec());
     auto* codec = NCompression::GetCodec(codecId);
     return codec->Decompress(compressedMessage);
 }

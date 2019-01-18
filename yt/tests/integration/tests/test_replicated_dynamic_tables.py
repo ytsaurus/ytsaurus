@@ -1,6 +1,6 @@
 import pytest
 
-from test_dynamic_tables import TestDynamicTablesBase
+from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, parametrize_external
 from yt_commands import *
@@ -50,7 +50,7 @@ EXPRESSIONLESS_SCHEMA = [
 
 ##################################################################
 
-class TestReplicatedDynamicTablesBase(TestDynamicTablesBase):
+class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     NUM_REMOTE_CLUSTERS = 1
 
     DELTA_NODE_CONFIG = {
