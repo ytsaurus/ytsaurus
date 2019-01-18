@@ -4,11 +4,12 @@ import yt.yson as yson
 
 from yt.packages.six.moves import xrange
 
-import pytest
+try:
+    import yt.json_wrapper as json
+except ImportError:
+    import yt.json as json
 
-from copy import deepcopy
-import os
-import sys
+import pytest
 
 
 class YpCli(Cli):
@@ -114,3 +115,27 @@ class TestCli(object):
         result["user_ids"].sort()
 
         assert result == dict(user_ids=sorted(all_user_ids))
+
+    def test_binary_data(self, yp_env):
+        cli = create_cli(yp_env)
+
+        pod_set_id = cli.check_output([
+            "create", "pod_set",
+            "--attributes", yson.dumps({"annotations": {"hello": "\x01\x02"}})
+        ])
+
+        result = cli.check_output([
+            "get",
+            "pod_set", pod_set_id,
+            "--selector", "/annotations",
+        ])
+        assert yson._loads_from_native_str(result) == [{"hello": "\x01\x02"}]
+
+        result = cli.check_output([
+            "get",
+            "pod_set", pod_set_id,
+            "--selector", "/annotations",
+            "--format", "json",
+        ])
+        assert json.loads(result) == [{"hello": "\x01\x02"}]
+
