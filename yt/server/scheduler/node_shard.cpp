@@ -445,16 +445,19 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         node->SetJobReporterQueueIsTooLarge(newValue);
     }
 
-    // NB: Resource limits and usage of node should be updated even if
-    // node is offline to avoid getting incorrect total limits when node becomes online.
-    UpdateNodeResources(node,
-        request->resource_limits(),
-        request->resource_usage(),
-        request->disk_info());
+    if (node->GetSchedulerState() == ENodeState::Online) {
+        // NB: Resource limits and usage of node should be updated even if
+        // node is offline at master to avoid getting incorrect total limits
+        // when node becomes online.
+        UpdateNodeResources(node,
+            request->resource_limits(),
+            request->resource_usage(),
+            request->disk_info());
+    }
 
     TLeaseManager::RenewLease(node->GetLease());
 
-    if (node->GetMasterState() != ENodeMasterState::Online) {
+    if (node->GetMasterState() != ENodeMasterState::Online || node->GetSchedulerState() != ENodeState::Online) {
         auto error = TError("Node is not online");
         if (!node->GetRegistrationError().IsOK()) {
             error = error << node->GetRegistrationError();
@@ -679,7 +682,10 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         auto execNode = IdToNode_[nodeId];
 
-        if (execNode->GetSchedulerState() == ENodeState::Offline && newState == ENodeMasterState::Online) {
+        if (execNode->GetSchedulerState() == ENodeState::Offline &&
+            newState == ENodeMasterState::Online &&
+            execNode->GetRegistrationError().IsOK())
+        {
             YT_LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
                 nodeId,
                 address);
@@ -1288,9 +1294,14 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
     }
 
     auto node = it->second;
+
     // Update the current descriptor and state, just in case.
     node->NodeDescriptor() = descriptor;
-    node->SetSchedulerState(state);
+
+    // Update state to online only if node has no registration errors.
+    if (state != ENodeState::Online || node->GetRegistrationError().IsOK()) {
+        node->SetSchedulerState(state);
+    }
 
     return node;
 }
