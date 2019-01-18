@@ -408,7 +408,7 @@ public:
 
     virtual void SetProfile(const TJobProfile& value) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         Profile_ = value;
     }
 
@@ -486,7 +486,7 @@ public:
 
     std::optional<TJobProfile> GetProfile()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
 
         return Profile_;
     }

@@ -223,7 +223,7 @@ void TPeerBlockDistributor::DistributeBlocks()
              }));
 
         for (const auto& destinationNode : destinationNodes) {
-            const auto& [nodeId, nodeDescriptor] = destinationNode;
+            const auto& [nodeId,    nodeDescriptor] = destinationNode;
             const auto& destinationAddress = nodeDescriptor.GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
             auto heavyChannel = CreateRetryingChannel(
                 Config_->NodeChannel,
