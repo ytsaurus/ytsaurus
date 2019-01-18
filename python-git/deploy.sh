@@ -71,6 +71,10 @@ init_vars
 # NB: Symbolic links doesn't work correctly with `sdist upload`
 cp -r -L $PACKAGE_PATH/debian $PACKAGE_PATH/setup.py .
 
+if [ -f "$PACKAGE_PATH/stable_versions" ]; then
+    cp $PACKAGE_PATH/stable_versions .
+fi
+
 # Initial cleanup
 clean
 
