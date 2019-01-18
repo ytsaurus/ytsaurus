@@ -273,6 +273,8 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("preserve_creation_time", Options.PreserveCreationTime)
         .Optional();
+    RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
+        .Optional();
 }
 
 void TCopyCommand::DoExecute(ICommandContextPtr context)
@@ -300,6 +302,8 @@ TMoveCommand::TMoveCommand()
     RegisterParameter("preserve_account", Options.PreserveAccount)
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
+        .Optional();
+    RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
 }
 

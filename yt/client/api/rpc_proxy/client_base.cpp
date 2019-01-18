@@ -359,6 +359,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
     req->set_preserve_account(options.PreserveAccount);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
     req->set_preserve_creation_time(options.PreserveCreationTime);
+    req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
@@ -386,6 +387,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::MoveNode(
     req->set_force(options.Force);
     req->set_preserve_account(options.PreserveAccount);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
+    req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);

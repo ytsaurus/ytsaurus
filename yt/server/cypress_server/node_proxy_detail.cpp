@@ -1365,11 +1365,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto recursive = request->recursive();
     auto ignoreExisting = request->ignore_existing();
     auto force = request->force();
+    auto pessimisticQuotaCheck = request->pessimistic_quota_check();
     auto targetPath = GetRequestYPath(context->RequestHeader());
 
     context->SetRequestInfo("SourcePath: %v, TransactionId: %v "
         "PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
-        "RemoveSource: %v, Recursive: %v, IgnoreExisting: %v, Force: %v",
+        "RemoveSource: %v, Recursive: %v, IgnoreExisting: %v, Force: %v, PessimisticQuotaCheck: %v",
         sourcePath,
         Transaction ? Transaction->GetId() : TTransactionId(),
         preserveAccount,
@@ -1378,7 +1379,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         removeSource,
         recursive,
         ignoreExisting,
-        force);
+        force,
+        pessimisticQuotaCheck);
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
@@ -1452,6 +1454,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     options.PreserveAccount = preserveAccount;
     options.PreserveExpirationTime = preserveExpirationTime;
     options.PreserveCreationTime = preserveCreationTime;
+    options.PessimisticQuotaCheck = pessimisticQuotaCheck;
     auto factory = CreateCypressFactory(account, options);
 
     auto* clonedImpl = factory->CloneNode(

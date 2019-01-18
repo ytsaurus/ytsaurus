@@ -45,7 +45,7 @@ public:
     // NB: Changing this value will invalidate all changelogs!
     TDuration ExpirationBackoffTime;
 
-    // Forbids performing set inside Cypress.
+    //! Forbids performing set inside Cypress.
     bool ForbidSetCommand;
 
     TCypressManagerConfig()

@@ -305,11 +305,15 @@ public:
         // Resource limit check must be suppressed when moving nodes
         // without altering the account.
         if (mode != ENodeCloneMode::Move || clonedAccount != sourceNode->GetAccount()) {
-            // NB: Ignore disk space increase since in multicell mode the primary cell
-            // might not be aware of the actual resource usage.
-            // This should be safe since chunk lists are shared anyway.
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidateResourceUsageIncrease(clonedAccount, TClusterResources().SetNodeCount(1));
+            TClusterResources resourceUsageIncrease;
+            if (Options_.PessimisticQuotaCheck && clonedAccount != sourceNode->GetAccount()) {
+                auto totalUsageIncrease = sourceNode->GetTotalResourceUsage();
+                resourceUsageIncrease = std::move(totalUsageIncrease).SetTabletCount(0).SetTabletStaticMemory(0);
+            } else {
+                resourceUsageIncrease = TClusterResources().SetNodeCount(1);
+            }
+            securityManager->ValidateResourceUsageIncrease(clonedAccount, resourceUsageIncrease);
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
