@@ -81,6 +81,8 @@ void TPeerBlockUpdater::Update()
                 request = proxy.UpdatePeer();
                 request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
                 request->set_peer_node_id(Bootstrap_->GetMasterConnector()->GetNodeId());
+                // COMPAT(psushin).
+                ToProto(request->mutable_peer_descriptor(), localDescriptor);
                 request->set_peer_expiration_time(expirationTime.GetValue());
                 requests.insert(std::make_pair(sourceAddress, request));
             }
