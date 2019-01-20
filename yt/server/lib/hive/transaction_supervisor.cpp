@@ -14,7 +14,7 @@
 #include <yt/server/lib/hydra/hydra_service.h>
 #include <yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/security_server/security_manager_base.h>
+#include <yt/server/lib/security_server/security_manager.h>
 
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/ytlib/hive/cell_directory.h>

@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "cluster_resources.h"
-#include "security_manager_base.h"
 
 #include <yt/server/master/cell_master/public.h>
 
@@ -10,6 +9,8 @@
 
 #include <yt/server/lib/hydra/entity_map.h>
 #include <yt/server/lib/hydra/mutation.h>
+
+#include <yt/server/lib/security_server/security_manager.h>
 
 #include <yt/server/master/object_server/public.h>
 
