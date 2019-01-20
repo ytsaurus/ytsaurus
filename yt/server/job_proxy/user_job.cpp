@@ -13,8 +13,8 @@
 #include <yt/server/lib/core_dump/public.h>
 #include <yt/server/lib/core_dump/core_processor_service.h>
 
-#include <yt/server/exec_agent/public.h>
-#include <yt/server/exec_agent/supervisor_service_proxy.h>
+#include <yt/server/node/exec_agent/public.h>
+#include <yt/server/node/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/server/lib/misc/public.h>
 

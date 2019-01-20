@@ -17,7 +17,7 @@
 
 #include <yt/server/controller_agent/helpers.h>
 
-#include <yt/server/exec_agent/public.h>
+#include <yt/server/node/exec_agent/public.h>
 
 #include <yt/server/lib/shell/config.h>
 

@@ -1,8 +1,8 @@
 #include "environment.h"
 
-#include <yt/server/exec_agent/config.h>
+#include <yt/server/node/exec_agent/config.h>
 
-#include <yt/server/job_agent/gpu_manager.h>
+#include <yt/server/node/job_agent/gpu_manager.h>
 
 #include <yt/ytlib/job_proxy/private.h>
 
