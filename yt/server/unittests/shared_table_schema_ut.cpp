@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/table_server/shared_table_schema.h>
+#include <yt/server/master/table_server/shared_table_schema.h>
 
 #include <yt/client/table_client/schema.h>
 

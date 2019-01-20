@@ -4,7 +4,7 @@
 
 #include <yt/server/controller_agent/public.h>
 
-#include <yt/server/chunk_server/public.h>
+#include <yt/server/master/chunk_server/public.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 

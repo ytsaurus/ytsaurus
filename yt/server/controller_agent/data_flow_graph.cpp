@@ -5,7 +5,7 @@
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 
-#include <yt/server/table_server/virtual.h>
+#include <yt/server/master/table_server/virtual.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 

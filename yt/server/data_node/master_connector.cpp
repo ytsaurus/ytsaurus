@@ -13,7 +13,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/chunk_server/public.h>
+#include <yt/server/master/chunk_server/public.h>
 
 #include <yt/server/data_node/journal_dispatcher.h>
 

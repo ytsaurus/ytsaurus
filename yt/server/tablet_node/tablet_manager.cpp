@@ -39,7 +39,7 @@
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 #include <yt/server/tablet_node/transaction_manager.h>
 
-#include <yt/server/tablet_server/tablet_manager.pb.h>
+#include <yt/server/master/tablet_server/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>

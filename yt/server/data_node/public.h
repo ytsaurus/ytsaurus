@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/chunk_server/public.h>
+#include <yt/server/master/chunk_server/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/cell_master/public.h>
+#include <yt/server/master/cell_master/public.h>
 
-#include <yt/server/cypress_server/public.h>
+#include <yt/server/master/cypress_server/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

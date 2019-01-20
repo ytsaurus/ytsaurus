@@ -16,7 +16,7 @@
 
 #include <yt/server/lib/hive/hive_manager.h>
 
-#include <yt/server/tablet_server/tablet_manager.pb.h>
+#include <yt/server/master/tablet_server/tablet_manager.pb.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
