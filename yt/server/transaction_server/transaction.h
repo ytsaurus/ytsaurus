@@ -14,7 +14,7 @@
 #include <yt/server/security_server/cluster_resources.h>
 #include <yt/server/security_server/public.h>
 
-#include <yt/server/hive/transaction_detail.h>
+#include <yt/server/lib/hive/transaction_detail.h>
 
 #include <yt/ytlib/cypress_client/public.h>
 

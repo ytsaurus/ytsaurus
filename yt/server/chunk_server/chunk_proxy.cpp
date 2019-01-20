@@ -15,7 +15,7 @@
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/object_server/object_detail.h>
 

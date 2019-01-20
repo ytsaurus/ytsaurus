@@ -9,7 +9,7 @@
 #include <yt/server/clickhouse_server/native/storage.h>
 #include <yt/server/clickhouse_server/native/clique_authorization_manager.h>
 
-#include <yt/server/admin_server/admin_service.h>
+#include <yt/server/lib/admin/admin_service.h>
 
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/configure_singletons.h>

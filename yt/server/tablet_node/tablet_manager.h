@@ -4,7 +4,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/server/hydra/entity_map.h>
+#include <yt/server/lib/hydra/entity_map.h>
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 

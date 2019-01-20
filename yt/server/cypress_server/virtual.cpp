@@ -6,9 +6,9 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 
-#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/security_server/user.h>
 

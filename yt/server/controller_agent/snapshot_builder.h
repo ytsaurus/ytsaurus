@@ -5,7 +5,7 @@
 
 #include <yt/server/scheduler/public.h>
 
-#include <yt/server/misc/fork_executor.h>
+#include <yt/server/lib/misc/fork_executor.h>
 
 #include <yt/client/api/public.h>
 

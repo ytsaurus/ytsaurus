@@ -13,7 +13,7 @@
 #include "user_job_synchronizer.h"
 #include "job_throttler.h"
 
-#include <yt/server/containers/public.h>
+#include <yt/server/lib/containers/public.h>
 
 #include <yt/server/exec_agent/config.h>
 #include <yt/server/exec_agent/supervisor_service.pb.h>

@@ -10,15 +10,15 @@
 #include "user_job_synchronizer.h"
 #include "environment.h"
 
-#include <yt/server/core_dump/public.h>
-#include <yt/server/core_dump/core_processor_service.h>
+#include <yt/server/lib/core_dump/public.h>
+#include <yt/server/lib/core_dump/core_processor_service.h>
 
 #include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/server/misc/public.h>
+#include <yt/server/lib/misc/public.h>
 
-#include <yt/server/shell/shell_manager.h>
+#include <yt/server/lib/shell/shell_manager.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 

@@ -4,7 +4,7 @@
 #include "object_detail.h"
 #include "dynamic_store_bits.h"
 
-#include <yt/server/hive/transaction_detail.h>
+#include <yt/server/lib/hive/transaction_detail.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

@@ -19,7 +19,7 @@
 #include <yt/server/tablet_server/table_replica.h>
 #include <yt/server/tablet_server/tablet_manager.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/object_server/object_manager.h>
 

@@ -1,9 +1,9 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/config.h>
-#include <yt/server/hydra/format.h>
-#include <yt/server/hydra/async_file_changelog_index.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/config.h>
+#include <yt/server/lib/hydra/format.h>
+#include <yt/server/lib/hydra/async_file_changelog_index.h>
 
 #include <yt/ytlib/chunk_client/io_engine.h>
 #include <yt/ytlib/hydra/hydra_manager.pb.h>

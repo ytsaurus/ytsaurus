@@ -18,12 +18,12 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/server/hive/hive_manager.h>
-#include <yt/server/hive/mailbox.h>
-#include <yt/server/hive/helpers.h>
-#include <yt/server/hive/proto/hive_manager.pb.h>
+#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/server/lib/hive/mailbox.h>
+#include <yt/server/lib/hive/helpers.h>
+#include <yt/server/lib/hive/proto/hive_manager.pb.h>
 
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>

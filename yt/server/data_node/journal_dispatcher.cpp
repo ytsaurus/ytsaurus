@@ -9,7 +9,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/hydra/changelog.h>
+#include <yt/server/lib/hydra/changelog.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

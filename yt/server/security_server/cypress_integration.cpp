@@ -12,8 +12,8 @@
 
 #include <yt/server/security_server/security_manager.h>
 
-#include <yt/server/misc/interned_attributes.h>
-#include <yt/server/misc/object_helpers.h>
+#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/server/lib/misc/object_helpers.h>
 
 #include <yt/client/object_client/helpers.h>
 

@@ -4,7 +4,7 @@
 
 #include <yt/server/chunk_server/public.h>
 
-#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
 
 #include <yt/server/table_server/public.h>
 

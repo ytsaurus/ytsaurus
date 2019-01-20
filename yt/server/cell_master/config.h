@@ -6,11 +6,11 @@
 
 #include <yt/server/cypress_server/config.h>
 
-#include <yt/server/hive/config.h>
+#include <yt/server/lib/hive/config.h>
 
-#include <yt/server/hydra/config.h>
+#include <yt/server/lib/hydra/config.h>
 
-#include <yt/server/misc/config.h>
+#include <yt/server/lib/misc/config.h>
 
 #include <yt/server/node_tracker_server/config.h>
 

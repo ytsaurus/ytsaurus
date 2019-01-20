@@ -8,9 +8,9 @@
 
 #include <yt/server/chunk_server/chunk_manager.pb.h>
 
-#include <yt/server/hydra/composite_automaton.h>
-#include <yt/server/hydra/entity_map.h>
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/object_server/public.h>
 

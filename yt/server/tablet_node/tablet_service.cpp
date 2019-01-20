@@ -12,9 +12,9 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/hydra/hydra_manager.h>
-#include <yt/server/hydra/hydra_service.h>
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/hydra_service.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/client/table_client/wire_protocol.h>

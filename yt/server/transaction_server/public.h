@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/server/hive/public.h>
+#include <yt/server/lib/hive/public.h>
 
-#include <yt/server/hydra/public.h>
+#include <yt/server/lib/hydra/public.h>
 
 #include <yt/ytlib/object_client/public.h>
 

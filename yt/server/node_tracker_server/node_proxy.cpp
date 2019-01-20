@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/object_server/object_detail.h>
 

@@ -5,7 +5,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/hydra/changelog.h>
+#include <yt/server/lib/hydra/changelog.h>
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 

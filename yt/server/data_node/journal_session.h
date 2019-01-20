@@ -5,7 +5,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/server/hydra/public.h>
+#include <yt/server/lib/hydra/public.h>
 
 namespace NYT::NDataNode {
 

@@ -5,7 +5,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/server/misc/disk_location.h>
+#include <yt/server/lib/misc/disk_location.h>
 
 #include <yt/server/job_agent/job.h>
 

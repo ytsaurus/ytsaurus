@@ -30,10 +30,10 @@
 
 #include <yt/server/cypress_server/cypress_manager.h>
 
-#include <yt/server/hive/hive_manager.h>
-#include <yt/server/hive/helpers.h>
+#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/server/lib/hive/helpers.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/node_tracker_server/node.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
@@ -44,7 +44,7 @@
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/subject.h>
 
-#include <yt/server/hydra/snapshot_quota_helpers.h>
+#include <yt/server/lib/hydra/snapshot_quota_helpers.h>
 
 #include <yt/server/table_server/table_node.h>
 #include <yt/server/table_server/replicated_table_node.h>

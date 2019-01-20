@@ -8,9 +8,9 @@
 #include <yt/server/cypress_server/cypress_manager.h>
 #include <yt/server/cypress_server/node_detail.h>
 
-#include <yt/server/hive/transaction_supervisor.h>
+#include <yt/server/lib/hive/transaction_supervisor.h>
 
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/security_server/acl.h>
 #include <yt/server/security_server/group.h>

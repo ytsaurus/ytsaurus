@@ -24,8 +24,8 @@
 #include <yt/server/cypress_server/node.h>
 #include <yt/server/cypress_server/cypress_manager.h>
 
-#include <yt/server/hydra/composite_automaton.h>
-#include <yt/server/hydra/entity_map.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/entity_map.h>
 
 #include <yt/server/object_server/type_handler_detail.h>
 
@@ -33,7 +33,7 @@
 
 #include <yt/server/transaction_server/transaction.h>
 
-#include <yt/server/hive/hive_manager.h>
+#include <yt/server/lib/hive/hive_manager.h>
 
 #include <yt/client/object_client/helpers.h>
 

@@ -13,12 +13,12 @@
 #include <yt/server/cypress_server/cypress_manager.h>
 #include <yt/server/cypress_server/node.h>
 
-#include <yt/server/hive/transaction_supervisor.h>
-#include <yt/server/hive/transaction_lease_tracker.h>
-#include <yt/server/hive/transaction_manager_detail.h>
+#include <yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/server/lib/hive/transaction_lease_tracker.h>
+#include <yt/server/lib/hive/transaction_manager_detail.h>
 
-#include <yt/server/hydra/composite_automaton.h>
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/object_server/attribute_set.h>
 #include <yt/server/object_server/object.h>

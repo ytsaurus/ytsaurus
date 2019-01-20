@@ -5,11 +5,11 @@
 
 #include <yt/server/cypress_server/node_proxy_detail.h>
 
-#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config_manager.h>

@@ -5,7 +5,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/object_server/object_detail.h>
 

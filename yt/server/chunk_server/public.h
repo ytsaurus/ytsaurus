@@ -2,7 +2,7 @@
 
 #include <yt/server/node_tracker_server/public.h>
 
-#include <yt/server/hydra/public.h>
+#include <yt/server/lib/hydra/public.h>
 
 #include <yt/ytlib/chunk_client/block_id.h>
 #include <yt/ytlib/chunk_client/public.h>

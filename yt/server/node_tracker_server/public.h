@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/hydra/public.h>
+#include <yt/server/lib/hydra/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 

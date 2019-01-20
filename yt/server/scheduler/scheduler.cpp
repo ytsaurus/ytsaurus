@@ -19,7 +19,7 @@
 
 #include <yt/server/exec_agent/public.h>
 
-#include <yt/server/shell/config.h>
+#include <yt/server/lib/shell/config.h>
 
 #include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 

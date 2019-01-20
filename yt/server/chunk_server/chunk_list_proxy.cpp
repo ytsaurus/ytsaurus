@@ -8,7 +8,7 @@
 
 #include <yt/server/cypress_server/cypress_manager.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/object_server/object_detail.h>
 

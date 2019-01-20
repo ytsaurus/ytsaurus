@@ -26,8 +26,8 @@
 
 #include <yt/server/cypress_server/cypress_manager.h>
 
-#include <yt/server/hydra/composite_automaton.h>
-#include <yt/server/hydra/entity_map.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/entity_map.h>
 
 #include <yt/server/node_tracker_server/config.h>
 #include <yt/server/node_tracker_server/node_directory_builder.h>

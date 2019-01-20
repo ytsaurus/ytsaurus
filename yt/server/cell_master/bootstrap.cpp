@@ -16,18 +16,18 @@
 
 #include <yt/server/file_server/file_node.h>
 
-#include <yt/server/hive/hive_manager.h>
-#include <yt/server/hive/transaction_manager.h>
-#include <yt/server/hive/transaction_supervisor.h>
-#include <yt/server/hive/transaction_participant_provider.h>
-#include <yt/server/hive/cell_directory_synchronizer.h>
+#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/server/lib/hive/transaction_manager.h>
+#include <yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/server/lib/hive/transaction_participant_provider.h>
+#include <yt/server/lib/hive/cell_directory_synchronizer.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/file_snapshot_store.h>
-#include <yt/server/hydra/local_changelog_store.h>
-#include <yt/server/hydra/local_snapshot_service.h>
-#include <yt/server/hydra/local_snapshot_store.h>
-#include <yt/server/hydra/snapshot.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/file_snapshot_store.h>
+#include <yt/server/lib/hydra/local_changelog_store.h>
+#include <yt/server/lib/hydra/local_snapshot_service.h>
+#include <yt/server/lib/hydra/local_snapshot_store.h>
+#include <yt/server/lib/hydra/snapshot.h>
 
 #include <yt/server/journal_server/journal_node.h>
 #include <yt/server/journal_server/journal_manager.h>
@@ -40,7 +40,7 @@
 #include <yt/server/object_server/object_service.h>
 #include <yt/server/object_server/sys_node_type_handler.h>
 
-#include <yt/server/orchid/cypress_integration.h>
+#include <yt/server/lib/orchid/cypress_integration.h>
 
 #include <yt/server/security_server/cypress_integration.h>
 #include <yt/server/security_server/security_manager.h>
@@ -58,9 +58,9 @@
 #include <yt/server/transaction_server/transaction_manager.h>
 #include <yt/server/transaction_server/transaction_service.h>
 
-#include <yt/server/election/election_manager.h>
+#include <yt/server/lib/election/election_manager.h>
 
-#include <yt/server/admin_server/admin_service.h>
+#include <yt/server/lib/admin/admin_service.h>
 
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>

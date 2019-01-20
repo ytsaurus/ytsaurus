@@ -11,7 +11,7 @@
 #include <yt/server/data_node/local_chunk_reader.h>
 #include <yt/server/data_node/master_connector.h>
 
-#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/security_manager.h>

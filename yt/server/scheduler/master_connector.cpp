@@ -8,7 +8,7 @@
 
 #include <yt/server/controller_agent/helpers.h>
 
-#include <yt/server/misc/update_executor.h>
+#include <yt/server/lib/misc/update_executor.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>

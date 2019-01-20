@@ -23,7 +23,7 @@
 
 #include <yt/server/chunk_server/public.h>
 
-#include <yt/server/misc/release_queue.h>
+#include <yt/server/lib/misc/release_queue.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/misc/config.h>
+#include <yt/server/lib/misc/config.h>
 
 #include <yt/ytlib/api/native/config.h>
 

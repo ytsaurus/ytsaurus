@@ -12,7 +12,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/hydra/changelog.h>
+#include <yt/server/lib/hydra/changelog.h>
 
 #include <yt/server/job_agent/job.h>
 

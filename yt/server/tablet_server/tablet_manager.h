@@ -11,8 +11,8 @@
 
 #include <yt/server/chunk_server/chunk_tree_statistics.h>
 
-#include <yt/server/hydra/entity_map.h>
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/object_server/public.h>
 
