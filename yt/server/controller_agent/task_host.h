@@ -6,8 +6,8 @@
 #include "data_flow_graph.h"
 #include "operation_controller.h"
 
-#include <yt/server/chunk_pools/public.h>
-#include <yt/server/chunk_pools/chunk_stripe.h>
+#include <yt/server/controller_agent/chunk_pools/public.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
 
 #include <yt/server/scheduler/public.h>
 

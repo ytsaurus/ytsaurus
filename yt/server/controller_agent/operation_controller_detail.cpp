@@ -14,7 +14,7 @@
 
 #include <yt/server/lib/misc/job_table_schema.h>
 
-#include <yt/server/chunk_pools/helpers.h>
+#include <yt/server/controller_agent/chunk_pools/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>

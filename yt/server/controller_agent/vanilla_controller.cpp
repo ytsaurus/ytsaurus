@@ -7,7 +7,7 @@
 #include "table.h"
 #include "job_info.h"
 
-#include <yt/server/chunk_pools/vanilla_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/vanilla_chunk_pool.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 

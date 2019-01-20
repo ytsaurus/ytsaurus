@@ -14,11 +14,11 @@
 #include "scheduling_context.h"
 #include "config.h"
 
-#include <yt/server/chunk_pools/chunk_pool.h>
-#include <yt/server/chunk_pools/ordered_chunk_pool.h>
-#include <yt/server/chunk_pools/shuffle_chunk_pool.h>
-#include <yt/server/chunk_pools/sorted_chunk_pool.h>
-#include <yt/server/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/ordered_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/shuffle_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>

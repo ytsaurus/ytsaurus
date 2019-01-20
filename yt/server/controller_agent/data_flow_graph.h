@@ -3,7 +3,7 @@
 #include "private.h"
 #include "progress_counter.h"
 
-#include <yt/server/chunk_pools/public.h>
+#include <yt/server/controller_agent/chunk_pools/public.h>
 
 #include <yt/server/master/table_server/public.h>
 

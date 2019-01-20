@@ -3,7 +3,7 @@
 #include "input_chunk_mapping.h"
 #include "serialize.h"
 
-#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
 #include <yt/server/master/table_server/virtual.h>
 

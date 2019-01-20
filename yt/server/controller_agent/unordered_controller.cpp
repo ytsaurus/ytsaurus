@@ -11,8 +11,8 @@
 #include "operation.h"
 #include "config.h"
 
-#include <yt/server/chunk_pools/unordered_chunk_pool.h>
-#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
 #include <yt/client/api/transaction.h>
 
