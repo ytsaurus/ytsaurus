@@ -4,10 +4,10 @@
 
 #include <yt/server/lib/hydra/hydra_manager.h>
 
-#include <yt/server/tablet_server/tablet_manager.h>
-#include <yt/server/tablet_server/tablet_cell.h>
+#include <yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/server/master/tablet_server/tablet_cell.h>
 
-#include <yt/server/object_server/object.h>
+#include <yt/server/master/object_server/object.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 

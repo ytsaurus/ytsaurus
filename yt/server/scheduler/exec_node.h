@@ -3,7 +3,7 @@
 #include "public.h"
 #include "scheduling_tag.h"
 
-#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/master/node_tracker_server/node.h>
 
 #include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
 

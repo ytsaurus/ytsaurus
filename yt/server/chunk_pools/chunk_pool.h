@@ -9,7 +9,7 @@
 #include <yt/server/controller_agent/serialize.h>
 #include <yt/server/controller_agent/public.h>
 
-#include <yt/server/chunk_server/public.h>
+#include <yt/server/master/chunk_server/public.h>
 
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/public.h>

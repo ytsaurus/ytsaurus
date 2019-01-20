@@ -6,7 +6,7 @@
 
 #include <yt/server/lib/misc/config.h>
 
-#include <yt/server/object_server/config.h>
+#include <yt/server/master/object_server/config.h>
 
 #include <yt/server/query_agent/config.h>
 

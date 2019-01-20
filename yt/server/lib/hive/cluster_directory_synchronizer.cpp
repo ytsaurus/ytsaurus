@@ -11,11 +11,11 @@
 
 #include <yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/server/cell_master/bootstrap.h>
-#include <yt/server/cell_master/multicell_manager.h>
-#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/object_server/object_manager.h>
+#include <yt/server/master/object_server/object_manager.h>
 
 namespace NYT::NHiveServer {
 

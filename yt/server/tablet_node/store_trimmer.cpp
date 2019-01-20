@@ -12,7 +12,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/tablet_server/tablet_manager.pb.h>
+#include <yt/server/master/tablet_server/tablet_manager.pb.h>
 
 #include <yt/client/object_client/helpers.h>
 

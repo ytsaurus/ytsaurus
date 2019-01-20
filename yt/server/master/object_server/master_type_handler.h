@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/server/master/cell_master/public.h>
+
+namespace NYT::NObjectServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IObjectTypeHandlerPtr CreateMasterTypeHandler(NCellMaster::TBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NObjectServer

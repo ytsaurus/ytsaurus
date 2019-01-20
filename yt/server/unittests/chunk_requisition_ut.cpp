@@ -2,7 +2,7 @@
 
 #include <yt/core/misc/guid.h>
 
-#include <yt/server/chunk_server/chunk_requisition.h>
+#include <yt/server/master/chunk_server/chunk_requisition.h>
 
 namespace NYT::NChunkServer {
 namespace {

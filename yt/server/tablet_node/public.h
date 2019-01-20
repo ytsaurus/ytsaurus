@@ -4,7 +4,7 @@
 
 #include <yt/server/lib/hydra/public.h>
 
-#include <yt/server/tablet_server/public.h>
+#include <yt/server/master/tablet_server/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 

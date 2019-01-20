@@ -40,7 +40,7 @@
 
 #include <yt/server/lib/misc/address_helpers.h>
 
-#include <yt/server/object_server/master_cache_service.h>
+#include <yt/server/master/object_server/master_cache_service.h>
 
 #include <yt/server/query_agent/query_executor.h>
 #include <yt/server/query_agent/query_service.h>
@@ -55,7 +55,7 @@
 #include <yt/server/tablet_node/store_trimmer.h>
 #include <yt/server/tablet_node/versioned_chunk_meta_manager.h>
 
-#include <yt/server/transaction_server/timestamp_proxy_service.h>
+#include <yt/server/master/transaction_server/timestamp_proxy_service.h>
 
 #include <yt/server/lib/admin/admin_service.h>
 

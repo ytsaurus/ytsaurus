@@ -5,8 +5,8 @@
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/signal.h>
 
-#include <yt/server/object_server/public.h>
-#include <yt/server/cell_master/public.h>
+#include <yt/server/master/object_server/public.h>
+#include <yt/server/master/cell_master/public.h>
 
 namespace NYT::NHiveServer {
 

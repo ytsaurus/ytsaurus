@@ -21,7 +21,7 @@
 #include <yt/server/chunk_pools/chunk_stripe_key.h>
 #include <yt/server/chunk_pools/input_stream.h>
 
-#include <yt/server/chunk_server/public.h>
+#include <yt/server/master/chunk_server/public.h>
 
 #include <yt/server/lib/misc/release_queue.h>
 
