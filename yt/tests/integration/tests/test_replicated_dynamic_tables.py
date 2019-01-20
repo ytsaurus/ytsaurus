@@ -1188,6 +1188,26 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
 
         wait(lambda: len(get("//tmp/t/@replicas/{}/errors".format(replica_id))) == 0)
 
+    def test_replica_permissions(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+
+        create_user("u")
+
+        set("//tmp/t/@acl", [make_ace("deny", "u", "write")])
+        with pytest.raises(YtError):
+            create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
+
+        set("//tmp/t/@acl", [make_ace("allow", "u", "write")])
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
+
+        set("//tmp/t/@acl", [make_ace("deny", "u", "write")])
+        with pytest.raises(YtError):
+            remove("#" + replica_id, authenticated_user="u")
+
+        set("//tmp/t/@acl", [make_ace("allow", "u", "write")])
+        remove("#" + replica_id, authenticated_user="u")
+
 ##################################################################
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):

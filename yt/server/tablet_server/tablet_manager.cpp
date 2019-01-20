@@ -486,6 +486,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(table, EPermission::Write);
+
         for (const auto* replica : table->Replicas()) {
             if (replica->GetClusterName() == clusterName &&
                 replica->GetReplicaPath() == replicaPath)
@@ -588,6 +591,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(replica, EPermission::Write);
+        
         auto* table = replica->GetTable();
         auto state = replica->GetState();
 
@@ -1494,6 +1500,11 @@ public:
             THROW_ERROR_EXCEPTION("Cannot mount a static table");
         }
 
+        if (!table->IsForeign()) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(table, EPermission::Mount);
+        }
+
         if (table->IsExternal()) {
             return;
         }
@@ -1889,6 +1900,11 @@ public:
             THROW_ERROR_EXCEPTION("Cannot unmount a static table");
         }
 
+        if (!table->IsForeign()) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(table, EPermission::Mount);
+        }
+
         if (table->IsExternal()) {
             return;
         }
@@ -1957,6 +1973,11 @@ public:
 
         if (!table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot remount a static table");
+        }
+
+        if (!table->IsForeign()) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(table, EPermission::Mount);
         }
 
         if (table->IsExternal()) {
@@ -2056,6 +2077,11 @@ public:
             THROW_ERROR_EXCEPTION("Cannot freeze a static table");
         }
 
+        if (!table->IsForeign()) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(table, EPermission::Mount);
+        }
+
         if (table->IsExternal()) {
             return;
         }
@@ -2139,6 +2165,11 @@ public:
 
         if (!table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot unfreeze a static table");
+        }
+
+        if (!table->IsForeign()) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(table, EPermission::Mount);
         }
 
         if (table->IsExternal()) {
@@ -2284,6 +2315,10 @@ public:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        if (!table->IsForeign()) {
+            securityManager->ValidatePermission(table, EPermission::Mount);
+        }
 
         if (create) {
             int oldTabletCount = table->IsExternal() ? 0 : 1;

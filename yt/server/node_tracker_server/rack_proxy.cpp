@@ -35,7 +35,9 @@ private:
     typedef TNonversionedObjectProxyBase<TRack> TBase;
 
     virtual void ValidateRemoval() override
-    { }
+    {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
+    }
 
     virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
