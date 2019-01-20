@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job.h"
 
-#include <yt/server/job_agent/public.h>
+#include <yt/server/node/job_agent/public.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 

@@ -7,7 +7,7 @@
 #include "controller_agent.h"
 #include "bootstrap.h"
 
-#include <yt/server/exec_agent/public.h>
+#include <yt/server/node/exec_agent/public.h>
 
 #include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
 

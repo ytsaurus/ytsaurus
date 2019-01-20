@@ -2,9 +2,9 @@
 
 #include "config.h"
 
-#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/node/cell_node/bootstrap.h>
 
-#include <yt/server/data_node/master_connector.h>
+#include <yt/server/node/data_node/master_connector.h>
 
 #include <yt/server/lib/misc/private.h>
 

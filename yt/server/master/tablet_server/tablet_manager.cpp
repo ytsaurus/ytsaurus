@@ -49,8 +49,8 @@
 #include <yt/server/master/table_server/table_node.h>
 #include <yt/server/master/table_server/replicated_table_node.h>
 
-#include <yt/server/tablet_node/config.h>
-#include <yt/server/tablet_node/tablet_manager.pb.h>
+#include <yt/server/node/tablet_node/config.h>
+#include <yt/server/node/tablet_node/tablet_manager.pb.h>
 
 #include <yt/server/master/tablet_server/tablet_manager.pb.h>
 
