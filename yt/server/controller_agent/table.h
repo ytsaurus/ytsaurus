@@ -5,7 +5,7 @@
 #include "serialize.h"
 #include "table.h"
 
-#include <yt/server/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 

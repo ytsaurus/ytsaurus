@@ -6,7 +6,7 @@
 #include <yt/server/controller_agent/job_size_constraints.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/client/table_client/row_buffer.h>
 

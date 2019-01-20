@@ -7,7 +7,7 @@
 #include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/input_chunk_mapping.h>
 
-#include <yt/server/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/sorted_chunk_pool.h>
 
 #include <yt/client/table_client/row_buffer.h>
 

@@ -4,7 +4,7 @@
 
 #include "task_host.h"
 
-#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
 namespace NYT::NControllerAgent {
 

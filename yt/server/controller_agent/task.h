@@ -10,8 +10,8 @@
 
 #include <yt/server/scheduler/job.h>
 
-#include <yt/server/chunk_pools/chunk_stripe_key.h>
-#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/public.h>

@@ -1,6 +1,6 @@
 #include "input_chunk_mapping.h"
 
-#include <yt/server/chunk_pools/chunk_stripe.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 

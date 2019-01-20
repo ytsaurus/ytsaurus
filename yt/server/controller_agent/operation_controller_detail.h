@@ -16,10 +16,10 @@
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/event_log.h>
 
-#include <yt/server/chunk_pools/chunk_pool.h>
-#include <yt/server/chunk_pools/public.h>
-#include <yt/server/chunk_pools/chunk_stripe_key.h>
-#include <yt/server/chunk_pools/input_stream.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/public.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/controller_agent/chunk_pools/input_stream.h>
 
 #include <yt/server/master/chunk_server/public.h>
 
