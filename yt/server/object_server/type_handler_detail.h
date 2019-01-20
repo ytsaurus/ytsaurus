@@ -7,7 +7,7 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/multicell_manager.h>
 
-#include <yt/server/hydra/entity_map.h>
+#include <yt/server/lib/hydra/entity_map.h>
 
 #include <yt/server/transaction_server/public.h>
 

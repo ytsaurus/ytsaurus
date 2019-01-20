@@ -4,9 +4,9 @@
 
 #include <yt/server/data_node/config.h>
 
-#include <yt/server/hive/config.h>
+#include <yt/server/lib/hive/config.h>
 
-#include <yt/server/hydra/config.h>
+#include <yt/server/lib/hydra/config.h>
 
 #include <yt/server/tablet_node/config.h>
 

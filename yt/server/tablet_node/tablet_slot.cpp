@@ -11,39 +11,39 @@
 
 #include <yt/server/data_node/config.h>
 
-#include <yt/server/election/election_manager.h>
+#include <yt/server/lib/election/election_manager.h>
 
-#include <yt/server/hive/hive_manager.h>
-#include <yt/server/hive/mailbox.h>
-#include <yt/server/hive/transaction_supervisor.h>
+#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/server/lib/hive/mailbox.h>
+#include <yt/server/lib/hive/transaction_supervisor.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/distributed_hydra_manager.h>
-#include <yt/server/hydra/hydra_manager.h>
-#include <yt/server/hydra/remote_changelog_store.h>
-#include <yt/server/hydra/remote_snapshot_store.h>
-#include <yt/server/hydra/snapshot.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/remote_changelog_store.h>
+#include <yt/server/lib/hydra/remote_snapshot_store.h>
+#include <yt/server/lib/hydra/snapshot.h>
 
-#include <yt/server/election/election_manager.h>
-#include <yt/server/election/election_manager_thunk.h>
+#include <yt/server/lib/election/election_manager.h>
+#include <yt/server/lib/election/election_manager_thunk.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/remote_changelog_store.h>
-#include <yt/server/hydra/snapshot.h>
-#include <yt/server/hydra/remote_snapshot_store.h>
-#include <yt/server/hydra/hydra_manager.h>
-#include <yt/server/hydra/distributed_hydra_manager.h>
-#include <yt/server/hydra/changelog_store_factory_thunk.h>
-#include <yt/server/hydra/snapshot_store_thunk.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/remote_changelog_store.h>
+#include <yt/server/lib/hydra/snapshot.h>
+#include <yt/server/lib/hydra/remote_snapshot_store.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/server/lib/hydra/changelog_store_factory_thunk.h>
+#include <yt/server/lib/hydra/snapshot_store_thunk.h>
 
-#include <yt/server/hive/hive_manager.h>
-#include <yt/server/hive/mailbox.h>
-#include <yt/server/hive/transaction_supervisor.h>
-#include <yt/server/hive/transaction_participant_provider.h>
+#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/server/lib/hive/mailbox.h>
+#include <yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/server/lib/hive/transaction_participant_provider.h>
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>

@@ -11,11 +11,11 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/private.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/private.h>
 
-#include <yt/server/misc/disk_health_checker.h>
-#include <yt/server/misc/private.h>
+#include <yt/server/lib/misc/disk_health_checker.h>
+#include <yt/server/lib/misc/private.h>
 
 #include <yt/ytlib/chunk_client/format.h>
 #include <yt/ytlib/chunk_client/io_engine.h>

@@ -2,11 +2,11 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/election/election_manager.h>
+#include <yt/server/lib/election/election_manager.h>
 
-#include <yt/server/hydra/composite_automaton.h>
-#include <yt/server/hydra/hydra_manager.h>
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/transaction_server/timestamp_manager.pb.h>
 

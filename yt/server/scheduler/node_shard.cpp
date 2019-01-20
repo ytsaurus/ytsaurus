@@ -11,7 +11,7 @@
 
 #include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/server/shell/config.h>
+#include <yt/server/lib/shell/config.h>
 
 #include <yt/ytlib/job_proxy/public.h>
 

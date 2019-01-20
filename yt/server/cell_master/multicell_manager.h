@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/hive/public.h>
+#include <yt/server/lib/hive/public.h>
 
 #include <yt/ytlib/election/public.h>
 

@@ -2,9 +2,9 @@
 #include "election_manager_mock.h"
 #include "election_service_mock.h"
 
-#include <yt/server/election/config.h>
-#include <yt/server/election/election_manager.h>
-#include <yt/server/election/distributed_election_manager.h>
+#include <yt/server/lib/election/config.h>
+#include <yt/server/lib/election/election_manager.h>
+#include <yt/server/lib/election/distributed_election_manager.h>
 
 #include <yt/ytlib/election/cell_manager.h>
 #include <yt/ytlib/election/config.h>

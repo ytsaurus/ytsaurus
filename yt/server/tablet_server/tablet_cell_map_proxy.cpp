@@ -4,7 +4,7 @@
 
 #include <yt/server/cypress_server/node_proxy_detail.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/client/object_client/helpers.h>
 

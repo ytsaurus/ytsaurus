@@ -2,7 +2,7 @@
 
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/election/election_manager.h>
+#include <yt/server/lib/election/election_manager.h>
 
 namespace NYT::NElection {
 

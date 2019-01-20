@@ -5,7 +5,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-#include <yt/server/misc/max_min_balancer.h>
+#include <yt/server/lib/misc/max_min_balancer.h>
 
 #include <yt/server/node_tracker_server/data_center.h>
 

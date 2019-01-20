@@ -1,4 +1,4 @@
-#include <yt/server/hydra/snapshot_quota_helpers.h>
+#include <yt/server/lib/hydra/snapshot_quota_helpers.h>
 
 #include <yt/core/test_framework/framework.h>
 

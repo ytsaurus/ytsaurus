@@ -10,9 +10,9 @@
 
 #include <yt/server/cypress_server/cypress_manager.pb.h>
 
-#include <yt/server/hydra/composite_automaton.h>
-#include <yt/server/hydra/entity_map.h>
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/object_server/object_manager.h>
 

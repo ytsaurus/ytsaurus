@@ -13,11 +13,11 @@
 
 #include <yt/server/cypress_server/virtual.h>
 
-#include <yt/server/election/election_manager.h>
+#include <yt/server/lib/election/election_manager.h>
 
-#include <yt/server/hydra/mutation_context.h>
+#include <yt/server/lib/hydra/mutation_context.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/object_server/object_manager.h>
 #include <yt/server/object_server/type_handler.h>

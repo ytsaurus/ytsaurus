@@ -4,7 +4,7 @@
 
 #include <yt/server/node_tracker_server/public.h>
 
-#include <yt/server/hydra/entity_map.h>
+#include <yt/server/lib/hydra/entity_map.h>
 
 namespace NYT::NTabletServer {
 

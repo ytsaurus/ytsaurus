@@ -15,9 +15,9 @@
 #include <yt/server/cypress_server/cypress_manager.h>
 #include <yt/server/cypress_server/node_detail.h>
 
-#include <yt/server/election/election_manager.h>
+#include <yt/server/lib/election/election_manager.h>
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/security_manager.h>

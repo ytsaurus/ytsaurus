@@ -7,8 +7,8 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/sync_file_changelog.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/sync_file_changelog.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>

@@ -2,7 +2,7 @@
 #include "shared_table_schema.h"
 #include "private.h"
 
-#include <yt/server/misc/interned_attributes.h>
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell_bundle.h>

@@ -7,10 +7,10 @@
 #include <yt/ytlib/job_proxy/private.h>
 
 #ifdef _linux_
-#include <yt/server/containers/porto_executor.h>
-#include <yt/server/containers/instance.h>
+#include <yt/server/lib/containers/porto_executor.h>
+#include <yt/server/lib/containers/instance.h>
 
-#include <yt/server/misc/process.h>
+#include <yt/server/lib/misc/process.h>
 #endif
 
 #include <yt/core/logging/log_manager.h>

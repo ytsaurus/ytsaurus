@@ -7,7 +7,7 @@
 
 #include <yt/server/cypress_server/public.h>
 
-#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
 
 #include <yt/server/node_tracker_server/public.h>
 

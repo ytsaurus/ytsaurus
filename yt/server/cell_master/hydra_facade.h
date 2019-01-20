@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/ytlib/election/public.h>
 

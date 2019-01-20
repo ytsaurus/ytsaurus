@@ -11,8 +11,8 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/hydra/hydra_manager.h>
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 

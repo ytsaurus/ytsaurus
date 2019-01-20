@@ -12,7 +12,7 @@
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>
 
-#include <yt/server/misc/job_table_schema.h>
+#include <yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/server/chunk_pools/helpers.h>
 

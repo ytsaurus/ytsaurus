@@ -8,11 +8,11 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/file_changelog_dispatcher.h>
-#include <yt/server/hydra/file_helpers.h>
-#include <yt/server/hydra/lazy_changelog.h>
-#include <yt/server/hydra/private.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/file_changelog_dispatcher.h>
+#include <yt/server/lib/hydra/file_helpers.h>
+#include <yt/server/lib/hydra/lazy_changelog.h>
+#include <yt/server/lib/hydra/private.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 #include <yt/client/hydra/version.h>

@@ -14,7 +14,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/hive/hive_manager.h>
+#include <yt/server/lib/hive/hive_manager.h>
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 

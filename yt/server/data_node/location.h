@@ -4,7 +4,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/server/misc/disk_location.h>
+#include <yt/server/lib/misc/disk_location.h>
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/medium_directory.h>

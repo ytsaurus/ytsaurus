@@ -11,7 +11,7 @@
 
 #include <yt/core/actions/signal.h>
 
-#include <yt/server/containers/public.h>
+#include <yt/server/lib/containers/public.h>
 
 #include <yt/core/misc/error.h>
 

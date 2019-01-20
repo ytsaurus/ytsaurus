@@ -5,7 +5,7 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 
-#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
 
 #include <yt/client/table_client/versioned_row.h>
 

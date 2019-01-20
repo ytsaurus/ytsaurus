@@ -7,7 +7,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/containers/public.h>
+#include <yt/server/lib/containers/public.h>
 
 #include <yt/server/data_node/artifact.h>
 #include <yt/server/data_node/chunk.h>

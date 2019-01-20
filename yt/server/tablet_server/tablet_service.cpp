@@ -5,7 +5,7 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 
-#include <yt/server/hive/helpers.h>
+#include <yt/server/lib/hive/helpers.h>
 
 #include <yt/server/table_server/shared_table_schema.h>
 

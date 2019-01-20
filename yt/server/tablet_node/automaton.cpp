@@ -5,7 +5,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 

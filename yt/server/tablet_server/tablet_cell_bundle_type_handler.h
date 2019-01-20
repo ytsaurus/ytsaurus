@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/hydra/public.h>
+#include <yt/server/lib/hydra/public.h>
 
 #include <yt/server/object_server/public.h>
 

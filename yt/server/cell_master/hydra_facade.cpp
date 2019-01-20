@@ -8,19 +8,19 @@
 #include <yt/server/cypress_server/cypress_manager.h>
 #include <yt/server/cypress_server/node_detail.h>
 
-#include <yt/server/election/election_manager.h>
-#include <yt/server/election/distributed_election_manager.h>
-#include <yt/server/election/election_manager_thunk.h>
+#include <yt/server/lib/election/election_manager.h>
+#include <yt/server/lib/election/distributed_election_manager.h>
+#include <yt/server/lib/election/election_manager_thunk.h>
 
-#include <yt/server/hive/transaction_supervisor.h>
-#include <yt/server/hive/hive_manager.h>
+#include <yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/server/lib/hive/hive_manager.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/composite_automaton.h>
-#include <yt/server/hydra/distributed_hydra_manager.h>
-#include <yt/server/hydra/file_helpers.h>
-#include <yt/server/hydra/private.h>
-#include <yt/server/hydra/snapshot.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/server/lib/hydra/file_helpers.h>
+#include <yt/server/lib/hydra/private.h>
+#include <yt/server/lib/hydra/snapshot.h>
 
 #include <yt/server/object_server/private.h>
 
@@ -28,7 +28,7 @@
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/security_manager.h>
 
-#include <yt/server/hydra/snapshot_quota_helpers.h>
+#include <yt/server/lib/hydra/snapshot_quota_helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>

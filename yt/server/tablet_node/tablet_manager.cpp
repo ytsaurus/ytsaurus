@@ -27,14 +27,14 @@
 #include <yt/server/data_node/chunk_block_manager.h>
 #include <yt/server/data_node/master_connector.h>
 
-#include <yt/server/hive/hive_manager.h>
-#include <yt/server/hive/transaction_supervisor.h>
-#include <yt/server/hive/helpers.h>
-#include <yt/server/hive/proto/transaction_supervisor.pb.h>
+#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/server/lib/hive/helpers.h>
+#include <yt/server/lib/hive/proto/transaction_supervisor.pb.h>
 
-#include <yt/server/hydra/hydra_manager.h>
-#include <yt/server/hydra/mutation.h>
-#include <yt/server/hydra/mutation_context.h>
+#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/server/lib/hydra/mutation.h>
+#include <yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 #include <yt/server/tablet_node/transaction_manager.h>

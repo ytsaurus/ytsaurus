@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/misc/public.h>
+#include <yt/server/lib/misc/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

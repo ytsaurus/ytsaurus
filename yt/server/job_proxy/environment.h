@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/containers/public.h>
+#include <yt/server/lib/containers/public.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 

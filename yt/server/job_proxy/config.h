@@ -4,7 +4,7 @@
 
 #include <yt/server/exec_agent/config.h>
 
-#include <yt/server/misc/config.h>
+#include <yt/server/lib/misc/config.h>
 
 #include <yt/ytlib/cgroup/config.h>
 

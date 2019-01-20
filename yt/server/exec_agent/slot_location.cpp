@@ -9,7 +9,7 @@
 
 #include <yt/server/data_node/master_connector.h>
 
-#include <yt/server/misc/disk_health_checker.h>
+#include <yt/server/lib/misc/disk_health_checker.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 

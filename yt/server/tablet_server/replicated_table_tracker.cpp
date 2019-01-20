@@ -23,10 +23,10 @@
 
 #include <yt/server/object_server/object_manager.h>
 
-#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/lib/hydra/composite_automaton.h>
 
-#include <yt/server/hive/cluster_directory_synchronizer.h>
-#include <yt/server/hive/config.h>
+#include <yt/server/lib/hive/cluster_directory_synchronizer.h>
+#include <yt/server/lib/hive/config.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/config.h>

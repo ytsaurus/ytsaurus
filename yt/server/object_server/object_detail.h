@@ -7,7 +7,7 @@
 
 #include <yt/server/cell_master/public.h>
 
-#include <yt/server/hydra/entity_map.h>
+#include <yt/server/lib/hydra/entity_map.h>
 
 #include <yt/server/security_server/public.h>
 

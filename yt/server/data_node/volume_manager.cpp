@@ -13,11 +13,11 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/containers/porto_executor.h>
+#include <yt/server/lib/containers/porto_executor.h>
 
-#include <yt/server/misc/disk_location.h>
-#include <yt/server/misc/disk_health_checker.h>
-#include <yt/server/misc/private.h>
+#include <yt/server/lib/misc/disk_location.h>
+#include <yt/server/lib/misc/disk_health_checker.h>
+#include <yt/server/lib/misc/private.h>
 
 #include <yt/core/concurrency/action_queue.h>
 

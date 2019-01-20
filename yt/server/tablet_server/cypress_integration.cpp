@@ -11,7 +11,7 @@
 
 #include <yt/server/tablet_server/tablet_manager.h>
 
-#include <yt/server/misc/object_helpers.h>
+#include <yt/server/lib/misc/object_helpers.h>
 
 #include <yt/client/object_client/helpers.h>
 

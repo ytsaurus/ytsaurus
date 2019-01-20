@@ -5,7 +5,7 @@
 #include <yt/server/data_node/config.h>
 
 #ifdef _linux_
-#include <yt/server/containers/porto_executor.h>
+#include <yt/server/lib/containers/porto_executor.h>
 #endif
 
 #include <yt/core/concurrency/action_queue.h>

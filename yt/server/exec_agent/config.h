@@ -6,7 +6,7 @@
 
 #include <yt/server/job_proxy/config.h>
 
-#include <yt/server/misc/config.h>
+#include <yt/server/lib/misc/config.h>
 
 #include <yt/ytlib/cgroup/config.h>
 

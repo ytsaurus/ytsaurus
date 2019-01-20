@@ -6,9 +6,9 @@
 
 #include <yt/server/cypress_server/public.h>
 
-#include <yt/server/hive/public.h>
+#include <yt/server/lib/hive/public.h>
 
-#include <yt/server/hydra/public.h>
+#include <yt/server/lib/hydra/public.h>
 
 #include <yt/server/journal_server/public.h>
 
