@@ -4,7 +4,7 @@
 
 #include <yt/server/lib/hydra/public.h>
 
-#include <yt/server/security_server/public.h>
+#include <yt/server/master/security_server/public.h>
 
 #include <yt/core/actions/public.h>
 

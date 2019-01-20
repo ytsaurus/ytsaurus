@@ -5,7 +5,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/server/security_server/security_manager_base.h>
+#include <yt/server/lib/security_server/security_manager.h>
 
 #include <yt/core/actions/future.h>
 

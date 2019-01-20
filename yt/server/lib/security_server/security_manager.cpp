@@ -1,4 +1,4 @@
-#include "security_manager_base.h"
+#include "security_manager.h"
 
 namespace NYT::NSecurityServer {
 
