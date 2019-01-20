@@ -41,6 +41,7 @@ private:
             THROW_ERROR_EXCEPTION("Cannot remove a built-in user %Qv",
                 user->GetName());
         }
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     }
 
     virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override

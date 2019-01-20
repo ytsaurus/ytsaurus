@@ -9,6 +9,8 @@
 
 #include <yt/server/table_server/replicated_table_node.h>
 
+#include <yt/server/security_server/security_manager.h>
+
 #include <yt/client/object_client/helpers.h>
 
 namespace NYT::NTabletServer {
@@ -65,6 +67,9 @@ public:
         }
         auto* table = trunkNode->As<TReplicatedTableNode>();
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(table, EPermission::Write);
+
         if (startReplicationRowIndexes && startReplicationRowIndexes->size() != table->Tablets().size()) {
             THROW_ERROR_EXCEPTION("Invalid size of \"start_replication_row_indexes\": expected zero or %v, got %v",
                 table->Tablets().size(),
@@ -88,6 +93,11 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
+    virtual TObjectBase* DoGetParent(TTableReplica* replica) override
+    {
+        return replica->GetTable();
+    }
+
     virtual TString DoGetName(const TTableReplica* replica) override
     {
         return Format("table replica %v", replica->GetId());
@@ -101,6 +111,7 @@ private:
     virtual void DoZombifyObject(TTableReplica* replica) override
     {
         TObjectTypeHandlerWithMapBase::DoDestroyObject(replica);
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTableReplica(replica);
     }

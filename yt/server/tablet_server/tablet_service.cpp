@@ -122,8 +122,6 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        ValidateMountPermissions(table);
-
         if (Bootstrap_->IsPrimaryMaster()) {
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
             if (path != currentPath) {
@@ -263,8 +261,6 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        ValidateMountPermissions(table);
-
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot unmount table");
             table->SetCurrentMountTransactionId(transaction->GetId());
@@ -364,8 +360,6 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        ValidateMountPermissions(table);
-
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot freeze table");
             table->SetCurrentMountTransactionId(transaction->GetId());
@@ -458,8 +452,6 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
-
-        ValidateMountPermissions(table);
 
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot unfreeze table");
@@ -554,8 +546,6 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
-
-        ValidateMountPermissions(table);
 
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot remount table");
@@ -652,8 +642,6 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId))->As<TTableNode>();
 
-        ValidateMountPermissions(table);
-
         if (Bootstrap_->IsPrimaryMaster()) {
             table->ValidateNoCurrentMountTransaction("Cannot reshard table");
             table->SetCurrentMountTransactionId(transaction->GetId());
@@ -749,17 +737,6 @@ private:
         if (transaction->GetParent()) {
             THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
         }
-    }
-
-    void ValidateMountPermissions(TTableNode* table)
-    {
-        if (table->IsForeign()) {
-            return;
-        }
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(table, user, EPermission::Mount);
     }
 };
 

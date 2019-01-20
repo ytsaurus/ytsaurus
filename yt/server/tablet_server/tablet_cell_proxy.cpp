@@ -93,6 +93,8 @@ private:
     {
         const auto* cell = GetThisImpl();
 
+        ValidatePermission(cell->GetCellBundle(), EPermission::Write);
+
         if (!cell->DecommissionCompleted()) {
             THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned on node",
                 cell->GetId());
