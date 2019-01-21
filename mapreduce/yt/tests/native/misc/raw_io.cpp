@@ -12,23 +12,21 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////
 
-class TTestRawReaderFixture {
+class TTestRawReaderFixture
+    : public TTestFixture
+{
 public:
     TTestRawReaderFixture(size_t recordCount)
     {
-        Client_ = CreateTestClient();
-        Client_->Create("//testing/table", ENodeType::NT_TABLE);
-        auto writer = Client_->CreateTableWriter<TNode>(TRichYPath("//testing/table").SortedBy("key"));
+        GetClient()->Create(GetWorkingDir() + "/table", ENodeType::NT_TABLE);
+        auto writer = GetClient()->CreateTableWriter<TNode>(
+            TRichYPath(GetWorkingDir() + "/table").SortedBy("key"));
         for (size_t i = 0; i < recordCount; ++i) {
             auto r = TNode()("key", i);
             writer->AddRow(r);
             Data_.push_back(std::move(r));
         }
         writer->Finish();
-    }
-
-    IClientPtr GetClient() const {
-        return Client_;
     }
 
     const TNode::TListType& GetData() const {
@@ -61,7 +59,6 @@ public:
 
 private:
     TNode::TListType Data_;
-    IClientPtr Client_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +70,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         TTestRawReaderFixture testFixture(10);
 
         auto client = testFixture.GetClient();
-        auto reader = client->CreateRawReader("//testing/table", TFormat::YsonBinary(), TTableReaderOptions());
+        auto reader = client->CreateRawReader(testFixture.GetWorkingDir() + "/table", TFormat::YsonBinary(), TTableReaderOptions());
         auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
 
         TMaybe<ui32> rangeIndex;
@@ -90,7 +87,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         TTestRawReaderFixture testFixture(10);
 
         auto client = testFixture.GetClient();
-        auto reader = client->CreateRawReader("//testing/table", TFormat::YsonBinary(), TTableReaderOptions());
+        auto reader = client->CreateRawReader(testFixture.GetWorkingDir() + "/table", TFormat::YsonBinary(), TTableReaderOptions());
         {
             reader->Retry(Nothing(), Nothing());
             auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
@@ -135,7 +132,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         TTestRawReaderFixture testFixture(10);
 
         auto client = testFixture.GetClient();
-        auto reader = client->CreateRawReader("//testing/table", TFormat::YsonBinary(), TTableReaderOptions());
+        auto reader = client->CreateRawReader(testFixture.GetWorkingDir() + "/table", TFormat::YsonBinary(), TTableReaderOptions());
         reader->ReadAll();
         reader->Retry(Nothing(), 9ull);
         auto res = NodeFromYsonString(reader->ReadAll(), YT_LIST_FRAGMENT);
@@ -156,7 +153,7 @@ Y_UNIT_TEST_SUITE(RawIo)
 
         auto client = testFixture.GetClient();
 
-        TRichYPath path("//testing/table");
+        TRichYPath path(testFixture.GetWorkingDir() + "/table");
         path.AddRange(TReadRange()
             .LowerLimit(TReadLimit().RowIndex(1))
             .UpperLimit(TReadLimit().RowIndex(5)));
@@ -180,7 +177,7 @@ Y_UNIT_TEST_SUITE(RawIo)
 
         auto client = testFixture.GetClient();
 
-        TRichYPath path("//testing/table");
+        TRichYPath path(testFixture.GetWorkingDir() + "/table");
         path.AddRange(TReadRange()
             .LowerLimit(TReadLimit().RowIndex(1))
             .UpperLimit(TReadLimit().RowIndex(5)));

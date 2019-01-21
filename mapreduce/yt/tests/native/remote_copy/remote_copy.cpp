@@ -31,32 +31,34 @@ Y_UNIT_TEST_SUITE(RemoteCopy) {
     {
         auto dstClient = CreateTestClient(GetEnvChecked("YT_PROXY_DST"));
         auto srcClient = CreateTestClient(GetEnvChecked("YT_PROXY_SRC"));
+        auto dstTestingDir = CreateTestDirectory(dstClient);
+        auto srcTestingDir = CreateTestDirectory(srcClient);
 
         TVector<TNode> writtenRows = {TNode()("foo", "bar")};
         {
-            auto writer = srcClient->CreateTableWriter<TNode>("//testing/input");
+            auto writer = srcClient->CreateTableWriter<TNode>(srcTestingDir + "/input");
             for (const auto& row : writtenRows) {
                 writer->AddRow(row);
             }
             writer->Finish();
         }
-        srcClient->Set("//testing/input/@my_attribute", TNode(42));
+        srcClient->Set(srcTestingDir + "/input/@my_attribute", TNode(42));
 
         dstClient->RemoteCopy(
             TRemoteCopyOperationSpec()
             .ClusterName(GetEnvChecked("YT_SRC_CLUSTER_NAME"))
-            .AddInput("//testing/input")
-            .Output("//testing/output")
+            .AddInput(srcTestingDir + "/input")
+            .Output(dstTestingDir + "/output")
             .CopyAttributes(true)
             .AddAttributeKey("my_attribute"));
 
-        auto reader = dstClient->CreateTableReader<TNode>("//testing/output");
+        auto reader = dstClient->CreateTableReader<TNode>(dstTestingDir + "/output");
         TVector<TNode> outputRows;
         for (; reader->IsValid(); reader->Next()) {
             outputRows.push_back(reader->MoveRow());
         }
 
         UNIT_ASSERT_VALUES_EQUAL(writtenRows, outputRows);
-        UNIT_ASSERT_VALUES_EQUAL(dstClient->Get("//testing/output/@my_attribute"), TNode(42));
+        UNIT_ASSERT_VALUES_EQUAL(dstClient->Get(dstTestingDir + "/output/@my_attribute"), TNode(42));
     }
 }

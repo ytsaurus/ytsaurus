@@ -94,9 +94,11 @@ Y_UNIT_TEST_SUITE(RawOperations)
 {
     Y_UNIT_TEST(Map)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        auto writer = client->CreateTableWriter<TNode>("//testing/input");
+        auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
         {
             writer->AddRow(TNode()("one", "1")("two", "2"));
             writer->AddRow(TNode()("five", "5")("eight", "8"));
@@ -106,12 +108,12 @@ Y_UNIT_TEST_SUITE(RawOperations)
 
         client->RawMap(
             TRawMapOperationSpec()
-            .AddInput("//testing/input")
-            .AddOutput("//testing/output")
+            .AddInput(workingDir + "/input")
+            .AddOutput(workingDir + "/output")
             .Format(TFormat(TNode("json"))),
             new TJsonKvSwapper);
 
-        TVector<TNode> actual = ReadTable(client, "//testing/output");
+        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
 
         const TVector<TNode> expected = {
             TNode()("1", "one")("2", "two"),
@@ -123,9 +125,11 @@ Y_UNIT_TEST_SUITE(RawOperations)
 
     Y_UNIT_TEST(Reduce)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/input").SortedBy({"key"}));
+        auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/input").SortedBy({"key"}));
         {
             writer->AddRow(TNode()("key", "1")("value", "one"));
             writer->AddRow(TNode()("key", "1")("value", "two"));
@@ -139,12 +143,12 @@ Y_UNIT_TEST_SUITE(RawOperations)
         client->RawReduce(
             TRawReduceOperationSpec()
             .ReduceBy({"key"})
-            .AddInput("//testing/input")
-            .AddOutput("//testing/output")
+            .AddInput(workingDir + "/input")
+            .AddOutput(workingDir + "/output")
             .Format(TFormat(TNode("json"))),
             new TJsonValueJoin);
 
-        TVector<TNode> actual = ReadTable(client, "//testing/output");
+        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
 
         const TVector<TNode> expected = {
             TNode()("key", "1")("value", "one;two;"),
@@ -156,9 +160,11 @@ Y_UNIT_TEST_SUITE(RawOperations)
 
     Y_UNIT_TEST(MapReduce)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        auto writer = client->CreateTableWriter<TNode>("//testing/input");
+        auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
         {
             writer->AddRow(TNode()("1", "key")("one", "value"));
             writer->AddRow(TNode()("1", "key")("two", "value"));
@@ -171,8 +177,8 @@ Y_UNIT_TEST_SUITE(RawOperations)
 
         client->RawMapReduce(
             TRawMapReduceOperationSpec()
-            .AddInput("//testing/input")
-            .AddOutput("//testing/output")
+            .AddInput(workingDir + "/input")
+            .AddOutput(workingDir + "/output")
             .SortBy("key")
             .MapperFormat(TFormat(TNode("json")))
             .ReducerFormat(TFormat(TNode("json"))),
@@ -180,7 +186,7 @@ Y_UNIT_TEST_SUITE(RawOperations)
             nullptr,
             new TJsonValueJoin);
 
-        TVector<TNode> actual = ReadTable(client, "//testing/output");
+        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
 
         const TVector<TNode> expected = {
             TNode()("key", "1")("value", "one;two;"),

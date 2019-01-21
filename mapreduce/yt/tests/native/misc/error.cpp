@@ -13,12 +13,14 @@ Y_UNIT_TEST_SUITE(TestErrors)
 {
     Y_UNIT_TEST(TestErrorParsing)
     {
-        auto client = CreateTestClient();
-        client->Set("//testing/vzhukh", "i protestirovano");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        client->Set(workingDir + "/vzhukh", "i protestirovano");
 
         try {
             // we hope to get nontrivial tree of errors
-            client->Link("//testing/vzhukh", "//testing/vzhukh/missing_path");
+            client->Link(workingDir + "/vzhukh", workingDir + "/vzhukh/missing_path");
         } catch (const NYT::TErrorResponse& e) {
             const auto& error = e.GetError();
             UNIT_ASSERT_VALUES_EQUAL(error.GetCode(), NYT::NClusterErrorCodes::NYTree::ResolveError);

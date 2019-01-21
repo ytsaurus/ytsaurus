@@ -13,46 +13,30 @@ using ::google::protobuf::Message;
 using namespace NYT;
 using namespace NYT::NTesting;
 
-class TProtoFormatDerivationFixture {
+class TProtoFormatDerivationFixture
+    : public TTestFixture
+{
 public:
     TProtoFormatDerivationFixture()
-        : Client_(CreateTestClient())
-        , UseClientProtobufOld_(TConfig::Get()->UseClientProtobuf)
     {
         // Fill some data.
         {
-            auto writer = Client_->CreateTableWriter<TNode>("//testing/urls1");
+            auto writer = GetClient()->CreateTableWriter<TNode>(GetWorkingDir() + "/urls1");
             writer->AddRow(TNode()("Host", "http://www.example.com")("Path", "/")("HttpCode", 302));
             writer->AddRow(TNode()("Host", "http://www.example.com")("Path", "/index.php")("HttpCode", 200));
             writer->Finish();
         }
         {
-            auto writer = Client_->CreateTableWriter<TNode>("//testing/urls2");
+            auto writer = GetClient()->CreateTableWriter<TNode>(GetWorkingDir() + "/urls2");
             writer->AddRow(TNode()("Host", "http://www.example.com")("Path", "/index.htm")("HttpCode", 404));
             writer->AddRow(TNode()("Host", "http://www.other-example.com")("Path", "/")("HttpCode", 200));
             writer->Finish();
         }
         {
-            auto writer = Client_->CreateTableWriter<TNode>("//testing/empty");
+            auto writer = GetClient()->CreateTableWriter<TNode>(GetWorkingDir() + "/empty");
             writer->Finish();
         }
-
-        TConfig::Get()->UseClientProtobuf = false;
     }
-
-    ~TProtoFormatDerivationFixture()
-    {
-        TConfig::Get()->UseClientProtobuf = UseClientProtobufOld_;
-    }
-
-    const IClientPtr& GetClient()
-    {
-        return Client_;
-    }
-
-private:
-    IClientPtr Client_;
-    bool UseClientProtobufOld_ = false;
 };
 
 template<class TRow>
@@ -150,11 +134,11 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
             .ReduceBy("Host")
-            .AddInput<TUrlRow>("//testing/urls1")
-            .AddInput<TUrlRow>("//testing/urls2")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
             //the only way to add different types' table is to make it empty
-            .AddInput<THostRow>("//testing/empty")
-            .AddOutput<THostRow>("//testing/host"),
+            .AddInput<THostRow>(fixture.GetWorkingDir() + "/empty")
+            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
             new TUnspecifiedInputMapper,
             new TEverythingSpecifiedReducer,
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
@@ -168,9 +152,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             fixture.GetClient()->MapReduce(
                 TMapReduceOperationSpec()
                     .ReduceBy("Host")
-                    .AddInput<TUrlRow>("//testing/urls1")
-                    .AddInput<THostRow>("//testing/urls2")
-                    .AddOutput<THostRow>("//testing/host"),
+                    .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+                    .AddInput<THostRow>(fixture.GetWorkingDir() + "/urls2")
+                    .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
                 nullptr,
                 new TEverythingSpecifiedReducer,
                 TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
@@ -187,9 +171,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             fixture.GetClient()->MapReduce(
                 TMapReduceOperationSpec()
                     .ReduceBy("Host")
-                    .AddInput<TUrlRow>("//testing/urls1")
-                    .AddInput<TUrlRow>("//testing/urls2")
-                    .AddOutput<THostRow>("//testing/host"),
+                    .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+                    .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+                    .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
                 new TUnspecifiedOutputMapper,
                 new TUnspecifiedInputReducer,
                 TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
@@ -206,9 +190,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             TMapReduceOperationSpec()
             .ReduceBy("Host")
             .HintMapOutput<TUrlRow>()
-            .AddInput<TUrlRow>("//testing/urls1")
-            .AddInput<TUrlRow>("//testing/urls2")
-            .AddOutput<THostRow>("//testing/host"),
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
             new TUnspecifiedOutputMapper,
             new TEverythingSpecifiedReducer,
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
@@ -222,9 +206,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             fixture.GetClient()->MapReduce(
                 TMapReduceOperationSpec()
                 .ReduceBy("Host")
-                .AddInput<TUrlRow>("//testing/urls1")
-                .AddInput<TUrlRow>("//testing/urls2")
-                .AddOutput<THostRow>("//testing/host"),
+                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+                .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
                 new TEverythingSpecifiedMapper,
                 new TUnspecifiedInputReduceCombiner,
                 new TEverythingSpecifiedReducer,
@@ -242,9 +226,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
             .ReduceBy("Host")
-            .AddInput<TUrlRow>("//testing/urls1")
-            .AddInput<TUrlRow>("//testing/urls2")
-            .AddOutput<THostRow>("//testing/host")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host")
             .HintReduceCombinerInput<TUrlRow>(),
             new TEverythingSpecifiedMapper,
             new TUnspecifiedInputReduceCombiner,
@@ -260,9 +244,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             fixture.GetClient()->MapReduce(
                 TMapReduceOperationSpec()
                 .ReduceBy("Host")
-                .AddInput<TUrlRow>("//testing/urls1")
-                .AddInput<TUrlRow>("//testing/urls2")
-                .AddOutput<THostRow>("//testing/host"),
+                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+                .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
                 new TEverythingSpecifiedMapper,
                 new TUnspecifiedOutputReduceCombiner,
                 new TEverythingSpecifiedReducer,
@@ -280,9 +264,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
             .ReduceBy("Host")
-            .AddInput<TUrlRow>("//testing/urls1")
-            .AddInput<TUrlRow>("//testing/urls2")
-            .AddOutput<THostRow>("//testing/host")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host")
             .HintReduceCombinerOutput<TUrlRow>(),
             new TEverythingSpecifiedMapper,
             new TUnspecifiedOutputReduceCombiner,
@@ -298,9 +282,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             fixture.GetClient()->MapReduce(
                 TMapReduceOperationSpec()
                     .ReduceBy("Host")
-                    .AddInput<TNode>("//testing/urls1")
-                    .AddInput<TNode>("//testing/urls2")
-                    .AddOutput<THostRow>("//testing/host"),
+                    .AddInput<TNode>(fixture.GetWorkingDir() + "/urls1")
+                    .AddInput<TNode>(fixture.GetWorkingDir() + "/urls2")
+                    .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
                 nullptr,
                 new TUnspecifiedInputReducer,
                 TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
@@ -317,9 +301,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
                 .ReduceBy("Host")
-                .AddInput<TUrlRow>("//testing/urls1")
-                .AddInput<TUrlRow>("//testing/urls2")
-                .AddOutput<THostRow>("//testing/host"),
+                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+                .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
             nullptr,
             new TUnspecifiedInputReducer,
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
@@ -332,9 +316,9 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
             .ReduceBy("Host")
-            .AddInput<TUrlRow>("//testing/urls1")
-            .AddInput<TUrlRow>("//testing/urls2")
-            .AddOutput<THostRow>("//testing/host"),
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
             new TEverythingSpecifiedMapper,
             new TEverythingSpecifiedReduceCombiner,
             new TEverythingSpecifiedReducer,

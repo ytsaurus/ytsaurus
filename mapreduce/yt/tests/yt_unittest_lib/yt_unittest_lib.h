@@ -21,6 +21,9 @@ namespace NTesting {
 
 IClientPtr CreateTestClient(TString proxy = "");
 
+// Create map node by unique path in Cypress and return that path.
+TYPath CreateTestDirectory(const IClientBasePtr& client);
+
 TString GenerateRandomData(size_t size, ui64 seed = 42);
 
 TVector<TNode> ReadTable(const IClientBasePtr& client, const TString& tablePath);
@@ -66,7 +69,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOwningYaMRRow {
+struct TOwningYaMRRow
+{
     TString Key;
     TString SubKey;
     TString Value;
@@ -79,16 +83,30 @@ bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestFixture
+{
+public:
+    TTestFixture();
+
+    IClientPtr GetClient() const;
+    TYPath GetWorkingDir() const;
+
+private:
+    TConfigSaverGuard ConfigGuard_;
+    IClientPtr Client_;
+    TYPath WorkingDir_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletFixture
+    : public TTestFixture
 {
 public:
     TTabletFixture();
-    IClientPtr Client();
 
 private:
     void WaitForTabletCell();
-
-    IClientPtr Client_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

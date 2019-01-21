@@ -1,3 +1,5 @@
+#include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
+
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/node/node_io.h>
@@ -9,19 +11,7 @@
 #include <util/generic/vector.h>
 
 using namespace NYT;
-
-////////////////////////////////////////////////////////////////////////////////
-
-IClientPtr CreateTestClient()
-{
-    auto host = GetEnv("YT_PROXY");
-    if (host.empty()) {
-        ythrow yexception() << "YT_PROXY is not specified" << Endl;
-    }
-    return CreateClient(host);
-}
-
-////////////////////////////////////////////////////////////////////////////////
+using namespace NYT::NTesting;
 
 class TIdMapper
     : public IMapper<TNodeReader, TNodeWriter>
@@ -37,8 +27,6 @@ public:
 };
 REGISTER_MAPPER(TIdMapper);
 
-////////////////////////////////////////////////////////////////////////////////
-
 int main(int argc, const char** argv)
 {
     NYT::Initialize(argc, argv,
@@ -47,7 +35,9 @@ int main(int argc, const char** argv)
             ::exit(1);
         }));
 
-    auto client = CreateTestClient();
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
     {
         auto writer = client->CreateTableWriter<TNode>("//tmp/input");
         writer->AddRow(TNode()("foo", "bar"));

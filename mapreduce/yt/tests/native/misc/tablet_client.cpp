@@ -67,8 +67,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestMountUnmount)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-mount-unmount";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-mount-unmount";
         CreateTestTable(client, tablePath);
 
         client->MountTable(tablePath);
@@ -90,8 +91,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestFreezeUnfreeze)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-freeze-unfreeze-1";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-freeze-unfreeze-1";
         CreateTestTable(client, tablePath);
 
         client->MountTable(tablePath);
@@ -110,8 +112,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestReshard)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-reshard";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-reshard";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
@@ -143,8 +146,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestInsertLookupDelete)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-insert-lookup-delete";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-insert-lookup-delete";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
@@ -179,8 +183,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestTrimRows)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-trim-rows";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-trim-rows";
         CreateTestTable(client, tablePath, /* sorted = */ false);
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
@@ -197,14 +202,14 @@ Y_UNIT_TEST_SUITE(TabletClient) {
         client->TrimRows(tablePath, 0, 2);
         {
             auto result = client->SelectRows(
-                "* from [//testing/test-trim-rows] where [$tablet_index] = 0 and [$row_index] between 0 and 2");
+                "* from [" + tablePath + "] where [$tablet_index] = 0 and [$row_index] between 0 and 2");
             UNIT_ASSERT_VALUES_EQUAL(result[0]["key"], rows[2]["key"]);
         }
 
         client->TrimRows(tablePath, 0, 3);
         {
             auto result = client->SelectRows(
-                "* from [//testing/test-trim-rows] where [$tablet_index] = 0 and [$row_index] between 0 and 3");
+                "* from [" + tablePath + "] where [$tablet_index] = 0 and [$row_index] between 0 and 3");
             UNIT_ASSERT_VALUES_EQUAL(result[0]["key"], rows[3]["key"]);
         }
 
@@ -215,8 +220,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestAtomicityNoneInsert)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-atomicity-insert";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-atomicity-insert";
         CreateTestTable(client, tablePath);
         client->Set(tablePath + "/@atomicity", "none");
         client->MountTable(tablePath);
@@ -256,8 +262,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestTimeoutType)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-timeout-type";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-timeout-type";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
@@ -276,10 +283,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
         }
 
         {
-            auto result = client->SelectRows("* from [//testing/test-timeout-type]", NYT::TSelectRowsOptions().Timeout(TDuration::Seconds(1)));
-            //Sort(result.begin(), result.end(), [] (const TNode& lhs, const TNode& rhs) {
-                    //return lhs["key"].AsInt64() < rhs["key"].AsInt64();
-                //});
+            auto result = client->SelectRows(
+                "* from [" + tablePath + "]",
+                NYT::TSelectRowsOptions().Timeout(TDuration::Seconds(1)));
             UNIT_ASSERT_VALUES_EQUAL(result, rows);
         }
 
@@ -290,8 +296,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestUpdateInsert)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-update-insert";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-update-insert";
         CreateTestMulticolumnTable(client, tablePath);
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
@@ -322,8 +329,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestAggregateInsert)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-aggregate-insert";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-aggregate-insert";
         CreateTestAggregatingTable(client, tablePath);
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
@@ -354,8 +362,9 @@ Y_UNIT_TEST_SUITE(TabletClient) {
     Y_UNIT_TEST(TestVersionedLookup)
     {
         TTabletFixture fixture;
-        auto client = fixture.Client();
-        const TString tablePath = "//testing/test-versioned-lookup";
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-versioned-lookup";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);

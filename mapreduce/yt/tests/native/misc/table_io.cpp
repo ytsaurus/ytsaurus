@@ -49,9 +49,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
         test(true); \
     }
 
-    TRichYPath CreatePath(bool strictSchema)
+    TRichYPath CreatePath(const TYPath& workingDir, bool strictSchema)
     {
-        TRichYPath path = "//testing/table";
+        TRichYPath path = workingDir + "/table";
         if (strictSchema) {
             path.Schema(TTableSchema().Strict(true)
                 .AddColumn(TColumnSchema().Name("key1").Type(VT_STRING).Required(true))
@@ -63,8 +63,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     void Simple(bool strictSchema)
     {
-        auto client = CreateTestClient();
-        auto path = CreatePath(strictSchema);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = CreatePath(workingDir, strictSchema);
         {
             auto writer = client->CreateTableWriter<TNode>(path);
             writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
@@ -81,8 +83,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     void NonEmptyColumns(bool strictSchema)
     {
-        auto client = CreateTestClient();
-        auto path = CreatePath(strictSchema);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = CreatePath(workingDir, strictSchema);
         {
             auto writer = client->CreateTableWriter<TNode>(path);
             writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
@@ -106,8 +110,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     void EmptyColumns(bool strictSchema)
     {
-        auto client = CreateTestClient();
-        auto path = CreatePath(strictSchema);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = CreatePath(workingDir, strictSchema);
         {
             auto writer = client->CreateTableWriter<TNode>(path);
             writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
@@ -131,8 +137,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     void MissingColumns()
     {
-        auto client = CreateTestClient();
-        auto path = CreatePath(/* strictSchema = */ true);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = CreatePath(workingDir, /* strictSchema = */ true);
         {
             auto writer = client->CreateTableWriter<TNode>(path);
             writer->AddRow(TNode()("key1", "value1")("key3", "value3"));
@@ -160,8 +168,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     void Move(bool strictSchema)
     {
-        auto client = CreateTestClient();
-        auto path = CreatePath(strictSchema);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = CreatePath(workingDir, strictSchema);
         {
             auto writer = client->CreateTableWriter<TNode>(path);
             writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
@@ -193,9 +203,11 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     void ReadUncanonicalPath(bool strictSchema)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
-            auto path = TRichYPath("//testing/table");
+            auto path = TRichYPath(workingDir + "/table");
             if (strictSchema) {
                 path.Schema(TTableSchema().Strict(true)
                     .AddColumn(TColumnSchema().Name("key").Type(VT_INT64).SortOrder(SO_ASCENDING)));
@@ -210,7 +222,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
             writer->Finish();
         }
 
-        TRichYPath path = "//testing/table[#10:#20,30:40,#50:#60,70:80,#90,95]";
+        TRichYPath path = workingDir + "/table[#10:#20,30:40,#50:#60,70:80,#90,95]";
 
         TVector<i64> actual;
         auto reader = client->CreateTableReader<TNode>(path);
@@ -233,9 +245,11 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     void ReadMultipleRangesNode(bool strictSchema)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
-            auto path = TRichYPath("//testing/table");
+            auto path = TRichYPath(workingDir + "/table");
             if (strictSchema) {
                 path.Schema(TTableSchema().Strict(true)
                     .AddColumn(TColumnSchema().Name("key").Type(VT_INT64).SortOrder(SO_ASCENDING)));
@@ -250,7 +264,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
             writer->Finish();
         }
 
-        TRichYPath path("//testing/table");
+        TRichYPath path(workingDir + "/table");
         path.AddRange(TReadRange()
             .LowerLimit(TReadLimit().RowIndex(10))
             .UpperLimit(TReadLimit().RowIndex(20)));
@@ -301,11 +315,13 @@ Y_UNIT_TEST_SUITE(TableIo) {
 #undef INSTANTIATE_NODE_READER_TESTS
 
     void TestNodeReader(ENodeReaderFormat format, bool strictSchema) {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->NodeReaderFormat = format;
 
-        auto client = CreateTestClient();
-        auto path = "//testing/table";
+        auto path = workingDir + "/table";
         NYT::NDetail::TFinallyGuard finally([&]{
             client->Remove(path, TRemoveOptions().Force(true));
         });
@@ -368,15 +384,17 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(Protobuf)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/table");
             writer->AddRow(TNode()("Host", "http://www.example.com")("Path", "/")("HttpCode", 302));
             writer->AddRow(TNode()("Host", "http://www.example.com")("Path", "/index.php")("HttpCode", 200));
             writer->Finish();
         }
 
-        auto reader = client->CreateTableReader<TUrlRow>("//testing/table");
+        auto reader = client->CreateTableReader<TUrlRow>(workingDir + "/table");
         UNIT_ASSERT(reader->IsValid());
         {
             const auto& row = reader->GetRow();
@@ -428,7 +446,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(UntypedProtobufWriter)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
             TUrlRow row;
             row.SetHost("http://www.example.com");
@@ -436,12 +456,12 @@ Y_UNIT_TEST_SUITE(TableIo) {
             row.SetHttpCode(200);
             const Message* ptrWithoutType = &row;
 
-            auto writer = client->CreateTableWriter("//testing/urls", *TUrlRow::descriptor());
+            auto writer = client->CreateTableWriter(workingDir + "/urls", *TUrlRow::descriptor());
             writer->AddRow(*ptrWithoutType);
             writer->Finish();
         }
 
-        auto reader = client->CreateTableReader<TUrlRow>("//testing/urls");
+        auto reader = client->CreateTableReader<TUrlRow>(workingDir + "/urls");
         UNIT_ASSERT(reader->IsValid());
         {
             const auto& row = reader->GetRow();
@@ -455,9 +475,11 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(ProtobufVersions)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
-            const auto writer = client->CreateTableWriter<TRowVer1>("//testing/ver1");
+            const auto writer = client->CreateTableWriter<TRowVer1>(workingDir + "/ver1");
             TRowVer1 data;
             data.SetString_1("Ver1_String_1");
             data.SetUint32_2(0x12);
@@ -467,7 +489,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
         //V1 as V2
         {
-            const auto reader = client->CreateTableReader<TRowVer2>("//testing/ver1");
+            const auto reader = client->CreateTableReader<TRowVer2>(workingDir + "/ver1");
             UNIT_ASSERT(reader->IsValid());
             {
                 const auto& data = reader->GetRow();
@@ -483,7 +505,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
         }
 
         {
-            const auto writer = client->CreateTableWriter<TRowVer2>("//testing/ver2");
+            const auto writer = client->CreateTableWriter<TRowVer2>(workingDir + "/ver2");
             TRowVer2 data;
             data.SetString_1("Ver2_String_1");
             data.SetUint32_2(0x22);
@@ -494,7 +516,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
         //V2 as V1
         {
-            const auto reader = client->CreateTableReader<TRowVer1>("//testing/ver2");
+            const auto reader = client->CreateTableReader<TRowVer1>(workingDir + "/ver2");
             UNIT_ASSERT(reader->IsValid());
             {
                 const auto& data = reader->GetRow();
@@ -513,14 +535,16 @@ Y_UNIT_TEST_SUITE(TableIo) {
     Y_UNIT_TEST(ErrorInTableWriter)
     {
         const TNode DATA = TString(1024, 'a');
-        auto client = CreateTestClient();
-        client->Create("//testing/table", NT_TABLE, TCreateOptions().Force(true).Attributes(
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        client->Create(workingDir + "/table", NT_TABLE, TCreateOptions().Force(true).Attributes(
                 TNode()("schema",
                     TNode()
                     .Add(TNode()("name", "value")("type", "string")))
                 ));
 
-        auto writer = client->CreateTableWriter<TNode>("//testing/table");
+        auto writer = client->CreateTableWriter<TNode>(workingDir + "/table");
         auto writeTable = [&] {
             for (int i = 0; i != 100000; ++i) {
                 writer->AddRow(TNode()("foo", 0)("value", DATA));
@@ -536,14 +560,16 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(ErrorInFinish)
     {
-        auto client = CreateTestClient();
-        client->Create("//testing/table", NT_TABLE, TCreateOptions().Force(true).Attributes(
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        client->Create(workingDir + "/table", NT_TABLE, TCreateOptions().Force(true).Attributes(
                 TNode()("schema",
                     TNode()
                     .Add(TNode()("name", "value")("type", "string")))
                 ));
 
-        auto writer = client->CreateTableWriter<TNode>("//testing/table");
+        auto writer = client->CreateTableWriter<TNode>(workingDir + "/table");
         writer->AddRow(TNode()("bar", "qux"));
         UNIT_ASSERT_EXCEPTION(writer->Finish(), TErrorResponse);
 
@@ -557,8 +583,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(CantWriteAfterFinish)
     {
-        auto client = CreateTestClient();
-        auto writer = client->CreateTableWriter<TNode>("//testing/table");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto writer = client->CreateTableWriter<TNode>(workingDir + "/table");
         writer->AddRow(TNode()("value", "foo"));
         writer->Finish();
         UNIT_ASSERT_EXCEPTION(writer->AddRow(TNode()("value", "a")), TApiUsageError);
@@ -566,15 +594,17 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(HostsSlash)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         const TVector<TNode> tableData = {
             TNode()("foo", "bar"),
             TNode()("foo", "baz"),
         };
-        auto client = CreateTestClient();
+
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/table");
             for (const auto& row : tableData) {
                 writer->AddRow(row);
             }
@@ -587,7 +617,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
         TConfig::Get()->ReadRetryCount = 1;
 
         TVector<TNode> actual;
-        auto reader = client->CreateTableReader<TNode>("//testing/table");
+        auto reader = client->CreateTableReader<TNode>(workingDir + "/table");
         for (; reader->IsValid(); reader->Next()) {
             actual.push_back(reader->GetRow());
         }
@@ -596,12 +626,12 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(EmptyHosts)
     {
-        TConfigSaverGuard configGuard;
-
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/table").SortedBy("key"));
+                TRichYPath(workingDir + "/table").SortedBy("key"));
 
             for (int i = 0; i < 10; ++i) {
                 writer->AddRow(TNode()("key", i));
@@ -616,12 +646,12 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
         {
             auto tx = client->StartTransaction();
-            UNIT_ASSERT_EXCEPTION(tx->CreateTableReader<NYT::TNode>("//testing/table"), yexception);
+            UNIT_ASSERT_EXCEPTION(tx->CreateTableReader<NYT::TNode>(workingDir + "/table"), yexception);
         }
         {
             auto tx = client->StartTransaction();
             auto write = [=] {
-                auto writer = tx->CreateTableWriter<NYT::TNode>("//testing/table");
+                auto writer = tx->CreateTableWriter<NYT::TNode>(workingDir + "/table");
                 writer->AddRow(TNode()("key", 0));
                 writer->Finish();
             };
@@ -631,9 +661,11 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(ReadErrorInTrailers)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
-            auto writer = client->CreateTableWriter<NYT::TNode>("//testing/table");
+            auto writer = client->CreateTableWriter<NYT::TNode>(workingDir + "/table");
             for (int i = 0; i != 10000; ++i) {
                 NYT::TNode node;
                 node["key"] = RandomBytes();
@@ -646,7 +678,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
             writer->AddRow(brokenNode);
         }
 
-        auto reader = client->CreateTableReader<NYT::TYaMRRow>("//testing/table");
+        auto reader = client->CreateTableReader<NYT::TYaMRRow>(workingDir + "/table");
 
         // we expect first record to be read ok and error will come only later
         // in http trailer
@@ -662,15 +694,17 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(TableLockedForWriterLifetime)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
-            auto path = TRichYPath("//testing/table").Append(false);
+            auto path = TRichYPath(workingDir + "/table").Append(false);
             auto writer = client->CreateTableWriter<TNode>(path);
             UNIT_ASSERT_EXCEPTION(client->CreateTableWriter<TNode>(path), TErrorResponse);
             writer->Finish();
         }
         {
-            auto path = TRichYPath("//testing/table").Append(true);
+            auto path = TRichYPath(workingDir + "/table").Append(true);
             auto firstWriter = client->CreateTableWriter<TNode>(path);
             UNIT_ASSERT_EXCEPTION(client->StartTransaction()->Lock(path.Path_, LM_EXCLUSIVE), TErrorResponse);
             // however we don't expect any exception here
@@ -689,8 +723,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(OptionallyCreateChildTransactionForIO)
     {
-        auto client = CreateTestClient();
-        auto path = TRichYPath("//testing/table");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = TRichYPath(workingDir + "/table");
         {
             auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions().CreateTransaction(false));
             writer->AddRow(TNode()("key", 100500));
@@ -733,12 +769,14 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(ReaderTakesLockOnTableIdNotPath)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->UseAbortableResponse = true;
 
-        auto client = CreateTestClient();
-        auto firstPath = TRichYPath("//testing/table1");
-        auto secondPath = TRichYPath("//testing/table2");
+        auto firstPath = TRichYPath(workingDir + "/table1");
+        auto secondPath = TRichYPath(workingDir + "/table2");
         int numRows = 4e6;
         {
             auto writer = client->CreateTableWriter<TNode>(firstPath);
@@ -764,13 +802,15 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(UnsuccessfulRetries)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->RetryCount = 3;
         TConfig::Get()->RetryInterval = TDuration::MilliSeconds(0);
 
-        auto client = CreateTestClient();
-        auto path = TRichYPath("//testing/table");
+        auto path = TRichYPath(workingDir + "/table");
         client->Create(path.Path_, ENodeType::NT_TABLE);
 
         try {
@@ -795,12 +835,14 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(SuccessfulRetries)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->RetryCount = 4;
 
-        auto client = CreateTestClient();
-        auto path = TRichYPath("//testing/table");
+        auto path = TRichYPath(workingDir + "/table");
         {
             auto outage = TAbortableHttpResponse::StartOutage("/write_table", TConfig::Get()->RetryCount - 1);
             auto writer = client->CreateTableWriter<TNode>(path);
@@ -837,11 +879,11 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(ReadingWritingProtobufAllTypes)
     {
-        TConfigSaverGuard configSaver;
-        TConfig::Get()->UseClientProtobuf = false;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        auto client = CreateTestClient();
-        auto path = TRichYPath("//testing/proto_table");
+        auto path = TRichYPath(workingDir + "/proto_table");
         TAllTypesMessage message;
         message.SetDoubleField(42.4242);
         message.SetFloatField(3.14159);
@@ -896,8 +938,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(SimpleRetrylessWriter)
     {
-        auto client = CreateTestClient();
-        auto path = TRichYPath("//testing/table");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = TRichYPath(workingDir + "/table");
         const int numRows = 100;
         {
             auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions().SingleHttpRequest(true));
@@ -919,8 +963,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
         TConfigSaverGuard configGuard;
 
         TConfig::Get()->ContentEncoding = encoding;
-        auto client = CreateTestClient();
-        auto path = "//testing/table";
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = workingDir + "/table";
 
         const TVector<TNode> expectedData = {
             TNode()("foo", "bar"),
@@ -965,10 +1011,12 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(AbortWriter)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         const int numRows = 2117;
         for (auto singleRequest : {true, false}) {
-            auto path = TRichYPath("//testing/table" + ToString(singleRequest));
+            auto path = TRichYPath(workingDir + "/table" + ToString(singleRequest));
             {
                 auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions().SingleHttpRequest(singleRequest));
                 for (int i = 0; i < numRows; ++i) {
@@ -982,32 +1030,36 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
     Y_UNIT_TEST(ProtobufWriteAutoflush)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        auto writer = client->CreateTableWriter<TUrlRow>("//testing/table", TTableWriterOptions().CreateTransaction(false));
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/table/@row_count").AsInt64(), 0);
+        auto writer = client->CreateTableWriter<TUrlRow>(workingDir + "/table", TTableWriterOptions().CreateTransaction(false));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/table/@row_count").AsInt64(), 0);
         TUrlRow row;
         for (size_t i = 0; i != 128; ++i) {
             row.SetHost(TString(1024 * 1024, 'a'));
             writer->AddRow(row);
         }
 
-        UNIT_ASSERT(client->Get("//testing/table/@row_count").AsInt64() > 0);
+        UNIT_ASSERT(client->Get(workingDir + "/table/@row_count").AsInt64() > 0);
     }
 
     Y_UNIT_TEST(TestFormatHint)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/test_yson");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/test_yson");
             writer->AddRow(TNode()("key", "foo")("value", TNode::CreateEntity()));
             writer->Finish();
         }
 
         {
             auto reader = client->CreateTableReader<TNode>(
-                "//testing/test_yson",
+                workingDir + "/test_yson",
                 TTableReaderOptions()
                 .FormatHints(TFormatHints().SkipNullValuesForTNode(true)));
 
@@ -1033,8 +1085,10 @@ Y_UNIT_TEST_SUITE(TableIo) {
         TConfig::Get()->RetryCount = 2;
         TConfig::Get()->RetryInterval = TDuration::MicroSeconds(10);
 
-        auto client = CreateTestClient();
-        auto tablePath = TRichYPath("//testing/table");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto tablePath = TRichYPath(workingDir + "/table");
         int numRows = 20;
         {
             auto writer = client->CreateTableWriter<TNode>(tablePath);
@@ -1074,10 +1128,12 @@ Y_UNIT_TEST_SUITE(TableIo) {
             TConfig::Get()->InferTableSchema = true;
         }
 
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TRowVer2>("//testing/table", options);
+            auto writer = client->CreateTableWriter<TRowVer2>(workingDir + "/table", options);
             TRowVer2 row;
             row.SetString_1("abc");
             row.SetUint32_2(40 + 2);
@@ -1086,7 +1142,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
             writer->Finish();
         }
 
-        auto schema = client->Get("//testing/table/@schema");
+        auto schema = client->Get(workingDir + "/table/@schema");
         schema.ClearAttributes();
         UNIT_ASSERT_VALUES_EQUAL(schema,
             TNode()
@@ -1116,11 +1172,13 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
             TString(1027, 'd'),
         };
 
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/table").Schema(TTableSchema()
+                TRichYPath(workingDir + "/table").Schema(TTableSchema()
                     .AddColumn("filename", VT_STRING, SO_ASCENDING)
                     .AddColumn("part_index", VT_INT64, SO_ASCENDING)
                     .AddColumn("data", VT_STRING)));
@@ -1145,7 +1203,7 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
         }
 
         {
-            auto reader = client->CreateBlobTableReader("//testing/table", {"myfile_small"});
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_small"});
             UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "small");
         }
 
@@ -1154,7 +1212,7 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
             for (const auto& part : testDataParts) {
                 expected += part;
             }
-            auto reader = client->CreateBlobTableReader("//testing/table", {"myfile_big"});
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"});
             UNIT_ASSERT_EQUAL(reader->ReadAll(), expected);
         }
     }
@@ -1166,11 +1224,13 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
             TString(1027, 'd'),
         };
 
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/table").Schema(TTableSchema()
+                TRichYPath(workingDir + "/table").Schema(TTableSchema()
                     .AddColumn("filename", VT_STRING, SO_ASCENDING)
                     .AddColumn("part_index", VT_INT64, SO_ASCENDING)
                     .AddColumn("data", VT_STRING)));
@@ -1188,7 +1248,7 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
 
 
         auto readFile = [&] (ui64 partSize) {
-            auto reader = client->CreateBlobTableReader("//testing/table", {"myfile_big"}, TBlobTableReaderOptions().PartSize(partSize));
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"}, TBlobTableReaderOptions().PartSize(partSize));
             reader->ReadAll();
         };
         readFile(4 * 1024 * 1024); // no exception
@@ -1216,15 +1276,17 @@ Y_UNIT_TEST_SUITE(TableIoEnableTypeConversion) {
         const TRow& writtenRow,
         const TRow& expectedRow)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         auto writer = client->CreateTableWriter<TRow>(
-            TRichYPath("//testing/table").Schema(CreateSchemaForTypeConversion()),
+            TRichYPath(workingDir + "/table").Schema(CreateSchemaForTypeConversion()),
             TTableWriterOptions().FormatHints(hints));
         writer->AddRow(writtenRow);
         writer->Finish();
 
-        auto reader = client->CreateTableReader<TRow>("//testing/table");
+        auto reader = client->CreateTableReader<TRow>(workingDir + "/table");
         UNIT_ASSERT(reader->IsValid());
         UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), expectedRow);
         reader->Next();
@@ -1236,10 +1298,12 @@ Y_UNIT_TEST_SUITE(TableIoEnableTypeConversion) {
         const TFormatHints& hints,
         const TRow& row)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         auto writer = client->CreateTableWriter<TRow>(
-            TRichYPath("//testing/table").Schema(CreateSchemaForTypeConversion()),
+            TRichYPath(workingDir + "/table").Schema(CreateSchemaForTypeConversion()),
             TTableWriterOptions().FormatHints(hints));
         writer->AddRow(row);
         UNIT_ASSERT_EXCEPTION(writer->Finish(), TErrorResponse);

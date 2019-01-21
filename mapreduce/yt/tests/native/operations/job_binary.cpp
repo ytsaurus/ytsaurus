@@ -83,9 +83,9 @@ const TVector<TNode> ExpectedOutput = {
     TNode()("key", "forty two")("value", "42"),
 };
 
-void WriteTestTable(IClientPtr client)
+void WriteTestTable(IClientPtr client, const TYPath& workingDir)
 {
-    auto writer = client->CreateTableWriter<TNode>("//testing/input");
+    auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
     {
         writer->AddRow(TNode()("key", "1")("value", "one"));
         writer->AddRow(TNode()("key", "5")("value", "five"));
@@ -100,14 +100,16 @@ Y_UNIT_TEST_SUITE(JobBinary)
 {
     Y_UNIT_TEST(VerifyMapperDoesntWorkFromOriginalBinary)
     {
-        auto client = CreateTestClient();
-        WriteTestTable(client);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        WriteTestTable(client, workingDir);
         auto runMap = [&] {
             client->Map(
                 TMapOperationSpec()
                 .MaxFailedJobCount(1)
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output"),
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
                 new THackedFileKeyValueSwapper);
         };
         UNIT_ASSERT_EXCEPTION(runMap(), TOperationFailedError);
@@ -115,12 +117,13 @@ Y_UNIT_TEST_SUITE(JobBinary)
 
     void JobBinaryLocalPath(bool enableLocalModeOptimization)
     {
-        TConfigSaverGuard g;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         TConfig::Get()->EnableLocalModeOptimization = enableLocalModeOptimization;
 
-        auto client = CreateTestClient();
-        WriteTestTable(client);
+        WriteTestTable(client, workingDir);
 
         TTempFile fixedExecutable("fixed_executable");
         WriteFixedExecutable(fixedExecutable.Name());
@@ -129,11 +132,11 @@ Y_UNIT_TEST_SUITE(JobBinary)
             TMapOperationSpec()
             .MaxFailedJobCount(1)
             .MapperSpec(TUserJobSpec().JobBinaryLocalPath(fixedExecutable.Name()))
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new THackedFileKeyValueSwapper);
 
-        TVector<TNode> actual = ReadTable(client, "//testing/output");
+        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
         UNIT_ASSERT_VALUES_EQUAL(actual, ExpectedOutput);
     }
 
@@ -149,15 +152,16 @@ Y_UNIT_TEST_SUITE(JobBinary)
 
     void JobBinaryCypressPath(bool enableLocalModeOptimization)
     {
-        TConfigSaverGuard g;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         TConfig::Get()->EnableLocalModeOptimization = enableLocalModeOptimization;
 
-        auto client = CreateTestClient();
-        WriteTestTable(client);
+        WriteTestTable(client, workingDir);
 
         {
-            auto writer = client->CreateFileWriter(TRichYPath("//testing/fixed_executable").Executable(true));
+            auto writer = client->CreateFileWriter(TRichYPath(workingDir + "/fixed_executable").Executable(true));
             WriteFixedExecutable(writer.Get());
             writer->Finish();
         }
@@ -165,12 +169,12 @@ Y_UNIT_TEST_SUITE(JobBinary)
         client->Map(
             TMapOperationSpec()
             .MaxFailedJobCount(1)
-            .MapperSpec(TUserJobSpec().JobBinaryCypressPath("//testing/fixed_executable"))
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .MapperSpec(TUserJobSpec().JobBinaryCypressPath(workingDir + "/fixed_executable"))
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new THackedFileKeyValueSwapper);
 
-        TVector<TNode> actual = ReadTable(client, "//testing/output");
+        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
         UNIT_ASSERT_VALUES_EQUAL(actual, ExpectedOutput);
     }
 

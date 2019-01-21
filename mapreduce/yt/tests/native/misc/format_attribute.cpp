@@ -43,9 +43,9 @@ REGISTER_MAPPER(TSwapKvMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CreateYamredDsvInput(const IClientBasePtr& client)
+void CreateYamredDsvInput(const IClientBasePtr& client, const TYPath& workingDir)
 {
-    auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/yamred_dsv_input"));
+    auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/yamred_dsv_input"));
     writer->AddRow(TNode()("int", "1")("double", "1.0")("string", "one")("stringstring", "oneone"));
     writer->AddRow(TNode()("int", "2")("double", "2.0")("string", "two")("stringstring", "twotwo"));
     writer->Finish();
@@ -54,27 +54,29 @@ void CreateYamredDsvInput(const IClientBasePtr& client)
     format.Attributes()
         ("key_column_names", TNode().Add("stringstring"))
         ("has_subkey", false);
-    client->Set("//testing/yamred_dsv_input/@_format", format);
+    client->Set(workingDir + "/yamred_dsv_input/@_format", format);
 };
 
-void CreateYamrInput(const IClientBasePtr& client)
+void CreateYamrInput(const IClientBasePtr& client, const TYPath& workingDir)
 {
-    auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/yamr_input"));
+    auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/yamr_input"));
     writer->AddRow(TNode()("key", "1")("value", "one"));
     writer->AddRow(TNode()("key", "2")("value", "two"));
     writer->Finish();
-    client->Set("//testing/yamr_input/@_format", "yamr");
+    client->Set(workingDir + "/yamr_input/@_format", "yamr");
 }
 
 Y_UNIT_TEST_SUITE(FormatAttribute)
 {
     Y_UNIT_TEST(Read_YamredDsv)
     {
-        auto client = CreateTestClient();
-        CreateYamredDsvInput(client);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        CreateYamredDsvInput(client, workingDir);
 
         TVector<TOwningYaMRRow> table;
-        auto reader = client->CreateTableReader<TYaMRRow>("//testing/yamred_dsv_input");
+        auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/yamred_dsv_input");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             table.emplace_back(row.Key.ToString(), row.SubKey.ToString(), NormalizeDsv(row.Value.ToString()));
@@ -90,11 +92,13 @@ Y_UNIT_TEST_SUITE(FormatAttribute)
 
     Y_UNIT_TEST(Read_Yamr)
     {
-        auto client = CreateTestClient();
-        CreateYamrInput(client);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        CreateYamrInput(client, workingDir);
 
         TVector<TOwningYaMRRow> table;
-        auto reader = client->CreateTableReader<TYaMRRow>("//testing/yamr_input");
+        auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/yamr_input");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             table.emplace_back(row.Key.ToString(), row.SubKey.ToString(), NormalizeDsv(row.Value.ToString()));
@@ -111,19 +115,21 @@ Y_UNIT_TEST_SUITE(FormatAttribute)
 
     Y_UNIT_TEST(Operation_YamredDsv)
     {
-        auto client = CreateTestClient();
-        CreateYamredDsvInput(client);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        CreateYamredDsvInput(client, workingDir);
 
         client->Map(
             TMapOperationSpec()
-            .AddInput<TYaMRRow>("//testing/yamred_dsv_input")
-            .AddOutput<TYaMRRow>("//testing/output"),
+            .AddInput<TYaMRRow>(workingDir + "/yamred_dsv_input")
+            .AddOutput<TYaMRRow>(workingDir + "/output"),
             new TSwapKvMapper,
             TOperationOptions().UseTableFormats(true));
 
         TVector<TOwningYaMRRow> table;
 
-        auto reader = client->CreateTableReader<TYaMRRow>("//testing/output");
+        auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/output");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             table.emplace_back(NormalizeDsv(row.Key.ToString()), row.SubKey.ToString(), row.Value.ToString());
@@ -139,18 +145,20 @@ Y_UNIT_TEST_SUITE(FormatAttribute)
 
     Y_UNIT_TEST(Operation_Yamr)
     {
-        auto client = CreateTestClient();
-        CreateYamrInput(client);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        CreateYamrInput(client, workingDir);
 
         client->Map(
             TMapOperationSpec()
-            .AddInput<TYaMRRow>("//testing/yamr_input")
-            .AddOutput<TYaMRRow>("//testing/output"),
+            .AddInput<TYaMRRow>(workingDir + "/yamr_input")
+            .AddOutput<TYaMRRow>(workingDir + "/output"),
             new TSwapKvMapper,
             TOperationOptions().UseTableFormats(true));
 
         TVector<TOwningYaMRRow> table;
-        auto reader = client->CreateTableReader<TYaMRRow>("//testing/output");
+        auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/output");
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             table.emplace_back(row.Key.ToString(), row.SubKey.ToString(), NormalizeDsv(row.Value.ToString()));
