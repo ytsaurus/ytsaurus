@@ -517,6 +517,8 @@ default_config = {
     "enable_operations_api": True,
 
     "skynet_manager_url": "http://skynet-manager.yt.yandex.net/api/v1",
+
+    "enable_logging_for_params_changes": False,
 }
 
 # pydoc :: default_config :: end

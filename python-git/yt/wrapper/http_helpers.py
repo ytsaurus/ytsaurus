@@ -49,7 +49,9 @@ def _hexify_recursively(obj):
 def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
     from yt.packages.requests import HTTPError, ConnectionError, Timeout
-    return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
+    from yt.packages.requests.exceptions import ChunkedEncodingError
+    return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine,
+            SocketError, ChunkedEncodingError,
             YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
             YtRequestTimedOut, YtRetriableError)
