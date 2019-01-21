@@ -42,7 +42,7 @@ def get_command_list(client=None):
     backend = get_backend_type(client)
     if backend in ("native", "rpc"):
         return list(native_driver.get_command_descriptors(client))
-    else: # backend == "http"
+    else:  # backend == "http"
         return list(get_api_commands(client))
 
 def make_request(command_name,
@@ -70,8 +70,9 @@ def make_request(command_name,
     params = simplify_structure(params)
 
     enable_request_logging = get_config(client)["enable_request_logging"]
+    enable_request_result_logging = get_config(client)["enable_request_result_logging"]
 
-    if enable_request_logging:
+    if enable_request_logging and enable_request_result_logging:
         logger.info("Executing %s (params: %r)", command_name, params)
 
     if get_option("_client_type", client) == "batch":

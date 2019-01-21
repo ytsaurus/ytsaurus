@@ -1,13 +1,15 @@
 from yt.environment import arcadia_interop
 
 import library.python.testing.pytest_runner.runner as pytest_runner
+#import library.python.cgroups as cgroups
 
 import yatest.common
 
+import imp
 import os
-import shutil
+#import sys
 
-YT_ABI = "19_3"
+YT_ABI = "19_4"
 
 def build_bindings(build_dir):
     ya = yatest.common.source_path("ya")
@@ -20,67 +22,26 @@ def build_bindings(build_dir):
         "-C", "yt/{}/yt/python/driver_shared".format(YT_ABI)
     ])
 
-def copy_file(src, dst):
-    if os.path.exists(dst):
-        os.remove(dst)
-    shutil.copy(src, dst)
+def prepare_python_packages():
+    python_root = yatest.common.source_path("yt/python")
+    yt_root = yatest.common.source_path(os.path.join("yt", YT_ABI))
 
-# NOTE(asaitgalin): Keep this stuff synchronized with yt/python/contrib
-def prepare_yt_packages():
-    packages_path = yatest.common.source_path("yt/python/yt/packages")
-    contrib_path = yatest.common.source_path("yt/python/contrib")
-
-    for package in ("requests", "argcomplete", "certifi", "tornado",
-                    "dill"):
-        src_path = os.path.join(contrib_path, "python-" + package, package)
-        dst_path = os.path.join(packages_path, package)
-
-        if os.path.exists(dst_path):
-            shutil.rmtree(dst_path)
-        shutil.copytree(src_path, dst_path)
-
-    # Six
-    copy_file(
-        os.path.join(contrib_path, "python-six", "six.py"),
-        os.path.join(packages_path, "six.py"))
-
-    # Backports
-    backports_src = os.path.join(contrib_path, "python-backports.ssl_match_hostname", "backports")
-    backports_dst = os.path.join(packages_path, "backports")
-    if os.path.exists(backports_dst):
-        shutil.rmtree(backports_dst)
-    shutil.copytree(backports_src, backports_dst)
-
-    # Backports ABC
-    copy_file(
-        os.path.join(contrib_path, "python-backports_abc", "backports_abc.py"),
-        os.path.join(packages_path, "backports.abc"))
-
-    # Singledispatch
-    for file_ in ("singledispatch_helpers.py", "singledispatch.py"):
-        copy_file(
-            os.path.join(contrib_path, "python-singledispatch", file_),
-            os.path.join(packages_path, file_))
-
-    # FUSE
-    copy_file(
-        os.path.join(contrib_path, "python-fusepy", "fuse.py"),
-        os.path.join(packages_path, "fuse.py"))
-
-    # Decorator
-    copy_file(
-        os.path.join(contrib_path, "python-decorator", "src", "decorator.py"),
-        os.path.join(packages_path, "decorator.py"))
+    prepare_source_tree = imp.load_source("prepare_source_tree", os.path.join(python_root, "prepare_source_tree.py"))
+    prepare_source_tree.prepare_python_source_tree(
+        python_root,
+        yt_root,
+        prepare_binary_symlinks=False,
+        prepare_bindings=False)
 
 def run_pytest():
     build_dir = os.path.join(yatest.common.work_path(), "build")
     bindings_build_dir = os.path.join(build_dir, "bindings")
     os.makedirs(bindings_build_dir)
-
-    prepare_yt_packages()
-    path = arcadia_interop.prepare_yt_environment(build_dir)
     build_bindings(bindings_build_dir)
 
+    prepare_python_packages()
+
+    path = arcadia_interop.prepare_yt_environment(build_dir)
     if "PATH" in os.environ:
         path = os.pathsep.join([path, os.environ["PATH"]])
 
@@ -89,6 +50,8 @@ def run_pytest():
         "PATH": path,
         "PYTHONPATH": os.pathsep.join([
             os.path.join(yatest.common.source_path(), "yt", "python"),
+            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_yson_bindings"),
+            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python", "yt_driver_bindings"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "yson_shared"),
             os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver_shared")
         ]),
@@ -99,7 +62,19 @@ def run_pytest():
     }
 
     test_files = [
-        yatest.common.source_path("yt/python/yt/wrapper/tests/test_operations_pickling.py")
+        yatest.common.source_path("yt/python/yt/wrapper/tests/test_operations_pickling.py"),
+        # User statistics uses cgroups that available only in FAT tests.
+        yatest.common.source_path("yt/python/yt/wrapper/tests/test_user_statistics.py"),
     ]
 
-    pytest_runner.run(test_files, python_path="/usr/bin/python2.7", env=env)
+    #cgroup = None
+    try:
+        #print >>sys.stderr, "AAAAAAAAAAAAA"
+        #cgroup = cgroups.CGroup("test", subsystems=("cpuacct", "cpu", "blkio", "freezer")).create()
+        #print >>sys.stderr, "BBBBBBBBBBBBB"
+        pytest_runner.run(test_files, python_path="/usr/bin/python2.7", env=env)
+    finally:
+        pass
+        #print >>sys.stderr, "CCCCCCCCCC"
+        #if cgroup is not None:
+        #    cgroup.delete()

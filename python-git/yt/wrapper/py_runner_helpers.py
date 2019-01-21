@@ -39,8 +39,8 @@ class WrappedStreams(object):
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-       sys.stdin = self.stdin
-       sys.stdout = self.stdout
+        sys.stdin = self.stdin
+        sys.stdout = self.stdout
 
 class Context(object):
     def __init__(self, table_index=None, row_index=None, range_index=None):

@@ -1,6 +1,6 @@
 import yt.yson
-from yt.yson import *
-from yt.yson import _loads_from_native_str, _dumps_to_native_str
+from yt.yson import * # noqa
+from yt.yson import _loads_from_native_str, _dumps_to_native_str # noqa
 
 def load(*args, **kwargs):
     return yt.yson.load(*args, **kwargs)

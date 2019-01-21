@@ -12,9 +12,9 @@ except ImportError:
 from yt.common import YtError, YtResponseError
 
 import yt.logger as logger
+import yt.json_wrapper as json
 
 import yt.packages.requests as requests
-import yt.packages.simplejson as json
 from yt.packages.six import reraise
 from yt.packages.six.moves import queue
 

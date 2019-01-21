@@ -65,10 +65,12 @@ class WrapResult(object):
 
 class OperationParameters(object):
     __slots__ = ["input_format", "output_format", "operation_type", "job_type", "group_by", "should_process_key_switch",
-                 "input_table_count", "output_table_count", "use_yamr_descriptors", "attributes", "python_version", "is_local_mode"]
+                 "input_table_count", "output_table_count", "use_yamr_descriptors", "attributes", "python_version",
+                 "is_local_mode"]
 
-    def __init__(self, input_format=None, output_format=None, operation_type=None, job_type=None, group_by=None, should_process_key_switch=None, python_version=None,
-                 input_table_count=None, output_table_count=None, use_yamr_descriptors=None, attributes=None, is_local_mode=None):
+    def __init__(self, input_format=None, output_format=None, operation_type=None, job_type=None, group_by=None,
+                 should_process_key_switch=None, python_version=None, input_table_count=None, output_table_count=None,
+                 use_yamr_descriptors=None, attributes=None, is_local_mode=None):
         self.input_format = input_format
         self.output_format = output_format
         self.operation_type = operation_type
@@ -217,7 +219,6 @@ class Tar(object):
             suffix=suffix)
         self.size = 0
         self.python_eggs = []
-        self.dynamic_libraries = set()
         self.client = client
 
     def __enter__(self):
@@ -230,26 +231,9 @@ class Tar(object):
         self.tar.__enter__()
         return self
 
-    def _append_dynamic_library_dependencies(self, filepath):
-        if not get_config(self.client)["pickling"]["dynamic_libraries"]["enable_auto_collection"] \
-                or not sys.platform.startswith("linux"):
-            return
-        library_filter = get_config(self.client)["pickling"]["dynamic_libraries"]["library_filter"]
-        for library in list_dynamic_library_dependencies(filepath):
-            if library in self.dynamic_libraries:
-                continue
-            if library_filter is not None and not library_filter(library):
-                continue
-            relpath = os.path.join("_shared", os.path.basename(library))
-            self.tar.add(library, relpath)
-            self.dynamic_libraries.add(library)
-            self.size += get_disk_size(library)
-
     def append(self, filepath, relpath):
         if relpath.endswith(".egg"):
             self.python_eggs.append(relpath)
-        if relpath.endswith(".so"):
-            self._append_dynamic_library_dependencies(filepath)
 
         self.tar.add(filepath, relpath)
         self.size += get_disk_size(filepath)
@@ -280,6 +264,11 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
     module_filter = load_function(get_config(client)["pickling"]["module_filter"])
     extra_modules = getattr(sys, "extra_modules", set())
 
+    auto_collection_enabled = \
+        get_config(client)["pickling"]["dynamic_libraries"]["enable_auto_collection"] \
+        and sys.platform.startswith("linux")
+    dynamic_libraries = set()
+
     def add_file_to_compress(file, module_name, name):
         relpath = module_relpath([module_name, name], file, client)
         if relpath is None:
@@ -289,6 +278,17 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
 
         if relpath in files_to_compress:
             return
+
+        if relpath.endswith(".so") and auto_collection_enabled:
+            library_filter = get_config(client)["pickling"]["dynamic_libraries"]["library_filter"]
+            for library in list_dynamic_library_dependencies(file):
+                if library in dynamic_libraries:
+                    continue
+                if library_filter is not None and not library_filter(library):
+                    continue
+                library_relpath = os.path.join("_shared", os.path.basename(library))
+                dynamic_libraries.add(library)
+                files_to_compress[library_relpath] = library
 
         files_to_compress[relpath] = file
 
@@ -301,7 +301,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
 
             if custom_python_used:
                 # NB: Ignore frozen and compiled in binary modules.
-                if module.__name__ in extra_modules or module.__name__ + ".__init__"  in extra_modules:
+                if module.__name__ in extra_modules or module.__name__ + ".__init__" in extra_modules:
                     continue
                 if module.__file__ == "<frozen>":
                     continue
@@ -369,12 +369,11 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
         enable_mount_sandbox_in_tmpfs
 
     result = [{
-            "filename": archive.filename,
-            "tmpfs": enable_tmpfs_archive and not is_local_mode(client),
-            "size": archive.size,
-            "hash": archive.md5,
-            "eggs": archive.python_eggs
-        }
+        "filename": archive.filename,
+        "tmpfs": enable_tmpfs_archive and not is_local_mode(client),
+        "size": archive.size,
+        "hash": archive.md5,
+        "eggs": archive.python_eggs}
         for archive in archives]
 
     return result
@@ -459,7 +458,8 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
 
     return arguments
 
-def build_function_and_config_arguments(function, create_temp_file, file_argument_builder, is_local_mode, params, client):
+def build_function_and_config_arguments(function, create_temp_file, file_argument_builder,
+                                        is_local_mode, params, client):
     function_filename = create_temp_file(prefix=get_function_name(function) + ".pickle")
 
     pickler_name = get_config(client)["pickling"]["framework"]
@@ -572,7 +572,8 @@ def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
     else:
         title = None
 
-    caller_arguments = build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_argument_builder, environment, client)
+    caller_arguments = build_caller_arguments(is_standalone_binary, use_local_python_in_jobs,
+                                              file_argument_builder, environment, client)
     function_and_config_arguments = build_function_and_config_arguments(
         function,
         create_temp_file,
@@ -586,12 +587,23 @@ def do_wrap(function, tempfiles_manager, local_mode, uploader, params, client):
         modules_arguments = []
         main_file_arguments = []
     else:
-        modules_info = create_modules_archive(tempfiles_manager, is_standalone_binary or use_local_python_in_jobs, client)
-        modules_arguments, tmpfs_size = build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client)
-        main_file_arguments = build_main_file_arguments(function, create_temp_file, file_argument_builder)
+        modules_info = create_modules_archive(
+            tempfiles_manager,
+            is_standalone_binary or use_local_python_in_jobs,
+            client)
+        modules_arguments, tmpfs_size = build_modules_arguments(
+            modules_info,
+            create_temp_file,
+            file_argument_builder,
+            client)
+        main_file_arguments = build_main_file_arguments(
+            function,
+            create_temp_file,
+            file_argument_builder)
 
     cmd = " ".join(caller_arguments + function_and_config_arguments + modules_arguments + main_file_arguments)
-    return WrapResult(cmd=cmd, files=uploaded_files, tmpfs_size=tmpfs_size, environment=environment, title=title, local_files_to_remove=None)
+    return WrapResult(cmd=cmd, files=uploaded_files, tmpfs_size=tmpfs_size, environment=environment,
+                      title=title, local_files_to_remove=None)
 
 def wrap(client, **kwargs):
     local_mode = is_local_mode(client)
@@ -639,8 +651,9 @@ def _get_callable_func(func):
         return func
     else:
         if not hasattr(func, "__call__"):
-            raise TypeError('Failed to apply yt decorator since object "{0}" is not a function '
-                            "or (instance of) class with method __call__"
+            raise TypeError(
+                'Failed to apply yt decorator since object "{0}" is not a function '
+                "or (instance of) class with method __call__"
                 .format(repr(func)))
         return func.__call__
 

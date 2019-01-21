@@ -186,35 +186,37 @@ class TestLocalMode(object):
             name = "scheduler-" + str(index) + ".log"
             assert os.path.exists(os.path.join(logs_path, name))
 
-        assert os.path.exists(os.path.join(logs_path, "http-proxy.log"))
+        assert os.path.exists(os.path.join(logs_path, "http-proxy-0.log"))
         assert os.path.exists(os.path.join(path, "stderrs"))
 
     def test_user_configs_path(self):
         master_count = 3
         node_count = 2
         scheduler_count = 4
+        http_proxy_count = 5
+        rpc_proxy_count = 6
         with local_yt(id=_get_id("test_user_configs_path"), master_count=master_count,
                       node_count=node_count, scheduler_count=scheduler_count,
-                      start_proxy=True, start_rpc_proxy=True) as lyt:
+                      http_proxy_count=http_proxy_count, rpc_proxy_count=rpc_proxy_count) as lyt:
             configs_path = lyt.configs_path
 
         assert os.path.exists(configs_path)
         assert os.path.exists(os.path.join(configs_path, "driver-0.yson"))
-
-        for index in xrange(master_count):
-            name = "master-0-" + str(index) + ".yson"
-            assert os.path.exists(os.path.join(configs_path, name))
-
-        for index in xrange(node_count):
-            name = "node-" + str(index) + ".yson"
-            assert os.path.exists(os.path.join(configs_path, name))
-
-        for index in xrange(scheduler_count):
-            name = "scheduler-" + str(index) + ".yson"
-            assert os.path.exists(os.path.join(configs_path, name))
-
-        assert os.path.exists(os.path.join(configs_path, "proxy.json"))
         assert os.path.exists(os.path.join(configs_path, "rpc-client.yson"))
+
+        multiple_component_to_count = {
+            "master-0": master_count,
+            "node": node_count,
+            "scheduler": scheduler_count,
+            "http-proxy": http_proxy_count,
+            "rpc-proxy": rpc_proxy_count,
+        }
+
+        for component, count in iteritems(multiple_component_to_count):
+            for index in xrange(count):
+                extension = "json" if component == "http-proxy" else "yson"
+                name = "{}-{}.{}".format(component, index, extension)
+                assert os.path.exists(os.path.join(configs_path, name))
 
     def test_watcher(self):
         watcher_config = {
@@ -238,7 +240,7 @@ class TestLocalMode(object):
         # Some log file may be missing if we exited during log rotation.
         presented = 0
         for file_index in xrange(1, 5):
-            presented += os.path.exists(os.path.join(logs_path, "http-proxy.debug.log.{0}.gz".format(file_index)))
+            presented += os.path.exists(os.path.join(logs_path, "http-proxy-0.debug.log.{0}.gz".format(file_index)))
         assert presented in (3, 4)
 
     def test_commands_sanity(self):
@@ -272,6 +274,7 @@ class TestLocalMode(object):
             assert len(environment.configs["node"]) == 5
             assert len(environment.configs["scheduler"]) == 2
             assert len(environment.configs["master"]) == 1
+            assert len(environment.configs["http_proxy"]) == 0
             if environment.abi_version >= (19, 3):
                 assert len(environment.configs["controller_agent"]) == 1
                 assert len(_read_pids_file(environment.id)) == 10

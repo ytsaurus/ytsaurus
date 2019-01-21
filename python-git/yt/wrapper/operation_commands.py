@@ -76,7 +76,7 @@ def complete_operation(operation, client=None):
 def get_operation(operation_id, attributes=None, include_scheduler=None, format=None, client=None):
     """Get operation attributes through API.
     """
-    params={"operation_id": operation_id}
+    params = {"operation_id": operation_id}
     set_param(params, "attributes", attributes)
     set_param(params, "include_scheduler", include_scheduler)
     return make_formatted_request(
@@ -367,7 +367,13 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         if only_failed_jobs:
             job_state = "failed"
 
-        response = list_jobs(operation, include_cypress=True, include_archive=True, include_runtime=False, job_state=job_state, client=client)
+        response = list_jobs(
+            operation,
+            include_cypress=True,
+            include_archive=True,
+            include_runtime=False,
+            job_state=job_state,
+            client=client)
 
         jobs = []
         for info in response["jobs"]:
@@ -484,7 +490,9 @@ def get_operation_url(operation, client=None):
 
 class Operation(object):
     """Holds information about started operation."""
-    def __init__(self, id, type=None, finalization_actions=None, abort_exceptions=(KeyboardInterrupt, TimeoutError), client=None):
+    def __init__(self, id,
+                 type=None, finalization_actions=None,
+                 abort_exceptions=(KeyboardInterrupt, TimeoutError), client=None):
         self.id = id
         self.type = type
         self.abort_exceptions = abort_exceptions
@@ -520,7 +528,8 @@ class Operation(object):
     def get_job_statistics(self):
         """Returns job statistics of operation."""
         try:
-            return get_operation_attributes(self.id, fields=["progress"], client=self.client)["progress"]["job_statistics"]
+            attributes = get_operation_attributes(self.id, fields=["progress"], client=self.client)
+            return attributes["progress"]["job_statistics"]
         except YtResponseError as error:
             if error.is_resolve_error():
                 return {}

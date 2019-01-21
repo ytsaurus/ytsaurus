@@ -163,8 +163,12 @@ class YtProxyUnavailable(YtError):
         self.response = response
         attributes = {
             "url": response.url,
-            "request_info": hide_token(response.request_info)}
-        super(YtProxyUnavailable, self).__init__(message="Proxy is unavailable", attributes=attributes, inner_errors=[response.json()])
+            "request_info": hide_token(response.request_info)
+        }
+        super(YtProxyUnavailable, self).__init__(
+            message="Proxy is unavailable",
+            attributes=attributes,
+            inner_errors=[response.json()])
 
 class YtIncorrectResponse(YtError):
     """Incorrect proxy response."""
