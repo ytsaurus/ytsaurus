@@ -15,12 +15,11 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT::NTableServer {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
 using namespace NRpc;
-using namespace NObjectServer;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NChunkClient;

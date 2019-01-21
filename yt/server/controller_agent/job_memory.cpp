@@ -33,14 +33,14 @@ i64 GetYTAllocLargeUnreclaimableBytes()
     return YTAllocLargeUnreclaimableBytes;
 }
 
-i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig)
+i64 GetOutputWindowMemorySize(const TJobIOConfigPtr& ioConfig)
 {
     return
         ioConfig->TableWriter->SendWindowSize +
         ioConfig->TableWriter->EncodeWindowSize;
 }
 
-i64 GetIntermediateOutputIOMemorySize(TJobIOConfigPtr ioConfig)
+i64 GetIntermediateOutputIOMemorySize(const TJobIOConfigPtr& ioConfig)
 {
     auto result = GetOutputWindowMemorySize(ioConfig) +
         ioConfig->TableWriter->MaxBufferSize;
@@ -49,7 +49,7 @@ i64 GetIntermediateOutputIOMemorySize(TJobIOConfigPtr ioConfig)
 }
 
 i64 GetInputIOMemorySize(
-    TJobIOConfigPtr ioConfig,
+    const TJobIOConfigPtr& ioConfig,
     const TChunkStripeStatistics& stat)
 {
     if (stat.ChunkCount == 0)
@@ -57,7 +57,7 @@ i64 GetInputIOMemorySize(
 
     int concurrentReaders = std::min(stat.ChunkCount, ioConfig->TableReader->MaxParallelReaders);
 
-    // Group can be overcommited by one block.
+    // Group can be overcommitted by one block.
     i64 groupSize = stat.MaxBlockSize + ioConfig->TableReader->GroupSize;
     i64 windowSize = std::max(stat.MaxBlockSize, ioConfig->TableReader->WindowSize);
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/job_agent/config.h>
+#include <yt/server/lib/job_agent/config.h>
 
 #include <yt/server/lib/job_proxy/config.h>
 

@@ -1,6 +1,6 @@
 #include "environment.h"
 
-#include <yt/server/node/exec_agent/config.h>
+#include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/server/node/job_agent/gpu_manager.h>
 

@@ -41,12 +41,6 @@ DEFINE_ENUM(EErrorCode,
     ((ArtifactDownloadFailed)        (1113))
 );
 
-DEFINE_ENUM(EJobEnvironmentType,
-    (Simple)
-    (Cgroups)
-    (Porto)
-);
-
 extern const TString ProxyConfigFileName;
 
 DECLARE_REFCOUNTED_CLASS(TSlotManager)
@@ -55,22 +49,9 @@ DECLARE_REFCOUNTED_STRUCT(IJobDirectoryManager)
 
 DECLARE_REFCOUNTED_STRUCT(ISlot)
 
-DECLARE_REFCOUNTED_CLASS(TSlotLocationConfig)
-
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
 DECLARE_REFCOUNTED_STRUCT(IJobEnvironment)
-
-DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TCGroupJobEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TPortoJobEnvironmentConfig)
-
-DECLARE_REFCOUNTED_CLASS(TSlotManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)
-DECLARE_REFCOUNTED_CLASS(TExecAgentConfig)
-
-DECLARE_REFCOUNTED_CLASS(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

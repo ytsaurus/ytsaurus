@@ -12,14 +12,14 @@ i64 GetFootprintMemorySize();
 i64 GetYTAllocLargeUnreclaimableBytes();
 
 i64 GetInputIOMemorySize(
-    NScheduler::TJobIOConfigPtr ioConfig,
+    const NScheduler::TJobIOConfigPtr& ioConfig,
     const NChunkPools::TChunkStripeStatistics& stat);
 
 i64 GetSortInputIOMemorySize(const NChunkPools::TChunkStripeStatistics& stat);
 
-i64 GetIntermediateOutputIOMemorySize(NScheduler::TJobIOConfigPtr ioConfig);
+i64 GetIntermediateOutputIOMemorySize(const NScheduler::TJobIOConfigPtr& ioConfig);
 
-i64 GetOutputWindowMemorySize(NScheduler::TJobIOConfigPtr ioConfig);
+i64 GetOutputWindowMemorySize(const NScheduler::TJobIOConfigPtr& ioConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

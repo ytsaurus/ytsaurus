@@ -30,21 +30,6 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ENodeState,
-    // Used internally.
-    ((Unknown)    (-1))
-    // Not registered.
-    ((Offline)     (0))
-    // Registered but did not report the first heartbeat yet.
-    ((Registered)  (1))
-    // Registered and reported the first heartbeat.
-    ((Online)      (2))
-    // Unregistered and placed into disposal queue.
-    ((Unregistered)(3))
-    // Indicates that state varies across cells.
-    ((Mixed)       (4))
-);
-
 struct TCellNodeStatistics
 {
     NChunkClient::TPerMediumArray<i64> ChunkReplicaCount = {};

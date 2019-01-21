@@ -7,7 +7,7 @@
 #include "task_host.h"
 #include "scheduling_context.h"
 
-#include <yt/server/lib/controller_agent/job_memory.h>
+#include <yt/server/controller_agent/job_memory.h>
 
 #include <yt/server/controller_agent/chunk_pools/helpers.h>
 

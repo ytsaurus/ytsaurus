@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "config.h"
+#include <yt/server/lib/job_agent/config.h>
 
 #include <yt/server/node/cell_node/public.h>
 

@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+// TODO(babenko): drop this dependency
 #include <yt/server/job_proxy/job.h>
 
 #include <yt/server/lib/core_dump/core_processor_service.pb.h>

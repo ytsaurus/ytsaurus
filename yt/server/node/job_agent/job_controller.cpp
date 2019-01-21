@@ -1,9 +1,10 @@
 #include "job_controller.h"
 #include "private.h"
 #include "gpu_manager.h"
-#include "config.h"
 
 #include <limits>
+
+#include <yt/server/lib/job_agent/config.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>

@@ -3,9 +3,6 @@
 #include "public.h"
 
 #include <yt/server/lib/scheduler/scheduling_tag.h>
-
-#include <yt/server/master/node_tracker_server/node.h>
-
 #include <yt/server/lib/scheduler/exec_node_descriptor.h>
 
 #include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
@@ -69,7 +66,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
 
     //! State of node at master.
-    DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
+    DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerClient::ENodeState, MasterState);
 
     //! State of node at scheduler.
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, SchedulerState);

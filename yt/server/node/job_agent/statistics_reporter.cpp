@@ -1,6 +1,7 @@
 #include "statistics_reporter.h"
 #include "private.h"
-#include "config.h"
+
+#include <yt/server/lib/job_agent/config.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 

@@ -1,8 +1,9 @@
 #include "slot.h"
 #include "private.h"
-#include "config.h"
 #include "job_environment.h"
 #include "slot_location.h"
+
+#include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 #include <yt/ytlib/job_prober_client/job_probe.h>
