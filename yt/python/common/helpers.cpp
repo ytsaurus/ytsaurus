@@ -18,12 +18,17 @@ bool IsFloat(const Object& obj)
     return PyFloat_Check(obj.ptr());
 }
 
-TStringBuf ConvertToStringBuf(const Bytes& pyString)
+TStringBuf ConvertToStringBuf(PyObject* pyString)
 {
     char* stringData;
     Py_ssize_t length;
-    PyBytes_AsStringAndSize(pyString.ptr(), &stringData, &length);
+    PyBytes_AsStringAndSize(pyString, &stringData, &length);
     return TStringBuf(stringData, length);
+}
+
+TStringBuf ConvertToStringBuf(const Bytes& pyString)
+{
+    return ConvertToStringBuf(pyString.ptr());
 }
 
 TString ConvertStringObjectToString(const Object& obj)
@@ -153,48 +158,6 @@ TPythonClassObject::TPythonClassObject(PyTypeObject* typeObject)
 Py::Callable TPythonClassObject::Get()
 {
     return ClassObject_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TPythonStringCache::TPythonStringCache()
-{ }
-
-TPythonStringCache::TPythonStringCache(bool enableCache, const std::optional<TString>& encoding)
-    : CacheEnabled_(enableCache)
-    , Encoding_(encoding)
-{
-    if (CacheEnabled_) {
-        Cache_.reset(new THashMap<TStringBuf, PyObject*>());
-    }
-}
-
-PyObject* TPythonStringCache::GetPythonString(TStringBuf string)
-{
-    if (CacheEnabled_) {
-        auto it = Cache_->find(string);
-        if (it != Cache_->end()) {
-            return it->second;
-        }
-    }
-    auto result = PyBytes_FromStringAndSize(string.data(), string.size());
-    if (!result) {
-        throw Py::Exception();
-    }
-
-    auto ownedCachedString = ConvertToStringBuf(Py::Bytes(result));
-    if (Encoding_) {
-        auto unicodeObject = PyUnicode_FromEncodedObject(result, Encoding_->data(), "strict");
-        if (!unicodeObject) {
-            throw Py::Exception();
-        }
-        Py_DECREF(result);
-        result = unicodeObject;
-    }
-    if (CacheEnabled_) {
-        Cache_->emplace(ownedCachedString, result);
-    }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

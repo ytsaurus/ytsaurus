@@ -142,7 +142,7 @@ private:
         typename std::list<typename THashMap<TKey, TItem, THash>::iterator>::iterator LruListIterator;
     };
 
-    const size_t MaxWeight_ = 0;
+    size_t MaxWeight_ = 0;
     size_t CurrentWeight_ = 0;
 
     using TItemMap = THashMap<TKey, TItem, THash>;

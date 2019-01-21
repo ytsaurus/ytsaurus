@@ -200,7 +200,8 @@ void TLazyYsonConsumer::OnItemConsumed()
         YCHECK(separatorPos != -1);
 
         value = value.Slice(separatorPos + 1, value.Size());
-        LazyDictConsumer_->OnKeyValue(Py::Object(ItemKey_), value);
+        YCHECK(ItemKey_);
+        LazyDictConsumer_->OnKeyValue(Py::Object(ItemKey_->get()), value);
     } else if (Balance_ == 0) {
         if (!IsLazyDictObject_) {
             LazyDictConsumer_->SetObject();

@@ -24,6 +24,7 @@ bool IsInteger(const Object& obj);
 bool IsFloat(const Object& obj);
 
 #ifdef PYCXX_PYTHON_2TO3
+TStringBuf ConvertToStringBuf(PyObject* pyString);
 TStringBuf ConvertToStringBuf(const Bytes& pyString);
 Bytes ConvertToPythonString(const TString& string);
 #endif
@@ -84,21 +85,6 @@ public:
 
 private:
     Py::Callable ClassObject_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPythonStringCache
-{
-public:
-    TPythonStringCache();
-    TPythonStringCache(bool enableCache, const std::optional<TString>& encoding);
-    PyObject* GetPythonString(TStringBuf string);
-
-private:
-    bool CacheEnabled_;
-    std::unique_ptr<THashMap<TStringBuf, PyObject*>> Cache_;
-    std::optional<TString> Encoding_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
