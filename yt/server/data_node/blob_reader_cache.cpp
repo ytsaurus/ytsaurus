@@ -52,7 +52,10 @@ public:
             MakeReaderCacheKey(chunk.Get()))
         , TFileReader(
             chunk->GetLocation()->GetIOEngine(),
-            chunk->GetId(), fileName, validateBlockChecksums)
+            chunk->GetId(),
+            fileName,
+            validateBlockChecksums,
+            this)
         , ChunkMetaManager_(chunkMetaManager)
         , Chunk_(chunk)
     { }
