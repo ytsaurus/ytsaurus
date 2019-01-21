@@ -767,32 +767,40 @@ message THttpGetStatus {
 }
 
 message TStopStatus {
+    reserved 2;
+
     oneof Status {
         TContainerStatus ContainerStatus = 1;
-        THttpGetStatus HttpStopStatus = 2;
+        THttpGetStatus HttpGetStatus = 3;
     }
 }
 
 message TDestroyStatus {
+    reserved 2;
+
     oneof Status {
         TContainerStatus ContainerStatus = 1;
-        THttpGetStatus HttpDestroyStatus = 2;
+        THttpGetStatus HttpGetStatus = 3;
     }
 }
 
 message TReadinessStatus {
+    reserved 3;
+
     oneof Status {
         TContainerStatus ContainerStatus = 1;
         TTcpCheckStatus TcpCheckStatus = 2;
-        THttpGetStatus HttpCheckStatus = 3;
+        THttpGetStatus HttpGetStatus = 4;
     }
 }
 
 message TLivenessStatus {
+    reserved 3;
+
     oneof Status {
         TContainerStatus ContainerStatus = 1;
         TTcpCheckStatus TcpCheckStatus = 2;
-        THttpGetStatus HttpCheckStatus = 3;
+        THttpGetStatus HttpGetStatus = 4;
     }
 }
 
