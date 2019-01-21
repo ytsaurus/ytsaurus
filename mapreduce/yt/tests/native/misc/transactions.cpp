@@ -16,7 +16,9 @@ Y_UNIT_TEST_SUITE(Transactions)
 {
     Y_UNIT_TEST(TestTitle)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto getTitle = [&] (const ITransactionPtr& tx) {
             auto node = client->Get("//sys/transactions/" + GetGuidAsString(tx->GetId()) + "/@title");
             return node.AsString();
@@ -38,7 +40,9 @@ Y_UNIT_TEST_SUITE(Transactions)
 
     Y_UNIT_TEST(TestPing)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         auto transaction = client->StartTransaction();
         UNIT_ASSERT_NO_EXCEPTION(transaction->Ping());
@@ -51,10 +55,11 @@ Y_UNIT_TEST_SUITE(Transactions)
 
     Y_UNIT_TEST(TestAutoPing)
     {
-        TConfigSaverGuard csg;
-        TConfig::Get()->PingInterval = TDuration::MilliSeconds(100);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        auto client = CreateTestClient();
+        TConfig::Get()->PingInterval = TDuration::MilliSeconds(100);
 
         auto getLastPingTime = [&] (const ITransactionPtr& tx) {
             auto node = client->Get("//sys/transactions/" + GetGuidAsString(tx->GetId()) + "/@last_ping_time");

@@ -12,22 +12,24 @@ using namespace NYT::NTesting;
 Y_UNIT_TEST_SUITE(AlterTable) {
     Y_UNIT_TEST(Schema)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         client->Create(
-            "//testing/table", NT_TABLE, TCreateOptions()
+            workingDir + "/table", NT_TABLE, TCreateOptions()
             .Attributes(
                 TNode()
                 ("schema", TNode()
                  .Add(TNode()("name", "eng")("type", "string"))
                  .Add(TNode()("name", "number")("type", "int64")))));
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/table");
             writer->AddRow(TNode()("eng", "one")("number", 1));
             writer->Finish();
         }
 
         auto addRowWithRusColumn = [&] {
-            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/table");
             writer->AddRow(TNode()("eng", "one")("number", 1)("rus", "odin"));
             writer->Finish();
         };
@@ -37,7 +39,7 @@ Y_UNIT_TEST_SUITE(AlterTable) {
         // Can't change type of column.
         UNIT_ASSERT_EXCEPTION(
             client->AlterTable(
-                "//testing/table",
+                workingDir + "/table",
                 TAlterTableOptions()
                 .Schema(TTableSchema()
                     .AddColumn(TColumnSchema().Name("eng").Type(VT_INT64))
@@ -45,7 +47,7 @@ Y_UNIT_TEST_SUITE(AlterTable) {
             TErrorResponse);
 
         client->AlterTable(
-            "//testing/table",
+            workingDir + "/table",
             TAlterTableOptions()
             .Schema(TTableSchema()
                 .AddColumn(TColumnSchema().Name("eng").Type(VT_STRING))
@@ -58,10 +60,12 @@ Y_UNIT_TEST_SUITE(AlterTable) {
 
     Y_UNIT_TEST(WithTransaction)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto tx = client->StartTransaction();
         tx->Create(
-            "//testing/table", NT_TABLE, TCreateOptions()
+            workingDir + "/table", NT_TABLE, TCreateOptions()
             .Attributes(
                 TNode()
                 ("schema", TNode()
@@ -73,9 +77,9 @@ Y_UNIT_TEST_SUITE(AlterTable) {
                     .AddColumn(TColumnSchema().Name("number").Type(VT_INT64))
                     .AddColumn(TColumnSchema().Name("rus").Type(VT_STRING));
 
-        UNIT_ASSERT_EXCEPTION(client->AlterTable("//testing/table", TAlterTableOptions().Schema(newSchema)), TErrorResponse);
+        UNIT_ASSERT_EXCEPTION(client->AlterTable(workingDir + "/table", TAlterTableOptions().Schema(newSchema)), TErrorResponse);
 
         // No exception.
-        tx->AlterTable("//testing/table", TAlterTableOptions().Schema(newSchema));
+        tx->AlterTable(workingDir + "/table", TAlterTableOptions().Schema(newSchema));
     }
 }

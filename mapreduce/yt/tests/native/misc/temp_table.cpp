@@ -27,10 +27,12 @@ static TTempTable GenerateTempTable(IClientBasePtr client, const TString& tableP
 Y_UNIT_TEST_SUITE(TempTableTestSuite) {
     Y_UNIT_TEST(Simple)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         TString tmpTableName;
         {
-            auto tmpTable = TTempTable(client, "table", "//testing");
+            auto tmpTable = TTempTable(client, "table", workingDir + "");
             tmpTableName = tmpTable.Name();
             UNIT_ASSERT(client->Exists(tmpTableName));
         }
@@ -39,12 +41,14 @@ Y_UNIT_TEST_SUITE(TempTableTestSuite) {
 
     Y_UNIT_TEST(MoveSemantics)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         TString tmpTableName1;
         TString tmpTableName2;
         {
-            TTempTable tmpTable1 = GenerateTempTable(client, "table", "//testing");
-            TTempTable tmpTable2 = GenerateTempTable(client, "table", "//testing");
+            TTempTable tmpTable1 = GenerateTempTable(client, "table", workingDir + "");
+            TTempTable tmpTable2 = GenerateTempTable(client, "table", workingDir + "");
             tmpTableName1 = tmpTable1.Name();
             tmpTableName2 = tmpTable2.Name();
             UNIT_ASSERT(client->Exists(tmpTableName1));
@@ -64,12 +68,14 @@ Y_UNIT_TEST_SUITE(TempTableTestSuite) {
 
     Y_UNIT_TEST(UsageInContainers)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         TVector<TTempTable> tmpTableGuard;
         TVector<TString> tmpTableNames;
         for (ui32 i = 0; i < 100; ++i)
         {
-            tmpTableGuard.emplace_back(client, "table", "//testing");
+            tmpTableGuard.emplace_back(client, "table", workingDir + "");
         }
         for (const TTempTable& tmpTable: tmpTableGuard) {
             UNIT_ASSERT(client->Exists(tmpTable.Name()));

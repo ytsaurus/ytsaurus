@@ -519,14 +519,15 @@ Y_UNIT_TEST_SUITE(Operations)
 {
     void TestRenameColumns(ENodeReaderFormat nodeReaderFormat)
     {
-        TConfigSaverGuard configGuard;
-        TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        auto client = CreateTestClient();
+        TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
 
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/input")
+                TRichYPath(workingDir + "/input")
                     .Schema(TTableSchema()
                         .AddColumn(TColumnSchema().Name("OldKey").Type(VT_STRING))
                         .AddColumn(TColumnSchema().Name("Value").Type(VT_STRING))
@@ -541,12 +542,12 @@ Y_UNIT_TEST_SUITE(Operations)
         client->Map(
             TMapOperationSpec()
             .AddInput<TNode>(
-                TRichYPath("//testing/input")
+                TRichYPath(workingDir + "/input")
                     .RenameColumns(columnMapping))
-            .AddOutput<TNode>("//testing/output"),
+            .AddOutput<TNode>(workingDir + "/output"),
             new TIdMapper);
 
-        auto reader = client->CreateTableReader<TNode>("//testing/output");
+        auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
         UNIT_ASSERT(reader->IsValid());
         UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("NewKey", "key")("Value", "value"));
         reader->Next();
@@ -565,29 +566,33 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(IncorrectTableId)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
         }
 
         client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
             .MaxFailedJobCount(1),
             new TMapperThatWritesToIncorrectTable);
     }
 
     Y_UNIT_TEST(EnableKeyGuarantee)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/input")
+                TRichYPath(workingDir + "/input")
                     .Schema(TTableSchema()
                         .Strict(true)
                         .AddColumn(TColumnSchema().Name("key").Type(VT_STRING).SortOrder(SO_ASCENDING))));
@@ -597,8 +602,8 @@ Y_UNIT_TEST_SUITE(Operations)
 
         auto op = client->Reduce(
             TReduceOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
             .ReduceBy("key")
             .EnableKeyGuarantee(false),
             new TIdReducer);
@@ -608,11 +613,13 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(OrderedMapReduce)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/input")
+                TRichYPath(workingDir + "/input")
                     .Schema(TTableSchema()
                         .Strict(true)
                         .AddColumn(TColumnSchema().Name("key").Type(VT_STRING).SortOrder(SO_ASCENDING))));
@@ -622,8 +629,8 @@ Y_UNIT_TEST_SUITE(Operations)
 
         auto op = client->MapReduce(
             TMapReduceOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
             .ReduceBy("key")
             .Ordered(true),
             new TIdMapper,
@@ -634,10 +641,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(MaxFailedJobCount)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
         }
@@ -647,8 +656,8 @@ Y_UNIT_TEST_SUITE(Operations)
             try {
                 client->Map(
                     TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output")
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output")
                     .MaxFailedJobCount(maxFail),
                     new TAlwaysFailingMapper);
                 UNIT_FAIL("operation expected to fail");
@@ -665,10 +674,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(FailOnJobRestart)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
         }
@@ -677,8 +688,8 @@ Y_UNIT_TEST_SUITE(Operations)
         try {
             client->Map(
                 TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
                 .FailOnJobRestart(true)
                 .MaxFailedJobCount(3),
                 new TAlwaysFailingMapper);
@@ -693,22 +704,24 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(StderrTablePath)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
         }
 
         client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
-            .StderrTablePath("//testing/stderr"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
+            .StderrTablePath(workingDir + "/stderr"),
             new TMapperThatWritesStderr);
 
-        auto reader = client->CreateTableReader<TNode>("//testing/stderr");
+        auto reader = client->CreateTableReader<TNode>(workingDir + "/stderr");
         UNIT_ASSERT(reader->IsValid());
         UNIT_ASSERT(reader->GetRow()["data"].AsString().Contains("PYSHCH\n"));
         reader->Next();
@@ -717,10 +730,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(CreateDebugOutputTables)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
         }
@@ -729,23 +744,23 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_EXCEPTION(
             client->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output")
-                    .StderrTablePath("//testing/stderr"),
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output")
+                    .StderrTablePath(workingDir + "/stderr"),
                 new TMapperThatWritesStderr,
                 TOperationOptions()
                     .CreateDebugOutputTables(false)),
             TOperationFailedError);
 
-        client->Create("//testing/stderr", NT_TABLE);
+        client->Create(workingDir + "/stderr", NT_TABLE);
 
         // stderr table exists => should pass
         UNIT_ASSERT_NO_EXCEPTION(
             client->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output")
-                    .StderrTablePath("//testing/stderr"),
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output")
+                    .StderrTablePath(workingDir + "/stderr"),
                 new TMapperThatWritesStderr,
                 TOperationOptions()
                     .CreateDebugOutputTables(false)));
@@ -753,10 +768,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(CreateOutputTables)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
         }
@@ -765,23 +782,23 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_EXCEPTION(
             client->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output")
-                    .StderrTablePath("//testing/stderr"),
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output")
+                    .StderrTablePath(workingDir + "/stderr"),
                 new TMapperThatWritesStderr,
                 TOperationOptions()
                     .CreateOutputTables(false)),
             TOperationFailedError);
 
-        client->Create("//testing/output", NT_TABLE);
+        client->Create(workingDir + "/output", NT_TABLE);
 
         // Output table exists => should complete ok.
         UNIT_ASSERT_NO_EXCEPTION(
             client->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output")
-                    .StderrTablePath("//testing/stderr"),
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output")
+                    .StderrTablePath(workingDir + "/stderr"),
                 new TMapperThatWritesStderr,
                 TOperationOptions()
                     .CreateOutputTables(false)));
@@ -790,16 +807,16 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_EXCEPTION(
             client->Sort(
                 TSortOperationSpec()
-                    .AddInput("//testing/nonexistent-input")
-                    .Output("//testing/nonexistent-input")),
+                    .AddInput(workingDir + "/nonexistent-input")
+                    .Output(workingDir + "/nonexistent-input")),
             TApiUsageError);
 
         // Inputs are not checked => we get an error response from the server.
         UNIT_ASSERT_EXCEPTION(
             client->Sort(
                 TSortOperationSpec()
-                    .AddInput("//testing/nonexistent-input")
-                    .Output("//testing/nonexistent-input"),
+                    .AddInput(workingDir + "/nonexistent-input")
+                    .Output(workingDir + "/nonexistent-input"),
                 TOperationOptions()
                     .CreateOutputTables(false)),
             TOperationFailedError);
@@ -807,10 +824,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(JobCount)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/input").SortedBy({"foo"}));
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/input").SortedBy({"foo"}));
             writer->AddRow(TNode()("foo", "bar"));
             writer->AddRow(TNode()("foo", "baz"));
             writer->AddRow(TNode()("foo", "qux"));
@@ -825,8 +844,8 @@ Y_UNIT_TEST_SUITE(Operations)
         std::function<TOperationId(ui32,ui64)> runOperationFunctionList[] = {
             [=] (ui32 jobCount, ui64 dataSizePerJob) {
                 auto mapSpec = TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output");
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output");
                 if (jobCount) {
                     mapSpec.JobCount(jobCount);
                 }
@@ -838,8 +857,8 @@ Y_UNIT_TEST_SUITE(Operations)
             [=] (ui32 jobCount, ui64 dataSizePerJob) {
                 auto mergeSpec = TMergeOperationSpec()
                     .ForceTransform(true)
-                    .AddInput("//testing/input")
-                    .Output("//testing/output");
+                    .AddInput(workingDir + "/input")
+                    .Output(workingDir + "/output");
                 if (jobCount) {
                     mergeSpec.JobCount(jobCount);
                 }
@@ -867,10 +886,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(TestFetchTable)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
         }
@@ -878,18 +899,20 @@ Y_UNIT_TEST_SUITE(Operations)
         // Expect operation to complete successfully
         client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
-            .MapperSpec(TUserJobSpec().AddFile(TRichYPath("//testing/input").Format("yson"))),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
+            .MapperSpec(TUserJobSpec().AddFile(TRichYPath(workingDir + "/input").Format("yson"))),
             new TMapperThatChecksFile("input"));
     }
 
     Y_UNIT_TEST(TestFetchTableRange)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
         }
@@ -897,15 +920,17 @@ Y_UNIT_TEST_SUITE(Operations)
         // Expect operation to complete successfully
         client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
-            .MapperSpec(TUserJobSpec().AddFile(TRichYPath("//testing/input[#0]").Format("yson"))),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
+            .MapperSpec(TUserJobSpec().AddFile(TRichYPath(workingDir + "/input[#0]").Format("yson"))),
             new TMapperThatChecksFile("input"));
     }
 
     Y_UNIT_TEST(TestReadProtobufFileInJob)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         TAllTypesMessage message;
         message.SetFixed32Field(2134242);
@@ -918,7 +943,7 @@ Y_UNIT_TEST_SUITE(Operations)
         message.MutableMessageField()->SetValue("value");
 
         {
-            auto writer = client->CreateTableWriter<TAllTypesMessage>("//testing/input");
+            auto writer = client->CreateTableWriter<TAllTypesMessage>(workingDir + "/input");
             writer->AddRow(message);
             writer->Finish();
         }
@@ -926,13 +951,13 @@ Y_UNIT_TEST_SUITE(Operations)
         auto format = TFormat::Protobuf<TAllTypesMessage>();
         client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TAllTypesMessage>("//testing/output")
-                .MapperSpec(TUserJobSpec().AddFile(TRichYPath("//testing/input").Format(format.Config))),
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TAllTypesMessage>(workingDir + "/output")
+                .MapperSpec(TUserJobSpec().AddFile(TRichYPath(workingDir + "/input").Format(format.Config))),
             new TMapperThatReadsProtobufFile("input"));
 
         {
-            auto reader = client->CreateTableReader<TAllTypesMessage>("//testing/output");
+            auto reader = client->CreateTableReader<TAllTypesMessage>(workingDir + "/output");
             UNIT_ASSERT(reader->IsValid());
             const auto& row = reader->GetRow();
             UNIT_ASSERT_VALUES_EQUAL(message.GetFixed32Field(), row.GetFixed32Field());
@@ -948,10 +973,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(TestGetOperationStatus_Completed)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
@@ -959,8 +986,8 @@ Y_UNIT_TEST_SUITE(Operations)
 
         auto operation = client->Sort(
             TSortOperationSpec().SortBy({"foo"})
-            .AddInput("//testing/input")
-            .Output("//testing/output"),
+            .AddInput(workingDir + "/input")
+            .Output(workingDir + "/output"),
             TOperationOptions().Wait(false));
 
         while (operation->GetBriefState() == EOperationBriefState::InProgress) {
@@ -976,18 +1003,20 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(TestGetOperationStatus_Failed)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->Finish();
         }
 
         auto operation = client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
             .MaxFailedJobCount(1),
             new TAlwaysFailingMapper,
             TOperationOptions().Wait(false));
@@ -1005,10 +1034,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(TestGetOperationStatistics)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
@@ -1016,24 +1047,26 @@ Y_UNIT_TEST_SUITE(Operations)
 
         auto operation = client->Sort(
             TSortOperationSpec().SortBy({"foo"})
-            .AddInput("//testing/input")
-            .Output("//testing/output"));
+            .AddInput(workingDir + "/input")
+            .Output(workingDir + "/output"));
         auto jobStatistics = operation->GetJobStatistics();
         UNIT_ASSERT(jobStatistics.GetStatistics("time/total").Max().Defined());
     }
 
     Y_UNIT_TEST(TestCustomStatistics)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
         }
         auto operation = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output"),
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
             new TMapperThatWritesCustomStatistics());
 
         auto jobStatistics = operation->GetJobStatistics();
@@ -1056,10 +1089,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(GetBriefProgress)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
@@ -1067,8 +1102,8 @@ Y_UNIT_TEST_SUITE(Operations)
 
         auto operation = client->Sort(
             TSortOperationSpec().SortBy({"foo"})
-            .AddInput("//testing/input")
-            .Output("//testing/output"));
+            .AddInput(workingDir + "/input")
+            .Output(workingDir + "/output"));
         // Request brief progress directly
         auto briefProgress = operation->GetBriefProgress();
         UNIT_ASSERT(briefProgress.Defined());
@@ -1077,12 +1112,14 @@ Y_UNIT_TEST_SUITE(Operations)
 
     void MapWithProtobuf(bool useDeprecatedAddInput, bool useClientProtobuf)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->UseClientProtobuf = useClientProtobuf;
 
-        auto client = CreateTestClient();
-        auto inputTable = TRichYPath("//testing/input");
-        auto outputTable = TRichYPath("//testing/output");
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
         {
             auto writer = client->CreateTableWriter<TNode>(inputTable);
             writer->AddRow(TNode()("StringField", "raz"));
@@ -1134,9 +1171,11 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(JobPrefix)
     {
-        auto client = CreateTestClient();
-        auto inputTable = TRichYPath("//testing/input");
-        auto outputTable = TRichYPath("//testing/output");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
         {
             auto writer = client->CreateTableWriter<TNode>(inputTable);
             writer->AddRow(TNode()("input", "dummy"));
@@ -1213,9 +1252,11 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(JobEnvironment)
     {
-        auto client = CreateTestClient();
-        auto inputTable = TRichYPath("//testing/input");
-        auto outputTable = TRichYPath("//testing/output");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
         {
             auto writer = client->CreateTableWriter<TNode>(inputTable);
             writer->AddRow(TNode()("input", "dummy"));
@@ -1237,36 +1278,40 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(MapReduceMapOutput)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("key", "foo")("value", "bar"));
             writer->Finish();
         }
 
         client->MapReduce(
             TMapReduceOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddMapOutput<TNode>("//testing/map_output")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddMapOutput<TNode>(workingDir + "/map_output")
+                .AddOutput<TNode>(workingDir + "/output")
                 .ReduceBy({"key"}),
             new TIdAndKvSwapMapper,
             new TIdReducer);
 
         UNIT_ASSERT_VALUES_EQUAL(
-            ReadTable(client, "//testing/output"),
+            ReadTable(client, workingDir + "/output"),
             TVector<TNode>{TNode()("key", "foo")("value", "bar")});
 
         UNIT_ASSERT_VALUES_EQUAL(
-            ReadTable(client, "//testing/map_output"),
+            ReadTable(client, workingDir + "/map_output"),
             TVector<TNode>{TNode()("key", "bar")("value", "foo")});
     }
 
     Y_UNIT_TEST(MapReduceMapOutputProtobuf)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
-            auto writer = client->CreateTableWriter<TUrlRow>("//testing/input");
+            auto writer = client->CreateTableWriter<TUrlRow>(workingDir + "/input");
             TUrlRow row;
             row.SetHost("http://example.com");
             row.SetPath("/index.php");
@@ -1277,10 +1322,10 @@ Y_UNIT_TEST_SUITE(Operations)
 
         client->MapReduce(
             TMapReduceOperationSpec()
-                .AddInput<TUrlRow>("//testing/input")
+                .AddInput<TUrlRow>(workingDir + "/input")
                 .HintMapOutput<TUrlRow>()
-                .AddMapOutput<TGoodUrl>("//testing/map_output")
-                .AddOutput<THostRow>("//testing/output")
+                .AddMapOutput<TGoodUrl>(workingDir + "/map_output")
+                .AddOutput<THostRow>(workingDir + "/output")
                 .ReduceBy({"key"}),
             new TSplitGoodUrlMapper,
             new TCountHttpCodeTotalReducer);
@@ -1289,10 +1334,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(AddLocalFile)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->Finish();
         }
@@ -1306,18 +1353,20 @@ Y_UNIT_TEST_SUITE(Operations)
         // Expect operation to complete successfully
         client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
                 .MapperSpec(TUserJobSpec().AddLocalFile("localPath", TAddLocalFileOptions().PathInJob("path/in/job"))),
             new TMapperThatChecksFile("path/in/job"));
     }
 
     Y_UNIT_TEST(TestFailWithNoInputOutput)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->Finish();
         }
@@ -1325,32 +1374,33 @@ Y_UNIT_TEST_SUITE(Operations)
         {
             UNIT_ASSERT_EXCEPTION(client->Map(
                 TMapOperationSpec()
-                .AddInput<TNode>("//testing/input"),
+                .AddInput<TNode>(workingDir + "/input"),
                 new TIdMapper), TApiUsageError);
         }
 
         {
             UNIT_ASSERT_EXCEPTION(client->Map(
                 TMapOperationSpec()
-                .AddOutput<TNode>("//testing/output"),
+                .AddOutput<TNode>(workingDir + "/output"),
                 new TIdMapper), TApiUsageError);
         }
     }
 
     Y_UNIT_TEST(MaxOperationCountExceeded)
     {
-        TConfigSaverGuard csg;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->StartOperationRetryCount = 3;
         TConfig::Get()->StartOperationRetryInterval = TDuration::MilliSeconds(0);
-
-        auto client = CreateTestClient();
 
         size_t maxOperationCount = 1;
         client->Create("//sys/pools/research/testing", NT_MAP, TCreateOptions().IgnoreExisting(true).Recursive(true));
         client->Set("//sys/pools/research/testing/@max_operation_count", maxOperationCount);
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TVector<IOperationPtr> operations;
 
@@ -1364,8 +1414,8 @@ Y_UNIT_TEST_SUITE(Operations)
             for (size_t i = 0; i < maxOperationCount + 1; ++i) {
                 operations.push_back(client->Map(
                     TMapOperationSpec()
-                        .AddInput<TNode>("//testing/input")
-                        .AddOutput<TNode>("//testing/output_" + ToString(i)),
+                        .AddInput<TNode>(workingDir + "/input")
+                        .AddOutput<TNode>(workingDir + "/output_" + ToString(i)),
                     new TSleepingMapper(TDuration::Seconds(3600)),
                     TOperationOptions()
                         .Spec(TNode()("pool", "testing"))
@@ -1379,21 +1429,22 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(NetworkProblems)
     {
-        TConfigSaverGuard csg;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->StartOperationRetryCount = 3;
         TConfig::Get()->StartOperationRetryInterval = TDuration::MilliSeconds(0);
 
-        auto client = CreateTestClient();
-
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         try {
             auto outage = TAbortableHttpResponse::StartOutage("/map");
             client->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output_1"),
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output_1"),
                 new TIdMapper());
             UNIT_FAIL("Start operation must have been failed");
         } catch (const TAbortedForTestPurpose&) {
@@ -1403,20 +1454,22 @@ Y_UNIT_TEST_SUITE(Operations)
             auto outage = TAbortableHttpResponse::StartOutage("/map", TConfig::Get()->StartOperationRetryCount - 1);
             client->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output_2"),
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output_2"),
                 new TIdMapper());
         }
     }
 
     void TestJobNodeReader(ENodeReaderFormat nodeReaderFormat, bool strictSchema)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
 
-        auto client = CreateTestClient();
-        TString inputPath = "//testing/input";
-        TString outputPath = "//testing/input";
+        TString inputPath = workingDir + "/input";
+        TString outputPath = workingDir + "/input";
         NYT::NDetail::TFinallyGuard finally([&]{
             client->Remove(inputPath, TRemoveOptions().Force(true));
         });
@@ -1479,14 +1532,15 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(TestSkiffOperationHint)
     {
-        TConfigSaverGuard configGuard;
-        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Auto;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        auto client = CreateTestClient();
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Auto;
 
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/input")
+                TRichYPath(workingDir + "/input")
                 .Schema(TTableSchema()
                     .Strict(true)
                     .AddColumn(TColumnSchema().Name("key").Type(VT_STRING))
@@ -1499,12 +1553,12 @@ Y_UNIT_TEST_SUITE(Operations)
         client->Map(
             TMapOperationSpec()
             .InputFormatHints(TFormatHints().SkipNullValuesForTNode(true))
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new TIdMapper);
 
         const std::vector<TNode> expected = {TNode()("key", "foo")};
-        auto reader = client->CreateTableReader<TNode>("//testing/output");
+        auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
         std::vector<TNode> actual;
         for (; reader->IsValid(); reader->Next()) {
             actual.push_back(reader->GetRow());
@@ -1514,14 +1568,15 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(TestSkiffOperationHintConfigurationConflict)
     {
-        TConfigSaverGuard configGuard;
-        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        auto client = CreateTestClient();
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
 
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/input")
+                TRichYPath(workingDir + "/input")
                 .Schema(TTableSchema()
                     .Strict(true)
                     .AddColumn(TColumnSchema().Name("key").Type(VT_STRING))
@@ -1534,23 +1589,26 @@ Y_UNIT_TEST_SUITE(Operations)
             client->Map(
                 TMapOperationSpec()
                 .InputFormatHints(TFormatHints().SkipNullValuesForTNode(true))
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output"),
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
                 new TIdMapper),
             TApiUsageError);
     }
 
     void TestIncompleteReducer(ENodeReaderFormat nodeReaderFormat)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
-        auto client = CreateTestClient();
-        auto inputPath = TRichYPath("//testing/input")
+
+        auto inputPath = TRichYPath(workingDir + "/input")
             .Schema(TTableSchema()
                 .Strict(true)
                 .AddColumn(TColumnSchema().Name("key").Type(VT_INT64).SortOrder(SO_ASCENDING))
                 .AddColumn(TColumnSchema().Name("value").Type(VT_INT64)));
-        auto outputPath = TRichYPath("//testing/output");
+        auto outputPath = TRichYPath(workingDir + "/output");
         {
             auto writer = client->CreateTableWriter<TNode>(inputPath);
             for (auto key : {1, 2,2, 3,3,3, 4,4,4,4, 5,5,5,5,5}) {
@@ -1591,12 +1649,14 @@ Y_UNIT_TEST_SUITE(Operations)
 
     void TestRowIndices(ENodeReaderFormat nodeReaderFormat)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
 
-        auto client = CreateTestClient();
-        TYPath inputTable = "//testing/input";
-        TYPath outputTable = "//testing/output";
+        TYPath inputTable = workingDir + "/input";
+        TYPath outputTable = workingDir + "/output";
 
         {
             auto writer = client->CreateTableWriter<TNode>(
@@ -1643,12 +1703,14 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(SkiffForInputQuery)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
 
-        auto client = CreateTestClient();
-        TYPath inputTable = "//testing/input";
-        TYPath outputTable = "//testing/output";
+        TYPath inputTable = workingDir + "/input";
+        TYPath outputTable = workingDir + "/output";
 
         {
             auto writer = client->CreateTableWriter<TNode>(TRichYPath(inputTable)
@@ -1674,14 +1736,14 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(SkiffForDynamicTables)
     {
-        TConfigSaverGuard configGuard;
         TTabletFixture fixture;
-        auto client = fixture.Client();
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto schema = TNode()
             .Add(TNode()("name", "key")("type", "string"))
             .Add(TNode()("name", "value")("type", "int64"));
-        const auto inputPath = "//testing/input";
-        const auto outputPath = "//testing/output";
+        const auto inputPath = workingDir + "/input";
+        const auto outputPath = workingDir + "/output";
         client->Create(inputPath, NT_TABLE, TCreateOptions().Attributes(
             TNode()("dynamic", true)("schema", schema)));
         client->MountTable(inputPath);
@@ -1710,9 +1772,11 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(FileCacheModes)
     {
-        auto client = CreateTestClient();
-        client->Create("//testing/file_storage", NT_MAP);
-        CreateTableWithFooColumn(client, "//testing/input");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        client->Create(workingDir + "/file_storage", NT_MAP);
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TTempFile tempFile("/tmp/yt-cpp-api-testing");
         {
@@ -1726,34 +1790,36 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_EXCEPTION(
             tx->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output")
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output")
                     .MapperSpec(TUserJobSpec()
                         .AddLocalFile(tempFile.Name())),
                 new TIdMapper,
                 TOperationOptions()
-                    .FileStorage("//testing/file_storage")
+                    .FileStorage(workingDir + "/file_storage")
                     .FileStorageTransactionId(tx->GetId())),
             TApiUsageError);
 
         UNIT_ASSERT_NO_EXCEPTION(
             tx->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output")
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output")
                     .MapperSpec(TUserJobSpec()
                         .AddLocalFile(tempFile.Name())),
                 new TIdMapper,
                 TOperationOptions()
-                    .FileStorage("//testing/file_storage")
+                    .FileStorage(workingDir + "/file_storage")
                     .FileStorageTransactionId(tx->GetId())
                     .FileCacheMode(TOperationOptions::EFileCacheMode::CachelessRandomPathUpload)));
     }
 
     Y_UNIT_TEST(RetryLockConflict)
     {
-        auto client = CreateTestClient();
-        CreateTableWithFooColumn(client, "//testing/input");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TTempFile tempFile("/tmp/yt-cpp-api-testing");
         {
@@ -1766,8 +1832,8 @@ Y_UNIT_TEST_SUITE(Operations)
             auto tx = client->StartTransaction();
             tx->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output_" + CreateGuidAsString())
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output_" + CreateGuidAsString())
                     .MapperSpec(TUserJobSpec()
                         .AddLocalFile(tempFile.Name())),
                 new TAlwaysFailingMapper, // No exception here because of '.Wait(false)'.
@@ -1789,7 +1855,9 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(Vanilla)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         TString fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
         TString message = "Hello world!";
@@ -1811,9 +1879,11 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(FailingVanilla)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        TYPath stderrPath = "//testing/stderr";
+        TYPath stderrPath = workingDir + "/stderr";
 
         client->Create(stderrPath, NT_TABLE);
 
@@ -1832,8 +1902,10 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(LazySort)
     {
-        auto client = CreateTestClient();
-        TString inputTable = "//testing/table";
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        TString inputTable = workingDir + "/table";
         auto initialSortedBy = TKeyColumns().Add("key1").Add("key2").Add("key3");
 
         auto getSortedBy = [&](const TString& table) {
@@ -1862,7 +1934,7 @@ Y_UNIT_TEST_SUITE(Operations)
 
         {
             auto prefixColumns = TKeyColumns().Add("key1").Add("key2");
-            TString outputTable = "//testing/output";
+            TString outputTable = workingDir + "/output";
             auto operation = LazySort(
                 client,
                 TSortOperationSpec()
@@ -1881,7 +1953,7 @@ Y_UNIT_TEST_SUITE(Operations)
         }
         {
             auto nonPrefixColumns = TKeyColumns().Add("key2").Add("key3");
-            TString outputTable = "//testing/output";
+            TString outputTable = workingDir + "/output";
             auto operation = LazySort(
                 client,
                 TSortOperationSpec()
@@ -1896,15 +1968,17 @@ Y_UNIT_TEST_SUITE(Operations)
 
     void TestGetOperation_Completed(bool useClientGetOperation)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         auto beforeStart = TInstant::Now();
         auto op = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output"),
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
             new TIdMapper);
         auto afterFinish = TInstant::Now();
 
@@ -1940,7 +2014,7 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(attrs.BriefProgress->Completed > 0);
         UNIT_ASSERT_VALUES_EQUAL(attrs.BriefProgress->Failed, 0);
 
-        auto inputTables = TNode().Add("//testing/input").AsList();
+        auto inputTables = TNode().Add(workingDir + "/input").AsList();
         UNIT_ASSERT(attrs.BriefSpec);
         UNIT_ASSERT(attrs.Spec);
         UNIT_ASSERT(attrs.FullSpec);
@@ -1956,7 +2030,7 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(!attrs.Result->Error);
 
         UNIT_ASSERT(attrs.Progress);
-        auto row_count = client->Get("//testing/input/@row_count").AsInt64();
+        auto row_count = client->Get(workingDir + "/input/@row_count").AsInt64();
         UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobStatistics.GetStatistics("data/input/row_count").Sum(), row_count);
 
         UNIT_ASSERT(attrs.Events);
@@ -2013,14 +2087,16 @@ Y_UNIT_TEST_SUITE(Operations)
 
     void TestGetOperation_Failed(bool useClientGetOperation)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         auto op = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
                 .MaxFailedJobCount(2),
             new TAlwaysFailingMapper,
             TOperationOptions()
@@ -2062,9 +2138,11 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(ListOperations)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TVector<IOperationPtr> operations;
         TVector<TInstant> beforeStartTimes;
@@ -2073,8 +2151,8 @@ Y_UNIT_TEST_SUITE(Operations)
         beforeStartTimes.push_back(TInstant::Now());
         auto mapOp = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
                 .MaxFailedJobCount(1),
             new TAlwaysFailingMapper,
             TOperationOptions()
@@ -2086,16 +2164,16 @@ Y_UNIT_TEST_SUITE(Operations)
         beforeStartTimes.push_back(TInstant::Now());
         operations.push_back(client->Sort(
             TSortOperationSpec()
-                .AddInput("//testing/input")
-                .Output("//testing/input")
+                .AddInput(workingDir + "/input")
+                .Output(workingDir + "/input")
                 .SortBy({"foo"})));
         afterFinishTimes.push_back(TInstant::Now());
 
         beforeStartTimes.push_back(TInstant::Now());
         operations.push_back(client->Reduce(
             TReduceOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output-with-great-name")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output-with-great-name")
                 .ReduceBy({"foo"}),
             new TIdReducer));
         afterFinishTimes.push_back(TInstant::Now());
@@ -2194,14 +2272,16 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(UpdateOperationParameters)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         auto op = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output"),
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
             new TSleepingMapper(TDuration::Seconds(100)),
             TOperationOptions()
                 .Spec(TNode()("weight", 5.0))
@@ -2238,15 +2318,17 @@ Y_UNIT_TEST_SUITE(Operations)
     {
         TTabletFixture tabletFixture;
 
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         auto beforeStart = TInstant::Now();
         auto op = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
                 .JobCount(1),
             new TMapperThatWritesStderr);
         auto afterFinish = TInstant::Now();
@@ -2271,15 +2353,17 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(ListJobs)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         auto beforeStart = TInstant::Now();
         auto op = client->MapReduce(
             TMapReduceOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
                 .SortBy({"foo"})
                 .ReduceBy({"foo"})
                 .MapJobCount(2),
@@ -2320,7 +2404,9 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(GetJobInput)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         const TVector<TNode> expectedRows = {
             TNode()("a", 10)("b", 20),
@@ -2328,7 +2414,7 @@ Y_UNIT_TEST_SUITE(Operations)
         };
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             for (const auto& row : expectedRows) {
                 writer->AddRow(row);
             }
@@ -2337,8 +2423,8 @@ Y_UNIT_TEST_SUITE(Operations)
 
         auto op = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
                 .JobCount(1),
             new TSleepingMapper(TDuration::Seconds(100)),
             TOperationOptions()
@@ -2385,14 +2471,16 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(GetJobStderr)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         auto op = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
                 .JobCount(1),
             new TMapperThatWritesStderr);
 
@@ -2406,7 +2494,9 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(GetJobFailContext)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         const TVector<TNode> expectedRows = {
             TNode()("a", 10)("b", 20),
@@ -2414,7 +2504,7 @@ Y_UNIT_TEST_SUITE(Operations)
         };
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             for (const auto& row : expectedRows) {
                 writer->AddRow(row);
             }
@@ -2423,8 +2513,8 @@ Y_UNIT_TEST_SUITE(Operations)
 
         auto op = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
                 .JobCount(1)
                 .MaxFailedJobCount(1),
             new TAlwaysFailingMapper,
@@ -2451,11 +2541,13 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(FormatHint)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/input")
+                TRichYPath(workingDir + "/input")
                 .Schema(TTableSchema()
                     .Strict(true)
                     .AddColumn(TColumnSchema().Name("key").Type(VT_STRING).SortOrder(SO_ASCENDING))
@@ -2466,20 +2558,20 @@ Y_UNIT_TEST_SUITE(Operations)
         }
         const std::vector<TNode> expected = {TNode()("key", "foo")};
         auto readOutputAndRemove = [&] () {
-            auto reader = client->CreateTableReader<TNode>("//testing/output");
+            auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
             std::vector<TNode> result;
             for (; reader->IsValid(); reader->Next()) {
                 result.push_back(reader->GetRow());
             }
-            client->Remove("//testing/output");
+            client->Remove(workingDir + "/output");
             return result;
         };
 
         client->Map(
             TMapOperationSpec()
             .InputFormatHints(TFormatHints().SkipNullValuesForTNode(true))
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new TIdMapper);
         UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
 
@@ -2487,8 +2579,8 @@ Y_UNIT_TEST_SUITE(Operations)
             TReduceOperationSpec()
             .InputFormatHints(TFormatHints().SkipNullValuesForTNode(true))
             .ReduceBy("key")
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new TIdReducer);
         UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
 
@@ -2496,8 +2588,8 @@ Y_UNIT_TEST_SUITE(Operations)
             TMapReduceOperationSpec()
             .ReduceBy("key")
             .MapperFormatHints(TUserJobFormatHints().InputFormatHints(TFormatHints().SkipNullValuesForTNode(true)))
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new TIdMapper,
             new TIdReducer);
         UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
@@ -2506,8 +2598,8 @@ Y_UNIT_TEST_SUITE(Operations)
             TMapReduceOperationSpec()
             .ReduceBy("key")
             .ReducerFormatHints(TUserJobFormatHints().InputFormatHints(TFormatHints().SkipNullValuesForTNode(true)))
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new TIdMapper,
             new TIdReducer);
         UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
@@ -2515,18 +2607,20 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(AttachOperation)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->Finish();
         }
 
         auto operation = client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new TSleepingMapper(TDuration::Seconds(100)),
             TOperationOptions().Wait(false));
 
@@ -2539,7 +2633,9 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(AttachInexistingOperation)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         try {
             client->AttachOperation(GetGuid("1-2-3-4"));
@@ -2551,29 +2647,31 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(CrossTransactionMerge)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto tx1 = client->StartTransaction();
         auto tx2 = client->StartTransaction();
 
         {
-            auto writer = tx1->CreateTableWriter<TNode>("//testing/input1");
+            auto writer = tx1->CreateTableWriter<TNode>(workingDir + "/input1");
             writer->AddRow(TNode()("row", "foo"));
             writer->Finish();
         }
         {
-            auto writer = tx2->CreateTableWriter<TNode>("//testing/input2");
+            auto writer = tx2->CreateTableWriter<TNode>(workingDir + "/input2");
             writer->AddRow(TNode()("row", "bar"));
             writer->Finish();
         }
         client->Merge(
             TMergeOperationSpec()
             .AddInput(
-                TRichYPath("//testing/input1")
+                TRichYPath(workingDir + "/input1")
                 .TransactionId(tx1->GetId()))
             .AddInput(
-                TRichYPath("//testing/input2")
+                TRichYPath(workingDir + "/input2")
                 .TransactionId(tx2->GetId()))
-            .Output("//testing/output"));
+            .Output(workingDir + "/output"));
         tx1->Abort();
         tx2->Abort();
 
@@ -2581,13 +2679,16 @@ Y_UNIT_TEST_SUITE(Operations)
             TNode()("row", "foo"),
             TNode()("row", "bar"),
         };
-        auto actual = ReadTable(client, "//testing/output");
+        auto actual = ReadTable(client, workingDir + "/output");
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
 
     Y_UNIT_TEST(CachedFilesExpiration)
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->StartOperationRetryCount = 100;
         TConfig::Get()->StartOperationRetryInterval = TDuration::Seconds(1);
         TConfig::Get()->UseAbortableResponse = true;
@@ -2602,8 +2703,7 @@ Y_UNIT_TEST_SUITE(Operations)
             md5 = MD5::Calc(content);
         }
 
-        auto client = CreateTestClient();
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TString poolTree = "default";
         TString pool = "some_pool";
@@ -2620,8 +2720,8 @@ Y_UNIT_TEST_SUITE(Operations)
         // Run long operation.
         auto sleepinOp = client->Map(
             TMapOperationSpec()
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/dummy_output"),
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/dummy_output"),
             new TSleepingMapper(TDuration::Seconds(100)),
             TOperationOptions()
                 .Wait(false)
@@ -2631,8 +2731,8 @@ Y_UNIT_TEST_SUITE(Operations)
         auto thread = SystemThreadPool()->Run([&] () {
             client->Map(
                 TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output")
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output")
                     .MapperSpec(
                         TUserJobSpec().AddLocalFile(tempFile.Name())),
                 new TMapperThatChecksFile(tempFile.Name()),
@@ -2679,17 +2779,19 @@ Y_UNIT_TEST_SUITE(Operations)
 
     void TestProtobufSchemaInferring(bool setOperationOptions)
     {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TOperationOptions options;
-        TConfigSaverGuard configGuard;
         if (setOperationOptions) {
             options.InferOutputSchema(true);
         } else {
             TConfig::Get()->InferTableSchema = true;
         }
 
-        auto client = CreateTestClient();
         {
-            auto writer = client->CreateTableWriter<TUrlRow>("//testing/input");
+            auto writer = client->CreateTableWriter<TUrlRow>(workingDir + "/input");
             TUrlRow row;
             row.SetHost("build01-myt.yandex.net");
             row.SetPath("~/.virmc");
@@ -2709,23 +2811,23 @@ Y_UNIT_TEST_SUITE(Operations)
 
         client->Map(
             TMapOperationSpec()
-                .AddInput<TUrlRow>("//testing/input")
-                .AddOutput<TUrlRow>("//testing/map_output"),
+                .AddInput<TUrlRow>(workingDir + "/input")
+                .AddOutput<TUrlRow>(workingDir + "/map_output"),
             new TUrlRowIdMapper,
             options);
 
-        checkSchema(client->Get("//testing/map_output/@schema"));
+        checkSchema(client->Get(workingDir + "/map_output/@schema"));
 
         client->MapReduce(
             TMapReduceOperationSpec()
-                .AddInput<TUrlRow>("//testing/input")
-                .AddOutput<TUrlRow>("//testing/mapreduce_output")
+                .AddInput<TUrlRow>(workingDir + "/input")
+                .AddOutput<TUrlRow>(workingDir + "/mapreduce_output")
                 .ReduceBy("Host"),
             new TUrlRowIdMapper,
             new TUrlRowIdReducer,
             options);
 
-        checkSchema(client->Get("//testing/mapreduce_output/@schema"));
+        checkSchema(client->Get(workingDir + "/mapreduce_output/@schema"));
     }
 
     Y_UNIT_TEST(ProtobufSchemaInferring_Config)
@@ -2740,10 +2842,12 @@ Y_UNIT_TEST_SUITE(Operations)
 
     Y_UNIT_TEST(OutputTableCounter)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
             auto writer = client->CreateTableWriter<TNode>(
-                TRichYPath("//testing/input")
+                TRichYPath(workingDir + "/input")
                     .Schema(TTableSchema()
                                 .Strict(true)
                                 .AddColumn(TColumnSchema().Name("key").Type(VT_STRING).SortOrder(SO_ASCENDING))
@@ -2756,11 +2860,11 @@ Y_UNIT_TEST_SUITE(Operations)
             client->Reduce(
                 TReduceOperationSpec()
                     .ReduceBy("key")
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output1"),
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output1"),
                 new TReducerThatCountsOutputTables());
 
-                auto reader = client->CreateTableReader<TNode>("//testing/output1");
+                auto reader = client->CreateTableReader<TNode>(workingDir + "/output1");
                 UNIT_ASSERT(reader->IsValid());
                 UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("result", 1));
                 reader->Next();
@@ -2771,12 +2875,12 @@ Y_UNIT_TEST_SUITE(Operations)
             client->Reduce(
                 TReduceOperationSpec()
                     .ReduceBy("key")
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output1")
-                    .AddOutput<TNode>("//testing/output2"),
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output1")
+                    .AddOutput<TNode>(workingDir + "/output2"),
                 new TReducerThatCountsOutputTables());
 
-                auto reader = client->CreateTableReader<TNode>("//testing/output1");
+                auto reader = client->CreateTableReader<TNode>(workingDir + "/output1");
                 UNIT_ASSERT(reader->IsValid());
                 UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("result", 2));
                 reader->Next();
@@ -2791,10 +2895,12 @@ Y_UNIT_TEST_SUITE(OperationWatch)
 {
     Y_UNIT_TEST(SimpleOperationWatch)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
@@ -2802,8 +2908,8 @@ Y_UNIT_TEST_SUITE(OperationWatch)
 
         auto operation = client->Sort(
             TSortOperationSpec().SortBy({"foo"})
-            .AddInput("//testing/input")
-            .Output("//testing/output"),
+            .AddInput(workingDir + "/input")
+            .Output(workingDir + "/output"),
             TOperationOptions().Wait(false));
 
         auto fut = operation->Watch();
@@ -2818,18 +2924,20 @@ Y_UNIT_TEST_SUITE(OperationWatch)
 
     Y_UNIT_TEST(FailedOperationWatch)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->Finish();
         }
 
         auto operation = client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
             .MaxFailedJobCount(1),
             new TAlwaysFailingMapper,
             TOperationOptions().Wait(false));
@@ -2846,18 +2954,20 @@ Y_UNIT_TEST_SUITE(OperationWatch)
 
     void AbortedOperationWatchImpl(bool useOperationAbort)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->Finish();
         }
 
         auto operation = client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
             .MaxFailedJobCount(1),
             new TSleepingMapper(TDuration::Seconds(10)),
             TOperationOptions().Wait(false));
@@ -2890,18 +3000,20 @@ Y_UNIT_TEST_SUITE(OperationWatch)
 
     void CompletedOperationWatchImpl(bool useOperationComplete)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->Finish();
         }
 
         auto operation = client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
             .MaxFailedJobCount(1),
             new TSleepingMapper(TDuration::Seconds(3600)),
             TOperationOptions().Wait(false));
@@ -2934,23 +3046,21 @@ Y_UNIT_TEST_SUITE(OperationWatch)
         CompletedOperationWatchImpl(true);
     }
 
-    void TestGetFailedJobInfoImpl(IClientBasePtr client)
+    void TestGetFailedJobInfoImpl(const IClientBasePtr& client, const TYPath& workingDir)
     {
-        TConfigSaverGuard configGuard;
-
         TConfig::Get()->UseAbortableResponse = true;
         auto outage = TAbortableHttpResponse::StartOutage("get_job_stderr", 2);
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->Finish();
         }
 
         auto operation = client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output")
             .MaxFailedJobCount(3),
             new TAlwaysFailingMapper(),
             TOperationOptions().Wait(false));
@@ -2967,20 +3077,24 @@ Y_UNIT_TEST_SUITE(OperationWatch)
 
     Y_UNIT_TEST(GetFailedJobInfo_GlobalClient)
     {
-        TestGetFailedJobInfoImpl(CreateTestClient());
+        TTestFixture fixture;
+        TestGetFailedJobInfoImpl(fixture.GetClient(), fixture.GetWorkingDir());
     }
 
     Y_UNIT_TEST(GetFailedJobInfo_Transaction)
     {
-        TestGetFailedJobInfoImpl(CreateTestClient()->StartTransaction());
+        TTestFixture fixture;
+        TestGetFailedJobInfoImpl(fixture.GetClient()->StartTransaction(), fixture.GetWorkingDir());
     }
 
     Y_UNIT_TEST(GetBriefProgress)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->AddRow(TNode()("foo", "bar"));
             writer->Finish();
@@ -2988,8 +3102,8 @@ Y_UNIT_TEST_SUITE(OperationWatch)
 
         auto operation = client->Sort(
             TSortOperationSpec().SortBy({"foo"})
-            .AddInput("//testing/input")
-            .Output("//testing/output"),
+            .AddInput(workingDir + "/input")
+            .Output(workingDir + "/output"),
             TOperationOptions().Wait(false));
         operation->Watch().Wait();
         // Request brief progress via poller
@@ -3000,18 +3114,20 @@ Y_UNIT_TEST_SUITE(OperationWatch)
 
     Y_UNIT_TEST(TestHugeFailWithHugeStderr)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
             writer->AddRow(TNode()("foo", "baz"));
             writer->Finish();
         }
 
         auto operation = client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new THugeStderrMapper,
             TOperationOptions().Wait(false));
 
@@ -3046,14 +3162,16 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
     Y_UNIT_TEST(WaitAllCompleted_OkOperations)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TOperationTracker tracker;
 
-        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
-        auto op2 = AsyncSortByFoo(client, "//testing/input", "//testing/output2");
+        auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
+        auto op2 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
         tracker.WaitAllCompleted();
@@ -3063,14 +3181,16 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
     Y_UNIT_TEST(WaitAllCompleted_ErrorOperations)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TOperationTracker tracker;
 
-        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
-        auto op2 = AsyncAlwaysFailingMapper(client, "//testing/input", "//testing/output2");
+        auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
+        auto op2 = AsyncAlwaysFailingMapper(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
         UNIT_ASSERT_EXCEPTION(tracker.WaitAllCompleted(), TOperationFailedError);
@@ -3078,14 +3198,16 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
     Y_UNIT_TEST(WaitAllCompletedOrError_OkOperations)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TOperationTracker tracker;
 
-        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
-        auto op2 = AsyncSortByFoo(client, "//testing/input", "//testing/output2");
+        auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
+        auto op2 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
         tracker.WaitAllCompletedOrError();
@@ -3095,14 +3217,16 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
     Y_UNIT_TEST(WaitAllCompletedOrError_ErrorOperations)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TOperationTracker tracker;
 
-        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
-        auto op2 = AsyncAlwaysFailingMapper(client, "//testing/input", "//testing/output2");
+        auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
+        auto op2 = AsyncAlwaysFailingMapper(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
         tracker.WaitAllCompletedOrError();
@@ -3112,15 +3236,17 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
     Y_UNIT_TEST(WaitOneCompleted_OkOperation)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TOperationTracker tracker;
 
-        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
         tracker.AddOperation(op1);
-        auto op2 = AsyncSortByFoo(client, "//testing/input", "//testing/output2");
+        auto op2 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
         auto waited1 = tracker.WaitOneCompleted();
@@ -3138,15 +3264,17 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
     Y_UNIT_TEST(WaitOneCompleted_ErrorOperation)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TOperationTracker tracker;
 
-        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
         tracker.AddOperation(op1);
-        auto op2 = AsyncAlwaysFailingMapper(client, "//testing/input", "//testing/output2");
+        auto op2 = AsyncAlwaysFailingMapper(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
         auto waitByOne = [&] {
@@ -3159,15 +3287,17 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
     Y_UNIT_TEST(WaitOneCompletedOrError_ErrorOperation)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
 
         TOperationTracker tracker;
 
-        auto op1 = AsyncSortByFoo(client, "//testing/input", "//testing/output1");
+        auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
         tracker.AddOperation(op1);
-        auto op2 = AsyncAlwaysFailingMapper(client, "//testing/input", "//testing/output2");
+        auto op2 = AsyncAlwaysFailingMapper(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
         auto waited1 = tracker.WaitOneCompletedOrError();
@@ -3186,7 +3316,10 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
     Y_UNIT_TEST(ConnectionErrorWhenOperationIsTracked)
     {
-        TConfigSaverGuard csg;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->EnableDebugMetrics = true;
         TConfig::Get()->RetryCount = 1;
@@ -3194,15 +3327,14 @@ Y_UNIT_TEST_SUITE(OperationTracker)
         TConfig::Get()->StartOperationRetryCount = 1;
         TConfig::Get()->WaitLockPollInterval = TDuration::MilliSeconds(0);
 
-        auto client = CreateTestClient();
 
-        CreateTableWithFooColumn(client, "//testing/input");
+        CreateTableWithFooColumn(client, workingDir + "/input");
         auto tx = client->StartTransaction();
 
         auto op = tx->Map(
             TMapOperationSpec()
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
             new TIdMapper(),
             TOperationOptions().Wait(false));
 

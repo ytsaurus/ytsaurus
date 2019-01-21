@@ -47,6 +47,14 @@ IClientPtr CreateTestClient(TString proxy)
     return client;
 }
 
+TYPath CreateTestDirectory(const IClientBasePtr& client)
+{
+    TYPath path = "//testing-dir/" + CreateGuidAsString();
+    client->Remove(path, TRemoveOptions().Recursive(true).Force(true));
+    client->Create(path, ENodeType::NT_MAP, TCreateOptions().Recursive(true));
+    return path;
+}
+
 TString GenerateRandomData(size_t size, ui64 seed)
 {
     TReallyFastRng32 rng(seed);
@@ -131,22 +139,33 @@ bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletFixture::TTabletFixture()
+TTestFixture::TTestFixture()
     : Client_(CreateTestClient())
-{
-    WaitForTabletCell();
-}
+    , WorkingDir_(CreateTestDirectory(Client_))
+{ }
 
-IClientPtr TTabletFixture::Client()
+IClientPtr TTestFixture::GetClient() const
 {
     return Client_;
+}
+
+TYPath TTestFixture::GetWorkingDir() const
+{
+    return WorkingDir_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletFixture::TTabletFixture()
+{
+    WaitForTabletCell();
 }
 
 void TTabletFixture::WaitForTabletCell()
 {
     const TInstant deadline = TInstant::Now() + TDuration::Seconds(30);
     while (TInstant::Now() < deadline) {
-        auto tabletCellList = Client()->List(
+        auto tabletCellList = GetClient()->List(
             "//sys/tablet_cells",
             TListOptions().AttributeFilter(
                 TAttributeFilter().AddAttribute("health")));

@@ -17,21 +17,23 @@ using namespace NYT::NTesting;
 Y_UNIT_TEST_SUITE(Schema) {
     Y_UNIT_TEST(Required)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        client->Create("//testing/table", NT_TABLE,
+        client->Create(workingDir + "/table", NT_TABLE,
             TCreateOptions().Attributes(
                 TNode()
                 ("schema", TTableSchema().AddColumn(TColumnSchema().Name("value").Type(VT_STRING).Required(true)).ToNode())
             ));
 
         {
-            auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/table").Append(true));
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Append(true));
             writer->AddRow(TNode()("value", "foo"));
             writer->Finish();
         }
         try {
-            auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/table").Append(true));
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Append(true));
             writer->AddRow(TNode()("value", TNode::CreateEntity()));
             writer->Finish();
             UNIT_FAIL("expected to throw");
@@ -41,7 +43,7 @@ Y_UNIT_TEST_SUITE(Schema) {
             }
         }
         try {
-            auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/table").Append(true));
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Append(true));
             writer->AddRow(TNode::CreateMap());
             writer->Finish();
             UNIT_FAIL("expected to throw");
@@ -57,8 +59,10 @@ Y_UNIT_TEST_SUITE(Schema) {
             .AddColumn(TColumnSchema().Name("key").Type(VT_STRING))
             .AddColumn(TColumnSchema().Name("value").Type(VT_INT64));
 
-        auto client = CreateTestClient();
-        auto writer = client->CreateTableWriter<TNode>(TRichYPath("//testing/table").Schema(schema));
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Schema(schema));
 
         TVector<TNode> expected = {
             TNode()("key", "one")("value", 1),
@@ -70,10 +74,10 @@ Y_UNIT_TEST_SUITE(Schema) {
             writer->Finish();
         }
 
-        auto actualSchema = client->Get("//testing/table/@schema");
+        auto actualSchema = client->Get(workingDir + "/table/@schema");
         UNIT_ASSERT_VALUES_EQUAL(actualSchema, schema.ToNode());
 
-        TVector<TNode> actual = ReadTable(client, "//testing/table");
+        TVector<TNode> actual = ReadTable(client, workingDir + "/table");
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
     }
 }

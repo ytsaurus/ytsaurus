@@ -12,33 +12,29 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////
 
-class TTestReaderFixture {
+class TTestReaderFixture
+    : public TTestFixture
+{
 public:
     TTestReaderFixture()
+        : FileData_(GenerateRandomData(10 * 1024 * 1024))
     {
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->RetryInterval = TDuration();
 
-        FileData_ = GenerateRandomData(10 * 1024 * 1024);
-        Client_ = CreateTestClient();
-
-        Client_->Create("//testing/file", ENodeType::NT_FILE);
-        auto writer = Client_->CreateFileWriter(TRichYPath("//testing/file").Append(true));
+        GetClient()->Create(GetWorkingDir() + "/file", ENodeType::NT_FILE);
+        auto writer = GetClient()->CreateFileWriter(TRichYPath(GetWorkingDir() + "/file").Append(true));
         writer->Write(GetFileData());
         writer->Finish();
     }
 
-    TStringBuf GetFileData() const {
+    TStringBuf GetFileData() const
+    {
         return FileData_;
-    }
-
-    IClientPtr GetClient() const {
-        return Client_;
     }
 
 private:
     TString FileData_;
-    IClientPtr Client_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +46,7 @@ Y_UNIT_TEST_SUITE(FileIo)
         TTestReaderFixture testReaderFixture;
 
         auto client = testReaderFixture.GetClient();
-        auto reader = client->CreateFileReader("//testing/file");
+        auto reader = client->CreateFileReader(testReaderFixture.GetWorkingDir() + "/file");
         TString result;
         const auto readNextPart = [&] {
             char buffer[1024];
@@ -81,7 +77,7 @@ Y_UNIT_TEST_SUITE(FileIo)
 
         UNIT_ASSERT(offset + length < fileData.Size());
         auto reader = client->CreateFileReader(
-            "//testing/file",
+            testReaderFixture.GetWorkingDir() + "/file",
             TFileReaderOptions().Offset(offset).Length(length));
 
         TString result;

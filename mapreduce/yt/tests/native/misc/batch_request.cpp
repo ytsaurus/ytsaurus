@@ -80,19 +80,21 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
 {
     Y_UNIT_TEST(TestGet)
     {
-        auto client = CreateTestClient();
-        client->Set("//testing/foo", 5);
-        client->Set("//testing/bar", "bar");
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        client->Set(workingDir + "/foo", 5);
+        client->Set(workingDir + "/bar", "bar");
 
         auto tx = client->StartTransaction();
-        tx->Set("//testing/qux", "gg");
+        tx->Set(workingDir + "/qux", "gg");
 
         auto batchRequest = client->CreateBatchRequest();
-        auto fooRes = batchRequest->Get("//testing/foo", TGetOptions());
-        auto barRes = batchRequest->Get("//testing/bar", TGetOptions());
-        auto quxRes = batchRequest->Get("//testing/qux", TGetOptions());
-        auto quxTxRes = batchRequest->WithTransaction(tx).Get("//testing/qux", TGetOptions());
-        auto fooAccountRes = batchRequest->Get("//testing/foo",
+        auto fooRes = batchRequest->Get(workingDir + "/foo", TGetOptions());
+        auto barRes = batchRequest->Get(workingDir + "/bar", TGetOptions());
+        auto quxRes = batchRequest->Get(workingDir + "/qux", TGetOptions());
+        auto quxTxRes = batchRequest->WithTransaction(tx).Get(workingDir + "/qux", TGetOptions());
+        auto fooAccountRes = batchRequest->Get(workingDir + "/foo",
             TGetOptions().AttributeFilter(TAttributeFilter().AddAttribute("account")));
 
         batchRequest->ExecuteBatch();
@@ -107,15 +109,17 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
 
     Y_UNIT_TEST(TestSet)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         auto tx = client->StartTransaction();
 
         auto batchRequest = client->CreateBatchRequest();
-        auto fooRes = batchRequest->Set("//testing/foo", 5);
-        auto barRes = batchRequest->Set("//testing/bar", "bar");
-        auto quxTxRes = batchRequest->WithTransaction(tx).Set("//testing/qux", "gg");
-        auto badRes = batchRequest->WithTransaction(tx).Set("//testing/unexisting/bad", "vzhukh");
+        auto fooRes = batchRequest->Set(workingDir + "/foo", 5);
+        auto barRes = batchRequest->Set(workingDir + "/bar", "bar");
+        auto quxTxRes = batchRequest->WithTransaction(tx).Set(workingDir + "/qux", "gg");
+        auto badRes = batchRequest->WithTransaction(tx).Set(workingDir + "/unexisting/bad", "vzhukh");
 
         batchRequest->ExecuteBatch();
 
@@ -124,29 +128,31 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         quxTxRes.GetValue();
         UNIT_ASSERT_EXCEPTION(badRes.GetValue(), TErrorResponse);
 
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/foo"), TNode(5));
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/bar"), TNode("bar"));
-        UNIT_ASSERT(!client->Exists("//testing/qux"));
-        UNIT_ASSERT_VALUES_EQUAL(tx->Get("//testing/qux"), TNode("gg"));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/foo"), TNode(5));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/bar"), TNode("bar"));
+        UNIT_ASSERT(!client->Exists(workingDir + "/qux"));
+        UNIT_ASSERT_VALUES_EQUAL(tx->Get(workingDir + "/qux"), TNode("gg"));
     }
 
     Y_UNIT_TEST(TestList)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto tx = client->StartTransaction();
 
-        client->Set("//testing/foo", 5);
-        client->Set("//testing/bar", "bar");
-        tx->Set("//testing/qux", "gg");
+        client->Set(workingDir + "/foo", 5);
+        client->Set(workingDir + "/bar", "bar");
+        tx->Set(workingDir + "/qux", "gg");
 
         auto batchRequest = client->CreateBatchRequest();
-        auto simpleRes = batchRequest->List("//testing");
-        auto txRes = batchRequest->WithTransaction(tx).List("//testing");
-        auto maxSizeRes = batchRequest->WithTransaction(tx).List("//testing",
+        auto simpleRes = batchRequest->List(workingDir + "");
+        auto txRes = batchRequest->WithTransaction(tx).List(workingDir + "");
+        auto maxSizeRes = batchRequest->WithTransaction(tx).List(workingDir + "",
             TListOptions().MaxSize(1));
-        auto attributeFilterRes = batchRequest->WithTransaction(tx).List("//testing",
+        auto attributeFilterRes = batchRequest->WithTransaction(tx).List(workingDir + "",
             TListOptions().AttributeFilter(TAttributeFilter().AddAttribute("account")));
-        auto badRes = batchRequest->List("//testing/missing-dir");
+        auto badRes = batchRequest->List(workingDir + "/missing-dir");
         batchRequest->ExecuteBatch();
 
         UNIT_ASSERT_VALUES_EQUAL(
@@ -168,17 +174,19 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
 
     Y_UNIT_TEST(TestExists)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto tx = client->StartTransaction();
 
-        client->Set("//testing/foo", 5);
-        tx->Set("//testing/qux", "gg");
+        client->Set(workingDir + "/foo", 5);
+        tx->Set(workingDir + "/qux", "gg");
 
         auto batchRequest = client->CreateBatchRequest();
-        auto fooRes = batchRequest->Exists("//testing/foo");
-        auto badRes = batchRequest->Exists("//testing/bad-unexisting-node");
-        auto quxRes = batchRequest->Exists("//testing/qux");
-        auto quxTxRes = batchRequest->WithTransaction(tx).Exists("//testing/qux");
+        auto fooRes = batchRequest->Exists(workingDir + "/foo");
+        auto badRes = batchRequest->Exists(workingDir + "/bad-unexisting-node");
+        auto quxRes = batchRequest->Exists(workingDir + "/qux");
+        auto quxTxRes = batchRequest->WithTransaction(tx).Exists(workingDir + "/qux");
         batchRequest->ExecuteBatch();
 
         UNIT_ASSERT_VALUES_EQUAL(fooRes.GetValue(), true);
@@ -191,38 +199,40 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
     {
         TZeroWaitLockPollIntervalGuard g;
 
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto tx = client->StartTransaction();
         auto otherTx = client->StartTransaction();
-        client->Set("//testing/exclusive", 5);
-        client->Set("//testing/shared", 5);
-        client->Set("//testing/snapshot", 5);
-        client->Set("//testing/locked", 5);
-        otherTx->Lock("//testing/locked", NYT::ELockMode::LM_EXCLUSIVE);
+        client->Set(workingDir + "/exclusive", 5);
+        client->Set(workingDir + "/shared", 5);
+        client->Set(workingDir + "/snapshot", 5);
+        client->Set(workingDir + "/locked", 5);
+        otherTx->Lock(workingDir + "/locked", NYT::ELockMode::LM_EXCLUSIVE);
 
-        client->Create("//testing/dir/child", NYT::ENodeType::NT_MAP, NYT::TCreateOptions().Recursive(true));
+        client->Create(workingDir + "/dir/child", NYT::ENodeType::NT_MAP, NYT::TCreateOptions().Recursive(true));
 
-        client->Create("//testing/foo", NYT::ENodeType::NT_TABLE);
-        client->Set("//testing/foo/@attr", 42);
+        client->Create(workingDir + "/foo", NYT::ENodeType::NT_TABLE);
+        client->Set(workingDir + "/foo/@attr", 42);
 
 
         auto batchRequest = client->CreateBatchRequest();
-        auto badLockRes = batchRequest->Lock("//testing/foo", NYT::ELockMode::LM_SHARED);
-        auto exclusiveLockRes = batchRequest->WithTransaction(tx).Lock("//testing/exclusive", NYT::ELockMode::LM_EXCLUSIVE);
-        auto sharedLockRes = batchRequest->WithTransaction(tx).Lock("//testing/shared", NYT::ELockMode::LM_SHARED);
-        auto snapshotLockRes = batchRequest->WithTransaction(tx).Lock("//testing/snapshot", NYT::ELockMode::LM_SNAPSHOT);
+        auto badLockRes = batchRequest->Lock(workingDir + "/foo", NYT::ELockMode::LM_SHARED);
+        auto exclusiveLockRes = batchRequest->WithTransaction(tx).Lock(workingDir + "/exclusive", NYT::ELockMode::LM_EXCLUSIVE);
+        auto sharedLockRes = batchRequest->WithTransaction(tx).Lock(workingDir + "/shared", NYT::ELockMode::LM_SHARED);
+        auto snapshotLockRes = batchRequest->WithTransaction(tx).Lock(workingDir + "/snapshot", NYT::ELockMode::LM_SNAPSHOT);
 
         auto childLockRes = batchRequest->WithTransaction(tx).Lock(
-            "//testing/dir",
+            workingDir + "/dir",
             NYT::ELockMode::LM_SHARED,
             NYT::TLockOptions().ChildKey("child"));
         auto attributeLockRes = batchRequest->WithTransaction(tx).Lock(
-            "//testing/foo",
+            workingDir + "/foo",
             NYT::ELockMode::LM_SHARED,
             NYT::TLockOptions().AttributeKey("attr"));
 
         auto waitableLockRes = batchRequest->WithTransaction(tx).Lock(
-            "//testing/locked",
+            workingDir + "/locked",
             NYT::ELockMode::LM_EXCLUSIVE,
             NYT::TLockOptions().Waitable(true));
 
@@ -270,27 +280,29 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
     {
         TZeroWaitLockPollIntervalGuard g;
 
-        auto client = CreateTestClient();
-        client->Set("//testing/one", 1);
-        client->Set("//testing/two", 2);
-        client->Set("//testing/three", 3);
-        client->Set("//testing/four", 4);
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        client->Set(workingDir + "/one", 1);
+        client->Set(workingDir + "/two", 2);
+        client->Set(workingDir + "/three", 3);
+        client->Set(workingDir + "/four", 4);
 
         auto tx = client->StartTransaction();
         auto otherTx1 = client->StartTransaction();
         auto otherTx2 = client->StartTransaction();
 
-        otherTx1->Lock("//testing/one", LM_EXCLUSIVE);
-        otherTx1->Lock("//testing/three", LM_EXCLUSIVE);
+        otherTx1->Lock(workingDir + "/one", LM_EXCLUSIVE);
+        otherTx1->Lock(workingDir + "/three", LM_EXCLUSIVE);
 
-        otherTx2->Lock("//testing/two", LM_EXCLUSIVE);
-        otherTx2->Lock("//testing/four", LM_EXCLUSIVE);
+        otherTx2->Lock(workingDir + "/two", LM_EXCLUSIVE);
+        otherTx2->Lock(workingDir + "/four", LM_EXCLUSIVE);
 
         auto batchRequest = client->CreateBatchRequest();
-        auto res1 = batchRequest->WithTransaction(tx).Lock("//testing/one", LM_EXCLUSIVE, TLockOptions().Waitable(true));
-        auto res2 = batchRequest->WithTransaction(tx).Lock("//testing/two", LM_EXCLUSIVE, TLockOptions().Waitable(true));
-        auto res3 = batchRequest->WithTransaction(tx).Lock("//testing/three", LM_EXCLUSIVE, TLockOptions().Waitable(true));
-        auto res4 = batchRequest->WithTransaction(tx).Lock("//testing/four", LM_EXCLUSIVE, TLockOptions().Waitable(true));
+        auto res1 = batchRequest->WithTransaction(tx).Lock(workingDir + "/one", LM_EXCLUSIVE, TLockOptions().Waitable(true));
+        auto res2 = batchRequest->WithTransaction(tx).Lock(workingDir + "/two", LM_EXCLUSIVE, TLockOptions().Waitable(true));
+        auto res3 = batchRequest->WithTransaction(tx).Lock(workingDir + "/three", LM_EXCLUSIVE, TLockOptions().Waitable(true));
+        auto res4 = batchRequest->WithTransaction(tx).Lock(workingDir + "/four", LM_EXCLUSIVE, TLockOptions().Waitable(true));
         batchRequest->ExecuteBatch();
 
         UNIT_ASSERT(!res1.GetValue()->GetAcquiredFuture().Wait(TDuration::MilliSeconds(500)));
@@ -313,27 +325,29 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
 
     Y_UNIT_TEST(TestCreate)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto tx = client->StartTransaction();
 
-        auto existingNodeId = client->Create("//testing/existing_node", ENodeType::NT_MAP);
+        auto existingNodeId = client->Create(workingDir + "/existing_node", ENodeType::NT_MAP);
 
         auto batchRequest = client->CreateBatchRequest();
-        auto mapNodeRes = batchRequest->Create("//testing/map_node", ENodeType::NT_MAP);
-        auto tableNodeRes = batchRequest->Create("//testing/table_node", ENodeType::NT_TABLE);
-        auto txTableNodeRes = batchRequest->WithTransaction(tx).Create("//testing/tx_table_node", ENodeType::NT_TABLE);
+        auto mapNodeRes = batchRequest->Create(workingDir + "/map_node", ENodeType::NT_MAP);
+        auto tableNodeRes = batchRequest->Create(workingDir + "/table_node", ENodeType::NT_TABLE);
+        auto txTableNodeRes = batchRequest->WithTransaction(tx).Create(workingDir + "/tx_table_node", ENodeType::NT_TABLE);
         auto recursiveMapRes = batchRequest->Create(
-            "//testing/recursive_map_node/table",
+            workingDir + "/recursive_map_node/table",
             ENodeType::NT_TABLE,
             TCreateOptions().Recursive(true));
         auto ignoreExistingRes = batchRequest->Create(
-            "//testing/existing_node",
+            workingDir + "/existing_node",
             ENodeType::NT_MAP,
             TCreateOptions().IgnoreExisting(true));
-        auto nodeWithAttrRes = batchRequest->Create("//testing/node_with_attr", ENodeType::NT_TABLE,
+        auto nodeWithAttrRes = batchRequest->Create(workingDir + "/node_with_attr", ENodeType::NT_TABLE,
             TCreateOptions().Attributes(TNode()("attr_name", "attr_value")));
 
-        auto badRes = batchRequest->Create("//testing/unexisting_map_node/table", ENodeType::NT_TABLE);
+        auto badRes = batchRequest->Create(workingDir + "/unexisting_map_node/table", ENodeType::NT_TABLE);
 
         batchRequest->ExecuteBatch();
 
@@ -344,56 +358,58 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
             UNIT_ASSERT_VALUES_EQUAL(actualType, expectedType);
         };
 
-        checkNode(client, "//testing/map_node", "map_node", mapNodeRes.GetValue());
-        checkNode(client, "//testing/table_node", "table", tableNodeRes.GetValue());
-        checkNode(tx, "//testing/tx_table_node", "table", txTableNodeRes.GetValue());
+        checkNode(client, workingDir + "/map_node", "map_node", mapNodeRes.GetValue());
+        checkNode(client, workingDir + "/table_node", "table", tableNodeRes.GetValue());
+        checkNode(tx, workingDir + "/tx_table_node", "table", txTableNodeRes.GetValue());
 
-        UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/tx_table_node"), false);
-        checkNode(client, "//testing/recursive_map_node/table", "table", recursiveMapRes.GetValue());
+        UNIT_ASSERT_VALUES_EQUAL(client->Exists(workingDir + "/tx_table_node"), false);
+        checkNode(client, workingDir + "/recursive_map_node/table", "table", recursiveMapRes.GetValue());
 
         UNIT_ASSERT_VALUES_EQUAL(existingNodeId, ignoreExistingRes.GetValue());
 
-        checkNode(client, "//testing/node_with_attr", "table", nodeWithAttrRes.GetValue());
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/node_with_attr/@attr_name"), TNode("attr_value"));
+        checkNode(client, workingDir + "/node_with_attr", "table", nodeWithAttrRes.GetValue());
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/node_with_attr/@attr_name"), TNode("attr_value"));
 
         UNIT_ASSERT_EXCEPTION(badRes.GetValue(), TErrorResponse);
     }
 
     Y_UNIT_TEST(TestRemove) {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto tx = client->StartTransaction();
 
-        client->Set("//testing/one", 1);
-        tx->Set("//testing/tx_one", 1);
-        tx->Set("//testing/tx_two", 2);
-        client->Create("//testing/dir1/table", ENodeType::NT_TABLE, TCreateOptions().Recursive(true));
-        client->Create("//testing/dir2/table", ENodeType::NT_TABLE, TCreateOptions().Recursive(true));
+        client->Set(workingDir + "/one", 1);
+        tx->Set(workingDir + "/tx_one", 1);
+        tx->Set(workingDir + "/tx_two", 2);
+        client->Create(workingDir + "/dir1/table", ENodeType::NT_TABLE, TCreateOptions().Recursive(true));
+        client->Create(workingDir + "/dir2/table", ENodeType::NT_TABLE, TCreateOptions().Recursive(true));
 
         auto batchRequest = client->CreateBatchRequest();
-        auto oneRes = batchRequest->Remove("//testing/one");
-        auto noTxRes = batchRequest->Remove("//testing/tx_one");
-        auto txRes = batchRequest->WithTransaction(tx).Remove("//testing/tx_two");
-        auto nonRecursiveRes = batchRequest->Remove("//testing/dir1");
-        auto recursiveRes = batchRequest->Remove("//testing/dir2", TRemoveOptions().Recursive(true));
-        auto unexistingRes = batchRequest->Remove("//testing/unexisting-path");
-        auto forceRes = batchRequest->Remove("//testing/unexisting-path", TRemoveOptions().Force(true));
+        auto oneRes = batchRequest->Remove(workingDir + "/one");
+        auto noTxRes = batchRequest->Remove(workingDir + "/tx_one");
+        auto txRes = batchRequest->WithTransaction(tx).Remove(workingDir + "/tx_two");
+        auto nonRecursiveRes = batchRequest->Remove(workingDir + "/dir1");
+        auto recursiveRes = batchRequest->Remove(workingDir + "/dir2", TRemoveOptions().Recursive(true));
+        auto unexistingRes = batchRequest->Remove(workingDir + "/unexisting-path");
+        auto forceRes = batchRequest->Remove(workingDir + "/unexisting-path", TRemoveOptions().Force(true));
 
         batchRequest->ExecuteBatch();
 
         oneRes.GetValue(); // check no exception
-        UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/one"), false);
+        UNIT_ASSERT_VALUES_EQUAL(client->Exists(workingDir + "/one"), false);
 
         UNIT_ASSERT_EXCEPTION(noTxRes.GetValue(), TErrorResponse);
-        UNIT_ASSERT_VALUES_EQUAL(tx->Exists("//testing/tx_one"), true);
+        UNIT_ASSERT_VALUES_EQUAL(tx->Exists(workingDir + "/tx_one"), true);
 
         txRes.GetValue();
-        UNIT_ASSERT_VALUES_EQUAL(tx->Exists("//testing/tx_two"), false);
+        UNIT_ASSERT_VALUES_EQUAL(tx->Exists(workingDir + "/tx_two"), false);
 
         UNIT_ASSERT_EXCEPTION(nonRecursiveRes.GetValue(), TErrorResponse);
-        UNIT_ASSERT_VALUES_EQUAL(tx->Exists("//testing/dir1"), true);
+        UNIT_ASSERT_VALUES_EQUAL(tx->Exists(workingDir + "/dir1"), true);
 
         recursiveRes.GetValue();
-        UNIT_ASSERT_VALUES_EQUAL(tx->Exists("//testing/dir2"), false);
+        UNIT_ASSERT_VALUES_EQUAL(tx->Exists(workingDir + "/dir2"), false);
 
         UNIT_ASSERT_EXCEPTION(unexistingRes.GetValue(), TErrorResponse);
 
@@ -414,61 +430,63 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         const TMethod& copyMoveOp,
         const TCheckCopyMoveFunc& checkCopyMove)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto tx = client->StartTransaction();
 
-        client->Set("//testing/simple", "simple value");
-        tx->Set("//testing/tx_will_not_move", "tx_will_not_move value");
-        tx->Set("//testing/tx_simple", "tx_simple value");
-        client->Set("//testing/recursive_error", "recursive_error value");
-        client->Set("//testing/recursive", "recursive value");
-        client->Set("//testing/force_error", "force_error value");
-        client->Set("//testing/moved_force_error", "moved_force_error value");
-        client->Set("//testing/force", "force value");
-        client->Set("//testing/moved_force", "moved_force value");
+        client->Set(workingDir + "/simple", "simple value");
+        tx->Set(workingDir + "/tx_will_not_move", "tx_will_not_move value");
+        tx->Set(workingDir + "/tx_simple", "tx_simple value");
+        client->Set(workingDir + "/recursive_error", "recursive_error value");
+        client->Set(workingDir + "/recursive", "recursive value");
+        client->Set(workingDir + "/force_error", "force_error value");
+        client->Set(workingDir + "/moved_force_error", "moved_force_error value");
+        client->Set(workingDir + "/force", "force value");
+        client->Set(workingDir + "/moved_force", "moved_force value");
 
         auto batchRequest = client->CreateBatchRequest();
-        auto simpleRes = (batchRequest.Get()->*copyMoveOp)("//testing/simple", "//testing/moved_simple", TOptions());
-        auto noTxRes = (batchRequest.Get()->*copyMoveOp)("//testing/tx_will_not_move", "//testing/moved_tx_will_not_move", TOptions());
-        auto txSimpleRes = (batchRequest->WithTransaction(tx).*copyMoveOp)("//testing/tx_simple", "//testing/moved_tx_simple", TOptions());
+        auto simpleRes = (batchRequest.Get()->*copyMoveOp)(workingDir + "/simple", workingDir + "/moved_simple", TOptions());
+        auto noTxRes = (batchRequest.Get()->*copyMoveOp)(workingDir + "/tx_will_not_move", workingDir + "/moved_tx_will_not_move", TOptions());
+        auto txSimpleRes = (batchRequest->WithTransaction(tx).*copyMoveOp)(workingDir + "/tx_simple", workingDir + "/moved_tx_simple", TOptions());
         auto recursiveErrorRes = (batchRequest.Get()->*copyMoveOp)(
-            "//testing/recursive_error",
-            "//testing/recursive_error_dir/moved_recursive_error",
+            workingDir + "/recursive_error",
+            workingDir + "/recursive_error_dir/moved_recursive_error",
             TOptions());
         auto recursiveRes = (batchRequest.Get()->*copyMoveOp)(
-            "//testing/recursive",
-            "//testing/recursive_dir/moved_recursive",
+            workingDir + "/recursive",
+            workingDir + "/recursive_dir/moved_recursive",
             TOptions().Recursive(true));
-        auto forceErrorRes = (batchRequest.Get()->*copyMoveOp)("//testing/force_error", "//testing/moved_force_error", TOptions());
-        auto forceRes = (batchRequest.Get()->*copyMoveOp)("//testing/force", "//testing/moved_force", TOptions().Force(true));
+        auto forceErrorRes = (batchRequest.Get()->*copyMoveOp)(workingDir + "/force_error", workingDir + "/moved_force_error", TOptions());
+        auto forceRes = (batchRequest.Get()->*copyMoveOp)(workingDir + "/force", workingDir + "/moved_force", TOptions().Force(true));
 
         batchRequest->ExecuteBatch();
 
-        checkCopyMove(client, "//testing/simple", "//testing/moved_simple", "simple value", simpleRes.GetValue());
+        checkCopyMove(client, workingDir + "/simple", workingDir + "/moved_simple", "simple value", simpleRes.GetValue());
 
         UNIT_ASSERT_EXCEPTION(noTxRes.GetValue(), TErrorResponse);
-        UNIT_ASSERT_VALUES_EQUAL(tx->Get("//testing/tx_will_not_move").AsString(), "tx_will_not_move value");
+        UNIT_ASSERT_VALUES_EQUAL(tx->Get(workingDir + "/tx_will_not_move").AsString(), "tx_will_not_move value");
 
-        checkCopyMove(tx, "//testing/tx_simple", "//testing/moved_tx_simple", "tx_simple value", txSimpleRes.GetValue());
+        checkCopyMove(tx, workingDir + "/tx_simple", workingDir + "/moved_tx_simple", "tx_simple value", txSimpleRes.GetValue());
 
         UNIT_ASSERT_EXCEPTION(recursiveErrorRes.GetValue(), TErrorResponse);
-        UNIT_ASSERT_VALUES_EQUAL(tx->Get("//testing/recursive_error").AsString(), "recursive_error value");
+        UNIT_ASSERT_VALUES_EQUAL(tx->Get(workingDir + "/recursive_error").AsString(), "recursive_error value");
 
         checkCopyMove(
             client,
-            "//testing/recursive",
-            "//testing/recursive_dir/moved_recursive",
+            workingDir + "/recursive",
+            workingDir + "/recursive_dir/moved_recursive",
             "recursive value",
             recursiveRes.GetValue());
 
         UNIT_ASSERT_EXCEPTION(forceErrorRes.GetValue(), TErrorResponse);
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/force_error").AsString(), "force_error value");
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/moved_force_error").AsString(), "moved_force_error value");
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/force_error").AsString(), "force_error value");
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/moved_force_error").AsString(), "moved_force_error value");
 
         checkCopyMove(
             client,
-            "//testing/force",
-            "//testing/moved_force",
+            workingDir + "/force",
+            workingDir + "/moved_force",
             "force value",
             forceRes.GetValue());
     }
@@ -505,27 +523,29 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
     }
 
     Y_UNIT_TEST(TestLink) {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto tx = client->StartTransaction();
 
-        client->Set("//testing/simple", 1);
-        client->Link("//testing/simple", "//testing/existing_link1");
-        client->Link("//testing/simple", "//testing/existing_link2");
-        tx->Set("//testing/tx_simple", 1);
+        client->Set(workingDir + "/simple", 1);
+        client->Link(workingDir + "/simple", workingDir + "/existing_link1");
+        client->Link(workingDir + "/simple", workingDir + "/existing_link2");
+        tx->Set(workingDir + "/tx_simple", 1);
 
         auto batchRequest = client->CreateBatchRequest();
-        auto simpleRes = batchRequest->Link("//testing/simple", "//testing/simple_link");
-        auto txErrorRes = batchRequest->Link("//testing/tx_simple", "//testing/tx_simple_missing_link");
-        auto txRes = batchRequest->WithTransaction(tx).Link("//testing/tx_simple", "//testing/tx_simple_link");
-        auto attributesRes = batchRequest->Link("//testing/simple", "//testing/simple_link_with_attributes",
+        auto simpleRes = batchRequest->Link(workingDir + "/simple", workingDir + "/simple_link");
+        auto txErrorRes = batchRequest->Link(workingDir + "/tx_simple", workingDir + "/tx_simple_missing_link");
+        auto txRes = batchRequest->WithTransaction(tx).Link(workingDir + "/tx_simple", workingDir + "/tx_simple_link");
+        auto attributesRes = batchRequest->Link(workingDir + "/simple", workingDir + "/simple_link_with_attributes",
             TLinkOptions().Attributes(
                 TNode()("attr_name", "attr_value")));
-        auto noRecursiveRes = batchRequest->Link("//testing/simple", "//testing/missing_dir/simple_link");
-        auto recursiveRes = batchRequest->Link("//testing/simple", "//testing/dir/simple_link",
+        auto noRecursiveRes = batchRequest->Link(workingDir + "/simple", workingDir + "/missing_dir/simple_link");
+        auto recursiveRes = batchRequest->Link(workingDir + "/simple", workingDir + "/dir/simple_link",
             TLinkOptions().Recursive(true));
-        auto noIgnoreExistingRes = batchRequest->Link("//testing/simple", "//testing/existing_link1");
+        auto noIgnoreExistingRes = batchRequest->Link(workingDir + "/simple", workingDir + "/existing_link1");
         auto ignoreExistingRes = batchRequest->Link(
-            "//testing/simple", "//testing/existing_link2",
+            workingDir + "/simple", workingDir + "/existing_link2",
             TLinkOptions().IgnoreExisting(true));
 
         batchRequest->ExecuteBatch();
@@ -540,30 +560,32 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
             UNIT_ASSERT_VALUES_EQUAL(client->Get(linkPath + "&/@id").AsString(), GetGuidAsString(nodeId));
         };
 
-        checkLink(client, "//testing/simple", "//testing/simple_link", simpleRes.GetValue());
+        checkLink(client, workingDir + "/simple", workingDir + "/simple_link", simpleRes.GetValue());
 
         UNIT_ASSERT_EXCEPTION(txErrorRes.GetValue(), TErrorResponse);
-        UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/tx_simple_missing_link"), false);
+        UNIT_ASSERT_VALUES_EQUAL(client->Exists(workingDir + "/tx_simple_missing_link"), false);
 
-        checkLink(tx, "//testing/tx_simple", "//testing/tx_simple_link", txRes.GetValue());
+        checkLink(tx, workingDir + "/tx_simple", workingDir + "/tx_simple_link", txRes.GetValue());
 
-        checkLink(client, "//testing/simple", "//testing/simple_link_with_attributes", attributesRes.GetValue());
+        checkLink(client, workingDir + "/simple", workingDir + "/simple_link_with_attributes", attributesRes.GetValue());
 
         UNIT_ASSERT_VALUES_EQUAL(
-            client->Get("//testing/simple_link_with_attributes&/@attr_name").AsString(),
+            client->Get(workingDir + "/simple_link_with_attributes&/@attr_name").AsString(),
             "attr_value");
 
         UNIT_ASSERT_EXCEPTION(noRecursiveRes.GetValue(), TErrorResponse);
-        UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/missing_dir"), false);
+        UNIT_ASSERT_VALUES_EQUAL(client->Exists(workingDir + "/missing_dir"), false);
 
-        checkLink(client, "//testing/simple", "//testing/dir/simple_link", recursiveRes.GetValue());
+        checkLink(client, workingDir + "/simple", workingDir + "/dir/simple_link", recursiveRes.GetValue());
 
         UNIT_ASSERT_EXCEPTION(noIgnoreExistingRes.GetValue(), TErrorResponse);
         ignoreExistingRes.GetValue(); // check it doesn't throw
     }
 
     Y_UNIT_TEST(TestCanonizeYPath) {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         auto batchRequest = client->CreateBatchRequest();
         auto simpleRes = batchRequest->CanonizeYPath(TRichYPath("//foo/bar"));
@@ -584,12 +606,14 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
     }
 
     Y_UNIT_TEST(TestYtPrefix) {
-        TYtPrefixGuard guard("//testing/");
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        TYtPrefixGuard guard(workingDir + "/");
         auto tx = client->StartTransaction();
 
-        client->Set("//testing/four", 4);
-        client->Create("//testing/dir/child", NYT::ENodeType::NT_MAP, TCreateOptions().Recursive(true));
+        client->Set(workingDir + "/four", 4);
+        client->Create(workingDir + "/dir/child", NYT::ENodeType::NT_MAP, TCreateOptions().Recursive(true));
 
         auto batchRequest = client->CreateBatchRequest();
         auto getRes = batchRequest->Get("four");
@@ -602,31 +626,35 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
 
         UNIT_ASSERT_VALUES_EQUAL(getRes.GetValue(), TNode(4));
         setRes.GetValue(); // check no exception here
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/two"), TNode(5));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/two"), TNode(5));
         UNIT_ASSERT_VALUES_EQUAL(listRes.GetValue(), TVector<TNode>({"child"}));
         lockRes.GetValue(); // check no exception here
         UNIT_ASSERT_VALUES_EQUAL(existsRes.GetValue(), true);
     }
 
     Y_UNIT_TEST(TestRequestReset) {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto batchRequest = client->CreateBatchRequest();
-        auto getRes = batchRequest->Create("//testing/foo", ENodeType::NT_MAP);
+        auto getRes = batchRequest->Create(workingDir + "/foo", ENodeType::NT_MAP);
         batchRequest->ExecuteBatch();
 
         getRes.GetValue(); // no exception
 
-        UNIT_ASSERT_EXCEPTION(batchRequest->Get("//testing/foo"), yexception);
+        UNIT_ASSERT_EXCEPTION(batchRequest->Get(workingDir + "/foo"), yexception);
         UNIT_ASSERT_EXCEPTION(batchRequest->ExecuteBatch(), yexception);
     }
 
     Y_UNIT_TEST(TestBatchPartMaxSize) {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         {
             auto batchRequest = client->CreateBatchRequest();
             for (size_t i = 0; i < 100; ++i) {
                 TStringBuilder path;
-                path << "//testing/foo" << i;
+                path << workingDir + "/foo" << i;
                 batchRequest->Set(path, i);
             }
             batchRequest->ExecuteBatch();
@@ -636,7 +664,7 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         auto batchRequest = client->CreateBatchRequest();
         for (size_t i = 0; i < 100; ++i) {
             TStringBuilder path;
-            path << "//testing/foo" << i;
+            path << workingDir + "/foo" << i;
             results.push_back(batchRequest->Get(path));
         }
         batchRequest->ExecuteBatch(TExecuteBatchOptions().Concurrency(5).BatchPartMaxSize(7));
@@ -647,16 +675,18 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
     }
 
     Y_UNIT_TEST(TestBigRequest) {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         auto batchRequest = client->CreateBatchRequest();
         const TString aaa(32 * 1024, 'a');
         const TString bbb(32 * 1024, 'b');
         const TString ccc(32 * 1024, 'c');
         const TString ddd(32 * 1024, 'd');
-        auto resA = batchRequest->Set("//testing/aaa", aaa);
-        auto resB = batchRequest->Set("//testing/bbb", bbb);
-        auto resC = batchRequest->Set("//testing/ccc", ccc);
-        auto resD = batchRequest->Set("//testing/ddd", ddd);
+        auto resA = batchRequest->Set(workingDir + "/aaa", aaa);
+        auto resB = batchRequest->Set(workingDir + "/bbb", bbb);
+        auto resC = batchRequest->Set(workingDir + "/ccc", ccc);
+        auto resD = batchRequest->Set(workingDir + "/ddd", ddd);
         batchRequest->ExecuteBatch();
 
         // Check no exceptions.
@@ -665,23 +695,25 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         resC.GetValue();
         resD.GetValue();
 
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/aaa"), TNode(aaa));
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/bbb"), TNode(bbb));
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/ccc"), TNode(ccc));
-        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/ddd"), TNode(ddd));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/aaa"), TNode(aaa));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/bbb"), TNode(bbb));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/ccc"), TNode(ccc));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/ddd"), TNode(ddd));
     }
 
     Y_UNIT_TEST(TestBigLoad) {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
         TLowerRequestLimit lrl(client, 100);
         TConfig::Get()->RetryInterval = TDuration();
         TConfig::Get()->RateLimitExceededRetryInterval = TDuration();
 
-        client->Set("//testing/node", 5);
+        client->Set(workingDir + "/node", 5);
         auto batchRequest = client->CreateBatchRequest();
         TVector<NThreading::TFuture<TNode>> results;
         for (size_t i = 0; i != 500; ++i) {
-            results.push_back(batchRequest->Get("//testing/node"));
+            results.push_back(batchRequest->Get(workingDir + "/node"));
         }
         batchRequest->ExecuteBatch(TExecuteBatchOptions().Concurrency(500));
 
@@ -691,16 +723,18 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
     }
 
     Y_UNIT_TEST(TestTransactionGet) {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         auto tx = client->StartTransaction();
 
         auto batch = tx->CreateBatchRequest();
-        batch->Set("//testing/foo", 42);
+        batch->Set(workingDir + "/foo", 42);
         batch->ExecuteBatch();
 
-        UNIT_ASSERT_VALUES_EQUAL(tx->Get("//testing/foo"), 42);
-        UNIT_ASSERT_EXCEPTION(client->Get("//testing/foo"), TErrorResponse);
+        UNIT_ASSERT_VALUES_EQUAL(tx->Get(workingDir + "/foo"), 42);
+        UNIT_ASSERT_EXCEPTION(client->Get(workingDir + "/foo"), TErrorResponse);
 
     }
 }

@@ -14,7 +14,9 @@ Y_UNIT_TEST_SUITE(WhoAmI)
 {
     Y_UNIT_TEST(Test)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
         auto authInfo = client->WhoAmI();
         UNIT_ASSERT_EQUAL(authInfo.Login, "root");
