@@ -583,7 +583,7 @@ def run_operation(spec_builder, sync=True, enable_optimizations=False, client=No
     finalizer = spec_builder.get_finalizer(spec, client=client)
     finalization_actions.append(finalizer)
 
-    retry_actions = [spec_builder.get_toucher()]
+    retry_actions = [spec_builder.get_toucher(client=client)]
 
     if len(operations_list) > 1 and not sync:
         raise YtError(
