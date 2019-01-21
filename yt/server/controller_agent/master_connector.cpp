@@ -9,7 +9,7 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 #include <yt/server/scheduler/helpers.h>
 
 #include <yt/server/lib/misc/update_executor.h>

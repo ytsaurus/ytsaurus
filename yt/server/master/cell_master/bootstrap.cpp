@@ -20,7 +20,7 @@
 #include <yt/server/lib/hive/transaction_manager.h>
 #include <yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/server/lib/hive/transaction_participant_provider.h>
-#include <yt/server/lib/hive/cell_directory_synchronizer.h>
+#include <yt/server/master/hive/cell_directory_synchronizer.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 #include <yt/server/lib/hydra/file_snapshot_store.h>
@@ -40,7 +40,7 @@
 #include <yt/server/master/object_server/object_service.h>
 #include <yt/server/master/object_server/sys_node_type_handler.h>
 
-#include <yt/server/lib/orchid/cypress_integration.h>
+#include <yt/server/master/orchid/cypress_integration.h>
 
 #include <yt/server/master/security_server/cypress_integration.h>
 #include <yt/server/master/security_server/security_manager.h>

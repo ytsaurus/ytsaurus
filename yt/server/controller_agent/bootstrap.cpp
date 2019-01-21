@@ -5,7 +5,7 @@
 #include "controller_agent.h"
 #include "private.h"
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/server/lib/admin/admin_service.h>
 

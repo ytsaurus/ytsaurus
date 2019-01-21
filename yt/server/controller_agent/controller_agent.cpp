@@ -9,11 +9,11 @@
 #include "memory_tag_queue.h"
 #include "bootstrap.h"
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 #include <yt/server/scheduler/message_queue.h>
 #include <yt/server/scheduler/exec_node.h>
 #include <yt/server/scheduler/helpers.h>
-#include <yt/server/scheduler/controller_agent_tracker_service_proxy.h>
+#include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 
 #include <yt/client/api/transaction.h>
 

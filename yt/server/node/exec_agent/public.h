@@ -1,8 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/job_tracker_client/public.h>
-
-#include <yt/core/misc/public.h>
+#include <yt/server/lib/exec_agent/public.h>
 
 #include <yt/core/misc/optional.h>
 
@@ -17,12 +15,6 @@ class TJobProxyResources;
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using NJobTrackerClient::TJobId;
-using NJobTrackerClient::TOperationId;
-using NJobTrackerClient::EJobType;
-using NJobTrackerClient::EJobState;
-using NJobTrackerClient::EJobPhase;
 
 struct TUserSandboxOptions
 {
@@ -49,21 +41,11 @@ DEFINE_ENUM(EErrorCode,
     ((ArtifactDownloadFailed)        (1113))
 );
 
-DEFINE_ENUM(ESandboxKind,
-    (User)
-    (Udf)
-    (Home)
-    (Pipes)
-    (Tmp)
-);
-
 DEFINE_ENUM(EJobEnvironmentType,
     (Simple)
     (Cgroups)
     (Porto)
 );
-
-extern const TEnumIndexedVector<TString, ESandboxKind> SandboxDirectoryNames;
 
 extern const TString ProxyConfigFileName;
 

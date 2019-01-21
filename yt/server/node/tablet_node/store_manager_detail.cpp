@@ -7,7 +7,7 @@
 #include "transaction.h"
 #include "config.h"
 
-#include <yt/server/node/tablet_node/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 

@@ -1,15 +1,6 @@
 #pragma once
 
-#include <yt/server/lib/hive/public.h>
-
-#include <yt/server/lib/hydra/public.h>
-
-#include <yt/ytlib/object_client/public.h>
-
-#include <yt/ytlib/transaction_client/public.h>
-
-#include <yt/core/misc/public.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/server/lib/transaction_server/public.h>
 
 namespace NYT::NTransactionServer {
 
@@ -24,17 +15,6 @@ using TReqRegisterTransactionActions = NTransactionClient::NProto::TReqRegisterT
 using TRspRegisterTransactionActions = NTransactionClient::NProto::TRspRegisterTransactionActions;
 
 } // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NObjectClient::TTransactionId;
-using NObjectClient::NullTransactionId;
-
-using NTransactionClient::TTimestamp;
-using NTransactionClient::NullTimestamp;
-using NTransactionClient::TTransactionActionData;
-
-using NHiveServer::ETransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
 

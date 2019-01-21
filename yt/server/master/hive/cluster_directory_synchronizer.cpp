@@ -6,6 +6,8 @@
 
 #include <yt/core/ytree/ypath_client.h>
 
+#include <yt/server/lib/hive/config.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 

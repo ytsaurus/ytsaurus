@@ -2,7 +2,7 @@
 
 #include <yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/security_server/security_manager.pb.h>
+#include <yt/server/lib/security_server/proto/security_manager.pb.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>

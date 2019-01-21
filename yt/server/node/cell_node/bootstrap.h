@@ -2,17 +2,15 @@
 
 #include "public.h"
 
-#include <yt/server/master/chunk_server/public.h>
-
 #include <yt/server/node/exec_agent/public.h>
 
 #include <yt/server/node/data_node/public.h>
 
 #include <yt/server/node/job_agent/public.h>
 
-#include <yt/server/job_proxy/public.h>
-
 #include <yt/server/node/tablet_node/public.h>
+
+#include <yt/server/lib/job_proxy/public.h>
 
 #include <yt/ytlib/api/native/public.h>
 

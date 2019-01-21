@@ -4,7 +4,7 @@
 #include "helpers.h"
 
 #include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/scheduling_tag.h>
+#include <yt/server/lib/scheduler/scheduling_tag.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 

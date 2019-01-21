@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 

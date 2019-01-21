@@ -8,7 +8,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/server/node/tablet_node/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>

@@ -36,10 +36,10 @@
 #include <yt/server/lib/hydra/mutation.h>
 #include <yt/server/lib/hydra/mutation_context.h>
 
-#include <yt/server/node/tablet_node/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 #include <yt/server/node/tablet_node/transaction_manager.h>
 
-#include <yt/server/master/tablet_server/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>

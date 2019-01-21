@@ -1,9 +1,14 @@
 #include "scheduling_context_detail.h"
 #include "exec_node.h"
 #include "job.h"
-#include "config.h"
+
+#include <yt/server/lib/scheduler/config.h>
+
+// TODO(babenko): needed for TJobStartDescriptor; extract
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/client/object_client/helpers.h>
+
 #include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT::NScheduler {

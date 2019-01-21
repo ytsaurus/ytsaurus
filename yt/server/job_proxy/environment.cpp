@@ -553,7 +553,7 @@ public:
             instance->SetRoot(*RootFS_);
         }
 
-        TGpuManagerPtr manager = New<TGpuManager>();
+        auto manager = New<TGpuManager>();
         std::vector<TDevice> devices;
         for (const auto& device : manager->ListGpuDevices()) {
             if (std::find(GpuDevices_.begin(), GpuDevices_.end(), device) == GpuDevices_.end()) {

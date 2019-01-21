@@ -168,13 +168,15 @@ private:
         return rsp->path();
     }
 
-    TString DoWriteOperationControllerCoreDump(TOperationId operationId) {
+    TString DoWriteOperationControllerCoreDump(TOperationId operationId)
+    {
         auto address = GetControllerAgentAddressFromCypress(
             operationId,
             Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
         if (!address) {
-            THROW_ERROR_EXCEPTION("Cannot find the address of the controller agent for the operation %v", operationId);
+            THROW_ERROR_EXCEPTION("Cannot find the address of the controller agent for the operation %v",
+                operationId);
         }
 
         auto channel = Connection_->GetChannelFactory()->CreateChannel(*address);

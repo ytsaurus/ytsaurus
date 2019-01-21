@@ -1,0 +1,31 @@
+#pragma once
+
+#include <yt/ytlib/job_tracker_client/public.h>
+
+namespace NYT::NExecAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NJobTrackerClient::TJobId;
+using NJobTrackerClient::TOperationId;
+using NJobTrackerClient::EJobType;
+using NJobTrackerClient::EJobState;
+using NJobTrackerClient::EJobPhase;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESandboxKind,
+    (User)
+    (Udf)
+    (Home)
+    (Pipes)
+    (Tmp)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const TEnumIndexedVector<TString, ESandboxKind> SandboxDirectoryNames;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecAgent

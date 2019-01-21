@@ -14,7 +14,7 @@
 #include <yt/server/lib/hydra/hydra_manager.h>
 #include <yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/node/tablet_node/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/api/native/client.h>
 

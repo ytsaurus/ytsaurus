@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/server/master/cell_master/public.h>
 
 #include <yt/server/master/chunk_server/public.h>

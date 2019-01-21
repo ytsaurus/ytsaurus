@@ -6,7 +6,7 @@
 
 #include <yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/node/tablet_node/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 

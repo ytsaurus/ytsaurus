@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

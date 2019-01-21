@@ -16,7 +16,7 @@
 
 #include <yt/ytlib/event_log/public.h>
 
-#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
+#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/ytlib/scheduler/job.h>
 #include <yt/ytlib/scheduler/job_resources.h>

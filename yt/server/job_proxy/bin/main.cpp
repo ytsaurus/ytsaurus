@@ -3,7 +3,8 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
-#include <yt/server/job_proxy/config.h>
+#include <yt/server/lib/job_proxy/config.h>
+
 #include <yt/server/job_proxy/job_proxy.h>
 #include <yt/server/job_proxy/private.h>
 

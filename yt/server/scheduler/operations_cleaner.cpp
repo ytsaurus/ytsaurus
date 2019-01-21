@@ -1,9 +1,10 @@
 #include "private.h"
 #include "operations_cleaner.h"
-#include "config.h"
 #include "operation.h"
 #include "bootstrap.h"
 #include "helpers.h"
+
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 

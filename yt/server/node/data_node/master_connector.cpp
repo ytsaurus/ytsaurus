@@ -13,8 +13,6 @@
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
 
-#include <yt/server/master/chunk_server/public.h>
-
 #include <yt/server/node/data_node/journal_dispatcher.h>
 
 #include <yt/server/node/job_agent/job_controller.h>
@@ -634,7 +632,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     *request->mutable_statistics() = ComputeStatistics();
 
-    NChunkServer::TPerMediumIntArray chunkCounts{};
+    TPerMediumIntArray chunkCounts{};
 
     int storedChunkCount = 0;
     int cachedChunkCount = 0;

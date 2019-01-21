@@ -15,15 +15,15 @@ DECLARE_REFCOUNTED_CLASS(TDiskLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const char* ClusterMasterProgramName;
-extern const char* ClusterNodeProgramName;
-extern const char* ClusterSchedulerProgramName;
-extern const char* ExecProgramName;
-extern const char* JobProxyProgramName;
+extern const TString ClusterMasterProgramName;
+extern const TString ClusterNodeProgramName;
+extern const TString ClusterSchedulerProgramName;
+extern const TString ExecProgramName;
+extern const TString JobProxyProgramName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr char BanMessageAttributeName[] = "ban_message";
+extern const TString BanMessageAttributeName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

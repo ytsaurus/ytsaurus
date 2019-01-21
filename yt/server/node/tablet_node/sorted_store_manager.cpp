@@ -8,7 +8,7 @@
 #include "tablet_slot.h"
 #include "transaction_manager.h"
 
-#include <yt/server/node/tablet_node/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>

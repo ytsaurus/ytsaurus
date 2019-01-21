@@ -27,7 +27,7 @@
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
 #include <yt/server/master/security_server/group.h>
-#include <yt/server/master/security_server/security_manager.pb.h>
+#include <yt/server/lib/security_server/proto/security_manager.pb.h>
 
 #include <yt/server/master/transaction_server/transaction.h>
 

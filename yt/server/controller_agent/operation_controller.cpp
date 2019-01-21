@@ -9,7 +9,7 @@
 #include "vanilla_controller.h"
 #include "memory_tag_queue.h"
 
-#include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/client/api/transaction.h>
 

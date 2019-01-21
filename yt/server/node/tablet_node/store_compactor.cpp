@@ -14,7 +14,7 @@
 
 #include <yt/server/node/cell_node/bootstrap.h>
 
-#include <yt/server/master/tablet_server/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>

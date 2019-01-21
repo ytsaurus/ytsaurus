@@ -1,6 +1,8 @@
 #include "job_throttler.h"
 #include "config.h"
 
+#include <yt/server/lib/job_proxy/config.h>
+
 #include <yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NJobProxy {
@@ -12,7 +14,7 @@ using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const double MaxBackoffMultiplier = 1000.0;
+static const double MaxBackoffMultiplier = 1000.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 

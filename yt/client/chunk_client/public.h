@@ -67,6 +67,10 @@ constexpr int DefaultReplicationFactor = 3;
 
 constexpr int MaxMediumCount = 7;
 
+template <typename T>
+using TPerMediumArray = std::array<T, MaxMediumCount>;
+using TPerMediumIntArray = TPerMediumArray<int>;
+
 //! Used as an expected upper bound in SmallVector.
 /*
  *  Maximum regular number of replicas is 16 (for LRC codec).

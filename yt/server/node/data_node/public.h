@@ -1,7 +1,5 @@
 #pragma once
 
-#include <yt/server/master/chunk_server/public.h>
-
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/core/misc/enum.h>
@@ -14,8 +12,7 @@ namespace NYT::NDataNode {
 using NChunkClient::TChunkId;
 using NChunkClient::TSessionId;
 using NChunkClient::ESessionType;
-
-using NChunkServer::TBlockId;
+using NChunkClient::TBlockId;
 
 using NNodeTrackerClient::TNodeId;
 

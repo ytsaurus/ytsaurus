@@ -4,8 +4,6 @@
 
 #include <yt/server/lib/hydra/public.h>
 
-#include <yt/server/master/tablet_server/public.h>
-
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/election/public.h>
@@ -81,8 +79,8 @@ using NTableClient::TTableSchema;
 using NTableClient::TColumnSchema;
 using NTableClient::TChunkReaderPerformanceCounters;
 
-using NTabletServer::TTableReplicaId;
-using NTabletServer::ETableReplicaState;
+using NTabletClient::TTableReplicaId;
+using NTabletClient::ETableReplicaState;
 
 using NHiveServer::ETransactionState;
 

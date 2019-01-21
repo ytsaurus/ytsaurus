@@ -3,7 +3,8 @@
 #include "private.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
-#include "scheduling_tag.h"
+
+#include <yt/server/lib/scheduler/scheduling_tag.h>
 
 #include <yt/client/api/client.h>
 

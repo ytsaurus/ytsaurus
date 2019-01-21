@@ -7,8 +7,7 @@
 #include "job_satellite_connection.h"
 #include "environment.h"
 
-#include <yt/server/node/exec_agent/public.h>
-#include <yt/server/node/exec_agent/supervisor_service_proxy.h>
+#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/server/node/job_agent/public.h>
 

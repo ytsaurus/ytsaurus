@@ -45,9 +45,10 @@ public:
     TGpuSlotPtr AcquireGpuSlot();
 
 private:
-    const NCellNode::TBootstrap* Bootstrap_;
+    NCellNode::TBootstrap* const Bootstrap_;
     const TGpuManagerConfigPtr Config_;
     const bool EnableHealthCheck_ = true;
+
     NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
 
     THashSet<int> HealthyGpuDeviceNumbers_;

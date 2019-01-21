@@ -5,7 +5,7 @@
 #include <yt/server/node/data_node/artifact.h>
 #include <yt/server/node/data_node/public.h>
 
-#include <yt/server/job_proxy/config.h>
+#include <yt/server/lib/job_proxy/config.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 

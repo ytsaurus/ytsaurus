@@ -1,9 +1,10 @@
 #include "helpers.h"
 #include "public.h"
 #include "exec_node.h"
-#include "config.h"
 #include "job.h"
 #include "operation.h"
+
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>

@@ -20,7 +20,9 @@
 #include <yt/server/node/job_agent/gpu_manager.h>
 #include <yt/server/node/job_agent/statistics_reporter.h>
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -34,7 +36,8 @@
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/core/concurrency/thread_affinity.h>

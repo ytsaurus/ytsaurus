@@ -47,7 +47,7 @@ DEFINE_ENUM(ENodeState,
 
 struct TCellNodeStatistics
 {
-    NChunkServer::TPerMediumArray<i64> ChunkReplicaCount = {};
+    NChunkClient::TPerMediumArray<i64> ChunkReplicaCount = {};
 };
 
 TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs);
@@ -77,7 +77,7 @@ public:
     using TJobId = NChunkServer::TJobId;
     using TJobPtr = NChunkServer::TJobPtr;
     template <typename T>
-    using TPerMediumArray = NChunkServer::TPerMediumArray<T>;
+    using TPerMediumArray = NChunkClient::TPerMediumArray<T>;
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
     DEFINE_BYREF_RW_PROPERTY(TPerMediumArray<double>, IOWeights);

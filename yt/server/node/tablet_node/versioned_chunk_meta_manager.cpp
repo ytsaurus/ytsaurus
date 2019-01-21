@@ -14,7 +14,6 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NCellNode;

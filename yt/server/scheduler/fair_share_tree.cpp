@@ -1,12 +1,13 @@
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
 #include "public.h"
-#include "config.h"
 #include "profiler.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree.h"
+
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 

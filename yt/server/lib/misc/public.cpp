@@ -6,11 +6,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* ClusterMasterProgramName = "ytserver-master";
-const char* ClusterNodeProgramName = "ytserver-node";
-const char* ClusterSchedulerProgramName = "ytserver-scheduler";
-const char* ExecProgramName = "ytserver-exec";
-const char* JobProxyProgramName = "ytserver-job-proxy";
+const TString ClusterMasterProgramName("ytserver-master");
+const TString ClusterNodeProgramName("ytserver-node");
+const TString ClusterSchedulerProgramName("ytserver-scheduler");
+const TString ExecProgramName("ytserver-exec");
+const TString JobProxyProgramName("ytserver-job-proxy");
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString BanMessageAttributeName("ban_message");
 
 ////////////////////////////////////////////////////////////////////////////////
 

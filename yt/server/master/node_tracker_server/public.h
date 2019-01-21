@@ -28,11 +28,8 @@ typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TReqFullHeartbeat;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::InvalidNodeId;
-
 using NNodeTrackerClient::TRackId;
-
 using NNodeTrackerClient::TDataCenterId;
-
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::TNodeAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;

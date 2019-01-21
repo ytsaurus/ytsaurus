@@ -5,7 +5,7 @@
 
 #include <yt/server/node/cell_node/public.h>
 
-#include <yt/server/lib/misc/disk_location.h>
+#include <yt/server/node/data_node/disk_location.h>
 
 #include <yt/server/node/job_agent/job.h>
 
@@ -19,7 +19,7 @@ namespace NYT::NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSlotLocation
-    : public TDiskLocation
+    : public NDataNode::TDiskLocation
 {
     DEFINE_BYVAL_RO_PROPERTY(int, SessionCount);
 

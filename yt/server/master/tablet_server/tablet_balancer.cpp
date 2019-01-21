@@ -10,7 +10,7 @@
 #include <yt/server/master/cell_master/world_initializer.h>
 #include <yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/tablet_server/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/core/misc/arithmetic_formula.h>
 #include <yt/core/misc/numeric_helpers.h>
