@@ -127,7 +127,6 @@ def xargs(cmd_func, arg_list, batch_size=100):
         del arg_list[-batch_size:]
 
 
-
 ###################################################################################################################
 ## Commands
 ###################################################################################################################
@@ -219,7 +218,6 @@ class Svn(Command):
         call_args = ["svn"]
         call_args.extend(args)
         return super(Svn, self)._impl(call_args, **kwargs)
-
 
 
 class LocalSvn(object):
@@ -958,40 +956,13 @@ def action_pull(ctx, args):
     logger.info("Pulling SVN revisions")
 
     git = ctx.git
-    check_head_is_attached(git)
 
     git_svn_remote_ref = make_remote_ref(ctx.arc_git_remote)
 
     pull_history = extract_pull_history(git, ctx.svn_relpath, "HEAD")
     revision_to_commit = extract_git_svn_revision_to_commit_mapping_as_dict(git, ctx.arc_url, ctx.arc_git_remote)
 
-    if args.recent_push:
-        base_commit = args.recent_push.git_commit
-        push_revision = args.recent_push.svn_revision
-        push_commit = translate_svn_revision_to_git_commit(git, ctx.arc_git_remote, push_revision)
-    else:
-        push_history = extract_push_history(ctx.name, git, ctx.svn_relpath, git_svn_remote_ref)
-        if not push_history:
-            raise ArcadiaSyncError("No pushes from Git to SVN were detected")
-        base_commit, push_commit = push_history[0]
-        push_revision = translate_git_commit_to_svn_revision(git, ctx.arc_git_remote, push_commit)
-
-    logger.info(
-        "Most recent push was from commit %s to revision %s (%s)",
-        abbrev(base_commit), push_revision, abbrev(push_commit))
-
-    try:
-        error_msg = (
-            "Content of revision {svn_revision} in svn doesn't match content of git commit {git_commit}\n"
-            "Please use --recent-push option to set svn revision and git commit that match each other\n"
-        ).format(
-            svn_revision=push_revision,
-            git_commit=base_commit,
-        )
-        check_striped_symlink_tree_equal(git, base_commit + ":" + ctx.git_relpath, push_commit + ":")
-    except ArcadiaSyncError as e:
-        raise ArcadiaSyncError(error_msg + str(e))
-
+    base_commit, push_revision, push_commit = get_commit_pair_for_push(ctx, args.recent_push)
     last_changed_revision = get_svn_last_changed_revision(ctx.svn, ctx.arc_url)
 
     if last_changed_revision in revision_to_commit:
@@ -1112,6 +1083,68 @@ def action_cherry_pick(ctx, args):
             "--directory", ctx.git_relpath,
             *file_list
         )
+
+def get_commit_pair_for_push(ctx, recent_push=None):
+    """
+    Return a namedtuple with items:
+        - base_commit -- commit in git history that we pushed into arcadia
+        - push_revision -- revision in svn that represents push of base_commit
+        - push_commit -- commit in git-svn that corresponds to push_revision
+    """
+    PushCommitPair = collections.namedtuple("PushCommitPair", ["base_commit", "push_revision", "push_commit"])
+
+    check_head_is_attached(ctx.git)
+
+    git_svn_remote_ref = make_remote_ref(ctx.arc_git_remote)
+
+    if recent_push:
+        base_commit = recent_push.git_commit
+        push_revision = recent_push.svn_revision
+        push_commit = translate_svn_revision_to_git_commit(ctx.git, ctx.arc_git_remote, push_revision)
+    else:
+        push_history = extract_push_history(ctx.name, ctx.git, ctx.svn_relpath, git_svn_remote_ref)
+        if not push_history:
+            raise ArcadiaSyncError("No pushes from Git to SVN were detected")
+        base_commit, push_commit = push_history[0]
+        push_revision = translate_git_commit_to_svn_revision(ctx.git, ctx.arc_git_remote, push_commit)
+
+    logger.info(
+        "Most recent push was from commit %s to revision %s (%s)",
+        abbrev(base_commit), push_revision, abbrev(push_commit))
+
+    try:
+        error_msg = (
+            "Content of revision {svn_revision} in svn doesn't match content of git commit {git_commit}\n"
+            "Please use --recent-push option to set svn revision and git commit that match each other\n"
+        ).format(
+            svn_revision=push_revision,
+            git_commit=base_commit,
+        )
+        check_striped_symlink_tree_equal(ctx.git, base_commit + ":" + ctx.git_relpath, push_commit + ":")
+    except ArcadiaSyncError as e:
+        raise ArcadiaSyncError(error_msg + str(e))
+
+    return PushCommitPair(base_commit, push_revision, push_commit)
+
+
+def action_check_push(ctx, args):
+    base_commit, push_revision, push_commit = get_commit_pair_for_push(ctx, args.recent_push)
+    logger.debug("Found push, base_commit: {base_commit} push_commit: {push_commit}".format(
+        base_commit=base_commit,
+        push_commit=push_commit,
+    ))
+
+    svn = Svn()
+    svn_commit_msg = svn.call("log", ctx.arc_url, "--revision", str(push_revision), "--limit=1")
+
+    print >>sys.stderr, (
+        "Found push:\n"
+        "{svn_commit_msg}"
+        "and it looks good."
+        .format(
+            svn_commit_msg=indented_lines(svn_commit_msg.strip().split("\n"))
+        )
+    )
 
 
 class ArcadiaPush(object):
@@ -1465,6 +1498,15 @@ def main():
         type=parse_git_svn_correspondence,
         help="recent push svn revision and corresponding git-commit (by default it is determined automatically)")
     pull_parser.set_defaults(action=action_pull)
+
+    check_push_parser = add_single_project_parser(
+        "check-push", help="check that recent push was good")
+    check_push_parser.add_argument(
+        "--recent-push",
+        metavar="<svn-revision>:<git-commit>",
+        type=parse_git_svn_correspondence,
+        help="recent push svn revision and corresponding git-commit (by default it is determined automatically)")
+    check_push_parser.set_defaults(action=action_check_push)
 
     cherry_pick_parser = add_single_project_parser(
         "cherry-pick", help="cherry pick given revision from arcadia")
