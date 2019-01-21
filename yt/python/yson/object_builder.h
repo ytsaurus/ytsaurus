@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/python/common/cache.h>
+
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref.h>
 
@@ -13,6 +15,8 @@
 #include <stack>
 
 namespace NYT::NYTree {
+
+using NPython::PyObjectPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,19 +68,14 @@ private:
     bool AlwaysCreateAttributes_;
     std::optional<TString> Encoding_;
 
-    // NOTE: Not using specific PyCXX objects (e.g. Py::Bytes) here and below to avoid
-    // unnecessary checks.
-    using PyObjectPtr = std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>;
-
     std::queue<Py::Object> Objects_;
 
     std::stack<std::pair<PyObjectPtr, EPythonObjectType>> ObjectStack_;
     // NB(ignat): to avoid using TString we need to make tricky bufferring while reading from input stream.
-    std::stack<PyObject*> Keys_;
+    std::stack<PyObjectPtr> Keys_;
     std::optional<PyObjectPtr> Attributes_;
 
-    THashMap<TStringBuf, PyObjectPtr> KeyCache_;
-    std::vector<PyObjectPtr> OriginalKeyCache_;
+    NPython::TPythonStringCache KeyCache_;
 
     void AddObject(
         PyObjectPtr obj,
@@ -86,8 +85,6 @@ private:
 
     void Push(PyObjectPtr objPtr, EPythonObjectType objectType);
     PyObjectPtr Pop();
-
-    static PyObjectPtr MakePyObjectPtr(PyObject* obj);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

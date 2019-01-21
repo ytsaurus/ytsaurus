@@ -56,7 +56,7 @@ private:
     TCallback<TSharedRef()> ExtractPrefixCallback_;
 
     TPythonStringCache* KeyCacher_;
-    PyObject* ItemKey_;
+    std::optional<PyObjectPtr> ItemKey_;
 
     std::unique_ptr<TLazyDictProducer> LazyDictConsumer_;
 
