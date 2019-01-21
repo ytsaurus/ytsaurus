@@ -114,6 +114,47 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TKey, class TValue, class THash = THash<TKey> >
+class TSimpleLruCache
+{
+public:
+    explicit TSimpleLruCache(size_t maxWeight);
+
+    int GetSize() const;
+
+    TValue Get(const TKey& key);
+    std::optional<TValue> Find(const TKey& key);
+
+    TValue* Insert(const TKey& key, TValue value, size_t weight = sizeof(TValue));
+
+    void Clear();
+
+private:
+    struct TItem
+    {
+        TItem(TValue value, size_t weight)
+            : Value(std::move(value))
+            , Weight(weight)
+        { }
+
+        TValue Value;
+        size_t Weight;
+        typename std::list<typename THashMap<TKey, TItem, THash>::iterator>::iterator LruListIterator;
+    };
+
+    const size_t MaxWeight_ = 0;
+    size_t CurrentWeight_ = 0;
+
+    using TItemMap = THashMap<TKey, TItem, THash>;
+    TItemMap ItemMap_;
+    mutable std::list<typename TItemMap::iterator> LruList_;
+
+    void Pop();
+    void UpdateLruList(typename TItemMap::iterator);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define SYNC_CACHE_INL_H_
