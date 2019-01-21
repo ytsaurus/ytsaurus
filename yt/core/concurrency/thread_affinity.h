@@ -77,6 +77,7 @@ private:
 #define VERIFY_SPINLOCK_AFFINITY(spinLock)               do { } while (false)
 #define VERIFY_INVOKER_AFFINITY(invoker)                 do { } while (false)
 #define VERIFY_INVOKERS_AFFINITY(invokers)               do { } while (false)
+#define VERIFY_INVOKER_POOL_AFFINITY(invokerPool)        do { } while (false)
 #define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)    do { } while (false)
 
 #endif
