@@ -1,6 +1,7 @@
 #ifdef __linux__
 
 #include "volume_manager.h"
+#include "disk_location.h"
 
 #include "artifact.h"
 #include "chunk.h"
@@ -15,7 +16,6 @@
 
 #include <yt/server/lib/containers/porto_executor.h>
 
-#include <yt/server/lib/misc/disk_location.h>
 #include <yt/server/lib/misc/disk_health_checker.h>
 #include <yt/server/lib/misc/private.h>
 

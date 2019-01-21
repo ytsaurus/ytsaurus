@@ -12,7 +12,7 @@
 
 #include <yt/core/misc/fs.h>
 
-namespace NYT {
+namespace NYT::NDataNode {
 
 using namespace NCellNode;
 using namespace NYTree;

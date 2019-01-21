@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/exec_agent/supervisor_service.pb.h>
+#include <yt/server/lib/exec_agent/proto/supervisor_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

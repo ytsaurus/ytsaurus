@@ -8,10 +8,11 @@
 #include "operation_controller.h"
 #include "scheduling_context.h"
 #include "helpers.h"
-#include "controller_agent_tracker_service_proxy.h"
 #include "master_connector.h"
 #include "bootstrap.h"
-#include "config.h"
+
+#include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 
 #include <yt/server/controller_agent/operation.h>
 

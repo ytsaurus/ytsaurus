@@ -4,7 +4,7 @@
 
 #include <yt/server/node/job_agent/config.h>
 
-#include <yt/server/job_proxy/config.h>
+#include <yt/server/lib/job_proxy/config.h>
 
 #include <yt/server/lib/misc/config.h>
 

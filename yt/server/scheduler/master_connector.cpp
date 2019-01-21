@@ -1,10 +1,11 @@
 #include "master_connector.h"
-#include "config.h"
 #include "helpers.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
 #include "operations_cleaner.h"
 #include "bootstrap.h"
+
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/server/controller_agent/helpers.h>
 

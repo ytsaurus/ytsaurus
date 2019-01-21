@@ -40,7 +40,7 @@
 
 #include <yt/server/lib/misc/address_helpers.h>
 
-#include <yt/server/master/object_server/master_cache_service.h>
+#include <yt/server/lib/object_server/master_cache_service.h>
 
 #include <yt/server/node/query_agent/query_executor.h>
 #include <yt/server/node/query_agent/query_service.h>
@@ -55,7 +55,7 @@
 #include <yt/server/node/tablet_node/store_trimmer.h>
 #include <yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
-#include <yt/server/master/transaction_server/timestamp_proxy_service.h>
+#include <yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
 #include <yt/server/lib/admin/admin_service.h>
 
@@ -72,6 +72,7 @@
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/client/misc/workload.h>
+
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
@@ -133,7 +134,6 @@ using namespace NBus;
 using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
-using namespace NChunkServer;
 using namespace NElection;
 using namespace NHydra;
 using namespace NMonitoring;

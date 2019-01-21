@@ -430,4 +430,33 @@ IConnectionPtr CreateConnection(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IConnectionPtr FindRemoteConnection(
+    const IConnectionPtr& connection,
+    TCellTag cellTag)
+{
+    if (cellTag == connection->GetCellTag()) {
+        return connection;
+    }
+
+    auto remoteConnection = connection->GetClusterDirectory()->FindConnection(cellTag);
+    if (!remoteConnection) {
+        return nullptr;
+    }
+
+    return dynamic_cast<NNative::IConnection*>(remoteConnection.Get());
+}
+
+IConnectionPtr GetRemoteConnectionOrThrow(
+    const IConnectionPtr& connection,
+    TCellTag cellTag)
+{
+    auto remoteConnection = FindRemoteConnection(connection, cellTag);
+    if (!remoteConnection) {
+        THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
+    }
+    return remoteConnection;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

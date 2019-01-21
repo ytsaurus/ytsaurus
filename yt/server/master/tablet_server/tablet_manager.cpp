@@ -50,9 +50,9 @@
 #include <yt/server/master/table_server/replicated_table_node.h>
 
 #include <yt/server/node/tablet_node/config.h>
-#include <yt/server/node/tablet_node/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/server/master/tablet_server/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/server/master/table_server/shared_table_schema.h>
 

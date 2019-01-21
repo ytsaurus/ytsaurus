@@ -4,7 +4,7 @@
 
 #include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
+#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>

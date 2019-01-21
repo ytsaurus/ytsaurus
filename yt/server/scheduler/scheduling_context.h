@@ -1,7 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "scheduling_tag.h"
+
+#include <yt/server/lib/scheduler/scheduling_tag.h>
 
 #include <yt/server/controller_agent/public.h>
 

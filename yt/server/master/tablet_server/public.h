@@ -38,6 +38,7 @@ using NTabletClient::ETableReplicaMode;
 using NTabletClient::TypicalPeerCount;
 using NTabletClient::TTableReplicaId;
 using NTabletClient::TTabletActionId;
+using NTabletClient::TTableReplicaId;
 
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
@@ -45,42 +46,10 @@ using NTabletClient::TTabletCellOptions;
 using NTabletClient::TTabletCellOptionsPtr;
 using NTabletClient::TDynamicTabletCellOptions;
 using NTabletClient::TDynamicTabletCellOptionsPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(ETabletCellHealth,
-    (Initializing)
-    (Good)
-    (Degraded)
-    (Failed)
-);
-
-DEFINE_ENUM(ETableReplicaState,
-    ((None)                     (0))
-    ((Disabling)                (1))
-    ((Disabled)                 (2))
-    ((Enabling)                 (4))
-    ((Enabled)                  (3))
-);
-
-DEFINE_ENUM(ETabletActionKind,
-    ((Move)                     (0))
-    ((Reshard)                  (1))
-);
-
-DEFINE_ENUM(ETabletActionState,
-    ((Preparing)                (0))
-    ((Freezing)                 (1))
-    ((Frozen)                   (2))
-    ((Unmounting)               (3))
-    ((Unmounted)                (4))
-    ((Orphaned)                (10))
-    ((Mounting)                 (5))
-    ((Mounted)                  (6))
-    ((Completed)                (7))
-    ((Failing)                  (8))
-    ((Failed)                   (9))
-);
+using NTabletClient::ETabletCellHealth;
+using NTabletClient::ETableReplicaState;
+using NTabletClient::ETabletActionKind;
+using NTabletClient::ETabletActionState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,8 +77,6 @@ DECLARE_REFCOUNTED_CLASS(TDynamicReplicatedTableTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTablesMulticellGossipConfig)
 
 class TTableReplica;
-
-using TTableReplicaId = NObjectClient::TObjectId;
 
 DECLARE_ENTITY_TYPE(TTabletCellBundle, TTabletCellBundleId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTabletCell, TTabletCellId, NObjectClient::TDirectObjectIdHash)

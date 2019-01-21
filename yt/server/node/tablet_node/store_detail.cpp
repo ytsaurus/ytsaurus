@@ -7,7 +7,7 @@
 #include "tablet.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/node/tablet_node/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/server/node/data_node/chunk_registry.h>
 #include <yt/server/node/data_node/chunk.h>

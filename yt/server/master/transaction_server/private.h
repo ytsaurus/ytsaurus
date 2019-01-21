@@ -2,13 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/server/lib/transaction_server/private.h>
 
 namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-extern const NLogging::TLogger TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

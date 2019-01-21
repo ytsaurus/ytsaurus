@@ -16,7 +16,8 @@
 #include <yt/server/lib/containers/public.h>
 
 #include <yt/server/node/exec_agent/config.h>
-#include <yt/server/node/exec_agent/supervisor_service.pb.h>
+
+#include <yt/server/lib/exec_agent/proto/supervisor_service.pb.h>
 
 #include <yt/client/api/client.h>
 

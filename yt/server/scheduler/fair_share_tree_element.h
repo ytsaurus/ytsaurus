@@ -1,13 +1,14 @@
 #pragma once
 
 #include "private.h"
-#include "config.h"
 #include "job.h"
 #include "job_metrics.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
-#include "scheduling_tag.h"
 #include "fair_share_strategy_operation_controller.h"
+
+#include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/scheduling_tag.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 

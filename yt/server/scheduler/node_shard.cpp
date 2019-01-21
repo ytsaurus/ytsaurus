@@ -1,5 +1,4 @@
 #include "node_shard.h"
-#include "config.h"
 #include "helpers.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
@@ -9,7 +8,9 @@
 
 #include <yt/server/node/exec_agent/public.h>
 
-#include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/server/lib/scheduler/config.h>
+
+#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/server/lib/shell/config.h>
 

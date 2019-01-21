@@ -4,13 +4,14 @@
 #include "config.h"
 #include "job_info.h"
 #include "job_splitter.h"
-#include "job_memory.h"
 #include "task_host.h"
 #include "scheduling_context.h"
 
+#include <yt/server/lib/controller_agent/job_memory.h>
+
 #include <yt/server/controller_agent/chunk_pools/helpers.h>
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 

@@ -2,6 +2,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/server/lib/hive/config.h>
+
 #include <yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/server/master/tablet_server/tablet_manager.h>

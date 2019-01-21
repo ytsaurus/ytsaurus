@@ -5,7 +5,6 @@
 #include "auto_merge_director.h"
 #include "chunk_list_pool.h"
 #include "tentative_tree_eligibility.h"
-#include "job_memory.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
 #include "serialize.h"
@@ -13,7 +12,9 @@
 #include "master_connector.h"
 #include "task_host.h"
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/controller_agent/job_memory.h>
+
+#include <yt/server/lib/scheduler/config.h>
 #include <yt/server/scheduler/event_log.h>
 
 #include <yt/server/controller_agent/chunk_pools/chunk_pool.h>

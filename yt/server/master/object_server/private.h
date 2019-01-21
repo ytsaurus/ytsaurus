@@ -1,17 +1,10 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/core/logging/log.h>
-
-#include <yt/core/profiling/profiler.h>
+#include <yt/server/lib/object_server/private.h>
 
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-extern const NLogging::TLogger ObjectServerLogger;
-extern const NProfiling::TProfiler ObjectServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

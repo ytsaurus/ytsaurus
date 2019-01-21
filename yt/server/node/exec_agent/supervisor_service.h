@@ -4,7 +4,7 @@
 
 #include <yt/server/node/cell_node/public.h>
 
-#include <yt/server/node/exec_agent/supervisor_service.pb.h>
+#include <yt/server/lib/exec_agent/proto/supervisor_service.pb.h>
 
 #include <yt/core/rpc/service_detail.h>
 

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
+#include "scheduling_tag.h"
 
-#include <yt/server/job_proxy/config.h>
+#include <yt/server/lib/job_proxy/config.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 

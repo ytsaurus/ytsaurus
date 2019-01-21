@@ -2,7 +2,7 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/client/object_client/helpers.h>
 

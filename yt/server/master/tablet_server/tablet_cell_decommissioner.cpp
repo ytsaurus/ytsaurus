@@ -7,7 +7,7 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/master/tablet_server/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/core/profiling/profiler.h>
 

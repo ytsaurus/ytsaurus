@@ -4,7 +4,7 @@
 #include "serialize.h"
 #include "table.h"
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -203,35 +203,6 @@ void SetDataSourceDirectory(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec, c
     NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
     ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
     SetProtoExtension(jobSpec->mutable_extensions(), dataSourceDirectoryExt);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-NNative::IConnectionPtr FindRemoteConnection(
-    const NNative::IConnectionPtr& connection,
-    TCellTag cellTag)
-{
-    if (cellTag == connection->GetCellTag()) {
-        return connection;
-    }
-
-    auto remoteConnection = connection->GetClusterDirectory()->FindConnection(cellTag);
-    if (!remoteConnection) {
-        return nullptr;
-    }
-
-    return dynamic_cast<NNative::IConnection*>(remoteConnection.Get());
-}
-
-NNative::IConnectionPtr GetRemoteConnectionOrThrow(
-    const NNative::IConnectionPtr& connection,
-    TCellTag cellTag)
-{
-    auto remoteConnection = FindRemoteConnection(connection, cellTag);
-    if (!remoteConnection) {
-        THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
-    }
-    return remoteConnection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

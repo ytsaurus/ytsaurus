@@ -1,10 +1,6 @@
 #pragma once
 
-#include <yt/server/lib/hydra/public.h>
-
-#include <yt/ytlib/object_client/public.h>
-
-#include <yt/core/misc/small_vector.h>
+#include <yt/server/lib/object_server/public.h>
 
 namespace NYT::NObjectServer {
 
@@ -19,23 +15,11 @@ class TReqRemoveForeignObject;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NObjectClient::TObjectId;
-using NObjectClient::TTransactionId;
-using NObjectClient::TVersionedObjectId;
-using NObjectClient::EObjectType;
-using NObjectClient::TCellTag;
-using NObjectClient::TCellTagList;
-using NObjectClient::NullObjectId;
-using NObjectClient::NullTransactionId;
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_CLASS(TObjectManager)
 DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TMasterCacheServiceConfig)
 
 class TObjectBase;
 class TNonversionedObjectBase;
@@ -55,8 +39,6 @@ class TMasterObject;
 
 DECLARE_REFCOUNTED_STRUCT(IObjectProxy)
 DECLARE_REFCOUNTED_STRUCT(IObjectTypeHandler)
-
-using TEpoch = ui32;
 
 ////////////////////////////////////////////////////////////////////////////////
 

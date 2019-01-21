@@ -1,7 +1,8 @@
 #include "supervisor_service.h"
 #include "private.h"
 #include "job.h"
-#include "supervisor_service_proxy.h"
+
+#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
@@ -10,7 +11,7 @@
 #include <yt/server/node/job_agent/public.h>
 
 #include <yt/server/job_proxy/job_throttler.h>
-#include <yt/server/job_proxy/config.h>
+#include <yt/server/lib/job_proxy/config.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 

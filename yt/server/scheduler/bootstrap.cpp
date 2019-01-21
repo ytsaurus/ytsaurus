@@ -1,12 +1,13 @@
 #include "bootstrap.h"
-#include "config.h"
 #include "private.h"
+
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/server/lib/admin/admin_service.h>
 
 #include <yt/server/lib/misc/address_helpers.h>
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 #include <yt/server/scheduler/job_prober_service.h>
 #include <yt/server/scheduler/job_tracker_service.h>
 #include <yt/server/scheduler/private.h>
@@ -214,7 +215,7 @@ const NNative::IClientPtr& TBootstrap::GetRemoteMasterClient(TCellTag tag) const
 {
     auto it = RemoteClients_.find(tag);
     if (it == RemoteClients_.end()) {
-        auto connection = NControllerAgent::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
+        auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
         auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
         auto result = RemoteClients_.emplace(tag, client);
         YCHECK(result.second);

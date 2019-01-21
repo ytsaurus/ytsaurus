@@ -13,8 +13,9 @@
 #include <yt/server/lib/core_dump/public.h>
 #include <yt/server/lib/core_dump/core_processor_service.h>
 
-#include <yt/server/node/exec_agent/public.h>
-#include <yt/server/node/exec_agent/supervisor_service_proxy.h>
+#include <yt/server/lib/job_proxy/config.h>
+
+#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/server/lib/misc/public.h>
 

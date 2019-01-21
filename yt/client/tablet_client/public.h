@@ -68,7 +68,6 @@ using TTabletCellBundleId = NObjectClient::TObjectId;
 extern const TTabletCellBundleId NullTabletCellBundleId;
 
 using TTableReplicaId = NObjectClient::TObjectId;
-
 using TTabletActionId = NObjectClient::TObjectId;
 
 DEFINE_BIT_ENUM(EReplicationLogDataFlags,
@@ -84,6 +83,40 @@ struct TReplicationLogTable
     static const TString ValueColumnNamePrefix;
     static const TString FlagsColumnNamePrefix;
 };
+
+DEFINE_ENUM(ETabletCellHealth,
+    (Initializing)
+    (Good)
+    (Degraded)
+    (Failed)
+);
+
+DEFINE_ENUM(ETableReplicaState,
+    ((None)                     (0))
+    ((Disabling)                (1))
+    ((Disabled)                 (2))
+    ((Enabling)                 (4))
+    ((Enabled)                  (3))
+);
+
+DEFINE_ENUM(ETabletActionKind,
+    ((Move)                     (0))
+    ((Reshard)                  (1))
+);
+
+DEFINE_ENUM(ETabletActionState,
+    ((Preparing)                (0))
+    ((Freezing)                 (1))
+    ((Frozen)                   (2))
+    ((Unmounting)               (3))
+    ((Unmounted)                (4))
+    ((Orphaned)                (10))
+    ((Mounting)                 (5))
+    ((Mounted)                  (6))
+    ((Completed)                (7))
+    ((Failing)                  (8))
+    ((Failed)                   (9))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -13,6 +13,7 @@
 #include <yt/core/misc/subprocess.h>
 
 #include <util/folder/iterator.h>
+
 #include <util/string/strip.h>
 
 namespace NYT::NJobAgent {
@@ -124,7 +125,8 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
 }
 
 TGpuManager::TGpuManager()
-    : EnableHealthCheck_(false)
+    : Bootstrap_(nullptr)
+    , EnableHealthCheck_(false)
 {
     Init();
 }

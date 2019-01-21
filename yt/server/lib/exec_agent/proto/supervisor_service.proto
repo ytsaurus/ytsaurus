@@ -86,7 +86,6 @@ message TRspThrottleJob
     // If request_id is not returned, then request is fulfilled immediately.
     optional NYT.NProto.TGuid throttling_request_id = 1;
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqPollThrottlingRequest

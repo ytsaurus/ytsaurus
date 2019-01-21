@@ -3,7 +3,7 @@
 #include "config.h"
 #include "versioned_chunk_meta_manager.h"
 
-#include <yt/server/node/tablet_node/tablet_manager.pb.h>
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>

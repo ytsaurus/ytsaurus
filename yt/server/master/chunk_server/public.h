@@ -41,6 +41,8 @@ using NChunkClient::MediumIndexBound;
 using NChunkClient::DefaultStoreMediumIndex;
 using NChunkClient::MaxMediumPriority;
 using NChunkClient::TDataCenterName;
+using NChunkClient::TPerMediumArray;
+using NChunkClient::TPerMediumIntArray;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
@@ -163,10 +165,6 @@ typedef std::multimap<double, NNodeTrackerServer::TNode*> TLoadFactorToNodeMap;
 typedef TLoadFactorToNodeMap::iterator TLoadFactorToNodeIterator;
 
 using TMediumSet = std::bitset<MaxMediumCount>;
-
-template <typename T>
-using TPerMediumArray = std::array<T, MaxMediumCount>;
-using TPerMediumIntArray = TPerMediumArray<int>;
 
 constexpr int MediumDefaultPriority = 0;
 

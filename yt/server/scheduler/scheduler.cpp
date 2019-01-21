@@ -7,13 +7,14 @@
 #include "master_connector.h"
 #include "node_shard.h"
 #include "scheduler_strategy.h"
-#include "scheduling_tag.h"
-#include "controller_agent_tracker.h"
 #include "controller_agent.h"
 #include "operation_controller.h"
 #include "bootstrap.h"
-#include "config.h"
 #include "operations_cleaner.h"
+#include "controller_agent_tracker.h"
+
+#include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/scheduling_tag.h>
 
 #include <yt/server/controller_agent/helpers.h>
 

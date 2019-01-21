@@ -4,6 +4,8 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/ytlib/chunk_client/block_id.h>
+
 #include <yt/server/node/cell_node/public.h>
 
 namespace NYT::NDataNode {

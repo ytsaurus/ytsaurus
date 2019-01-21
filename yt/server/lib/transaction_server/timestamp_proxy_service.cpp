@@ -1,6 +1,5 @@
 #include "timestamp_proxy_service.h"
 #include "private.h"
-#include "timestamp_manager.h"
 
 #include <yt/client/transaction_client/timestamp_provider.h>
 #include <yt/client/transaction_client/timestamp_service_proxy.h>

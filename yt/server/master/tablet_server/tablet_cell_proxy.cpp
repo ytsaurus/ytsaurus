@@ -34,6 +34,7 @@ using namespace NYson;
 using namespace NTabletClient;
 
 using NYT::ToProto;
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
