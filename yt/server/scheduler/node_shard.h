@@ -368,7 +368,11 @@ private:
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
-    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState, ENodeState newSchedulerState, TError error = TError());
+    void UpdateNodeState(
+        const TExecNodePtr& execNode,
+        NNodeTrackerClient::ENodeState newState,
+        ENodeState newSchedulerState,
+        const TError& error = TError());
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

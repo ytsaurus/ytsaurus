@@ -1,5 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
+#include <yt/core/concurrency/action_queue.h>
+
 #include <yt/server/scheduler/fair_share_tree_element.h>
 #include <yt/server/scheduler/operation_controller.h>
 

@@ -3,6 +3,8 @@
 #include "batching_chunk_service.h"
 #include "private.h"
 
+#include <yt/server/lib/exec_agent/config.h>
+
 #include <yt/server/node/data_node/blob_reader_cache.h>
 #include <yt/server/node/data_node/block_cache.h>
 #include <yt/server/node/data_node/chunk_block_manager.h>
@@ -25,7 +27,6 @@
 #include <yt/server/node/data_node/chunk_meta_manager.h>
 #include <yt/server/node/data_node/skynet_http_handler.h>
 
-#include <yt/server/node/exec_agent/config.h>
 #include <yt/server/node/exec_agent/job_environment.h>
 #include <yt/server/node/exec_agent/job.h>
 #include <yt/server/node/exec_agent/job_prober_service.h>

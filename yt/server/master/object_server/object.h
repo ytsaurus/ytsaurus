@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "attribute_set.h"
 
 #include <yt/server/master/cell_master/public.h>

@@ -24,7 +24,6 @@ using NTransactionClient::NullTransactionId;
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 
-
 using NHydra::TCellId;
 using NHydra::NullCellId;
 

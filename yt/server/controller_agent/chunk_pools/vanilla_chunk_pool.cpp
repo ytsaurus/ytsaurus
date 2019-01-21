@@ -4,6 +4,8 @@
 
 #include <yt/server/controller_agent/operation_controller.h>
 
+#include <yt/core/misc/ref_tracked.h>
+
 namespace NYT::NChunkPools {
 
 using namespace NNodeTrackerClient;

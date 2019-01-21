@@ -1,11 +1,10 @@
 #include "private.h"
 
-#include <yt/server/master/object_server/public.h>
-#include <yt/server/master/object_server/object_detail.h>
-
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/ytlib/object_client/object_ypath.pb.h>
+
+#include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
@@ -13,7 +12,7 @@
 
 #include <yt/core/ytree/virtual.h>
 
-namespace NYT::NTableServer {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 

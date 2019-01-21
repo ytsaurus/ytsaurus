@@ -12,7 +12,7 @@
 #include "master_connector.h"
 #include "task_host.h"
 
-#include <yt/server/lib/controller_agent/job_memory.h>
+#include <yt/server/controller_agent/job_memory.h>
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/scheduler/event_log.h>

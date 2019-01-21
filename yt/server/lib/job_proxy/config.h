@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/exec_agent/config.h>
+#include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/server/lib/misc/config.h>
 

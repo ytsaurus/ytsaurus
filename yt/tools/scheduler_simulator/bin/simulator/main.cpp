@@ -20,7 +20,6 @@
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/property.h>
 
-
 namespace NYT {
 
 using namespace NSchedulerSimulator;
@@ -78,7 +77,7 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
             auto nodeId = execNodes.size() + 1;
             TNodeDescriptor descriptor("node" + ToString(nodeId));
 
-            auto node = New<TExecNode>(nodeId, descriptor, ENodeState::Online);
+            auto node = New<TExecNode>(nodeId, descriptor, NScheduler::ENodeState::Online);
             node->Tags() = nodeGroupConfig->Tags;
             node->SetResourceLimits(GetNodeResourceLimit(nodeGroupConfig->ResourceLimits));
             node->SetDiskInfo(diskResources);

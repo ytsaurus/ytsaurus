@@ -1,12 +1,11 @@
 #include "job_environment.h"
-#include "config.h"
 #include "job_directory_manager.h"
 #include "private.h"
 
+#include <yt/server/lib/exec_agent/config.h>
+
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
-
-#include <yt/server/lib/controller_agent/job_memory.h>
 
 #include <yt/server/node/data_node/config.h>
 #include <yt/server/node/data_node/master_connector.h>
@@ -682,12 +681,16 @@ private:
             auto guard = Guard(LimitsLock_);
             auto newCpuLimit = std::max<double>(limits.Cpu - Config_->NodeDedicatedCpu, 0);
             if (!CpuLimit_ || *CpuLimit_ != limits.Cpu) {
-                YT_LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)", CpuLimit_, newCpuLimit);
+                YT_LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)",
+                    CpuLimit_,
+                    newCpuLimit);
                 CpuLimit_ = newCpuLimit;
             }
 
             if (!MemoryLimit_ || *MemoryLimit_ != limits.Memory) {
-                YT_LOG_INFO("Update porto memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v)", MemoryLimit_, limits.Memory);
+                YT_LOG_INFO("Update porto memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v)",
+                    MemoryLimit_,
+                    limits.Memory);
                 MemoryLimit_ = limits.Memory;
             }
 

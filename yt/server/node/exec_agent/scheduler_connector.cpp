@@ -1,7 +1,8 @@
 #include "scheduler_connector.h"
 #include "private.h"
-#include "config.h"
 #include "job.h"
+
+#include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
 

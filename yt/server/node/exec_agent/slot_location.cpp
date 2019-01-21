@@ -1,8 +1,9 @@
 #include "slot_location.h"
 #include "slot_manager.h"
 #include "private.h"
-#include "config.h"
 #include "job_directory_manager.h"
+
+#include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
