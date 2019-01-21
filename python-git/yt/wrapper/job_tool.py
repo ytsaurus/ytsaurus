@@ -97,15 +97,15 @@ INPUT_DATA="{input_rel_path}"
 
 ({command}) < $INPUT_DATA {output_descriptors_spec}
 """.format(
-    sandbox_suffix=sandbox_suffix,
-    operation_id=operation_id,
-    job_id=job_id,
-    command=command,
-    run_bash_env_command=run_bash_env_command,
-    environment=make_environment_string(environment),
-    input_rel_path=input_rel_path,
-    output_rel_path=output_rel_path,
-    output_descriptors_spec=output_descriptors_spec)
+        sandbox_suffix=sandbox_suffix,
+        operation_id=operation_id,
+        job_id=job_id,
+        command=command,
+        run_bash_env_command=run_bash_env_command,
+        environment=make_environment_string(environment),
+        input_rel_path=input_rel_path,
+        output_rel_path=output_rel_path,
+        output_descriptors_spec=output_descriptors_spec)
 
     with open(run_sh_path, "w") as out:
         out.write(script)

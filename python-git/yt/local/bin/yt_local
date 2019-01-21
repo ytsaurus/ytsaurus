@@ -10,6 +10,8 @@ from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 import yt.yson as yson
 
+from yt.packages.six import iteritems
+
 import argparse
 import logging
 import time
@@ -61,21 +63,39 @@ def patch_add_parser(subparsers):
 def start_func(**kwargs):
     sync = kwargs.pop("sync", False)
     quiet = kwargs.pop("quiet", False)
-    no_proxy = kwargs.pop("no_proxy", False)
     timeout = kwargs.pop("timeout", None)
     forbid_chunk_storage_in_tmpfs = kwargs.pop("forbid_chunk_storage_in_tmpfs", None)
 
     if not sync and timeout is not None:
         print("Warning! --timeout option has no effect when --sync flag is not specified", file=sys.stderr)
 
-    kwargs["start_proxy"] = not no_proxy
-    kwargs["start_rpc_proxy"] = kwargs.pop("rpc_proxy", False)
     kwargs["allow_chunk_storage_in_tmpfs"] = not forbid_chunk_storage_in_tmpfs
 
     if quiet:
         logger.setLevel(logging.WARNING)
     else:
         logger.setLevel(logging.INFO)
+
+    DEPRECATION_MAPPING = {
+        "masters_count": "master_count",
+        "nodes_count": "node_count",
+        "schedulers_count": "scheduler_count",
+        "ports_range_start": "port_range_start",
+        "operations_memory_limit": "jobs_memory_limit",
+        "use_proxy_from_yt_source": None,
+        "use_new_proxy": None,
+        "no_proxy": "http_proxy_count",
+        "rpc_proxy": "rpc_proxy_count"
+    }
+
+    for old_param, new_param in iteritems(DEPRECATION_MAPPING):
+        if kwargs[old_param]:
+            deprecation_warning = "Command-line option --{} is deprecated and will be eventually removed; ".format(old_param.replace("_", "-"))
+            if new_param is not None:
+                deprecation_warning += "use --{} instead".format(new_param.replace("_", "-"))
+            else:
+                deprecation_warning += "do not use it"
+            logger.warning(deprecation_warning)
 
     # Compatibility options
     if kwargs["masters_count"] is not None:
@@ -88,7 +108,14 @@ def start_func(**kwargs):
         kwargs["port_range_start"] = kwargs["ports_range_start"]
     if kwargs["operations_memory_limit"] is not None:
         kwargs["jobs_memory_limit"] = kwargs["operations_memory_limit"]
-    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit"):
+    if kwargs["no_proxy"]:
+        kwargs["http_proxy_count"] = 0
+    if kwargs["rpc_proxy"] and kwargs["rpc_proxy_count"] is None:
+        kwargs["rpc_proxy_count"] = 1
+    if kwargs["proxy_port"] is not None:
+        kwargs["http_proxy_ports"] = kwargs["proxy_port"]
+
+    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit", "no_proxy", "rpc_proxy", "proxy_port"):
         del kwargs[opt]
     # Tests options
     sync_mode_sleep_timeout = kwargs.pop("sync_mode_sleep_timeout")
@@ -156,6 +183,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--master-count", type=int, default=_USE_START_DEFAULT, help="number of masters")
     parser.add_argument("--node-count", type=int, default=_USE_START_DEFAULT, help="number of nodes")
     parser.add_argument("--scheduler-count", type=int, default=_USE_START_DEFAULT, help="number of schedulers")
+    parser.add_argument("--http-proxy-count", type=int, default=_USE_START_DEFAULT, help="number of http proxies")
+    parser.add_argument("--rpc-proxy-count", type=int, default=_USE_START_DEFAULT, help="number of rpc proxies")
 
     for service in SERVICE_LIST:
         config_parser = parser.add_mutually_exclusive_group(required=False)
@@ -171,14 +200,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("-q", "--quiet", action="store_true", default=False,
                         help="decrease verbosity (leave only warnings and errors)")
 
-    parser.add_argument("--use-proxy-from-yt-source", action="store_true", default=False,
-                        help="Do not start proxy from package, start from YT source tree using run_proxy.sh. "
-                             "Can be specified through YT_LOCAL_USE_PROXY_FROM_SOURCE.")
-    parser.add_argument("--use-new-proxy", action="store_true", default=False,
-                        help="Use C++ implementation of http proxy.")
-    parser.add_argument("--no-proxy", action="store_true", default=False, help="do not start proxy")
-    parser.add_argument("--proxy-port", type=int, help="proxy port for http requests")
-    parser.add_argument("--rpc-proxy", action="store_true", default=False, help="start rpc proxy")
+    parser.add_argument("--proxy-port", type=int, nargs="+", help="proxy ports for http proxy; number of values should be equal to http-proxy-count.")
     parser.add_argument("--enable-debug-logging", action="store_true", default=False,
                         help="set logging level threshold to DEBUG")
     parser.add_argument("--tmpfs-path", help="path to mounted tmpfs. "
@@ -214,6 +236,11 @@ def add_start_subparser(subparsers):
     parser.add_argument("--schedulers-count", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--ports-range-start", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--operations-memory-limit", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--use-proxy-from-yt-source", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--use-new-proxy", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--no-proxy", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--rpc-proxy", action="store_true", help=argparse.SUPPRESS)
+
     # Options for tests
     parser.add_argument("--sync-mode-sleep-timeout", type=int, default=2, help=argparse.SUPPRESS)
 

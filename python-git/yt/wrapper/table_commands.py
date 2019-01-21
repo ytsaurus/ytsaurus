@@ -173,15 +173,15 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     can_split_input = isinstance(input_stream, list) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
-            can_split_input and \
-            not is_stream_compressed
+        can_split_input and \
+        not is_stream_compressed
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
     enable_parallel_writing = get_config(client)["write_parallel"]["enable"] and \
-            can_split_input and \
-            not is_stream_compressed and \
-            not "sorted_by" in table.attributes
+        can_split_input and \
+        not is_stream_compressed and \
+        "sorted_by" not in table.attributes
 
     input_stream = _to_chunk_stream(
         input_stream,
@@ -239,7 +239,9 @@ def _prepare_table_path_for_read_blob_table(table, part_index_column_name, clien
     range = table.ranges[-1]
     if "lower_limit" not in range:
         if required_keys:
-            raise YtError("Lower limit should consist of columns from the list {0}".format(sorted_by[:len(required_keys)]))
+            raise YtError(
+                "Lower limit should consist of columns from the list {0}"
+                .format(sorted_by[:len(required_keys)]))
         range["lower_limit"] = {"key": [0]}
         return table
 
@@ -391,12 +393,10 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
     if attributes.get("type") != "table":
         raise YtError("Command read is supported only for tables")
-    if  attributes["chunk_count"] > 100 and attributes["compressed_data_size"] // attributes["chunk_count"] < MB:
+    if attributes["chunk_count"] > 100 and attributes["compressed_data_size"] // attributes["chunk_count"] < MB:
         logger.info("Table chunks are too small; consider running the following command to improve read performance: "
-                    "yt merge --proxy {1} --src {0} --dst {0} "
-                    "--spec '{{"
-                       "combine_chunks=true;"
-                    "}}'".format(table, get_config(client)["proxy"]["url"]))
+                    "yt merge --proxy {1} --src {0} --dst {0} --spec '{{combine_chunks=true;}}'"
+                    .format(table, get_config(client)["proxy"]["url"]))
 
     params = {
         "path": table,
@@ -471,7 +471,8 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
             self.next_row_index = None
             self.current_range_index = 0
 
-            # It is true if and only if we read control attributes of the current range and the next range isn't started yet.
+            # It is true if and only if we read control attributes of the current range
+            # and the next range isn't started yet.
             self.range_started = None
 
             # We should know whether row with range/row index printed.
@@ -509,12 +510,16 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                         params["control_attributes"]["enable_row_index"] = True
                         params["control_attributes"]["enable_range_index"] = True
                     else:
-                        raise YtError("Read table with multiple ranges using retries is disabled, turn on read_retries/allow_multiple_ranges")
+                        raise YtError(
+                            "Read table with multiple ranges using retries is disabled, "
+                            "turn on read_retries/allow_multiple_ranges")
 
                     if format.name() not in ["json", "yson"]:
-                        raise YtError("Read table with multiple ranges using retries is supported only in YSON and JSON formats")
+                        raise YtError("Read table with multiple ranges using retries "
+                                      "is supported only in YSON and JSON formats")
                     if format.name() == "json" and format.attributes.get("format") == "pretty":
-                        raise YtError("Read table with multiple ranges using retries is not supported for pretty JSON format")
+                        raise YtError("Read table with multiple ranges using retries "
+                                      "is not supported for pretty JSON format")
 
                 if self.range_started and table.attributes["ranges"]:
                     fix_range(table.attributes["ranges"][0])
@@ -628,10 +633,11 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         return format.load_rows(response)
 
 def _are_valid_nodes(source_tables, destination_table):
-    return len(source_tables) == 1 and \
-           not source_tables[0].has_delimiters() and \
-           not destination_table.append and \
-           destination_table != source_tables[0]
+    return \
+        len(source_tables) == 1 and \
+        not source_tables[0].has_delimiters() and \
+        not destination_table.append and \
+        destination_table != source_tables[0]
 
 def copy_table(source_table, destination_table, replace=True, client=None):
     """Copies table(s).
@@ -665,8 +671,10 @@ def copy_table(source_table, destination_table, replace=True, client=None):
             remove(destination_table, client=client)
         copy(source_tables[0], destination_table, recursive=True, client=client)
     else:
-        mode = "sorted" if (all(imap(lambda t: is_sorted(t, client=client), source_tables)) and not destination_table.append) \
-               else "ordered"
+        is_sorted_merge = \
+            all(imap(lambda t: is_sorted(t, client=client), source_tables)) \
+            and not destination_table.append
+        mode = "sorted" if is_sorted_merge else "ordered"
         run_merge(source_tables, destination_table, mode, client=client)
 
 def move_table(source_table, destination_table, replace=True, client=None):

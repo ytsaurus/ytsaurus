@@ -25,7 +25,7 @@ from copy import deepcopy, copy as shallowcopy
 class _KwargSentinelClass(object):
     __instance = None
     def __new__(cls):
-        if cls.__instance == None:
+        if cls.__instance is None:
             cls.__instance = object.__new__(cls)
             cls.__instance.name = "_KwargSentinelClassInstance"
         return cls.__instance
@@ -213,7 +213,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, force=F
     params = {
         "target_path": YPath(target_path, client=client),
         "link_path": YPath(link_path, client=client),
-        }
+    }
     set_param(params, "recursive", recursive)
     set_param(params, "ignore_existing", ignore_existing)
     set_param(params, "force", force)
@@ -470,8 +470,9 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
 
     def is_opaque(content):
         # We have bug that get to document don't return attributes.
-        return content.attributes.get("opaque", False) and content.attributes["type"] != "document" or \
-               content.attributes["type"] in ("account_map", "tablet_cell")
+        return \
+            content.attributes.get("opaque", False) and content.attributes["type"] != "document" or \
+            content.attributes["type"] in ("account_map", "tablet_cell")
 
     def safe_batch_get(nodes, batch_client):
         get_result = []

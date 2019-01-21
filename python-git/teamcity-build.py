@@ -5,16 +5,25 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "python"))
 
-from teamcity import (build_step, teamcity_main, teamcity_message, teamcity_interact,
-                      StepFailedWithNonCriticalError)
+from teamcity import (
+    build_step,
+    cleanup_step,
+    teamcity_main,
+    teamcity_message,
+    teamcity_interact,
+    StepFailedWithNonCriticalError)
 
 from helpers import (mkdirp, run, run_captured, cwd, rm_content,
                      rmtree, parse_yes_no_bool, ChildHasNonZeroExitCode,
                      postprocess_junit_xml, sudo_rmtree, kill_by_name,
                      set_yt_binaries_suid_bit)
 
-from pytest_helpers import (copy_artifacts, find_core_dumps_with_report,
-                            copy_failed_tests_and_report_stderrs, prepare_python_bindings)
+from pytest_helpers import (
+    copy_artifacts,
+    find_core_dumps_with_report,
+    copy_failed_tests_and_report_stderrs,
+    prepare_python_bindings,
+    clean_failed_tests_directory)
 
 import argparse
 import tempfile
@@ -58,8 +67,8 @@ def prepare(options):
     os.environ["LANG"] = "en_US.UTF-8"
     os.environ["LC_ALL"] = "en_US.UTF-8"
 
-    options.build_system = os.environ.get("BUILD_SYSTEM", "cmake")
-    if options.build_system not in ["ya", "cmake"]:
+    options.build_system = os.environ.get("BUILD_SYSTEM", "ya")
+    if options.build_system not in ("ya",):
         raise RuntimeError("Unknown build system: {}".format(options.build_system))
 
     options.build_number = os.environ["BUILD_NUMBER"]
@@ -98,15 +107,6 @@ def prepare(options):
             .format(version.replace(".", "_").upper(), "ON" if enabled else "OFF"))
         if enabled:
             options.build_python_version_list.append(version)
-
-    if options.build_system == "cmake":
-        # Now determine the compiler.
-        options.cc = run_captured(["which", options.cc])
-        options.cxx = run_captured(["which", options.cxx])
-        if not options.cc:
-            raise RuntimeError("Failed to locate C compiler")
-        if not options.cxx:
-            raise RuntimeError("Failed to locate CXX compiler")
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
@@ -156,56 +156,25 @@ def checkout(options):
 
 @build_step
 @skip_step_if_tests_are_disabled
-def configure(options):
-    if options.build_system == "cmake":
-        run([
-                "cmake",
-                "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
-                "-DCMAKE_COLOR_MAKEFILE:BOOL=OFF",
-                "-DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=OFF",
-                "-DYT_BUILD_ENABLE_TESTS:BOOL=OFF",
-                "-DYT_BUILD_ENABLE_BENCHMARKS:BOOL=OFF",
-                "-DYT_BUILD_ENABLE_NODEJS:BOOL=ON",
-                "-DYT_BUILD_ENABLE_PERL:BOOL=OFF",
-                "-DYT_BUILD_ENABLE_GDB_INDEX:BOOL=ON",
-                "-DYT_USE_SSE=OFF",
-                "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
-                "-DCMAKE_C_COMPILER={0}".format(options.cc),
-                options.yt_source_directory,
-            ] +
-            options.python_flags,
-            cwd=options.yt_build_directory)
-    else:
-        teamcity_message("Step configure is skipped for ya build")
-
-@build_step
-@skip_step_if_tests_are_disabled
 def build(options):
-    if options.build_system == "cmake":
-        cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
-        try:
-            run(["make", "-j", str(cpus)], cwd=options.yt_build_directory, silent_stdout=True)
-        except ChildHasNonZeroExitCode:
-            teamcity_message("(ignoring child failure to provide meaningful diagnostics in `slow_build`)")
-    else:
-        yall = os.path.join(options.yt_source_directory, "yall")
-        env = ya_make_env(options)
-        args = [
-            yall,
-            "-T",
-            "--build", "release",
-            "--yall-cmake-like-install", options.yt_build_directory,
-            "--yall-python-version-list", ",".join(options.build_python_version_list),
+    yall = os.path.join(options.yt_source_directory, "yall")
+    env = ya_make_env(options)
+    args = [
+        yall,
+        "-T",
+        "--build", "release",
+        "--yall-cmake-like-install", options.yt_build_directory,
+        "--yall-python-version-list", ",".join(options.build_python_version_list),
+    ]
+    if options.build_enable_ya_yt_store:
+        args += [
+            "--yall-enable-dist-cache",
+            "--yall-dist-cache-put",
+            "--yall-dist-cache-no-auto-token",
         ]
-        if options.build_enable_ya_yt_store:
-            args += [
-                "--yall-enable-dist-cache",
-                "--yall-dist-cache-put",
-                "--yall-dist-cache-no-auto-token",
-            ]
-            env["YT_TOKEN"] = os.environ["TEAMCITY_YT_TOKEN"]
+        env["YT_TOKEN"] = os.environ["TEAMCITY_YT_TOKEN"]
 
-        run(args, env=env)
+    run(args, env=env)
 
 
 @build_step
@@ -215,33 +184,8 @@ def set_suid_bit(options):
 
 
 @build_step
-@skip_step_if_tests_are_disabled
-def run_prepare(options):
-    if options.build_system == "cmake":
-        nodejs_source = os.path.join(options.yt_source_directory, "yt", "nodejs")
-        nodejs_build = os.path.join(options.yt_build_directory, "yt", "nodejs")
-
-        yt_node_binary_path = os.path.join(nodejs_source, "lib", "ytnode.node")
-        run(["rm", "-f", yt_node_binary_path])
-        run(["ln", "-s", os.path.join(nodejs_build, "ytnode.node"), yt_node_binary_path])
-
-        with cwd(nodejs_build):
-            if os.path.exists("node_modules"):
-                rmtree("node_modules")
-            run(["npm", "install"])
-
-        link_path = os.path.join(nodejs_build, "node_modules", "yt")
-        run(["rm", "-f", link_path])
-        run(["ln", "-s", nodejs_source, link_path])
-    else:
-        teamcity_message("ya build skips run_prepare step because it uses new http proxy")
-
-@build_step
 def copy_modules_from_contrib(options):
-    if options.build_system == "cmake":
-        run(["cmake", "."], cwd=options.checkout_directory)
-    else:
-        run(["./prepare_source_tree.py", "--yt-root", options.yt_source_directory], cwd=options.checkout_directory)
+    run(["./prepare_source_tree.py", "--yt-root", options.yt_source_directory], cwd=options.checkout_directory)
 
 def _run_tests(options, python_version):
     sandbox_directory = os.path.join(options.sandbox_directory, python_version)
@@ -352,6 +296,9 @@ def build_packages(options):
             run(["dch", "-r", package_version, "'Resigned by teamcity'"])
         run(["./deploy.sh", package], cwd=options.checkout_directory, env={"TMPDIR": options.working_directory})
 
+@cleanup_step
+def clean_failed_tests(options, build_context, max_allowed_size=None):
+    clean_failed_tests_directory(options.failed_tests_path)
 
 ################################################################################
 # This is an entry-point. Just boiler-plate.

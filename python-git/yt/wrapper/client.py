@@ -1,4 +1,3 @@
-from .common import YtError
 from .config import get_config, set_option
 from .client_state import ClientState
 from .client_helpers import create_class_method, initialize_client

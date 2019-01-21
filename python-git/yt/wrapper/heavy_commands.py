@@ -1,5 +1,5 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
-from .common import group_blobs_by_size, YtError, get_value
+from .common import group_blobs_by_size, YtError
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable
 from .ypath import YPathSupportingAppend
@@ -106,7 +106,8 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                                          client=client)
             for chunk in group_blobs_by_size(stream, chunk_size):
                 assert isinstance(chunk, list)
-                logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
+                logger.debug(
+                    "Processing {0} chunk (length: {1}, transaction: {2})"
                     .format(command_name, len(chunk), get_command_param("transaction_id", client)))
 
                 runner.run_write_action(chunk, params)
@@ -239,7 +240,8 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 get_response=lambda: iterator.last_response,
                 iter_content=iterator,
                 close=lambda: iterator.close(),
-                process_error=lambda response: iterator.last_response._process_error(iterator.last_response._get_response()),
+                process_error=lambda response: iterator.last_response._process_error(
+                    iterator.last_response._get_response()),
                 get_response_parameters=lambda: iterator.start_response.response_parameters)
         except:
             tx.abort()

@@ -7,17 +7,17 @@
     },
     "build": {
         "targets": [
-            "yt/python/yt/fennel/bin/new_fennel"
+            "yt/python/yt/fennel/bin/fennel"
         ]
     },
     "data": [
         {
             "source": {
                 "type": "BUILD_OUTPUT",
-                "path": "yt/python/yt/fennel/bin/new_fennel/new_fennel"
+                "path": "yt/python/yt/fennel/bin/fennel/fennel"
             },
             "destination": {
-                "path": "/usr/bin/new_fennel"
+                "path": "/usr/bin/fennel"
             }
         }
     ]

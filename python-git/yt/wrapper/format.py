@@ -62,7 +62,8 @@ class YtFormatReadError(YtFormatError):
 
 # This class should not be put inside class method to avoid reference loop.
 class RowsIterator(Iterator):
-    def __init__(self, rows, extract_control_attributes, table_index_attribute_name, row_index_attribute_name, range_index_attribute_name, key_switch_attribute_name):
+    def __init__(self, rows, extract_control_attributes, table_index_attribute_name, row_index_attribute_name,
+                 range_index_attribute_name, key_switch_attribute_name):
         self.rows = iter(rows)
         self.extract_control_attributes = extract_control_attributes
         self.table_index_attribute_name = table_index_attribute_name
@@ -328,7 +329,8 @@ class Format(object):
                                   table_index_column_name, row_index_column_name, range_index_column_name)
         elif control_attributes_mode == "iterator":
             return RowsIterator(rows, extract_control_attributes,
-                                table_index_attribute_name, row_index_attribute_name, range_index_attribute_name, key_switch_attribute_name)
+                                table_index_attribute_name, row_index_attribute_name,
+                                range_index_attribute_name, key_switch_attribute_name)
         else:
             return rows
 
@@ -562,7 +564,8 @@ class YsonFormat(Format):
         :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
         ["row_fields", "iterator", "none"]. In "row_fields" mode attributes are put in the regular rows with \
         as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed from output rows. \
-        In "iterator" mode attributes rows object is iterator and control attributes are available as fields of the iterator. \
+        In "iterator" mode attributes rows object is iterator and control attributes are available \
+        as fields of the iterator. \
         In "none" mode rows are unmodified.
         """
         defaults = {"boolean_as_string": False,
@@ -588,7 +591,9 @@ class YsonFormat(Format):
         self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
 
-        self.require_yson_bindings = get_value(require_yson_bindings, self.attributes.get("require_yson_bindings", True))
+        self.require_yson_bindings = get_value(
+            require_yson_bindings,
+            self.attributes.get("require_yson_bindings", True))
         if lazy:
             self.require_yson_bindings = True
         if "require_yson_bindings" in self.attributes:
@@ -856,8 +861,8 @@ class YamrFormat(Format):
 
             field = stream.read(length)
             if len(field) != length:
-                 raise YtFormatReadError("Incorrect length field in yamr lenval,\
-                                          expected {0}, received {1}".format(length, len(field)))
+                raise YtFormatReadError("Incorrect length field in yamr lenval,\
+                                         expected {0}, received {1}".format(length, len(field)))
             fields.append(field)
         if unparsed:
             return b''.join(fields)
@@ -934,14 +939,16 @@ class JsonFormat(Format):
                  table_index_column="@table_index", attributes=None, raw=None, enable_ujson=False):
         """
         :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
-        ["row_fields", "iterator", "generator", "none"]. In "row_fields" mode attributes are put in the regular rows with \
-        as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed from output rows. \
-        In "iterator" mode attributes rows object is iterator and control attributes are available as fields of the iterator. \
+        ["row_fields", "iterator", "generator", "none"]. In "row_fields" mode attributes are put in the regular \
+        rows with as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed
+        from output rows. \
+        In "iterator" mode attributes rows object is iterator and control attributes are available \
+        as fields of the iterator. \
         In "none" (or deprecated "generator") mode rows are unmodified.
         """
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes, raw, self._ENCODING)
-        
+
         if control_attributes_mode is None:
             control_attributes_mode = "iterator"
 

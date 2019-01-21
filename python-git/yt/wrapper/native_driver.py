@@ -28,7 +28,12 @@ def lazy_import_driver_bindings():
 def read_config(path):
     lazy_import_driver_bindings()
     driver_config = yson.load(open(path, "rb"))
-    return driver_config["driver"], driver_config.get("logging"), driver_config.get("tracing"), driver_config.get("address_resolver")
+    return (
+        driver_config["driver"],
+        driver_config.get("logging"),
+        driver_config.get("tracing"),
+        driver_config.get("address_resolver"),
+    )
 
 logging_configured = False
 def configure_logging(logging_config_from_file, client):
@@ -119,7 +124,9 @@ def get_driver_instance(client):
             if driver_config.get("connection_type") is None:
                 driver_config["connection_type"] = "rpc"
             elif config["backend"] != driver_config["connection_type"]:
-                raise YtError("Driver connection type and client backend mismatch (driver_connection_type: {0}, client_backend: {1})"
+                raise YtError(
+                    "Driver connection type and client backend mismatch "
+                    "(driver_connection_type: {0}, client_backend: {1})"
                     .format(driver_config["connection_type"], config["backend"]))
 
         configure_logging(logging_config, client)
@@ -206,7 +213,9 @@ def make_request(command_name, params,
     output_stream = None
     if description.output_type() != b"Null":
         if "output_format" not in params and description.output_type() != b"Binary":
-            raise YtError("Inner error: output format is not specified for native driver command '{0}'".format(command_name))
+            raise YtError(
+                "Inner error: output format is not specified for native driver command '{0}'"
+                .format(command_name))
         if return_content:
             output_stream = BytesIO()
         else:
