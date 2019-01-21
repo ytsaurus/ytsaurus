@@ -6,20 +6,7 @@
 #endif
 
 #include "serialize.h"
-
-namespace NYT::NYTAlloc {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Support build without YTAlloc
-Y_WEAK size_t GetAllocationSize(void* /*ptr*/)
-{
-    return 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NYTAlloc
+#include "yt_alloc.h"
 
 namespace NYT {
 
@@ -27,7 +14,7 @@ namespace NYT {
 
 inline void TAllocationHolder::operator delete(void* ptr) noexcept
 {
-    ::free(ptr);
+    NYTAlloc::Free(ptr);
 }
 
 inline TMutableRef TAllocationHolder::GetRef() const
@@ -39,7 +26,7 @@ template <class TDerived>
 TDerived* TAllocationHolder::Allocate(size_t size, TRefCountedTypeCookie cookie)
 {
     auto requestedSize = sizeof(TDerived) + size;
-    auto* ptr = ::malloc(requestedSize);
+    auto* ptr = NYTAlloc::Allocate(requestedSize);
     auto allocatedSize = NYTAlloc::GetAllocationSize(ptr);
     if (allocatedSize) {
         size += allocatedSize - requestedSize;
@@ -51,7 +38,7 @@ TDerived* TAllocationHolder::Allocate(size_t size, TRefCountedTypeCookie cookie)
         new (instance) TDerived(TMutableRef(instance + 1, size), cookie);
     } catch (const std::exception& ex) {
         // Do not forget to free the memory.
-        ::free(ptr);
+        NYTAlloc::Free(ptr);
         throw;
     }
 
