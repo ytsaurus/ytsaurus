@@ -97,6 +97,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, ResponseCodec);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NCompression::ECodec>, ResponseAttachmentCodec);
     DEFINE_BYVAL_RW_PROPERTY(bool, GenerateAttachmentChecksums, true);
+    DEFINE_BYVAL_RW_PROPERTY(bool, UseUndumpableMemoryZone, false);
 
 public:
     virtual TSharedRefArray Serialize() override;

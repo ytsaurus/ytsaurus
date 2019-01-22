@@ -20,6 +20,7 @@
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/tls_cache.h>
+#include <yt/core/misc/memory_zone.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
@@ -368,6 +369,9 @@ private:
         busOptions.ChecksummedPartCount = RuntimeInfo_->Descriptor.GenerateAttachmentChecksums
             ? NBus::TSendOptions::AllParts
             : 2; // RPC header + response body
+        if (FromProto<EMemoryZone>(RequestHeader_->response_memory_zone()) == EMemoryZone::Undumpable) {
+            busOptions.UseUndumpableMemoryZone = true;
+        }
         ReplyBus_->Send(responseMessage, busOptions);
 
         ReplyInstant_ = GetCpuInstant();

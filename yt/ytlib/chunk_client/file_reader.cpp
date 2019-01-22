@@ -4,8 +4,9 @@
 #include "chunk_reader_statistics.h"
 #include "io_engine.h"
 
-#include <yt/core/misc/fs.h>
 #include <yt/core/misc/checksum.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/memory_zone.h>
 
 #include <yt/client/misc/workload.h>
 
@@ -254,7 +255,12 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
     const auto& lastBlockInfo = blocksExt->blocks(lastBlockIndex);
     i64 totalSize = lastBlockInfo.offset() + lastBlockInfo.size() - firstBlockInfo.offset();
 
-    return IOEngine_->Pread(dataFile, totalSize, firstBlockInfo.offset(), options.WorkloadDescriptor.GetPriority())
+    TMemoryZoneGuard guard(EMemoryZone::Undumpable);
+    return IOEngine_->Pread(
+         dataFile,
+        totalSize,
+        firstBlockInfo.offset(),
+        options.WorkloadDescriptor.GetPriority())
         .Apply(BIND(&TFileReader::OnDataBlock, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
 }
 
