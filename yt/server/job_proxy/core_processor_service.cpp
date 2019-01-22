@@ -1,6 +1,5 @@
 #include "core_processor_service.h"
-
-#include "core_processor_service_proxy.h"
+#include "job.h"
 
 #include <yt/server/lib/misc/job_table_schema.h>
 
@@ -23,7 +22,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT::NCoreDump {
+namespace NYT::NJobProxy {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -35,7 +34,8 @@ using namespace NObjectClient;
 using namespace NPipes;
 using namespace NNet;
 using namespace NRpc;
-using namespace NProto;
+using namespace NCoreDump;
+using namespace NCoreDump::NProto;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NTableClient;

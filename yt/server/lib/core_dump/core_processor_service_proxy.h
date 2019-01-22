@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/lib/core_dump/core_processor_service.pb.h>
+#include <yt/server/lib/core_dump/proto/core_processor_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

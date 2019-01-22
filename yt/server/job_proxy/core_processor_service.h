@@ -2,10 +2,7 @@
 
 #include "public.h"
 
-// TODO(babenko): drop this dependency
-#include <yt/server/job_proxy/job.h>
-
-#include <yt/server/lib/core_dump/core_processor_service.pb.h>
+#include <yt/server/lib/core_dump/core_processor_service_proxy.h>
 
 #include <yt/ytlib/core_dump/public.h>
 
@@ -19,13 +16,13 @@
 
 #include <yt/core/rpc/service_detail.h>
 
-namespace NYT::NCoreDump {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCoreResult
 {
-    std::vector<NProto::TCoreInfo> CoreInfos;
+    std::vector<NCoreDump::NProto::TCoreInfo> CoreInfos;
     NScheduler::NProto::TOutputResult BoundaryKeys;
 };
 
@@ -54,7 +51,7 @@ private:
     class TCoreProcessor;
     const TIntrusivePtr<TCoreProcessor> CoreProcessor_;
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, StartCoreDump);
+    DECLARE_RPC_SERVICE_METHOD(NCoreDump::NProto, StartCoreDump);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCoreProcessorService)
