@@ -21,6 +21,8 @@ DECLARE_REFCOUNTED_STRUCT(IUserJobEnvironment)
 DECLARE_REFCOUNTED_STRUCT(IUserJobSynchronizer)
 DECLARE_REFCOUNTED_STRUCT(IUserJobSynchronizerClient)
 
+DECLARE_REFCOUNTED_CLASS(TCoreProcessorService)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

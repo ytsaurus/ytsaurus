@@ -9,9 +9,7 @@
 #include "job_satellite_connection.h"
 #include "user_job_synchronizer.h"
 #include "environment.h"
-
-#include <yt/server/lib/core_dump/public.h>
-#include <yt/server/lib/core_dump/core_processor_service.h>
+#include "core_processor_service.h"
 
 #include <yt/server/lib/job_proxy/config.h>
 
