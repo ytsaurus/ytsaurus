@@ -163,6 +163,9 @@ message TTabletCellStatistics
     required int32 health = 16;
 }
 
+message TReqUpdateTabletCellHealthStatistics
+{ }
+
 message TReqSetTabletCellStatistics
 {
     message TEntry
