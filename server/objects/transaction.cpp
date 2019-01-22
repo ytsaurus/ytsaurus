@@ -1328,23 +1328,17 @@ private:
             }
 
             auto key = std::make_pair(type, id);
-            auto it = InstantiatedObjects_.find(key);
-            if (it == InstantiatedObjects_.end()) {
-                // TODO (gritukan@): find out why this check fails at some tests
-               /*
-               if (RemovedObjects_[type].contains(id)) {
-                    THROW_ERROR_EXCEPTION(
-                        NClient::NApi::EErrorCode::NoSuchObject,
-                        "%v %Qv is already removed in this transaction",
-                        GetCapitalizedHumanReadableTypeName(type),
-                        id);
+            auto instantiatedIt = InstantiatedObjects_.find(key);
+            if (instantiatedIt == InstantiatedObjects_.end()) {
+                auto removedIt = RemovedObjects_[type].find(id);
+                if (removedIt != RemovedObjects_[type].end()) {
+                    return removedIt->second;
                 }
-                */
                 const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
                 auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
                 auto objectHolder = typeHandler->InstantiateObject(id, parentId, this);
                 auto* object = objectHolder.get();
-                it = InstantiatedObjects_.emplace(key, std::move(objectHolder)).first;
+                instantiatedIt = InstantiatedObjects_.emplace(key, std::move(objectHolder)).first;
                 object->InitializeInstantiated();
 
                 YT_LOG_DEBUG("Object instantiated (ObjectId: %v, ParentId: %v, Type: %v)",
@@ -1355,7 +1349,7 @@ private:
                     type);
             }
 
-            return it->second.get();
+            return instantiatedIt->second.get();
         }
 
         virtual void RemoveObject(TObject* object) override
