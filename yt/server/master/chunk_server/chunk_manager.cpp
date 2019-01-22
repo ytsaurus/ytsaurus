@@ -1239,11 +1239,10 @@ public:
             return MakeFuture(chunk->MiscExt());
         }
 
-        std::vector<NJournalClient::TChunkReplicaDescriptor> replicas;
+        std::vector<NNodeTrackerServer::TNodeDescriptor> replicas;
         for (auto nodeWithIndexes : chunk->StoredReplicas()) {
             const auto* node = nodeWithIndexes.GetPtr();
-            const auto mediumIndex = nodeWithIndexes.GetMediumIndex();
-            replicas.emplace_back(NJournalClient::TChunkReplicaDescriptor{node->GetDescriptor(), mediumIndex});
+            replicas.push_back(node->GetDescriptor());
         }
 
         return ComputeQuorumInfo(
