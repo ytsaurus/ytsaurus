@@ -223,9 +223,11 @@ class RequestRetrier(Retrier):
         self.requests_timeout = timeout
         retries_timeout = timeout[1] if isinstance(timeout, tuple) else timeout
 
+        non_retriable_errors = []
         retriable_errors = list(get_retriable_errors())
         if is_ping:
-            retriable_errors.append(YtNoSuchTransaction)
+            retriable_errors.append(YtHttpResponseError)
+            non_retriable_errors.append(YtNoSuchTransaction)
 
         headers = get_value(kwargs.get("headers", {}), {})
         headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
@@ -233,6 +235,7 @@ class RequestRetrier(Retrier):
 
         chaos_monkey_enable = get_option("_ENABLE_HTTP_CHAOS_MONKEY", client)
         super(RequestRetrier, self).__init__(exceptions=tuple(retriable_errors),
+                                             ignore_exceptions=tuple(non_retriable_errors),
                                              timeout=retries_timeout,
                                              retry_config=retry_config,
                                              chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
