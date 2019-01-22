@@ -202,7 +202,15 @@ private:
         ValidateConnected();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSessionOrThrow(sessionId);
+        ISessionPtr session;
+        if (sessionId.MediumIndex == AllMediaIndex) {
+            auto sessions = sessionManager->GetSessionsOrThrow(sessionId.ChunkId);
+            YCHECK(sessions.size() == 1);
+            session = sessions[0];
+        } else {
+            session = sessionManager->GetSessionOrThrow(sessionId);
+        }
+
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;

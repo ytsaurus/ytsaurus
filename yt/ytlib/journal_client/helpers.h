@@ -15,27 +15,16 @@ namespace NYT::NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkReplicaDescriptor
-{
-    NNodeTrackerClient::TNodeDescriptor NodeDescriptor;
-    int MediumIndex;
-};
-
-void FormatValue(TStringBuilder* builder, const TChunkReplicaDescriptor& replica, TStringBuf spec);
-TString ToString(const TChunkReplicaDescriptor& replica);
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFuture<void> AbortSessionsQuorum(
     NChunkClient::TChunkId chunkId,
-    const std::vector<TChunkReplicaDescriptor>& replicas,
+    const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
     TDuration timeout,
     int quorum,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
 TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
     NChunkClient::TChunkId chunkId,
-    const std::vector<TChunkReplicaDescriptor>& replicas,
+    const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
     TDuration timeout,
     int quorum,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);

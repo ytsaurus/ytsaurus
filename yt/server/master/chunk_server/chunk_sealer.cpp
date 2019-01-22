@@ -321,13 +321,12 @@ private:
         }
     }
 
-    std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicas(TChunk* chunk)
+    std::vector<TNodeDescriptor> GetChunkReplicas(TChunk* chunk)
     {
-        std::vector<NJournalClient::TChunkReplicaDescriptor> result;
+        std::vector<TNodeDescriptor> result;
         for (auto replica : chunk->StoredReplicas()) {
             auto* node = replica.GetPtr();
-            auto mediumIndex = replica.GetMediumIndex();
-            result.emplace_back(NJournalClient::TChunkReplicaDescriptor{node->GetDescriptor(), mediumIndex});
+            result.push_back(node->GetDescriptor());
         }
         return result;
     }
