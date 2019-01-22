@@ -80,6 +80,14 @@ public:
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) override;
 
+    virtual NThreading::TFuture<void> AbortOperation(const TOperationId& operationId) override;
+
+    virtual NThreading::TFuture<void> CompleteOperation(const TOperationId& operationId) override;
+
+    virtual NThreading::TFuture<void> UpdateOperationParameters(
+        const TOperationId& operationId,
+        const TUpdateOperationParametersOptions& options) override;
+
     virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) override;
 
     virtual NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) override;

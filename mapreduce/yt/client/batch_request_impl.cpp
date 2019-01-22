@@ -125,6 +125,23 @@ TFuture<TNodeId> TBatchRequest::Link(
     return Impl_->Link(DefaultTransaction_, targetPath, linkPath, options);
 }
 
+TFuture<void> TBatchRequest::AbortOperation(const NYT::TOperationId& operationId)
+{
+    return Impl_->AbortOperation(operationId);
+}
+
+TFuture<void> TBatchRequest::CompleteOperation(const NYT::TOperationId& operationId)
+{
+    return Impl_->CompleteOperation(operationId);
+}
+
+TFuture<void> TBatchRequest::UpdateOperationParameters(
+    const NYT::TOperationId& operationId,
+    const NYT::TUpdateOperationParametersOptions& options)
+{
+    return Impl_->UpdateOperationParameters(operationId, options);
+}
+
 TFuture<TRichYPath> TBatchRequest::CanonizeYPath(const TRichYPath& path)
 {
     return Impl_->CanonizeYPath(path);

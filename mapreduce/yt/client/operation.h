@@ -165,14 +165,6 @@ void WaitForOperation(
     const TAuth& auth,
     const TOperationId& operationId);
 
-void AbortOperation(
-    const TAuth& auth,
-    const TOperationId& operationId);
-
-void CompleteOperation(
-    const TAuth& auth,
-    const TOperationId& operationId);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, TClientPtr client, const TOperationOptions& options);

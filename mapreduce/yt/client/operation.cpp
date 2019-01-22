@@ -731,26 +731,6 @@ void WaitForOperation(
     }
 }
 
-void AbortOperation(
-    const TAuth& auth,
-    const TOperationId& operationId)
-{
-    THttpHeader header("POST", "abort_op");
-    header.AddOperationId(operationId);
-    header.AddMutationId();
-    RetryRequest(auth, header);
-}
-
-void CompleteOperation(
-    const TAuth& auth,
-    const TOperationId& operationId)
-{
-    THttpHeader header("POST", "complete_op");
-    header.AddOperationId(operationId);
-    header.AddMutationId();
-    RetryRequest(auth, header);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {

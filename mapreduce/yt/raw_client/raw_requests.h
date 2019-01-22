@@ -33,6 +33,10 @@ void ExecuteBatch(
     const TExecuteBatchOptions& options = TExecuteBatchOptions(),
     IRetryPolicy* retryPolicy = nullptr);
 
+//
+// Cypress
+//
+
 TNode Get(
     const TAuth& auth,
     const TTransactionId& transactionId,
@@ -92,16 +96,32 @@ TLockId Lock(
     const TLockOptions& options = TLockOptions(),
     IRetryPolicy* retryPolicy = nullptr);
 
+//
+// Transactions
+//
+
 void PingTx(
     const TAuth& auth,
     const TTransactionId& transactionId,
     IRetryPolicy* retryPolicy = nullptr);
+
+//
+// Operations
+//
 
 TOperationAttributes GetOperation(
     const TAuth& auth,
     const TOperationId& operationId,
     const TGetOperationOptions& options = TGetOperationOptions(),
     IRetryPolicy* retryPolicy = nullptr);
+
+void AbortOperation(
+    const TAuth& auth,
+    const TOperationId& operationId);
+
+void CompleteOperation(
+    const TAuth& auth,
+    const TOperationId& operationId);
 
 TListOperationsResult ListOperations(
     const TAuth& auth,
@@ -119,6 +139,10 @@ TNode ListJobsOld(
     const TOperationId& operationId,
     const TListJobsOptions& options = TListJobsOptions(),
     IRetryPolicy* retryPolicy = nullptr);
+
+//
+// Jobs
+//
 
 TJobAttributes GetJob(
     const TAuth& auth,
@@ -156,6 +180,10 @@ TIntrusivePtr<IFileReader> GetJobStderr(
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobStderrOptions& options = TGetJobStderrOptions());
+
+//
+// File cache
+//
 
 TMaybe<TYPath> GetFileFromCache(
     const TAuth& auth,

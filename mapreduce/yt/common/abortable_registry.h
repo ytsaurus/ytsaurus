@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mapreduce/yt/interface/common.h>
+#include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <mapreduce/yt/http/requests.h>
 

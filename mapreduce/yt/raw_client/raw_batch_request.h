@@ -116,6 +116,8 @@ public:
     NThreading::TFuture<TOperationAttributes> GetOperation(
         const TOperationId& operationId,
         const TGetOperationOptions& options);
+    NThreading::TFuture<void> AbortOperation(const TOperationId& operationId);
+    NThreading::TFuture<void> CompleteOperation(const TOperationId& operationId);
     NThreading::TFuture<void> UpdateOperationParameters(
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options);
