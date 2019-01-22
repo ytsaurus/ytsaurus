@@ -52,13 +52,6 @@ const TString& GetUninternedAttributeKey(TInternedAttributeKey internedKey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRegisterInternedAttribute::TRegisterInternedAttribute(
-    const TString& uninternedKey,
-    TInternedAttributeKey internedKey)
-{
-    InternAttribute(uninternedKey, internedKey);
-}
-
 REGISTER_INTERNED_ATTRIBUTE(count, CountInternedAttribute)
 
 ////////////////////////////////////////////////////////////////////////////////
