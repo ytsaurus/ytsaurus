@@ -13,7 +13,7 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A reduced verison of TExecNodeDescriptor, which is associated with jobs.
+//! A reduced version of TExecNodeDescriptor, which is associated with jobs.
 struct TJobNodeDescriptor
 {
     TJobNodeDescriptor() = default;
