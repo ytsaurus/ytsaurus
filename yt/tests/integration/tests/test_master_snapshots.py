@@ -78,15 +78,35 @@ def check_removed_account():
         chunk_id = get_singular_chunk_id("//tmp/a2_table{0}".format(i))
         wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 1)
 
+def check_dynamic_tables():
+    sync_create_cells(1)
+    create_dynamic_table("//tmp/t", schema=[
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value", "type": "string"}]
+    )
+    rows = [{"key": 0, "value": "0"}]
+    keys = [{"key": 0}]
+    sync_mount_table("//tmp/t")
+    insert_rows("//tmp/t", rows)
+    sync_freeze_table("//tmp/t")
+
+    yield
+
+    clear_metadata_caches()
+    wait_for_cells()
+    assert lookup_rows("//tmp/t", keys) == rows
+
 class TestSnapshot(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
+    USE_DYNAMIC_TABLES = True
 
     def test(self):
         CHECKER_LIST = [
             check_simple_node,
             check_schema,
             check_forked_schema,
+            check_dynamic_tables,
             check_removed_account # keep this item last as it's sensitive to timings
         ]
 
