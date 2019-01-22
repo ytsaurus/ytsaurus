@@ -1,4 +1,5 @@
 #pragma once
+
 #include "public.h"
 
 namespace NYT::NYTree {
@@ -21,17 +22,18 @@ const TString& GetUninternedAttributeKey(TInternedAttributeKey internedKey);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRegisterInternedAttribute
-{
-    TRegisterInternedAttribute(const TString& uninternedKey, TInternedAttributeKey internedKey);
-};
+#ifdef __GNUC__
+    // Prevent the linker from throwing out static initializers.
+    #define REGISTER_INTERNED_ATTRIBUTE_ATTRIBUTES __attribute__((used))
+#else
+    #define REGISTER_INTERNED_ATTRIBUTE_ATTRIBUTES
+#endif
 
-// NB: this macro has to be expanded within a translation unit with functions or
-// variables that are actually used somewhere else. Otherwise the compiler is
-// well within its rights to eschew the initialization.
-// See the standard at [basic.start.init] paragraph 4.
 #define REGISTER_INTERNED_ATTRIBUTE(uninternedKey, internedKey) \
-    static const ::NYT::NYTree::TRegisterInternedAttribute register_##uninternedKey(#uninternedKey, internedKey);
+    REGISTER_INTERNED_ATTRIBUTE_ATTRIBUTES const void* InternedAttribute_##uninternedKey = [] () -> void* { \
+    		::NYT::NYTree::InternAttribute(#uninternedKey, internedKey); \
+    		return nullptr; \
+    	} ();
 
 ////////////////////////////////////////////////////////////////////////////////
 
