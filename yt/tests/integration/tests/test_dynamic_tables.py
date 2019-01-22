@@ -234,6 +234,10 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert get("#" + cell_id + "/@health") == "good"
         assert lookup_rows("//tmp/t", keys) == rows
 
+    def test_tablet_cell_health_statistics(self):
+        cell_id = sync_create_cells(1)[0]
+        wait(lambda: get("#{0}/@total_statistics/health".format(cell_id)) == "good")
+
     def test_distributed_commit(self):
         cell_count = 5
         sync_create_cells(cell_count)

@@ -194,6 +194,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraCreateTabletAction, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDestroyTabletActions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateTabletCellHealthStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletCellStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)));
@@ -3782,6 +3783,7 @@ private:
 
         NProto::TReqSetTabletCellStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
+
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             if (!IsObjectAlive(cell))
@@ -3796,10 +3798,24 @@ private:
             }
         }
 
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        CreateMutation(hydraManager, NProto::TReqUpdateTabletCellHealthStatistics())
+            ->CommitAndLog(Logger);
+
         if (Bootstrap_->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
             multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
+        }
+    }
+
+    void HydraUpdateTabletCellHealthStatistics(NProto::TReqUpdateTabletCellHealthStatistics* request)
+    {
+        for (const auto& pair : TabletCellMap_) {
+            auto* cell = pair.second;
+            if (!IsObjectAlive(cell))
+                continue;
+            cell->LocalStatistics().Health = cell->GetHealth();
         }
     }
 
@@ -3824,9 +3840,7 @@ private:
             if (!IsObjectAlive(cell))
                 continue;
 
-            cell->LocalStatistics().Health = cell->GetHealth();
             auto newStatistics = FromProto<NTabletServer::TTabletCellStatistics>(entry.statistics());
-
             if (Bootstrap_->IsPrimaryMaster()) {
                 *cell->GetCellStatistics(cellTag) = newStatistics;
                 cell->RecomputeClusterStatistics();
