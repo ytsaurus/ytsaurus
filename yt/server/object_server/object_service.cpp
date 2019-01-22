@@ -638,7 +638,7 @@ private:
         }
 
         // NB: Even if the user was just removed the instance is still valid but not alive.
-        if (IsObjectAlive(User_)) {
+        if (IsObjectAlive(User_) && !EpochCancelableContext_->IsCanceled()) {
             SecurityManager_->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
     }
