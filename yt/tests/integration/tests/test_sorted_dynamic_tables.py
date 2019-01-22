@@ -1622,6 +1622,58 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 actual = lookup_rows("//tmp/actual", keys, versioned=versioned, timestamp=ts)
                 assert expected == actual
 
+    def test_versioned_lookup_dynamic_store(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@enable_store_rotation", False)
+        sync_mount_table("//tmp/t")
+
+        timestamps = [generate_timestamp()]
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]]
+        timestamps += [generate_timestamp()]
+
+        delete_rows("//tmp/t", [{"key": 1}])
+        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["delete_timestamps"][0]]
+        timestamps += [generate_timestamp()]
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "b"}])
+        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]]
+        timestamps += [generate_timestamp()]
+
+        delete_rows("//tmp/t", [{"key": 1}])
+        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["delete_timestamps"][0]]
+        timestamps += [generate_timestamp()]
+
+        assert timestamps == sorted(timestamps)
+
+        # Check one lookup explicitly.
+        result = lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=timestamps[6])[0]
+        assert result.attributes["write_timestamps"] == [timestamps[5], timestamps[1]]
+        assert result.attributes["delete_timestamps"] == [timestamps[3]]
+        value = result["value"]
+        assert len(value) == 2
+        assert value[0].attributes["timestamp"] == timestamps[5]
+        assert str(value[0]) == "b"
+        assert value[1].attributes["timestamp"] == timestamps[1]
+        assert str(value[1]) == "a"
+
+        # Check all lookups against chunk stores.
+        actual = [
+            lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts)
+            for ts in timestamps]
+
+        set("//tmp/t/@enable_store_rotation", True)
+        remount_table("//tmp/t")
+        sync_freeze_table("//tmp/t")
+
+        expected = [
+            lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts)
+            for ts in timestamps]
+
+        assert expected == actual
+
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @skip_if_rpc_driver_backend
     def test_versioned_lookup_unversioned_chunks(self, optimize_for):
