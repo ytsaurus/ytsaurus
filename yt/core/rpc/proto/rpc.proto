@@ -49,6 +49,8 @@ message TRequestHeader
 
     optional TRequestCodecs request_codecs = 22;
 
+    optional int32 response_memory_zone = 32 [default = 0]; // EMemoryZone
+
     extensions 100 to max;
 }
 
@@ -108,6 +110,8 @@ message TResponseHeader
     optional int32 response_format = 3;
 
     optional TResponseCodecs response_codecs = 4;
+
+    optional int32 response_memory_zone = 5 [default = 0]; // EMemoryZone
 }
 
 ////////////////////////////////////////////////////////////////////////////////

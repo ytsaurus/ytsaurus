@@ -81,7 +81,7 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewImpl(
         new (instance) T(std::forward<As>(args)...);
     } catch (const std::exception& ex) {
         // Do not forget to free the memory.
-        ::free(ptr);
+        NYTAlloc::Free(ptr);
         throw;
     }
 

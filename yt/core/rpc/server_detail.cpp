@@ -151,6 +151,10 @@ TSharedRefArray TServiceContextBase::GetResponseMessage() const
                 requestCodecs.response_attachment_codec());
         }
 
+        if (RequestHeader_->has_response_memory_zone()) {
+            header.set_response_memory_zone(RequestHeader_->response_memory_zone());
+        }
+
         ResponseMessage_ = Error_.IsOK()
             ? CreateResponseMessage(
                 header,

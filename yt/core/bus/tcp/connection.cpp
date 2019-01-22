@@ -1061,6 +1061,9 @@ void TTcpConnection::ProcessQueuedMessages()
         auto flags = queuedMessage.Options.TrackingLevel == EDeliveryTrackingLevel::Full
             ? EPacketFlags::RequestAck
             : EPacketFlags::None;
+        if (queuedMessage.Options.UseUndumpableMemoryZone) {
+            flags |= EPacketFlags::UseUndumpableMemoryZone;
+        }
 
         auto* packet = EnqueuePacket(
             EPacketType::Message,

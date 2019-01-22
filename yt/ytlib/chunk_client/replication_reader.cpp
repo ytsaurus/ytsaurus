@@ -35,6 +35,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/memory_zone.h>
 
 #include <yt/core/net/local_address.h>
 
@@ -1333,6 +1334,7 @@ private:
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
+        req->Header().set_response_memory_zone(static_cast<i32>(EMemoryZone::Undumpable));
         if (ReaderOptions_->EnableP2P) {
             auto expirationTime = TInstant::Now() + ReaderConfig_->PeerExpirationTimeout;
             ToProto(req->mutable_peer_descriptor(), reader->LocalDescriptor_);

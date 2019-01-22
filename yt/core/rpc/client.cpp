@@ -7,6 +7,7 @@
 
 #include <yt/core/misc/cast.h>
 #include <yt/core/misc/checksum.h>
+#include <yt/core/misc/memory_zone.h>
 
 #include <iterator>
 
@@ -63,6 +64,7 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , ResponseCodec_(other.ResponseCodec_)
     , ResponseAttachmentCodec_(other.ResponseAttachmentCodec_)
     , GenerateAttachmentChecksums_(other.GenerateAttachmentChecksums_)
+    , UseUndumpableMemoryZone_(other.UseUndumpableMemoryZone_)
     , Channel_(other.Channel_)
     , Header_(other.Header_)
     , SerializedData_(other.SerializedData_)
@@ -91,6 +93,7 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
     options.Timeout = Timeout_;
     options.RequestAck = RequestAck_;
     options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
+    options.UseUndumpableMemoryZone = UseUndumpableMemoryZone_;
     options.MultiplexingBand = MultiplexingBand_;
     return Channel_->Send(
         this,
@@ -371,7 +374,11 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
         attachmentIt != ResponseMessage_.End();
         ++attachmentIt)
     {
-        auto decompressedAttachment = responseAttachmentCodec->Decompress(*attachmentIt);
+        TSharedRef decompressedAttachment;
+        {
+            TMemoryZoneGuard guard(FromProto<EMemoryZone>(Header_.response_memory_zone()));
+            decompressedAttachment = responseAttachmentCodec->Decompress(*attachmentIt);
+        }
         Attachments_.push_back(std::move(decompressedAttachment));
     }
 }

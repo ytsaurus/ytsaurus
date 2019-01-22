@@ -841,6 +841,7 @@ private:
         for (const auto& node : Nodes_) {
             auto req = node->Proxy.PutBlocks();
             req->SetTimeout(HeavyRpcTimeout_);
+            req->SetUseUndumpableMemoryZone(true);
             ToProto(req->mutable_session_id(), node->SessionId);
 
             for (const auto& block : blocks) {
