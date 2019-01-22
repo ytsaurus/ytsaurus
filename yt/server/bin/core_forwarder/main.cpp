@@ -40,6 +40,15 @@ public:
         Opts_.SetFreeArgTitle(5, "FALLBACK_PATH");
         Opts_.SetFreeArgTitle(6, "JOB_PROXY_SOCKET");
 
+        // Since syslog is configured to write into stderr, lets make
+        // sure that second file descriptor is occupied by open file.
+        if (dup(STDERR_FILENO) == -1 && errno == EBADFD) {
+            int fd = open("/dev/null", O_WRONLY);
+            YCHECK(fd != -1);
+            if (fd != STDERR_FILENO) {
+                YCHECK(-1 != dup2(fd, STDERR_FILENO));
+            }
+        }
         openlog("ytserver-core-forwarder", LOG_PID | LOG_PERROR, LOG_USER);
     }
 
@@ -111,8 +120,8 @@ protected:
         // it to first RLIMIT_CORE bytes.
         syslog(LOG_INFO, "Writing core to fallback path (FallbackPath: %s)", FallbackPath_.c_str());
         TFile coreFile(FallbackPath_, CreateNew | WrOnly | Seq | CloseOnExec);
-
         auto size = WriteSparseCoreDump(&Cin, &coreFile);
+        coreFile.Close();
         syslog(LOG_INFO, "Finished writing core to disk (Size: %" PRId64 ")", size);
     }
 
