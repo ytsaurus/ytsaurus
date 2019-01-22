@@ -39,7 +39,7 @@ def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index
         tablet_count = get(path + "/@tablet_count", client=client)
         first_tablet_index = get_value(first_tablet_index, 0)
         last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
-        is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transition" and \
+        is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transient" and \
             all(tablet["state"] == state for tablet in
                 get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
     else:
@@ -48,7 +48,7 @@ def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index
     _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
 
 def _waiting_for_tablet_transition(path, client=None):
-    is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transition"
+    is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transient"
     _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
 
 def _check_transaction_type(client):
@@ -97,7 +97,7 @@ class DynamicTableRequestRetrier(Retrier):
 
     def except_action(self, error, attempt):
         logger.warning('Request "%s" has failed with error %s, message: %s',
-                        self.command, str(type(error)), str(error))
+                       self.command, str(type(error)), str(error))
 
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,

@@ -52,11 +52,12 @@ def run_chaos_monkey(chaos_monkey):
 
 
 class Retrier(object):
-    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey=None, logger=None):
+    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), ignore_exceptions=tuple(), chaos_monkey=None, logger=None):
         self.retry_config = copy.deepcopy(retry_config)
         if not self.retry_config["enable"]:
             self.retry_config["count"] = 1
         self.exceptions = exceptions
+        self.ignore_exceptions = ignore_exceptions
         self.timeout = timeout
         self._chaos_monkey = chaos_monkey
         self._logger = logger if logger is not None else yt_logger
@@ -73,7 +74,7 @@ class Retrier(object):
                     raise
 
                 is_error_retriable = False
-                if isinstance(exception, self.exceptions):
+                if isinstance(exception, self.exceptions) and not isinstance(exception, self.ignore_exceptions):
                     is_error_retriable = True
                 else:
                     for retriable_code in self.retry_config.get("additional_retriable_error_codes", []):

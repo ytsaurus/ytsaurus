@@ -13,7 +13,7 @@ def check_permission(user, permission, path, format=None, read_from=None, client
 
     .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
     """
-    params ={
+    params = {
         "user": user,
         "permission": permission,
         "path": path

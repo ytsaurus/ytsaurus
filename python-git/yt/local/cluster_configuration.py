@@ -284,6 +284,7 @@ def modify_cluster_configuration(cluster_configuration, abi_version, master_conf
             update_inplace(config, node_config_patch)
 
     if proxy_config_patch:
-        update_inplace(cluster_configuration["proxy"], proxy_config_patch)
+        for config in cluster_configuration["http_proxy"]:
+            update_inplace(config, proxy_config_patch)
 
     _remove_none_fields(cluster_configuration)

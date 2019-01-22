@@ -46,22 +46,8 @@ strip_debug_info() {
     for binary in $(find "$archive_path/bin" -name "ytserver*"); do
         strip "$binary" --strip-debug
     done
-    strip "$archive_path/node_modules/yt/lib/ytnode.node" --strip-debug
     strip "$archive_path/python/yt_driver_bindings/driver_lib.so" --strip-debug
     strip "$archive_path/python/yt_yson_bindings/yson_lib.so" --strip-debug
-}
-
-create_node_symlink() {
-    local archive_path="$1" && shift
-
-    if [ -f "$archive_path/node/bin/node" ]; then
-        return
-    fi
-
-    local current_path="$(pwd)"
-    cd "$archive_path/node/bin"
-    ln -s nodejs node
-    cd "$current_path"
 }
 
 upload_to_sandbox() {
@@ -130,10 +116,10 @@ EOF
 }
 
 YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-YANDEX_YT_PYTHON_VERSION="0.8.41-0"
+YANDEX_YT_PYTHON_VERSION="0.8.49-0"
 
 if [ "$UBUNTU_CODENAME" = "precise" ]; then
-    YANDEX_YT_VERSIONS="19.3.27158-stable~a0b972103b"
+    YANDEX_YT_VERSIONS="19.4.28743-prestable-ya~a2b81d409e"
 elif [ "$UBUNTU_CODENAME" = "trusty" ]; then
     YANDEX_YT_VERSIONS="19.3.27158-stable~a0b972103b"
 else
@@ -141,7 +127,7 @@ else
     exit 1
 fi
 
-YANDEX_YT_YSON_BINDINGS_VERSION="0.3.14-8"
+YANDEX_YT_YSON_BINDINGS_VERSION="0.3.22-1"
 
 create_and_upload_archive() {
     local yt_local_version="$1" && shift
@@ -174,8 +160,6 @@ create_and_upload_archive() {
 
     # Remove debug symbols from libraries and binaries.
     strip_debug_info "$archive_local_path"
-    # Create symlink node/bin/node -> node/bin/nodejs
-    create_node_symlink "$archive_local_path"
 
     # Pack directory to tar archive without compression.
     local archive_local_name="$(mktemp /tmp/${archive_name}.XXXXXX)"
@@ -188,6 +172,8 @@ create_and_upload_archive() {
           yandex-yt-local=\"$yt_local_version\";\
           yandex-yt-python=\"$yt_python_version\";\
           yandex-yt-python-yson=\"$yt_yson_bindings_version\"}"
+
+    $YT link "$archive_path" "//home/files/yt_local_archive.tar" --force
 
     rm -rf "$archive_local_name"
 

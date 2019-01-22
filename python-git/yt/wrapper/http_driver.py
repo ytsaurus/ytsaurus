@@ -1,8 +1,9 @@
 from . import yson
 from .config import get_config, get_option, set_option
 from .compression import get_compressor
-from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job, get_started_by_short
-from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
+from .common import require, generate_uuid, get_version, total_seconds, forbidden_inside_job, get_started_by_short
+from .errors import (YtError, YtHttpResponseError, YtProxyUnavailable,
+                     YtConcurrentOperationsLimitExceeded, YtRequestTimedOut)
 from .http_helpers import (make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url,
                            get_error_from_headers, get_header_format, ProxyProvider)
 from .response_stream import ResponseStream
@@ -103,7 +104,9 @@ class HeavyProxyProvider(ProxyProvider):
                 result_proxy = unbanned_proxies[random.randint(0, upper_bound - 1)]
             else:
                 upper_bound = min(limit, len(heavy_proxies))
-                logger.warning("All proxies are banned, use random proxy from top %d of discovered proxies", upper_bound)
+                logger.warning(
+                    "All proxies are banned, use random proxy from top %d of discovered proxies",
+                    upper_bound)
                 result_proxy = heavy_proxies[random.randint(0, upper_bound - 1)]
 
             self.state.last_provided_proxy = result_proxy
@@ -130,7 +133,7 @@ class TokenAuth(AuthBase):
 
     def set_token(self, request):
         if self.token is not None:
-            request.headers["Authorization"] =  "OAuth " + self.token
+            request.headers["Authorization"] = "OAuth " + self.token
 
     def handle_redirect(self, request, **kwargs):
         self.set_token(request)
@@ -251,7 +254,7 @@ def make_request(command_name,
     auth = TokenAuth(get_token(client=client))
 
     if command.input_type in ["binary", "tabular"]:
-        content_encoding =  get_config(client)["proxy"]["content_encoding"]
+        content_encoding = get_config(client)["proxy"]["content_encoding"]
         headers["Content-Encoding"] = content_encoding
 
         require(content_encoding in ["gzip", "identity", "br"],

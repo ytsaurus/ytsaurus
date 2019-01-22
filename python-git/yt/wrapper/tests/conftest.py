@@ -39,6 +39,8 @@ if yatest_common is not None:
     @pytest.fixture(scope="session", autouse=True)
     def prepare_path(request):
         destination = os.path.join(yatest_common.work_path(), "build")
+        if os.path.exists(destination):
+            return
         os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(destination)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
@@ -64,7 +66,7 @@ class YtTestEnvironment(object):
         if env_options is None:
             env_options = {}
 
-        has_proxy = config["backend"] not in ("native",)
+        has_http_proxy = config["backend"] not in ("native",)
 
         logging.getLogger("Yt.local").setLevel(logging.INFO)
 
@@ -136,7 +138,7 @@ class YtTestEnvironment(object):
                 update_inplace(config, common_delta_node_config)
                 if delta_node_config:
                     update_inplace(config, delta_node_config)
-            for config in configs["proxy"]:
+            for config in configs["http_proxy"]:
                 if delta_proxy_config:
                     update_inplace(config, delta_proxy_config)
 
@@ -154,8 +156,8 @@ class YtTestEnvironment(object):
                               master_count=1,
                               node_count=5,
                               scheduler_count=1,
-                              has_proxy=has_proxy,
-                              has_rpc_proxy=True,
+                              http_proxy_count=1 if has_http_proxy else 0,
+                              rpc_proxy_count=1,
                               port_locks_path=get_port_locks_path(),
                               fqdn="localhost",
                               modify_configs_func=modify_configs,
@@ -175,7 +177,7 @@ class YtTestEnvironment(object):
         self.config["enable_request_logging"] = True
         self.config["enable_passing_request_id_to_driver"] = True
         self.config["operation_tracker"]["poll_period"] = 100
-        if has_proxy:
+        if has_http_proxy:
             self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
 
         # NB: to decrease probability of retries test failure.
@@ -204,6 +206,7 @@ class YtTestEnvironment(object):
         if config["backend"] != "rpc":
             self.config["driver_config"] = self.env.configs["driver"]
         self.config["local_temp_directory"] = local_temp_directory
+        self.config["enable_logging_for_params_changes"] = True
         self.reload_global_configuration()
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
@@ -233,7 +236,7 @@ class YtTestEnvironment(object):
     def reload_global_configuration(self):
         yt.config._init_state()
         yt._cleanup_http_session()
-        update_inplace(yt.config.config, self.config)
+        yt.config.config = self.config
 
 def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}

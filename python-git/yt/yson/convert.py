@@ -57,7 +57,7 @@ def json_to_yson(json_tree, encode_key=False, encoding=None):
     if isinstance(value, text_type):
         encoding = "utf-8" if encoding is None else encoding
         if PY3:
-            result = YsonUnicode(value.encode(encoding), encoding="utf-8")
+            result = YsonUnicode(value)
         else:  # COMPAT
             result = YsonString(value.encode(encoding))
     elif isinstance(value, binary_type):

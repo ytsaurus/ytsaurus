@@ -32,7 +32,7 @@ def _default_scheduling_func(test_items, process_count):
     for test_index, test in enumerate(test_items):
         test_suites[(test.cls, test.fspath)].append(test_index)
 
-    return split_test_suites(test_suites, process_count)
+    return sorted(list(test_suites.values()), key=lambda x: -len(x))
 
 def get_scheduling_func():
     if _test_scheduling_func is None:

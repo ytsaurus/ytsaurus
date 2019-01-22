@@ -14,7 +14,7 @@ with PackagesImporter():
     from tornado.httputil import HTTPHeaders
     from tornado.ioloop import IOLoop
     # It is necessary to prevent local imports during runtime.
-    import tornado.simple_httpclient
+    import tornado.simple_httpclient # noqa
 
 from copy import deepcopy
 from binascii import hexlify
@@ -123,7 +123,7 @@ class JobShell(object):
                      height=None, width=None, command=None):
         if self.terminating:
             raise YtError("Shell has already terminated")
-        if operation == "spawn" or self.shell_id != None or not self.interactive:
+        if operation == "spawn" or self.shell_id is not None or not self.interactive:
             req = self._prepare_request(operation, keys=keys, input_offset=input_offset, term=term,
                                         height=height, width=width, command=command)
             if self.interactive:
@@ -185,7 +185,7 @@ class JobShell(object):
         if b"consumed_offset" in rsp:
             consumed_offset = rsp[b"consumed_offset"]
             if self.input_offset < consumed_offset <= self.input_offset + len(self.key_buffer):
-                self.key_buffer = self.key_buffer[consumed_offset-self.input_offset:]
+                self.key_buffer = self.key_buffer[consumed_offset - self.input_offset:]
                 self.input_offset = consumed_offset
 
     def _on_poll_response(self, rsp):

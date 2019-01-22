@@ -107,9 +107,10 @@ _default_provision = {
         "chunk_store_quota": None,
         "allow_chunk_storage_in_tmpfs": False
     },
-    "proxy": {
+    "http_proxy": {
         "enable": False,
-        "http_port": None
+        "count": 0,
+        "http_ports": None
     },
     "rpc_proxy": {
         "count": 0
@@ -131,37 +132,34 @@ def get_default_provision():
 
 @add_metaclass(abc.ABCMeta)
 class ConfigsProvider(object):
-    def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, scheduler_dirs=None, controller_agent_dirs=None,
-                      node_dirs=None, node_tmpfs_dirs=None, proxy_dir=None, rpc_proxy_dirs=None, skynet_manager_dirs=None,
-                      logs_dir=None, provision=None):
+    def build_configs(self, ports_generator, dirs, logs_dir=None, provision=None):
         provision = get_value(provision, get_default_provision())
 
         # XXX(asaitgalin): All services depend on master so it is useful to make
         # connection configs with addresses and other useful info about all master cells.
         master_configs, connection_configs = self._build_master_configs(
             provision,
-            master_dirs,
-            master_tmpfs_dirs,
+            dirs["master"],
+            dirs["master_tmpfs"],
             ports_generator,
             logs_dir)
 
-        scheduler_configs = self._build_scheduler_configs(provision, scheduler_dirs, deepcopy(connection_configs),
+        scheduler_configs = self._build_scheduler_configs(provision, dirs["scheduler"], deepcopy(connection_configs),
                                                           ports_generator, logs_dir)
 
-        controller_agent_configs = self._build_controller_agent_configs(provision, controller_agent_dirs, deepcopy(connection_configs),
+        controller_agent_configs = self._build_controller_agent_configs(provision, dirs["controller_agent"], deepcopy(connection_configs),
                                                                         ports_generator, logs_dir)
 
         node_configs, node_addresses = self._build_node_configs(
             provision,
-            node_dirs,
-            node_tmpfs_dirs,
+            dirs["node"],
+            dirs["node_tmpfs"],
             deepcopy(connection_configs),
             ports_generator,
             logs_dir)
 
-        proxy_config = self._build_proxy_config(provision, proxy_dir, deepcopy(connection_configs), ports_generator,
-                                                logs_dir, master_cache_nodes=node_addresses)
-        proxy_address = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
+        http_proxy_configs = self._build_proxy_config(provision, dirs["http_proxy"], deepcopy(connection_configs), ports_generator,
+                                                      logs_dir, master_cache_nodes=node_addresses)
 
         rpc_proxy_configs = []
         rpc_client_config = None
@@ -184,7 +182,10 @@ class ConfigsProvider(object):
 
         skynet_manager_configs = None
         if provision["skynet_manager"]["count"] > 0:
-            skynet_manager_configs = self._build_skynet_manager_configs(provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator)
+            if not http_proxy_configs:
+                raise YtError("Skynet manager requires at least one HTTP proxy")
+            http_proxy_address = "{0}:{1}".format(provision["fqdn"], http_proxy_configs[0]["port"])
+            skynet_manager_configs = self._build_skynet_manager_configs(provision, logs_dir, http_proxy_address, rpc_proxy_addresses, ports_generator)
 
         cluster_configuration = {
             "master": master_configs,
@@ -193,7 +194,7 @@ class ConfigsProvider(object):
             "scheduler": scheduler_configs,
             "controller_agent": controller_agent_configs,
             "node": node_configs,
-            "proxy": proxy_config,
+            "http_proxy": http_proxy_configs,
             "rpc_proxy": rpc_proxy_configs,
             "rpc_client": rpc_client_config,
             "skynet_manager": skynet_manager_configs,
@@ -286,20 +287,6 @@ def _set_bind_retry_options(config, key=None):
         key = key + "/"
     set_at(config, "{0}bind_retry_count".format(key), 10)
     set_at(config, "{0}bind_retry_backoff".format(key), 3000)
-
-def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, fqdn, ports_generator, proxy_logs_dir):
-    proxy_config = default_configs.get_proxy_config()
-    proxy_config["port"] = proxy_port if proxy_port else next(ports_generator)
-    proxy_config["fqdn"] = "{0}:{1}".format(fqdn, proxy_config["port"])
-
-    logging_config = get_at(proxy_config, "proxy/logging")
-    set_at(proxy_config, "proxy/logging",
-           init_logging(logging_config, proxy_logs_dir, "http-proxy", enable_debug_logging))
-    set_at(proxy_config, "logging/filename", os.path.join(proxy_logs_dir, "http-application.log"))
-
-    _set_bind_retry_options(proxy_config)
-
-    return proxy_config
 
 def _get_hydra_manager_config():
     return {
@@ -521,12 +508,25 @@ class ConfigsProvider_19(ConfigsProvider):
             master_cache_nodes=master_cache_nodes,
             enable_master_cache=provision["enable_master_cache"]))
 
-        proxy_config = _generate_common_proxy_config(proxy_dir, provision["proxy"]["http_port"],
-                                                     provision["enable_debug_logging"], provision["fqdn"],
-                                                     ports_generator, proxy_logs_dir)
-        proxy_config["proxy"]["driver"] = driver_config
+        proxy_configs = []
 
-        return proxy_config
+        for index in xrange(provision["http_proxy"]["count"]):
+            proxy_config = default_configs.get_proxy_config()
+            proxy_config["port"] = provision["http_proxy"]["http_ports"][index] if provision["http_proxy"]["http_ports"] else next(ports_generator)
+            proxy_config["fqdn"] = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
+
+            logging_config = get_at(proxy_config, "proxy/logging")
+            set_at(proxy_config, "proxy/logging",
+                   init_logging(logging_config, proxy_logs_dir, "http-proxy-{}".format(index), provision["enable_debug_logging"]))
+            set_at(proxy_config, "logging/filename", os.path.join(proxy_logs_dir, "http-application-{}.log".format(index)))
+
+            _set_bind_retry_options(proxy_config)
+
+            proxy_config["proxy"]["driver"] = driver_config
+            
+            proxy_configs.append(proxy_config)
+
+        return proxy_configs
 
     def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
         configs = []
