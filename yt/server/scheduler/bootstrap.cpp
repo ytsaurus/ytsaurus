@@ -1,5 +1,12 @@
 #include "bootstrap.h"
 #include "private.h"
+#include "job_prober_service.h"
+#include "job_tracker_service.h"
+#include "private.h"
+#include "scheduler.h"
+#include "scheduler_service.h"
+#include "controller_agent_tracker_service.h"
+#include "controller_agent_tracker.h"
 
 #include <yt/server/lib/scheduler/config.h>
 
@@ -8,13 +15,6 @@
 #include <yt/server/lib/misc/address_helpers.h>
 
 #include <yt/server/lib/scheduler/config.h>
-#include <yt/server/scheduler/job_prober_service.h>
-#include <yt/server/scheduler/job_tracker_service.h>
-#include <yt/server/scheduler/private.h>
-#include <yt/server/scheduler/scheduler.h>
-#include <yt/server/scheduler/scheduler_service.h>
-#include <yt/server/scheduler/controller_agent_tracker_service.h>
-#include <yt/server/scheduler/controller_agent_tracker.h>
 
 #include <yt/server/controller_agent/helpers.h>
 
