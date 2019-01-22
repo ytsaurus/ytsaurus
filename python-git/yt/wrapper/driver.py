@@ -15,6 +15,7 @@ from yt.yson.convert import json_to_yson
 
 from yt.packages.six import string_types
 
+import os
 from copy import deepcopy
 
 _DEFAULT_COMMAND_PARAMS = {
@@ -42,7 +43,7 @@ def get_command_list(client=None):
     backend = get_backend_type(client)
     if backend in ("native", "rpc"):
         return list(native_driver.get_command_descriptors(client))
-    else: # backend == "http"
+    else:  # backend == "http"
         return list(get_api_commands(client))
 
 def make_request(command_name,
@@ -59,7 +60,12 @@ def make_request(command_name,
                  client=None):
     backend = get_backend_type(client)
 
+    enable_params_logging = get_config(client)["enable_logging_for_params_changes"]
+    if enable_params_logging:
+        logger.debug("Start deepcopy (pid: %d)", os.getpid());
     command_params = deepcopy(get_option("COMMAND_PARAMS", client))
+    if enable_params_logging:
+        logger.debug("Finish deepcopy (pid: %d)", os.getpid());
 
     for key in _DEFAULT_COMMAND_PARAMS:
         if key in command_params and command_params[key] == _DEFAULT_COMMAND_PARAMS[key]:
@@ -70,8 +76,9 @@ def make_request(command_name,
     params = simplify_structure(params)
 
     enable_request_logging = get_config(client)["enable_request_logging"]
+    enable_request_result_logging = get_config(client)["enable_request_result_logging"]
 
-    if enable_request_logging:
+    if enable_request_logging and enable_request_result_logging:
         logger.info("Executing %s (params: %r)", command_name, params)
 
     if get_option("_client_type", client) == "batch":

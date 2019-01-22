@@ -32,7 +32,7 @@ class StringIterIO(Iterator):
             string_output = BytesIO()
             while True:
                 to_write = min(size, len(self._cur_string) - self._pos)
-                string_output.write(self._cur_string[self._pos : self._pos + to_write])
+                string_output.write(self._cur_string[self._pos: self._pos + to_write])
                 self._pos += to_write
                 size -= to_write
                 if size == 0:
@@ -55,7 +55,7 @@ class StringIterIO(Iterator):
         while True:
             index = self._cur_string.find(b"\n", self._pos)
             if index != -1:
-                string_output.write(self._cur_string[self._pos : index + 1])
+                string_output.write(self._cur_string[self._pos: index + 1])
                 self._pos = index + 1
                 break
             else:

@@ -44,4 +44,4 @@ def get_memory_cgroup_statistics():
 
     stat_path = os.path.join(memory_cgroup_path, "memory.stat")
     return {"usage_in_bytes": _get_field(stat_path, "total_rss") + _get_field(stat_path, "total_mapped_file")}
-        #"max_usage_in_bytes": _get_value(os.path.join(memory_cgroup_path, "memory.max_usage_in_bytes"))
+    # "max_usage_in_bytes": _get_value(os.path.join(memory_cgroup_path, "memory.max_usage_in_bytes"))

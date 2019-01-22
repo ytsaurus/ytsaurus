@@ -49,7 +49,9 @@ def _hexify_recursively(obj):
 def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
     from yt.packages.requests import HTTPError, ConnectionError, Timeout
-    return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
+    from yt.packages.requests.exceptions import ChunkedEncodingError
+    return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine,
+            SocketError, ChunkedEncodingError,
             YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
             YtRequestTimedOut, YtRetriableError)
@@ -186,7 +188,8 @@ def _raise_for_status(response, request_info):
         raise YtTokenError(
             "Your authentication token was rejected by the server (X-YT-Request-ID: {0})\n"
             "Please refer to oauth.yt.yandex.net for obtaining a valid token\n"
-            "if it will not fix error please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"\
+            "if it will not fix error please kindly submit a request to "
+            "https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
             .format(response.headers.get("X-YT-Request-ID", "missing")))
 
     if not response.is_ok():
@@ -220,9 +223,11 @@ class RequestRetrier(Retrier):
         self.requests_timeout = timeout
         retries_timeout = timeout[1] if isinstance(timeout, tuple) else timeout
 
+        non_retriable_errors = []
         retriable_errors = list(get_retriable_errors())
         if is_ping:
-            retriable_errors.append(YtNoSuchTransaction)
+            retriable_errors.append(YtHttpResponseError)
+            non_retriable_errors.append(YtNoSuchTransaction)
 
         headers = get_value(kwargs.get("headers", {}), {})
         headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
@@ -230,6 +235,7 @@ class RequestRetrier(Retrier):
 
         chaos_monkey_enable = get_option("_ENABLE_HTTP_CHAOS_MONKEY", client)
         super(RequestRetrier, self).__init__(exceptions=tuple(retriable_errors),
+                                             ignore_exceptions=tuple(non_retriable_errors),
                                              timeout=retries_timeout,
                                              retry_config=retry_config,
                                              chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
@@ -304,7 +310,8 @@ class RequestRetrier(Retrier):
             raise
 
     def backoff_action(self, attempt, backoff):
-        skip_backoff = get_config(self.client)["proxy"]["skip_backoff_if_connect_timed_out"] and self.is_connection_timeout_error
+        skip_backoff = get_config(self.client)["proxy"]["skip_backoff_if_connect_timed_out"] \
+            and self.is_connection_timeout_error
         if not skip_backoff:
             logger.warning("Sleep for %.2lf seconds before next retry", backoff)
             time.sleep(backoff)
@@ -333,7 +340,12 @@ def get_proxy_url(required=True, client=None):
 def _request_api(version=None, client=None):
     proxy = get_proxy_url(client=client)
     location = "api" if version is None else "api/" + version
-    return make_request_with_retries("get", "http://{0}/{1}".format(proxy, location), response_format="json", client=client).json()
+    return make_request_with_retries(
+        "get",
+        "http://{0}/{1}".format(proxy, location),
+        response_format="json",
+        client=client
+    ).json()
 
 def get_api_version(client=None):
     api_version_option = get_option("_api_version", client)

@@ -1,4 +1,5 @@
 from yt.common import date_string_to_timestamp, YT_NULL_TRANSACTION_ID
+from yt.wrapper.http_helpers import get_token
 
 from yt.packages.six import iteritems
 from yt.packages.six.moves import xrange, map as imap
@@ -9,6 +10,7 @@ try:
     import yt.json_wrapper as json
 except ImportError:
     import yt.json as json
+import yt.yson as yson
 import yt.wrapper as yt
 
 import os
@@ -179,7 +181,7 @@ def convert_to_tskved_json(row):
             pass
         else:
             try:
-                value = json.dumps(value, encoding="latin1")
+                value = json.dumps(yson.yson_to_json(value), encoding="latin1")
             except TypeError:
                 # Ignore data that could be encoded to JSON
                 pass
@@ -354,6 +356,9 @@ class PushMapper(object):
         self.yt_client = yt_client
         self.logbroker = logbroker
 
+    def start(self):
+        self.yt_client.config["token"] = os.environ["YT_SECURE_VAULT_YT_TOKEN"]
+
     def __call__(self, row):
         handler = logging.StreamHandler()
         handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
@@ -414,7 +419,7 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
                     yt_client.config["allow_http_requests_to_yt_from_job"] = True
                     yt_client.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "raven" in module.__file__
                     yt_client.run_map(PushMapper(yt_client, logbroker), input_table, output_table, stderr_table=stderr_table,
-                                      spec={"data_size_per_job": 1, "mapper": {"memory_limit": 1024 * 1024 * 1024}})
+                                      spec={"data_size_per_job": 1, "mapper": {"memory_limit": 1024 * 1024 * 1024}, "secure_vault": {"YT_TOKEN": get_token(client=yt_client)}})
                     logger.info("Push operation successfully finished (pushed_row_count: %d)", pushed_row_count)
 
     for iter in xrange(ATTRIBUTES_UPDATE_ATTEMPTS):

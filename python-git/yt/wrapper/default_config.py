@@ -132,6 +132,8 @@ default_config = {
 
     # This option enables logging on info level of all requests.
     "enable_request_logging": False,
+    # Also dump request responses to log (only when enable_request_logging is set).
+    "enable_request_result_logging": True,
 
     # This option allows to disable token.
     "enable_token": True,
@@ -515,6 +517,8 @@ default_config = {
     "enable_operations_api": True,
 
     "skynet_manager_url": "http://skynet-manager.yt.yandex.net/api/v1",
+
+    "enable_logging_for_params_changes": False,
 }
 
 # pydoc :: default_config :: end

@@ -180,7 +180,8 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
         retriable_state_class=RetriableState,
         client=client)
 
-def write_file(destination, stream, file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False, client=None):
+def write_file(destination, stream,
+               file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False, client=None):
     """Uploads file to destination path from stream on local machine.
 
     :param destination: destination path in Cypress.
@@ -212,8 +213,9 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
         stream = stream.read()
         is_one_small_blob = True
 
-    # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO (it has bug with default iteration).
-    # Also it allows to avoid reading file by lines that may be slow.
+    # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO
+    # (it has bug with default iteration). Also it allows to avoid reading file
+    # by lines that may be slow.
     if hasattr(stream, "read"):
         # read files by chunks, not by lines
         stream = chunk_iter_stream(stream, chunk_size)
@@ -286,7 +288,11 @@ class PutFileToCacheRetrier(Retrier):
         self._client = client
 
     def action(self):
-        return _make_formatted_transactional_request("put_file_to_cache", self._params, format=None, client=self._client)
+        return _make_formatted_transactional_request(
+            "put_file_to_cache",
+            self._params,
+            format=None,
+            client=self._client)
 
 def put_file_to_cache(path, md5, cache_path=None, client=None):
     """Puts file to cache
@@ -361,7 +367,10 @@ def _upload_file_to_cache_legacy(filename, hash, client=None):
 
     if should_upload_file:
         logger.debug("Link %s of file %s missing, uploading file", destination, filename)
-        prefix = ypath_join(_get_remote_temp_files_directory(client), last_two_digits_of_hash, os.path.basename(filename))
+        prefix = ypath_join(
+            _get_remote_temp_files_directory(client),
+            last_two_digits_of_hash,
+            os.path.basename(filename))
         # NB: In local mode we have only one node and default replication factor equal to one for all tables and files.
         if is_local_mode(client) or get_option("_is_testing_mode", client=client):
             replication_factor = 1
@@ -393,10 +402,11 @@ def upload_file_to_cache(filename, hash=None, client=None):
 
     use_legacy = get_config(client)["use_legacy_file_cache"]
     if use_legacy is None:
-        use_legacy = get_backend_type(client) == "native" or \
-                     "put_file_to_cache" not in get_api_commands(client) or \
-                     "get_file_from_cache" not in get_api_commands(client) or \
-                     get_config(client)["remote_temp_files_directory"] is not None
+        use_legacy = \
+            get_backend_type(client) == "native" or \
+            "put_file_to_cache" not in get_api_commands(client) or \
+            "get_file_from_cache" not in get_api_commands(client) or \
+            get_config(client)["remote_temp_files_directory"] is not None
 
     if use_legacy:
         return _upload_file_to_cache_legacy(filename, hash, client=client)
@@ -416,7 +426,11 @@ def upload_file_to_cache(filename, hash=None, client=None):
             raise YtError("File cache replication factor cannot be set less than 3")
         replication_factor = get_config(client)["file_cache"]["replication_factor"]
 
-    create("file", real_destination, recursive=True, attributes={"replication_factor": replication_factor}, client=client)
+    create("file",
+           real_destination,
+           recursive=True,
+           attributes={"replication_factor": replication_factor},
+           client=client)
     with open(filename, "rb") as stream:
         write_file(real_destination, stream, compute_md5=True, force_create=False, client=client)
 
@@ -428,10 +442,11 @@ def upload_file_to_cache(filename, hash=None, client=None):
 def _touch_file_in_cache(filepath, client=None):
     use_legacy = get_config(client)["use_legacy_file_cache"]
     if use_legacy is None:
-        use_legacy = get_backend_type(client) == "native" or \
-                     "put_file_to_cache" not in get_api_commands(client) or \
-                     "get_file_from_cache" not in get_api_commands(client) or \
-                     get_config(client)["remote_temp_files_directory"] is not None
+        use_legacy = \
+            get_backend_type(client) == "native" or \
+            "put_file_to_cache" not in get_api_commands(client) or \
+            "get_file_from_cache" not in get_api_commands(client) or \
+            get_config(client)["remote_temp_files_directory"] is not None
 
     if use_legacy:
         set(filepath + "&/@touched", True, client=client)

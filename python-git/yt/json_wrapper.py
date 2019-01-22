@@ -3,7 +3,7 @@ from yt.packages.six import iteritems
 try:
     from simplejson import *
 except ImportError:
-    # These version of simplejson has no compliled speedup module.
+    # This version of simplejson has no compliled speedup module.
     from yt.packages.simplejson import *
 
 def loads_as_bytes(*args, **kwargs):

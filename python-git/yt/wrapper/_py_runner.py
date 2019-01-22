@@ -14,7 +14,7 @@ def lsb_release():
         try:
             cmd = ("lsb_release", "-a")
             stdout = subprocess.check_output(cmd, stderr=devnull)
-        except OSError: # Command not found.
+        except OSError:  # Command not found.
             return tuple()
 
     lines = stdout.decode(sys.getfilesystemencoding()).splitlines()
@@ -114,10 +114,10 @@ def main():
         server_python_version = platform.python_version()
 
         if modules_info["enable_modules_compatibility_filter"]:
-            python_filter_function = lambda path: path.endswith(".pyc") and os.path.exists(path[:-1]) or \
-                                                  "hashlib" in path
-            platform_filter_function = lambda path: path.endswith(".so") and not path.endswith("yson_lib.so") or \
-                                                    python_filter_function(path)
+            python_filter_function = lambda path: \
+                path.endswith(".pyc") and os.path.exists(path[:-1]) or "hashlib" in path
+            platform_filter_function = lambda path: \
+                path.endswith(".so") and not path.endswith("yson_lib.so") or python_filter_function(path)
 
             if client_version != server_version or client_python_version != server_python_version:
                 for module_path in module_locations:
