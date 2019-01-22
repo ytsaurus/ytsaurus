@@ -133,6 +133,17 @@ private:
         return std::make_pair(std::move(output), std::move(input));
     }
 
+    TString SanitizeUrl(const TString& url)
+    {
+        // Do not expose URL parameters in error attributes.
+        auto urlRef = ParseUrl(url);
+        if (urlRef.PortStr.empty()) {
+            return TString(urlRef.Host) + urlRef.Path;
+        } else {
+            return Format("%v:%v%v", urlRef.Host, urlRef.PortStr, urlRef.Path);
+        }
+    }
+
     TFuture<IResponsePtr> WrapError(const TString& url, TCallback<IResponsePtr()> action)
     {
         return BIND([=] {
@@ -140,9 +151,8 @@ private:
                 return action();
             } catch(const TErrorException& ex) {
                 THROW_ERROR_EXCEPTION("HTTP request failed")
-                    << TErrorAttribute("url", url)
+                    << TErrorAttribute("url", SanitizeUrl(url))
                     << ex;
-                throw;
             }
         })
             .AsyncVia(Invoker_)
