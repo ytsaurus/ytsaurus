@@ -57,6 +57,12 @@ message TRspDecommissionTabletCellOnNode
     required NYT.NProto.TGuid cell_id = 1;
 }
 
+message TReqSetTabletCellConfigVersion
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 config_version = 2;
+}
+
 message TRspMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;

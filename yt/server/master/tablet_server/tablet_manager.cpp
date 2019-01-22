@@ -203,6 +203,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraDecommissionTabletCellOnMaster, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletCellDecommissionedOnNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletCellDecommissionedOnMaster, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetTabletCellConfigVersion, Unretained(this)));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
@@ -6088,7 +6089,35 @@ private:
         auto tabletCells = GetValuesSortedByKey(TabletCellMap_);
         for (auto* tabletCell : tabletCells) {
             objectManager->ReplicateObjectAttributesToSecondaryMaster(tabletCell, cellTag);
+            ReplicateTabletCellPropertiesToSecondaryMaster(tabletCell, cellTag);
         }
+    }
+
+    void ReplicateTabletCellPropertiesToSecondaryMaster(TTabletCell* cell, TCellTag cellTag)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        {
+            TReqSetTabletCellConfigVersion req;
+            ToProto(req.mutable_cell_id(), cell->GetId());
+            req.set_config_version(cell->GetConfigVersion());
+            multicellManager->PostToMaster(req, cellTag);
+        }
+
+        if (cell->DecommissionStarted()) {
+            TReqDecommissionTabletCellOnMaster req;
+            ToProto(req.mutable_cell_id(), cell->GetId());
+            multicellManager->PostToMaster(req, cellTag);
+        }
+    }
+
+    void HydraSetTabletCellConfigVersion(TReqSetTabletCellConfigVersion* request)
+    {
+        auto cellId = FromProto<TTabletCellId>(request->cell_id());
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell))
+            return;
+        cell->SetConfigVersion(request->config_version());
     }
 
     static void ValidateTabletCellBundleName(const TString& name)
