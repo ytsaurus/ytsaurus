@@ -461,6 +461,12 @@ private:
             optionalError->ThrowOnError();
         }
 
+        if (ScheduleFinishIfCanceled()) {
+            return false;
+        }
+
+        // NB: Acquisitions are only possible if the current epoch is not canceled.
+
         if (!User_) {
             User_ = SecurityManager_->GetUserByNameOrThrow(UserName_);
             ObjectManager_->EphemeralRefObject(User_);
@@ -517,8 +523,7 @@ private:
             !BackoffAlarmTriggered_ &&
             !Replied_)
         {
-            if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
-                ScheduleFinish();
+            if (ScheduleFinishIfCanceled()) {
                 break;
             }
 
@@ -750,6 +755,15 @@ private:
         }
     }
 
+    bool ScheduleFinishIfCanceled()
+    {
+        if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
+            ScheduleFinish();
+            return true;
+        } else {
+            return false;
+        }
+    }
 
     bool IsBackoffAllowed() const
     {
