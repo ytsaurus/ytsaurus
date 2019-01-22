@@ -110,8 +110,7 @@ public:
     TSortedDynamicRow FindRow(NTableClient::TUnversionedRow key);
     std::vector<TSortedDynamicRow> GetAllRows();
     Y_FORCE_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
-    TTimestamp GetLastWriteTimestamp(TSortedDynamicRow row, int lockIndex);
-    TTimestamp GetLastReadTimestamp(TSortedDynamicRow row, int lockIndex);
+    TTimestamp GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex);
 
     // IStore implementation.
     virtual EStoreType GetType() const override;

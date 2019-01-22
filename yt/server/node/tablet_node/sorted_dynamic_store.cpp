@@ -1267,7 +1267,6 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
                 // Read Lock
                 Y_ASSERT(lock->ReadLockCount > 0);
                 --lock->ReadLockCount;
-                lock->LastReadLockTimestamp = std::max(lock->LastReadLockTimestamp, commitTimestamp);
             }
         }
     }
@@ -1402,7 +1401,7 @@ bool TSortedDynamicStore::CheckRowBlocking(
     return false;
 }
 
-TTimestamp TSortedDynamicStore::GetLastWriteTimestamp(TSortedDynamicRow row, int lockIndex)
+TTimestamp TSortedDynamicStore::GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex)
 {
     auto timestamp = MinTimestamp;
     auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
@@ -1425,12 +1424,6 @@ TTimestamp TSortedDynamicStore::GetLastWriteTimestamp(TSortedDynamicRow row, int
     }
 
     return timestamp;
-}
-
-TTimestamp TSortedDynamicStore::GetLastReadTimestamp(TSortedDynamicRow row, int lockIndex)
-{
-    auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
-    return lock.LastReadLockTimestamp;
 }
 
 TError TSortedDynamicStore::CheckRowLocks(
@@ -1486,7 +1479,6 @@ TError TSortedDynamicStore::CheckRowLocks(
                 << TErrorAttribute("lock", LockIndexToName_[index]);
         }
 
-        auto lastCommitTimestamp = isWriteLock ? GetLastReadTimestamp(row, index) : MinTimestamp;
         if (isReadLock || isWriteLock) {
             if (lock->WriteTransaction) {
                 return TError(
@@ -1500,7 +1492,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                     << TErrorAttribute("lock", LockIndexToName_[index]);
             }
 
-            lastCommitTimestamp = std::max(lastCommitTimestamp, GetLastWriteTimestamp(row, index));
+            auto lastCommitTimestamp = GetLastCommitTimestamp(row, index);
             if (lastCommitTimestamp > transaction->GetStartTimestamp()) {
                 return TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,

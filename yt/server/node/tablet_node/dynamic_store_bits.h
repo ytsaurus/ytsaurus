@@ -56,8 +56,6 @@ struct TLockDescriptor
 {
     // Each transaction can take read lock only once.
     int ReadLockCount;
-    // The latest commit timestamp of a transaction that was holding this read lock.
-    TTimestamp LastReadLockTimestamp;
 
     TTransaction* WriteTransaction;
     std::atomic<TTimestamp> PrepareTimestamp;

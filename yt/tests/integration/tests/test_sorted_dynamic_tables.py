@@ -1054,10 +1054,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1)
         insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
 
-        commit_transaction(tx1, sticky=True)
+        commit_transaction(tx2, sticky=True)
 
         with pytest.raises(YtError):
-            commit_transaction(tx2, sticky=True)
+            commit_transaction(tx1, sticky=True)
 
     def test_reshard_data(self):
         sync_create_cells(1)
