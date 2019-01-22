@@ -232,7 +232,7 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
     RegisterParameter("max_archivation_retry_sleep_delay", MaxArchivationRetrySleepDelay)
         .Default(TDuration::Minutes(1));
     RegisterParameter("max_operation_count_enqueued_for_archival", MaxOperationCountEnqueuedForArchival)
-        .Default(7000);
+        .Default(20000);
     RegisterParameter("archivation_enable_delay", ArchivationEnableDelay)
         .Default(TDuration::Minutes(30));
     RegisterParameter("max_removal_sleep_delay", MaxRemovalSleepDelay)
