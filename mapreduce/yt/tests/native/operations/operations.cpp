@@ -38,6 +38,13 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static void WaitOperationIsRunning(const IOperationPtr& operation)
+{
+    while (operation->GetAttributes().State != "running") {
+        Sleep(TDuration::MilliSeconds(100));
+    }
+}
+
 static TString GetOperationPath(const TOperationId& operationId)
 {
     auto idStr = GetGuidAsString(operationId);
@@ -2886,6 +2893,80 @@ Y_UNIT_TEST_SUITE(Operations)
                 reader->Next();
                 UNIT_ASSERT(!reader->IsValid())
         }
+    }
+
+    Y_UNIT_TEST(BatchOperationControl)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputPath = TRichYPath(workingDir + "/input");
+        auto outputPath = TRichYPath(workingDir + "/output").Append(true);
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputPath);
+            writer->AddRow(TNode()("key", "key1")("value", "value1"));
+            writer->Finish();
+        }
+
+        auto op1 = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputPath)
+                .AddOutput<TNode>(outputPath),
+            new TSleepingMapper(TDuration::Hours(1)),
+            TOperationOptions().Wait(false));
+
+        auto op2 = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputPath)
+                .AddOutput<TNode>(outputPath),
+            new TSleepingMapper(TDuration::Hours(1)),
+            TOperationOptions().Wait(false));
+
+        auto op3 = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputPath)
+                .AddOutput<TNode>(outputPath),
+            new TSleepingMapper(TDuration::Hours(1)),
+            TOperationOptions()
+            .Spec(TNode()("weight", 5.0))
+            .Wait(false));
+
+        WaitOperationIsRunning(op1);
+        WaitOperationIsRunning(op2);
+        WaitOperationIsRunning(op3);
+
+        auto batchRequest = client->CreateBatchRequest();
+
+        auto abortResult = batchRequest->AbortOperation(op1->GetId());
+        auto completeResult = batchRequest->CompleteOperation(op2->GetId());
+        auto updateOperationResult = batchRequest->UpdateOperationParameters(
+            op3->GetId(),
+            TUpdateOperationParametersOptions()
+            .SchedulingOptionsPerPoolTree(
+                TSchedulingOptionsPerPoolTree()
+                .Add("default", TSchedulingOptions()
+                    .Weight(10.0))));
+
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetBriefState(), EOperationBriefState::InProgress);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetBriefState(), EOperationBriefState::InProgress);
+        UNIT_ASSERT_VALUES_EQUAL(op3->GetBriefState(), EOperationBriefState::InProgress);
+        batchRequest->ExecuteBatch();
+
+        // Check that there are no errors
+        abortResult.GetValue();
+        completeResult.GetValue();
+
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetBriefState(), EOperationBriefState::Aborted);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetBriefState(), EOperationBriefState::Completed);
+        {
+            auto weightPath = "//sys/scheduler/orchid/scheduler/operations/" +
+                GetGuidAsString(op3->GetId()) +
+                "/progress/scheduling_info_per_pool_tree/default/weight";
+            UNIT_ASSERT_DOUBLES_EQUAL(client->Get(weightPath).AsDouble(), 10, 1e-9);
+        }
+
+        op3->AbortOperation();
     }
 }
 

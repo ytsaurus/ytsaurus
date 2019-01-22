@@ -292,6 +292,22 @@ TOperationAttributes GetOperation(
     return ParseOperationAttributes(NodeFromYsonString(result.Response));
 }
 
+void AbortOperation(const TAuth& auth, const TOperationId& operationId)
+{
+    THttpHeader header("POST", "abort_op");
+    header.AddMutationId();
+    header.MergeParameters(NDetail::SerializeParamsForAbortOperation(operationId));
+    RetryRequest(auth, header);
+}
+
+void CompleteOperation(const TAuth& auth, const TOperationId& operationId)
+{
+    THttpHeader header("POST", "complete_op");
+    header.AddMutationId();
+    header.MergeParameters(NDetail::SerializeParamsForCompleteOperation(operationId));
+    RetryRequest(auth, header);
+}
+
 template <typename TKey>
 static THashMap<TKey, i64> GetCounts(const TNode& countsNode)
 {

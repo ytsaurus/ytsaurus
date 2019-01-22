@@ -443,6 +443,22 @@ TFuture<TOperationAttributes> TRawBatchRequest::GetOperation(
         Nothing());
 }
 
+TFuture<void> TRawBatchRequest::AbortOperation(const TOperationId& operationId)
+{
+    return AddRequest<TVoidResponseParser>(
+        "abort_op",
+        SerializeParamsForAbortOperation(operationId),
+        Nothing());
+}
+
+TFuture<void> TRawBatchRequest::CompleteOperation(const TOperationId& operationId)
+{
+    return AddRequest<TVoidResponseParser>(
+        "complete_op",
+        SerializeParamsForCompleteOperation(operationId),
+        Nothing());
+}
+
 TFuture<void> TRawBatchRequest::UpdateOperationParameters(
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options)

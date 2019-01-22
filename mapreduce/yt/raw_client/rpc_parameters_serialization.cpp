@@ -25,6 +25,11 @@ static void SetTransactionIdParam(TNode* node, const TTransactionId& transaction
     }
 }
 
+static void SetOperationIdParam(TNode* node, const TOperationId& operationId)
+{
+    (*node)["operation_id"] = GetGuidAsString(operationId);
+}
+
 static void SetPathParam(TNode* node, const TYPath& path)
 {
     (*node)["path"] = AddPathPrefix(path);
@@ -277,10 +282,24 @@ TNode SerializeParamsForGetOperation(
     const TGetOperationOptions& options)
 {
     TNode result;
-    result["operation_id"] = GetGuidAsString(operationId);
+    SetOperationIdParam(&result, operationId);
     if (options.AttributeFilter_) {
         result["attributes"] = SerializeAttributeFilter(*options.AttributeFilter_);
     }
+    return result;
+}
+
+TNode SerializeParamsForAbortOperation(const TOperationId& operationId)
+{
+    TNode result;
+    SetOperationIdParam(&result, operationId);
+    return result;
+}
+
+TNode SerializeParamsForCompleteOperation(const TOperationId& operationId)
+{
+    TNode result;
+    SetOperationIdParam(&result, operationId);
     return result;
 }
 
@@ -288,7 +307,9 @@ TNode SerializeParamsForUpdateOperationParameters(
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options)
 {
-    TNode parameters;
+    TNode result;
+    SetOperationIdParam(&result, operationId);
+    TNode& parameters = result["parameters"];
     if (options.Pool_) {
         parameters["pool"] = *options.Pool_;
     }
@@ -332,9 +353,7 @@ TNode SerializeParamsForUpdateOperationParameters(
             parameters["scheduling_options_per_pool_tree"][entry.first] = std::move(schedulingOptionsNode);
         }
     }
-    return TNode()
-        ("operation_id", GetGuidAsString(operationId))
-        ("parameters", parameters);
+    return result;
 }
 
 TNode SerializeParamsForGetJob(
@@ -343,7 +362,7 @@ TNode SerializeParamsForGetJob(
     const TGetJobOptions& /* options */)
 {
     TNode result;
-    result["operation_id"] = GetGuidAsString(operationId);
+    SetOperationIdParam(&result, operationId);
     result["job_id"] = GetGuidAsString(jobId);
     return result;
 }
@@ -353,7 +372,7 @@ TNode SerializeParamsForListJobs(
     const TListJobsOptions& options)
 {
     TNode result;
-    result["operation_id"] = GetGuidAsString(operationId);
+    SetOperationIdParam(&result, operationId);
 
     if (options.Type_) {
         result["type"] = ::ToString(*options.Type_);
