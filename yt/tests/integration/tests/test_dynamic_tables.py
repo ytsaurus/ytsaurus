@@ -1632,6 +1632,30 @@ class TestTabletActions(DynamicTablesBase):
     def _validate_tablets(self, path, state=None, expected_state=None):
         self._validate_state(self._get_tablets(path), state=state, expected_state=expected_state)
 
+    def test_create_action_permissions(self):
+        create_user("u")
+        create_tablet_cell_bundle("b")
+        cells = sync_create_cells(2, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _create_action():
+            create("tablet_action", "", attributes={
+                "kind": "move",
+                "tablet_ids": [tablet_id],
+                "cell_ids": [cells[1]]},
+                authenticated_user="u")
+
+        with pytest.raises(YtError): _create_action()
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["use"]))
+        with pytest.raises(YtError): _create_action()
+        remove("//sys/tablet_cell_bundles/b/@acl/-1")
+        set("//tmp/t/@acl/end", make_ace("allow", "u", ["mount"]))
+        with pytest.raises(YtError): _create_action()
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["use"]))
+        _create_action()
+
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_move(self, skip_freezing, freeze):
