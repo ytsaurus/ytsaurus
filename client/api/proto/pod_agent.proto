@@ -9,6 +9,7 @@ option java_outer_classname = "Pod";
 package NInfra.NPodAgent.API;
 
 import "google/protobuf/timestamp.proto";
+import "yp/client/api/proto/conditions.proto";
 import "yp/client/api/proto/secrets.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 
@@ -77,6 +78,8 @@ message TPodAgentRequest {
 
 // Текущее состояние Пода, возвращаемое из Pod-agent
 message TPodAgentStatus {
+    reserved 8, 9;
+
     //последняя известная pod revision
     uint32 Revision = 1;
 
@@ -99,14 +102,14 @@ message TPodAgentStatus {
     // обращается в EConditionStatus_FALSE.
     // Иначе обращается в EConditionStatus_TRUE.
     // LastTransitionTime -- максимальное значение Ready.LastTransitionTime среди всех вложеных T*Status
-    TCondition Ready = 8;
+    NYP.NClient.NApi.NProto.TCondition Ready = 11;
     // Если хотя бы один из InProgress вложенных T*Status имеет Status == EConditionStatus_UNKNOWN,
     // обращается в EConditionStatus_UNKNOWN.
     // Иначе, если хотя бы один из них имеет Status == EConditionStatus_TRUE,
     // обращается в EConditionStatus_TRUE.
     // Иначе обращается в EConditionStatus_FALSE.
     // LastTransitionTime -- максимальное значение InProgress.LastTransitionTime среди всех вложеных T*Status
-    TCondition InProgress = 9;
+    NYP.NClient.NApi.NProto.TCondition InProgress = 12;
 
     TResourceGangStatus ResourceCache = 10;
 }
@@ -513,6 +516,8 @@ message TResourceGang {
 // ======================  STATUS ===================
 
 message TBoxStatus {
+    reserved 6, 7;
+
     string Id = 1;
 
     EBoxState State = 2;
@@ -522,9 +527,9 @@ message TBoxStatus {
     // Неструктурированное описание последней ошибки
     string FailReason = 5;
 
-    TCondition Ready = 6;
+    NYP.NClient.NApi.NProto.TCondition Ready = 10;
 
-    TCondition InProgress = 7;
+    NYP.NClient.NApi.NProto.TCondition InProgress = 11;
 
     // Ревизия к которой относится box
     uint32 Revision = 8;
@@ -662,21 +667,8 @@ message TContainerStatus {
     TTimeLimitStatus TimeLimit = 15;
 }
 
-enum EConditionStatus {
-    EConditionStatus_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
-    EConditionStatus_TRUE = 1 [(NYT.NYson.NProto.enum_value_name) = "true"];
-    EConditionStatus_FALSE = 2 [(NYT.NYson.NProto.enum_value_name) = "false"];
-}
-
-message TCondition {
-    EConditionStatus Status = 10; // True, False, Unknown
-    string Reason = 20; // One word (e.g. ProcessCrash) for computers and short summary
-    string Message = 30; // Some human readable message
-    google.protobuf.Timestamp LastTransitionTime = 40;
-}
-
 message TWorkloadStatus {
-    reserved 5, 13;
+    reserved 5, 7, 8, 13;
 
     // уникальный в рамках pod идентификатор Workload
     string Id = 1;
@@ -696,9 +688,9 @@ message TWorkloadStatus {
 
     TLivenessStatus LivenessStatus = 10;
 
-    TCondition Ready = 7;
+    NYP.NClient.NApi.NProto.TCondition Ready = 16;
 
-    TCondition InProgress = 8;
+    NYP.NClient.NApi.NProto.TCondition InProgress = 17;
 
     // mutalbe target state
     EWorkloadTargetState TargetState = 11;
@@ -855,6 +847,8 @@ enum EStaticResourceState {
 
 //TODO: нужно придумать как сделать прогресс скачивания
 message TLayerStatus {
+    reserved 7, 8;
+
     string Id = 1;
 
     ELayerState State = 2;
@@ -872,15 +866,17 @@ message TLayerStatus {
     // Неструктурированное описание последней ошибки
     string FailReason = 6;
 
-    TCondition Ready = 7;
+    NYP.NClient.NApi.NProto.TCondition Ready = 10;
 
-    TCondition InProgress = 8;
+    NYP.NClient.NApi.NProto.TCondition InProgress = 11;
 
     // Ревизия к которой относится layer
     uint32 Revision = 9;
 }
 
 message TStaticResourceStatus {
+    reserved 7, 8;
+
     string Id = 1;
 
     EStaticResourceState State = 2;
@@ -898,9 +894,9 @@ message TStaticResourceStatus {
     // Неструктурированное описание последней ошибки
     string FailReason = 6;
 
-    TCondition Ready = 7;
+    NYP.NClient.NApi.NProto.TCondition Ready = 10;
 
-    TCondition InProgress = 8;
+    NYP.NClient.NApi.NProto.TCondition InProgress = 11;
 
     // Ревизия к которой относится layer
     uint32 Revision = 9;
@@ -935,6 +931,8 @@ enum EVolumeState {
 }
 
 message TVolumeStatus {
+    reserved 5, 6;
+
     string Id = 1;
 
     EVolumeState State = 2;
@@ -945,9 +943,9 @@ message TVolumeStatus {
     // Неструктурированное описание последней ошибки
     string FailReason = 4;
 
-    TCondition Ready = 5;
+    NYP.NClient.NApi.NProto.TCondition Ready = 8;
 
-    TCondition InProgress = 6;
+    NYP.NClient.NApi.NProto.TCondition InProgress = 9;
 
     // Ревизия к которой относится volume
     uint32 Revision = 7;
