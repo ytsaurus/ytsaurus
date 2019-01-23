@@ -93,7 +93,7 @@ bool TTableSchemaBuilder::AddColumn(const TColumnSchema& ytColumn)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablePtr CreateTableSchema(
+TTablePtr CreateTable(
     const TString& name,
     const TTableSchema& schema)
 {
@@ -105,6 +105,8 @@ TTablePtr CreateTableSchema(
 
     return std::make_shared<TTable>(name, schemaBuilder.GetColumns());
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNative
 } // namespace NClickHouseServer

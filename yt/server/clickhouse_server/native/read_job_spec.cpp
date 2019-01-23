@@ -96,7 +96,7 @@ TTableList TReadJobSpec::GetTables() const
     tables.reserve(dataSources.size());
     for (auto dataSource : dataSources) {
         tables.push_back(
-            CreateTableSchema(*dataSource.GetPath(), nativeSchema));
+            CreateTable(*dataSource.GetPath(), nativeSchema));
     }
     return tables;
 }

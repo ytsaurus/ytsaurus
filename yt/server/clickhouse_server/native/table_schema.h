@@ -100,7 +100,7 @@ using TTableList = std::vector<TTablePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablePtr CreateTableSchema(
+TTablePtr CreateTable(
     const TString& name,
     const NTableClient::TTableSchema& schema);
 
