@@ -490,9 +490,14 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
                 if (adjustedIndex) {
                     child = FindChild(*adjustedIndex);
                 }
-                const auto& method = context->GetMethod();
-                if (!child && method == "Exists") {
-                    return IYPathService::TResolveResultHere{"/" + path};
+
+                if (!child) {
+                    const auto& method = context->GetMethod();
+                    if (method == "Exists") {
+                        return IYPathService::TResolveResultHere{"/" + path};
+                    } else {
+                        ThrowNoSuchChildIndex(this, adjustedIndex.value_or(index));
+                    }
                 }
 
                 return IYPathService::TResolveResultThere{std::move(child), TYPath(tokenizer.GetSuffix())};

@@ -247,7 +247,7 @@ private:
         auto currentResolveResult = [&] () {
             auto* trunkObject = currentObject->IsTrunk() ? currentObject : currentObject->As<TCypressNodeBase>()->GetTrunkNode();
             auto proxy = objectManager->GetProxy(trunkObject, transaction);
-            auto path = TYPath(ampersandSkipped ? "&" : "") + (slashSkipped ? slashYPath : emptyYPath) + tokenizer.GetInput();
+            auto path = (ampersandSkipped ? TYPath("&") : emptyYPath) + (slashSkipped ? slashYPath : emptyYPath) + tokenizer.GetInput();
 
             return TResolveResultThere{proxy, path};
         };

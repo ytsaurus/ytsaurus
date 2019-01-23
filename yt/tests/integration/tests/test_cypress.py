@@ -144,6 +144,9 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/list/-7")
         assert not exists("//tmp/list/42")
         assert not exists("//tmp/list/-42")
+        with pytest.raises(YtError):
+            get("//tmp/list/42")
+            get("//tmp/list/-42")
 
     def test_list_command(self):
         set("//tmp/map", {"a": 1, "b": 2, "c": 3})
