@@ -4,12 +4,13 @@ import fileinput
 import sys
 
 begin_nss = []
-NAMESPACE_BEGIN = "namespace "
+NAMESPACE_BEGIN_PREFIX = "namespace "
+NAMESPACE_BEGIN_SUFFIX = " {"
 
 def get_begin_ns(line):
-    if not line.startswith(NAMESPACE_BEGIN):
+    if not line.startswith(NAMESPACE_BEGIN_PREFIX) or not line.endswith(NAMESPACE_BEGIN_SUFFIX):
         return None
-    ns = line[len(NAMESPACE_BEGIN):-1].strip()
+    ns = line[len(NAMESPACE_BEGIN_PREFIX):-1].strip()
     if len(ns) == 0:
         return None
     if "::" in ns:
