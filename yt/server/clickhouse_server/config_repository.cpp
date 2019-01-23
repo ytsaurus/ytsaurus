@@ -1,6 +1,5 @@
 #include "config_repository.h"
 
-#include "document_config.h"
 #include "format_helpers.h"
 #include "logging_helpers.h"
 #include "type_helpers.h"
