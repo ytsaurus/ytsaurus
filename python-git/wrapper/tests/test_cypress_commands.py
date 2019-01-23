@@ -328,11 +328,21 @@ class TestCypressCommands(object):
         assert yt.exists(table)
         assert yt.exists(other_table)
 
+        yt.write_table(table, [{"a": "b"}])
         with pytest.raises(yt.YtError):
             yt.copy(table, other_table)
+        yt.copy(table, other_table, ignore_existing=True)
+        assert list(yt.read_table(other_table, format=yt.format.DsvFormat())) == []
+        with pytest.raises(yt.YtError):
+            yt.copy(table, other_table, ignore_existing=True, force=True)
         yt.copy(table, other_table, force=True)
         assert yt.exists(table)
         assert yt.exists(other_table)
+        assert list(yt.read_table(other_table, format=yt.format.DsvFormat())) == [{"a": "b"}]
+
+        # Just checking that the parameter exists.
+        yt.copy(other_table, TEST_DIR + "/quota_check", pessimistic_quota_check=True)
+        yt.move(TEST_DIR + "/quota_check", TEST_DIR + "/no_quota_check", pessimistic_quota_check=False)
 
         # Remove it after fixes in move
         with pytest.raises(yt.YtError):
