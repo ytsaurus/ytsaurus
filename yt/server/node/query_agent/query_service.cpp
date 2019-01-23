@@ -104,7 +104,6 @@ private:
             mountInfos.push_back(tableInfo);
         }
 
-
         auto options = FromProto<TQueryOptions>(request->options());
         options.InputRowLimit = request->query().input_row_limit();
         options.OutputRowLimit = request->query().output_row_limit();
@@ -265,11 +264,21 @@ private:
         YCHECK(batchCount == request->mount_revisions_size());
         YCHECK(batchCount == request->Attachments().size());
 
+        auto tabletIds = FromProto<std::vector<TTabletId>>(request->tablet_ids());
+
+        context->SetRequestInfo("TabletIds: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %v",
+            tabletIds,
+            timestamp,
+            requestCodecId,
+            responseCodecId,
+            blockReadOptions.ReadSessionId,
+            retentionConfig);
+
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
         for (size_t index = 0; index < batchCount; ++index) {
-            auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
+            auto tabletId = tabletIds[index];
             auto mountRevision = request->mount_revisions(index);
 
             try {
@@ -277,14 +286,6 @@ private:
                     Config_->MaxQueryRetries,
                     Logger,
                     [&] {
-                        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %v",
-                            tabletId,
-                            timestamp,
-                            requestCodecId,
-                            responseCodecId,
-                            blockReadOptions.ReadSessionId,
-                            retentionConfig);
-
                         auto requestData = requestCodec->Decompress(request->Attachments()[index]);
 
                         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
