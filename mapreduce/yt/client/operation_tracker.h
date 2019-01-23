@@ -4,6 +4,7 @@
 
 #include <util/datetime/base.h>
 #include <util/generic/hash.h>
+#include <util/generic/maybe.h>
 #include <util/system/mutex.h>
 
 namespace NYT {
@@ -13,7 +14,7 @@ namespace NYT {
 class TOperationExecutionTimeTracker {
 public:
     void Start(const TOperationId& operationId);
-    TDuration Finish(const TOperationId& operationId);
+    TMaybe<TDuration> Finish(const TOperationId& operationId);
     static TOperationExecutionTimeTracker* Get();
 
 private:
