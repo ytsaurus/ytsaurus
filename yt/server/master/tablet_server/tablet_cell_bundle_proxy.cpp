@@ -90,7 +90,8 @@ private:
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletBalancerConfig)
             .SetWritable(true)
             .SetReplicated(true)
-            .SetMandatory(true));
+            .SetMandatory(true)
+            .SetWritePermission(EPermission::Use));
         attributes->push_back(EInternedAttributeKey::TabletCellCount);
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellIds)
             .SetOpaque(true));

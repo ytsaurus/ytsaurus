@@ -18,6 +18,23 @@ import __builtin__
 
 ##################################################################
 
+class WriteAceRemoved:
+    def __init__(self, path):
+        self._path = path
+
+    def __enter__(self):
+        acl = get(self._path + "/@acl")
+        self._aces = [ace for ace in acl if "write" in ace["permissions"]]
+        acl = [ace for ace in acl if "write" not in ace["permissions"]]
+        set(self._path + "/@acl", acl)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        acl = get(self._path + "/@acl")
+        set(self._path + "/@acl", acl + self._aces)
+        return False
+
+##################################################################
+
 class DynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
@@ -550,6 +567,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError): create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, authenticated_user="u")
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
         create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, authenticated_user="u")
+
+        with WriteAceRemoved("//sys/schemas/tablet_cell_bundle"):
+            set("//sys/tablet_cell_bundles/b/@tablet_balancer_config/enable_cell_balancer", False, authenticated_user="u")
+            with pytest.raises(YtError):
+                set("//sys/tablet_cell_bundles/b/@node_tag_filter", "b", authenticated_user="u")
 
     def test_cell_bundle_with_custom_peer_count(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 2}})
