@@ -1649,11 +1649,6 @@ class TestTabletActions(DynamicTablesBase):
 
         with pytest.raises(YtError): _create_action()
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["use"]))
-        with pytest.raises(YtError): _create_action()
-        remove("//sys/tablet_cell_bundles/b/@acl/-1")
-        set("//tmp/t/@acl/end", make_ace("allow", "u", ["mount"]))
-        with pytest.raises(YtError): _create_action()
-        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["use"]))
         _create_action()
 
     @pytest.mark.parametrize("skip_freezing", [False, True])
