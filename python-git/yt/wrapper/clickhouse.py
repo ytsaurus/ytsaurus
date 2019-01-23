@@ -126,7 +126,7 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
     with NamedTemporaryFile() as temp:
         temp.write(dumps(resulting_config, yson_format="pretty"))
         temp.flush()
-        result = smart_upload_file(temp.name)
+        result = smart_upload_file(temp.name, client=client)
 
     return str(result)
 
