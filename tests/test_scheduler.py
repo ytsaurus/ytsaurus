@@ -36,9 +36,9 @@ DEFAULT_POD_SET_SPEC = {
         "node_segment_id": "default"
     }
 
-def _create_pod_with_boilerplate(yp_client, pod_set_id, spec, pod_id=None):
+def _create_pod_with_boilerplate(yp_client, pod_set_id, spec, pod_id=None, transaction_id=None):
     meta = {
-        "pod_set_id": pod_set_id,
+        "pod_set_id": pod_set_id
     }
     if pod_id is not None:
         meta["id"] = pod_id
@@ -49,7 +49,7 @@ def _create_pod_with_boilerplate(yp_client, pod_set_id, spec, pod_id=None):
     return yp_client.create_object("pod", attributes={
         "meta": meta,
         "spec": merged_spec,
-    })
+    }, transaction_id=transaction_id)
 
 def _create_nodes(
         yp_env,
@@ -212,12 +212,105 @@ class TestScheduler(object):
                      yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
 
         node_id = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0]
-        assert self._get_scheduled_allocations(yp_env, node_id, "cpu") == [{"pod_id": pod_id, "cpu": {"capacity": 100}}]
+
+        allocations = self._get_scheduled_allocations(yp_env, node_id, "cpu")
+        assert len(allocations) == 1
+        assert "pod_uuid" in allocations[0] and allocations[0]["pod_uuid"]
+        assert allocations[0]["pod_id"] == pod_id
+        assert allocations[0]["cpu"] == {"capacity": 100}
+
         assert self._get_scheduled_allocations(yp_env, node_id, "memory") == []
 
         yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/resource_requests/vcpu_guarantee", "value": YsonUint64(50)}])
-        assert self._get_scheduled_allocations(yp_env, node_id, "cpu") == [{"pod_id": pod_id, "cpu": {"capacity": 50}}]
+
+        allocations = self._get_scheduled_allocations(yp_env, node_id, "cpu")
+        assert len(allocations) == 1
+        assert "pod_uuid" in allocations[0] and allocations[0]["pod_uuid"]
+        assert allocations[0]["pod_id"] == pod_id
+        assert allocations[0]["cpu"] == {"capacity": 50}
+
         assert self._get_scheduled_allocations(yp_env, node_id, "memory") == []
+
+    def test_removed_allocations_conflict_transaction(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
+        first_pod_id = _create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 1
+            },
+            "enable_scheduling": True
+        }, pod_id="first")
+
+        _create_nodes(yp_env, 1)
+
+        wait(lambda: yp_client.get_object("pod", first_pod_id, selectors=["/status/scheduling/node_id"])[0] != "" and
+                     yp_client.get_object("pod", first_pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
+
+        transaction_id = yp_client.start_transaction()
+
+        yp_client.remove_object("pod", first_pod_id, transaction_id=transaction_id)
+
+        second_pod_id = _create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 1
+            },
+            "enable_scheduling": True
+        }, pod_id="second")
+
+        wait(lambda: yp_client.get_object("pod", second_pod_id, selectors=["/status/scheduling/node_id"])[0] != "" and
+                     yp_client.get_object("pod", second_pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
+
+        yp_client.commit_transaction(transaction_id)
+
+        node_id = yp_client.get_object("pod", second_pod_id, selectors=["/status/scheduling/node_id"])[0]
+
+        wait(lambda: len(self._get_scheduled_allocations(yp_env, node_id, "cpu")) == 1)
+
+    def test_removed_allocations_conflict_transaction_same_pod(self, yp_env):
+        # TODO(danlark@) investigate why i can't create same pod in transaction
+        return
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
+        first_pod_id = _create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 1
+            },
+            "enable_scheduling": True
+        }, pod_id="first")
+
+        _create_nodes(yp_env, 1)
+
+        wait(lambda: yp_client.get_object("pod", first_pod_id, selectors=["/status/scheduling/node_id"])[0] != "" and
+                     yp_client.get_object("pod", first_pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
+
+        transaction_id = yp_client.start_transaction()
+
+        yp_client.remove_object("pod", first_pod_id, transaction_id=transaction_id)
+
+        first_pod_id = _create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 1
+            },
+            "enable_scheduling": True
+        }, pod_id="first", transaction_id=transaction_id)
+
+        second_pod_id = _create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 1
+            },
+            "enable_scheduling": True
+        }, pod_id="second")
+
+        wait(lambda: yp_client.get_object("pod", second_pod_id, selectors=["/status/scheduling/node_id"])[0] != "" and
+                     yp_client.get_object("pod", second_pod_id, selectors=["/status/scheduling/state"])[0] == "assigned")
+
+        yp_client.commit_transaction(transaction_id)
+
+        node_id = yp_client.get_object("pod", second_pod_id, selectors=["/status/scheduling/node_id"])[0]
+
+        wait(lambda: len(self._get_scheduled_allocations(yp_env, node_id, "cpu")) == 1)
 
     def test_cpu_limit(self, yp_env):
         yp_client = yp_env.yp_client

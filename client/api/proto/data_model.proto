@@ -287,6 +287,7 @@ message TResourceStatus
     message TAllocation
     {
         optional string pod_id = 1;
+        optional string pod_uuid = 5;
 
         oneof concrete_allocation
         {
@@ -1281,7 +1282,7 @@ message TDnsRecordSetMeta
 
 message TDnsRecordSetSpec
 {
-    message TResourceRecord 
+    message TResourceRecord
     {
         optional uint64 ttl = 1;
         optional string class = 2;

@@ -56,6 +56,7 @@ void UpdatePodDiskVolumeAllocationLabels(
 
 void UpdateScheduledResourceAllocations(
     const TObjectId& podId,
+    const TObjectId& podUuid,
     google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TResourceAllocation>* scheduledResourceAllocations,
     const std::vector<NObjects::TResource*>& nativeResources,
     const std::vector<TLocalResourceAllocator::TResource>& allocatorResources,

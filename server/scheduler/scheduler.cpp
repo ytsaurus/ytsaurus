@@ -108,6 +108,9 @@ private:
             PROFILE_TIMING("/loop/time/revoke_pods_with_acknowledged_eviction") {
                 RevokePodsWithAcknowledgedEviction();
             }
+            PROFILE_TIMING("/loop/time/remove_orphaned_allocations") {
+                RemoveOrphanedAllocations();
+            }
             PROFILE_TIMING("/loop/time/acknowledge_node_maintenance") {
                 AcknowledgeNodeMaintenance();
             }
@@ -204,6 +207,16 @@ private:
                         pod->GetNode()->GetId());
                     AllocationPlan_.RevokePodFromNode(pod);
                 }
+            }
+        }
+
+        void RemoveOrphanedAllocations()
+        {
+            auto nodes = Owner_->Cluster_->GetNodes();
+            for (auto* node : nodes) {
+                YT_LOG_DEBUG("Removing orphaned allocations from node (NodeId: %v)",
+                    node->GetId());
+                AllocationPlan_.RemoveOrphanedAllocations(node);
             }
         }
 
@@ -319,7 +332,7 @@ private:
 
                 std::vector<TFuture<void>> asyncResults;
                 for (int index = 0; index < Owner_->Config_->AllocationCommitConcurrency; ++index) {
-                    asyncResults.push_back(BIND(&TLoopIteration::CommitScheduledPods, MakeStrong(this))
+                    asyncResults.push_back(BIND(&TLoopIteration::CommitSchedulingResults, MakeStrong(this))
                         .AsyncVia(GetCurrentInvoker())
                         .Run());
                 }
@@ -363,7 +376,7 @@ private:
             return true;
         }
 
-        void CommitScheduledPods()
+        void CommitSchedulingResults()
         {
             while (true) {
                 auto optionalPerNodePlan = AllocationPlan_.TryExtractPerNodePlan();
@@ -373,12 +386,10 @@ private:
 
                 const auto& perNodePlan = *optionalPerNodePlan;
 
-                YT_LOG_DEBUG("Committing pods assignment (NodeId: %v, PodIds: %v)",
+                YT_LOG_DEBUG("Committing scheduling results (NodeId: %v, Requests: %v)",
                     perNodePlan.Node->GetId(),
                     MakeFormattableRange(perNodePlan.Requests, [] (auto* builder, const auto& request) {
-                        builder->AppendFormat("%v%v",
-                            request.Assign ? "+" : "-",
-                            request.Pod->GetId());
+                        FormatValue(builder, request, {});
                     }));
 
                 try {
@@ -395,15 +406,24 @@ private:
                         &InternetAddressManager_,
                     };
 
-                    for (const auto& request : perNodePlan.Requests) {
-                        const auto& podId = request.Pod->GetId();
+                    for (const auto& variantRequest : perNodePlan.Requests) {
+
+                        if (auto nodeRequest = std::get_if<TAllocationPlan::TNodeRequest>(&variantRequest);
+                                nodeRequest && nodeRequest->Type == EAllocationPlanNodeRequestType::RemoveOrphanedResourceScheduledAllocations) {
+                            resourceManager->RemoveOrphanedAllocations(transaction, transactionNode);
+                            continue;
+                        }
+
+                        const auto& podRequest = std::get<TAllocationPlan::TPodRequest>(variantRequest);
+
+                        const auto& podId = podRequest.Pod->GetId();
                         auto* transactionPod = transaction->GetPod(podId);
 
                         if (!CheckPodSchedulable(transactionPod)) {
                             continue;
                         }
 
-                        if (request.Assign) {
+                        if (podRequest.Type == EAllocationPlanPodRequestType::AssignPodToNode) {
                             try {
                                 resourceManager->AssignPodToNode(transaction, &resourceManagerContext, transactionNode, transactionPod);
                             } catch (const TErrorException& ex) {
@@ -413,9 +433,9 @@ private:
                                 auto error = TError("Error assigning pod to node %Qv",
                                     transactionNode->GetId())
                                     << ex;
-                                RecordSchedulingFailure(request.Pod, error);
+                                RecordSchedulingFailure(podRequest.Pod, error);
                             }
-                        } else {
+                        } else if (podRequest.Type == EAllocationPlanPodRequestType::RevokePodFromNode) {
                             if (transactionPod->Spec().Node().Load() != transactionNode) {
                                 YT_LOG_DEBUG("Pod is no longer assigned to the expected node; skipped (PodId: %v, ExpectedNodeId: %v, ActualNodeId: %v)",
                                     podId,
@@ -424,6 +444,8 @@ private:
                                 continue;
                             }
                             resourceManager->RevokePodFromNode(transaction, &resourceManagerContext, transactionPod);
+                        } else {
+                            Y_UNREACHABLE();
                         }
                     }
 
@@ -432,9 +454,9 @@ private:
                 } catch (const std::exception& ex) {
                     auto now = TInstant::Now();
                     YT_LOG_DEBUG(ex, "Error committing pods assignment; will reschedule");
-                    for (const auto& request : perNodePlan.Requests) {
-                        if (request.Assign) {
-                            Owner_->ScheduleQueue_.Enqueue(request.Pod->GetId(), now);
+                    for (const auto& variantRequest : perNodePlan.Requests) {
+                        if (auto request = std::get_if<TAllocationPlan::TPodRequest>(&variantRequest); request && request->Type == EAllocationPlanPodRequestType::AssignPodToNode) {
+                            Owner_->ScheduleQueue_.Enqueue(request->Pod->GetId(), now);
                         }
                     }
                 }

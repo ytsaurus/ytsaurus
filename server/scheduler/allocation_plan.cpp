@@ -13,14 +13,19 @@ void TAllocationPlan::Clear()
 
 void TAllocationPlan::AssignPodToNode(TPod* pod, TNode* node)
 {
-    EmplaceRequest(node, TPodRequest{pod, true});
+    EmplaceRequest(node, TPodRequest{pod, EAllocationPlanPodRequestType::AssignPodToNode});
 }
 
 void TAllocationPlan::RevokePodFromNode(TPod* pod)
 {
     auto* node = pod->GetNode();
     Y_ASSERT(node);
-    EmplaceRequest(node, TPodRequest{pod, false});
+    EmplaceRequest(node, TPodRequest{pod, EAllocationPlanPodRequestType::RevokePodFromNode});
+}
+
+void TAllocationPlan::RemoveOrphanedAllocations(TNode* node)
+{
+    EmplaceRequest(node, TNodeRequest{EAllocationPlanNodeRequestType::RemoveOrphanedResourceScheduledAllocations});
 }
 
 void TAllocationPlan::RecordFailure(TPod* pod, const TError& error)
@@ -59,7 +64,7 @@ int TAllocationPlan::GetNodeCount() const
     return NodeCount_;
 }
 
-void TAllocationPlan::EmplaceRequest(TNode* node, const TPodRequest& request)
+void TAllocationPlan::EmplaceRequest(TNode* node, const TRequest& request)
 {
     auto range = NodeToRequests_.equal_range(node);
     if (range.first == range.second) {

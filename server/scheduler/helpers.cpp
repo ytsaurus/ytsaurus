@@ -367,6 +367,7 @@ void UpdatePodDiskVolumeAllocationLabels(
 
 void UpdateScheduledResourceAllocations(
     const TObjectId& podId,
+    const TObjectId& podUuid,
     google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TResourceAllocation>* scheduledResourceAllocations,
     const std::vector<NObjects::TResource*>& nativeResources,
     const std::vector<TLocalResourceAllocator::TResource>& allocatorResources,
@@ -400,6 +401,7 @@ void UpdateScheduledResourceAllocations(
             newScheduledAllocationsPerResource[resourceIndex].emplace_back();
             auto& allocation = newScheduledAllocationsPerResource[resourceIndex].back();
             allocation.set_pod_id(podId);
+            allocation.set_pod_uuid(podUuid);
             switch (request.Kind) {
                 case EResourceKind::Cpu:
                     allocation.mutable_cpu()->set_capacity(GetCpuCapacity(request.Capacities));

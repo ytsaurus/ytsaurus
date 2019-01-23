@@ -57,6 +57,24 @@ public:
         ReallocatePodResources(transaction, context, pod);
     }
 
+    void RemoveOrphanedAllocations(
+        const NObjects::TTransactionPtr& transaction,
+        NObjects::TNode* node)
+    {
+        for (auto* resource : node->Resources().Load()) {
+            auto* scheduledAllocations = resource->Status().ScheduledAllocations().Get();
+            scheduledAllocations->erase(
+                std::remove_if(
+                    scheduledAllocations->begin(),
+                    scheduledAllocations->end(),
+                    [&] (const auto& allocation) {
+                        auto* pod = transaction->GetPod(allocation.pod_id());
+                        return !pod || !pod->DoesExist() || pod->MetaOther().Load().uuid() != allocation.pod_uuid() || pod->Spec().Node().Load()->GetId() != node->GetId();
+                    }),
+                scheduledAllocations->end());
+        }
+    }
+
     void PrepareUpdatePodSpec(
         const TTransactionPtr& transaction,
         NObjects::TPod* pod)
@@ -248,6 +266,7 @@ private:
 
         UpdateScheduledResourceAllocations(
             pod->GetId(),
+            pod->MetaOther().Load().uuid(),
             pod->Status().Other()->mutable_scheduled_resource_allocations(),
             nativeResources,
             allocatorResources,
@@ -260,31 +279,7 @@ private:
         if (context->InternetAddressManager) {
             context->InternetAddressManager->RevokeInternetAddressesFromPod(transaction, pod);
         }
-
-        auto* scheduledResourceAllocations = pod->Status().Other()->mutable_scheduled_resource_allocations();
-
-        std::vector<TResource*> resources;
-        for (const auto& allocation : *scheduledResourceAllocations) {
-            auto resourceId = FromProto<TObjectId>(allocation.resource_id());
-            auto* resource = transaction->GetResource(resourceId);
-            resource->Status().ScheduledAllocations().ScheduleLoad();
-            resources.push_back(resource);
-        }
-
-        for (auto* resource : resources) {
-            auto* scheduledAllocations = resource->Status().ScheduledAllocations().Get();
-            scheduledAllocations->erase(
-                std::remove_if(
-                    scheduledAllocations->begin(),
-                    scheduledAllocations->end(),
-                    [&] (const auto& allocation) {
-                        return allocation.pod_id() == pod->GetId();
-                    }),
-                scheduledAllocations->end());
-        }
-
-        scheduledResourceAllocations->Clear();
-
+        pod->Status().Other()->mutable_scheduled_resource_allocations()->Clear();
         pod->Status().Other()->mutable_disk_volume_allocations()->Clear();
     }
 };
@@ -310,6 +305,13 @@ void TResourceManager::RevokePodFromNode(
     NObjects::TPod* pod)
 {
     Impl_->RevokePodFromNode(transaction, context, pod);
+}
+
+void TResourceManager::RemoveOrphanedAllocations(
+    const NObjects::TTransactionPtr& transaction,
+    NObjects::TNode* node)
+{
+    Impl_->RemoveOrphanedAllocations(transaction, node);
 }
 
 void TResourceManager::PrepareUpdatePodSpec(

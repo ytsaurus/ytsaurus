@@ -36,9 +36,14 @@ public:
         TResourceManagerContext* context,
         NObjects::TPod* pod);
 
+    void RemoveOrphanedAllocations(
+        const NObjects::TTransactionPtr& transaction,
+        NObjects::TNode* node);
+
     void PrepareUpdatePodSpec(
         const NObjects::TTransactionPtr& transaction,
         NObjects::TPod* pod);
+
     void UpdatePodSpec(
         const NObjects::TTransactionPtr& transaction,
         NObjects::TPod* pod);
