@@ -437,15 +437,15 @@ std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const TChunkReplicaL
     return result;
 }
 
-std::vector<TNodeDescriptor> TNodeDirectory::GetAllDescriptors() const
+std::vector<std::pair<TNodeId, TNodeDescriptor>> TNodeDirectory::GetAllDescriptors() const
 {
     NConcurrency::TReaderGuard guard(SpinLock_);
 
-    std::vector<TNodeDescriptor> result;
-    result.reserve(AddressToDescriptor_.size());
-    for (const auto& pair : AddressToDescriptor_) {
+    std::vector<std::pair<TNodeId, TNodeDescriptor>> result;
+    result.reserve(IdToDescriptor_.size());
+    for (const auto& pair : IdToDescriptor_) {
         const auto* descriptor = pair.second;
-        result.emplace_back(*descriptor);
+        result.emplace_back(pair.first, *descriptor);
     }
     return result;
 }

@@ -532,6 +532,7 @@ public:
             New<NChunkClient::TMultiChunkReaderOptions>(),
             client,
             NNodeTrackerClient::TNodeDescriptor(),
+            std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
             std::move(nodeDirectory),
             blockReadOptions,

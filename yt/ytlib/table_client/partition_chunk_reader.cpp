@@ -178,6 +178,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         client,
                         nodeDirectory,
                         TNodeDescriptor(),
+                        std::nullopt,
                         blockCache,
                         trafficMeter,
                         bandwidthThrottler,

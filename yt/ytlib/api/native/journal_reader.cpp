@@ -204,6 +204,7 @@ private:
                     Client_,
                     NodeDirectory_,
                     TNodeDescriptor(),
+                    std::nullopt,
                     chunkId,
                     replicas,
                     Client_->GetNativeConnection()->GetBlockCache());

@@ -356,6 +356,7 @@ private:
     TSpinLock SpinLock_;
     mutable TInstant LastUpdateTime_ = TInstant::Zero();
     mutable TUsage ResourceUsage_;
+    mutable i64 MaxMemory_ = 0;
 
     void UpdateResourceUsage() const
     {
