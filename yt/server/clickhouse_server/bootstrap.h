@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/server/clickhouse_server/native/public.h>
+#include <yt/server/clickhouse_server/public.h>
 
-#include <yt/server/clickhouse_server/engine/server.h>
+#include <yt/server/clickhouse_server/server.h>
 
 #include <yt/ytlib/api/public.h>
 #include <yt/ytlib/api/native/public.h>
@@ -25,7 +25,7 @@ namespace NYT::NClickHouseServer {
 class TBootstrap
 {
 private:
-    const NNative::TConfigPtr Config;
+    const TConfigPtr Config;
     const NYTree::INodePtr ConfigNode;
     TString InstanceId_;
     TString CliqueId_;
@@ -43,17 +43,17 @@ private:
     ICoreDumperPtr CoreDumper;
 
     NApi::NNative::IConnectionPtr Connection;
-    NNative::INativeClientCachePtr NativeClientCache;
+    INativeClientCachePtr NativeClientCache;
     NConcurrency::IThroughputThrottlerPtr ScanThrottler;
 
-    NNative::IStoragePtr Storage;
-    NNative::ICoordinationServicePtr CoordinationService;
-    NNative::ICliqueAuthorizationManagerPtr CliqueAuthorizationManager;
-    std::unique_ptr<NEngine::TServer> Server;
+    IStoragePtr Storage;
+    ICoordinationServicePtr CoordinationService;
+    ICliqueAuthorizationManagerPtr CliqueAuthorizationManager;
+    std::unique_ptr<TServer> Server;
 
 public:
     TBootstrap(
-        NNative::TConfigPtr config,
+        TConfigPtr config,
         NYTree::INodePtr configNode,
         TString instanceId,
         TString cliqueId,
@@ -66,7 +66,7 @@ public:
     void Initialize();
     void Run();
 
-    NNative::TConfigPtr GetConfig() const;
+    TConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
     NApi::NNative::IConnectionPtr GetConnection() const;
     NConcurrency::IThroughputThrottlerPtr GetScanThrottler() const;

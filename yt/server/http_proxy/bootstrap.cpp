@@ -37,8 +37,6 @@
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
-#include <yt/server/clickhouse_server/native/public.h>
-
 namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
