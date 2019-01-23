@@ -780,11 +780,23 @@ public:
             freeze = state == ETabletState::Frozen;
         }
 
+        auto* bundle = table->GetTabletCellBundle();
+
         for (auto* cell : cells) {
             if (!IsCellActive(cell)) {
                 THROW_ERROR_EXCEPTION("Tablet cell %v is not active", cell->GetId());
             }
+
+            if (cell->GetCellBundle() != bundle) {
+                THROW_ERROR_EXCEPTION("Table %v and tablet cell %v belong to different bundles",
+                    table->GetId(),
+                    cell->GetId());
+            }
         }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(table, EPermission::Mount);
+        securityManager->ValidatePermission(bundle, EPermission::Use);
 
         switch (kind) {
             case ETabletActionKind::Move:
