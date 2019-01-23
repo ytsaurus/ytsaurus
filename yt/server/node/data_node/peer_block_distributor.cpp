@@ -195,11 +195,11 @@ void TPeerBlockDistributor::DistributeBlocks()
 
     // Filter nodes that are not local and that are allowed by node tag filter.
     auto nodes = Bootstrap_->GetNodeDirectory()->GetAllDescriptors();
-    auto localDescriptor = Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
-    nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [&] (const auto& nodeDescriptor) {
+    auto localNodeId = Bootstrap_->GetMasterConnector()->GetNodeId();
+    nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [&] (const auto& pair) {
         return
-            nodeDescriptor.GetDefaultAddress() == localDescriptor.GetDefaultAddress() ||
-            !Config_->NodeTagFilter.IsSatisfiedBy(nodeDescriptor.GetTags());
+            pair.first == localNodeId ||
+            !Config_->NodeTagFilter.IsSatisfiedBy(pair.second.GetTags());
     }), nodes.end());
 
     for (size_t index = 0; index < blocks.size(); ++index) {
@@ -218,10 +218,13 @@ void TPeerBlockDistributor::DistributeBlocks()
 
         YT_LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
             blockId,
-            destinationNodes);
+             MakeFormattableRange(destinationNodes, [] (TStringBuilder* builder, const std::pair<TNodeId, TNodeDescriptor>& pair) {
+                 FormatValue(builder, pair.second, TStringBuf());
+             }));
 
         for (const auto& destinationNode : destinationNodes) {
-            const auto& destinationAddress = destinationNode.GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
+            const auto& [nodeId,    nodeDescriptor] = destinationNode;
+            const auto& destinationAddress = nodeDescriptor.GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
             auto heavyChannel = CreateRetryingChannel(
                 Config_->NodeChannel,
                 channelFactory->CreateChannel(destinationAddress));
@@ -234,7 +237,8 @@ void TPeerBlockDistributor::DistributeBlocks()
                 &TPeerBlockDistributor::OnBlockDistributed,
                 MakeWeak(this),
                 destinationAddress,
-                destinationNode,
+                nodeDescriptor,
+                nodeId,
                 blockId,
                 block.Size())
                 .Via(Bootstrap_->GetControlInvoker()));
@@ -353,16 +357,16 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     return chosenBlocks;
 }
 
-std::vector<TNodeDescriptor> TPeerBlockDistributor::ChooseDestinationNodes(const std::vector<TNodeDescriptor>& nodes) const
+std::vector<std::pair<TNodeId, TNodeDescriptor>> TPeerBlockDistributor::ChooseDestinationNodes(const std::vector<std::pair<TNodeId, TNodeDescriptor>>& nodes) const
 {
-    THashSet<TNodeDescriptor> destinationNodes;
+    THashSet<std::pair<TNodeId, TNodeDescriptor>> destinationNodes;
 
     while (destinationNodes.size() < Config_->DestinationNodeCount && destinationNodes.size() < nodes.size()) {
         auto index = RandomNumber<size_t>(nodes.size());
         destinationNodes.insert(nodes[index]);
     }
 
-    return std::vector<TNodeDescriptor>(destinationNodes.begin(), destinationNodes.end());
+    return std::vector<std::pair<TNodeId, TNodeDescriptor>>(destinationNodes.begin(), destinationNodes.end());
 }
 
 void TPeerBlockDistributor::UpdateTransmittedBytes()
@@ -388,6 +392,7 @@ void TPeerBlockDistributor::UpdateTransmittedBytes()
 void TPeerBlockDistributor::OnBlockDistributed(
     const TString& address,
     const TNodeDescriptor& descriptor,
+    const TNodeId nodeId,
     const TBlockId& blockId,
     i64 size,
     const TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError)
@@ -403,13 +408,14 @@ void TPeerBlockDistributor::OnBlockDistributed(
     TInstant expirationTime;
     FromProto(&expirationTime, rspOrError.Value()->expiration_time());
     YT_LOG_DEBUG("Populate cache request succeeded, registering node as a peer for block "
-        "(BlockId: %v, Address: %v, ExpirationTime: %v, Size: %v)",
+        "(BlockId: %v, Address: %v, NodeId: %v, ExpirationTime: %v, Size: %v)",
         blockId,
         address,
+        nodeId,
         expirationTime,
         size);
     DistributedBytes_ += size;
-    TPeerInfo peerInfo(descriptor, expirationTime);
+    TPeerInfo peerInfo(nodeId, expirationTime);
     Bootstrap_->GetPeerBlockTable()->UpdatePeer(blockId, std::move(peerInfo));
 }
 

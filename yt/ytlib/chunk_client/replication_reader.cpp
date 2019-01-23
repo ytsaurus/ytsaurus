@@ -56,6 +56,7 @@ using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NNet;
 
+using NNodeTrackerClient::TNodeId;
 using NYT::ToProto;
 using NYT::FromProto;
 using ::ToString;
@@ -123,6 +124,7 @@ public:
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const TNodeDescriptor& localDescriptor,
+        const std::optional<TNodeId>& localNodeId,
         TChunkId chunkId,
         const TChunkReplicaList& seedReplicas,
         IBlockCachePtr blockCache,
@@ -228,6 +230,7 @@ private:
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TNodeDescriptor LocalDescriptor_;
+    const std::optional<TNodeId> LocalNodeId_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr BandwidthThrottler_;
@@ -1232,11 +1235,18 @@ private:
         for (const auto& peerDescriptor : rsp->peer_descriptors()) {
             int blockIndex = peerDescriptor.block_index();
             TBlockId blockId(reader->ChunkId_, blockIndex);
-            for (const auto& protoPeerDescriptor : peerDescriptor.node_descriptors()) {
-                auto suggestedDescriptor = FromProto<TNodeDescriptor>(protoPeerDescriptor);
-                auto suggestedAddress = suggestedDescriptor.FindAddress(Networks_);
+            for (const auto& peerNodeId : peerDescriptor.node_ids()) {
+                auto maybeSuggestedDescriptor = reader->NodeDirectory_->FindDescriptor(peerNodeId);
+                if (!maybeSuggestedDescriptor) {
+                    YT_LOG_DEBUG("Cannot resolve peer descriptor (Block: %v, NodeId: %v)",
+                        blockIndex,
+                        peerNodeId);
+                    continue;
+                }
+
+                auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_);
                 if (suggestedAddress) {
-                    if (AddPeer(*suggestedAddress, suggestedDescriptor, EPeerType::Peer)) {
+                    if (AddPeer(*suggestedAddress, *maybeSuggestedDescriptor, EPeerType::Peer)) {
                         addedNewPeers = true;
                     }
                     PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
@@ -1246,7 +1256,7 @@ private:
                 } else {
                     YT_LOG_WARNING("Peer suggestion ignored, required network is missing (Block: %v, SuggestedAddress: %v)",
                         blockIndex,
-                        suggestedDescriptor.GetDefaultAddress());
+                        maybeSuggestedDescriptor->GetDefaultAddress());
                 }
             }
         }
@@ -1334,10 +1344,11 @@ private:
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
+
         req->Header().set_response_memory_zone(static_cast<i32>(EMemoryZone::Undumpable));
-        if (ReaderOptions_->EnableP2P) {
+        if (ReaderOptions_->EnableP2P && reader->LocalNodeId_) {
             auto expirationTime = TInstant::Now() + ReaderConfig_->PeerExpirationTimeout;
-            ToProto(req->mutable_peer_descriptor(), reader->LocalDescriptor_);
+            req->set_peer_node_id(*reader->LocalNodeId_);
             req->set_peer_expiration_time(expirationTime.GetValue());
         }
 
@@ -1915,6 +1926,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
+    std::optional<TNodeId> localNodeId,
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,
@@ -1933,6 +1945,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         std::move(client),
         std::move(nodeDirectory),
         localDescriptor,
+        localNodeId,
         chunkId,
         seedReplicas,
         std::move(blockCache),

@@ -745,6 +745,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
             Client_,
             New<TNodeDirectory>(),
             LocalDescriptor_,
+            std::nullopt,
             GetBlockCache(),
             /* trafficMeter */ nullptr,
             throttler,

@@ -327,6 +327,8 @@ protected:
     {
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
+        bool hasValues = false;
+
         // Prepare values and write timestamps.
         VersionedValues_.clear();
         WriteTimestamps_.clear();
@@ -335,7 +337,10 @@ protected:
                  list;
                  list = list.GetSuccessor())
             {
-                for (int itemIndex = list.GetSize() - 1; itemIndex >= 0; --itemIndex) {
+                if (list.GetSize() > 0) {
+                    hasValues = true;
+                }
+                for (int itemIndex = UpperBoundByTimestamp(list, Timestamp_) - 1; itemIndex >= 0; --itemIndex) {
                     const auto& value = list[itemIndex];
                     ui32 revision = value.Revision;
                     if (revision <= Revision_) {
@@ -357,7 +362,10 @@ protected:
              list;
              list = list.GetSuccessor())
         {
-            for (int itemIndex = list.GetSize() - 1; itemIndex >= 0; --itemIndex) {
+            if (list.GetSize() > 0) {
+                hasValues = true;
+            }
+            for (int itemIndex = UpperBoundByTimestamp(list, Timestamp_) - 1; itemIndex >= 0; --itemIndex) {
                 ui32 revision = list[itemIndex];
                 if (revision <= Revision_) {
                     DeleteTimestamps_.push_back(Store_->TimestampFromRevision(revision));
@@ -367,7 +375,8 @@ protected:
             }
         }
 
-        if (WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
+        // In case of versioned lookup key should be filled even if values exist in the future only.
+        if (WriteTimestamps_.empty() && DeleteTimestamps_.empty() && !(Revision_ == MaxRevision && hasValues)) {
             return TVersionedRow();
         }
 
@@ -465,6 +474,26 @@ protected:
             Y_ASSERT(value >= list.Begin() || Store_->TimestampFromRevision(ExtractRevision(*value)) <= maxTimestamp);
             return value;
         }
+    }
+
+    template<class T>
+    int UpperBoundByTimestamp(TEditList<T> list, TTimestamp maxTimestamp)
+    {
+        if (!list) {
+            return 0;
+        }
+
+        if (maxTimestamp == SyncLastCommittedTimestamp || maxTimestamp == AsyncLastCommittedTimestamp) {
+            return list.GetSize();
+        }
+
+        return std::lower_bound(
+            list.Begin(),
+            list.End(),
+            maxTimestamp,
+            [&] (const T& element, TTimestamp timestamp) {
+                return Store_->TimestampFromRevision(ExtractRevision(element)) <= timestamp;
+            }) - list.Begin();
     }
 
     template <class T, class TValueExtractor>
