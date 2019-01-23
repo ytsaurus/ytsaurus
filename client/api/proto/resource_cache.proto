@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+import "yt/core/ytree/proto/attributes.proto";
+
+import "yp/client/api/proto/conditions.proto";
+import "yp/client/api/proto/data_model.proto";
+import "yp/client/api/proto/object_type.proto";
+import "yp/client/api/proto/pod_agent.proto";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "ResourceCache";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TResourceCacheMeta
+{
+    string id = 1;
+    string replica_set_id = 2;
+    string uuid = 3;
+    string name = 4;
+    EObjectType type = 5;
+    uint64 creation_time = 6;
+    bool inherit_acl = 7;
+    repeated TAccessControlEntry acl = 8;
+}
+
+message TResourceCacheSpec
+{
+    uint32 revision = 1;
+
+    // Unique revisions for resource are revisions with different spec of this resource
+    message TResourceCacheBasicStrategy
+    {
+        // Number of unique latest revisions to download
+        uint32 max_latest_revisions = 1;
+    }
+
+    message TCachedResource
+    {
+        string id = 1;
+        oneof resource {
+            NInfra.NPodAgent.API.TLayer layer = 2;
+            NInfra.NPodAgent.API.TResource static_resource = 3;
+        }
+        TResourceCacheBasicStrategy basic_strategy = 4;
+    }
+
+    repeated TCachedResource cached_resources = 2;
+}
+
+message TResourceCacheStatus
+{
+    // Latest revision
+    uint32 revision = 1;
+
+    // Conditions for all revisions of all resources which will be downloaded to the pods
+    TAggregatedCondition all_in_progress = 2;
+    TAggregatedCondition all_ready = 3;
+
+    // Conditions for latest revision of all resources
+    TAggregatedCondition latest_in_progress = 4;
+    TAggregatedCondition latest_ready = 5;
+
+    message TCachedResourceRevisionStatus
+    {
+        uint32 revision = 1;
+
+        TAggregatedCondition in_progress = 2;
+        TAggregatedCondition ready = 3;
+
+        // spec corresponding to revision
+        oneof resource {
+            NInfra.NPodAgent.API.TLayer layer = 4;
+            NInfra.NPodAgent.API.TResource static_resource = 5;
+        }
+    }
+
+    message TCachedResourceStatus
+    {
+        string id = 1;
+
+        // All revisions to be downloaded to the pods
+        repeated TCachedResourceRevisionStatus revisions = 2;
+    }
+
+    // Status for all cached resources in spec
+    // id -> revisions to download
+    repeated TCachedResourceStatus cached_resource_status = 6;
+}
+
+message TResourceCache
+{
+    TResourceCacheMeta meta = 1;
+    TResourceCacheSpec spec = 2;
+    TResourceCacheStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
