@@ -4,6 +4,7 @@ namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,6 +18,8 @@ const int TMethodConfig::DefaultMaxQueueSize = 10000;
 const int TMethodConfig::DefaultMaxConcurrency = 1000;
 const NLogging::ELogLevel TMethodConfig::DefaultLogLevel = NLogging::ELogLevel::Debug;
 const TDuration TMethodConfig::DefaultLoggingSuppressionTimeout = TDuration::Zero();
+const TThroughputThrottlerConfigPtr TMethodConfig::DefaultLoggingSuppressionFailedRequestThrottler =
+    New<TThroughputThrottlerConfig>(1000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
