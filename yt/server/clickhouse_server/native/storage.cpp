@@ -509,7 +509,7 @@ TTablePtr TStorage::DoGetTable(
         EPermission::Read,
         suppressAccessTracking);
 
-    return CreateTableSchema(
+    return CreateTable(
         path.GetPath(),
         userObject->Schema);
 }
@@ -573,7 +573,7 @@ ITableReaderPtr TStorage::DoCreateTableReader(
         readerOptions);
 
     // TODO(max42): rename?
-    auto readerTable = NNative::CreateTableSchema(name, tableObject->Schema);
+    auto readerTable = NNative::CreateTable(name, tableObject->Schema);
     return NNative::CreateTableReader(readerTable, std::move(chunkReader));
 }
 
