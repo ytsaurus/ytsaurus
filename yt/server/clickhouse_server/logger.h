@@ -1,0 +1,55 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/logging/log.h>
+
+#include <Poco/AutoPtr.h>
+#include <Poco/Logger.h>
+
+namespace NYT::NClickHouseServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ELogLevel
+{
+    Minimum,
+    Trace,
+    Debug,
+    Info,
+    Warning,
+    Error,
+    Fatal,
+    Maximum,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLogEvent
+{
+    ELogLevel Level;
+    TString Message;
+    TInstant Timestamp;
+    ui32 ThreadId;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ILogger
+{
+    virtual ~ILogger() = default;
+
+    virtual void Write(const TLogEvent& event) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ILoggerPtr CreateLogger(const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+Poco::AutoPtr<Poco::Channel> WrapToLogChannel(ILoggerPtr logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NClickHouseServer

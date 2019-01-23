@@ -1,5 +1,5 @@
 #include <yt/server/clickhouse_server/bootstrap.h>
-#include <yt/server/clickhouse_server/native/config.h>
+#include <yt/server/clickhouse_server/config.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -17,7 +17,7 @@ namespace NClickHouseServer {
 class TProgram
     : public NYT::TProgram
     , public TProgramPdeathsigMixin
-    , public TProgramConfigMixin<NNative::TConfig>
+    , public TProgramConfigMixin<TConfig>
 {
 private:
     TString InstanceId_;

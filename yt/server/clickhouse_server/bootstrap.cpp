@@ -1,13 +1,13 @@
 #include "bootstrap.h"
 
-#include <yt/server/clickhouse_server/engine/server.h>
+#include <yt/server/clickhouse_server/server.h>
 
-#include <yt/server/clickhouse_server/native/client_cache.h>
-#include <yt/server/clickhouse_server/native/config.h>
-#include <yt/server/clickhouse_server/native/directory.h>
-#include <yt/server/clickhouse_server/native/logger.h>
-#include <yt/server/clickhouse_server/native/storage.h>
-#include <yt/server/clickhouse_server/native/clique_authorization_manager.h>
+#include <yt/server/clickhouse_server/client_cache.h>
+#include <yt/server/clickhouse_server/config.h>
+#include <yt/server/clickhouse_server/directory.h>
+#include <yt/server/clickhouse_server/logger.h>
+#include <yt/server/clickhouse_server/storage.h>
+#include <yt/server/clickhouse_server/clique_authorization_manager.h>
 
 #include <yt/server/lib/admin/admin_service.h>
 
@@ -49,6 +49,7 @@ namespace NClickHouseServer {
 
 using namespace NAdmin;
 using namespace NApi;
+using namespace NApi::NNative;
 using namespace NBus;
 using namespace NConcurrency;
 using namespace NMonitoring;
@@ -56,7 +57,6 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NYTree;
-using namespace NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,7 +182,7 @@ void TBootstrap::DoInitialize()
     auto client = NativeClientCache->CreateNativeClient(TClientOptions("root"));
     CliqueAuthorizationManager = CreateCliqueAuthorizationManager(client, CliqueId_, Config->ValidateOperationPermission);
 
-    Server = std::make_unique<NEngine::TServer>(
+    Server = std::make_unique<TServer>(
         logger,
         Storage,
         CoordinationService,
