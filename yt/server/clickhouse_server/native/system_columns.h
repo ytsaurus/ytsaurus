@@ -25,7 +25,7 @@ struct TSystemColumns
         columns.reserve(GetCount());
 
         if (TableName.Defined()) {
-            columns.emplace_back(*TableName, EColumnType::String);
+            columns.emplace_back(*TableName, EClickHouseColumnType::String);
         }
 
         return columns;

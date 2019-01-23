@@ -10,12 +10,12 @@ namespace NYT::NClickHouseServer::NNative {
 
 struct IColumnBuilder
 {
-    EColumnType Type = EColumnType::Invalid;
+    EClickHouseColumnType Type = EClickHouseColumnType::Invalid;
 
     virtual ~IColumnBuilder() = default;
 
     /// Gets the column data type.
-    EColumnType GetType() const
+    EClickHouseColumnType GetType() const
     {
         return Type;
     }
