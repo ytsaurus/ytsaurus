@@ -613,6 +613,8 @@ protected:
         NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;
         THashMap<TString, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
+
+        NConcurrency::IReconfigurableThroughputThrottlerPtr LoggingSuppressionFailedRequestThrottler;
     };
 
     using TRuntimeMethodInfoPtr = TIntrusivePtr<TRuntimeMethodInfo>;

@@ -12,6 +12,7 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -71,6 +72,8 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     : Descriptor(descriptor)
     , TagIds(tagIds)
     , QueueSizeCounter("/request_queue_size", tagIds)
+    , LoggingSuppressionFailedRequestThrottler(
+        CreateReconfigurableThroughputThrottler(TMethodConfig::DefaultLoggingSuppressionFailedRequestThrottler))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,8 +413,14 @@ private:
             timeout = FromProto<TDuration>(RequestHeader_->logging_suppression_timeout());
         }
 
-        if (TotalTime_ >= timeout ||
-            (!Error_.IsOK() && RequestHeader_->disable_logging_suppression_if_request_failed()))
+        if (TotalTime_ >= timeout) {
+            return;
+
+        }
+
+        if (!Error_.IsOK() &&
+            (RequestHeader_->disable_logging_suppression_if_request_failed() ||
+            RuntimeInfo_->LoggingSuppressionFailedRequestThrottler->TryAcquire(1)))
         {
             return;
         }
@@ -989,6 +998,9 @@ void TServiceBase::Configure(INodePtr configNode)
             descriptor.SetMaxConcurrency(methodConfig->MaxConcurrency);
             descriptor.SetLogLevel(methodConfig->LogLevel);
             descriptor.SetLoggingSuppressionTimeout(methodConfig->LoggingSuppressionTimeout);
+
+            runtimeInfo->LoggingSuppressionFailedRequestThrottler->Reconfigure(
+                methodConfig->LoggingSuppressionFailedRequestThrottler);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
