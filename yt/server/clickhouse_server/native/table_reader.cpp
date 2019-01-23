@@ -176,47 +176,47 @@ public:
     {
         switch (schema.Type) {
             /// Invalid type.
-            case EColumnType::Invalid:
+            case EClickHouseColumnType::Invalid:
                 break;
 
             /// Signed integer value.
-            case EColumnType::Int8:
+            case EClickHouseColumnType::Int8:
                 return CreateHandlerFunction<TIntColumnTraits<i8>>(schema);
-            case EColumnType::Int16:
+            case EClickHouseColumnType::Int16:
                 return CreateHandlerFunction<TIntColumnTraits<i16>>(schema);
-            case EColumnType::Int32:
+            case EClickHouseColumnType::Int32:
                 return CreateHandlerFunction<TIntColumnTraits<i32>>(schema);
-            case EColumnType::Int64:
+            case EClickHouseColumnType::Int64:
                 return CreateHandlerFunction<TIntColumnTraits<i64>>(schema);
 
             /// Unsigned integer value.
-            case EColumnType::UInt8:
+            case EClickHouseColumnType::UInt8:
                 return CreateHandlerFunction<TUIntColumnTraits<ui8>>(schema);
-            case EColumnType::UInt16:
+            case EClickHouseColumnType::UInt16:
                 return CreateHandlerFunction<TUIntColumnTraits<ui16>>(schema);
-            case EColumnType::UInt32:
+            case EClickHouseColumnType::UInt32:
                 return CreateHandlerFunction<TUIntColumnTraits<ui32>>(schema);
-            case EColumnType::UInt64:
+            case EClickHouseColumnType::UInt64:
                 return CreateHandlerFunction<TUIntColumnTraits<ui64>>(schema);
 
             /// Floating point value.
-            case EColumnType::Float:
+            case EClickHouseColumnType::Float:
                 return CreateHandlerFunction<TFloatColumnTraits<float>>(schema);
-            case EColumnType::Double:
+            case EClickHouseColumnType::Double:
                 return CreateHandlerFunction<TFloatColumnTraits<double>>(schema);
 
             /// Boolean value.
-            case EColumnType::Boolean:
+            case EClickHouseColumnType::Boolean:
                 return CreateHandlerFunction<TBooleanColumnTraits>(schema);
 
             /// DateTime value.
-            case EColumnType::Date:
+            case EClickHouseColumnType::Date:
                 return CreateHandlerFunction<TUIntColumnTraits<ui16>>(schema);
-            case EColumnType::DateTime:
+            case EClickHouseColumnType::DateTime:
                 return CreateHandlerFunction<TUIntColumnTraits<ui32>>(schema);
 
             /// String value.
-            case EColumnType::String:
+            case EClickHouseColumnType::String:
                 return CreateHandlerFunction<TStringColumnTraits>(schema);
         }
 

@@ -12,7 +12,7 @@ namespace NYT::NClickHouseServer::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class EColumnType
+enum class EClickHouseColumnType
 {
     /// Invalid type.
     Invalid = 0,
@@ -58,12 +58,12 @@ enum class EColumnFlags
 struct TColumn
 {
     TString Name;
-    EColumnType Type = EColumnType::Invalid;
+    EClickHouseColumnType Type = EClickHouseColumnType::Invalid;
     int Flags = 0;
 
     TColumn() = default;
 
-    TColumn(TString name, EColumnType type, int flags = 0)
+    TColumn(TString name, EClickHouseColumnType type, int flags = 0)
         : Name(std::move(name))
         , Type(type)
         , Flags(flags)

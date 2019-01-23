@@ -30,34 +30,34 @@ const char* GetTypeName(const NNative::TColumn& column)
 {
     switch (column.Type) {
         /// Invalid type.
-        case NNative::EColumnType::Invalid:
+        case NNative::EClickHouseColumnType::Invalid:
             break;
 
         /// Signed integer value.
-        case NNative::EColumnType::Int8:     return "Int8";
-        case NNative::EColumnType::Int16:    return "Int16";
-        case NNative::EColumnType::Int32:    return "Int32";
-        case NNative::EColumnType::Int64:    return "Int64";
+        case NNative::EClickHouseColumnType::Int8:     return "Int8";
+        case NNative::EClickHouseColumnType::Int16:    return "Int16";
+        case NNative::EClickHouseColumnType::Int32:    return "Int32";
+        case NNative::EClickHouseColumnType::Int64:    return "Int64";
 
         /// Unsigned integer value.
-        case NNative::EColumnType::UInt8:    return "UInt8";
-        case NNative::EColumnType::UInt16:   return "UInt16";
-        case NNative::EColumnType::UInt32:   return "UInt32";
-        case NNative::EColumnType::UInt64:   return "UInt64";
+        case NNative::EClickHouseColumnType::UInt8:    return "UInt8";
+        case NNative::EClickHouseColumnType::UInt16:   return "UInt16";
+        case NNative::EClickHouseColumnType::UInt32:   return "UInt32";
+        case NNative::EClickHouseColumnType::UInt64:   return "UInt64";
 
         /// Floating point value.
-        case NNative::EColumnType::Float:    return "Float32";
-        case NNative::EColumnType::Double:   return "Float64";
+        case NNative::EClickHouseColumnType::Float:    return "Float32";
+        case NNative::EClickHouseColumnType::Double:   return "Float64";
 
         /// Boolean value.
-        case NNative::EColumnType::Boolean:  return "UInt8";
+        case NNative::EClickHouseColumnType::Boolean:  return "UInt8";
 
         /// DateTime value.
-        case NNative::EColumnType::Date:     return "Date";
-        case NNative::EColumnType::DateTime: return "DateTime";
+        case NNative::EClickHouseColumnType::Date:     return "Date";
+        case NNative::EClickHouseColumnType::DateTime: return "DateTime";
 
         /// String value.
-        case NNative::EColumnType::String:   return "String";
+        case NNative::EClickHouseColumnType::String:   return "String";
     }
 
     throw Exception(

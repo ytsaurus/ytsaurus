@@ -14,7 +14,7 @@ namespace NYT::NClickHouseServer::NNative {
 
 bool IsYtTypeSupported(NTableClient::EValueType valueType);
 
-EColumnType RepresentYtType(NTableClient::EValueType valueType);
+EClickHouseColumnType RepresentYtType(NTableClient::EValueType valueType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

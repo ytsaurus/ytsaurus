@@ -39,29 +39,29 @@ bool IsYtTypeSupported(EValueType valueType)
     THROW_ERROR_EXCEPTION("Unexpected YT value type: %Qlv", valueType);
 }
 
-EColumnType RepresentYtType(EValueType valueType)
+EClickHouseColumnType RepresentYtType(EValueType valueType)
 {
     switch (valueType) {
         /// Signed integer value.
         case EValueType::Int64:
-            return EColumnType::Int64;
+            return EClickHouseColumnType::Int64;
 
         /// Unsigned integer value.
         case EValueType::Uint64:
-            return EColumnType::UInt64;
+            return EClickHouseColumnType::UInt64;
 
         /// Floating point value.
         case EValueType::Double:
-            return EColumnType::Double;
+            return EClickHouseColumnType::Double;
 
         /// Boolean value.
         case EValueType::Boolean:
-            return EColumnType::Boolean;
+            return EClickHouseColumnType::Boolean;
 
         /// String value.
         case EValueType::String:
         case EValueType::Any:
-            return EColumnType::String;
+            return EClickHouseColumnType::String;
 
         case EValueType::Null:
         case EValueType::Min:

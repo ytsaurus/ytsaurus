@@ -31,7 +31,7 @@ private:
     const MutableColumnPtr Column;
 
 public:
-    TTypedColumnBuilder(NNative::EColumnType type, MutableColumnPtr column)
+    TTypedColumnBuilder(NNative::EClickHouseColumnType type, MutableColumnPtr column)
         : Column(std::move(column))
     {
         NNative::IColumnBuilder::Type = type;
@@ -58,7 +58,7 @@ private:
     MutableColumnPtr Column;
 
 public:
-    TStringColumnBuilder(NNative::EColumnType type, MutableColumnPtr column)
+    TStringColumnBuilder(NNative::EClickHouseColumnType type, MutableColumnPtr column)
         : Column(std::move(column))
     {
         NNative::IColumnBuilder::Type = type;
@@ -95,52 +95,52 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 NNative::IColumnBuilderPtr CreateColumnBuilder(
-    NNative::EColumnType type,
+    NNative::EClickHouseColumnType type,
     MutableColumnPtr column)
 {
     switch (type) {
         /// Invalid type.
-        case NNative::EColumnType::Invalid:
+        case NNative::EClickHouseColumnType::Invalid:
             break;
 
         /// Signed integer value.
-        case NNative::EColumnType::Int8:
+        case NNative::EClickHouseColumnType::Int8:
             return std::make_shared<TTypedColumnBuilder<Int8>>(type, std::move(column));
-        case NNative::EColumnType::Int16:
+        case NNative::EClickHouseColumnType::Int16:
             return std::make_shared<TTypedColumnBuilder<Int16>>(type, std::move(column));
-        case NNative::EColumnType::Int32:
+        case NNative::EClickHouseColumnType::Int32:
             return std::make_shared<TTypedColumnBuilder<Int32>>(type, std::move(column));
-        case NNative::EColumnType::Int64:
+        case NNative::EClickHouseColumnType::Int64:
             return std::make_shared<TTypedColumnBuilder<Int64>>(type, std::move(column));
 
         /// Unsigned integer value.
-        case NNative::EColumnType::UInt8:
+        case NNative::EClickHouseColumnType::UInt8:
             return std::make_shared<TTypedColumnBuilder<UInt8>>(type, std::move(column));
-        case NNative::EColumnType::UInt16:
+        case NNative::EClickHouseColumnType::UInt16:
             return std::make_shared<TTypedColumnBuilder<UInt16>>(type, std::move(column));
-        case NNative::EColumnType::UInt32:
+        case NNative::EClickHouseColumnType::UInt32:
             return std::make_shared<TTypedColumnBuilder<UInt32>>(type, std::move(column));
-        case NNative::EColumnType::UInt64:
+        case NNative::EClickHouseColumnType::UInt64:
             return std::make_shared<TTypedColumnBuilder<UInt64>>(type, std::move(column));
 
         /// Floating point value.
-        case NNative::EColumnType::Float:
+        case NNative::EClickHouseColumnType::Float:
             return std::make_shared<TTypedColumnBuilder<Float32>>(type, std::move(column));
-        case NNative::EColumnType::Double:
+        case NNative::EClickHouseColumnType::Double:
             return std::make_shared<TTypedColumnBuilder<Float64>>(type, std::move(column));
 
         /// Boolean value.
-        case NNative::EColumnType::Boolean:
+        case NNative::EClickHouseColumnType::Boolean:
             return std::make_shared<TTypedColumnBuilder<UInt8>>(type, std::move(column));
 
         /// DateTime value.
-        case NNative::EColumnType::Date:
+        case NNative::EClickHouseColumnType::Date:
             return std::make_shared<TTypedColumnBuilder<UInt16>>(type, std::move(column));
-        case NNative::EColumnType::DateTime:
+        case NNative::EClickHouseColumnType::DateTime:
             return std::make_shared<TTypedColumnBuilder<UInt32>>(type, std::move(column));
 
         /// String value.
-        case NNative::EColumnType::String:
+        case NNative::EClickHouseColumnType::String:
             return std::make_shared<TStringColumnBuilder>(type, std::move(column));
     }
 
