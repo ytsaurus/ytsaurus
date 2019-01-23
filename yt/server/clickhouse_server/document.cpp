@@ -7,8 +7,7 @@
 #include <util/string/join.h>
 #include <util/string/split.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using NYTree::INode;
 using NYTree::INodePtr;
@@ -192,5 +191,4 @@ IDocumentPtr CreateDocument(INodePtr documentNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

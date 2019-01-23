@@ -31,8 +31,7 @@ namespace ErrorCodes
 
 }   // namespace DB
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace DB;
 
@@ -193,5 +192,4 @@ DB::StoragePtr CreateStorageConcat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

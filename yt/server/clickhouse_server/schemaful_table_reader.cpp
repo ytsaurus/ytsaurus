@@ -8,8 +8,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NConcurrency;
 using namespace NApi;
@@ -46,5 +45,4 @@ ISchemafulReaderPtr CreateSchemafulTableReader(
         columnFilter);
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

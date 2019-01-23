@@ -31,8 +31,7 @@ namespace ErrorCodes
 
 }
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using DB::String;
 using UserPtr = DB::ISecurityManager::UserPtr;
@@ -231,5 +230,4 @@ std::unique_ptr<DB::ISecurityManager> CreateSecurityManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

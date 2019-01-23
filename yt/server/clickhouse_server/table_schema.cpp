@@ -6,8 +6,7 @@
 
 #include <DataTypes/DataTypeFactory.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,5 +57,4 @@ TClickHouseTableSchema TClickHouseTableSchema::From(const TTable& table)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

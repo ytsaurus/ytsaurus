@@ -3,8 +3,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,5 +99,4 @@ std::vector<TDataSliceDescriptorList> MergeVersionedChunks(
     THROW_ERROR_EXCEPTION("Versioned tables not supported");
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

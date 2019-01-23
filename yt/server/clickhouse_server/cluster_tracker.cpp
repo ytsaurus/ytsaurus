@@ -19,8 +19,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace DB;
 
@@ -322,5 +321,4 @@ IClusterNodeTrackerPtr CreateClusterNodeTracker(
         clickhousePort);
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

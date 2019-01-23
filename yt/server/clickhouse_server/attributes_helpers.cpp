@@ -2,8 +2,7 @@
 
 #include <yt/core/ytree/node.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NYTree;
 
@@ -81,5 +80,4 @@ TObjectAttributes CreateBasicAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

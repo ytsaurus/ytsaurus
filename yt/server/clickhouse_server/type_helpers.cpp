@@ -1,7 +1,6 @@
 #include "type_helpers.h"
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,5 +30,4 @@ std::vector<std::string> ToStdString(const std::vector<TString>& strings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

@@ -2,8 +2,7 @@
 
 #include <yt/core/misc/error.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,5 +80,4 @@ const IPathService* GetPathService()
     return &instance;
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

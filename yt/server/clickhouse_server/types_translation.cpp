@@ -8,8 +8,7 @@
 
 #include <util/generic/hash.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
 
@@ -74,5 +73,4 @@ EClickHouseColumnType RepresentYtType(EValueType valueType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

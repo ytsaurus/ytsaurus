@@ -7,8 +7,7 @@
 
 #include <util/system/thread.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,5 +98,4 @@ ILoggerPtr CreateLogger(const NLogging::TLogger& logger)
 
 /////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

@@ -13,8 +13,7 @@
 #include <string>
 #include <vector>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace DB;
 
@@ -108,5 +107,4 @@ BlockInputStreamPtr CreateStorageInputStream(ITableReaderPtr tableReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

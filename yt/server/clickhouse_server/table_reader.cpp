@@ -16,8 +16,7 @@
 #include <functional>
 #include <vector>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -426,5 +425,4 @@ ITableReaderPtr CreateTableReader(
         std::move(chunkReader));
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

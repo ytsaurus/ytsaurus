@@ -9,8 +9,7 @@
 
 #include <common/logger_useful.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,5 +93,4 @@ std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateExternalLoaderConfigR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

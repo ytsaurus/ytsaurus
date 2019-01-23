@@ -6,8 +6,7 @@
 
 #include <Core/Names.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,5 +31,4 @@ TSystemColumns GetSystemColumns(const DB::Names& virtual_)
     return systemColumns;
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

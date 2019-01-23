@@ -14,8 +14,7 @@
 
 #include <util/generic/algorithm.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -383,5 +382,4 @@ ICoordinationServicePtr CreateCoordinationService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer
