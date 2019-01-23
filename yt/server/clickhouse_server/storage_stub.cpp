@@ -11,8 +11,7 @@ namespace ErrorCodes
 
 }   // namespace DB
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace DB;
 
@@ -59,5 +58,4 @@ StoragePtr CreateStorageStub(TTablePtr table)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

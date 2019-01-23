@@ -9,8 +9,7 @@
 
 #include <util/generic/maybe.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,5 +81,4 @@ IUpdatesTrackerPtr CreateUpdatesTracker(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

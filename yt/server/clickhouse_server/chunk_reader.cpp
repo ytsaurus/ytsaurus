@@ -22,8 +22,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -165,5 +164,4 @@ void WarmUp(std::vector<NTableClient::ISchemafulReaderPtr>& chunkReaders)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

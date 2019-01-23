@@ -15,8 +15,7 @@ namespace ErrorCodes
 
 }
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 namespace {
 
@@ -84,5 +83,4 @@ void IStorageWithVirtualColumns::SplitColumns(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

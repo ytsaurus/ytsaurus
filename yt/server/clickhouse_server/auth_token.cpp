@@ -7,8 +7,7 @@
 
 #include <Interpreters/Context.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace DB;
 using namespace NApi;
@@ -135,6 +134,5 @@ IAuthorizationTokenPtr CreateAuthToken(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer
 

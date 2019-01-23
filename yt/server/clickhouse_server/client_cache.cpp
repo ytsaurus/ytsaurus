@@ -30,8 +30,7 @@ struct TEqualTo<NYT::NApi::TClientOptions>
     }
 };
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 
@@ -77,5 +76,4 @@ INativeClientCachePtr CreateNativeClientCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

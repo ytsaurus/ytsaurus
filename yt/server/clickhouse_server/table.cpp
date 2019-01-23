@@ -6,8 +6,7 @@
 
 #include <yt/core/yson/string.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
 using namespace NYson;
@@ -107,5 +106,4 @@ TTablePtr CreateTable(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

@@ -16,8 +16,7 @@
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -178,5 +177,4 @@ TTableReaderList CreateJobTableReaders(
     return readers;
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

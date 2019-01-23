@@ -11,8 +11,7 @@
 #include <Interpreters/InterpreterSelectQuery.h>
 #include <Parsers/queryToString.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace DB;
 
@@ -238,5 +237,4 @@ BlockInputStreamPtr TStorageDistributed::CreateRemoteStream(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

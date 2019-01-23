@@ -44,8 +44,7 @@
 
 #include <util/datetime/base.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NAdmin;
 using namespace NApi;
@@ -237,5 +236,4 @@ IThroughputThrottlerPtr TBootstrap::GetScanThrottler() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}   // namespace NClickHouseServer
-}   // namespace NYT
+} // namespace NYT::NClickHouseServer

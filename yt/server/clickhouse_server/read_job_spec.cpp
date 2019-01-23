@@ -8,8 +8,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
@@ -161,5 +160,4 @@ void Deserialize(TReadJobSpec& spec, INodePtr node)
     }
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

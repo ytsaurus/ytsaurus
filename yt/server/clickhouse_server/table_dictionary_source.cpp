@@ -28,8 +28,7 @@ namespace ErrorCodes
 
 }
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using DB::Exception;
 
@@ -202,5 +201,4 @@ void RegisterTableDictionarySource(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

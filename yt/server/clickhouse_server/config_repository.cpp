@@ -13,8 +13,7 @@
 
 #include <util/string/cast.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 class TPoller
     : public IConfigPoller
@@ -147,5 +146,4 @@ IConfigRepositoryPtr CreateConfigRepository(
         path);
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

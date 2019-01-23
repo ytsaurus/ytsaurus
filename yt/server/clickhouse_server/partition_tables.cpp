@@ -29,8 +29,7 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/ytree/convert.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -385,5 +384,4 @@ TTablePartList PartitionTables(
     return partitioner->PartitionTables();
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

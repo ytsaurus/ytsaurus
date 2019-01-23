@@ -3,8 +3,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/unversioned_value.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
 
@@ -62,5 +61,4 @@ TRow ConvertRow(const TUnversionedRow& src)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

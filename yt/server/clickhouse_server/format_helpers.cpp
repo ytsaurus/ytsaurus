@@ -5,8 +5,7 @@
 #include <util/stream/output.h>
 #include <util/string/join.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,5 +26,4 @@ std::string JoinStrings(const TString& delimiter, const std::vector<TString>& st
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

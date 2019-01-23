@@ -7,8 +7,7 @@
 
 #include <yt/server/clickhouse_server/storage.h>
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,5 +96,4 @@ std::unique_ptr<DB::IRuntimeComponentsFactory> CreateRuntimeComponentsFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

@@ -15,8 +15,7 @@ namespace ErrorCodes
 
 }   // namespace DB
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace DB;
 
@@ -149,5 +148,4 @@ IColumnBuilderPtr CreateColumnBuilder(
         ErrorCodes::UNKNOWN_TYPE);
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

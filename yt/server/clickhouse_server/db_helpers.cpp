@@ -18,8 +18,7 @@ namespace ErrorCodes
 
 }   // namespace DB
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 using namespace DB;
 
@@ -131,5 +130,4 @@ std::vector<Field> GetFields(const TValue* values, size_t count)
     return fields;
 }
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer

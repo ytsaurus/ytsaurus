@@ -23,8 +23,7 @@
 
 // TODO: use NGeoBase::TLookupPtr in data sources/providers
 
-namespace NYT {
-namespace NClickHouseServer {
+namespace NYT::NClickHouseServer {
 
 namespace {
 
@@ -392,5 +391,4 @@ std::unique_ptr<IGeoDictionariesLoader> CreateGeoDictionariesLoader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
-} // namespace NYT
+} // namespace NYT::NClickHouseServer
