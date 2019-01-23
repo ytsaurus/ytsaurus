@@ -795,7 +795,6 @@ public:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(table, EPermission::Mount);
         securityManager->ValidatePermission(bundle, EPermission::Use);
 
         switch (kind) {
