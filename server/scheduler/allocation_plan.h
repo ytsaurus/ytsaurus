@@ -71,13 +71,9 @@ private:
     void EmplaceRequest(TNode* node, const TRequest& request);
 };
 
-inline void FormatValue(TStringBuilder* builder, const TAllocationPlan::TPodRequest& podRequest, TStringBuf /* format */) {
-    builder->AppendFormat("PodId: %v%v", podRequest.Type == EAllocationPlanPodRequestType::AssignPodToNode ? "+" : "-", podRequest.Pod->GetId());
-}
+void FormatValue(TStringBuilder* builder, const TAllocationPlan::TPodRequest& podRequest, TStringBuf format);
 
-inline void FormatValue(TStringBuilder* builder, const TAllocationPlan::TNodeRequest& /* nodeRequest */, TStringBuf /* format */) {
-    builder->AppendString("Remove orphaned scheduled allocations");
-}
+void FormatValue(TStringBuilder* builder, const TAllocationPlan::TNodeRequest& nodeRequest, TStringBuf format);
 
 ////////////////////////////////////////////////////////////////////////////////
 
