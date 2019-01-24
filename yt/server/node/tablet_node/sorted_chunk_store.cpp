@@ -307,10 +307,22 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
 
     NProfiling::TWallTimer metaWaitTimer;
-    auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
-        chunkReader,
-        Schema_,
-        blockReadOptions);
+    TFuture<TCachedVersionedChunkMetaPtr> asyncChunkMeta;
+
+    if (ChunkMetaManager_) {
+        asyncChunkMeta = ChunkMetaManager_->GetMeta(
+            chunkReader,
+            Schema_,
+            blockReadOptions);
+    } else {
+        asyncChunkMeta = TCachedVersionedChunkMeta::Load(
+            chunkReader,
+            blockReadOptions,
+            Schema_,
+            {},
+            nullptr);
+    }
+
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
     blockReadOptions.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
