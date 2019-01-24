@@ -22,6 +22,9 @@ message TJobMetrics
 {
     optional int64 disk_reads = 1;
     optional int64 disk_writes = 2;
+    optional int64 disk_total = 12;
+    optional int64 bytes_read = 13;
+    optional int64 bytes_written = 14;
     optional int64 time_completed = 3;
     optional int64 time_aborted = 4;
     optional double aggregated_smoothed_cpu_usage = 5;

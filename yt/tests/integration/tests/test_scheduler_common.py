@@ -3137,11 +3137,14 @@ class TestPoolMetrics(YTEnvSetup):
         # - writes (and syncs) something to disk
         # - works for some time (to ensure that it sends several heartbeats
         # - writes something to stderr because we want to find our jobs in //sys/operations later
-        map_cmd = """for i in $(seq 10) ; do echo 5 > foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
+        map_cmd = """for i in $(seq 10) ; do echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
 
         start_time = time.time()
 
-        start_pool_metrics =  get_pool_metrics("disk_writes", start_time)
+        metric_name = "bytes_written"
+        statistics_name = "user_job.block_io.bytes_written"
+
+        start_pool_metrics = get_pool_metrics(metric_name, start_time)
 
         op11 = map(
             in_="//t_input",
@@ -3163,13 +3166,13 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        wait(lambda: get_pool_metrics("disk_writes", start_time)["parent"] - start_pool_metrics["parent"] > 0)
+        wait(lambda: get_pool_metrics(metric_name, start_time)["parent"] - start_pool_metrics["parent"] > 0)
 
-        pool_metrics = get_pool_metrics("disk_writes", start_time)
+        pool_metrics = get_pool_metrics(metric_name, start_time)
 
-        op11_writes = get_cypress_metrics(op11.id, "user_job.block_io.io_write")
-        op12_writes = get_cypress_metrics(op12.id, "user_job.block_io.io_write")
-        op2_writes = get_cypress_metrics(op2.id, "user_job.block_io.io_write")
+        op11_writes = get_cypress_metrics(op11.id, statistics_name)
+        op12_writes = get_cypress_metrics(op12.id, statistics_name)
+        op2_writes = get_cypress_metrics(op2.id, statistics_name)
 
         assert pool_metrics["child1"] - start_pool_metrics["child1"] == op11_writes + op12_writes > 0
         assert pool_metrics["child2"] - start_pool_metrics["child2"] == op2_writes > 0
@@ -3227,6 +3230,11 @@ class TestPoolMetrics(YTEnvSetup):
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
         wait(lambda: check_metrics(lambda: get_pool_metrics("time_completed", start_time), start_completed_metrics))
         wait(lambda: check_metrics(lambda: get_pool_metrics("time_aborted", start_time), start_aborted_metrics))
+
+@patch_porto_env_only(TestPoolMetrics)
+class TestPoolMetricsPorto(YTEnvSetup):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
 

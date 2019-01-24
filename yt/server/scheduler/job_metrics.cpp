@@ -19,6 +19,9 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(const NJobTrackerClient::TStat
     TJobMetrics metrics;
     metrics.DiskReads_ = FindNumericValue(statistics, "/user_job/block_io/io_read").value_or(0);
     metrics.DiskWrites_ = FindNumericValue(statistics, "/user_job/block_io/io_write").value_or(0);
+    metrics.DiskTotal_ = FindNumericValue(statistics, "/user_job/block_io/io_total").value_or(0);
+    metrics.BytesRead_ = FindNumericValue(statistics, "/user_job/block_io/bytes_read").value_or(0);
+    metrics.BytesWritten_ = FindNumericValue(statistics, "/user_job/block_io/bytes_written").value_or(0);
     if (jobState == EJobState::Completed) {
         metrics.TimeCompleted_ = FindNumericValue(statistics, "/time/total").value_or(0);
     } else if (jobState == EJobState::Aborted) {
@@ -39,6 +42,9 @@ bool TJobMetrics::IsEmpty() const
 {
     return DiskReads_ == 0 &&
         DiskWrites_ == 0 &&
+        DiskTotal_ == 0 &&
+        BytesRead_ == 0 &&
+        BytesWritten_ == 0 &&
         TimeCompleted_ == 0 &&
         TimeAborted_ == 0 &&
         TotalTime_ == 0 &&
@@ -58,6 +64,9 @@ void TJobMetrics::Profile(
     //NB(renadeen): you cannot use EMetricType::Gauge here
     collector.Add(prefix + "/disk_reads", DiskReads_, EMetricType::Counter, tagIds);
     collector.Add(prefix + "/disk_writes", DiskWrites_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/disk_total", DiskTotal_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/bytes_read", BytesRead_, EMetricType::Counter, tagIds);
+    collector.Add(prefix + "/bytes_written", BytesWritten_, EMetricType::Counter, tagIds);
     collector.Add(prefix + "/time_aborted", TimeAborted_, EMetricType::Counter, tagIds);
     collector.Add(prefix + "/time_completed", TimeCompleted_, EMetricType::Counter, tagIds);
     collector.Add(prefix + "/total_time", TotalTime_, EMetricType::Counter, tagIds);
@@ -75,6 +84,9 @@ void TJobMetrics::Persist(const TPersistenceContext& context)
 
     Persist(context, DiskReads_);
     Persist(context, DiskWrites_);
+    Persist(context, DiskTotal_);
+    Persist(context, BytesRead_);
+    Persist(context, BytesWritten_);
     Persist(context, TimeCompleted_);
     Persist(context, TimeAborted_);
     Persist(context, TotalTime_);
@@ -92,6 +104,9 @@ TJobMetrics& operator+=(TJobMetrics& lhs, const TJobMetrics& rhs)
 {
     lhs.DiskReads_ += rhs.DiskReads_;
     lhs.DiskWrites_ += rhs.DiskWrites_;
+    lhs.DiskTotal_ += rhs.DiskTotal_;
+    lhs.BytesRead_ += rhs.BytesRead_;
+    lhs.BytesWritten_ += rhs.BytesWritten_;
     lhs.TimeAborted_ += rhs.TimeAborted_;
     lhs.TimeCompleted_ += rhs.TimeCompleted_;
     lhs.TotalTime_ += rhs.TotalTime_;
@@ -108,6 +123,9 @@ TJobMetrics& operator-=(TJobMetrics& lhs, const TJobMetrics& rhs)
 {
     lhs.DiskReads_ -= rhs.DiskReads_;
     lhs.DiskWrites_ -= rhs.DiskWrites_;
+    lhs.DiskTotal_ -= rhs.DiskTotal_;
+    lhs.BytesRead_ -= rhs.BytesRead_;
+    lhs.BytesWritten_ -= rhs.BytesWritten_;
     lhs.TimeAborted_ -= rhs.TimeAborted_;
     lhs.TimeCompleted_ -= rhs.TimeCompleted_;
     lhs.TotalTime_ -= rhs.TotalTime_;
@@ -138,6 +156,9 @@ void ToProto(NScheduler::NProto::TJobMetrics* protoJobMetrics, const NScheduler:
 {
     protoJobMetrics->set_disk_reads(jobMetrics.GetDiskReads());
     protoJobMetrics->set_disk_writes(jobMetrics.GetDiskWrites());
+    protoJobMetrics->set_disk_total(jobMetrics.GetDiskTotal());
+    protoJobMetrics->set_bytes_read(jobMetrics.GetBytesRead());
+    protoJobMetrics->set_bytes_written(jobMetrics.GetBytesWritten());
     protoJobMetrics->set_time_completed(jobMetrics.GetTimeCompleted());
     protoJobMetrics->set_time_aborted(jobMetrics.GetTimeAborted());
     protoJobMetrics->set_total_time(jobMetrics.GetTotalTime());
@@ -153,6 +174,9 @@ void FromProto(NScheduler::TJobMetrics* jobMetrics, const NScheduler::NProto::TJ
 {
     jobMetrics->SetDiskReads(protoJobMetrics.disk_reads());
     jobMetrics->SetDiskWrites(protoJobMetrics.disk_writes());
+    jobMetrics->SetDiskTotal(protoJobMetrics.disk_total());
+    jobMetrics->SetBytesRead(protoJobMetrics.bytes_read());
+    jobMetrics->SetBytesWritten(protoJobMetrics.bytes_written());
     jobMetrics->SetTimeCompleted(protoJobMetrics.time_completed());
     jobMetrics->SetTimeAborted(protoJobMetrics.time_aborted());
     jobMetrics->SetTotalTime(protoJobMetrics.total_time());
