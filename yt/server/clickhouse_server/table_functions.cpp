@@ -162,7 +162,7 @@ StoragePtr TGetTableParts::Execute(
     auto tableParts = Storage->GetTableParts(
         *token,
         ToString(tableName),
-        nullptr,    // rangeFilter
+        nullptr /* keyCondition */,
         maxJobsCount);
 
     MutableColumnPtr job_spec_column = ColumnString::create();
