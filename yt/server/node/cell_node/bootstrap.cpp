@@ -830,7 +830,7 @@ const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
     return NodeDirectory;
 }
 
-const NQueryClient::ISubexecutorPtr& TBootstrap::GetQueryExecutor() const
+const IQuerySubexecutorPtr& TBootstrap::GetQueryExecutor() const
 {
     return QueryExecutor;
 }

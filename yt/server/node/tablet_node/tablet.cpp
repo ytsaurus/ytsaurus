@@ -10,6 +10,8 @@
 #include "tablet_profiling.h"
 #include "transaction_manager.h"
 
+#include <yt/server/lib/misc/profiling_helpers.h>
+
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 #include <yt/client/table_client/schema.h>
 
@@ -91,7 +93,7 @@ TReplicaCounters::TReplicaCounters(const TTagIdList& list)
 { }
 
 // Uses tablet_id and replica_id as the key.
-using TReplicaProfilerTrait = TTabletProfilerTrait<TReplicaCounters>;
+using TReplicaProfilerTrait = TTagListProfilerTrait<TReplicaCounters>;
 
 TReplicaCounters NullReplicaCounters;
 
@@ -101,7 +103,7 @@ TTabletCounters::TTabletCounters(const NProfiling::TTagIdList& list)
     : OverlappingStoreCount("/tablet/overlapping_store_count", list)
 { }
 
-using TTabletInternalProfilerTrait = TTabletProfilerTrait<TTabletCounters>;
+using TTabletInternalProfilerTrait = TTagListProfilerTrait<TTabletCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

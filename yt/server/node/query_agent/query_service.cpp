@@ -1,6 +1,9 @@
+#include "query_executor.h"
 #include "query_service.h"
 #include "public.h"
 #include "private.h"
+
+#include <yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
 
@@ -18,7 +21,6 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/functions_cache.h>
@@ -51,6 +53,10 @@ using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Profiler = QueryAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +93,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
+        TServiceProfilerGuard profilerGuard(&Profiler, "/execute");
+
         YT_LOG_DEBUG("Deserializing subfragment");
 
         auto query = FromProto<TConstQueryPtr>(request->query());
@@ -152,7 +160,8 @@ private:
                     dataSources,
                     writer,
                     blockReadOptions,
-                    options);
+                    options,
+                    profilerGuard);
                 auto result = WaitFor(asyncResult)
                     .ValueOrThrow();
 
@@ -164,6 +173,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Read)
     {
+        TServiceProfilerGuard profilerGuard(&Profiler, "/read");
+
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto timestamp = TTimestamp(request->timestamp());
@@ -206,6 +217,11 @@ private:
                 Logger,
                 [&] {
                     auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+                    if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
+                        profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
+                    }
+
                     slotManager->ValidateTabletAccess(
                         tabletSnapshot,
                         EPermission::Read,
@@ -240,6 +256,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)
     {
+        TServiceProfilerGuard profilerGuard(&Profiler, "/multiread");
+
         auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
         auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
         auto timestamp = TTimestamp(request->timestamp());
@@ -289,6 +307,11 @@ private:
                         auto requestData = requestCodec->Decompress(request->Attachments()[index]);
 
                         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+                        if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
+                            profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
+                        }
+
                         slotManager->ValidateTabletAccess(
                             tabletSnapshot,
                             EPermission::Read,

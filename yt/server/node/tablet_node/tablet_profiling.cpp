@@ -2,6 +2,8 @@
 #include "tablet.h"
 #include "tablet_profiling.h"
 
+#include <yt/server/lib/misc/profiling_helpers.h>
+
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -23,37 +25,6 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUserTagTrait
-{
-    using TKey = TString;
-    using TValue = TTagId;
-
-    static const TString& ToKey(const TString& user)
-    {
-        return user;
-    }
-
-    static TTagId ToValue(const TString& user)
-    {
-        return TProfileManager::Get()->RegisterTag("user", user);
-    }
-};
-
-TTagIdList AddUserTag(const TString& user, TTagIdList tags)
-{
-    tags.push_back(GetLocallyCachedValue<TUserTagTrait>(user));
-    return tags;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TListProfilerTraitBase::TKey TListProfilerTraitBase::ToKey(const TTagIdList& list)
-{
-    return list;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChunkWriteCounters
 {
     explicit TChunkWriteCounters(const TTagIdList& list)
@@ -67,7 +38,7 @@ struct TChunkWriteCounters
     TMonotonicCounter CompressionCpuTime;
 };
 
-using TChunkWriteProfilerTrait = TTabletProfilerTrait<TChunkWriteCounters>;
+using TChunkWriteProfilerTrait = TTagListProfilerTrait<TChunkWriteCounters>;
 
 void ProfileChunkWriter(
     TTabletSnapshotPtr tabletSnapshot,
@@ -103,7 +74,7 @@ struct TChunkReadCounters
     TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
-using TChunkReadProfilerTrait = TTabletProfilerTrait<TChunkReadCounters>;
+using TChunkReadProfilerTrait = TTagListProfilerTrait<TChunkReadCounters>;
 
 void ProfileChunkReader(
     TTabletSnapshotPtr tabletSnapshot,
@@ -133,7 +104,7 @@ struct TDynamicMemoryUsageCounters
     TSimpleGauge DynamicMemoryUsage;
 };
 
-using TDynamicMemoryProfilerTrait = TTabletProfilerTrait<TDynamicMemoryUsageCounters>;
+using TDynamicMemoryProfilerTrait = TTagListProfilerTrait<TDynamicMemoryUsageCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

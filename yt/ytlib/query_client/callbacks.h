@@ -36,22 +36,6 @@ struct IExecutor
 
 DEFINE_REFCOUNTED_TYPE(IExecutor)
 
-struct ISubexecutor
-    : public virtual TRefCounted
-{
-    virtual TFuture<TQueryStatistics> Execute(
-        TConstQueryPtr query,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
-        TConstExternalCGInfoPtr externalCGInfo,
-        std::vector<TDataRanges> dataSources,
-        IUnversionedRowsetWriterPtr writer,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        const TQueryOptions& options) = 0;
-
-};
-
-DEFINE_REFCOUNTED_TYPE(ISubexecutor)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IPrepareCallbacks
