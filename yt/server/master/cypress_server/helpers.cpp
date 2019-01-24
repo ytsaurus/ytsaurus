@@ -190,7 +190,8 @@ THashMap<TString, NYson::TYsonString> GetNodeAttributes(
                 if (pair.second) {
                     result[pair.first] = pair.second;
                 } else {
-                    YCHECK(result.erase(pair.first) == 1);
+                    // NB: key may be absent.
+                    result.erase(pair.first);
                 }
             }
         }
@@ -214,7 +215,8 @@ THashSet<TString> ListNodeAttributes(
                 if (pair.second) {
                     result.insert(pair.first);
                 } else {
-                    YCHECK(result.erase(pair.first) == 1);
+                    // NB: key may be absent.
+                    result.erase(pair.first);
                 }
             }
         }
