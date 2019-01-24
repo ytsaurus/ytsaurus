@@ -1412,8 +1412,7 @@ private:
             error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable) ||
             error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter) ||
-            error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming) ||
-            error.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed);
+            error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming);
     }
 };
 
