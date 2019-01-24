@@ -1,5 +1,6 @@
 #include "storage_table.h"
 
+#include "public_ch.h"
 #include "auth_token.h"
 #include "format_helpers.h"
 #include "logging_helpers.h"
@@ -63,13 +64,13 @@ private:
 
     std::vector<TString> GetTableNames() const;
 
-    TTablePartList GetTableParts(
+    virtual TTablePartList GetTableParts(
         const ASTPtr& queryAst,
         const Context& context,
-        IRangeFilterPtr rangeFilter,
+        const DB::KeyCondition* keyCondition,
         size_t maxParts) override;
 
-    ASTPtr RewriteSelectQueryForTablePart(
+    virtual ASTPtr RewriteSelectQueryForTablePart(
         const ASTPtr& queryAst,
         const std::string& jobSpec) override;
 };
@@ -102,7 +103,7 @@ std::vector<TString> TStorageConcat::GetTableNames() const
 TTablePartList TStorageConcat::GetTableParts(
     const ASTPtr& queryAst,
     const Context& context,
-    IRangeFilterPtr rangeFilter,
+    const DB::KeyCondition* keyCondition,
     size_t maxParts)
 {
     Y_UNUSED(queryAst);
@@ -114,7 +115,7 @@ TTablePartList TStorageConcat::GetTableParts(
     return storage->ConcatenateAndGetTableParts(
         *authToken,
         GetTableNames(),
-        rangeFilter,
+        keyCondition,
         maxParts);
 }
 

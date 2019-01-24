@@ -1,7 +1,7 @@
 #pragma once
 
-#include "range_filter.h"
 #include "table_partition.h"
+#include "public_ch.h"
 
 #include <yt/ytlib/api/native/public.h>
 
@@ -16,7 +16,7 @@ namespace NYT::NClickHouseServer {
 TTablePartList PartitionTables(
     NApi::NNative::IClientPtr client,
     std::vector<TString> tables,
-    IRangeFilterPtr rangeFilter,
+    const DB::KeyCondition* keyCondition,
     size_t numParts = 1);
 
 ////////////////////////////////////////////////////////////////////////////////

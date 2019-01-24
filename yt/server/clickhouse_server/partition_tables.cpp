@@ -4,6 +4,8 @@
 #include "data_slice.h"
 #include "read_job_spec.h"
 #include "table_schema.h"
+#include "table.h"
+#include "helpers.h"
 
 #include "private.h"
 
@@ -29,6 +31,9 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/ytree/convert.h>
 
+#include <Storages/MergeTree/KeyCondition.h>
+#include <DataTypes/IDataType.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NApi;
@@ -42,6 +47,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace DB;
 
 namespace {
 
@@ -64,18 +70,43 @@ using TTables = std::vector<TTableObject>;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMultiTablesPartitioner
-    : public TRefCounted
 {
+public:
+    TMultiTablesPartitioner(
+        NApi::NNative::IClientPtr client,
+        std::vector<TString> tables,
+        const KeyCondition* keyCondition,
+        size_t numParts)
+        : Client(std::move(client))
+        , TableNames(std::move(tables))
+        , KeyCondition_(keyCondition)
+        , NumParts(numParts)
+    {}
+
+    // One-shot
+    TTablePartList PartitionTables()
+    {
+        InitializeTables();
+        CollectTablesAttributes();
+        CheckTables();
+        FetchAndFilterChunks();
+        return PartitionChunks();
+    }
+
 private:
     const NLogging::TLogger& Logger = ServerLogger;
 
     NApi::NNative::IClientPtr Client;
 
     std::vector<TString> TableNames;
-    IRangeFilterPtr RangeFilter;
+    const KeyCondition* KeyCondition_;
 
     // TODO
     TTransactionId TransactionId = NullTransactionId;
+
+    int KeyColumnCount_ = 0;
+
+    DataTypes KeyColumnDataTypes_;
 
     size_t NumParts;
 
@@ -88,300 +119,264 @@ private:
 
     TChunkSpecList Chunks;
 
-public:
-    TMultiTablesPartitioner(
-        NApi::NNative::IClientPtr client,
-        std::vector<TString> tables,
-        IRangeFilterPtr rangeFilter,
-        size_t numParts)
-        : Client(std::move(client))
-        , TableNames(std::move(tables))
-        , RangeFilter(std::move(rangeFilter))
-        , NumParts(numParts)
-    {}
-
-    // One-shot
-    TTablePartList PartitionTables();
-
-private:
-    void InitializeTables();
-
-    void CollectTablesAttributes();
-    void CollectBasicAttributes();
-    void CollectTableSpecificAttributes();
-
-    void CheckTables();
-    void VerifySchemasAndTypesAreIdentical();
-
-    void FetchAndFilterChunks();
-    void FilterChunks(TChunkSpecList& chunks);
-    TChunkSpecList FetchAndFilterTableChunks(const size_t tableIndex);
-
-    TTablePartList PartitionChunks();
-};
-
-DEFINE_REFCOUNTED_TYPE(TMultiTablesPartitioner);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TMultiTablesPartitioner::InitializeTables()
-{
-    Tables.resize(TableNames.size());
-    for (size_t i = 0; i < TableNames.size(); ++i) {
-        Tables[i].Path = TRichYPath::Parse(TableNames[i]);
-    }
-}
-
-void TMultiTablesPartitioner::CollectBasicAttributes()
-{
-    YT_LOG_DEBUG("Collecting basic object attributes");
-
-    GetUserObjectBasicAttributes<TTableObject>(
-        Client,
-        Tables,
-        TransactionId,
-        Logger,
-        EPermission::Read);
-
-    for (const auto& table : Tables) {
-        if (table.Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                table.GetPath(),
-                EObjectType::Table,
-                table.Type);
+    void InitializeTables()
+    {
+        Tables.resize(TableNames.size());
+        for (size_t i = 0; i < TableNames.size(); ++i) {
+            Tables[i].Path = TRichYPath::Parse(TableNames[i]);
         }
     }
-}
 
-void TMultiTablesPartitioner::CollectTableSpecificAttributes()
-{
-    YT_LOG_DEBUG("Collecting table specific attributes");
+    void CollectBasicAttributes()
+    {
+        YT_LOG_DEBUG("Collecting basic object attributes");
 
-    auto channel = Client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        GetUserObjectBasicAttributes<TTableObject>(
+            Client,
+            Tables,
+            TransactionId,
+            Logger,
+            EPermission::Read);
 
-    TObjectServiceProxy proxy(channel);
-    auto batchReq = proxy.ExecuteBatch();
+        for (const auto& table : Tables) {
+            if (table.Type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                    table.GetPath(),
+                    EObjectType::Table,
+                    table.Type);
+            }
+        }
+    }
 
-    for (const auto& table : Tables) {
+    void CollectTableSpecificAttributes()
+    {
+        YT_LOG_DEBUG("Collecting table specific attributes");
+
+        auto channel = Client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+
+        TObjectServiceProxy proxy(channel);
+        auto batchReq = proxy.ExecuteBatch();
+
+        for (const auto& table : Tables) {
+            auto objectIdPath = FromObjectId(table.ObjectId);
+
+            {
+                auto req = TTableYPathProxy::Get(objectIdPath + "/@");
+                std::vector<TString> attributeKeys{
+                    "dynamic",
+                    "chunk_count",
+                    "schema",
+                };
+                NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                SetTransactionId(req, TransactionId);
+                batchReq->AddRequest(req, "get_attributes");
+            }
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of tables");
+        const auto& batchRsp = batchRspOrError.Value();
+
+        auto getInAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
+        for (size_t index = 0; index < Tables.size(); ++index) {
+            auto& table = Tables[index];
+
+            {
+                const auto& rsp = getInAttributesRspsOrError[index].Value();
+                auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+                table.ChunkCount = attributes->Get<int>("chunk_count");
+                table.IsDynamic = attributes->Get<bool>("dynamic");
+                table.Schema = attributes->Get<TTableSchema>("schema");
+            }
+        }
+    }
+
+    void CollectTablesAttributes()
+    {
+        YT_LOG_INFO("Collecting input tables attributes");
+
+        CollectBasicAttributes();
+        CollectTableSpecificAttributes();
+    }
+
+    void CheckTables()
+    {
+        VerifySchemasAndTypesAreIdentical();
+    }
+
+    void VerifySchemasAndTypesAreIdentical()
+    {
+        if (Tables.empty()) {
+            return;
+        }
+
+        const auto& representativeTable = Tables.front();
+        for (size_t i = 1; i < Tables.size(); ++i) {
+            const auto& table = Tables[i];
+            if (table.Schema != representativeTable.Schema) {
+                THROW_ERROR_EXCEPTION(
+                    "YT schema mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
+            }
+            if (table.IsDynamic != representativeTable.IsDynamic) {
+                THROW_ERROR_EXCEPTION(
+                    "Table types mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
+            }
+        }
+
+        KeyColumnCount_ = representativeTable.Schema.GetKeyColumnCount();
+        KeyColumnDataTypes_ = TClickHouseTableSchema::From(*CreateTable("", representativeTable.Schema)).GetKeyDataTypes();
+    }
+
+    TChunkSpecList FetchAndFilterTableChunks(const size_t tableIndex)
+    {
+        auto& table = Tables[tableIndex];
+
+        // add table to data sources
+
+        // TODO
+        if (table.IsDynamic) {
+            THROW_ERROR_EXCEPTION("Dynamic tables not supported")
+                << TErrorAttribute("table", table.GetPath());
+        }
+
+        auto dataSource = MakeUnversionedDataSource(
+            table.GetPath(),
+            table.Schema,
+            std::nullopt);
+
+        DataSourceDirectory->DataSources().push_back(std::move(dataSource));
+
+
+        YT_LOG_DEBUG("Fetching %Qlv chunks", table.GetPath());
+
+        TChunkSpecList chunkSpecs;
+        chunkSpecs.reserve(table.ChunkCount);
+
         auto objectIdPath = FromObjectId(table.ObjectId);
 
-        {
-            auto req = TTableYPathProxy::Get(objectIdPath + "/@");
-            std::vector<TString> attributeKeys{
-                "dynamic",
-                "chunk_count",
-                "schema",
-            };
-            NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-            SetTransactionId(req, TransactionId);
-            batchReq->AddRequest(req, "get_attributes");
-        }
-    }
+        FetchChunkSpecs(
+            Client,
+            NodeDirectory,
+            table.CellTag,
+            objectIdPath,
+            table.Path.GetRanges(),
+            table.ChunkCount,
+            100000, // MaxChunksPerFetch
+            10000,  // MaxChunksPerLocateRequest
+            [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
+                req->set_fetch_all_meta_extensions(false);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                SetTransactionId(req, TransactionId);
+                SetSuppressAccessTracking(req, true);
+            },
+            Logger,
+            &chunkSpecs);
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of tables");
-    const auto& batchRsp = batchRspOrError.Value();
-
-    auto getInAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
-    for (size_t index = 0; index < Tables.size(); ++index) {
-        auto& table = Tables[index];
-
-        {
-            const auto& rsp = getInAttributesRspsOrError[index].Value();
-            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-
-            table.ChunkCount = attributes->Get<int>("chunk_count");
-            table.IsDynamic = attributes->Get<bool>("dynamic");
-            table.Schema = attributes->Get<TTableSchema>("schema");
-        }
-    }
-}
-
-void TMultiTablesPartitioner::CollectTablesAttributes()
-{
-    YT_LOG_INFO("Collecting input tables attributes");
-
-    CollectBasicAttributes();
-    CollectTableSpecificAttributes();
-}
-
-void TMultiTablesPartitioner::VerifySchemasAndTypesAreIdentical()
-{
-    if (Tables.size() <= 1) {
-        return;
-    }
-
-    const auto& representativeTable = Tables.front();
-    for (size_t i = 1; i < Tables.size(); ++i) {
-        const auto& table = Tables[i];
-        if (table.Schema != representativeTable.Schema) {
-            THROW_ERROR_EXCEPTION(
-                "YT schema mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
-        }
-        if (table.IsDynamic != representativeTable.IsDynamic) {
-            THROW_ERROR_EXCEPTION(
-                "Table types mismatch: %Qlv and %Qlv", representativeTable.GetPath(), table.GetPath());
-        }
-    }
-}
-
-void TMultiTablesPartitioner::CheckTables()
-{
-    VerifySchemasAndTypesAreIdentical();
-}
-
-void TMultiTablesPartitioner::FilterChunks(TChunkSpecList& chunkSpecs)
-{
-    auto predicate = [&] (const NChunkClient::NProto::TChunkSpec& chunkSpec) {
-        TOwningBoundaryKeys keys;
-        if (FindBoundaryKeys(chunkSpec.chunk_meta(), &keys.MinKey, &keys.MaxKey)) {
-            auto minKey = ConvertRow(keys.MinKey);
-            auto maxKey = ConvertRow(keys.MaxKey);
-
-            YCHECK(minKey.size() == maxKey.size());
-            if (!RangeFilter->CheckRange(minKey.data(), maxKey.data(), minKey.size())) {
-                // could safely skip this chunk
-                return true;
-            }
+        if (KeyCondition_) {
+            FilterChunks(chunkSpecs);
         }
 
-        // will read this chunk
-        return false;
-    };
+        YT_LOG_INFO("Selected %v/%v chunks for table %Qlv", chunkSpecs.size(), table.ChunkCount, table.Path);
 
-    EraseIf(chunkSpecs, predicate);
-}
-
-TChunkSpecList TMultiTablesPartitioner::FetchAndFilterTableChunks(const size_t tableIndex)
-{
-    auto& table = Tables[tableIndex];
-
-    // add table to data sources
-
-    // TODO
-    if (table.IsDynamic) {
-        THROW_ERROR_EXCEPTION("Dynamic tables not supported")
-            << TErrorAttribute("table", table.GetPath());
-    }
-
-    auto dataSource = MakeUnversionedDataSource(
-        table.GetPath(),
-        table.Schema,
-        std::nullopt);
-
-    DataSourceDirectory->DataSources().push_back(std::move(dataSource));
-
-
-    YT_LOG_DEBUG("Fetching %Qlv chunks", table.GetPath());
-
-    TChunkSpecList chunkSpecs;
-    chunkSpecs.reserve(table.ChunkCount);
-
-    auto objectIdPath = FromObjectId(table.ObjectId);
-
-    FetchChunkSpecs(
-        Client,
-        NodeDirectory,
-        table.CellTag,
-        objectIdPath,
-        table.Path.GetRanges(),
-        table.ChunkCount,
-        100000, // MaxChunksPerFetch
-        10000,  // MaxChunksPerLocateRequest
-        [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
-            req->set_fetch_all_meta_extensions(false);
-            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-            SetTransactionId(req, TransactionId);
-            SetSuppressAccessTracking(req, true);
-        },
-        Logger,
-        &chunkSpecs);
-
-    if (RangeFilter) {
-        FilterChunks(chunkSpecs);
-    }
-
-    YT_LOG_INFO("Selected %v/%v chunks for table %Qlv", chunkSpecs.size(), table.ChunkCount, table.Path);
-
-    for (int i = 0; i < static_cast<int>(chunkSpecs.size()); ++i) {
-        auto& chunk = chunkSpecs[i];
-        chunk.set_table_index(static_cast<int>(tableIndex));
-    }
-
-    return chunkSpecs;
-}
-
-void TMultiTablesPartitioner::FetchAndFilterChunks()
-{
-    YT_LOG_DEBUG("Fetching chunks");
-
-    DataSourceDirectory = New<TDataSourceDirectory>();
-    NodeDirectory = New<TNodeDirectory>();
-
-    for (size_t tableIndex = 0; tableIndex < Tables.size(); ++tableIndex) {
-        auto tableChunks = FetchAndFilterTableChunks(tableIndex);
-        Chunks.insert(Chunks.end(), tableChunks.begin(), tableChunks.end());
-    }
-}
-
-TTablePartList TMultiTablesPartitioner::PartitionChunks()
-{
-    auto dataSlices = SplitUnversionedChunks(
-        std::move(Chunks),
-        NumParts);
-
-    TTablePartList tableParts;
-
-    for (auto& dataSliceDescriptors: dataSlices) {
-        TReadJobSpec readJobSpec;
-        {
-            readJobSpec.DataSourceDirectory = DataSourceDirectory;
-            readJobSpec.DataSliceDescriptors = std::move(dataSliceDescriptors);
-            readJobSpec.NodeDirectory = NodeDirectory;
+        for (int i = 0; i < static_cast<int>(chunkSpecs.size()); ++i) {
+            auto& chunk = chunkSpecs[i];
+            chunk.set_table_index(static_cast<int>(tableIndex));
         }
 
-        TTablePart tablePart;
-        {
-            tablePart.JobSpec = ConvertToYsonString(readJobSpec, EYsonFormat::Text).GetData();
+        return chunkSpecs;
+    }
 
-            for (const auto& dataSlice: readJobSpec.DataSliceDescriptors) {
-                for (const auto& chunkSpec: dataSlice.ChunkSpecs) {
-                    tablePart.RowCount += chunkSpec.row_count_override();
-                    tablePart.DataWeight += chunkSpec.data_weight_override();
+    void FilterChunks(TChunkSpecList& chunkSpecs)
+    {
+        auto predicate = [&] (const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+            TOwningBoundaryKeys keys;
+            if (FindBoundaryKeys(chunkSpec.chunk_meta(), &keys.MinKey, &keys.MaxKey)) {
+                Field minKey[KeyColumnCount_];
+                Field maxKey[KeyColumnCount_];
+                ConvertToFieldRow(keys.MinKey, minKey);
+                ConvertToFieldRow(keys.MaxKey, maxKey);
+
+                YCHECK(keys.MinKey.GetCount() == keys.MaxKey.GetCount());
+                if (!KeyCondition_->mayBeTrueInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_)) {
+                    // could safely skip this chunk
+                    return true;
                 }
             }
-        }
 
-        tableParts.emplace_back(std::move(tablePart));
+            // will read this chunk
+            return false;
+        };
+
+        EraseIf(chunkSpecs, predicate);
     }
 
-    return tableParts;
-}
+    void FetchAndFilterChunks()
+    {
+        YT_LOG_DEBUG("Fetching chunks");
 
-TTablePartList TMultiTablesPartitioner::PartitionTables() {
-    InitializeTables();
-    CollectTablesAttributes();
-    CheckTables();
-    FetchAndFilterChunks();
-    return PartitionChunks();
-}
+        DataSourceDirectory = New<TDataSourceDirectory>();
+        NodeDirectory = New<TNodeDirectory>();
+
+        for (size_t tableIndex = 0; tableIndex < Tables.size(); ++tableIndex) {
+            auto tableChunks = FetchAndFilterTableChunks(tableIndex);
+            Chunks.insert(Chunks.end(), tableChunks.begin(), tableChunks.end());
+        }
+    }
+
+    TTablePartList PartitionChunks()
+    {
+        auto dataSlices = SplitUnversionedChunks(
+            std::move(Chunks),
+            NumParts);
+
+        TTablePartList tableParts;
+
+        for (auto& dataSliceDescriptors: dataSlices) {
+            TReadJobSpec readJobSpec;
+            {
+                readJobSpec.DataSourceDirectory = DataSourceDirectory;
+                readJobSpec.DataSliceDescriptors = std::move(dataSliceDescriptors);
+                readJobSpec.NodeDirectory = NodeDirectory;
+            }
+
+            TTablePart tablePart;
+            {
+                tablePart.JobSpec = ConvertToYsonString(readJobSpec, EYsonFormat::Text).GetData();
+
+                for (const auto& dataSlice: readJobSpec.DataSliceDescriptors) {
+                    for (const auto& chunkSpec: dataSlice.ChunkSpecs) {
+                        tablePart.RowCount += chunkSpec.row_count_override();
+                        tablePart.DataWeight += chunkSpec.data_weight_override();
+                    }
+                }
+            }
+
+            tableParts.emplace_back(std::move(tablePart));
+        }
+
+        return tableParts;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablePartList PartitionTables(
     NApi::NNative::IClientPtr client,
     std::vector<TString> tables,
-    IRangeFilterPtr rangeFilter,
+    const KeyCondition* keyCondition,
     size_t numParts)
 {
-    auto partitioner = New<TMultiTablesPartitioner>(
+    TMultiTablesPartitioner partitioner(
         std::move(client),
         std::move(tables),
-        std::move(rangeFilter),
+        keyCondition,
         numParts);
 
-    return partitioner->PartitionTables();
+    return partitioner.PartitionTables();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

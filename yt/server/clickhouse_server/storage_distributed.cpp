@@ -1,8 +1,8 @@
 #include "storage_distributed.h"
 
 #include "format_helpers.h"
-#include "range_filter.h"
 #include "type_helpers.h"
+#include "helpers.h"
 
 #include <Common/Exception.h>
 #include <DataStreams/materializeBlock.h>
@@ -10,6 +10,7 @@
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <Interpreters/InterpreterSelectQuery.h>
 #include <Parsers/queryToString.h>
+#include <Storages/MergeTree/KeyCondition.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -116,12 +117,15 @@ TTableAllocation TStorageDistributed::AllocateTablePartsToClusterNodes(
 {
     size_t clusterNodeCount = clusterNodes.size();
 
-    auto rangeFilter = CreateRangeFilter(queryInfo, context);
+    std::unique_ptr<KeyCondition> keyCondition;
+    if (Schema.HasPrimaryKey()) {
+        keyCondition = std::make_unique<KeyCondition>(CreateKeyCondition(context, queryInfo, Schema));
+    }
 
     auto tableParts = GetTableParts(
         queryInfo.query,
         context,
-        std::move(rangeFilter),
+        keyCondition.get(),
         clusterNodeCount);
 
     if (tableParts.empty()) {
@@ -139,21 +143,6 @@ TTableAllocation TStorageDistributed::AllocateTablePartsToClusterNodes(
         allocation.emplace_back(tableParts[i], clusterNodes[i]);
     }
     return allocation;
-}
-
-IRangeFilterPtr TStorageDistributed::CreateRangeFilter(
-    const SelectQueryInfo& queryInfo,
-    const Context& context)
-{
-    using NClickHouseServer::CreateRangeFilter;
-
-    if (Schema.HasPrimaryKey()) {
-        return CreateRangeFilter(
-            context,
-            queryInfo,
-            Schema);
-    }
-    return {};
 }
 
 Settings TStorageDistributed::PrepareLeafJobSettings(const Settings& settings)

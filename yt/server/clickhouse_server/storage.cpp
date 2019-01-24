@@ -64,6 +64,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace DB;
 
 namespace {
 
@@ -193,12 +194,12 @@ public:
     TFuture<TTablePartList> GetTablesParts(
         const IAuthorizationToken& token,
         const std::vector<TString>& names,
-        const IRangeFilterPtr& rangeFilter,
+        const KeyCondition* keyCondition,
         size_t maxTableParts)
     {
         return BIND(&TStorage::DoGetTablesParts, MakeStrong(this))
             .AsyncVia(Connection->GetInvoker())
-            .Run(CreateNativeClient(token), names, rangeFilter, maxTableParts);
+            .Run(CreateNativeClient(token), names, keyCondition, maxTableParts);
     }
 
     TFuture<TTableReaderList> CreateTableReaders(
@@ -313,7 +314,7 @@ private:
     TTablePartList DoGetTablesParts(
         const NApi::NNative::IClientPtr& client,
         const std::vector<TString>& names,
-        const IRangeFilterPtr& rangeFilter,
+        const DB::KeyCondition* keyCondition,
         size_t maxTableParts);
 
     TTableReaderList DoCreateTableReaders(
@@ -515,13 +516,13 @@ TTablePtr TStorage::DoGetTable(
 TTablePartList TStorage::DoGetTablesParts(
     const NApi::NNative::IClientPtr& client,
     const std::vector<TString>& names,
-    const IRangeFilterPtr& rangeFilter,
+    const KeyCondition* keyCondition,
     size_t maxTableParts)
 {
     return PartitionTables(
         client,
         names,
-        rangeFilter,
+        keyCondition,
         maxTableParts);
 }
 
@@ -768,20 +769,20 @@ public:
     TTablePartList GetTableParts(
         const IAuthorizationToken& token,
         const TString& name,
-        const IRangeFilterPtr& rangeFilter,
+        const KeyCondition* keyCondition,
         size_t maxTableParts) override
     {
-        return WaitFor(Impl->GetTablesParts(token, {name}, rangeFilter, maxTableParts))
+        return WaitFor(Impl->GetTablesParts(token, {name}, keyCondition, maxTableParts))
             .ValueOrThrow();
     }
 
     TTablePartList ConcatenateAndGetTableParts(
         const IAuthorizationToken& token,
         const std::vector<TString> names,
-        const IRangeFilterPtr& rangeFilter = nullptr,
-        size_t maxTableParts = 1) override
+        const DB::KeyCondition* keyCondition,
+        size_t maxTableParts) override
     {
-        return WaitFor(Impl->GetTablesParts(token, names, rangeFilter, maxTableParts))
+        return WaitFor(Impl->GetTablesParts(token, names, keyCondition, maxTableParts))
             .ValueOrThrow();
     }
 

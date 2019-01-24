@@ -1,12 +1,12 @@
 #pragma once
 
 #include "public.h"
+#include "public_ch.h"
 
 #include "auth_token.h"
 #include "document.h"
 #include "objects.h"
 #include "path.h"
-#include "range_filter.h"
 #include "system_columns.h"
 #include "table_reader.h"
 #include "table_partition.h"
@@ -58,13 +58,13 @@ struct IStorage
     virtual TTablePartList GetTableParts(
         const IAuthorizationToken& token,
         const TString& name,
-        const IRangeFilterPtr& rangeFilter = nullptr,
+        const DB::KeyCondition* keyCondition,
         size_t maxParts = 1) = 0;
 
     virtual TTablePartList ConcatenateAndGetTableParts(
         const IAuthorizationToken& token,
         const std::vector<TString> names,
-        const IRangeFilterPtr& rangeFilter = nullptr,
+        const DB::KeyCondition* keyCondition = nullptr,
         size_t maxParts = 1) = 0;
 
     virtual TTableReaderList CreateTableReaders(

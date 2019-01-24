@@ -4,6 +4,7 @@
 #include "query_helpers.h"
 #include "storage_distributed.h"
 #include "virtual_columns.h"
+#include "public_ch.h"
 
 #include <yt/server/clickhouse_server/storage.h>
 
@@ -61,13 +62,13 @@ private:
         return ListSystemVirtualColumns();
     }
 
-    TTablePartList GetTableParts(
+    virtual TTablePartList GetTableParts(
         const ASTPtr& queryAst,
         const Context& context,
-        IRangeFilterPtr rangeFilter,
+        const DB::KeyCondition* keyCondition,
         size_t maxParts) override;
 
-    ASTPtr RewriteSelectQueryForTablePart(
+    virtual ASTPtr RewriteSelectQueryForTablePart(
         const ASTPtr& queryAst,
         const std::string& jobSpec) override;
 };
@@ -86,13 +87,11 @@ TStorageTable::TStorageTable(IStoragePtr storage,
 {}
 
 TTablePartList TStorageTable::GetTableParts(
-    const ASTPtr& queryAst,
+    const ASTPtr& /* queryAst */,
     const Context& context,
-    IRangeFilterPtr rangeFilter,
+    const KeyCondition* keyCondition,
     size_t maxParts)
 {
-    Y_UNUSED(queryAst);
-
     auto& storage = GetStorage();
 
     auto authToken = CreateAuthToken(*storage, context);
@@ -100,7 +99,7 @@ TTablePartList TStorageTable::GetTableParts(
     return storage->GetTableParts(
         *authToken,
         Table->Name,
-        rangeFilter,
+        keyCondition,
         maxParts);
 }
 

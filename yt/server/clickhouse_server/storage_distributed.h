@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public_ch.h"
 #include "cluster_tracker.h"
 #include "storage_with_virtual_columns.h"
 #include "table_schema.h"
@@ -83,7 +84,7 @@ protected:
     virtual TTablePartList GetTableParts(
         const DB::ASTPtr& queryAst,
         const DB::Context& context,
-        IRangeFilterPtr rangeFilter,
+        const DB::KeyCondition* keyCondition,
         const size_t maxParts) = 0;
 
     virtual DB::ASTPtr RewriteSelectQueryForTablePart(
@@ -119,10 +120,6 @@ private:
 
     TTableAllocation AllocateTablePartsToClusterNodes(
         const TClusterNodes& clusterNodes,
-        const DB::SelectQueryInfo& queryInfo,
-        const DB::Context& context);
-
-    IRangeFilterPtr CreateRangeFilter(
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context);
 
