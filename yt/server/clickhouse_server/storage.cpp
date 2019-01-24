@@ -9,7 +9,7 @@
 #include "convert_row.h"
 #include "data_slice.h"
 #include "document.h"
-#include "partition_tables.h"
+#include "job_input.h"
 #include "path.h"
 #include "read_job.h"
 #include "read_job_spec.h"
@@ -519,7 +519,7 @@ TTablePartList TStorage::DoGetTablesParts(
     const KeyCondition* keyCondition,
     size_t maxTableParts)
 {
-    return PartitionTables(
+    return BuildJobs(
         client,
         names,
         keyCondition,

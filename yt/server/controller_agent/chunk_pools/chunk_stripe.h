@@ -42,6 +42,7 @@ struct TChunkStripe
 {
     TChunkStripe(bool foreign = false, bool solid = false);
     explicit TChunkStripe(NChunkClient::TInputDataSlicePtr dataSlice, bool foreign = false, bool solid = false);
+    explicit TChunkStripe(const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices);
     explicit TChunkStripe(NChunkClient::TChunkListId, TBoundaryKeys boundaryKeys = TBoundaryKeys());
 
     TChunkStripeStatistics GetStatistics() const;
