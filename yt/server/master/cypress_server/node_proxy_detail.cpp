@@ -159,12 +159,10 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
         TLockRequest::MakeSharedAttribute(key));
 
     auto* userAttributes = node->GetMutableAttributes();
-    auto it = userAttributes->Attributes().find(key);
-    if (it == userAttributes->Attributes().end()) {
-        YCHECK(node->GetTransaction());
-        YCHECK(userAttributes->Attributes().emplace(key, TYsonString()).second);
+    if (node->GetTransaction()) {
+        userAttributes->Attributes()[key] = TYsonString();
     } else {
-        userAttributes->Attributes().erase(it);
+        YCHECK(userAttributes->Attributes().erase(key) == 1);
     }
 
     Proxy_->SetModified(EModificationType::Attributes);
