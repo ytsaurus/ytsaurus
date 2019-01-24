@@ -180,7 +180,6 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
     if (containingTransaction == Proxy_->Transaction) {
         YCHECK(userAttributes->Attributes().erase(key) == 1);
     } else {
-        YCHECK(!containingTransaction);
         userAttributes->Attributes()[key] = TYsonString();
     }
 
