@@ -2535,7 +2535,8 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         rsps = execute_batch(requests)
         assert len(rsps[1]) == 0
 
-        assert get("//tmp/t/@tablet_state") == "transient"
+        expected_state = "frozen" if freeze  else "mounted"
+        assert get("//tmp/t/@expected_tablet_state") == expected_state
         assert get("//tmp/t/@tablets/0/state") == "unmounted"
 
         actions = get("//sys/tablet_actions")
@@ -2543,7 +2544,6 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         assert get("#{0}/@state".format(list(actions)[0])) == "orphaned"
 
         sync_create_cells(1)
-        expected_state = "frozen" if freeze  else "mounted"
         wait_for_tablet_state("//tmp/t", expected_state)
         assert get("//tmp/t/@tablets/0/state") == expected_state
 
