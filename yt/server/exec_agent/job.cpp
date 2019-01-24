@@ -1329,6 +1329,11 @@ private:
             }
         }
 
+        // This is most probably user error, still we don't want to make it fatal.
+        if (resultError.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed)) {
+            return std::nullopt;
+        }
+
         auto abortReason = resultError.Attributes().Find<EAbortReason>("abort_reason");
         if (abortReason) {
             return *abortReason;
