@@ -1669,6 +1669,7 @@ private:
                 }
                 operation->Cancel();
             }
+            OperationAliases_.clear();
             IdToOperation_.clear();
             IdToOperationService_.clear();
         }
