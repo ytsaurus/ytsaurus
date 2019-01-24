@@ -46,6 +46,11 @@ TChunkStripe::TChunkStripe(TInputDataSlicePtr dataSlice, bool foreign, bool soli
     DataSlices.emplace_back(std::move(dataSlice));
 }
 
+TChunkStripe::TChunkStripe(const std::vector<TInputDataSlicePtr>& dataSlices)
+{
+    DataSlices.insert(DataSlices.end(), dataSlices.begin(), dataSlices.end());
+}
+
 TChunkStripe::TChunkStripe(TChunkListId chunkListId, TBoundaryKeys boundaryKeys)
     : ChunkListId(chunkListId)
     , BoundaryKeys(boundaryKeys)
