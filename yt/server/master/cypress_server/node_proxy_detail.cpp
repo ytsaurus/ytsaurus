@@ -145,42 +145,26 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
 
 bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
 {
-    const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
-    auto originators = cypressManager->GetNodeReverseOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
-
     auto oldValue = FindYson(key);
-    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
-
-    const TTransaction* containingTransaction = nullptr;
-    bool contains = false;
-    for (const auto* node : originators) {
-        const auto* userAttributes = node->GetAttributes();
-        if (userAttributes) {
-            auto it = userAttributes->Attributes().find(key);
-            if (it != userAttributes->Attributes().end()) {
-                contains = it->second.operator bool();
-                if (contains) {
-                    containingTransaction = node->GetTransaction();
-                }
-                break;
-            }
-        }
-    }
-
-    if (!contains) {
+    if (!oldValue) {
         return false;
     }
+    
+    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
 
+    const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto* node = cypressManager->LockNode(
         Proxy_->TrunkNode,
         Proxy_->Transaction,
         TLockRequest::MakeSharedAttribute(key));
 
     auto* userAttributes = node->GetMutableAttributes();
-    if (containingTransaction == Proxy_->Transaction) {
-        YCHECK(userAttributes->Attributes().erase(key) == 1);
+    auto it = userAttributes->Attributes().find(key);
+    if (it == userAttributes->Attributes().end()) {
+        YCHECK(node->GetTransaction());
+        YCHECK(userAttributes->Attributes().emplace(key, TYsonString()).second);
     } else {
-        userAttributes->Attributes()[key] = TYsonString();
+        userAttributes->Attributes().erase(it);
     }
 
     Proxy_->SetModified(EModificationType::Attributes);

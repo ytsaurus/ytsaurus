@@ -1880,9 +1880,21 @@ class TestCypressWithoutSet(YTEnvSetup):
         set("//tmp/doc", 10)
         assert get("//tmp/doc") == 10
 
-    def test_force(self):
+    def test_force_set(self):
         create("int64_node", "//tmp/integer")
         set("//tmp/integer", 20, force=True)
+
+    def test_user_attribute_removal_yt_10192(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        create("map_node", "//tmp/test_node")
+        set("//tmp/test_node/@user_attribute", "some_string", tx=tx1)
+
+        remove("//tmp/test_node/@user_attribute", tx=tx2)
+
+        assert not exists("//tmp/test_node/@user_attribute", tx=tx2)
+        assert exists("//tmp/test_node/@user_attribute", tx=tx1)
 
 ##################################################################
 
