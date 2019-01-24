@@ -3049,6 +3049,7 @@ private:
                 .Item("replica_path").Value(replica.GetReplicaPath())
                 .Item("state").Value(replica.GetState())
                 .Item("mode").Value(replica.GetMode())
+                .Item("atomicity").Value(replica.GetAtomicity())
                 .Item("start_replication_timestamp").Value(replica.GetStartReplicationTimestamp())
                 .Item("current_replication_row_index").Value(replica.GetCurrentReplicationRowIndex())
                 .Item("current_replication_timestamp").Value(replica.GetCurrentReplicationTimestamp())
