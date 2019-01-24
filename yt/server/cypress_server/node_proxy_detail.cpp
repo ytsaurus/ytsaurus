@@ -180,7 +180,11 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
     if (containingTransaction == Proxy_->Transaction) {
         YCHECK(userAttributes->Attributes().erase(key) == 1);
     } else {
-        userAttributes->Attributes()[key] = TYsonString();
+        if (containingTransaction) {
+            YT_LOG_ERROR("XXX containingTransaction %v %v", node->GetId(), containingTransaction->GetId());
+        } else {
+            userAttributes->Attributes()[key] = TYsonString();
+        }
     }
 
     Proxy_->SetModified(EModificationType::Attributes);

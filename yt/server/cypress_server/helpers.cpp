@@ -190,7 +190,10 @@ THashMap<TString, NYson::TYsonString> GetNodeAttributes(
                 if (pair.second) {
                     result[pair.first] = pair.second;
                 } else {
-                    YCHECK(result.erase(pair.first) == 1);
+                    if (result.erase(pair.first) != 1) {
+                        const auto& Logger = CypressServerLogger;
+                        YT_LOG_ERROR("XXX erase %v %v", trunkNode->GetId(), transaction->GetId());
+                    }
                 }
             }
         }
