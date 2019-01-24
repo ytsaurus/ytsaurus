@@ -13,6 +13,8 @@
 
 #include <yt/server/lib/hydra/hydra_manager.h>
 
+#include <yt/server/lib/misc/profiling_helpers.h>
+
 #include <yt/server/node/tablet_node/config.h>
 #include <yt/server/node/tablet_node/security_manager.h>
 #include <yt/server/node/tablet_node/slot_manager.h>
@@ -39,7 +41,6 @@
 
 #include <yt/client/query_client/query_statistics.h>
 
-#include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/coordinator.h>
 #include <yt/ytlib/query_client/evaluator.h>
@@ -127,7 +128,7 @@ struct TSelectCpuCounters
     TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
-using TSelectCpuProfilerTrait = TTabletProfilerTrait<TSelectCpuCounters>;
+using TSelectCpuProfilerTrait = TTagListProfilerTrait<TSelectCpuCounters>;
 
 struct TSelectReadCounters
 {
@@ -146,7 +147,7 @@ struct TSelectReadCounters
     TMonotonicCounter DecompressionCpuTime;
 };
 
-using TSelectReadProfilerTrait = TTabletProfilerTrait<TSelectReadCounters>;
+using TSelectReadProfilerTrait = TTagListProfilerTrait<TSelectReadCounters>;
 
 class TProfilingReaderWrapper
     : public ISchemafulReader
@@ -325,7 +326,7 @@ public:
         , Invoker_(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
     { }
 
-    TFuture<TQueryStatistics> Execute()
+    TFuture<TQueryStatistics> Execute(TServiceProfilerGuard& profilerGuard)
     {
         for (const auto& source : DataSources_) {
             if (TypeFromId(source.Id) == EObjectType::Tablet) {
@@ -341,6 +342,10 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         MaybeUser_ = securityManager->GetAuthenticatedUserName();
+
+        if (profilerGuard.GetProfilerTags().empty() && !TabletSnapshots_.GetProfilerTags().empty()) {
+            profilerGuard.SetProfilerTags(MaybeAddUserTag(TabletSnapshots_.GetProfilerTags()));
+        }
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
             .AsyncVia(Invoker_)
@@ -1278,7 +1283,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQuerySubexecutor
-    : public ISubexecutor
+    : public IQuerySubexecutor
 {
 public:
     TQuerySubexecutor(
@@ -1301,7 +1306,7 @@ public:
             ->GetColumnEvaluatorCache())
     { }
 
-    // ISubexecutor implementation.
+    // IQuerySubexecutor implementation.
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
         const std::vector<NTabletClient::TTableMountInfoPtr>& mountInfos,
@@ -1309,7 +1314,8 @@ public:
         std::vector<TDataRanges> dataSources,
         IUnversionedRowsetWriterPtr writer,
         const TClientBlockReadOptions& blockReadOptions,
-        const TQueryOptions& options) override
+        const TQueryOptions& options,
+        TServiceProfilerGuard& profilerGuard) override
     {
         ValidateReadTimestamp(options.Timestamp);
 
@@ -1327,7 +1333,7 @@ public:
             blockReadOptions,
             options);
 
-        return execution->Execute();
+        return execution->Execute(profilerGuard);
     }
 
 private:
@@ -1339,7 +1345,7 @@ private:
 
 };
 
-ISubexecutorPtr CreateQuerySubexecutor(
+IQuerySubexecutorPtr CreateQuerySubexecutor(
     TQueryAgentConfigPtr config,
     TBootstrap* bootstrap)
 {

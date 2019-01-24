@@ -7,6 +7,8 @@
 
 #include <yt/server/node/tablet_node/config.h>
 
+#include <yt/server/lib/misc/profiling_helpers.h>
+
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -75,7 +77,7 @@ struct TLookupCounters
     TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
-using TLookupProfilerTrait = TTabletProfilerTrait<TLookupCounters>;
+using TLookupProfilerTrait = TTagListProfilerTrait<TLookupCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

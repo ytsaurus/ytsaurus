@@ -13,6 +13,8 @@ DECLARE_REFCOUNTED_CLASS(TDiskHealthCheckerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDiskLocationConfig)
 
+class TServiceProfilerGuard;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TString ClusterMasterProgramName;

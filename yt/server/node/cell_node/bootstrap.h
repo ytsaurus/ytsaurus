@@ -8,6 +8,8 @@
 
 #include <yt/server/node/job_agent/public.h>
 
+#include <yt/server/node/query_agent/public.h>
+
 #include <yt/server/node/tablet_node/public.h>
 
 #include <yt/server/lib/job_proxy/public.h>
@@ -84,7 +86,7 @@ public:
     const NDataNode::TJournalDispatcherPtr& GetJournalDispatcher() const;
     const NDataNode::TMasterConnectorPtr& GetMasterConnector() const;
     const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
-    const NQueryClient::ISubexecutorPtr& GetQueryExecutor() const;
+    const NQueryAgent::IQuerySubexecutorPtr& GetQueryExecutor() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
 
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationInThrottler() const;
@@ -192,7 +194,7 @@ private:
     NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager;
 
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache;
-    NQueryClient::ISubexecutorPtr QueryExecutor;
+    NQueryAgent::IQuerySubexecutorPtr QueryExecutor;
 
     NConcurrency::TPeriodicExecutorPtr FootprintUpdateExecutor;
 
