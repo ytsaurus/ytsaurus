@@ -2,8 +2,6 @@
 #include "private.h"
 #include "gpu_manager.h"
 
-#include <limits>
-
 #include <yt/server/lib/job_agent/config.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
@@ -19,14 +17,11 @@
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 #include <yt/ytlib/job_tracker_client/helpers.h>
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
-
-#include <yt/client/node_tracker_client/proto/node.pb.h>
-#include <yt/ytlib/node_tracker_client/helpers.h>
-#include <yt/client/node_tracker_client/node_directory.h>
-
-#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
@@ -34,11 +29,18 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
+#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/fs.h>
 
 #include <yt/core/net/helpers.h>
+
+#include <limits>
 
 namespace NYT::NJobAgent {
 
