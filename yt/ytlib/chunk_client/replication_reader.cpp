@@ -513,6 +513,9 @@ protected:
     //! The instant this session was started.
     TInstant StartTime_ = TInstant::Now();
 
+    //! The instant current retry was started.
+    TInstant RetryStartTime_;
+
     //! Total number of bytes received in this session; used to detect slow reads.
     i64 TotalBytesReceived_ = 0;
 
@@ -730,6 +733,8 @@ protected:
         PassIndex_ = 0;
         BannedPeers_.clear();
 
+        RetryStartTime_ = TInstant::Now();
+
         auto getSeedsSession = New<TAsyncGetSeedsSession>(reader, Logger);
         SeedsFuture_ = getSeedsSession->Run();
         SeedsFuture_.Subscribe(
@@ -843,6 +848,16 @@ protected:
 
         ++PassIndex_;
         if (PassIndex_ >= passCount) {
+            OnRetryFailed();
+            return;
+        }
+
+        if (RetryStartTime_ + ReaderConfig_->RetryTimeout < TInstant::Now()) {
+            RegisterError(TError(EErrorCode::ReaderTimeout, "Replication reader retry %v out of %v timed out)",
+                 RetryIndex_,
+                 ReaderConfig_->RetryCount)
+                 << TErrorAttribute("retry_start_time", RetryStartTime_)
+                 << TErrorAttribute("retry_timeout", ReaderConfig_->RetryTimeout));
             OnRetryFailed();
             return;
         }
@@ -979,6 +994,14 @@ private:
     {
         auto reader = Reader_.Lock();
         if (!reader) {
+            return true;
+        }
+
+        if (StartTime_ + ReaderConfig_->SessionTimeout < TInstant::Now()) {
+            RegisterError(TError(EErrorCode::ReaderTimeout, "Replication reader session timed out)")
+                 << TErrorAttribute("session_start_time", StartTime_)
+                 << TErrorAttribute("session_timeout", ReaderConfig_->SessionTimeout));
+            OnSessionFailed(/* fatal */ false);
             return true;
         }
 

@@ -50,6 +50,7 @@ DEFINE_ENUM(EErrorCode,
     ((ObjectNotReplicated)       (723))
     ((MissingExtension)          (724))
     ((BandwidthThrottlingFailed) (725))
+    ((ReaderTimeout)             (726))
 );
 
 using TChunkId = NObjectClient::TObjectId;
