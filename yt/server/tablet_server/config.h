@@ -281,6 +281,15 @@ public:
             .DefaultNew();
         RegisterParameter("multicell_gossip_config", MulticellGossipConfig)
             .DefaultNew();
+
+        RegisterPreprocessor([&] () {
+            ChunkReader->BlockRpcTimeout = TDuration::Seconds(10);
+            ChunkReader->MinBackoffTime = TDuration::MilliSeconds(50);
+            ChunkReader->MaxBackoffTime = TDuration::Seconds(1);
+
+            ChunkReader->RetryTimeout = TDuration::Seconds(15);
+            ChunkReader->SessionTimeout = TDuration::Minutes(1);
+        });
     }
 };
 
