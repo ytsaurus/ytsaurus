@@ -960,7 +960,14 @@ private:
 
         void FireHandshake()
         {
-            Owner_->MasterHandshake_.Fire(Result_);
+            try {
+                Owner_->MasterHandshake_.Fire(Result_);
+            } catch (...) {
+                YT_LOG_WARNING("Master handshake failed, disconnecting scheduler");
+                Owner_->MasterDisconnected_.Fire();
+                throw;
+            }
+
         }
 
         void SubmitOperationsToCleaner()
