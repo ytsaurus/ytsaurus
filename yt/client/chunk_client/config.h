@@ -139,6 +139,12 @@ public:
     //! and are thus scheduled in FIFO order.
     bool EnableWorkloadFifoScheduling;
 
+    //! Total retry timeout, helps when we are doing too many passes.
+    TDuration RetryTimeout;
+
+    //! Total session timeout (for ReadBlocks and GetMeta calls).
+    TDuration SessionTimeout;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -183,6 +189,21 @@ public:
             .Default(0.5);
         RegisterParameter("enable_workload_fifo_scheduling", EnableWorkloadFifoScheduling)
             .Default(true);
+        RegisterParameter("retry_timeout", RetryTimeout)
+            .Default(TDuration::Minutes(3));
+        RegisterParameter("session_timeout", SessionTimeout)
+            .Default(TDuration::Minutes(20));
+
+        RegisterPostprocessor([&]() {
+            // Seems unreasonable to make backoff greater than half of total session timeout.
+            MaxBackoffTime = std::min(MaxBackoffTime, SessionTimeout / 2);
+            RetryTimeout = std::min(RetryTimeout, SessionTimeout);
+
+            // Rpc timeout should not exceed session timeout.
+            BlockRpcTimeout = std::min(BlockRpcTimeout, RetryTimeout);
+            MetaRpcTimeout = std::min(MetaRpcTimeout, RetryTimeout);
+            ProbeRpcTimeout = std::min(ProbeRpcTimeout, RetryTimeout);
+        });
     }
 };
 
