@@ -31,7 +31,7 @@
 #include <util/system/fs.h>
 #include <util/system/mktemp.h>
 #include <util/system/tempfile.h>
-#include <util/thread/pool.h>
+#include <util/thread/factory.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
@@ -1849,7 +1849,7 @@ Y_UNIT_TEST_SUITE(Operations)
         };
 
         auto threadPool = SystemThreadPool();
-        TVector<TAutoPtr<IThreadPool::IThread>> threads;
+        TVector<TAutoPtr<IThreadFactory::IThread>> threads;
         // Run many concurrent threads to get lock conflict in 'put_file_to_cache'
         // with high probability.
         for (int i = 0; i < 10; ++i) {
