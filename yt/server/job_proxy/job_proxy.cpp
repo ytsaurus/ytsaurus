@@ -1,5 +1,4 @@
 #include "job_proxy.h"
-#include "config.h"
 #include "cpu_monitor.h"
 #include "job_prober_service.h"
 #include "merge_job.h"

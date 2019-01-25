@@ -1,5 +1,4 @@
 #include "cell_directory_synchronizer.h"
-#include "config.h"
 #include "private.h"
 
 #include <yt/server/lib/hive/config.h>

@@ -1,7 +1,8 @@
 #pragma once
 
-#include "yt/core/misc/public.h"
-#include "yt/core/net/address.h"
+#include "address.h"
+
+#include <yt/core/misc/public.h>
 
 #include <util/network/init.h>
 

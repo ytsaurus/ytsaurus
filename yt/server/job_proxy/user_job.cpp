@@ -2,7 +2,6 @@
 
 #include "asan_warning_filter.h"
 #include "private.h"
-#include "config.h"
 #include "job_detail.h"
 #include "stderr_writer.h"
 #include "user_job_write_controller.h"
