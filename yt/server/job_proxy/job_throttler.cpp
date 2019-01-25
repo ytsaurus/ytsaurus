@@ -1,5 +1,4 @@
 #include "job_throttler.h"
-#include "config.h"
 
 #include <yt/server/lib/job_proxy/config.h>
 

@@ -1,5 +1,4 @@
 #include "user_job_write_controller.h"
-#include "config.h"
 #include "job.h"
 
 #include <yt/server/lib/misc/job_table_schema.h>

@@ -1,5 +1,4 @@
 #include "cluster_directory_synchronizer.h"
-#include "config.h"
 #include "private.h"
 
 #include <yt/core/concurrency/periodic_executor.h>

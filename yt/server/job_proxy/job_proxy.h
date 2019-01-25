@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "private.h"
-#include "config.h"
 #include "job.h"
 #include "job_satellite_connection.h"
 #include "environment.h"

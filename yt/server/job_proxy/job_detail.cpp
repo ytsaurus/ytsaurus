@@ -1,6 +1,5 @@
 #include "job_detail.h"
 #include "private.h"
-#include "config.h"
 
 #include <yt/server/node/exec_agent/public.h>
 
