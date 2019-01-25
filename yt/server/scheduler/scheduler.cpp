@@ -229,7 +229,8 @@ public:
             for (auto controlQueue : TEnumTraits<EControlQueue>::GetDomainValues()) {
                 feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
             }
-            Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
+
+            Strategy_ = CreateFairShareStrategy(Config_, this, Bootstrap_->GetControlInvoker(EControlQueue::FairShareStrategy), feasibleInvokers);
         }
     }
 
@@ -1669,6 +1670,7 @@ private:
                 }
                 operation->Cancel();
             }
+            OperationAliases_.clear();
             IdToOperation_.clear();
             IdToOperationService_.clear();
         }
