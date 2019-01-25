@@ -15,16 +15,32 @@ namespace NYT::NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkReplicaDescriptor
+{
+    NNodeTrackerClient::TNodeDescriptor NodeDescriptor;
+    int MediumIndex;
+};
+
+void FormatValue(TStringBuilder* builder, const TChunkReplicaDescriptor& replica, TStringBuf spec);
+TString ToString(const TChunkReplicaDescriptor& replica);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(shakurov)
+// Change #replicas to vector<TNodeDescriptor> and remove
+// TChunkReplicaDescriptor once all nodes are up to date.
 TFuture<void> AbortSessionsQuorum(
     NChunkClient::TChunkId chunkId,
-    const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
+    const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
+// TODO(shakurov): medium indexes in #replicas are not actually used. Remove them
+// (but not from the protocol as medium indexes are used at other GetChunkMeta call sites).
 TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
     NChunkClient::TChunkId chunkId,
-    const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
+    const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);

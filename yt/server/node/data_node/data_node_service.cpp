@@ -202,14 +202,12 @@ private:
         ValidateConnected();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        ISessionPtr session;
-        if (sessionId.MediumIndex == AllMediaIndex) {
-            auto sessions = sessionManager->GetSessionsOrThrow(sessionId.ChunkId);
-            YCHECK(sessions.size() == 1);
-            session = sessions[0];
-        } else {
-            session = sessionManager->GetSessionOrThrow(sessionId);
-        }
+        // COMPAT(shakurov)
+        // NB: Medium index from session ID is ignored.
+        // TODO(shakurov): Remove it from the protocol once all nodes are up to date.
+        auto sessions = sessionManager->GetSessionsOrThrow(sessionId.ChunkId);
+        YCHECK(sessions.size() == 1);
+        auto session = sessions[0];
 
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))

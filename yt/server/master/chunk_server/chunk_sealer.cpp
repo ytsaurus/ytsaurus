@@ -321,12 +321,13 @@ private:
         }
     }
 
-    std::vector<TNodeDescriptor> GetChunkReplicas(TChunk* chunk)
+    std::vector<TChunkReplicaDescriptor> GetChunkReplicas(TChunk* chunk)
     {
-        std::vector<TNodeDescriptor> result;
+        std::vector<TChunkReplicaDescriptor> result;
         for (auto replica : chunk->StoredReplicas()) {
             auto* node = replica.GetPtr();
-            result.push_back(node->GetDescriptor());
+            auto mediumIndex = replica.GetMediumIndex();
+            result.push_back(TChunkReplicaDescriptor{node->GetDescriptor(), mediumIndex});
         }
         return result;
     }
