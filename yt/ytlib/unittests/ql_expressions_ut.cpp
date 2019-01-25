@@ -980,6 +980,14 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         [&] { PrepareExpression("if(null, null, null)", schema); },
         HasSubstr("Type inference failed"));
 
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression("if(true, null, null)", schema); },
+        HasSubstr("Type inference failed"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression("is_null(null)", schema); },
+        HasSubstr("Type inference failed"));
+
     {
         auto expr = PrepareExpression("if(null, 1, 2)", schema);
         EXPECT_EQ(expr->Type, EValueType::Int64);
