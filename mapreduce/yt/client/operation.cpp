@@ -1862,8 +1862,7 @@ class TOperationPollerItem
 {
 public:
     TOperationPollerItem(::TIntrusivePtr<TOperation::TOperationImpl> operationImpl)
-        : OperationAttrPath_("//sys/operations/" + GetGuidAsString(operationImpl->GetId()) + "/@")
-        , OperationImpl_(std::move(operationImpl))
+        : OperationImpl_(std::move(operationImpl))
     { }
 
     void PrepareRequest(TRawBatchRequest* batchRequest) override
@@ -1900,7 +1899,6 @@ public:
     }
 
 private:
-    const TYPath OperationAttrPath_;
     ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl_;
     NThreading::TFuture<TOperationAttributes> OperationState_;
 };

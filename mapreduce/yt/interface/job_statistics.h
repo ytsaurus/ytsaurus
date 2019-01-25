@@ -39,8 +39,6 @@ public:
 
     //
     // Construct statistcs from statistics node.
-    // Such statistics node can be read from path:
-    //   //sys/operations/<operation-id>/@progress/job_statistics
     TJobStatistics(const NYT::TNode& statistics);
 
     TJobStatistics(const TJobStatistics& jobStatistics);
