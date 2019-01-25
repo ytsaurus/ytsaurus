@@ -390,10 +390,12 @@ public:
     virtual void SetStderrSize(ui64 value) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        StderrSize_ = value;
 
-        ReportStatistics(MakeDefaultJobStatistics()
-            .StderrSize(StderrSize_));
+        if (StderrSize_ != value) {
+            StderrSize_ = value;
+            ReportStatistics(MakeDefaultJobStatistics()
+                .StderrSize(StderrSize_));
+        }
     }
 
     virtual void SetStderr(const TString& value) override
