@@ -26,6 +26,6 @@ public:
 private:
     const int Port;
     THolder<IMtpQueue> ThreadPool;
-    THolder<IThreadPool::IThread> ListenerThread;
+    THolder<IThreadFactory::IThread> ListenerThread;
     THolder<TInetStreamSocket> SendFinishSocket;
 };
