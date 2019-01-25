@@ -1398,7 +1398,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
 
             Value* anyNull = builder->CreateOr(lhsIsNull, rhsIsNull);
 
-            if (type == EValueType::Double) {
+            if (operandType == EValueType::Double) {
                 CodegenIf<TCGBaseContext>(
                     builder,
                     builder->CreateAnd(
