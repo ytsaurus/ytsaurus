@@ -196,6 +196,11 @@ public: \
 //! Holder is not created until some property is set with a non-default value.
 //! If there is no holder property getter returns default value.
 #define DECLARE_EXTRA_PROPERTY_HOLDER(type, holder) \
+public: \
+    Y_FORCE_INLINE bool HasCustom##holder() const \
+    { \
+        return static_cast<bool>(holder##_); \
+    } \
 private: \
     std::unique_ptr<type> holder##_; \
     static const type Default##holder##_;

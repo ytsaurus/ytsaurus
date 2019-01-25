@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 823;
+    return 824;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -44,6 +44,7 @@ bool ValidateSnapshotVersion(int version)
         version == 821 || // ifsmirnov: Per-table tablet balancer config
         version == 822 || // savrus: Use current mount transaction id to lock table node during mount
         version == 823 || // ifsmirnov: Synchronous handles for tablet balancer
+        version == 824 || // savrus: Remove dynamic table attrs from static tables
         false;
 }
 
