@@ -641,8 +641,10 @@ message TContainerStatus {
 
         int32 ReturnCode = 2;
 
+        // Последний мегабайт stderr
         string Stderr = 3;
 
+        // Последний мегабайт stdout
         string Stdout = 4;
 
         //Неструктурированное описание последней ошибки связанной c запуском контейнера
