@@ -47,7 +47,6 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, Atomicity);
     Save(context, CommitOrdering);
     Save(context, UpstreamReplicaId);
-    Save(context, TabletCellBundle);
     Save(context, LastCommitTimestamp);
     Save(context, TabletCountByState);
     Save(context, Tablets);
@@ -72,7 +71,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, Atomicity);
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
-    Load(context, TabletCellBundle);
+    // COMPAT(savrus)
+    if (context.GetVersion() < 824) {
+        Load(context, TabletCellBundle);
+    }
     Load(context, LastCommitTimestamp);
     Load(context, TabletCountByState);
     Load(context, Tablets);
@@ -256,6 +258,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, OptimizeFor_);
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
+    Save(context, TabletCellBundle_);
     TUniquePtrSerializer<>::Save(context, DynamicTableAttributes_);
 }
 
@@ -269,6 +272,10 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, OptimizeFor_);
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 824) {
+        Load(context, TabletCellBundle_);
+    }
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
 
     // NB: All COMPAT's after version 609 should be in this function.
@@ -390,6 +397,35 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
 
             if (attributes.empty()) {
                 Attributes_.reset();
+            }
+        }
+    }
+
+    //COMPAT(savrus)
+    if (context.GetVersion() < 824) {
+        if (HasCustomDynamicTableAttributes()) {
+            TabletCellBundle_ = DynamicTableAttributes_->TabletCellBundle;
+
+            if (GetAtomicity() == DefaultDynamicTableAttributes_.Atomicity &&
+                GetCommitOrdering() == DefaultDynamicTableAttributes_.CommitOrdering &&
+                GetInMemoryMode() == DefaultDynamicTableAttributes_.InMemoryMode &&
+                GetUpstreamReplicaId() == DefaultDynamicTableAttributes_.UpstreamReplicaId &&
+                GetLastCommitTimestamp() == DefaultDynamicTableAttributes_.LastCommitTimestamp &&
+                GetTabletErrorCount() == DefaultDynamicTableAttributes_.TabletErrorCount &&
+                GetForcedCompactionRevision() == DefaultDynamicTableAttributes_.ForcedCompactionRevision &&
+                GetDynamic() == DefaultDynamicTableAttributes_.Dynamic &&
+                GetMountPath() == DefaultDynamicTableAttributes_.MountPath &&
+                GetExternalTabletResourceUsage() == DefaultDynamicTableAttributes_.ExternalTabletResourceUsage &&
+                GetActualTabletState() == DefaultDynamicTableAttributes_.ActualTabletState &&
+                GetExpectedTabletState() == DefaultDynamicTableAttributes_.ExpectedTabletState &&
+                GetLastMountTransactionId() == DefaultDynamicTableAttributes_.LastMountTransactionId &&
+                GetPrimaryLastMountTransactionId() == DefaultDynamicTableAttributes_.PrimaryLastMountTransactionId &&
+                GetCurrentMountTransactionId() == DefaultDynamicTableAttributes_.CurrentMountTransactionId &&
+                Tablets().empty() &&
+                AreNodesEqual(ConvertTo<INodePtr>(TabletBalancerConfig()),
+                    ConvertTo<INodePtr>(DefaultDynamicTableAttributes_.TabletBalancerConfig)))
+            {
+                DynamicTableAttributes_.reset();
             }
         }
     }

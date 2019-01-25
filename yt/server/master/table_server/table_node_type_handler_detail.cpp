@@ -264,13 +264,16 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
-    clonedNode->SetDynamic(trunkSourceNode->IsDynamic());
-    clonedNode->SetAtomicity(trunkSourceNode->GetAtomicity());
-    clonedNode->SetCommitOrdering(trunkSourceNode->GetCommitOrdering());
-    clonedNode->SetInMemoryMode(trunkSourceNode->GetInMemoryMode());
-    clonedNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
-    clonedNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
-    clonedNode->MutableTabletBalancerConfig() = trunkSourceNode->TabletBalancerConfig();
+    if (sourceNode->HasCustomDynamicTableAttributes()) {
+        clonedNode->SetDynamic(trunkSourceNode->IsDynamic());
+        clonedNode->SetAtomicity(trunkSourceNode->GetAtomicity());
+        clonedNode->SetCommitOrdering(trunkSourceNode->GetCommitOrdering());
+        clonedNode->SetInMemoryMode(trunkSourceNode->GetInMemoryMode());
+        clonedNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
+        clonedNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
+        clonedNode->MutableTabletBalancerConfig() = trunkSourceNode->TabletBalancerConfig();
+    }
+
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
 }
 
