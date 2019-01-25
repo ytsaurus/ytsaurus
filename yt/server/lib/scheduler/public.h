@@ -87,6 +87,7 @@ DEFINE_ENUM(EControlQueue,
     (AgentTracker)
     (NodeTracker)
     (OperationsCleaner)
+    (FairShareStrategy)
 );
 
 DEFINE_ENUM(EControllerAgentPickStrategy,

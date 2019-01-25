@@ -41,25 +41,27 @@ public:
     TFairShareStrategy(
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host,
+        IInvokerPtr controlInvoker,
         const std::vector<IInvokerPtr>& feasibleInvokers)
         : Config(config)
         , Host(host)
+        , ControlInvoker(controlInvoker)
         , FeasibleInvokers(feasibleInvokers)
         , Logger(SchedulerLogger)
         , LastProfilingTime_(TInstant::Zero())
     {
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
-            GetCurrentInvoker(),
+            ControlInvoker,
             BIND(&TFairShareStrategy::OnFairShareUpdate, MakeWeak(this)),
             Config->FairShareUpdatePeriod);
 
         FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
-            GetCurrentInvoker(),
+            ControlInvoker,
             BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
             Config->FairShareLogPeriod);
 
         MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
-            GetCurrentInvoker(),
+            ControlInvoker,
             BIND(&TFairShareStrategy::OnMinNeededJobResourcesUpdate, MakeWeak(this)),
             Config->MinNeededResourcesUpdatePeriod);
     }
@@ -816,6 +818,7 @@ private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
 
+    const IInvokerPtr ControlInvoker;
     const std::vector<IInvokerPtr> FeasibleInvokers;
 
     mutable NLogging::TLogger Logger;
@@ -1231,9 +1234,10 @@ private:
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host,
+    const IInvokerPtr& controlInvoker,
     const std::vector<IInvokerPtr>& feasibleInvokers)
 {
-    return New<TFairShareStrategy>(config, host, feasibleInvokers);
+    return New<TFairShareStrategy>(config, host, controlInvoker, feasibleInvokers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

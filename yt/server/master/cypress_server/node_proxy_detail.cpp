@@ -149,7 +149,7 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
     if (!oldValue) {
         return false;
     }
-    
+
     Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
 
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();

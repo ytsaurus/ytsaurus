@@ -315,6 +315,8 @@ protected:
     void IncreaseLocalResourceUsage(const TJobResources& delta);
     void CommitLocalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
 
+    TJobResources ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const;
+
 private:
     void UpdateAttributes();
 

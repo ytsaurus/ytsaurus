@@ -642,6 +642,18 @@ void TSchedulerElement::SetOperationAlert(
     Host_->SetOperationAlert(operationId, alertType, alert, timeout);
 }
 
+
+TJobResources TSchedulerElement::ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const
+{
+    auto connectionTime = InstantToCpuInstant(Host_->GetConnectionTime());
+    auto delay = DurationToCpuDuration(TreeConfig_->TotalResourceLimitsConsiderDelay);
+    auto maxShareLimits = connectionTime + delay < GetCpuInstant()
+        ? GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * GetMaxShareRatio()
+        : InfiniteJobResources();
+    auto perTypeLimits = ToJobResources(resourceLimitsConfig, InfiniteJobResources());
+    return Min(maxShareLimits, perTypeLimits);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
@@ -1559,11 +1571,7 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 
 TJobResources TPool::ComputeResourceLimits() const
 {
-    auto maxShareLimits = Host_->GetConnectionTime() + TreeConfig_->TotalResourceLimitsConsiderDelay < TInstant::Now()
-        ? GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * GetMaxShareRatio()
-        : InfiniteJobResources();
-    auto perTypeLimits = ToJobResources(Config_->ResourceLimits, InfiniteJobResources());
-    return Min(maxShareLimits, perTypeLimits);
+    return ComputeResourceLimitsBase(Config_->ResourceLimits);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2666,11 +2674,7 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 
 TJobResources TOperationElement::ComputeResourceLimits() const
 {
-    auto maxShareLimits = Host_->GetConnectionTime() + TreeConfig_->TotalResourceLimitsConsiderDelay < TInstant::Now()
-        ? GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * GetMaxShareRatio()
-        : InfiniteJobResources();
-    auto perTypeLimits = ToJobResources(RuntimeParams_->ResourceLimits, InfiniteJobResources());
-    return Min(maxShareLimits, perTypeLimits);
+    return ComputeResourceLimitsBase(RuntimeParams_->ResourceLimits);
 }
 
 TJobResources TOperationElement::ComputeMaxPossibleResourceUsage() const
