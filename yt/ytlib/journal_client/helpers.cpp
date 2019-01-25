@@ -24,13 +24,25 @@ using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilder* builder, const TChunkReplicaDescriptor& replica, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v@%v", replica.NodeDescriptor, replica.MediumIndex);
+}
+
+TString ToString(const TChunkReplicaDescriptor& replica)
+{
+    return ToStringViaBuilder(replica);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQuorumSessionBase
     : public TRefCounted
 {
 public:
     TQuorumSessionBase(
         TChunkId chunkId,
-        const std::vector<TNodeDescriptor>& replicas,
+        const std::vector<TChunkReplicaDescriptor>& replicas,
         TDuration timeout,
         int quorum,
         INodeChannelFactoryPtr channelFactory)
@@ -45,7 +57,7 @@ public:
 
 protected:
     const TChunkId ChunkId_;
-    const std::vector<TNodeDescriptor> Replicas_;
+    const std::vector<TChunkReplicaDescriptor> Replicas_;
     const TDuration Timeout_;
     const int Quorum_;
     const INodeChannelFactoryPtr ChannelFactory_;
@@ -61,7 +73,7 @@ class TAbortSessionsQuorumSession
 public:
     TAbortSessionsQuorumSession(
         TChunkId chunkId,
-        const std::vector<TNodeDescriptor>& replicas,
+        const std::vector<TChunkReplicaDescriptor>& replicas,
         TDuration timeout,
         int quorum,
         INodeChannelFactoryPtr channelFactory)
@@ -102,20 +114,23 @@ private:
             return;
         }
 
-        for (const auto& node : Replicas_) {
-            auto channel = ChannelFactory_->CreateChannel(node);
+        for (const auto& replica : Replicas_) {
+            auto channel = ChannelFactory_->CreateChannel(replica.NodeDescriptor);
             TDataNodeServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Timeout_);
 
             auto req = proxy.FinishChunk();
-            ToProto(req->mutable_session_id(), TSessionId(ChunkId_, AllMediaIndex));
-            req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), node)
+
+            // COMPAT(shakurov)
+            // Medium index is not used by nodes. Remove it from the protocol once nodes are up to date.
+            ToProto(req->mutable_session_id(), TSessionId(ChunkId_, replica.MediumIndex));
+            req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), replica)
                 .Via(GetCurrentInvoker()));
         }
     }
 
     void OnResponse(
-        const TNodeDescriptor& node,
+        const TChunkReplicaDescriptor& replica,
         const TDataNodeServiceProxy::TErrorOrRspFinishChunkPtr& rspOrError)
     {
         ++ResponseCounter_;
@@ -124,12 +139,12 @@ private:
         if (rspOrError.IsOK() || rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
             ++SuccessCounter_;
             YT_LOG_INFO("Journal chunk session aborted successfully (Replica: %v)",
-                node);
+                replica);
 
         } else {
             InnerErrors_.push_back(rspOrError);
             YT_LOG_WARNING(rspOrError, "Failed to abort journal chunk session (Replica: %v)",
-                node);
+                replica);
         }
 
         if (SuccessCounter_ == Quorum_) {
@@ -148,7 +163,7 @@ private:
 
 TFuture<void> AbortSessionsQuorum(
     TChunkId chunkId,
-    const std::vector<TNodeDescriptor>& replicas,
+    const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,
     INodeChannelFactoryPtr channelFactory)
@@ -195,8 +210,8 @@ private:
             Replicas_);
 
         std::vector<TFuture<void>> asyncResults;
-        for (const auto& node : Replicas_) {
-            auto channel = ChannelFactory_->CreateChannel(node);
+        for (const auto& replica : Replicas_) {
+            auto channel = ChannelFactory_->CreateChannel(replica.NodeDescriptor);
             TDataNodeServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Timeout_);
 
@@ -206,7 +221,7 @@ private:
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
             ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
             asyncResults.push_back(req->Invoke().Apply(
-                BIND(&TComputeQuorumInfoSession::OnResponse, MakeStrong(this), node)
+                BIND(&TComputeQuorumInfoSession::OnResponse, MakeStrong(this), replica)
                     .AsyncVia(GetCurrentInvoker())));
         }
 
@@ -216,7 +231,7 @@ private:
     }
 
     void OnResponse(
-        const TNodeDescriptor& node,
+        const TChunkReplicaDescriptor& replica,
         const TDataNodeServiceProxy::TErrorOrRspGetChunkMetaPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
@@ -226,7 +241,7 @@ private:
             Infos_.push_back(miscExt);
 
             YT_LOG_INFO("Received info for journal chunk (Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-                node,
+                replica.NodeDescriptor.GetDefaultAddress(),
                 miscExt.row_count(),
                 miscExt.uncompressed_data_size(),
                 miscExt.compressed_data_size());
@@ -234,7 +249,7 @@ private:
             InnerErrors_.push_back(rspOrError);
 
             YT_LOG_WARNING(rspOrError, "Failed to get journal info (Replica: %v)",
-                node);
+                replica);
         }
     }
 
@@ -270,7 +285,7 @@ private:
 
 TFuture<TMiscExt> ComputeQuorumInfo(
     TChunkId chunkId,
-    const std::vector<TNodeDescriptor>& replicas,
+    const std::vector<TChunkReplicaDescriptor>& replicas,
     TDuration timeout,
     int quorum,
     INodeChannelFactoryPtr channelFactory)

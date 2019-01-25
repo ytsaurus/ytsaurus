@@ -1239,10 +1239,14 @@ public:
             return MakeFuture(chunk->MiscExt());
         }
 
-        std::vector<NNodeTrackerServer::TNodeDescriptor> replicas;
+        // COMPAT(shakurov)
+        // Replace this with std::vector<NNodeTrackerServer::TNodeDescriptor>
+        // once all cluster nodes are up to date.
+        std::vector<NJournalClient::TChunkReplicaDescriptor> replicas;
         for (auto nodeWithIndexes : chunk->StoredReplicas()) {
             const auto* node = nodeWithIndexes.GetPtr();
-            replicas.push_back(node->GetDescriptor());
+            const auto mediumIndex = nodeWithIndexes.GetMediumIndex();
+            replicas.push_back(NJournalClient::TChunkReplicaDescriptor{node->GetDescriptor(), mediumIndex});
         }
 
         return ComputeQuorumInfo(
