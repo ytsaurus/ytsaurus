@@ -264,7 +264,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
-    if (sourceNode->HasCustomDynamicTableAttributes()) {
+    if (trunkSourceNode->HasCustomDynamicTableAttributes()) {
         clonedNode->SetDynamic(trunkSourceNode->IsDynamic());
         clonedNode->SetAtomicity(trunkSourceNode->GetAtomicity());
         clonedNode->SetCommitOrdering(trunkSourceNode->GetCommitOrdering());
