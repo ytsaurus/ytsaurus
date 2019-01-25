@@ -1,6 +1,7 @@
 #!/bin/bash -eux
 
 YP_PROTOS="
+    yp/client/api/proto/conditions.proto
     yp/client/api/proto/cluster_api.proto
     yp/client/api/proto/pod_agent.proto
     yp/client/api/proto/data_model.proto
@@ -8,6 +9,7 @@ YP_PROTOS="
     yp/client/api/proto/discovery_service.proto
     yp/client/api/proto/object_service.proto
     yp/client/api/proto/replica_set.proto
+    yp/client/api/proto/resource_cache.proto
     yp/client/api/proto/secrets.proto
 "
 

@@ -3,7 +3,7 @@
 #include "object.h"
 
 #include <yp/client/api/proto/data_model.pb.h>
-#include <yp/client/api/proto/replica_set.pb.h>
+#include <yp/client/api/proto/resource_cache.pb.h>
 
 #include <yt/core/misc/ref_tracked.h>
 
@@ -11,29 +11,30 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicaSet
+class TResourceCache
     : public TObject
-    , public NYT::TRefTracked<TReplicaSet>
+    , public NYT::TRefTracked<TResourceCache>
 {
 public:
-    static constexpr EObjectType Type = EObjectType::ReplicaSet;
+    static constexpr EObjectType Type = EObjectType::ResourceCache;
 
-    TReplicaSet(
+    TResourceCache(
         const TObjectId& id,
+        const TObjectId& replicaSetId,
         IObjectTypeHandler* typeHandler,
         ISession* session);
 
     virtual EObjectType GetType() const override;
 
-    using TResourceCacheAttribute = TChildrenAttribute<TResourceCache>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TResourceCacheAttribute, ResourceCache);
+    using TReplicaSetAttribute = TParentAttribute<TReplicaSet>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReplicaSetAttribute, ReplicaSet);
 
-    using TSpec = NYP::NClient::NApi::NProto::TReplicaSetSpec;
-    static const TScalarAttributeSchema<TReplicaSet, TSpec> SpecSchema;
+    using TSpec = NYP::NClient::NApi::NProto::TResourceCacheSpec;
+    static const TScalarAttributeSchema<TResourceCache, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
 
-    using TStatus = NYP::NClient::NApi::NProto::TReplicaSetStatus;
-    static const TScalarAttributeSchema<TReplicaSet, TStatus> StatusSchema;
+    using TStatus = NYP::NClient::NApi::NProto::TResourceCacheStatus;
+    static const TScalarAttributeSchema<TResourceCache, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
 };
 

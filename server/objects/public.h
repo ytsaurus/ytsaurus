@@ -56,6 +56,7 @@ struct IObjectTypeHandler;
 class TObject;
 class TNode;
 class TResource;
+class TResourceCache;
 class TPod;
 class TPodSet;
 class TEndpoint;
@@ -129,6 +130,7 @@ DEFINE_ENUM(EObjectType,
     ((Account)        (12))
     ((ReplicaSet)     (13))
     ((DnsRecordSet)   (14))
+    ((ResourceCache)  (15))
     ((NetworkModule) (100)) // internal, not present in data_model.proto
     ((Schema)        (256))
 );

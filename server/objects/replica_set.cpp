@@ -1,4 +1,5 @@
 #include "replica_set.h"
+#include "resource_cache.h"
 #include "db_schema.h"
 
 namespace NYP::NServer::NObjects {
@@ -20,6 +21,7 @@ TReplicaSet::TReplicaSet(
     IObjectTypeHandler* typeHandler,
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
+    , ResourceCache_(this)
     , Spec_(this, &SpecSchema)
     , Status_(this, &StatusSchema)
 { }

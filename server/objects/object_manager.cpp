@@ -3,6 +3,7 @@
 #include "type_handler.h"
 #include "schema_type_handler.h"
 #include "node_type_handler.h"
+#include "resource_cache_type_handler.h"
 #include "resource_type_handler.h"
 #include "pod_type_handler.h"
 #include "pod_set_type_handler.h"
@@ -85,6 +86,7 @@ public:
         RegisterTypeHandler(CreateAccountTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateReplicaSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateDnsRecordSetTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateResourceCacheTypeHandler(Bootstrap_));
 
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));

@@ -31,6 +31,7 @@ const TAccountParentToChildrenTable AccountParentToChildrenTable;
 const TAccountToPodSetsTable AccountToPodSetsTable;
 const TAccountToPodsTable AccountToPodsTable;
 const TDnsRecordSetsTable DnsRecordSetsTable;
+const TResourceCachesTable ResourceCachesTable;
 
 const std::vector<const TDBTable*> Tables = {
     &SchemasTable,
@@ -58,7 +59,8 @@ const std::vector<const TDBTable*> Tables = {
     &AccountParentToChildrenTable,
     &AccountToPodSetsTable,
     &AccountToPodsTable,
-    &DnsRecordSetsTable
+    &DnsRecordSetsTable,
+    &ResourceCachesTable
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -243,6 +243,27 @@ extern const struct TReplicaSetsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TResourceCachesTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TResourceCachesTable()
+        : TDBTable("resource_caches")
+    {
+        Key = {&Fields.Meta_ReplicaSetId, &TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Meta_ReplicaSetId{"meta.replica_set_id"};
+        TDBField Spec{"spec"};
+        TDBField Status{"status"};
+    } Fields;
+} ResourceCachesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const struct TNetworkProjectsTable
     : public TDBTable
     , public TObjectTableBase
