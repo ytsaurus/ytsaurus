@@ -1866,7 +1866,7 @@ private:
     void PushHugeStatistics(const TBackgroundContext& context)
     {
         auto counters = GetHugeCounters();
-        auto profiler = context.Profiler.AppendPath("/total");
+        auto profiler = context.Profiler.AppendPath("/huge");
         PushCounterStatistics(profiler, counters);
     }
 
@@ -1882,7 +1882,7 @@ private:
         size_t rank,
         const TLocalSmallCounters& counters)
     {
-        auto profiler = context.Profiler.AppendPath("/total").AddTags(
+        auto profiler = context.Profiler.AppendPath("/small_arena").AddTags(
             {
                 NProfiling::TProfileManager::Get()->RegisterTag("rank", rank)
             });
