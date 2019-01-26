@@ -802,7 +802,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
             ++mediaOnWhichSealedMissingCount;
         }
 
-
         if (Any(mediumStatistics.Status & EChunkStatus::Lost)) {
             mediaOnWhichLost.push_back(mediumIndex);
         } else {
