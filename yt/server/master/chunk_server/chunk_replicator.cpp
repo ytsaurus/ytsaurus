@@ -758,6 +758,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     SmallVector<int, MaxMediumCount> mediaOnWhichLost;
     int mediaOnWhichPresentCount = 0;
     int mediaOnWhichUnderreplicatedCount = 0;
+    int mediaOnWhichSealedMissingCount = 0;
     for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
         auto* medium = mediumIdAndPtrPair.second;
         if (medium->GetCache()) {
@@ -797,6 +798,11 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
             ++mediaOnWhichUnderreplicatedCount;
         }
 
+        if (Any(mediumStatistics.Status & EChunkStatus::SealedMissing)) {
+            ++mediaOnWhichSealedMissingCount;
+        }
+
+
         if (Any(mediumStatistics.Status & EChunkStatus::Lost)) {
             mediaOnWhichLost.push_back(mediumIndex);
         } else {
@@ -815,6 +821,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         mediaOnWhichLost,
         mediaOnWhichPresentCount,
         mediaOnWhichUnderreplicatedCount,
+        mediaOnWhichSealedMissingCount,
         readQuorum);
 
     return results;
@@ -835,8 +842,7 @@ void TChunkReplicator::ComputeJournalChunkStatisticsForMedium(
     result.ReplicaCount[GenericChunkReplicaIndex] = replicaCount;
     result.DecommissionedReplicaCount[GenericChunkReplicaIndex] = decommissionedReplicaCount;
 
-    if (replicaCount + decommissionedReplicaCount == 0 ||
-        isSealed && sealedReplicaCount == 0)
+    if (replicaCount + decommissionedReplicaCount == 0)
     {
         result.Status |= EChunkStatus::Lost;
     }
@@ -859,6 +865,10 @@ void TChunkReplicator::ComputeJournalChunkStatisticsForMedium(
         if (replicaCount > replicationFactor && unsealedReplicaCount == 0) {
             result.Status |= EChunkStatus::Overreplicated;
             result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
+        }
+
+        if (replicationFactor > 0 && sealedReplicaCount == 0) {
+            result.Status |= EChunkStatus::SealedMissing;
         }
     }
 
@@ -888,6 +898,7 @@ void TChunkReplicator::ComputeJournalChunkStatisticsCrossMedia(
     const SmallVector<int, MaxMediumCount>& mediaOnWhichLost,
     int mediaOnWhichPresentCount,
     int mediaOnWhichUnderreplicatedCount,
+    int mediaOnWhichSealedMissingCount,
     int readQuorum)
 {
     if (totalReplicaCount + totalDecommissionedReplicaCount < readQuorum && totalSealedReplicaCount == 0) {
@@ -910,7 +921,7 @@ void TChunkReplicator::ComputeJournalChunkStatisticsCrossMedia(
             }
         }
         result.Status |= ECrossMediumChunkStatus::MediumWiseLost;
-    } else if (mediaOnWhichUnderreplicatedCount > 0) {
+    } else if (mediaOnWhichUnderreplicatedCount > 0 || mediaOnWhichSealedMissingCount > 0) {
         result.Status |= ECrossMediumChunkStatus::Deficient;
     }
 }

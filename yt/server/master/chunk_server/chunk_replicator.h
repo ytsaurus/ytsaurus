@@ -302,6 +302,7 @@ private:
         const SmallVector<int, MaxMediumCount>& mediaOnWhichLost,
         int mediaOnWhichPresentCount,
         int mediaOnWhichUnderreplicatedCount,
+        int mediaOnWhichSealedMissingCount,
         int readQuorum);
 
     bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
