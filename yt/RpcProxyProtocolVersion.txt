@@ -1,4 +1,4 @@
-# Update major version when protocol changed significally, i.e.:
+# Update major version when protocol changed significantly, i.e.:
 # 1. Some messages are removed, renamed or redesigned.
 # 2. Some fields in messages change their meaning.
 SET(YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR 1)
