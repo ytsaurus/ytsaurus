@@ -514,7 +514,7 @@ TServiceBase::TServiceBase(
     , Authenticator_(std::move(authenticator))
     , ServiceId_(descriptor.GetFullServiceName(), realmId)
     , ProtocolVersion_(descriptor.ProtocolVersion)
-    , ServiceTagId_ (NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName))
+    , ServiceTagId_(NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName))
     , AuthenticationQueueSizeCounter_("/authentication_queue_size", {ServiceTagId_})
     , AuthenticationTimeCounter_("/authentication_time", {ServiceTagId_})
 {
