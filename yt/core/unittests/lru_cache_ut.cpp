@@ -10,7 +10,7 @@ namespace {
 
 TEST(TSimpleLruCache, Common)
 {
-    TSimpleLruCache<TString, int> cache(10);
+    TSimpleLruCache<TString, int> cache(2);
     cache.Insert("a", 1);
     cache.Insert("b", 2);
 
