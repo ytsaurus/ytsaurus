@@ -39,7 +39,7 @@ private:
     bool CacheEnabled_ = false;
     std::optional<TString> Encoding_;
     using TCache = TSimpleLruCache<TStringBuf, TItem>;
-    TCache Cache_ = TCache(16_MB);
+    TCache Cache_ = TCache(1_MB);
 
     PyObjectPtr BuildResult(const TItem& item);
 };

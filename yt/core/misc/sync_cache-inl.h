@@ -394,13 +394,13 @@ TSimpleLruCache<TKey, TValue, THash>::TSimpleLruCache(size_t maxWeight)
 { }
 
 template <class TKey, class TValue, class THash>
-int TSimpleLruCache<TKey, TValue, THash>::GetSize() const
+size_t TSimpleLruCache<TKey, TValue, THash>::GetSize() const
 {
     return ItemMap_.size();
 }
 
 template <class TKey, class TValue, class THash>
-TValue TSimpleLruCache<TKey, TValue, THash>::Get(const TKey& key)
+const TValue& TSimpleLruCache<TKey, TValue, THash>::Get(const TKey& key)
 {
     auto it = ItemMap_.find(key);
     YCHECK(it != ItemMap_.end());
@@ -409,14 +409,14 @@ TValue TSimpleLruCache<TKey, TValue, THash>::Get(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-std::optional<TValue> TSimpleLruCache<TKey, TValue, THash>::Find(const TKey& key)
+TValue* TSimpleLruCache<TKey, TValue, THash>::Find(const TKey& key)
 {
     auto it = ItemMap_.find(key);
     if (it == ItemMap_.end()) {
-        return std::nullopt;
+        return nullptr;
     }
     UpdateLruList(it);
-    return it->second.Value;
+    return &(it->second.Value);
 }
 
 template <class TKey, class TValue, class THash>
