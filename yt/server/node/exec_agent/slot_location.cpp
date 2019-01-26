@@ -172,20 +172,15 @@ TFuture<std::optional<TString>> TSlotLocation::CreateSandboxDirectories(int slot
         if (options.TmpfsPath) {
             auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, *options.TmpfsPath));
             try {
-                if (!tmpfsPath.StartsWith(sandboxPath)) {
-                    THROW_ERROR_EXCEPTION("Path of the tmpfs mount point must be inside the sandbox directory")
-                        << TErrorAttribute("sandbox_path", sandboxPath)
-                        << TErrorAttribute("tmpfs_path", tmpfsPath);
-                }
-
                 if (tmpfsPath != sandboxPath) {
                     // If we mount directory inside sandbox, it should not exist.
                     ValidateNotExists(tmpfsPath);
                 }
-
                 NFS::MakeDirRecursive(tmpfsPath);
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to create directory %Qv for tmpfs in sandbox %v", *options.TmpfsPath, sandboxPath)
+                THROW_ERROR_EXCEPTION("Failed to create directory %Qv for tmpfs in sandbox %v",
+                    *options.TmpfsPath,
+                    sandboxPath)
                     << ex;
             }
 
