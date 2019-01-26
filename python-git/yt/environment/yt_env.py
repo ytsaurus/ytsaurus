@@ -745,7 +745,7 @@ class YTInstance(object):
 
             stdout = open(os.devnull, "w")
             stderr = None
-            if self._capture_stderr_to_file:
+            if self._capture_stderr_to_file or isinstance(self._subprocess_module, PortoSubprocess):
                 stderr = open(stderr_path, "w")
 
             def preexec():
