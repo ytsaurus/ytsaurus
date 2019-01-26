@@ -1799,6 +1799,9 @@ public:
                 GlobalState->LargeArenaCounters[rank][counter] += state->LargeArenaCounters[rank][counter];
             }
         }
+        for (auto counter : TEnumTraits<EUndumpableCounter>::GetDomainValues()) {
+            GlobalState->UndumpableCounters[counter] += state->UndumpableCounters[counter];
+        }
     }
 
     // Called on each background tick to push statistics to the profiler.
