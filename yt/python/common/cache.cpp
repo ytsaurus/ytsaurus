@@ -1,6 +1,8 @@
 #include "cache.h"
 #include "helpers.h"
 
+#include <iostream>
+
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,9 +42,9 @@ PyObjectPtr TPythonStringCache::BuildResult(const TItem& item)
 PyObjectPtr TPythonStringCache::GetPythonString(TStringBuf string)
 {
     if (CacheEnabled_) {
-        auto optionalKey = Cache_.Find(string);
-        if (optionalKey) {
-            return BuildResult(*optionalKey);
+        auto keyOrNullptr = Cache_.Find(string);
+        if (keyOrNullptr != nullptr) {
+            return BuildResult(*keyOrNullptr);
         }
     }
 

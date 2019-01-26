@@ -120,12 +120,11 @@ class TSimpleLruCache
 public:
     explicit TSimpleLruCache(size_t maxWeight);
 
-    int GetSize() const;
+    size_t GetSize() const;
 
-    TValue Get(const TKey& key);
-    std::optional<TValue> Find(const TKey& key);
-
-    TValue* Insert(const TKey& key, TValue value, size_t weight = sizeof(TValue));
+    const TValue& Get(const TKey& key);
+    TValue* Find(const TKey& key);
+    TValue* Insert(const TKey& key, TValue value, size_t weight = 1);
 
     void Clear();
 
