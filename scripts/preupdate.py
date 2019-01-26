@@ -21,10 +21,10 @@ class Colors:
     END = "\033[0m"
 
 CHANGELOG_FILES = [
-    ("yt/server/cell_master/serialize.cpp", ["masters"]),
-    ("yt/server/tablet_node/serialize.cpp", ["nodes"]),
+    ("yt/server/master/cell_master/serialize.cpp", ["masters"]),
+    ("yt/server/node/tablet_node/serialize.cpp", ["nodes"]),
     ("yt/server/controller_agent/serialize.cpp", ["controller_agents"]),
-    ("yt/server/hive/transaction_supervisor.cpp", ["masters", "nodes"]),
+    ("yt/server/lib/hive/transaction_supervisor.cpp", ["masters", "nodes"]),
     ("Changelog", ["general"]),
 ]
 
