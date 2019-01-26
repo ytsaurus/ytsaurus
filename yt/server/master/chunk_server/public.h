@@ -127,6 +127,7 @@ DEFINE_BIT_ENUM(EChunkStatus,
     ((UnsafelyPlaced)          (0x0100))
     ((DataDecommissioned)      (0x0200))
     ((ParityDecommissioned)    (0x0400))
+    ((SealedMissing)           (0x0800)) // Sealed chunk without sealed replicas (on certain medium).
 );
 
 DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
