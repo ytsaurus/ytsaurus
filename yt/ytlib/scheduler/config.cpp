@@ -2,6 +2,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/core/misc/fs.h>
+
 #include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <util/string/split.h>
@@ -453,22 +455,27 @@ TUserJobSpec::TUserJobSpec()
                 << TErrorAttribute("tmpfs_size", *TmpfsSize)
                 << TErrorAttribute("memory_limit", MemoryLimit);
         }
+
         // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
         if (TmpfsPath) {
+            if (!NFS::IsPathRelativeAndInvolvesNoTraversal(*TmpfsPath)) {
+                THROW_ERROR_EXCEPTION("Tmpfs path %v does not point inside the sandbox directory",
+                    *TmpfsPath);
+            }
             i64 tmpfsSize = TmpfsSize ? *TmpfsSize : MemoryLimit;
             UserJobMemoryDigestDefaultValue = std::min(1.0, std::max(UserJobMemoryDigestDefaultValue, double(tmpfsSize) / MemoryLimit));
             UserJobMemoryDigestLowerBound = std::min(1.0, std::max(UserJobMemoryDigestLowerBound, double(tmpfsSize) / MemoryLimit));
         }
         UserJobMemoryDigestDefaultValue = std::max(UserJobMemoryDigestLowerBound, UserJobMemoryDigestDefaultValue);
-    });
 
-    RegisterPostprocessor([&] () {
         for (const auto& pair : Environment) {
             ValidateEnvironmentVariableName(pair.first);
         }
+
         for (auto& path : FilePaths) {
             path = path.Normalize();
         }
+
     });
 }
 

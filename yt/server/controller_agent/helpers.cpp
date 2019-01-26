@@ -82,9 +82,9 @@ void TUserFile::Persist(const TPersistenceContext& context)
     Persist(context, Executable);
     Persist(context, Format);
     Persist(context, Schema);
-    Persist(context, IsDynamic);
+    Persist(context, Dynamic);
     if (context.GetVersion() >= 202000) {
-        Persist(context, IsLayer);
+        Persist(context, Layer);
     }
 }
 
@@ -119,13 +119,13 @@ TBoundaryKeys BuildBoundaryKeysFromOutputResult(
 void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector<TUserFile>& files)
 {
     for (const auto& file : files) {
-        auto* descriptor = file.IsLayer
+        auto* descriptor = file.Layer
             ? jobSpec->add_layers()
             : jobSpec->add_files();
 
         ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
 
-        if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
+        if (file.Type == EObjectType::Table && file.Dynamic && file.Schema.IsSorted()) {
             auto dataSource = MakeVersionedDataSource(
                 file.GetPath(),
                 file.Schema,
@@ -146,7 +146,7 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
             ToProto(descriptor->mutable_data_source(), dataSource);
         }
 
-        if (!file.IsLayer) {
+        if (!file.Layer) {
             descriptor->set_file_name(file.FileName);
             switch (file.Type) {
                 case EObjectType::File:

@@ -50,8 +50,8 @@ struct TUserFile
     bool Executable = false;
     NYson::TYsonString Format;
     NTableClient::TTableSchema Schema;
-    bool IsDynamic = false;
-    bool IsLayer = false;
+    bool Dynamic = false;
+    bool Layer = false;
     // This field is used only during file size validation only for table chunks with column selectors.
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
 

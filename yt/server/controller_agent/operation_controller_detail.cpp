@@ -537,7 +537,7 @@ void TOperationControllerBase::InitializeStructures()
             TUserFile file;
             file.Path = path;
             file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
-            file.IsLayer = false;
+            file.Layer = false;
             files.emplace_back(std::move(file));
         }
 
@@ -550,7 +550,7 @@ void TOperationControllerBase::InitializeStructures()
             TUserFile file;
             file.Path = path;
             file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
-            file.IsLayer = true;
+            file.Layer = true;
             files.emplace_back(std::move(file));
         }
     }
@@ -4930,7 +4930,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                     [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
                         req->set_fetch_all_meta_extensions(false);
                         req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                        if (file.IsDynamic || IsBoundaryKeysFetchEnabled()) {
+                        if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
                             req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
                         }
                         // NB: we always fetch parity replicas since
@@ -5143,13 +5143,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
     for (const auto& files : GetValues(UserJobFiles_)) {
         for (const auto& file : files) {
             const auto& path = file.Path.GetPath();
-            if (!file.IsLayer && file.Type != EObjectType::Table && file.Type != EObjectType::File) {
+            if (!file.Layer && file.Type != EObjectType::Table && file.Type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("User file %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
                     path,
                     EObjectType::Table,
                     EObjectType::File,
                     file.Type);
-            } else if (file.IsLayer && file.Type != EObjectType::File) {
+            } else if (file.Layer && file.Type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv , actual %Qlv",
                     path,
                     EObjectType::File,
@@ -5262,7 +5262,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             break;
 
                         case EObjectType::Table:
-                            file.IsDynamic = attributes.Get<bool>("dynamic");
+                            file.Dynamic = attributes.Get<bool>("dynamic");
                             file.Schema = attributes.Get<TTableSchema>("schema");
                             file.Format = attributes.FindYson("format");
                             if (!file.Format) {
@@ -5279,7 +5279,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     file.Path) << ex;
                             }
                             // Validate that timestamp is correct.
-                            ValidateDynamicTableTimestamp(file.Path, file.IsDynamic, file.Schema, attributes);
+                            ValidateDynamicTableTimestamp(file.Path, file.Dynamic, file.Schema, attributes);
 
                             break;
 
@@ -5303,22 +5303,25 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         file.FileName);
                 }
 
-                if (!file.IsLayer) {
-                    // TODO(babenko): more sanity checks?
-                    auto path = file.Path.GetPath();
+                if (!file.Layer) {
+                    const auto& path = file.Path.GetPath();
                     const auto& fileName = file.FileName;
 
                     if (fileName.empty()) {
-                        THROW_ERROR_EXCEPTION("Empty user file name for %v", path);
+                        THROW_ERROR_EXCEPTION("Empty user file name for %v",
+                            path);
                     }
 
-                    if (!NFS::CheckPathIsRelativeAndGoesInside(fileName)) {
-                        THROW_ERROR_EXCEPTION("User file name cannot reference outside of sandbox directory")
-                            << TErrorAttribute("file_name", fileName);
+                    if (!NFS::IsPathRelativeAndInvolvesNoTraversal(fileName)) {
+                        THROW_ERROR_EXCEPTION("User file name %Qv for %v does not point inside the sandbox directory",
+                            fileName,
+                            path);
                     }
 
                     if (!userFileNames.insert(fileName).second) {
-                        THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v", fileName, path);
+                        THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
+                            fileName,
+                            path);
                     }
                 }
             }
