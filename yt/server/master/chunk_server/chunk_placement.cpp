@@ -283,7 +283,7 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(
         node->SetLoadFactorIterator(mediumIndex, std::nullopt);
 
         if (factorMap.empty()) {
-            DomainToFillFactorToNode_.erase(domainToFactorMapIter);
+            DomainToLoadFactorToNode_.erase(domainToFactorMapIter);
         }
     }
 }
