@@ -67,7 +67,7 @@ or `Pytype <https://github.com/google/pytype/>`__.
 - `PyCharm <https://www.jetbrains.com/pycharm/>`__ - Works out-of-the-box, though as of today (PyCharm 2018.2.4) built-in type checker is somewhat limited compared to MyPy.
 - `Atom <https://atom.io/>`__ - Requires `atom-mypy <https://atom.io/packages/atom-mypy>`__ or equivalent.
 - `Jupyter Notebooks <https://jupyter.org/>`__ - `It is possible <http://journalpanic.com/post/spice-up-thy-jupyter-notebooks-with-mypy/>`__ to use magics to type check directly in the notebook.
-- Environment independent - Just use your favorite checker directly, optionally combined with tool like `entr <http://www.entrproject.org/>`__.
+- Environment independent - Just use your favorite checker directly, optionally combined with tool like `entr <http://eradman.com/entrproject/>`__.
 
 Version Compatibility
 ---------------------
