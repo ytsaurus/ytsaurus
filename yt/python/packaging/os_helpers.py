@@ -1,4 +1,9 @@
 import os
+import sys
+import shutil
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../scripts/teamcity-build/python"))
+from helpers import rmtree, mkdirp
 
 def copy_element(src, dst, elem):
     source = os.path.join(src, elem)
