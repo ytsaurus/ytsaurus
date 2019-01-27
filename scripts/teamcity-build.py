@@ -19,7 +19,6 @@ from helpers import (
     clear_system_tmp,
     cwd,
     format_yes_no,
-    get_size,
     kill_by_name,
     ls,
     mkdirp,
