@@ -4,12 +4,13 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../scripts/teamcity-build/python"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../packaging"))
 
-from os_helpers import copy_content, clean_path, create_if_missing
+from os_helpers import copy_content, clean_path, create_if_missing, copy_element
 
 from teamcity import teamcity_message
+
+# It is added to sys.path in packaging/os_helpers
 from helpers import (run, run_captured, cwd)
 
 import argparse
