@@ -735,8 +735,6 @@ def run_unit_tests(options, build_context):
         return
 
     sandbox_current = os.path.join(options.sandbox_directory, "unit_tests")
-    sandbox_archive = os.path.join(options.failed_tests_path,
-        "__".join([options.btid, options.build_number, "unit_tests"]))
 
     all_unittests = fnmatch.filter(os.listdir(get_bin_dir(options)), "unittester*")
 
