@@ -1,4 +1,3 @@
-#include "config.h"
 #include "in_memory_manager.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
@@ -9,6 +8,8 @@
 #include "transaction_manager.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>

@@ -1,5 +1,4 @@
 #include "automaton.h"
-#include "config.h"
 #include "private.h"
 #include "security_manager.h"
 #include "serialize.h"
@@ -40,6 +39,8 @@
 #include <yt/server/lib/hive/mailbox.h>
 #include <yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/server/lib/hive/transaction_participant_provider.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
 

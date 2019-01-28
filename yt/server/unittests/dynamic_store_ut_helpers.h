@@ -2,7 +2,7 @@
 
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/node/tablet_node/config.h>
+#include <yt/server/lib/tablet_node/config.h>
 #include <yt/server/node/tablet_node/sorted_dynamic_store.h>
 #include <yt/server/node/tablet_node/sorted_store_manager.h>
 #include <yt/server/node/tablet_node/ordered_dynamic_store.h>

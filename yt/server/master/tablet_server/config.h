@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/tablet_node/config.h>
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/table_client/config.h>
 

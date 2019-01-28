@@ -15,7 +15,7 @@
 
 #include <yt/server/lib/misc/profiling_helpers.h>
 
-#include <yt/server/node/tablet_node/config.h>
+#include <yt/server/lib/tablet_node/config.h>
 #include <yt/server/node/tablet_node/security_manager.h>
 #include <yt/server/node/tablet_node/slot_manager.h>
 #include <yt/server/node/tablet_node/tablet.h>

@@ -5,7 +5,7 @@
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/node/tablet_node/config.h>
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/server/lib/misc/profiling_helpers.h>
 

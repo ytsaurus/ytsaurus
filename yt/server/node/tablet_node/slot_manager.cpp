@@ -1,6 +1,5 @@
 #include "slot_manager.h"
 #include "private.h"
-#include "config.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
@@ -11,6 +10,8 @@
 
 #include <yt/server/node/data_node/config.h>
 #include <yt/server/node/data_node/master_connector.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 

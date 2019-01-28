@@ -1,5 +1,4 @@
 #include "automaton.h"
-#include "config.h"
 #include "in_memory_manager.h"
 #include "private.h"
 #include "store_detail.h"
@@ -8,6 +7,8 @@
 #include "tablet_profiling.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/server/node/data_node/chunk_registry.h>
 #include <yt/server/node/data_node/chunk.h>

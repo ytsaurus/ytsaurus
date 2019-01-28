@@ -1,7 +1,6 @@
 #include "transaction_manager.h"
 #include "private.h"
 #include "automaton.h"
-#include "config.h"
 #include "tablet_slot.h"
 #include "transaction.h"
 
@@ -14,6 +13,8 @@
 
 #include <yt/server/lib/hydra/hydra_manager.h>
 #include <yt/server/lib/hydra/mutation.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/server/node/tablet_node/transaction_manager.pb.h>
 

@@ -1,7 +1,6 @@
 #include "partition_balancer.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
-#include "config.h"
 #include "partition.h"
 #include "slot_manager.h"
 #include "store.h"
@@ -15,6 +14,8 @@
 #include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/api/native/client.h>
 

@@ -1,6 +1,5 @@
 #include "sorted_chunk_store.h"
 #include "automaton.h"
-#include "config.h"
 #include "in_memory_manager.h"
 #include "tablet.h"
 #include "transaction.h"
@@ -10,6 +9,8 @@
 #include <yt/server/node/cell_node/config.h>
 
 #include <yt/server/node/query_agent/config.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/client/api/client.h>
 

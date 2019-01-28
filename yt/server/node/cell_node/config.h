@@ -10,7 +10,7 @@
 
 #include <yt/server/node/query_agent/config.h>
 
-#include <yt/server/node/tablet_node/config.h>
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/server/node/data_node/config.h>
 

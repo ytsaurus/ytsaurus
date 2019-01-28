@@ -1,4 +1,3 @@
-#include "config.h"
 #include "in_memory_manager.h"
 #include "ordered_dynamic_store.h"
 #include "ordered_store_manager.h"
@@ -8,6 +7,8 @@
 #include "transaction.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
