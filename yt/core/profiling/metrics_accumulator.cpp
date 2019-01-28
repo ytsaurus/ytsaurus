@@ -1,16 +1,10 @@
-#include "profiler.h"
+#include "metrics_accumulator.h"
 
-namespace NYT::NScheduler {
-
-using namespace NProfiling;
+namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProfileCollector::TProfileCollector(const TProfiler* profiler)
-    : Profiler_(profiler)
-{ }
-
-void TProfileCollector::Add(
+void TMetricsAccumulator::Add(
     const NYPath::TYPath& path,
     NProfiling::TValue value,
     EMetricType metricType,
@@ -27,18 +21,19 @@ void TProfileCollector::Add(
     }
 }
 
-void TProfileCollector::Publish()
+void TMetricsAccumulator::Publish(const TProfiler* profiler)
 {
     for (const auto& metricPair : Metrics_) {
         const auto& path = metricPair.first.first;
         const auto& tags = metricPair.first.second;
         auto value = metricPair.second.first;
         auto type = metricPair.second.second;
-        Profiler_->Enqueue(path, value, type, tags);
+        profiler->Enqueue(path, value, type, tags);
     }
     Metrics_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NProfiling
+

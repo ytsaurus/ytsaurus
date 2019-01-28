@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/controller_agent/public.h>
+
 #include <yt/core/misc/arithmetic_formula.h>
 
 namespace NYT::NScheduler {
@@ -42,6 +44,14 @@ void FromProto(TSchedulingTagFilter* filter, const TProtoStringType& protoFilter
 
 void Serialize(const TSchedulingTagFilter& filter, NYson::IYsonConsumer* consumer);
 void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node);
+
+void ToProto(
+    NControllerAgent::NProto::TPoolTreeSchedulingTagFilters* protoTreeFilters,
+    const NScheduler::TPoolTreeToSchedulingTagFilter& treeFilters);
+
+void FromProto(
+    NScheduler::TPoolTreeToSchedulingTagFilter* treeFilters,
+    const NControllerAgent::NProto::TPoolTreeSchedulingTagFilters protoTreeFilters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

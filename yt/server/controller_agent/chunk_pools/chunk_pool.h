@@ -11,9 +11,6 @@
 
 #include <yt/server/master/chunk_server/public.h>
 
-#include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/public.h>
-
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/core/misc/small_vector.h>

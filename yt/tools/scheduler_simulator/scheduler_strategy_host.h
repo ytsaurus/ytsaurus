@@ -4,11 +4,11 @@
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/event_log.h>
 #include <yt/server/scheduler/exec_node.h>
 #include <yt/server/scheduler/operation.h>
 #include <yt/server/scheduler/scheduler_strategy.h>
-#include <yt/server/controller_agent/operation_controller.h>
+
+#include <yt/server/lib/scheduler/event_log.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 

@@ -1,6 +1,5 @@
 #include "scheduler.h"
 #include "private.h"
-#include "event_log.h"
 #include "fair_share_strategy.h"
 #include "helpers.h"
 #include "job_prober_service.h"
@@ -15,8 +14,8 @@
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
-
-#include <yt/server/controller_agent/helpers.h>
+#include <yt/server/lib/scheduler/event_log.h>
+#include <yt/server/lib/scheduler/helpers.h>
 
 #include <yt/server/node/exec_agent/public.h>
 
@@ -98,15 +97,9 @@ using namespace NSecurityClient;
 using namespace NShell;
 using namespace NEventLog;
 
-using NControllerAgent::IOperationControllerSchedulerHost;
-using NControllerAgent::TOperationControllerHost;
-using NControllerAgent::TControllerAgentServiceProxy;
-
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerClient::TNodeDirectory;
-
-using NScheduler::NProto::TRspStartOperation;
 
 using std::placeholders::_1;
 
@@ -1618,7 +1611,7 @@ private:
 
             for (const auto& operation : result.Operations) {
                 if (operation->GetMutationId()) {
-                    TRspStartOperation response;
+                    NScheduler::NProto::TRspStartOperation response;
                     ToProto(response.mutable_operation_id(), operation->GetId());
                     auto responseMessage = CreateResponseMessage(response);
                     auto responseKeeper = Bootstrap_->GetResponseKeeper();

@@ -4,7 +4,7 @@
 
 #include <yt/server/lib/scheduler/scheduling_tag.h>
 
-#include <yt/server/controller_agent/public.h>
+#include <yt/server/lib/controller_agent/public.h>
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -59,7 +59,7 @@ struct ISchedulingContext
         const TString& treeId,
         TOperationId operationId,
         TIncarnationId incarnationId,
-        const NControllerAgent::TJobStartDescriptor& startDescriptor) = 0;
+        const TJobStartDescriptor& startDescriptor) = 0;
 
     virtual void PreemptJob(const TJobPtr& job) = 0;
 

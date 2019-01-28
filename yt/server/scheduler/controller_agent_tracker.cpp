@@ -1,20 +1,18 @@
 #include "controller_agent_tracker.h"
 #include "scheduler.h"
-#include "job_metrics.h"
 #include "scheduler_strategy.h"
 #include "controller_agent.h"
 #include "operation.h"
 #include "node_shard.h"
 #include "operation_controller.h"
 #include "scheduling_context.h"
-#include "helpers.h"
 #include "master_connector.h"
 #include "bootstrap.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
-
-#include <yt/server/controller_agent/operation.h>
+#include <yt/server/lib/scheduler/helpers.h>
+#include <yt/server/lib/scheduler/job_metrics.h>
 
 #include <yt/ytlib/api/native/connection.h>
 

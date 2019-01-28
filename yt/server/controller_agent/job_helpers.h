@@ -5,7 +5,7 @@
 
 #include <yt/server/controller_agent/chunk_pools/public.h>
 
-#include <yt/server/scheduler/job.h>
+#include <yt/server/lib/scheduler/public.h>
 
 namespace NYT::NControllerAgent {
 
@@ -59,7 +59,7 @@ struct TScheduleJobStatistics
     : public TIntrinsicRefCounted
     , public IPersistent
 {
-    void RecordJobResult(const TScheduleJobResult& scheduleJobResult);
+    void RecordJobResult(const NScheduler::TScheduleJobResult& scheduleJobResult);
 
     TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
     TDuration Duration;

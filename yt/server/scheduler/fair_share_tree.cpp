@@ -1,7 +1,6 @@
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
 #include "public.h"
-#include "profiler.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
@@ -20,6 +19,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
+#include <yt/core/profiling/metrics_accumulator.h>
 
 namespace NYT::NScheduler {
 
@@ -717,19 +717,19 @@ void TFairShareTree::ProfileFairShare() const
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-    TProfileCollector collector(&Profiler);
+    TMetricsAccumulator accumulator;
 
     for (const auto& pair : Pools) {
-        ProfileCompositeSchedulerElement(collector, pair.second);
+        ProfileCompositeSchedulerElement(accumulator, pair.second);
     }
-    ProfileCompositeSchedulerElement(collector, RootElement);
+    ProfileCompositeSchedulerElement(accumulator, RootElement);
     if (Config->EnableOperationsProfiling) {
         for (const auto& pair : OperationIdToElement) {
-            ProfileOperationElement(collector, pair.second);
+            ProfileOperationElement(accumulator, pair.second);
         }
     }
 
-    collector.Publish();
+    accumulator.Publish(&Profiler);
 }
 
 void TFairShareTree::ResetTreeIndexes()
@@ -1793,13 +1793,13 @@ void TFairShareTree::DoValidateOperationPoolsCanBeUsed(const IOperationStrategyH
     Host->ValidatePoolPermission(GetPoolPath(pool), operation->GetAuthenticatedUser(), EPermission::Use);
 }
 
-void TFairShareTree::ProfileOperationElement(TProfileCollector& collector, TOperationElementPtr element) const
+void TFairShareTree::ProfileOperationElement(TMetricsAccumulator& accumulator, TOperationElementPtr element) const
 {
     {
         auto poolTag = element->GetParent()->GetProfilingTag();
         auto slotIndexTag = GetSlotIndexProfilingTag(element->GetSlotIndex());
 
-        ProfileSchedulerElement(collector, element, "/operations_by_slot", {poolTag, slotIndexTag, TreeIdProfilingTag});
+        ProfileSchedulerElement(accumulator, element, "/operations_by_slot", {poolTag, slotIndexTag, TreeIdProfilingTag});
     }
 
     auto parent = element->GetParent();
@@ -1811,54 +1811,54 @@ void TFairShareTree::ProfileOperationElement(TProfileCollector& collector, TOper
         if (customTag) {
             byUserTags.push_back(*customTag);
         }
-        ProfileSchedulerElement(collector, element, "/operations_by_user", byUserTags);
+        ProfileSchedulerElement(accumulator, element, "/operations_by_user", byUserTags);
 
         parent = parent->GetParent();
     }
 }
 
-void TFairShareTree::ProfileCompositeSchedulerElement(TProfileCollector& collector, TCompositeSchedulerElementPtr element) const
+void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accumulator, TCompositeSchedulerElementPtr element) const
 {
     auto tag = element->GetProfilingTag();
-    ProfileSchedulerElement(collector, element, "/pools", {tag, TreeIdProfilingTag});
+    ProfileSchedulerElement(accumulator, element, "/pools", {tag, TreeIdProfilingTag});
 
-    collector.Add(
+    accumulator.Add(
         "/running_operation_count",
         element->RunningOperationCount(),
         EMetricType::Gauge,
         {tag, TreeIdProfilingTag});
-    collector.Add(
+    accumulator.Add(
         "/total_operation_count",
         element->OperationCount(),
         EMetricType::Gauge,
         {tag, TreeIdProfilingTag});
 }
 
-void TFairShareTree::ProfileSchedulerElement(TProfileCollector& collector, const TSchedulerElementPtr& element, const TString& profilingPrefix, const TTagIdList& tags) const
+void TFairShareTree::ProfileSchedulerElement(TMetricsAccumulator& accumulator, const TSchedulerElementPtr& element, const TString& profilingPrefix, const TTagIdList& tags) const
 {
-    collector.Add(
+    accumulator.Add(
         profilingPrefix + "/fair_share_ratio_x100000",
         static_cast<i64>(element->Attributes().FairShareRatio * 1e5),
         EMetricType::Gauge,
         tags);
-    collector.Add(
+    accumulator.Add(
         profilingPrefix + "/usage_ratio_x100000",
         static_cast<i64>(element->GetLocalResourceUsageRatio() * 1e5),
         EMetricType::Gauge,
         tags);
-    collector.Add(
+    accumulator.Add(
         profilingPrefix + "/demand_ratio_x100000",
         static_cast<i64>(element->Attributes().DemandRatio * 1e5),
         EMetricType::Gauge,
         tags);
-    collector.Add(
+    accumulator.Add(
         profilingPrefix + "/guaranteed_resource_ratio_x100000",
         static_cast<i64>(element->Attributes().GuaranteedResourcesRatio * 1e5),
         EMetricType::Gauge,
         tags);
 
     auto profileResources = [&] (const TString& path, const TJobResources& resources) {
-        #define XX(name, Name) collector.Add(path + "/" #name, static_cast<i64>(resources.Get##Name()), EMetricType::Gauge, tags);
+        #define XX(name, Name) accumulator.Add(path + "/" #name, static_cast<i64>(resources.Get##Name()), EMetricType::Gauge, tags);
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
     };
@@ -1868,7 +1868,7 @@ void TFairShareTree::ProfileSchedulerElement(TProfileCollector& collector, const
     profileResources(profilingPrefix + "/resource_demand", element->ResourceDemand());
 
     element->GetJobMetrics().Profile(
-        collector,
+        accumulator,
         profilingPrefix + "/metrics",
         tags);
 }

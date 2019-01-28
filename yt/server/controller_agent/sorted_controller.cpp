@@ -20,6 +20,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
@@ -354,7 +355,7 @@ protected:
 
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
     {
-        TChunkStripePtr chunkStripe = New<TChunkStripe>(InputTables_[dataSlice->GetTableIndex()]->IsForeign());
+        auto chunkStripe = New<TChunkStripe>(InputTables_[dataSlice->GetTableIndex()]->IsForeign());
         chunkStripe->DataSlices.emplace_back(std::move(dataSlice));
         return chunkStripe;
     }

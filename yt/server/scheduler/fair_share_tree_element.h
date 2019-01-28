@@ -2,13 +2,13 @@
 
 #include "private.h"
 #include "job.h"
-#include "job_metrics.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/server/lib/scheduler/job_metrics.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -799,7 +799,7 @@ private:
         bool enableBackoff,
         NProfiling::TCpuInstant now);
 
-    NControllerAgent::TScheduleJobResultPtr DoScheduleJob(
+    TScheduleJobResultPtr DoScheduleJob(
         TFairShareContext* context,
         const TJobResources& availableResources,
         TJobResources* precommittedResources);

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/controller_agent/public.h>
+#include <yt/server/lib/controller_agent/public.h>
 
 #include <yt/server/master/chunk_server/public.h>
 

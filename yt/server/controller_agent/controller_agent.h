@@ -4,7 +4,7 @@
 
 #include "operation_controller.h"
 
-#include <yt/server/scheduler/public.h>
+#include <yt/ytlib/scheduler/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -117,7 +117,9 @@ public:
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
     TFuture<void> DisposeAndUnregisterOperation(TOperationId operationId);
-    TFuture<void> UpdateOperationRuntimeParameters(TOperationId operationId, NScheduler::TOperationRuntimeParametersUpdatePtr update);
+    TFuture<void> UpdateOperationRuntimeParameters(
+        TOperationId operationId,
+        NScheduler::TOperationRuntimeParametersUpdatePtr update);
     TFuture<TOperationControllerInitializeResult> InitializeOperation(
         const TOperationPtr& operation,
         const std::optional<TControllerTransactionIds>& transactions);

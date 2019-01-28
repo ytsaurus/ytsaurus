@@ -2,7 +2,7 @@
 
 #include "operation_controller.h"
 
-#include <yt/server/scheduler/message_queue.h>
+#include <yt/server/lib/scheduler/message_queue.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 

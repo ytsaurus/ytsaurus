@@ -5,7 +5,7 @@
 
 #include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
-#include <yt/server/scheduler/job_metrics.h>
+#include <yt/server/lib/scheduler/job_metrics.h>
 
 #include <yt/core/profiling/timing.h>
 

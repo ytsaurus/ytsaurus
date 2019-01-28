@@ -7,7 +7,7 @@
 
 #include <yt/client/chunk_client/data_statistics.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>

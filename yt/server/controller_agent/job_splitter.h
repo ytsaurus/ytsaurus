@@ -5,8 +5,6 @@
 
 #include <yt/server/controller_agent/chunk_pools/public.h>
 
-#include <yt/server/scheduler/job.h>
-
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NControllerAgent {

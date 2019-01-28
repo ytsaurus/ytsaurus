@@ -21,6 +21,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
 

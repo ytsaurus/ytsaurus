@@ -2,6 +2,8 @@
 
 #include <yt/server/controller_agent/job_size_constraints.h>
 
+#include <yt/ytlib/chunk_client/input_data_slice.h>
+
 namespace NYT::NChunkPools {
 
 using namespace NControllerAgent;

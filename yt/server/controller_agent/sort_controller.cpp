@@ -21,14 +21,12 @@
 #include <yt/server/controller_agent/chunk_pools/sorted_chunk_pool.h>
 #include <yt/server/controller_agent/chunk_pools/unordered_chunk_pool.h>
 
-#include <yt/server/scheduler/helpers.h>
-#include <yt/server/scheduler/job.h>
-
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/key_set.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/helpers.h>
 

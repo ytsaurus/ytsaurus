@@ -4,6 +4,8 @@
 
 #include <yt/server/controller_agent/operation_controller.h>
 
+#include <yt/ytlib/chunk_client/input_chunk.h>
+
 #include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT::NChunkPools {

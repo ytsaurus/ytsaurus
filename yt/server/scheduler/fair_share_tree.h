@@ -1,11 +1,13 @@
 #pragma once
 
 #include "public.h"
-#include "job_metrics.h"
 #include "fair_share_tree_element.h"
+
+#include <yt/server/lib/scheduler/job_metrics.h>
 
 namespace NYT::NScheduler {
 
+////////////////////////////////////////////////////////////////////////////////
 
 //! Thread affinity: any
 struct IFairShareTreeSnapshot
@@ -374,14 +376,12 @@ private:
         NProfiling::TCpuInstant startTime,
         const std::function<void(TScheduleJobsProfilingCounters&, int, TDuration)> profileTimings,
         const std::function<void(TStringBuf)> logAndCleanSchedulingStatistics);
-
     void DoScheduleJobsWithPreemption(
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
         NProfiling::TCpuInstant startTime,
         const std::function<void(TScheduleJobsProfilingCounters&, int, TDuration)>& profileTimings,
         const std::function<void(TStringBuf)>& logAndCleanSchedulingStatistics);
-
     void DoScheduleJobs(
         const ISchedulingContextPtr& schedulingContext,
         const TRootElementSnapshotPtr& rootElementSnapshot);
@@ -392,25 +392,19 @@ private:
         TFairShareContext* context) const;
 
     const TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool);
-
     const TCompositeSchedulerElement* FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element);
 
     void AddOperationToPool(TOperationId operationId);
 
     void DoRegisterPool(const TPoolPtr& pool);
-
     void RegisterPool(const TPoolPtr& pool);
-
     void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent);
-
     void ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr& config);
-
     void UnregisterPool(const TPoolPtr& pool);
 
     bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex);
 
     void AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName);
-
     void ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName);
 
     void TryActivateOperationsFromQueue(std::vector<TOperationId>* operationsToActivate);
@@ -420,54 +414,42 @@ private:
     int RegisterSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
     void UnregisterSchedulingTagFilter(int index);
-
     void UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
     void SetPoolParent(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent);
-
     void SetPoolDefaultParent(const TPoolPtr& pool);
 
     TPoolPtr FindPool(const TString& id);
-
     TPoolPtr GetPool(const TString& id);
 
     NProfiling::TTagId GetPoolProfilingTag(const TString& id);
 
     TOperationElementPtr FindOperationElement(TOperationId operationId);
-
     TOperationElementPtr GetOperationElement(TOperationId operationId);
 
     TRootElementSnapshotPtr CreateRootElementSnapshot();
 
     void BuildEssentialPoolsInformation(NYTree::TFluentMap fluent);
-
     void BuildElementYson(const TSchedulerElementPtr& element, NYTree::TFluentMap fluent);
-
     void BuildEssentialElementYson(const TSchedulerElementPtr& element, NYTree::TFluentMap fluent, bool shouldPrintResourceUsage);
-
     void BuildEssentialPoolElementYson(const TSchedulerElementPtr& element, NYTree::TFluentMap fluent);
-
     void BuildEssentialOperationElementYson(const TSchedulerElementPtr& element, NYTree::TFluentMap fluent);
 
     NYTree::TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element);
-
     TCompositeSchedulerElementPtr GetDefaultParent();
-
     TCompositeSchedulerElementPtr GetPoolOrParent(const TPoolName& poolName);
 
     void ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TPoolName& poolName);
-
     void ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TPoolName& poolName);
-
     void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName);
 
-    void ProfileOperationElement(TProfileCollector& collector, TOperationElementPtr element) const;
-
-    void ProfileCompositeSchedulerElement(TProfileCollector& collector, TCompositeSchedulerElementPtr element) const;
-
-    void ProfileSchedulerElement(TProfileCollector& collector, const TSchedulerElementPtr& element, const TString& profilingPrefix, const NProfiling::TTagIdList& tags) const;
+    void ProfileOperationElement(NProfiling::TMetricsAccumulator& accumulator, TOperationElementPtr element) const;
+    void ProfileCompositeSchedulerElement(NProfiling::TMetricsAccumulator& accumulator, TCompositeSchedulerElementPtr element) const;
+    void ProfileSchedulerElement(NProfiling::TMetricsAccumulator& accumulator, const TSchedulerElementPtr& element, const TString& profilingPrefix, const NProfiling::TTagIdList& tags) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTree)
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

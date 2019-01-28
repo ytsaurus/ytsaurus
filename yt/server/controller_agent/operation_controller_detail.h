@@ -15,7 +15,7 @@
 #include <yt/server/controller_agent/job_memory.h>
 
 #include <yt/server/lib/scheduler/config.h>
-#include <yt/server/scheduler/event_log.h>
+#include <yt/server/lib/scheduler/event_log.h>
 
 #include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 #include <yt/server/controller_agent/chunk_pools/public.h>
@@ -154,7 +154,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, Complete, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(
-        TScheduleJobResultPtr,
+        NScheduler::TScheduleJobResultPtr,
         ScheduleJob,
         (ISchedulingContext* context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
         (context, jobLimits, treeId),
@@ -514,19 +514,19 @@ protected:
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleLocalJob(
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
 
     TJobletPtr FindJoblet(TJobId jobId) const;
