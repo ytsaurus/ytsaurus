@@ -421,7 +421,11 @@ public:
 
     virtual void CleanProcesses() override
     {
-        Instance_->Kill(SIGKILL);
+        try {
+            Instance_->Stop();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to stop user container");
+        }
     }
 
     virtual void SetIOThrottle(i64 operations) override

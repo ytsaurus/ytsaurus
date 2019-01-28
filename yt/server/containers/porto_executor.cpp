@@ -84,6 +84,13 @@ public:
             .Run();
     }
 
+    virtual TFuture<void> Stop(const TString& name) override
+    {
+        return BIND(&TPortoExecutor::DoStop, MakeStrong(this), name)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    }
+
     virtual TFuture<void> Start(const TString& name) override
     {
         return BIND(&TPortoExecutor::DoStart, MakeStrong(this), name)
@@ -255,7 +262,18 @@ private:
 
     void DoDestroy(const TString& name)
     {
-        RunWithRetries([&] () { return Api_->Destroy(name); }, "Destroy");
+        try {
+            RunWithRetries([&] () { return Api_->Destroy(name); }, "Destroy");
+        } catch (const TErrorException& ex) {
+            if (!ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
+                throw;
+            }
+        }
+    }
+
+    void DoStop(const TString& name)
+    {
+        RunWithRetries([&] () { return Api_->Stop(name); }, "Stop");
     }
 
     void DoStart(const TString& name)
@@ -315,9 +333,9 @@ private:
                 // Someone destroyed container before us.
                 if (state.Error == EError::ContainerDoesNotExist) {
                     HandleResult(container.first, state);
-                    continue;
-                }
-                if (state.Value == "dead") {
+                } else if (state.Value == "dead") {
+                    HandleResult(container.first, container.second["exit_status"]);
+                } else if (state.Value == "stopped") {
                     HandleResult(container.first, container.second["exit_status"]);
                 }
                 //TODO(dcherednik): other states
