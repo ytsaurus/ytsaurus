@@ -1,13 +1,12 @@
 from yt.environment import arcadia_interop
 
 import library.python.testing.pytest_runner.runner as pytest_runner
-#import library.python.cgroups as cgroups
+import library.python.cgroups as cgroups
 
 import yatest.common
 
 import imp
 import os
-#import sys
 
 YT_ABI = "19_4"
 
@@ -18,6 +17,7 @@ def build_bindings(build_dir):
         "--source-root", yatest.common.source_path(),
         "--results-root", build_dir,
         "-DUSE_SYSTEM_PYTHON=2.7", "-DPYTHON_CONFIG=python2.7-config", "-DPYTHON_BIN=python2.7",
+        "-C", "tools/fix_elf",
         "-C", "yt/{}/yt/python/yson_shared".format(YT_ABI),
         "-C", "yt/{}/yt/python/driver_shared".format(YT_ABI)
     ])
@@ -67,14 +67,10 @@ def run_pytest():
         yatest.common.source_path("yt/python/yt/wrapper/tests/test_user_statistics.py"),
     ]
 
-    #cgroup = None
+    cgroup = None
     try:
-        #print >>sys.stderr, "AAAAAAAAAAAAA"
-        #cgroup = cgroups.CGroup("test", subsystems=("cpuacct", "cpu", "blkio", "freezer")).create()
-        #print >>sys.stderr, "BBBBBBBBBBBBB"
+        cgroup = cgroups.CGroup("test", subsystems=("cpuacct", "cpu", "blkio", "freezer")).create()
         pytest_runner.run(test_files, python_path="/usr/bin/python2.7", env=env)
     finally:
-        pass
-        #print >>sys.stderr, "CCCCCCCCCC"
-        #if cgroup is not None:
-        #    cgroup.delete()
+        if cgroup is not None:
+            cgroup.delete()
