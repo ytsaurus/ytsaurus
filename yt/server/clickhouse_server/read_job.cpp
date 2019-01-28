@@ -111,6 +111,8 @@ TTableReaderList CreateJobTableReaders(
             << TErrorAttribute("type", dataSourceType);
     }
 
+    YT_LOG_DEBUG("Data slices created (Count: %v)", dataSlices.size());
+
     auto schema = readJobSpec.GetCommonNativeSchema();
 
     std::vector<TString> dataColumns;
