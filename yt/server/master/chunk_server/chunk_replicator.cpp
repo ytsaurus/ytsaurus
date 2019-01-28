@@ -841,8 +841,7 @@ void TChunkReplicator::ComputeJournalChunkStatisticsForMedium(
     result.ReplicaCount[GenericChunkReplicaIndex] = replicaCount;
     result.DecommissionedReplicaCount[GenericChunkReplicaIndex] = decommissionedReplicaCount;
 
-    if (replicaCount + decommissionedReplicaCount == 0)
-    {
+    if (replicaCount + decommissionedReplicaCount == 0) {
         result.Status |= EChunkStatus::Lost;
     }
 
