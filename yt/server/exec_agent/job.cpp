@@ -975,6 +975,9 @@ private:
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
 
+        auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->clear_input_node_directory();
+
         if (Slot_) {
             try {
                 YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
