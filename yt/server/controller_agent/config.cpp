@@ -572,6 +572,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("system_layer_path", SystemLayerPath)
         .Default();
 
+    RegisterParameter("default_layer_path", DefaultLayerPath)
+        .Default();
+
     RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
         .Default(TDuration::Seconds(1));
 
