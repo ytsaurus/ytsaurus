@@ -13,7 +13,6 @@
 #include <contrib/libs/gmock/gmock/gmock-matchers.h>
 #include <contrib/libs/gmock/gmock/gmock-actions.h>
 
-
 namespace NYT::NSchedulerSimulator {
 namespace {
 
@@ -363,6 +362,8 @@ TEST_F(TControlThreadTest, TestNormalPreemption)
 
     statisticsOutput.ExpectNoPreemption(operations[1]);
 }
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NSchedulerSimulator
