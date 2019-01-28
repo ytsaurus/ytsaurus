@@ -10,8 +10,6 @@
 
 #include <yt/server/master/transaction_server/public.h>
 
-#include <yt/server/node/tablet_node/public.h>
-
 #include <yt/server/master/chunk_server/public.h>
 
 #include <yt/ytlib/tablet_client/heartbeat.pb.h>
