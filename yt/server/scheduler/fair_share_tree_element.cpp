@@ -315,6 +315,12 @@ bool TSchedulerElement::IsRoot() const
     return false;
 }
 
+bool TSchedulerElement::IsOperation() const
+{
+    return false;
+}
+
+
 TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributesList& dynamicAttributesList) const
 {
     TDynamicAttributes dynamicAttributes;
@@ -1135,7 +1141,8 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
     UpdateFairShareAlerts_.clear();
 
     // Compute min shares sum and min weight.
-    double minShareRatioSum = 0.0;
+    double minShareRatioSumForPools = 0.0;
+    double minShareRatioSumForOperations = 0.0;
     double minWeight = 1.0;
     for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
@@ -1146,16 +1153,20 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             Attributes_.RecursiveMinShareRatio * minShareRatio,
             minShareRatioByResources);
 
-        minShareRatioSum += childAttributes.RecursiveMinShareRatio;
+        if (child->IsOperation()) {
+            minShareRatioSumForOperations += childAttributes.RecursiveMinShareRatio;
+        } else {
+            minShareRatioSumForPools += childAttributes.RecursiveMinShareRatio;
+        }
 
-        if (minShareRatio > 0 && Attributes_.RecursiveMinShareRatio == 0) {
+        if ((!child->IsOperation() && minShareRatio > 0) && Attributes_.RecursiveMinShareRatio == 0) {
             UpdateFairShareAlerts_.emplace_back(
                 "Min share ratio setting for %Qv has no effect "
                 "because min share ratio of parent pool %Qv is zero",
                 child->GetId(),
                 GetId());
         }
-        if (minShareRatioByResources > 0 && Attributes_.RecursiveMinShareRatio == 0) {
+        if ((!child->IsOperation() && minShareRatioByResources > 0) && Attributes_.RecursiveMinShareRatio == 0) {
             UpdateFairShareAlerts_.emplace_back(
                 "Min share ratio resources setting for %Qv has no effect "
                 "because min share ratio of parent pool %Qv is zero",
@@ -1169,18 +1180,31 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
     }
 
     // If min share sum is larger than one, adjust all children min shares to sum up to one.
-    if (minShareRatioSum > Attributes_.RecursiveMinShareRatio + RatioComparisonPrecision) {
+    if (minShareRatioSumForPools > Attributes_.RecursiveMinShareRatio + RatioComparisonPrecision) {
         UpdateFairShareAlerts_.emplace_back(
             "Impossible to satisfy resources guarantees of pool %Qv, "
-            "total min share ratio of children is too large: %v > %v",
+            "total min share ratio of children pools is too large: %v > %v",
             GetId(),
-            minShareRatioSum,
+            minShareRatioSumForPools,
             Attributes_.RecursiveMinShareRatio);
 
-        double fitFactor = Attributes_.RecursiveMinShareRatio / minShareRatioSum;
+        double fitFactor = Attributes_.RecursiveMinShareRatio / minShareRatioSumForPools;
         for (const auto& child : EnabledChildren_) {
             auto& childAttributes = child->Attributes();
-            childAttributes.RecursiveMinShareRatio *= fitFactor;
+            if (child->IsOperation()) {
+                childAttributes.RecursiveMinShareRatio = 0.0;
+            } else {
+                childAttributes.RecursiveMinShareRatio *= fitFactor;
+            }
+        }
+    } else if (minShareRatioSumForPools + minShareRatioSumForOperations > Attributes_.RecursiveMinShareRatio + RatioComparisonPrecision) {
+        // Min share ratios of operations are fitted silently.
+        double fitFactor = (Attributes_.RecursiveMinShareRatio - minShareRatioSumForPools + RatioComparisonPrecision) / minShareRatioSumForOperations;
+        for (const auto& child : EnabledChildren_) {
+            auto& childAttributes = child->Attributes();
+            if (child->IsOperation()) {
+                childAttributes.RecursiveMinShareRatio *= fitFactor;
+            }
         }
     }
 
@@ -1912,6 +1936,11 @@ std::optional<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
     } else {
         return NScheduler::GetCustomProfilingTag(MissingCustomProfilingTag);
     }
+}
+
+bool TOperationElement::IsOperation() const
+{
+    return true;
 }
 
 void TOperationElement::Disable()
