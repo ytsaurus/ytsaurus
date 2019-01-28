@@ -11,7 +11,7 @@
 
 #include <util/generic/guid.h>
 #include <util/string/cast.h>
-#include <util/thread/queue.h>
+#include <util/thread/pool.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
@@ -408,7 +408,7 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         auto workingDir = fixture.GetWorkingDir();
         client->Set(workingDir + "/foo", 54);
 
-        auto threadPool = CreateMtpQueue(20);
+        auto threadPool = CreateThreadPool(20);
 
         const auto writer = [&] {
             for (int i = 0; i != 500; ++i) {

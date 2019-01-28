@@ -4,7 +4,7 @@
 #include <util/network/poller.h>
 #include <util/network/sock.h>
 #include <util/system/thread.h>
-#include <util/thread/queue.h>
+#include <util/thread/pool.h>
 
 TSimpleServer::TSimpleServer(int port, TRequestHandler requestHandler)
     : Port(port)
@@ -24,7 +24,7 @@ TSimpleServer::TSimpleServer(int port, TRequestHandler requestHandler)
 
     SendFinishSocket = MakeHolder<TInetStreamSocket>(socketPair[1]);
 
-    ThreadPool = MakeHolder<TAdaptiveMtpQueue>();
+    ThreadPool = MakeHolder<TAdaptiveThreadPool>();
     ThreadPool->Start(1);
 
     auto receiveFinish = MakeAtomicShared<TInetStreamSocket>(socketPair[0]);

@@ -20,7 +20,7 @@
 #include <util/random/fast.h>
 #include <util/system/info.h>
 #include <util/system/yassert.h>
-#include <util/thread/queue.h>
+#include <util/thread/pool.h>
 
 #include <cstdlib>
 
@@ -96,7 +96,7 @@ static int Main(
     const NFileYtTool::TDownloadAllConfig& config,
     NYT::IClientBasePtr client) {
 
-    const auto q = CreateMtpQueue(config.GetDownloadThreadCount(), 10);
+    const auto q = CreateThreadPool(config.GetDownloadThreadCount(), 10);
     TFastRng<ui64> prng{Seed()};
 
     const TFsPath dir = config.GetOutDirectory();
