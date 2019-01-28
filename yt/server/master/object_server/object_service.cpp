@@ -227,6 +227,7 @@ public:
 
     bool RunFast()
     {
+        YCHECK(!Finished_);
         try {
             return GuardedRunFast();
         } catch (const std::exception& ex) {
@@ -237,6 +238,7 @@ public:
 
     void RunSlow()
     {
+        YCHECK(!Finished_);
         auto codicilGuard = MakeCodicilGuard();
         try {
             GuardedRunSlow();
