@@ -27,7 +27,6 @@ namespace NYT::NJobProxy {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NExecAgent;
 using namespace NFS;
 using namespace NJobProxy;
 using namespace NObjectClient;

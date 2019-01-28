@@ -5,7 +5,7 @@
 #include "user_job_synchronizer.h"
 #include "private.h"
 
-#include <yt/server/node/exec_agent/public.h>
+#include <yt/server/lib/exec_agent/public.h>
 
 #include <yt/server/lib/shell/shell_manager.h>
 
