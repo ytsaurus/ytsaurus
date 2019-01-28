@@ -115,7 +115,7 @@ public:
     const NApi::ITransactionPtr& GetIncarnationTransaction() const;
     void SetIncarnationTransaction(NApi::ITransactionPtr transaction);
 
-        TMessageQueueInbox* GetOperationEventsInbox();
+    TMessageQueueInbox* GetOperationEventsInbox();
     TMessageQueueInbox* GetJobEventsInbox();
     TMessageQueueInbox* GetScheduleJobResponsesInbox();
 
