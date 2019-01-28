@@ -961,7 +961,7 @@ private:
         {
             try {
                 Owner_->MasterHandshake_.Fire(Result_);
-            } catch (...) {
+            } catch (const std::exception&) {
                 YT_LOG_WARNING("Master handshake failed, disconnecting scheduler");
                 Owner_->MasterDisconnected_.Fire();
                 throw;

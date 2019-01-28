@@ -212,6 +212,7 @@ public:
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
 
     virtual bool IsRoot() const;
+    virtual bool IsOperation() const;
 
     virtual TString GetLoggingString(const TDynamicAttributesList& dynamicAttributesList) const;
 
@@ -684,6 +685,8 @@ public:
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+
+    virtual bool IsOperation() const override;
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
