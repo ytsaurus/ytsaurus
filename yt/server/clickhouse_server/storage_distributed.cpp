@@ -66,7 +66,7 @@ BlockInputStreams TStorageDistributed::read(
 
     // Create block streams
 
-    LOG_DEBUG(Logger, "Creating subqueries input streams...");
+    LOG_DEBUG(Logger, "Creating subqueries input streams, number of parts = " << allocation.size());
 
     BlockInputStreams streams;
 
