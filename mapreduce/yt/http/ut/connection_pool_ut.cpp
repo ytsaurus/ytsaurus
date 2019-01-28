@@ -95,7 +95,7 @@ Y_UNIT_TEST_SUITE(NConnectionPoolSuite) {
 
         auto simpleServer = CreateSimpleHttpServer();
         const TString hostName = TStringBuilder() << "localhost:" << simpleServer->GetPort();
-        auto threadPool = CreateMtpQueue(20);
+        auto threadPool = CreateThreadPool(20);
 
         const auto func = [&] {
             for (int i = 0; i != 100; ++i) {

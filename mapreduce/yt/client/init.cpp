@@ -61,7 +61,7 @@ class TAbnormalTerminator
      static void SetErrorTerminationHandler()
      {
          Instance().DefaultHandler_ = std::get_terminate();
-         Instance().HandlerThread_.Reset(CreateMtpQueue(1));
+         Instance().HandlerThread_.Reset(CreateThreadPool(1));
 
          std::set_terminate(&TerminateHandler);
          SetAsyncSignalFunction(SIGINT, SignalHandler);
@@ -110,7 +110,7 @@ class TAbnormalTerminator
      }
 
  private:
-     THolder<IMtpQueue> HandlerThread_;
+     THolder<IThreadPool> HandlerThread_;
      std::terminate_handler DefaultHandler_ = nullptr;
  };
 

@@ -3,7 +3,7 @@
 #include <util/generic/ptr.h>
 #include <util/stream/input.h>
 #include <util/stream/output.h>
-#include <util/thread/queue.h>
+#include <util/thread/pool.h>
 
 #include <functional>
 
@@ -25,7 +25,7 @@ public:
 
 private:
     const int Port;
-    THolder<IMtpQueue> ThreadPool;
+    THolder<IThreadPool> ThreadPool;
     THolder<IThreadFactory::IThread> ListenerThread;
     THolder<TInetStreamSocket> SendFinishSocket;
 };
