@@ -4,8 +4,6 @@
 
 #include <yt/server/lib/controller_agent/public.h>
 
-#include <yt/server/master/chunk_server/public.h>
-
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/client/api/public.h>

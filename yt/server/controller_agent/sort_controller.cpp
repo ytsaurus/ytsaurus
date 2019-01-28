@@ -50,7 +50,6 @@ namespace NYT::NControllerAgent {
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
-using namespace NChunkServer;
 using namespace NChunkPools;
 using namespace NTableClient;
 using namespace NJobProxy;
