@@ -8,8 +8,6 @@
 
 #include <yt/server/lib/hydra/config.h>
 
-#include <yt/server/node/tablet_node/config.h>
-
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/client/misc/workload.h>
