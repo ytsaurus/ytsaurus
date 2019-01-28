@@ -1,6 +1,3 @@
-// IMPORTED FROM https://a.yandex-team.ru/arc/trunk/arcadia/infra/pod_agent/libs/service_iface/protos/pod_agent.proto
-// PLEASE SEND ALL CHANGES THERE FIRST
-
 syntax = "proto3";
 
 option java_package = "ru.yandex.yp.client.pods";
