@@ -456,6 +456,24 @@ void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimits
 void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
 {
     DisableSchedulerJobs_ = value;
+
+    if (value) {
+        for (const auto& pair : Jobs_) {
+            auto job = pair.second;
+            if (TypeFromId(pair.first) == EObjectType::SchedulerJob && job->GetState() != EJobState::Running) {
+                try {
+                    YT_LOG_DEBUG(
+                        "Trying to interrupt scheduler job, because @disable_scheduler_jobs is set (JobId: %v)",
+                        pair.first);
+                    job->Interrupt();
+                } catch (const std::exception& ex) {
+                    YT_LOG_WARNING(
+                        "Failed to interrupt scheduler job (JobId: %v)",
+                        pair.first);
+                }
+            }
+        }
+    }
 }
 
 void TJobController::TImpl::StartWaitingJobs()
