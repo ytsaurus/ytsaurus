@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include "event_log.h"
-#include "job_metrics.h"
+
+#include <yt/server/lib/scheduler/event_log.h>
+#include <yt/server/lib/scheduler/job_metrics.h>
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 

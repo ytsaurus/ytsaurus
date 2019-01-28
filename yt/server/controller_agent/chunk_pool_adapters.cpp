@@ -2,6 +2,8 @@
 
 #include "task.h"
 
+#include <yt/ytlib/chunk_client/input_data_slice.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NChunkPools;

@@ -45,20 +45,3 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(
-    NControllerAgent::NProto::TOperationDescriptor::TPoolTreeSchedulingTagFilters* protoTreeFilters,
-    const NScheduler::TPoolTreeToSchedulingTagFilter& treeFilters);
-
-void FromProto(
-    NScheduler::TPoolTreeToSchedulingTagFilter* treeFilters,
-    const NControllerAgent::NProto::TOperationDescriptor::TPoolTreeSchedulingTagFilters protoTreeFilters);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
-

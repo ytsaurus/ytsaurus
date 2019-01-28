@@ -2,8 +2,6 @@
 
 #include "job.h"
 
-#include <yt/server/controller_agent/operation_controller.h>
-
 #include <yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NScheduler {
@@ -17,7 +15,7 @@ struct IOperationControllerStrategyHost
     : public virtual TRefCounted
 {
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TFuture<NControllerAgent::TScheduleJobResultPtr> ScheduleJob(
+    virtual TFuture<TScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& availableResources,
         const TString& treeId) = 0;
@@ -47,7 +45,7 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
 
 struct TOperationControllerInitializeResult
 {
-    NControllerAgent::TOperationControllerInitializeAttributes Attributes;
+    TOperationControllerInitializeAttributes Attributes;
     TOperationTransactions Transactions;
 };
 

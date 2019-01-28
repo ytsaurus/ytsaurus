@@ -2,7 +2,6 @@
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
 #include "public.h"
-#include "profiler.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
@@ -20,6 +19,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
+#include <yt/core/profiling/metrics_accumulator.h>
 
 namespace NYT::NScheduler {
 

@@ -18,6 +18,7 @@
 #include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/schema.h>

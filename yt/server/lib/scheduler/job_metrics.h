@@ -2,13 +2,11 @@
 
 #include "public.h"
 
-#include "profiler.h"
-
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/scheduler/public.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/core/profiling/metrics_accumulator.h>
 
 #include <yt/core/misc/phoenix.h>
 
@@ -53,7 +51,7 @@ public:
     bool IsEmpty() const;
 
     void Profile(
-        TProfileCollector& collector,
+        NProfiling::TMetricsAccumulator& collector,
         const TString& prefix,
         const NProfiling::TTagIdList& tagIds) const;
 

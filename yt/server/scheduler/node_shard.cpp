@@ -1,14 +1,15 @@
 #include "node_shard.h"
-#include "helpers.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "operation_controller.h"
 #include "controller_agent.h"
 #include "bootstrap.h"
+#include "helpers.h"
 
 #include <yt/server/node/exec_agent/public.h>
 
 #include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/helpers.h>
 
 #include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 

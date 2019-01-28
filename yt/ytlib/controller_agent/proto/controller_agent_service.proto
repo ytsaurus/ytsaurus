@@ -35,18 +35,19 @@ message TRspGetJobInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TPoolTreeSchedulingTagFilter
+{
+    required string tree_name = 1;
+    required string filter = 2;
+}
+
+message TPoolTreeSchedulingTagFilters
+{
+    repeated TPoolTreeSchedulingTagFilter tree_filter = 1;
+}
+
 message TOperationDescriptor
 {
-    message TPoolTreeSchedulingTagFilter
-    {
-        required string tree_name = 1;
-        required string filter = 2;
-    }
-    message TPoolTreeSchedulingTagFilters
-    {
-        repeated TPoolTreeSchedulingTagFilter tree_filter = 1;
-    }
-
     required NYT.NProto.TGuid operation_id = 1;
     required int32 operation_type = 2; // EOperationType
     required bytes spec = 3; // YSON

@@ -16,8 +16,6 @@
 
 #include <yt/server/lib/scheduler/config.h>
 
-#include <yt/server/controller_agent/helpers.h>
-
 #include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native/client.h>

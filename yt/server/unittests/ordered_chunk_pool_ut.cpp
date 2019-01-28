@@ -9,6 +9,9 @@
 #include <yt/server/controller_agent/chunk_pools/ordered_chunk_pool.h>
 #include <yt/server/controller_agent/chunk_pools/output_order.h>
 
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
+
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/misc/blob_output.h>

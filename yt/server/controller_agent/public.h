@@ -6,14 +6,6 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-class TOperationDescriptor;
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(EOperationControllerQueue,
     (Default)
     (GetJobSpec)
@@ -75,23 +67,12 @@ DECLARE_REFCOUNTED_CLASS(TOperationControllerHost)
 DECLARE_REFCOUNTED_CLASS(TOperation)
 using TOperationIdToOperationMap = THashMap<TOperationId, TOperationPtr>;
 
-DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
-
 struct TControllerTransactionIds;
-struct TOperationControllerInitializeAttributes;
 struct TOperationControllerInitializeResult;
 struct TOperationControllerReviveResult;
 struct TOperationControllerPrepareResult;
 
 struct ISchedulingContext;
-
-struct TJobStartDescriptor;
-
-struct TJobSummary;
-struct TCompletedJobSummary;
-struct TAbortedJobSummary;
-using TFailedJobSummary = TJobSummary;
-struct TRunningJobSummary;
 
 class TMasterConnector;
 class TBootstrap;

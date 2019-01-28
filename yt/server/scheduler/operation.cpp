@@ -55,15 +55,12 @@ void ToProto(
         return transaction ? transaction->GetId() : NTransactionClient::TTransactionId();
     };
 
-    NControllerAgent::TControllerTransactionIds transactionIds;
-    transactionIds.AsyncId = getId(transactions.AsyncTransaction);
-    transactionIds.InputId = getId(transactions.InputTransaction);
-    transactionIds.OutputId = getId(transactions.OutputTransaction);
-    transactionIds.DebugId = getId(transactions.DebugTransaction);
-    transactionIds.OutputCompletionId = getId(transactions.OutputCompletionTransaction);
-    transactionIds.DebugCompletionId = getId(transactions.DebugCompletionTransaction);
-
-    ToProto(transactionIdsProto, transactionIds);
+    ToProto(transactionIdsProto->mutable_async_id(), getId(transactions.AsyncTransaction));
+    ToProto(transactionIdsProto->mutable_input_id(), getId(transactions.InputTransaction));
+    ToProto(transactionIdsProto->mutable_output_id(), getId(transactions.OutputTransaction));
+    ToProto(transactionIdsProto->mutable_debug_id(), getId(transactions.DebugTransaction));
+    ToProto(transactionIdsProto->mutable_output_completion_id(), getId(transactions.OutputCompletionTransaction));
+    ToProto(transactionIdsProto->mutable_debug_completion_id(), getId(transactions.DebugCompletionTransaction));
 }
 
 void FromProto(
@@ -86,14 +83,12 @@ void FromProto(
         return client->AttachTransaction(transactionId, options);
     };
 
-    auto transactionIds = FromProto<NControllerAgent::TControllerTransactionIds>(transactionIdsProto);
-
-    transactions->AsyncTransaction = attachTransaction(transactionIds.AsyncId);
-    transactions->InputTransaction = attachTransaction(transactionIds.InputId);
-    transactions->OutputTransaction = attachTransaction(transactionIds.OutputId);
-    transactions->DebugTransaction = attachTransaction(transactionIds.DebugId);
-    transactions->OutputCompletionTransaction = attachTransaction(transactionIds.OutputCompletionId);
-    transactions->DebugCompletionTransaction = attachTransaction(transactionIds.DebugCompletionId);
+    transactions->AsyncTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.async_id()));
+    transactions->InputTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.input_id()));
+    transactions->OutputTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.output_id()));
+    transactions->DebugTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.debug_id()));
+    transactions->OutputCompletionTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.output_completion_id()));
+    transactions->DebugCompletionTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.debug_completion_id()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

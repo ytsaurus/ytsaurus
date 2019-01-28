@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/lib/scheduler/structs.h>
 
 #include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
@@ -10,6 +10,8 @@
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
+
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/client/api/public.h>
 
@@ -44,7 +46,7 @@ void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
 
 struct TControllerAttributes
 {
-    std::optional<NControllerAgent::TOperationControllerInitializeAttributes> InitializeAttributes;
+    std::optional<TOperationControllerInitializeAttributes> InitializeAttributes;
     NYson::TYsonString PrepareAttributes;
 };
 

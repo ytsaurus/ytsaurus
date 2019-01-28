@@ -3,9 +3,7 @@
 #include "job.h"
 
 #include <yt/server/lib/scheduler/config.h>
-
-// TODO(babenko): needed for TJobStartDescriptor; extract
-#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/lib/scheduler/structs.h>
 
 #include <yt/client/object_client/helpers.h>
 

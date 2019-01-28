@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "message_queue.h"
 
-#include <yt/server/controller_agent/public.h>
+#include <yt/server/lib/scheduler/message_queue.h>
+
+#include <yt/server/lib/controller_agent/public.h>
 
 #include <yt/client/api/public.h>
 
@@ -114,7 +115,7 @@ public:
     const NApi::ITransactionPtr& GetIncarnationTransaction() const;
     void SetIncarnationTransaction(NApi::ITransactionPtr transaction);
 
-    TMessageQueueInbox* GetOperationEventsInbox();
+        TMessageQueueInbox* GetOperationEventsInbox();
     TMessageQueueInbox* GetJobEventsInbox();
     TMessageQueueInbox* GetScheduleJobResponsesInbox();
 

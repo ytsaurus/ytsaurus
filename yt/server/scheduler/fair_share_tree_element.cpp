@@ -2,8 +2,6 @@
 
 #include "scheduling_context.h"
 
-#include <yt/server/controller_agent/operation_controller.h>
-
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
 

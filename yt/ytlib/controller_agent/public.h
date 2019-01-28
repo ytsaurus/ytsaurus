@@ -8,6 +8,16 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TPoolTreeSchedulingTagFilter;
+class TPoolTreeSchedulingTagFilters;
+class TOperationDescriptor;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EControllerAgentAlertType,
     (UpdateConfig)
     (UnrecognizedConfigOptions)

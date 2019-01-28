@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/server/scheduler/public.h>
-
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/ref.h>

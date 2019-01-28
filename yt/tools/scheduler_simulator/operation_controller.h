@@ -7,6 +7,8 @@
 #include <yt/server/scheduler/operation.h>
 #include <yt/server/scheduler/operation_controller.h>
 
+#include <yt/server/lib/controller_agent/structs.h>
+
 #include <yt/core/logging/log_manager.h>
 
 #include <deque>

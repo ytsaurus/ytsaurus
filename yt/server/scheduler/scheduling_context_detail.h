@@ -40,7 +40,7 @@ public:
         const TString& treeId,
         TOperationId operationId,
         TIncarnationId incarnationId,
-        const NControllerAgent::TJobStartDescriptor& startDescriptor) override;
+        const TJobStartDescriptor& startDescriptor) override;
 
     virtual void PreemptJob(const TJobPtr& job) override;
 

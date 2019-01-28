@@ -9,8 +9,6 @@
 #include <yt/server/controller_agent/chunk_pools/public.h>
 #include <yt/server/controller_agent/chunk_pools/chunk_stripe.h>
 
-#include <yt/server/scheduler/public.h>
-
 #include <yt/client/ypath/rich.h>
 
 #include <yt/ytlib/object_client/public.h>

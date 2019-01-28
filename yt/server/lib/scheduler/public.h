@@ -10,6 +10,14 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TSchedulerToAgentJobEvent;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
@@ -122,6 +130,11 @@ using TExecNodeDescriptorMap = THashMap<NNodeTrackerClient::TNodeId, TExecNodeDe
 DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap);
 
 class TSchedulingTagFilter;
+
+DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
+
+struct TJobStartDescriptor;
+struct TOperationControllerInitializeAttributes;
 
 using TPoolTreeToSchedulingTagFilter = THashMap<TString, TSchedulingTagFilter>;
 

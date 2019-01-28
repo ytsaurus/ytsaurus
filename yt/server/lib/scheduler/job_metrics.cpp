@@ -3,6 +3,7 @@
 #include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/metrics_accumulator.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -57,7 +58,7 @@ bool TJobMetrics::IsEmpty() const
 }
 
 void TJobMetrics::Profile(
-    TProfileCollector& collector,
+    TMetricsAccumulator& collector,
     const TString& prefix,
     const NProfiling::TTagIdList& tagIds) const
 {

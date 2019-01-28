@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/server/controller_agent/operation_controller.h>
-
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +26,7 @@ public:
         int maxConcurrentScheduleJobCalls,
         TDuration scheduleJobFailBackoffTime) const;
 
-    NControllerAgent::TScheduleJobResultPtr ScheduleJob(
+    TScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& availableResources,
         TDuration timeLimit,

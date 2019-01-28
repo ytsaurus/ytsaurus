@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/scheduler/public.h>
+#include <yt/ytlib/scheduler/public.h>
 
 #include <yt/core/misc/phoenix.h>
 

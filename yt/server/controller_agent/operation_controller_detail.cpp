@@ -9,9 +9,6 @@
 #include "scheduling_context.h"
 #include "config.h"
 
-#include <yt/server/scheduler/helpers.h>
-#include <yt/server/scheduler/job.h>
-
 #include <yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/server/controller_agent/chunk_pools/helpers.h>
@@ -73,6 +70,7 @@
 #include <yt/core/misc/chunked_input_stream.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>
