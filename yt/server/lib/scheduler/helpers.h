@@ -17,7 +17,6 @@ NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 void ValidateOperationAccess(
     const TString& user,
     TOperationId operationId,
