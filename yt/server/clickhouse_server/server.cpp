@@ -31,6 +31,8 @@
 #include <Interpreters/ProcessList.h>
 #include <server/IServer.h>
 #include <Storages/System/attachSystemTables.h>
+#include <Storages/StorageFactory.h>
+#include <Storages/StorageMemory.h>
 #include <TableFunctions/registerTableFunctions.h>
 
 #include <common/DateLUT.h>
@@ -274,6 +276,7 @@ private:
         registerFunctions();
         registerAggregateFunctions();
         registerTableFunctions();
+        registerStorageMemory(StorageFactory::instance());
 
         RegisterFunctions();
         RegisterTableFunctions(Storage);
@@ -324,6 +327,8 @@ private:
 
         // This object will periodically cleanup sessions.
         SessionCleaner.reset(new DB::SessionCleaner(*Context));
+
+        Context->initializeSystemLogs();
 
         // Database for system tables.
         {
