@@ -675,6 +675,9 @@ public:
     // Is applied on top of user layers if they are used.
     std::optional<TString> SystemLayerPath;
 
+    // Cypress path to a default layer for user jobs, if no layers were specified explicitly.
+    std::optional<TString> DefaultLayerPath;
+
     // Running jobs cached YSON string update period.
     TDuration CachedRunningJobsUpdatePeriod;
 

@@ -543,6 +543,10 @@ void TOperationControllerBase::InitializeStructures()
         }
 
         auto layerPaths = userJobSpec->LayerPaths;
+        if (Config->DefaultLayerPath && layerPaths.empty()) {
+            // If no layers were specified, we insert the default one.
+            layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
+        }
         if (Config->SystemLayerPath && !layerPaths.empty()) {
             // This must be the top layer, so insert in the beginning.
             layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
