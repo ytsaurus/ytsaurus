@@ -1,21 +1,14 @@
 #include "message_format.h"
-//#include "client.h"
-//#include "channel_detail.h"
-//#include "service.h"
-//
 
 #include <yt/core/yson/writer.h>
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/protobuf_interop.h>
 
 #include <yt/core/json/json_parser.h>
 #include <yt/core/json/json_writer.h>
 
-//#include <yt/core/ytree/helpers.h>
-//
-#include <yt/core/yson/protobuf_interop.h>
 #include <yt/core/misc/protobuf_helpers.h>
-//
-//#include <contrib/libs/protobuf/io/coded_stream.h>
+
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT::NRpc {
