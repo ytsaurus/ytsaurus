@@ -1,8 +1,9 @@
 #include "versioned_chunk_meta_manager.h"
-#include "config.h"
 #include "private.h"
 
 #include <yt/server/node/cell_node/bootstrap.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 

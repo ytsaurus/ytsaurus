@@ -2,7 +2,8 @@
 #include "tablet.h"
 #include "transaction.h"
 #include "automaton.h"
-#include "config.h"
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/core/ytree/fluent.h>
 

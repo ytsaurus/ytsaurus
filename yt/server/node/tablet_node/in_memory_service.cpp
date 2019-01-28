@@ -1,6 +1,5 @@
 #include "public.h"
 #include "private.h"
-#include "config.h"
 #include "in_memory_service.h"
 #include "in_memory_service_proxy.h"
 
@@ -8,6 +7,8 @@
 #include <yt/server/node/tablet_node/slot_manager.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>

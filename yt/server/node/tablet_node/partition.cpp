@@ -2,7 +2,8 @@
 #include "automaton.h"
 #include "store.h"
 #include "tablet.h"
-#include "config.h"
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/client/table_client/serialize.h>
 #include <yt/client/table_client/unversioned_row.h>

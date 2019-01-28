@@ -1,8 +1,9 @@
 #include "sorted_dynamic_store.h"
-#include "config.h"
 #include "tablet.h"
 #include "transaction.h"
 #include "automaton.h"
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>

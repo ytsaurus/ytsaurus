@@ -1,7 +1,6 @@
 #include "tablet.h"
 #include "automaton.h"
 #include "sorted_chunk_store.h"
-#include "config.h"
 #include "sorted_dynamic_store.h"
 #include "partition.h"
 #include "store_manager.h"
@@ -11,6 +10,8 @@
 #include "transaction_manager.h"
 
 #include <yt/server/lib/misc/profiling_helpers.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 #include <yt/client/table_client/schema.h>

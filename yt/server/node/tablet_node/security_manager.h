@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "config.h"
 
 #include <yt/server/node/cell_node/public.h>
 

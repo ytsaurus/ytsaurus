@@ -5,10 +5,11 @@
 #include "tablet_reader.h"
 #include "tablet_manager.h"
 #include "transaction_manager.h"
-#include "config.h"
 #include "private.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>

@@ -1,4 +1,3 @@
-#include "config.h"
 #include "in_memory_manager.h"
 #include "partition.h"
 #include "private.h"
@@ -15,6 +14,8 @@
 #include <yt/server/node/cell_node/bootstrap.h>
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>

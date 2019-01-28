@@ -1,21 +1,23 @@
 #include "tablet_reader.h"
 #include "private.h"
-#include "config.h"
 #include "partition.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 
+#include <yt/server/lib/tablet_node/config.h>
+
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
 #include <yt/ytlib/table_client/overlapping_reader.h>
-#include <yt/client/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/row_merger.h>
 #include <yt/ytlib/table_client/schemaful_concatencaing_reader.h>
-#include <yt/client/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/unordered_schemaful_reader.h>
+
+#include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

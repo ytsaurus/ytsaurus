@@ -1,9 +1,10 @@
 #include "security_manager.h"
 #include "private.h"
-#include "config.h"
 #include "tablet.h"
 
 #include <yt/server/node/cell_node/bootstrap.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/api/native/client.h>
 

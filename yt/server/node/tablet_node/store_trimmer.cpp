@@ -1,7 +1,6 @@
 #include "store_trimmer.h"
 #include "store.h"
 #include "ordered_chunk_store.h"
-#include "config.h"
 #include "slot_manager.h"
 #include "store_manager.h"
 #include "tablet.h"
@@ -13,6 +12,8 @@
 #include <yt/server/node/cell_node/config.h>
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/client/object_client/helpers.h>
 

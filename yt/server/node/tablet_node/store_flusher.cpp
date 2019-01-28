@@ -1,7 +1,6 @@
 #include "store_flusher.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
-#include "config.h"
 #include "sorted_dynamic_store.h"
 #include "in_memory_manager.h"
 #include "slot_manager.h"
@@ -17,6 +16,8 @@
 #include <yt/server/lib/hive/hive_manager.h>
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>

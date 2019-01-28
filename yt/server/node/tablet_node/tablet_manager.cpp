@@ -3,7 +3,6 @@
 #include "automaton.h"
 #include "sorted_chunk_store.h"
 #include "ordered_chunk_store.h"
-#include "config.h"
 #include "sorted_dynamic_store.h"
 #include "ordered_dynamic_store.h"
 #include "replicated_store_manager.h"
@@ -27,6 +26,8 @@
 #include <yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/server/node/data_node/master_connector.h>
 
+#include <yt/server/node/tablet_node/transaction_manager.h>
+
 #include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/server/lib/hive/helpers.h>
@@ -39,7 +40,8 @@
 #include <yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
-#include <yt/server/node/tablet_node/transaction_manager.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 

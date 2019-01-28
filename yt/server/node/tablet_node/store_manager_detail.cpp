@@ -5,9 +5,10 @@
 #include "store.h"
 #include "in_memory_manager.h"
 #include "transaction.h"
-#include "config.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
