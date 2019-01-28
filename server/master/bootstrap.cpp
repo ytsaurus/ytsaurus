@@ -83,7 +83,7 @@ public:
     TImpl(TBootstrap* bootstrap, TMasterConfigPtr config)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
-        , WorkerPool_(New<TThreadPool>(Config_->WorkerThreadPoolSize, "Worker"))
+        , WorkerPool_(New<NYT::NConcurrency::TThreadPool>(Config_->WorkerThreadPoolSize, "Worker"))
     {
         WarnForUnrecognizedOptions(Logger, Config_);
     }
@@ -274,7 +274,7 @@ private:
         YT_LOG_INFO("Initializing master (Fqdn: %v)",
             Fqdn_);
 
-        HttpPoller_ = CreateThreadPoolPoller(1, "Http");
+        HttpPoller_ = NYT::NConcurrency::CreateThreadPoolPoller(1, "Http");
 
         YTConnector_ = New<TYTConnector>(Bootstrap_, Config_->YTConnector);
         ObjectManager_ = New<TObjectManager>(Bootstrap_, Config_->ObjectManager);
