@@ -2301,6 +2301,10 @@ private:
         TotalReplicaCount_ = 0;
 
         ChunkRequisitionRegistry_.Clear();
+
+        SourceDataCenterToTag_.clear();
+        DestinationDataCenterToTag_.clear();
+
         ChunkListsAwaitingRequisitionTraverse_.clear();
 
         MediumMap_.Clear();
