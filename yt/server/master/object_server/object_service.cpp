@@ -533,6 +533,12 @@ private:
                 break;
             }
 
+            if (NProfiling::GetCpuInstant() > batchDeadlineTime) {
+                YT_LOG_DEBUG("Yielding automaton thread");
+                Reschedule();
+                break;
+            }
+
             {
                 TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
                 if (!guard.WasAcquired()) {
@@ -547,12 +553,6 @@ private:
                 if (!ExecuteCurrentSubrequest()) {
                     break;
                 }
-            }
-
-            if (NProfiling::GetCpuInstant() > batchDeadlineTime) {
-                YT_LOG_DEBUG("Yielding automaton thread");
-                Reschedule();
-                break;
             }
         }
     }
