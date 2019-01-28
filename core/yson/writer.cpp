@@ -5,6 +5,7 @@
 #include <yt/core/misc/varint.h>
 
 #include <util/stream/buffer.h>
+#include <util/system/unaligned_mem.h>
 
 #include <cmath>
 
@@ -463,7 +464,7 @@ void TBufferedBinaryYsonWriter::OnDoubleScalar(double value)
 {
     EnsureSpace(sizeof(double) + 2);
     *BufferCursor_++ = NDetail::DoubleMarker;
-    *(reinterpret_cast<double*>(BufferCursor_)) = value;
+    WriteUnaligned(BufferCursor_, value);
     BufferCursor_ += sizeof(double);
     EndNode();
 }
