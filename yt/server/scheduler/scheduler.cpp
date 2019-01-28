@@ -17,8 +17,6 @@
 #include <yt/server/lib/scheduler/event_log.h>
 #include <yt/server/lib/scheduler/helpers.h>
 
-#include <yt/server/node/exec_agent/public.h>
-
 #include <yt/server/lib/shell/config.h>
 
 #include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>

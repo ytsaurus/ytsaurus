@@ -6,7 +6,7 @@
 #include "bootstrap.h"
 #include "helpers.h"
 
-#include <yt/server/node/exec_agent/public.h>
+#include <yt/server/lib/exec_agent/public.h>
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/helpers.h>
