@@ -17,7 +17,7 @@ namespace NYT::NControllerAgent {
 using namespace NYTree;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
-using namespace NTableServer;
+using namespace NTableClient;
 using namespace NYson;
 using namespace NNodeTrackerClient;
 
