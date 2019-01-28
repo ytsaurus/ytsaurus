@@ -839,7 +839,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
-        auto wrappedError = TError("Materialization failed") << ex;
+        auto wrappedError = TError(EErrorCode::MaterializationFailed, "Materialization failed")
+            << ex;
         YT_LOG_INFO(wrappedError);
         OnOperationFailed(wrappedError);
         return result;
