@@ -8,8 +8,8 @@ import yatest.common
 YT_ABI = "19_4"
 
 def prepare_yt_binaries(destination):
-    programs = [("master", "cell_master/bin"),
-                ("node", "cell_node/bin"),
+    programs = [("master", "master/bin"),
+                ("node", "node/bin"),
                 ("job-proxy", "job_proxy/bin"),
                 ("exec", "bin/exec"),
                 ("proxy", "rpc_proxy/bin"),
