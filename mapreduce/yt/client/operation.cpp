@@ -12,6 +12,7 @@
 
 #include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
@@ -270,6 +271,7 @@ struct IItemToUpload
 
     virtual TString CalculateMD5() const = 0;
     virtual THolder<IInputStream> CreateInputStream() const = 0;
+    virtual TString GetDescription() const = 0;
 };
 
 class TFileToUpload
@@ -294,6 +296,11 @@ public:
         return MakeHolder<TFileInput>(FileName_);
     }
 
+    TString GetDescription() const override
+    {
+        return FileName_;
+    }
+
 private:
     TString FileName_;
 };
@@ -302,8 +309,9 @@ class TDataToUpload
     : public IItemToUpload
 {
 public:
-    TDataToUpload(TStringBuf data)
-        : Data_(data)
+    TDataToUpload(TString data, TString description)
+        : Data_(std::move(data))
+        , Description_(std::move(description))
     { }
 
     TString CalculateMD5() const override
@@ -320,8 +328,14 @@ public:
         return MakeHolder<TMemoryInput>(Data_.Data(), Data_.Size());
     }
 
+    TString GetDescription() const override
+    {
+        return Description_;
+    }
+
 private:
-    TStringBuf Data_;
+    TString Data_;
+    TString Description_;
 };
 
 class TJobPreparer
@@ -514,6 +528,7 @@ private:
             TGetFileFromCacheOptions(),
             &retryPolicy);
         if (maybePath) {
+            LOG_DEBUG("File is already in cache: %s", itemToUpload.GetDescription().c_str());
             return *maybePath;
         }
 
@@ -547,6 +562,10 @@ private:
 
     TString UploadToCache(const IItemToUpload& itemToUpload) const
     {
+        LOG_DEBUG("Uploading file (FileName: %s)", itemToUpload.GetDescription().c_str());
+        TFinallyGuard g([&] {
+            LOG_DEBUG("Complete uploading file (FileName: %s)", itemToUpload.GetDescription().c_str());
+        });
         switch (Options_.FileCacheMode_) {
             case TOperationOptions::EFileCacheMode::ApiCommandBased:
                 Y_ENSURE_EX(Options_.FileStorageTransactionId_.IsEmpty(), TApiUsageError() <<
@@ -584,8 +603,8 @@ private:
 
         TFileStat stat;
         fsPath.Stat(stat);
-        bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
 
+        bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
         auto cachePath = UploadToCache(TFileToUpload(localPath));
 
         TRichYPath cypressPath(cachePath);
@@ -634,7 +653,7 @@ private:
 
     void UploadSmallFile(const TSmallJobFile& smallFile)
     {
-        auto cachePath = UploadToCache(TDataToUpload(smallFile.Data));
+        auto cachePath = UploadToCache(TDataToUpload(smallFile.Data, smallFile.FileName + " [generated-file]"));
         CachedFiles_.push_back(TRichYPath(cachePath).FileName(smallFile.FileName));
         if (ShouldMountSandbox()) {
             TotalFileSize_ += RoundUpFileSize(smallFile.Data.Size());
@@ -1059,6 +1078,7 @@ TOperationId ExecuteMap(
     const IStructuredJob& mapper,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting map operation");
     return DoExecuteMap(
         preparer,
         CreateSimpleOperationIo(mapper, preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ true),
@@ -1073,6 +1093,7 @@ TOperationId ExecuteRawMap(
     const IRawJob& mapper,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting raw map operation");
     return DoExecuteMap(
         preparer,
         CreateSimpleOperationIo(preparer.GetAuth(), spec),
@@ -1158,6 +1179,7 @@ TOperationId ExecuteReduce(
     const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting reduce operation");
     return DoExecuteReduce(
         preparer,
         CreateSimpleOperationIo(reducer, preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
@@ -1172,6 +1194,7 @@ TOperationId ExecuteRawReduce(
     const IRawJob& reducer,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting raw reduce operation");
     return DoExecuteReduce(
         preparer,
         CreateSimpleOperationIo(preparer.GetAuth(), spec),
@@ -1250,6 +1273,7 @@ TOperationId ExecuteJoinReduce(
     const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting join reduce operation");
     return DoExecuteJoinReduce(
         preparer,
         CreateSimpleOperationIo(reducer, preparer.GetAuth(), preparer.GetTransactionId(), spec, options, /* allowSkiff = */ false),
@@ -1264,6 +1288,7 @@ TOperationId ExecuteRawJoinReduce(
     const IRawJob& reducer,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting raw join reduce operation");
     return DoExecuteJoinReduce(
         preparer,
         CreateSimpleOperationIo(preparer.GetAuth(), spec),
@@ -1423,6 +1448,7 @@ TOperationId ExecuteMapReduce(
     const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting map-reduce operation");
     TMapReduceOperationSpec spec = spec_;
 
     TMapReduceOperationIo operationIo;
@@ -1591,6 +1617,7 @@ TOperationId ExecuteRawMapReduce(
     const IRawJob& reducer,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting raw map-reduce operation");
     TMapReduceOperationIo operationIo;
     operationIo.Inputs = CanonizePaths(preparer.GetAuth(), spec.GetInputs());
     operationIo.MapOutputs = CanonizePaths(preparer.GetAuth(), spec.GetMapOutputs());
@@ -1637,6 +1664,7 @@ TOperationId ExecuteSort(
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting sort operation");
     auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
     auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
@@ -1672,6 +1700,7 @@ TOperationId ExecuteMerge(
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting merge operation");
     auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
     auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
@@ -1708,6 +1737,7 @@ TOperationId ExecuteErase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting erase operation");
     auto tablePath = CanonizePath(preparer.GetAuth(), spec.TablePath_);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1731,6 +1761,7 @@ TOperationId ExecuteRemoteCopy(
     const TRemoteCopyOperationSpec& spec,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting remote copy operation");
     auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
     auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
@@ -1776,6 +1807,8 @@ TOperationId ExecuteVanilla(
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options)
 {
+    LOG_DEBUG("Starting vanilla operation");
+
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         TJobPreparer jobPreparer(
             preparer,
