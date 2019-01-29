@@ -427,6 +427,9 @@ public class ApiServiceClient implements TransactionalClient {
         if (request.getOutputRowsLimit().isPresent()) {
             builder.body().setOutputRowLimit(request.getOutputRowsLimit().getAsLong());
         }
+        if (request.getFailOnIncompleteResult().isPresent()) {
+            builder.body().setFailOnIncompleteResult(request.getFailOnIncompleteResult().get());
+        }
         return handleHeavyResponse(invoke(builder), response -> {
             logger.trace("SelectRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
             return ApiServiceUtil
