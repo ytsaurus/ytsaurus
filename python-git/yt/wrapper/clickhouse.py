@@ -97,7 +97,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
 
 def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=None, cpu_limit=None, memory_limit=None,
-                              client=None):
+                              enable_query_log=None, client=None):
     """Merges a document pointed by `config_template_cypress_path` and `config` and uploads the
     result as a config.yson file suitable for specifying as a config file for clickhouse clique.
 
@@ -106,6 +106,9 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
     :param clickhouse_config: configuration patch to be applied onto the base config; if None, nothing happens
     :type clickhouse_config: dict or None
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
+    :type enable_monitoring: bool or None
+    :param enable_query_log: enable clickhouse query log.
+    :type enable_query_log: bool or None
     """
 
     if cpu_limit is None:
@@ -132,6 +135,9 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
     clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
     clickhouse_config["engine"]["settings"]["max_memory_usage_for_all_queries"] = memory_limit
 
+    if enable_query_log:
+        clickhouse_config["engine"]["settings"]["log_queries"] = 1
+
     base_config = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else {}
     resulting_config = update(base_config, clickhouse_config)
 
@@ -149,6 +155,7 @@ def start_clickhouse_clique(instance_count,
                             cpu_limit=None,
                             memory_limit=None,
                             enable_monitoring=None,
+                            enable_query_log=None,
                             client=None,
                             **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
@@ -163,6 +170,8 @@ def start_clickhouse_clique(instance_count,
     :type memory_limit: int
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
     :type enable_monitoring: bool
+    :param enable_query_log: enable clickhouse query log.
+    :type enable_query_log: bool
     .. seealso::  :ref:`operation_parameters`.
     """
 
@@ -170,6 +179,7 @@ def start_clickhouse_clique(instance_count,
                                                     clickhouse_config=clickhouse_config,
                                                     cpu_limit=cpu_limit,
                                                     memory_limit=memory_limit,
+                                                    enable_query_log=enable_query_log,
                                                     client=client)
 
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,
