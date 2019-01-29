@@ -19,7 +19,7 @@ import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
 import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
 
 public class DefaultBusConnector implements BusConnector {
-    private final NioEventLoopGroup group;
+    private final EventLoopGroup group;
     private final boolean groupOwner;
     private Duration readTimeout = Duration.ofMinutes(2);
     private Duration writeTimeout = Duration.ofMinutes(2);
@@ -31,21 +31,21 @@ public class DefaultBusConnector implements BusConnector {
         this(new NioEventLoopGroup(1), true);
     }
 
-    public DefaultBusConnector(NioEventLoopGroup group) {
+    public DefaultBusConnector(EventLoopGroup group) {
         this(group, false);
     }
 
-    public DefaultBusConnector(NioEventLoopGroup group, boolean groupOwner) {
+    public DefaultBusConnector(EventLoopGroup group, boolean groupOwner) {
         this(group, groupOwner, new DefaultBusChannelMetricsHolderImpl());
     }
 
-    public DefaultBusConnector(NioEventLoopGroup group, boolean groupOwner, DefaultBusChannelMetricsHolder metricsHolder) {
+    public DefaultBusConnector(EventLoopGroup group, boolean groupOwner, DefaultBusChannelMetricsHolder metricsHolder) {
         this.group = Objects.requireNonNull(group);
         this.groupOwner = groupOwner;
         this.metricsHolder = metricsHolder;
     }
 
-    public NioEventLoopGroup getGroup() {
+    public EventLoopGroup getGroup() {
         return group;
     }
 
