@@ -3,7 +3,7 @@ import requests
 # Keep it sync with your pypi settings.
 PYPI_URL = "https://pypi.yandex-team.ru/simple/{package_name}"
 
-def extract_package_versions(package_name):
+def get_package_versions(package_name):
     def parts_to_version(parts):
         assert len(parts) == 4
         return "{}.{}.{}-{}".format(*parts)
