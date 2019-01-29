@@ -1,9 +1,7 @@
 import os
-import sys
 import shutil
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../scripts/teamcity-build/python"))
-from helpers import rmtree, mkdirp
+from .teamcity_helpers.helpers import rmtree, mkdirp, run, run_captured, cwd
 
 def copy_element(src, dst, elem):
     source = os.path.join(src, elem)
@@ -35,3 +33,8 @@ def create_if_missing(directory):
         os.makedirs(directory)
     return directory
 
+def find_file_by_prefix(root, prefix):
+    for root, dirs, files in os.walk(root):
+        for name in files:
+            if name.startswith(prefix):
+                return os.path.join(root, name)
