@@ -144,7 +144,8 @@ class TReadLimit;
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
-using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt>;
+// NB: TRefCountedBlocksExt needs weak pointers support.
+using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt, true>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedBlocksExt)
 
 using TPlacementId = TGuid;

@@ -477,6 +477,9 @@ public:
     //! Cache for chunk metas.
     TSlruCacheConfigPtr ChunkMetaCache;
 
+    //! Cache for blocks extensions.
+    TSlruCacheConfigPtr BlocksExtCache;
+
     //! Cache for partition block metas.
     TSlruCacheConfigPtr BlockMetaCache;
 
@@ -679,6 +682,8 @@ public:
 
         RegisterParameter("chunk_meta_cache", ChunkMetaCache)
             .DefaultNew();
+        RegisterParameter("blocks_ext_cache", BlocksExtCache)
+            .DefaultNew();
         RegisterParameter("block_meta_cache", BlockMetaCache)
             .DefaultNew();
         RegisterParameter("block_cache", BlockCache)
@@ -828,7 +833,10 @@ public:
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
 
-            BlockMetaCache->Capacity = 500 * 1_MB;
+            // TODO(babenko): adjust after experiments
+            BlocksExtCache->Capacity = 100_GB;
+
+            BlockMetaCache->Capacity = 1_GB;
 
             BlockCache->CompressedData->Capacity = 1_GB;
             BlockCache->UncompressedData->Capacity = 1_GB;
