@@ -64,6 +64,8 @@ namespace ErrorCodes
     extern const int NO_ELEMENTS_IN_CONFIG;
 }
 
+void registerStorageMemory(StorageFactory & factory);
+
 }   // namespace DB
 
 namespace NYT::NClickHouseServer {
