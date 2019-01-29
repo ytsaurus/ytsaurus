@@ -1848,7 +1848,7 @@ Y_UNIT_TEST_SUITE(Operations)
                     .Wait(false));
         };
 
-        auto threadPool = SystemThreadPool();
+        auto threadPool = SystemThreadFactory();
         TVector<TAutoPtr<IThreadFactory::IThread>> threads;
         // Run many concurrent threads to get lock conflict in 'put_file_to_cache'
         // with high probability.
@@ -2735,7 +2735,7 @@ Y_UNIT_TEST_SUITE(Operations)
                 .Spec(extraSpec));
 
         // Make thread to retry running second operation.
-        auto thread = SystemThreadPool()->Run([&] () {
+        auto thread = SystemThreadFactory()->Run([&] () {
             client->Map(
                 TMapOperationSpec()
                     .AddInput<TNode>(workingDir + "/input")

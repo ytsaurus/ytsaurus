@@ -46,7 +46,7 @@ TSimpleServer::TSimpleServer(int port, TRequestHandler requestHandler)
                     int ret = listenSocket->Accept(socket.Get(), &addr);
                     Y_ENSURE_EX(ret == 0, TSystemError() << "Can not accept connection");
 
-                    SystemThreadPool()->Run(
+                    SystemThreadFactory()->Run(
                         [socket, requestHandler] {
                             TStreamSocketInput input(socket.Get());
                             TStreamSocketOutput output(socket.Get());
