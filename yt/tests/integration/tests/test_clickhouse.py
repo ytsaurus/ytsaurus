@@ -189,6 +189,19 @@ class TestClickhouseCommon(ClickhouseTestBase):
         assert result["data"][0]["value"] == "1234"
         assert result["data"][0]["changed"] == 1
 
+    def test_schema_caching(self):
+        clique = self._start_clique(1)
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        old_description = self._make_query(clique, 'describe "//tmp/t"')
+        assert old_description["data"][0]["name"] == "a"
+        remove("//tmp/t")
+        create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
+        write_table("//tmp/t", [{"b": 1}])
+        new_description = self._make_query(clique, 'describe "//tmp/t"')
+        assert new_description["data"][0]["name"] == "b"
+
 
 class TestCompositeTypes(ClickhouseTestBase):
     def setup(self):

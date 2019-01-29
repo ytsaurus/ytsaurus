@@ -31,22 +31,6 @@ namespace NYT::NClickHouseServer {
 
 using namespace DB;
 
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TUserTables {
-    Tables UserTables;
-    std::mutex Mutex;
-};
-
-using TUserTablesCache = LRUCache<std::string, TUserTables>;
-
-const size_t CacheSize = 100;
-const size_t CacheExpirationDelay = 300;  // seconds
-
-}   // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDatabase
@@ -56,13 +40,10 @@ private:
     const IStoragePtr Storage;
     const IExecutionClusterPtr Cluster;
 
-    mutable TUserTablesCache UserTablesCache;
-
 public:
     TDatabase(IStoragePtr storage, IExecutionClusterPtr cluster)
         : Storage(std::move(storage))
         , Cluster(std::move(cluster))
-        , UserTablesCache(CacheSize, TUserTablesCache::Delay(CacheExpirationDelay))
     {}
 
     std::string getEngineName() const override;
@@ -134,11 +115,8 @@ public:
     void drop() override;
 
 private:
-    TUserTablesCache::MappedPtr GetUserTables(const Context& context) const;
-
     StoragePtr GetTable(
         const Context& context,
-        const TUserTablesCache::MappedPtr& userTables,
         const std::string& name) const;
 };
 
@@ -192,35 +170,10 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserTablesCache::MappedPtr TDatabase::GetUserTables(const Context& context) const
-{
-    const auto& clientInfo = context.getClientInfo();
-
-    TUserTablesCache::MappedPtr userTables;
-    bool created;
-
-    std::tie(userTables, created) = UserTablesCache.getOrSet(
-        clientInfo.current_user,
-        [] { return std::make_shared<TUserTables>(); });
-
-    return userTables;
-}
-
 StoragePtr TDatabase::GetTable(
     const Context& context,
-    const TUserTablesCache::MappedPtr& userTables,
     const std::string& name) const
 {
-    {
-        // lookup for cached tables first
-        std::lock_guard<std::mutex> lock(userTables->Mutex);
-
-        auto it = userTables->UserTables.find(name);
-        if (it != userTables->UserTables.end()) {
-            return it->second;
-        }
-    }
-
     auto token = CreateAuthToken(*Storage, context);
 
     auto table = Storage->GetTable(*token, ToString(name));
@@ -229,21 +182,7 @@ StoragePtr TDatabase::GetTable(
         return nullptr;
     }
 
-    auto storage = CreateStorageTable(Storage, std::move(table), Cluster);
-
-    {
-        // store table in the cache
-        std::lock_guard<std::mutex> lock(userTables->Mutex);
-
-        Tables::iterator it;
-        bool inserted;
-
-        std::tie(it, inserted) = userTables->UserTables.emplace(
-            name,
-            std::move(storage));
-
-        return it->second;
-    }
+    return CreateStorageTable(Storage, std::move(table), Cluster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -265,18 +204,14 @@ bool TDatabase::isTableExist(
     const Context& context,
     const std::string& name) const
 {
-    auto userTables = GetUserTables(context);
-
-    return GetTable(context, userTables, name) != nullptr;
+    return GetTable(context, name) != nullptr;
 }
 
 StoragePtr TDatabase::tryGetTable(
     const Context& context,
     const std::string& name) const
 {
-    auto userTables = GetUserTables(context);
-
-    return GetTable(context, userTables, name);
+    return GetTable(context, name);
 }
 
 DatabaseIteratorPtr TDatabase::getIterator(const Context& context)
