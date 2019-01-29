@@ -1,6 +1,5 @@
 package ru.yandex.yt.ytclient.proxy;
 
-import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -11,7 +10,7 @@ public class SelectRowsRequest {
     private YtTimestamp timestamp;
     private Long inputRowsLimit;
     private Long outputRowsLimit;
-    private Duration timeout;
+    private Boolean failOnIncompleteResult;
 
     private SelectRowsRequest(String query) {
         this.query = query;
@@ -43,6 +42,15 @@ public class SelectRowsRequest {
         return inputRowsLimit == null ? OptionalLong.empty() : OptionalLong.of(inputRowsLimit);
     }
 
+    public SelectRowsRequest setFailOnIncompleteResult(boolean failOnIncompleteResult) {
+        this.failOnIncompleteResult = failOnIncompleteResult;
+        return this;
+    }
+
+    public Optional<Boolean> getFailOnIncompleteResult() {
+        return Optional.ofNullable(failOnIncompleteResult);
+    }
+
     public SelectRowsRequest setOutputRowsLimit(long outputRowsLimit) {
         this.outputRowsLimit = outputRowsLimit;
         return this;
@@ -51,4 +59,5 @@ public class SelectRowsRequest {
     public OptionalLong getOutputRowsLimit() {
         return outputRowsLimit == null ? OptionalLong.empty() : OptionalLong.of(outputRowsLimit);
     }
+
 }
