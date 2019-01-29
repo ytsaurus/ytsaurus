@@ -717,7 +717,9 @@ TFuture<void> THttpOutput::FinishChunked()
 
 TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
 {
-    YCHECK(!HeadersFlushed_ && !MessageFinished_);
+    if (HeadersFlushed_ || MessageFinished_) {
+        THROW_ERROR_EXCEPTION("Cannot write body to partially flushed HTTP message");
+    }
 
     TSharedRefArray writeRefs;
     if (Trailers_) {
