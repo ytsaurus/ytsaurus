@@ -74,7 +74,7 @@ void TResourceTracker::EnqueueUsage()
 void TResourceTracker::EnqueueCpuUsage()
 {
     i64 timeDelta = TInstant::Now().MilliSeconds() - LastUpdateTime.MilliSeconds();
-    if (timeDelta == 0)
+    if (timeDelta <= 0)
         return;
 
     TString procPath("/proc/self/task");
@@ -127,8 +127,8 @@ void TResourceTracker::EnqueueCpuUsage()
         auto it = ThreadNameToJiffies.find(threadName);
         if (it != ThreadNameToJiffies.end()) {
             auto& jiffies = it->second;
-            i64 userCpuTime = (userJiffies - jiffies.PreviousUser) * 1000 / TicksPerSecond;
-            i64 systemCpuTime = (systemJiffies - jiffies.PreviousSystem) * 1000 / TicksPerSecond;
+            i64 userCpuTime = std::max<i64>((userJiffies - jiffies.PreviousUser) * 1000 / TicksPerSecond, 0);
+            i64 systemCpuTime = std::max<i64>((systemJiffies - jiffies.PreviousSystem) * 1000 / TicksPerSecond, 0);
 
             TTagIdList tagIds;
             tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", threadName));
