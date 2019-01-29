@@ -37,6 +37,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((Footprint)                   (0))
     ((BlockCache)                  (1))
     ((ChunkMeta)                   (2))
+    ((ChunkBlockMeta)             (10))
     ((UserJobs)                    (3))
     ((TabletStatic)                (4))
     ((TabletDynamic)               (5))
