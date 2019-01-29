@@ -24,7 +24,6 @@ try:
 except ImportError:
     import subprocess
 
-
 from xml.etree import ElementTree
 from contextlib import contextmanager
 
@@ -1154,6 +1153,7 @@ class ArcadiaPush(object):
         ctx_list=None,
         check_svn_is_clean=True,
         check_head_matches_push_state=True,
+        check_svn_matches_git=True
     ):
         self.args = args
         self.local_svn = LocalSvn(args.arcadia)
@@ -1207,6 +1207,11 @@ class ArcadiaPush(object):
                         "Use --ignore-svn-modifications to ignore them.\n".format(
                             changed_files=indented_lines(["{0} {1}".format(s.status, s.relpath) for s in changed_files])))
                 self.local_svn.revert(ctx.svn_relpath)
+
+        if check_svn_matches_git:
+            for ctx in self.ctx_list:
+                logger.info("check svn content matches git (project: {project})".format(project=ctx.name))
+                verify_svn_match_git(self.common_git, ctx.git_relpath, self.local_svn, ctx.svn_relpath)
 
     def copy_to_local_svn(self):
         for ctx in self.ctx_list:
@@ -1268,7 +1273,8 @@ def action_copy_to_local_svn(ctx_list, args):
     arcadia_push = ArcadiaPush(
         args,
         ctx_list=ctx_list,
-        check_head_matches_push_state=False
+        check_head_matches_push_state=False,
+        check_svn_matches_git=False,
     )
     arcadia_push.copy_to_local_svn()
 
