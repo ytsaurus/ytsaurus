@@ -13,16 +13,18 @@ class TestMedia(YTEnvSetup):
     NUM_NODES = 10
 
     NON_DEFAULT_MEDIUM = "hdd2"
+    NON_DEFAULT_TRANSIENT_MEDIUM = "hdd3"
 
     @classmethod
     def setup_class(cls, delayed_secondary_cells_start=False):
         super(TestMedia, cls).setup_class()
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
         set_account_disk_space_limit("tmp", disk_space_limit, TestMedia.NON_DEFAULT_MEDIUM)
+        set_account_disk_space_limit("tmp", disk_space_limit, TestMedia.NON_DEFAULT_TRANSIENT_MEDIUM)
 
     @classmethod
     def modify_node_config(cls, config):
-        # Add second location with non-default medium to each node.
+        # Add two more locations with non-default media to each node.
         assert len(config["data_node"]["store_locations"]) == 1
         location_prototype = config["data_node"]["store_locations"][0]
 
@@ -34,13 +36,19 @@ class TestMedia(YTEnvSetup):
         non_default_location["path"] += "_1"
         non_default_location["medium_name"] = cls.NON_DEFAULT_MEDIUM
 
+        non_default_transient_location = copy.deepcopy(location_prototype)
+        non_default_transient_location["path"] += "_2"
+        non_default_transient_location["medium_name"] = cls.NON_DEFAULT_TRANSIENT_MEDIUM
+
         config["data_node"]["store_locations"] = []
         config["data_node"]["store_locations"].append(default_location)
         config["data_node"]["store_locations"].append(non_default_location)
+        config["data_node"]["store_locations"].append(non_default_transient_location)
 
     @classmethod
     def on_masters_started(cls):
         create_medium(cls.NON_DEFAULT_MEDIUM)
+        create_medium(cls.NON_DEFAULT_TRANSIENT_MEDIUM, attributes={"transient": True})
         medium_count = len(get_media())
         while (medium_count < 7):
             create_medium("hdd" + str(medium_count))
@@ -395,6 +403,41 @@ class TestMedia(YTEnvSetup):
     def test_create_with_invalid_attrs_yt_7093(self):
         with pytest.raises(YtError): create_medium("x", attributes={"priority": "hello"})
         assert not exists("//sys/media/x")
+
+    def test_transient_only_chunks_not_vital_yt_9133(self):
+        create("table", "//tmp/t10_persistent",
+               attributes={
+                   "primary_medium": self.NON_DEFAULT_MEDIUM,
+                   "media": {self.NON_DEFAULT_MEDIUM: {"replication_factor": 2, "data_parts_only": False}}})
+        create("table", "//tmp/t10_transient",
+               attributes={
+                   "primary_medium": self.NON_DEFAULT_TRANSIENT_MEDIUM,
+                   "media": {self.NON_DEFAULT_TRANSIENT_MEDIUM: {"replication_factor": 2, "data_parts_only": False}}})
+        write_table("//tmp/t10_persistent", {"a": "b"})
+        write_table("//tmp/t10_transient", {"a": "b"})
+
+        chunk1 = get_singular_chunk_id("//tmp/t10_persistent")
+        chunk2 = get_singular_chunk_id("//tmp/t10_transient")
+
+        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk1))) == 2 and len(get("#{0}/@stored_replicas".format(chunk2))) == 2)
+
+        chunk1_nodes = get("#{0}/@stored_replicas".format(chunk1))
+        chunk2_nodes = get("#{0}/@stored_replicas".format(chunk2))
+
+        for node in chunk1_nodes + chunk2_nodes:
+            set("//sys/nodes/{0}/@banned".format(node), True)
+
+        def persistent_chunk_is_lost_vital():
+            lvc = ls("//sys/lost_vital_chunks")
+            return chunk1 in lvc
+
+        def transient_chunk_is_lost_but_not_vital():
+            lc = ls("//sys/lost_chunks")
+            lvc = ls("//sys/lost_vital_chunks")
+            return chunk2 in lc and chunk2 not in lvc
+
+        wait(persistent_chunk_is_lost_vital)
+        wait(transient_chunk_is_lost_but_not_vital)
 
 ################################################################################
 

@@ -1710,7 +1710,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         }
 
         auto replicationFactor = replication[mediumIndex].GetReplicationFactor();
-        auto durabilityRequiredOnMedium = replication.GetVital() && (chunk->IsErasure() || replicationFactor > 1);
+        auto durabilityRequiredOnMedium =
+            replication.GetVital() &&
+            (chunk->IsErasure() || replicationFactor > 1) &&
+            !medium->GetTransient();
         durabilityRequired = durabilityRequired || durabilityRequiredOnMedium;
 
         if (Any(statistics.Status & EChunkStatus::Overreplicated)) {
