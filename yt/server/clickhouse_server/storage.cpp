@@ -419,7 +419,8 @@ std::unique_ptr<TTableObject> TStorage::GetTableAttributes(
             transaction ? transaction->GetId() : NullTransactionId,
             Logger,
             permission,
-            suppressAccessTracking);
+            suppressAccessTracking,
+            true /* readFromCache */);
 
         if (userObject->Type != NObjectClient::EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid object type")
