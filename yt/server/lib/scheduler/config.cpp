@@ -348,15 +348,15 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(1));
 
     RegisterParameter("enable_job_reporter", EnableJobReporter)
-        .Default(false);
+        .Default(true);
     RegisterParameter("enable_job_spec_reporter", EnableJobSpecReporter)
-        .Default(false);
+        .Default(true);
     RegisterParameter("enable_job_stderr_reporter", EnableJobStderrReporter)
-        .Default(false);
+        .Default(true);
     RegisterParameter("enable_job_profile_reporter", EnableJobProfileReporter)
         .Default(true);
     RegisterParameter("enable_job_fail_context_reporter", EnableJobFailContextReporter)
-        .Default(false);
+        .Default(true);
 
     RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
         .Default(TDuration::Seconds(10));
