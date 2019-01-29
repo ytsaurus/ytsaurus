@@ -103,7 +103,7 @@ constexpr TChecksum NullChecksum = 0;
 template <class T, unsigned size>
 class SmallVector;
 
-template <class TProto>
+template <class TProto, bool EnableWeak = false>
 class TRefCountedProto;
 
 DECLARE_REFCOUNTED_CLASS(TProcessBase)
