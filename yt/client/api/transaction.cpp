@@ -2,8 +2,6 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/ytlib/table_client/helpers.h>
-
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
