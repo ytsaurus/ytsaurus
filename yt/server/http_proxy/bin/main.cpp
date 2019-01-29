@@ -12,6 +12,8 @@
 
 #include <yt/core/alloc/alloc.h>
 
+#include <yt/core/misc/ref_counted_tracker_profiler.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,7 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
+        EnableRefCountedTrackerProfiling();
         NYTAlloc::EnableLogging();
         NYTAlloc::EnableProfiling();
         NYTAlloc::EnableStockpile();

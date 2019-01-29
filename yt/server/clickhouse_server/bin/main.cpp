@@ -5,9 +5,7 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 
-#include <library/getopt/small/last_getopt.h>
-
-#include <util/generic/string.h>
+#include <yt/core/misc/ref_counted_tracker_profiler.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -70,6 +68,7 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
     ConfigureSignals();
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
+    EnableRefCountedTrackerProfiling();
 
     if (HandlePdeathsigOptions()) {
         return;
