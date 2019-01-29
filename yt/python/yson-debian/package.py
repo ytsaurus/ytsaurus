@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../packaging"))
 
 from os_helpers import copy_content, clean_path, create_if_missing, copy_element
+from pypi import extract_package_versions
 
 from teamcity import teamcity_message
 
@@ -160,7 +161,11 @@ def build_targets(
                 fout.write('VERSION = "{0}"\n'.format(package_version))
                 fout.write('COMMIT = "{0}"\n'.format(commit_hash))
 
-            if build_wheel:
+            pypi_package_name = "yandex-yt-yson-bindings"
+            if is_skynet:
+                pypi_package_name += "-skynet"
+
+            if build_wheel and package_version not in extract_package_versions(pypi_package_name):
                 env = {}
                 python = "python" + python_suffix
                 if is_skynet:
