@@ -1998,7 +1998,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         if (jobSummary->InterruptReason == EInterruptReason::JobSplit) {
             // If we interrupted job on our own decision, (from JobSpliter), we should at least try to split it into 2 pieces.
             // Otherwise, the whole splitting thing makes to sense.
-            jobSummary->SplitJobCount = std::min(2, jobSummary->SplitJobCount);
+            jobSummary->SplitJobCount = std::max(2, jobSummary->SplitJobCount);
         }
         YT_LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
             jobSummary->Id,
