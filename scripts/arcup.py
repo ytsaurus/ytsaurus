@@ -250,10 +250,16 @@ class ReplaceSvnStuffStep(Step):
             # Then we selectivly update several files we mainly require `ya` file
             # Then we run `ya make` with option checkout, so it will pull all our dependencies.
             #
+            tmp_ya_cache = os.path.realpath(".ya-arcup")
+            force_remove(tmp_ya_cache)
             force_remove(".svn")
+
             svn = Svn()
             svn.call("checkout", arcadia_svn_url, "--depth=empty", "--revision", str(revision), ".")
             svn.call("update", "--revision", str(revision), *arcadia_updatable_files)
+
+            env = os.environ.copy()
+            env["YA_CACHE"] = tmp_ya_cache
 
             for additional_args in YALL_BUILD_MODES:
                 subprocess.check_call([
@@ -261,7 +267,7 @@ class ReplaceSvnStuffStep(Step):
                     "--threads=0",
                     "--checkout",
                     "--thin",
-                ] + additional_args)
+                ] + additional_args, env=env)
 
             #
             # Now it's time to put all the stuff that we checked out from svn to our git submodules.
@@ -348,6 +354,9 @@ class ReplaceSvnStuffStep(Step):
                                  .format(
                                      unknown_submodules=unknown_submodules,
                                      argv0=ARGV0))
+
+            force_remove(".svn")
+            force_remove(tmp_ya_cache)
 
             return result
 
