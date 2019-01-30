@@ -3,8 +3,6 @@
 
 syntax = "proto3";
 
-//В данном случае описание интерфейса pod-driver выполняется для случая, когда изоляция осуществляется porto
-
 option java_package = "ru.yandex.yp.client.pods";
 option java_outer_classname = "Pod";
 
@@ -16,18 +14,14 @@ import "yt/core/yson/proto/protobuf_interop.proto";
 
 option (NYT.NYson.NProto.derive_underscore_case_names) = true;
 
-//TODO: добавить секреты
 //TODO: itype (labels)
-//TODO: probabilty + core dump
-
-// NOTE: На первой итерации хочется выкристаллизовать минималистичный /spec /status интерфейс и по мере проработки use case
-// добавлять дополнительные поля.
+//TODO: coredump probabilty
 
 // Конфигурация Пода, передаваемая в Pod-agent.
 // NOTE: сущности верхнего уровня имеют уникальные в рамках Пода идентификаторы (поле Id)
 // и могут ссылаться друг на друга по этим идентификаторам (поля *Refs)
-// NOTE: Валидация - необходимо проверить, что нет висячих ссылок
-// NOTE: Валидация - На каждый Workload ссылается ровно один MutableWorkload, нет ссылок из MutableWorkload на несуществующие Workload
+// NOTE: Валидация - нет висячих ссылок
+// NOTE: Валидация - на каждый Workload ссылается ровно один MutableWorkload, нет ссылок из MutableWorkload на несуществующие Workload
 message TPodAgentSpec {
     //pod revision, server-side монотонно возрастаюшая последовательность
     uint32 Revision = 1;
@@ -35,25 +29,25 @@ message TPodAgentSpec {
     //идентификатор пода
     string Id = 2;
 
-    //Слои, которые необходимо скачать в рамках лимитов @see ResourceGang
+    //Слои и ресурсы, которые необходимо скачать в рамках лимитов @see ResourceGang
     TResourceGang Resources = 3;
 
     //Все вольюмы
     repeated TVolume Volumes = 4;
 
-    //Все workload
+    //Все workload, изменение любого поля приводит к рестарту @see MutableWorkloads
     repeated TWorkload Workloads = 5;
 
     //Все окружения, в которых могут быть запущены Workloads
     repeated TBox Boxes = 8;
 
-    //Часть Worklaod, изменение которой не приведет к полной пересборке Workload
+    //Часть Workload, изменение которой не приведет к полной пересборке Workload
     repeated TMutableWorkload MutableWorkloads = 9;
 }
 
 // Конфигурация Пода, содержащая секреты
 // NOTE: В будущем Pod-agent будет принимать только это сообщение, сейчас он все еще принимает TPodAgentSpec отдельно для обратной совместимости
-// NOTE: Валидация - все id секретов различны
+// NOTE: Валидация - все alias секретов различны
 message TPodAgentRequest {
     // Конфигурация Пода
     TPodAgentSpec Spec = 1;
@@ -91,7 +85,7 @@ message TPodAgentStatus {
     // обращается в EConditionStatus_UNKNOWN.
     // Иначе, если хотя бы один из них имеет Status == EConditionStatus_TRUE,
     // обращается в EConditionStatus_TRUE.
-    // Иначе обращается в EConditionStatus_FALSe.
+    // Иначе обращается в EConditionStatus_FALSE.
     // LastTransitionTime -- максимальное значение InProgress.LastTransitionTime среди всех вложеных T*Status
     TCondition InProgress = 9;
 }
@@ -139,7 +133,7 @@ message TVerification {
     string Checksum = 1;
 
     // Периодичность проверки контрольной суммы. Первая проверка выполняется сразу после завершения скачивания.
-    //NOTE: добавить валидацию минимального значения периода проверки
+    //TODO: добавить валидацию минимального значения периода проверки
     uint64 CheckPeriodMs = 2;
 }
 
@@ -162,13 +156,14 @@ message TResource {
     //не нужно для Pod-agent
     TResourceMeta Meta = 2; // Мета информация о ресурсе, необходимо для интеграции с CI/CD
 
-    //@see Verification
+    //@see TVerification
     TVerification Verification = 3;
 
     // URL для скачивания, протоколы: http, https, rbtorrent
     // Для записи строчки в файл URL должен быть равен "raw:<строка>"
     string Url = 4;
 
+    //TODO: not implemented
     oneof StorageRef {
         bool DefaultStorage = 5;
         string FileStorageRef = 6; //Указатель на файловый сторедж
@@ -250,7 +245,7 @@ message TVolume {
     string Id = 1; // Уникальный в рамках pod идентификатор Volume. Должен состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
 
     oneof Volume {
-        TFileStorage Storage = 3;
+        TFileStorage Storage = 3; // TODO: not implemented
         TGenericVolume Generic = 4;
     }
 }
@@ -281,9 +276,12 @@ message TTimeLimitStatus {
 }
 
 // Id секрета из TPodAgentRequest.Secrets
+// Alias секрета из TPodAgentRequest.Secrets
 // В момент обработки спеки будет добавлена переменная окружения с значением равным value секрета
 message SecretEnvSelector {
-    string SecretId = 1;
+    string Id = 1;
+
+    string Alias = 2;
 }
 
 message LiteralEnvSelector {
@@ -307,18 +305,25 @@ enum EWorkloadTargetState {
     EWorkloadTarget_REMOVED = 1 [(NYT.NYson.NProto.enum_value_name) = "removed"];
 }
 
-//pid-ns как изолируется относительно соседей
 message TWorkload {
+    reserved 2,4,10;
+
     // уникальный в рамках pod идентификатор Workload. Должeн состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
     string Id = 1;
+
+    //Указатель на Box, в котором надо запускаться
+    string BoxRef = 8;
+
+    //Переменные окружения - прокидываются во все контейнеры ворклода
+    repeated TEnvVar Env = 5;
 
     //Набор команд, запускаемых перед стартом основного процесса.
     //Гарантируется, что каждая отработает at least once.
     //Если команда падает - она перезапускается до победного
     repeated TUtilityContainer Init = 3;
 
-    //Переменные окружения
-    repeated TEnvVar Env = 5;
+    // Описание основного процесса
+    TUtilityContainer Start = 11;
 
     //В случае возврата 0 - workload переходит в состояние ACTIVE, в других случаях SEMI_FAILED
     //Нет такого кода возврата status hook, при котором контейнер будет убит
@@ -330,18 +335,10 @@ message TWorkload {
     // stdout этого хука
     TReadinessCheck ReadinessCheck = 6;
 
-    TStopPolicy StopPolicy = 7;
-
-    //Указатель на Box, в котором надо запускаться
-    string BoxRef = 8;
-
     //В случае ненулевого возврата - workload убивается и переходит в состояние DEACTIVATED_BY_LIVENESS
     TLivenessCheck LivenessCheck = 9;
 
-    // В связи с изменением структуры контейнеров: https://st.yandex-team.ru/ISS-5791
-    // Поля ComputeResources и CommandLine заменены на контейнер Start
-    // Данный контейнер содержит ограничения для запуска основной команды и саму команду
-    TUtilityContainer Start = 11;
+    TStopPolicy StopPolicy = 7;
 
     TDestroyPolicy DestroyPolicy = 12;
 }
@@ -354,7 +351,7 @@ message TMutableWorkload {
     EWorkloadTargetState TargetState = 2;
 }
 
-// При переводе MutableTarget в состояние REMOVED или обновления ревизии workload или любой его зависимости
+// При переводе TMutableWorkload.TargetState в состояние REMOVED или обновления ревизии workload или любой его зависимости
 // будет вызван stop hook, который должен выполнить gracefully завершение контейнера start
 // Если после завершения stop hook контейнер start находится в состоянии dead или stopped, то он будет уничтожен,
 // иначе stop hook будет перезапускаться до тех пор, пока контейнер start не перейдет в одно из этих состояний
@@ -372,9 +369,9 @@ message TStopPolicy {
     uint32 MaxTries = 3;
 }
 
-// При удалении ворклоуда из спеки
+// При удалении workload из спеки
 // будет вызван destroy hook, который выпонится только после окончания выполнения stop hook и перехода start контейнера в состояние dead.
-// в случае если destroy hook завершится не нулевым кодом возврата, он будет перезапущен MaxTries раз
+// в случае если destroy hook завершится ненулевым кодом возврата, он будет перезапущен MaxTries раз
 // пока не завершится успехом
 message TDestroyPolicy {
     oneof Policy {
@@ -387,21 +384,23 @@ message TDestroyPolicy {
     uint32 MaxTries = 3;
 }
 
+// Обеспечивает изоляцию по диску и pidns
+// Сеть между боксами не изолирована - workloadы разных боксов могут общаться друг с другом по localhost
 message TBox {
     // уникальный в рамках pod идентификатор Box. Должен состоять только из символов, разрешенных в имени porto контейнера. (a..z, A..Z, 0..9, _-@:.)
     string Id = 1;
 
     TRootfsVolume Rootfs = 2;
 
-    //NOTE: валидация должна гарантировать, что не может быть двух вольюмов в этом списке, у которых совпадает mountPoint
-    //NOTE: валидация уникальности id в списке
+    //TODO: валидация должна гарантировать, что не может быть двух вольюмов в этом списке, у которых совпадает mountPoint
+    //TODO: валидация уникальности id в списке
     repeated TMountedVolume Volumes = 8;
 
     // Процессы, запускаемые при подготовке Box после создания вольюмов
     repeated TUtilityContainer Init = 9;
 
-    //NOTE: валидация должна гарантировать, что не может быть двух ресурсов в этом списке, у которых совпадает mountPoint
-    //NOTE: валидация уникальности id в списке
+    //TODO: валидация должна гарантировать, что не может быть двух ресурсов в этом списке, у которых совпадает mountPoint
+    //TODO: валидация уникальности id в списке
     repeated TMountedStaticResource StaticResources = 10;
 }
 
@@ -469,7 +468,6 @@ message TUtilityContainer {
 //Снача запускаются закачки для активных workload и параллельно запускаются только те, которые можно разместить
 //в рамках лимитов box
 message TResourceGang {
-    //Слои, все закачки происходят в рамках вычислительных
     //Идея убрать произвольные ресурсы, а оставить слои в том, чтобы форсить пользователя готовить во вне воспроизводимое
     //окружение для своего сервиса. По сути это аналог деплоя готовых docker образов.
     repeated TLayer Layers = 2;
@@ -529,9 +527,11 @@ enum EBoxState {
 
     // Box находится в невалидном состоянии и значит будет полнотью пересобран
     EBoxState_INVALID = 9 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+
+    // Ждет пока заимпортятся статические ресурсы
+    EBoxState_WAITING_FOR_STATIC_RESOURCES = 10 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_static_resources"];
 }
 
-//Состояние workload
 //Q: Почему нет DEBUG состояния, чтобы поотлаживать упавшую джобу
 //A: Дело в том, в pod agent не будет понятия джобы. pod agent запускает только сервисы.
 //     одним из сервисов может быть сервис, который выполняет джобы.
@@ -599,21 +599,26 @@ enum EContainerState {
 //A: Я считаю, что в данном случае сливать статистику в обратную связь бесполезно, т.к. нет возможности строить графики
 //    если статистика реально нужна, то её надо выливать в какой-то из существующих сервисов: YT, solomon, golovan, statface
 message TContainerStatus {
-    reserved 12, 13, 14;
+    reserved 1, 2, 3, 4, 5, 7, 12, 13, 14;
 
-    EContainerState State = 1;
+    message TAttemptFeedback {
+        EContainerState State = 1;
 
-    int32 ReturnCode = 2;
+        int32 ReturnCode = 2;
 
-    string Stderr = 3;
+        string Stderr = 3;
 
-    string Stdout = 4;
+        string Stdout = 4;
 
-    //Неструктурированное описание последней ошибки связанной c запуском контейнера
-    string FailReason = 5;
+        //Неструктурированное описание последней ошибки связанной c запуском контейнера
+        string FailReason = 5;
+    }
+
+    TAttemptFeedback Current = 16;
+    TAttemptFeedback Last = 17;
 
     uint32 ZeroReturnCodeCounter = 6;
-    uint32 NonZeroReturnCodeCounter = 7;
+    uint32 PositiveReturnCodeCounter = 18;
     uint32 OomCounter = 8;
     uint32 TimeoutCounter = 9;
     uint32 KilledExternallyCounter = 10;
@@ -696,22 +701,34 @@ enum ETcpCheckState {
 }
 
 message TTcpCheckStatus {
-    reserved 2, 3, 4;
+    reserved 1, 2, 3, 4, 6;
 
-    ETcpCheckState State = 1;
+    message TAttemptFeedback {
+        ETcpCheckState State = 1;
+        string FailReason = 2;
+    }
+
+    TAttemptFeedback Current = 7;
+    TAttemptFeedback Last = 8;
 
     TTimeLimitStatus TimeLimit = 5;
-    string FailReason = 6;
 }
 
 message THttpGetStatus {
-    reserved 2, 3, 4;
+    reserved 1, 2, 3, 4, 6, 8;
 
-    EHttpGetState State = 1;
+    message TAttemptFeedback {
+        EHttpGetState State = 1;
+        string FailReason = 2;
+        string InnerFailReason = 3;
+    }
+
+    TAttemptFeedback Current = 9;
+    TAttemptFeedback Last = 10;
+
+    uint32 RequestsCount = 7;
 
     TTimeLimitStatus TimeLimit = 5;
-    string FailReason = 6;
-    uint32 RequestsCount = 7;
 }
 
 message TStopStatus {

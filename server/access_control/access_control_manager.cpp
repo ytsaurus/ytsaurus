@@ -361,43 +361,11 @@ public:
         TObject* object,
         EAccessControlPermission permission)
     {
-        TPermissionCheckResult result;
-        result.Action = EAccessControlAction::Deny;
-
-        auto snapshot = GetClusterSnapshot();
-
-        if (snapshot->IsSuperuser(subjectId)) {
-            result.Action = EAccessControlAction::Allow;
-            return result;
-        }
-
-        InvokeForAccessControlHierarchy(
+        return CheckPermission(
+            subjectId,
             object,
-            [&] (auto* object) {
-                const auto& acl = object->Acl().Load();
-                auto subresult = snapshot->ApplyAcl(acl, permission, subjectId);
-                if (subresult) {
-                    result.ObjectId = object->GetId();
-                    result.ObjectType = object->GetType();
-                    result.SubjectId = std::get<1>(*subresult);
-                    switch (std::get<0>(*subresult)) {
-                        case EAccessControlAction::Allow:
-                            if (result.Action == EAccessControlAction::Deny) {
-                                result.Action = EAccessControlAction::Allow;
-                                result.SubjectId = std::get<1>(*subresult);
-                            }
-                            break;
-                        case EAccessControlAction::Deny:
-                            result.Action = EAccessControlAction::Deny;
-                            return false;
-                        default:
-                            Y_UNREACHABLE();
-                    }
-                }
-                return true;
-            });
-
-        return result;
+            permission,
+            GetClusterSnapshot());
     }
 
     TUserIdList GetObjectAccessAllowedFor(
@@ -471,6 +439,30 @@ public:
         }
 
         return result;
+    }
+
+    std::vector<TObject*> GetUserAccessAllowedTo(
+        const TTransactionPtr& transaction,
+        NObjects::TObject* user,
+        NObjects::EObjectType objectType,
+        EAccessControlPermission permission)
+    {
+        auto objects = transaction->SelectObjects(objectType);
+        auto snapshot = GetClusterSnapshot();
+        objects.erase(
+            std::remove_if(
+                objects.begin(),
+                objects.end(),
+                [&] (TObject* object) {
+                    auto permissionCheckResult = CheckPermission(
+                        user->GetId(),
+                        object,
+                        permission,
+                        snapshot);
+                    return permissionCheckResult.Action == EAccessControlAction::Deny;
+                }),
+            objects.end());
+        return objects;
     }
 
     void SetAuthenticatedUser(const TObjectId& userId)
@@ -607,6 +599,49 @@ private:
         }
     }
 
+    TPermissionCheckResult CheckPermission(
+        const TObjectId& subjectId,
+        TObject* object,
+        EAccessControlPermission permission,
+        TClusterSnapshotPtr snapshot)
+    {
+        TPermissionCheckResult result;
+        result.Action = EAccessControlAction::Deny;
+
+        if (snapshot->IsSuperuser(subjectId)) {
+            result.Action = EAccessControlAction::Allow;
+            return result;
+        }
+
+        InvokeForAccessControlHierarchy(
+            object,
+            [&] (auto* object) {
+                const auto& acl = object->Acl().Load();
+                auto subresult = snapshot->ApplyAcl(acl, permission, subjectId);
+                if (subresult) {
+                    result.ObjectId = object->GetId();
+                    result.ObjectType = object->GetType();
+                    result.SubjectId = std::get<1>(*subresult);
+                    switch (std::get<0>(*subresult)) {
+                        case EAccessControlAction::Allow:
+                            if (result.Action == EAccessControlAction::Deny) {
+                                result.Action = EAccessControlAction::Allow;
+                                result.SubjectId = std::get<1>(*subresult);
+                            }
+                            break;
+                        case EAccessControlAction::Deny:
+                            result.Action = EAccessControlAction::Deny;
+                            return false;
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                }
+                return true;
+            });
+
+        return result;
+    }
+
     TClusterSnapshotPtr GetClusterSnapshot()
     {
         TReaderGuard guard(ClusterSnapshotLock_);
@@ -667,7 +702,7 @@ private:
                         context->ScheduleSelect(
                             GetUserQueryString(),
                             [&] (const IUnversionedRowsetPtr& rowset) {
-                                YT_LOG_DEBUG("Parsing nodes");
+                                YT_LOG_DEBUG("Parsing users");
                                 for (auto row : rowset->GetRows()) {
                                     ++userCount;
                                     ParseUserFromRow(snapshot, row);
@@ -789,6 +824,19 @@ TUserIdList TAccessControlManager::GetObjectAccessAllowedFor(
 {
     return Impl_->GetObjectAccessAllowedFor(
         object,
+        permission);
+}
+
+std::vector<TObject*> TAccessControlManager::GetUserAccessAllowedTo(
+    const TTransactionPtr& transaction,
+    NObjects::TObject* user,
+    NObjects::EObjectType objectType,
+    EAccessControlPermission permission)
+{
+    return Impl_->GetUserAccessAllowedTo(
+        transaction,
+        user,
+        objectType,
         permission);
 }
 

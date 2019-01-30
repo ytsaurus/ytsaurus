@@ -459,6 +459,38 @@ message TRspGetObjectAccessAllowedFor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqGetUserAccessAllowedTo
+{
+    message TSubrequest
+    {
+        // Id of the user to check.
+        required string user_id = 1;
+
+        // Type of the object to check.
+        required EObjectType object_type = 2;
+
+        // Permission to check.
+        required EAccessControlPermission permission = 3;
+    }
+
+    // Subrequests to serve.
+    repeated TSubrequest subrequests = 1;
+}
+
+message TRspGetUserAccessAllowedTo
+{
+    message TSubresponse
+    {
+        // Ids of objects to which user is granted permission.
+        repeated string object_ids = 1;
+    }
+
+    // The i-th subresponse here contains the result for the i-th subrequest.
+    repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqWatchObjects
 {
     // Only fetches events with timestamp > start_timestamp.
@@ -548,6 +580,9 @@ service ObjectService
 
     // Given objects and permissions, computes the set of users that are granted the specified permission.
     rpc GetObjectAccessAllowedFor (TReqGetObjectAccessAllowedFor) returns (TRspGetObjectAccessAllowedFor);
+
+    // Computes the set of objects of a given type to which given users are granted given permissions.
+    rpc GetUserAccessAllowedTo (TReqGetUserAccessAllowedTo) returns (TRspGetUserAccessAllowedTo);
 
     // Reads updates from event queue.
     rpc WatchObjects (TReqWatchObjects) returns (TRspWatchObjects);

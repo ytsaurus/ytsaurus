@@ -1,5 +1,6 @@
 #include "object_service.h"
 #include "private.h"
+#include "config.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -44,12 +45,13 @@ class TObjectService
     : public NMaster::TServiceBase
 {
 public:
-    explicit TObjectService(TBootstrap* bootstrap)
+    TObjectService(TBootstrap* bootstrap, TObjectServiceConfigPtr config)
         : TServiceBase(
             bootstrap,
             NClient::NApi::TObjectServiceProxy::GetDescriptor(),
             NApi::Logger,
             bootstrap->GetAuthenticationManager()->GetRpcAuthenticator())
+        , Config_(std::move(config))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamp));
 
@@ -67,15 +69,18 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckObjectPermissions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObjectAccessAllowedFor));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetUserAccessAllowedTo));
     }
 
 private:
+    const TObjectServiceConfigPtr Config_;
+
     class TTransactionWrapper
     {
     public:
         TTransactionWrapper(
             const TTransactionId& id,
-            bool mustOwn,
+            bool mustNotOwn,
             TBootstrap* bootstrap)
         {
             const auto& transactionManager = bootstrap->GetTransactionManager();
@@ -94,10 +99,10 @@ private:
                 Transaction_ = std::move(transaction);
                 LockGuard_ = Transaction_->AcquireLock();
             } else {
-                if (mustOwn) {
+                if (mustNotOwn) {
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::InvalidTransactionId,
-                        "std::nullopt transaction id is not allowed");
+                        "Null transaction id is not allowed");
                 }
                 Owned_ = true;
                 Transaction_ = WaitFor(transactionManager->StartReadWriteTransaction())
@@ -243,7 +248,7 @@ private:
             .ValueOrThrow();
 
         response->set_timestamp(timestamp);
-        context->SetResponseInfo("Timestamp: %v", timestamp);
+        context->SetResponseInfo("Timestamp: %llx", timestamp);
         context->Reply();
     }
 
@@ -278,7 +283,7 @@ private:
             .ValueOrThrow();
 
         response->set_commit_timestamp(result.CommitTimestamp);
-        context->SetResponseInfo("CommitTimestamp: %v", result.CommitTimestamp);
+        context->SetResponseInfo("CommitTimestamp: %llx", result.CommitTimestamp);
         context->Reply();
     }
 
@@ -591,7 +596,7 @@ private:
             FromProto<std::vector<TString>>(request->selector().paths())
         };
 
-        context->SetRequestInfo("ObjectId: %v, ObjectType: %v, Timestamp: %v, Selector: %v",
+        context->SetRequestInfo("ObjectId: %v, ObjectType: %v, Timestamp: %llx, Selector: %v",
             objectId,
             objectType,
             timestamp,
@@ -663,7 +668,7 @@ private:
             ? std::make_optional(request->limit().value())
             : std::nullopt;
 
-        context->SetRequestInfo("ObjectType: %v, Timestamp: %v, Filter: %v, Selector: %v, Offset: %v, Limit: %v",
+        context->SetRequestInfo("ObjectType: %v, Timestamp: %llx, Filter: %v, Selector: %v, Offset: %v, Limit: %v",
             objectType,
             timestamp,
             filter,
@@ -781,11 +786,54 @@ private:
 
         context->Reply();
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GetUserAccessAllowedTo)
+    {
+        context->SetRequestInfo("SubrequestCount: %v", request->subrequests_size());
+
+        const auto& allowedObjectTypes = Config_->GetUserAccessAllowedTo->AllowedObjectTypes;
+        for (const auto& subrequest : request->subrequests()) {
+            auto objectType = CheckedEnumCast<NObjects::EObjectType>(subrequest.object_type());
+            if (std::find(allowedObjectTypes.begin(), allowedObjectTypes.end(), objectType) ==
+                allowedObjectTypes.end())
+            {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::NoSuchMethod,
+                    "GetUserAccessAllowedTo method is not supported for the given %Qv object type",
+                    GetLowercaseHumanReadableTypeName(objectType));
+            }
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
+            .ValueOrThrow();
+
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        for (const auto& subrequest : request->subrequests()) {
+            auto* user = transaction->GetObject(NObjects::EObjectType::User, subrequest.user_id());
+            auto objectType = CheckedEnumCast<NObjects::EObjectType>(subrequest.object_type());
+            auto permission = CheckedEnumCast<NAccessControl::EAccessControlPermission>(
+                subrequest.permission());
+            auto objects = accessControlManager->GetUserAccessAllowedTo(
+                transaction,
+                user,
+                objectType,
+                permission);
+            auto* subresponse = response->add_subresponses();
+            auto* object_ids = subresponse->mutable_object_ids();
+            object_ids->Reserve(objects.size());
+            for (auto* object : objects) {
+                *object_ids->Add() = object->GetId();
+            }
+        }
+
+        context->Reply();
+    }
 };
 
-IServicePtr CreateObjectService(TBootstrap* bootstrap)
+IServicePtr CreateObjectService(TBootstrap* bootstrap, TObjectServiceConfigPtr config)
 {
-    return New<TObjectService>(bootstrap);
+    return New<TObjectService>(bootstrap, std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -76,6 +76,12 @@ public:
         NObjects::TObject* object,
         EAccessControlPermission permission);
 
+    std::vector<NObjects::TObject*> GetUserAccessAllowedTo(
+        const NObjects::TTransactionPtr& transaction,
+        NObjects::TObject* user,
+        NObjects::EObjectType objectType,
+        EAccessControlPermission permission);
+
     void SetAuthenticatedUser(const NObjects::TObjectId& userId);
     void ResetAuthenticatedUser();
     bool HasAuthenticatedUser();

@@ -631,6 +631,11 @@ message TPodSpec
 
     message TIP6SubnetRequest
     {
+        // Id of network_project.
+        // If omitted, no network configuration is actually being applied at nodes;
+        // however the IP6 address nonce is still being reserved.
+        optional string network_id = 3;
+
         // Will be matched against /node/spec/ip6_subnets/*/vlan_id.
         required string vlan_id = 1;
 
@@ -721,6 +726,9 @@ message TPodSpec
 
     // Defines secrets to be delivered to the pod.
     map<string, TSecret> secrets = 16 [(NYT.NYson.NProto.yson_map) = true];
+
+    // If given, overrides the podset's account.
+    optional string account_id = 17;
 }
 
 enum EEvictionState

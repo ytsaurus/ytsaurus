@@ -57,7 +57,7 @@ public:
             BIND(&TImpl::OnMasterDiscovery, MakeWeak(this)),
             Config_->MasterDiscoveryPeriod))
         , DBPath_(GetRootPath() + "/db")
-        , Connection_(NApi::NNative::CreateConnection(Config_->Connection))
+        , Connection_(NNative::CreateConnection(Config_->Connection))
         , Client_(Connection_->CreateNativeClient(TClientOptions(Config_->User)))
     { }
 

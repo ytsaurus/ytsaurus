@@ -27,6 +27,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetObject);
     DEFINE_RPC_PROXY_METHOD(NProto, SelectObjects);
     DEFINE_RPC_PROXY_METHOD(NProto, CheckObjectPermissions);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetObjectAccessAllowedFor);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetUserAccessAllowedTo);
     DEFINE_RPC_PROXY_METHOD(NProto, WatchObjects);
 };
 

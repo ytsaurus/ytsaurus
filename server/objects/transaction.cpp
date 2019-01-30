@@ -165,6 +165,105 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+// Implements all needed stuff for processing object ids selection for
+// TTransaction::SelectObjects: query construction, rows parsing, response keeping.
+class TObjectIdsSelectionProcessor
+    : public NYT::TRefCounted
+{
+public:
+    explicit TObjectIdsSelectionProcessor(EObjectType objectType)
+        : ObjectType_(objectType)
+    {
+        Clear();
+    }
+
+    void Clear()
+    {
+        ParentIdWasQueried_ = false;
+        QueryString_.clear();
+        ObjectIdToParentIdMapping_.clear();
+    }
+
+    void Prepare(
+        IObjectTypeHandler* objectTypeHandler,
+        const NMaster::TYTConnectorPtr& ytConnector)
+    {
+        Clear();
+
+        const auto* idField = objectTypeHandler->GetIdField();
+        const auto* table = objectTypeHandler->GetTable();
+        YCHECK(idField);
+        YCHECK(table);
+
+        TStringBuilder queryBuilder;
+        queryBuilder.AppendFormat("[%v]", idField->Name);
+
+        if (objectTypeHandler->GetParentType() != EObjectType::Null) {
+            const auto* parentIdField = objectTypeHandler->GetParentIdField();
+            YCHECK(parentIdField);
+            queryBuilder.AppendFormat(", [%v]", parentIdField->Name);
+            ParentIdWasQueried_ = true;
+        }
+
+        queryBuilder.AppendFormat(" from [%v] where is_null([%v])",
+            ytConnector->GetTablePath(table),
+            ObjectsTable.Fields.Meta_RemovalTime.Name);
+
+        QueryString_ = queryBuilder.Flush();
+    }
+
+    EObjectType GetObjectType() const
+    {
+        return ObjectType_;
+    }
+
+    const TString& GetQueryString() const
+    {
+        return QueryString_;
+    }
+
+    void Reserve(size_t rowCount)
+    {
+        ObjectIdToParentIdMapping_.reserve(rowCount);
+    }
+
+    void ProcessRow(TUnversionedRow row)
+    {
+        TObjectId objectId;
+        TObjectId parentObjectId;
+        if (ParentIdWasQueried_) {
+            FromUnversionedRow(
+                row,
+                &objectId,
+                &parentObjectId);
+        } else {
+            FromUnversionedRow(
+                row,
+                &objectId);
+        }
+        YCHECK(ObjectIdToParentIdMapping_.emplace(
+            std::move(objectId),
+            std::move(parentObjectId)).second);
+    }
+
+    using TObjectIdToParentIdMapping = THashMap<TObjectId, TObjectId>;
+    DEFINE_BYREF_RO_PROPERTY(TObjectIdToParentIdMapping, ObjectIdToParentIdMapping);
+
+private:
+    const EObjectType ObjectType_;
+    TString QueryString_;
+    bool ParentIdWasQueried_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TObjectIdsSelectionProcessor)
+DEFINE_REFCOUNTED_TYPE(TObjectIdsSelectionProcessor)
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransaction::TImpl
     : public TRefCounted
 {
@@ -484,6 +583,53 @@ public:
     TObject* GetObject(EObjectType type, const TObjectId& id, const TObjectId& parentId = {})
     {
         return Session_.GetObject(type, id, parentId);
+    }
+
+    std::vector<TObject*> SelectObjects(EObjectType objectType)
+    {
+        auto* objectTypeHandler = Bootstrap_->GetObjectManager()->GetTypeHandlerOrThrow(objectType);
+
+        auto objectIdsSelectionProcessor = New<TObjectIdsSelectionProcessor>(objectType);
+        objectIdsSelectionProcessor->Prepare(objectTypeHandler, Bootstrap_->GetYTConnector());
+
+        Session_.ScheduleLoad(
+            [processor = objectIdsSelectionProcessor, &Logger = Logger] (ILoadContext* context) {
+                auto queryString = processor->GetQueryString();
+                context->ScheduleSelect(
+                    std::move(queryString),
+                    [processor = std::move(processor), &Logger] (
+                        const NYT::NApi::IUnversionedRowsetPtr& rowset)
+                    {
+                        auto rows = rowset->GetRows();
+                        YT_LOG_DEBUG("Parsing object ids (ObjectType: %v, Count: %v)",
+                            processor->GetObjectType(),
+                            rows.Size());
+                        processor->Reserve(rows.Size());
+                        for (auto row : rows) {
+                            processor->ProcessRow(row);
+                        }
+                    });
+            });
+
+        YT_LOG_DEBUG("Flushing object ids select (ObjectType: %v)", objectType);
+        Session_.FlushLoads();
+
+        const auto& objectIdToParentIdMapping = objectIdsSelectionProcessor->ObjectIdToParentIdMapping();
+
+        YT_LOG_DEBUG("Selected object ids (ObjectType: %v, Count: %v)",
+            objectType,
+            objectIdToParentIdMapping.size());
+
+        std::vector<TObject*> objects;
+        objects.reserve(objectIdToParentIdMapping.size());
+        for (const auto& objectIdAndParentIdPair : objectIdToParentIdMapping) {
+            objects.push_back(GetObject(
+                objectType,
+                objectIdAndParentIdPair.first,
+                objectIdAndParentIdPair.second));
+        }
+
+        return objects;
     }
 
     TSchema* GetSchema(EObjectType type)
@@ -2358,6 +2504,11 @@ TSelectQueryResult TTransaction::ExecuteSelectQuery(
         filter,
         selector,
         options);
+}
+
+std::vector<TObject*> TTransaction::SelectObjects(EObjectType type)
+{
+    return Impl_->SelectObjects(type);
 }
 
 TNode* TTransaction::GetNode(const TObjectId& id)

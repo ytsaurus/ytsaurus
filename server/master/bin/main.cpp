@@ -13,6 +13,8 @@
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
+#include <yt/core/misc/ref_counted_tracker_profiler.h>
+
 namespace NYP::NServer::NMaster {
 
 using namespace NYT;
@@ -39,8 +41,10 @@ protected:
         ConfigureCrashHandler();
         EnablePhdrCache();
         ConfigureExitZeroOnSigterm();
+        EnableRefCountedTrackerProfiling();
         NYTAlloc::EnableLogging();
         NYTAlloc::EnableProfiling();
+        NYTAlloc::EnableStockpile();
 
         if (HandlePdeathsigOptions()) {
             return;

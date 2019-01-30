@@ -167,6 +167,8 @@ public:
         const TObjectId& id,
         const TObjectId& parentId = {});
 
+    std::vector<TObject*> SelectObjects(EObjectType objectType);
+
     TSchema* GetSchema(EObjectType type);
 
     TNode* GetNode(const TObjectId& id);

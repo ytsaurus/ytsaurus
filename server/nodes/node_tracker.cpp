@@ -421,12 +421,17 @@ public:
 
         void RequestSecrets()
         {
+            // These vectors are aligned as follows:
+            // secretSubrequests[i] contains a secret request issued by podsRequestingSecrets[i]
+            // and keyed as secretKeys[i].
             std::vector<ISecretVaultService::TSecretSubrequest> secretSubrequests;
+            std::vector<TString> secretKeys;
             std::vector<TPod*> podsRequestingSecrets;
             for (const auto& pair : PodsToUpdate_) {
                 auto* pod = pair.first;
                 const auto& secrets = pod->Spec().Secrets().Load();
                 for (const auto& pair : secrets) {
+                    secretKeys.push_back(pair.first);
                     const auto& secret = pair.second;
                     secretSubrequests.push_back({
                         secret.secret_id(),
@@ -438,7 +443,6 @@ public:
                 }
             }
 
-            std::vector<TKeyedSecret> keyedSecrets(secretSubrequests.size());
             if (!secretSubrequests.empty()) {
                 YT_LOG_DEBUG("Retrieving secrets from Vault (Count: %v)",
                     secretSubrequests.size());
@@ -458,9 +462,8 @@ public:
                         const auto& secretSubresponseOrError = secretSubresponsesOrErrors[index];
                         if (secretSubresponseOrError.IsOK()) {
                             auto& secretSubresponse = secretSubresponseOrError.Value();
-                            const auto& keyedSecret = keyedSecrets[index];
                             auto* protoSecret = podSpec.add_secrets();
-                            protoSecret->set_id(keyedSecret.first);
+                            protoSecret->set_id(secretKeys[index]);
                             for (auto& pair : secretSubresponse.Payload) {
                                 (*protoSecret->mutable_payload())[pair.first] = std::move(pair.second);
                             }
@@ -585,8 +588,6 @@ public:
             }
         }
     };
-
-    using TKeyedSecret = std::pair<TString, ISecretVaultService::TSecretSubrequest>;
 
     void ProcessHeartbeat(
         const TTransactionPtr& transaction,

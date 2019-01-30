@@ -83,7 +83,7 @@ public:
     TImpl(TBootstrap* bootstrap, TMasterConfigPtr config)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
-        , WorkerPool_(New<NYT::NConcurrency::TThreadPool>(Config_->WorkerThreadPoolSize, "Worker"))
+        , WorkerPool_(New<NConcurrency::TThreadPool>(Config_->WorkerThreadPoolSize, "Worker"))
     {
         WarnForUnrecognizedOptions(Logger, Config_);
     }
@@ -340,7 +340,7 @@ private:
 
         SetBuildAttributes(orchidRoot, "yp_master");
 
-        ObjectService_ = NApi::CreateObjectService(Bootstrap_);
+        ObjectService_ = NApi::CreateObjectService(Bootstrap_, Config_->ObjectService);
         ClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Client);
         SecureClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::SecureClient);
         AgentDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Agent);

@@ -1,6 +1,6 @@
 from .conftest import ZERO_RESOURCE_REQUESTS
 
-from yp.common import YpAuthorizationError
+from yp.common import YpClientError, YtResponseError, YpAuthorizationError
 
 from yt.environment.helpers import assert_items_equal
 
@@ -245,6 +245,176 @@ class TestAcls(object):
             ])[0]["user_ids"],
             ["root", "u1"])
 
+    def test_get_user_access_allowed_to(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        # Empty subrequests.
+        assert_items_equal(yp_client.get_user_access_allowed_to([]), [])
+
+        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+
+        def create_network_project(acl, inherit_acl):
+            return yp_client.create_object(
+                "network_project",
+                attributes=dict(
+                    meta=dict(acl=acl, inherit_acl=inherit_acl),
+                    spec=dict(project_id=42),
+                ),
+            )
+
+        network_project_id1 = create_network_project(acl=[], inherit_acl=False)
+
+        # User is not granted the access. Superuser is always granted the access.
+        # Different users / permissions in the one request.
+        yp_env.sync_access_control()
+        assert_items_equal(
+            yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="u1",
+                    object_type="network_project",
+                    permission="read",
+                ),
+                dict(
+                    user_id="root",
+                    object_type="network_project",
+                    permission="write",
+                ),
+                dict(
+                    user_id="root",
+                    object_type="network_project",
+                    permission="read",
+                ),
+            ]),
+            [
+                dict(object_ids=[]),
+                dict(object_ids=[network_project_id1]),
+                dict(object_ids=[network_project_id1]),
+            ],
+        )
+
+        network_project_id2 = create_network_project(
+            acl=[
+                dict(action="allow", subjects=["u1"], permissions=["read", "write"]),
+            ],
+            inherit_acl=True,
+        )
+
+        # User is granted the access.
+        yp_env.sync_access_control()
+        assert_items_equal(
+            yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="u1",
+                    object_type="network_project",
+                    permission="read",
+                )
+            ]),
+            [
+                dict(object_ids=[network_project_id2]),
+            ],
+        )
+
+        # Method is not supported for the 'pod' object type.
+        try:
+            yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="u1",
+                    object_type="pod",
+                    permission="read",
+                )
+            ])
+        except YtResponseError as error:
+            assert error.contains_code(103) # No such method.
+
+        network_project_id3 = create_network_project(
+            acl=[
+                dict(action="allow", subjects=["u1"], permissions=["read", "write"]),
+            ],
+            inherit_acl=True,
+        )
+
+        # Several objects in the response.
+        yp_env.sync_access_control()
+        response = yp_client.get_user_access_allowed_to([
+            dict(
+                user_id="u1",
+                object_type="network_project",
+                permission="read",
+            ),
+            dict(
+                user_id="u1",
+                object_type="network_project",
+                permission="write",
+            ),
+        ])
+        assert len(response) == 2
+        assert set(response[0]["object_ids"]) == set([network_project_id2, network_project_id3])
+        assert set(response[1]["object_ids"]) == set([network_project_id2, network_project_id3])
+
+        # Nonexistant user.
+        assert_items_equal(
+            yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="abracadabra",
+                    object_type="network_project",
+                    permission="read",
+                ),
+            ]),
+            [
+                dict(object_ids=[]),
+            ],
+        )
+
+        # Nonexistant object type.
+        with pytest.raises(YpClientError):
+            yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="u1",
+                    object_type="abracadabra",
+                    permission="read",
+                ),
+            ])
+
+        # Nonexistant permission.
+        with pytest.raises(YpClientError):
+            yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="u1",
+                    object_type="network_project",
+                    permission="abracadabra",
+                ),
+            ])
+
+        yp_client.create_object("group", attributes=dict(
+            meta=dict(id="g1"),
+            spec=dict(members=["u1"]),
+        ))
+
+        yp_client.update_object("network_project", network_project_id2, set_updates=[
+            dict(
+                path="/meta/acl",
+                value=[
+                    dict(action="allow", permissions=["write"], subjects=["u1"]),
+                    dict(action="deny", permissions=["write"], subjects=["g1"]),
+                ]
+            ),
+        ])
+
+        # User is not granted the access because of group ace with action = "deny".
+        yp_env.sync_access_control()
+        assert_items_equal(
+            yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="u1",
+                    object_type="network_project",
+                    permission="write",
+                ),
+            ]),
+            [
+                dict(object_ids=[network_project_id3]),
+            ],
+        )
+
     def test_only_superuser_can_force_assign_pod1(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -359,3 +529,82 @@ class TestAcls(object):
             yp_env.sync_access_control()
 
             try_create()
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestApiGetUserAccessAllowedTo(object):
+    YP_MASTER_CONFIG = dict(
+        object_service = dict(
+            get_user_access_allowed_to = dict(
+                allowed_object_types = ["pod"],
+            )
+        )
+    )
+
+    def test(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        # Method is not supported for the 'network_project' object type.
+        try:
+            yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="u1",
+                    object_type="network_project",
+                    permission="create",
+                )
+            ])
+        except YtResponseError as error:
+            assert error.contains_code(103) # No such method.
+
+        u1 = yp_client.create_object("user")
+        pod_set_id = yp_client.create_object("pod_set", attributes=dict(meta=dict(
+            acl=[
+                dict(
+                    action="allow",
+                    subjects=[u1],
+                    permissions=["write"]
+                )
+            ]
+        )))
+
+        # Pod with allowed 'write' permission due to the parent pod set acl.
+        pod1 = yp_client.create_object("pod", attributes=dict(meta=dict(
+            pod_set_id=pod_set_id,
+            inherit_acl=True,
+            acl=[],
+        )))
+
+        # Pod with denied 'write' permission due to the empty acl list and inherit_acl == False.
+        pod2 = yp_client.create_object("pod", attributes=dict(meta=dict(
+            pod_set_id=pod_set_id,
+            inherit_acl=False,
+            acl=[],
+        )))
+
+        # Pod with denied 'write' permission due to the ace with action == 'deny', despite of the
+        # inherit_acl == True and allowed 'write' permission due to the parent pod set acl.
+        pod3 = yp_client.create_object("pod", attributes=dict(meta=dict(
+            pod_set_id=pod_set_id,
+            inherit_acl=True,
+            acl=[
+                dict(
+                    action="deny",
+                    subjects=[u1],
+                    permissions=["write"],
+                )
+            ]
+        )))
+
+        yp_env_configurable.sync_access_control()
+        assert_items_equal(
+            yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id=u1,
+                    object_type="pod",
+                    permission="write",
+                ),
+            ]),
+            [
+                dict(object_ids=[pod1]),
+            ],
+        )
