@@ -74,7 +74,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
 //! Populates #nodeDirectory with the returned node descriptors.
 //! Throws if the server returns no replicas.
-TChunkReplicaList AllocateWriteTargets(
+TChunkReplicaWithMediumList AllocateWriteTargets(
     NApi::NNative::IClientPtr client,
     TSessionId sessionId,
     int desiredTargetCount,

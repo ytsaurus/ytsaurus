@@ -165,7 +165,7 @@ public:
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();
 
-    TPerMediumArray<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
+    TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
 
     //! Computes misc extension of a given journal chunk
     //! by querying a quorum of replicas (if the chunk is not sealed).

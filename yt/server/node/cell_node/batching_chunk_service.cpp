@@ -209,6 +209,18 @@ private:
             }
         }
 
+        static void AddReplicaList(TNodeDirectoryBuilder& builder, const NYT::NChunkClient::NProto::TRspLocateChunks_TSubresponse& subresponse) {
+            builder.Add(FromProto<TChunkReplicaList>(subresponse.replicas()));
+        }
+
+        static void AddReplicaList(TNodeDirectoryBuilder& builder, const NYT::NChunkClient::NProto::TRspAllocateWriteTargets_TSubresponse& subresponse) {
+            builder.Add(
+                subresponse.replicas().empty()
+                // COMPAT(aozeritsky)
+                ? FromProto<TChunkReplicaList>(subresponse.replicas_old())
+                : FromProto<TChunkReplicaList>(subresponse.replicas()));
+        }
+
         template <class TBatchResponse, class TResponse>
         static void BuildResponseNodeDirectory(const TBatchResponse* batchResponse, TResponse* response)
         {
@@ -216,7 +228,7 @@ private:
             nodeDirectory->MergeFrom(batchResponse->node_directory());
             TNodeDirectoryBuilder builder(nodeDirectory, response->mutable_node_directory());
             for (const auto& subresponse : response->subresponses()) {
-                builder.Add(FromProto<TChunkReplicaList>(subresponse.replicas()));
+                AddReplicaList(builder, subresponse);
             }
         }
 

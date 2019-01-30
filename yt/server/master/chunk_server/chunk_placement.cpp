@@ -154,10 +154,11 @@ void TChunkPlacement::OnNodeDataCenterChanged(TNode* node, const TDataCenter* ol
 
 void TChunkPlacement::OnNodeDisposed(TNode* node)
 {
-    for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
-        auto mediumIndex = pair.second->GetIndex();
-        YCHECK(!node->GetLoadFactorIterator(mediumIndex));
-        YCHECK(!node->GetFillFactorIterator(mediumIndex));
+    for (const auto& item : node->LoadFactorIterators()) {
+        YCHECK(!item.second);
+    }
+    for (const auto& item : node->FillFactorIterators()) {
+        YCHECK(!item.second);
     }
 }
 
@@ -195,12 +196,13 @@ void TChunkPlacement::InsertToFillFactorMaps(TNode* node)
 
     auto* dataCenter = node->GetDataCenter();
 
-    for (const auto& [mediumId, medium] : Bootstrap_->GetChunkManager()->Media()) {
+    // Iterate through IOWeights because IsValidBalancingTargetToInsert check if IOWeights contains medium
+    for (const auto& [mediumIndex, _] : node->IOWeights()) {
+        auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
+
         if (!IsValidBalancingTargetToInsert(medium, node)) {
             continue;
         }
-
-        const auto mediumIndex = medium->GetIndex();
 
         auto fillFactor = node->GetFillFactor(mediumIndex);
         if (!fillFactor) {
@@ -218,11 +220,10 @@ void TChunkPlacement::RemoveFromFillFactorMaps(
 {
     auto* dataCenter = overrideDataCenter ? *overrideDataCenter : node->GetDataCenter();
 
-    for (const auto& [mediumId, medium] : Bootstrap_->GetChunkManager()->Media()) {
-        const auto mediumIndex = medium->GetIndex();
+    for (const auto& [mediumIndex, factorMapIter] : node->FillFactorIterators()) {
+        auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
 
-        auto factorMapIter = node->GetFillFactorIterator(mediumIndex);
-        if (!factorMapIter) {
+        if (!factorMapIter || !medium) {
             continue;
         }
 
@@ -245,8 +246,9 @@ void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
 
     auto* dataCenter = node->GetDataCenter();
 
-    for (const auto& [mediumId, medium] : Bootstrap_->GetChunkManager()->Media()) {
-        const auto mediumIndex = medium->GetIndex();
+    // Iterate through IOWeights because IsValidBalancingTargetToInsert check if IOWeights contains medium
+    for (const auto& [mediumIndex, _] : node->IOWeights()) {
+        auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
 
         if (!IsValidWriteTargetToInsert(medium, node)) {
             continue;
@@ -268,11 +270,10 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(
 {
     auto* dataCenter = overrideDataCenter ? *overrideDataCenter : node->GetDataCenter();
 
-    for (const auto& [mediumId, medium] : Bootstrap_->GetChunkManager()->Media()) {
-        const auto mediumIndex = medium->GetIndex();
+    for (const auto& [mediumIndex, factorMapIter] : node->LoadFactorIterators()) {
+        auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
 
-        auto factorMapIter = node->GetLoadFactorIterator(mediumIndex);
-        if (!factorMapIter) {
+        if (!factorMapIter || !medium) {
             continue;
         }
 
@@ -654,7 +655,8 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
     // Let's bound the number of iterations somehow.
     // Never consider more chunks than the node has to avoid going into a loop (cf. YT-4258).
     int mediumIndex = medium->GetIndex();
-    int iterationCount = std::min(replicaCount * 2, static_cast<int>(node->Replicas()[mediumIndex].size()));
+    auto replicas = node->Replicas().find(mediumIndex);
+    int iterationCount = std::min(replicaCount * 2, static_cast<int>(replicas == node->Replicas().end() ? 0 : replicas->second.size()));
     for (int index = 0; index < iterationCount; ++index) {
         auto replica = node->PickRandomReplica(mediumIndex);
         Y_ASSERT(replica.GetMediumIndex() == mediumIndex);

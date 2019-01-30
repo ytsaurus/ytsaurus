@@ -175,13 +175,13 @@ public:
         return CodecId_;
     }
 
-    virtual TChunkReplicaList GetWrittenChunkReplicas() const override
+    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
-        TChunkReplicaList result;
+        TChunkReplicaWithMediumList result;
         for (int i = 0; i < Writers_.size(); ++i) {
             auto replicas = Writers_[i]->GetWrittenChunkReplicas();
             YCHECK(replicas.size() == 1);
-            auto replica = TChunkReplica(
+            auto replica = TChunkReplicaWithMedium(
                 replicas.front().GetNodeId(),
                 i,
                 replicas.front().GetMediumIndex());
@@ -504,7 +504,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             partConfig,
             options,
             partSessionId,
-            TChunkReplicaList(1, replicas[index]),
+            TChunkReplicaWithMediumList(1, replicas[index]),
             nodeDirectory,
             client,
             blockCache,

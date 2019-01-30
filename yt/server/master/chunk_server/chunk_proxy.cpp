@@ -290,15 +290,16 @@ private:
                 auto statuses = chunkManager->ComputeChunkStatuses(chunk);
 
                 BuildYsonFluently(consumer).DoMapFor(
-                    0,
-                    MaxMediumCount,
-                    [&] (TFluentMap fluent, int mediumIndex) {
+                    statuses.begin(),
+                    statuses.end(),
+                    [&] (TFluentMap fluent, TMediumMap<EChunkStatus>::iterator it) {
+                        auto mediumIndex = it->first;
                         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                         if (!medium || medium->GetCache()) {
                             return;
                         }
 
-                        auto status = statuses[mediumIndex];
+                        auto status = it->second;
 
                         fluent
                             .Item(medium->GetName())

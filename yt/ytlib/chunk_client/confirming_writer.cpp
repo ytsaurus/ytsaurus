@@ -143,7 +143,7 @@ public:
         return DataStatistics_;
     }
 
-    virtual TChunkReplicaList GetWrittenChunkReplicas() const override
+    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         YCHECK(UnderlyingWriter_);
         return UnderlyingWriter_->GetWrittenChunkReplicas();
@@ -223,7 +223,7 @@ private:
                 Config_,
                 Options_,
                 SessionId_,
-                TChunkReplicaList(),
+                TChunkReplicaWithMediumList(),
                 NodeDirectory_,
                 Client_,
                 BlockCache_,

@@ -283,7 +283,7 @@ private:
         // Copy chunk.
         TChunkInfo chunkInfo;
         TRefCountedChunkMetaPtr chunkMeta;
-        TChunkReplicaList writtenReplicas;
+        TChunkReplicaWithMediumList writtenReplicas;
         i64 totalChunkSize;
 
         if (erasureCodecId != NErasure::ECodec::None) {
@@ -361,7 +361,7 @@ private:
 
                 auto replicas = writers[index]->GetWrittenChunkReplicas();
                 YCHECK(replicas.size() == 1);
-                auto replica = TChunkReplica(
+                auto replica = TChunkReplicaWithMedium(
                     replicas.front().GetNodeId(),
                     index,
                     replicas.front().GetMediumIndex());
@@ -391,7 +391,7 @@ private:
                 WriterConfig_,
                 New<TRemoteWriterOptions>(),
                 outputSessionId,
-                TChunkReplicaList(),
+                TChunkReplicaWithMediumList(),
                 New<TNodeDirectory>(),
                 Host_->GetClient(),
                 GetNullBlockCache(),
@@ -434,7 +434,7 @@ private:
     void ConfirmChunkReplicas(
         NChunkClient::TSessionId outputSessionId,
         const TChunkInfo& chunkInfo,
-        const TChunkReplicaList& writtenReplicas,
+        const TChunkReplicaWithMediumList& writtenReplicas,
         const TRefCountedChunkMetaPtr& inputChunkMeta)
     {
         static const THashSet<int> masterMetaTags {

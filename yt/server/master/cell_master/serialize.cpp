@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 831;
+    return 832;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -52,6 +52,7 @@ bool ValidateSnapshotVersion(int version)
         version == 829 || // shakurov: multiply TUser::ReadRequestRateLimit_ by the number of followers
         version == 830 || // ifsmirnov: Chunk view
         version == 831 || // shakurov: versioned @expiration_time
+        version == 832 || // aozeritsky: TClusterResources::DiskSpace serialization
         false;
 }
 
