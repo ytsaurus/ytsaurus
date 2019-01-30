@@ -509,10 +509,9 @@ class PushSubmoduleStep(Step):
     Result:
         {}
     """
-    def __init__(self, project_root, submodule, dry_run):
+    def __init__(self, project_root, submodule):
         super(PushSubmoduleStep, self).__init__(project_root)
         self.submodule = submodule
-        self.dry_run = dry_run
 
     @property
     def name(self):
@@ -532,10 +531,7 @@ class PushSubmoduleStep(Step):
             submodule_git.call("branch", "-D", final_branch)
         submodule_git.call("branch", final_branch, commit)
 
-        dry_run_args = []
-        if self.dry_run:
-            dry_run_args = ["--dry-run"]
-        submodule_git.call("push", "origin", final_branch, *dry_run_args)
+        submodule_git.call("push", "origin", final_branch)
         return {}
 
 class PushAllSubmodulesStep(Step):
@@ -546,14 +542,13 @@ class PushAllSubmodulesStep(Step):
 
     name = "035-push-all-submodules"
 
-    def __init__(self, project_root, dry_run):
+    def __init__(self, project_root):
         super(PushAllSubmodulesStep, self).__init__(project_root)
-        self.dry_run = dry_run
 
     def run_impl(self):
         rebase_result = RebaseAllArcadiaSubmodulesStep(PROJECT_PATH).load_result()
         for submodule in rebase_result["rebased-submodules"]:
-            PushSubmoduleStep(self.project_root, submodule, self.dry_run).run()
+            PushSubmoduleStep(self.project_root, submodule).run()
         return {}
 
 class CommitUpdatesStep(Step):
@@ -563,20 +558,16 @@ class CommitUpdatesStep(Step):
     """
     name = "040-commit-updates"
 
-    def __init__(self, project_root, dry_run):
+    def __init__(self, project_root):
         super(CommitUpdatesStep, self).__init__(project_root)
-        self.dry_run = dry_run
 
     def run_impl(self):
         logger.info("commiting changes to main git repo")
         plan = ArcupPlanStep(PROJECT_PATH).load_result()
         revision = plan["revision"]
         git = Git(self.project_root)
-        dry_run_args = []
-        if self.dry_run:
-            dry_run_args = ["--dry-run"]
         commit_message = "Updated arcadia dependencies to r{}".format(revision)
-        git.call("commit", "--message", commit_message, *dry_run_args)
+        git.call("commit", "--message", commit_message)
         return {}
 
 class Git(Command):
@@ -688,7 +679,7 @@ def do_continue():
         "to push arcadia-dependency submodules and commit changes to main git repo.\n".format(argv0=ARGV0))
 
 
-def do_complete(dry_run):
+def do_complete():
     try:
         RebaseAllArcadiaSubmodulesStep(PROJECT_PATH).load_result()
     except StepIncompleteError:
@@ -700,18 +691,19 @@ def do_complete(dry_run):
             " $ {argv0} abort\n"
             "to abort it.\n".format(argv0=ARGV0))
 
-    PushAllSubmodulesStep(PROJECT_PATH, dry_run).run()
-    CommitUpdatesStep(PROJECT_PATH, dry_run).run()
+    PushAllSubmodulesStep(PROJECT_PATH).run()
+    CommitUpdatesStep(PROJECT_PATH).run()
 
-    if not dry_run:
-        try:
-            logger.info("performing cleanup")
-            do_cleanup(clean_working_copy=False)
-        except:
-            import traceback
-            traceback.print_exc()
-            raise YarcupError("Svn update was successful but exception was raised during cleanup.\n"
-                              "Everything is probably ok, though cleanup should be completed manualy.\n")
+    try:
+        logger.info("performing cleanup")
+        do_cleanup(clean_working_copy=False)
+    except:
+        import traceback
+        traceback.print_exc()
+        raise ArcupError(
+            "Svn update was successful but exception was raised during cleanup.\n"
+            "Everything is probably ok, though cleanup should be completed manualy.\n"
+        )
 
 def cleanup_svn_working_copy(repo_path):
     repo_path = os.path.realpath(repo_path)
@@ -785,7 +777,7 @@ def subcommand_continue(args):
     do_continue()
 
 def subcommand_complete(args):
-    do_complete(args.dry_run)
+    do_complete()
 
 def normalized_revision(rev):
     return int(rev.strip("r"))
@@ -805,16 +797,13 @@ if __name__ == "__main__":
     abort_parser = subparsers.add_parser("abort", help="Abort updating")
     abort_parser.set_defaults(subcommand=subcommand_abort)
 
-    complete_parser = subparsers.add_parser("complete",
-                                            help=("Complete updating:\n"
-                                                  "push all arcadia-snapshot submodules to their origin and commit changes to local repo"))
-    complete_confirm_group = complete_parser.add_mutually_exclusive_group()
-    complete_confirm_group.add_argument(
-        "--confirm", action="store_false", dest="dry_run", default=True,
-        help="actually push submodules and commit changes (disabled by default)")
-    complete_confirm_group.add_argument(
-        "--dry-run", action="store_true", dest="dry_run",
-        help="perform all checks but don't do commit and submodule push (useful for testing)")
+    complete_parser = subparsers.add_parser(
+        "complete",
+        help=(
+            "Complete updating:\n"
+            "push all arcadia-snapshot submodules to their origin and commit changes to local repo"
+        )
+    )
     complete_parser.set_defaults(subcommand=subcommand_complete)
 
     # Logging options
