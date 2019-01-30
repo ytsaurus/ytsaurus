@@ -1,7 +1,7 @@
 #include "sorted_dynamic_store_ut_helpers.h"
 
-#include <yt/server/tablet_node/lookup.h>
-#include <yt/server/tablet_node/sorted_store_manager.h>
+#include <yt/server/node/tablet_node/lookup.h>
+#include <yt/server/node/tablet_node/sorted_store_manager.h>
 
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
@@ -45,7 +45,7 @@ protected:
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
-        return StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, &context);
+        return StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, 0, &context);
     }
 
     void WriteRow(const TUnversionedOwningRow& row, bool prelock = false)
@@ -55,7 +55,7 @@ protected:
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction.get();
-        auto rowRef = StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, &context);
+        auto rowRef = StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, 0, &context);
 
         if (prelock) {
             EXPECT_EQ(1, transaction->PrelockedRows().size());
@@ -80,7 +80,7 @@ protected:
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
-        return StoreManager_->ModifyRow(row, ERowModificationType::Delete, &context);
+        return StoreManager_->ModifyRow(row, ERowModificationType::Delete, 0, &context);
     }
 
     void DeleteRow(const TOwningKey& key)
@@ -619,7 +619,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteBlockedWrite)
     TWriteContext context;
     context.Phase = EWritePhase::Prelock;
     context.Transaction = transaction2.get();
-    EXPECT_EQ(TSortedDynamicRowRef(), StoreManager_->ModifyRow(row, ERowModificationType::Write, &context));
+    EXPECT_EQ(TSortedDynamicRowRef(), StoreManager_->ModifyRow(row, ERowModificationType::Write, 0, &context));
     EXPECT_EQ(rowRef1.Row, context.BlockedRow);
     EXPECT_EQ(rowRef1.Store, context.BlockedStore);
     EXPECT_EQ(1, store->GetLockCount());
@@ -730,9 +730,9 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesPrimaryLock)
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = WriteRow(transaction_, BuildRow("key=1;c=text", false), false).Row;
-    EXPECT_EQ(transaction_, GetLock(row, 0).Transaction);
-    EXPECT_EQ(transaction_, GetLock(row, 1).Transaction);
-    EXPECT_EQ(transaction_, GetLock(row, 2).Transaction);
+    EXPECT_EQ(transaction_, GetLock(row, 0).WriteTransaction);
+    EXPECT_EQ(nullptr, GetLock(row, 1).WriteTransaction);
+    EXPECT_EQ(nullptr, GetLock(row, 2).WriteTransaction);
     EXPECT_EQ(1, store->GetLockCount());
 }
 
@@ -742,9 +742,9 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks1)
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = WriteRow(transaction_, BuildRow("key=1;a=1", false), false).Row;
-    EXPECT_EQ(nullptr, GetLock(row, 0).Transaction);
-    EXPECT_EQ(transaction_, GetLock(row, 1).Transaction);
-    EXPECT_EQ(nullptr, GetLock(row, 2).Transaction);
+    EXPECT_EQ(nullptr, GetLock(row, 0).WriteTransaction);
+    EXPECT_EQ(transaction_, GetLock(row, 1).WriteTransaction);
+    EXPECT_EQ(nullptr, GetLock(row, 2).WriteTransaction);
     EXPECT_EQ(1, store->GetLockCount());
 }
 
@@ -754,9 +754,9 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks2)
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = WriteRow(transaction_, BuildRow("key=1;b=3.14", false), false).Row;
-    EXPECT_EQ(nullptr, GetLock(row, 0).Transaction);
-    EXPECT_EQ(nullptr, GetLock(row, 1).Transaction);
-    EXPECT_EQ(transaction_, GetLock(row, 2).Transaction);
+    EXPECT_EQ(nullptr, GetLock(row, 0).WriteTransaction);
+    EXPECT_EQ(nullptr, GetLock(row, 1).WriteTransaction);
+    EXPECT_EQ(transaction_, GetLock(row, 2).WriteTransaction);
     EXPECT_EQ(1, store->GetLockCount());
 }
 
@@ -766,9 +766,9 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks3)
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = WriteRow(transaction_, BuildRow("key=1;a=1;b=3.14", false), false).Row;
-    EXPECT_EQ(nullptr, GetLock(row, 0).Transaction);
-    EXPECT_EQ(transaction_, GetLock(row, 1).Transaction);
-    EXPECT_EQ(transaction_, GetLock(row, 2).Transaction);
+    EXPECT_EQ(nullptr, GetLock(row, 0).WriteTransaction);
+    EXPECT_EQ(transaction_, GetLock(row, 1).WriteTransaction);
+    EXPECT_EQ(transaction_, GetLock(row, 2).WriteTransaction);
     EXPECT_EQ(1, store->GetLockCount());
 }
 
@@ -778,9 +778,9 @@ TEST_F(TMultiLockStoreManagerTest, DeleteTakesPrimaryLock)
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = DeleteRow(transaction_, BuildKey("1"), false).Row;
-    EXPECT_EQ(transaction_, GetLock(row, 0).Transaction);
-    EXPECT_EQ(transaction_, GetLock(row, 1).Transaction);
-    EXPECT_EQ(transaction_, GetLock(row, 2).Transaction);
+    EXPECT_EQ(transaction_, GetLock(row, 0).WriteTransaction);
+    EXPECT_EQ(nullptr, GetLock(row, 1).WriteTransaction);
+    EXPECT_EQ(nullptr, GetLock(row, 2).WriteTransaction);
     EXPECT_EQ(1, store->GetLockCount());
 }
 

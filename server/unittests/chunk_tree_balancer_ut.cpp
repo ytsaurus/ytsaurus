@@ -1,9 +1,9 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/chunk_server/chunk.h>
-#include <yt/server/chunk_server/chunk_list.h>
-#include <yt/server/chunk_server/chunk_tree_balancer.h>
-#include <yt/server/chunk_server/helpers.h>
+#include <yt/server/master/chunk_server/chunk.h>
+#include <yt/server/master/chunk_server/chunk_list.h>
+#include <yt/server/master/chunk_server/chunk_tree_balancer.h>
+#include <yt/server/master/chunk_server/helpers.h>
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>

@@ -3,9 +3,7 @@
 #include "public.h"
 #include "serialize.h"
 
-#include <yt/server/chunk_pools/public.h>
-
-#include <yt/server/scheduler/job.h>
+#include <yt/server/controller_agent/chunk_pools/public.h>
 
 #include <yt/core/ytree/fluent.h>
 

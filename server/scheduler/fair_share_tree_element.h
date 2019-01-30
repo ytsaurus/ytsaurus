@@ -1,13 +1,14 @@
 #pragma once
 
 #include "private.h"
-#include "config.h"
 #include "job.h"
-#include "job_metrics.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
-#include "scheduling_tag.h"
 #include "fair_share_strategy_operation_controller.h"
+
+#include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/server/lib/scheduler/job_metrics.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -62,8 +63,8 @@ struct TFairShareContext
 
     void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
 
-    TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element);
-    const TDynamicAttributes& DynamicAttributes(const TSchedulerElement* element) const;
+    TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
+    const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
 
     bool Initialized = false;
 
@@ -211,6 +212,7 @@ public:
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
 
     virtual bool IsRoot() const;
+    virtual bool IsOperation() const;
 
     virtual TString GetLoggingString(const TDynamicAttributesList& dynamicAttributesList) const;
 
@@ -238,7 +240,8 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const = 0;
     virtual TDuration GetFairSharePreemptionTimeout() const = 0;
 
-    TCompositeSchedulerElement* GetParent() const;
+    TCompositeSchedulerElement* GetMutableParent();
+    const TCompositeSchedulerElement* GetParent() const;
     void SetParent(TCompositeSchedulerElement* parent);
 
     TInstant GetStartTime() const;
@@ -312,6 +315,8 @@ protected:
     void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
     void IncreaseLocalResourceUsage(const TJobResources& delta);
     void CommitLocalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
+
+    TJobResources ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const;
 
 private:
     void UpdateAttributes();
@@ -579,8 +584,6 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    int GetScheduledJobCount() const;
-
     std::optional<TJobResources> AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force);
     std::optional<TJobResources> RemoveJob(TJobId jobId);
 
@@ -642,7 +645,6 @@ private:
     TSpinLock PreemptionStatusStatisticsLock_;
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
-    std::atomic<int> ScheduledJobCount_ = {0};
     TEnumIndexedVector<std::atomic<int>, EDeactivationReason> DeactivationReasons_;
 
     TInstant LastScheduleJobSuccessTime_;
@@ -683,6 +685,8 @@ public:
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+
+    virtual bool IsOperation() const override;
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
@@ -729,8 +733,6 @@ public:
     int GetAggressivelyPreemptableJobCount() const;
 
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
-
-    int GetScheduledJobCount() const;
 
     TInstant GetLastNonStarvingTime() const;
     TInstant GetLastScheduleJobSuccessTime() const;
@@ -800,7 +802,7 @@ private:
         bool enableBackoff,
         NProfiling::TCpuInstant now);
 
-    NControllerAgent::TScheduleJobResultPtr DoScheduleJob(
+    TScheduleJobResultPtr DoScheduleJob(
         TFairShareContext* context,
         const TJobResources& availableResources,
         TJobResources* precommittedResources);

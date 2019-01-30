@@ -5,11 +5,11 @@
 #include "controller_agent.h"
 #include "private.h"
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
-#include <yt/server/admin_server/admin_service.h>
+#include <yt/server/lib/admin/admin_service.h>
 
-#include <yt/server/misc/address_helpers.h>
+#include <yt/server/lib/misc/address_helpers.h>
 
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/config.h>

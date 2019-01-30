@@ -66,6 +66,7 @@ public:
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
+                std::nullopt,
                 Host_->GetBlockCache(),
                 Host_->GetInputNodeDirectory(),
                 dataSourceDirectory,

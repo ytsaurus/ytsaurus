@@ -11,6 +11,11 @@ class TTokenizer
 public:
     explicit TTokenizer(const TYPath& path);
 
+    TTokenizer(const TTokenizer&) = delete;
+    TTokenizer& operator=(const TTokenizer&) = delete;
+
+    void Reset(TYPath path);
+
     ETokenType Advance();
 
     ETokenType GetType() const;
@@ -22,11 +27,11 @@ public:
     const TString& GetLiteralValue() const;
 
     void Expect(ETokenType expectedType);
-    void Skip(ETokenType expectedType);
+    bool Skip(ETokenType expectedType);
     void ThrowUnexpected();
 
 private:
-    const TYPath Path_;
+    TYPath Path_;
 
     ETokenType Type_;
     ETokenType PreviousType_;

@@ -1,8 +1,8 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/config.h>
-#include <yt/server/hydra/local_changelog_store.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/config.h>
+#include <yt/server/lib/hydra/local_changelog_store.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 

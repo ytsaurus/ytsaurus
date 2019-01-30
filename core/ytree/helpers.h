@@ -50,6 +50,8 @@ struct TAttributeDictionaryRefSerializer
 
 void ValidateYTreeKey(TStringBuf key);
 
+void ValidateYPathResolutionDepth(const TString& path, int depth);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree

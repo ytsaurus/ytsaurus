@@ -215,7 +215,7 @@ std::unique_ptr<IActionQueue> CreateActionQueue(EInvokerQueueType type)
 
 TInvokerQueue::TInvokerQueue(
     std::shared_ptr<TEventCount> callbackEventCount,
-    const NProfiling::TTagIdList& tagIds,
+    const TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling,
     EInvokerQueueType type)
@@ -273,6 +273,11 @@ void TInvokerQueue::Invoke(TClosure callback)
     Queue->Enqueue(action, index);
 
     CallbackEventCount->NotifyOne();
+}
+
+TDuration TInvokerQueue::GetAverageWaitTime() const
+{
+    return CpuDurationToDuration(WaitTimeCounter.GetCurrent());
 }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK

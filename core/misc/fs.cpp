@@ -154,39 +154,37 @@ TString GetRealPath(const TString& path)
     return CombinePaths(parts);
 }
 
-bool CheckPathIsRelativeAndGoesInside(const TString& path)
+bool IsPathRelativeAndInvolvesNoTraversal(const TString& path)
 {
-    std::vector<TString> parts;
-
-    TString currentPath = path;
-    while (true) {
-        size_t slashPosition = currentPath.find_last_of(LOCSLASH_C);
-        if (slashPosition == TString::npos) {
-            if (currentPath.empty()) {
-                // Path is absolute.
-                return false;
-            } else {
-                parts.push_back(currentPath);
-                break;
-            }
-        } else {
-            parts.push_back(currentPath.substr(slashPosition + 1));
-            currentPath = currentPath.substr(0, slashPosition);
-        }
+    if (path.StartsWith(LOCSLASH_C)) {
+        return false;
     }
 
-    int inCount = 0;
-    int outCount = 0;
-    for (const auto& part : parts) {
-        if (part == ".") {
+    TStringBuf currentPath(path);
+    int depth = 0;
+    while (!currentPath.empty()) {
+        size_t slashPosition = currentPath.find_first_of(LOCSLASH_C);
+        if (slashPosition == 0) {
+            currentPath = currentPath.substr(1);
             continue;
-        } else if (part == "..") {
-            ++outCount;
-        } else {
-            ++inCount;
         }
+        auto part = slashPosition == TString::npos ? currentPath : currentPath.substr(0, slashPosition);
+        if (part == "..") {
+            --depth;
+            if (depth < 0) {
+                return false;
+            }
+        } else if (path == ".") {
+            // Do nothing.
+        } else {
+            ++depth;
+        }
+        if (slashPosition == TString::npos) {
+            break;
+        }
+        currentPath = currentPath.substr(slashPosition + 1);
     }
-    return inCount >= outCount;
+    return true;
 }
 
 TString GetFileExtension(const TString& path)

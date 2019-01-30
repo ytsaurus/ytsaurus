@@ -17,11 +17,6 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPlanHelpersBufferTag
-{ };
-
-////////////////////////////////////////////////////////////////////////////////
-
 TKeyTriePtr ExtractMultipleConstraints(
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns,
@@ -218,6 +213,11 @@ TKeyTriePtr ExtractMultipleConstraints(
         }
 
         return UniteKeyTrie(keyTries);
+    } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        TValue value = literalExpr->Value;
+        if (value.Type == EValueType::Boolean) {
+            return value.Data.Boolean ? TKeyTrie::Universal() : TKeyTrie::Empty();
+        }
     }
 
     return TKeyTrie::Universal();

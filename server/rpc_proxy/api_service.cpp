@@ -1265,6 +1265,9 @@ private:
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
+        if (request->has_ignore_existing()) {
+            options.IgnoreExisting = request->ignore_existing();
+        }
         if (request->has_force()) {
             options.Force = request->force();
         }
@@ -1276,6 +1279,9 @@ private:
         }
         if (request->has_preserve_creation_time()) {
             options.PreserveCreationTime = request->preserve_creation_time();
+        }
+        if (request->has_pessimistic_quota_check()) {
+            options.PessimisticQuotaCheck = request->pessimistic_quota_check();
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
@@ -1326,6 +1332,9 @@ private:
         }
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
+        }
+        if (request->has_pessimistic_quota_check()) {
+            options.PessimisticQuotaCheck = request->pessimistic_quota_check();
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
@@ -2446,9 +2455,12 @@ private:
         std::vector<TRowModification> modifications;
         modifications.reserve(rowsetSize);
         for (size_t index = 0; index < rowsetSize; ++index) {
+            ui32 readLocks = index < request->row_read_locks_size() ? request->row_read_locks(index) : 0;
+
             modifications.push_back({
                 CheckedEnumCast<ERowModificationType>(request->row_modification_types(index)),
-                rowsetRows[index].ToTypeErasedRow()
+                rowsetRows[index].ToTypeErasedRow(),
+                readLocks
             });
         }
 

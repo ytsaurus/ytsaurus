@@ -2,23 +2,21 @@
 
 #include "asan_warning_filter.h"
 #include "private.h"
-#include "config.h"
 #include "job_detail.h"
 #include "stderr_writer.h"
 #include "user_job_write_controller.h"
 #include "job_satellite_connection.h"
 #include "user_job_synchronizer.h"
 #include "environment.h"
+#include "core_processor_service.h"
 
-#include <yt/server/core_dump/public.h>
-#include <yt/server/core_dump/core_processor_service.h>
+#include <yt/server/lib/job_proxy/config.h>
 
-#include <yt/server/exec_agent/public.h>
-#include <yt/server/exec_agent/supervisor_service_proxy.h>
+#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/server/misc/public.h>
+#include <yt/server/lib/misc/public.h>
 
-#include <yt/server/shell/shell_manager.h>
+#include <yt/server/lib/shell/shell_manager.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 

@@ -44,6 +44,15 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("http_client", HttpClient)
         .DefaultNew();
 
+    RegisterParameter("request_codec", RequestCodec)
+        .Optional();
+    RegisterParameter("request_attachment_codec", RequestAttachmentCodec)
+        .Optional();
+    RegisterParameter("response_codec", ResponseCodec)
+        .Optional();
+    RegisterParameter("response_attachment_codec", ResponseAttachmentCodec)
+        .Optional();
+
     RegisterParameter("enable_proxy_discovery", EnableProxyDiscovery)
         .Default(true);
 

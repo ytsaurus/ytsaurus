@@ -371,7 +371,7 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("operation_initialization_timeout", OperationInitializationTimeout)
         .Default(TDuration::Seconds(60));
     RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
-        .Default(TDuration::Minutes(60));
+        .Default(TDuration::Minutes(300));
     RegisterParameter("operation_transaction_ping_period", OperationTransactionPingPeriod)
         .Default(TDuration::Seconds(30));
 
@@ -572,6 +572,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("system_layer_path", SystemLayerPath)
         .Default();
 
+    RegisterParameter("default_layer_path", DefaultLayerPath)
+        .Default();
+
     RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
         .Default(TDuration::Seconds(1));
 
@@ -592,6 +595,18 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("total_controller_memory_limit", TotalControllerMemoryLimit)
         .Default();
+
+    RegisterParameter("schedule_job_controller_queue", ScheduleJobControllerQueue)
+        .Default(EOperationControllerQueue::Default);
+
+    RegisterParameter("build_job_spec_controller_queue", BuildJobSpecControllerQueue)
+        .Default(EOperationControllerQueue::Default);
+
+    RegisterParameter("job_events_controller_queue", JobEventsControllerQueue)
+        .Default(EOperationControllerQueue::Default);
+
+    RegisterParameter("schedule_job_wait_time_threshold", ScheduleJobWaitTimeThreshold)
+        .Default(TDuration::Seconds(5));
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

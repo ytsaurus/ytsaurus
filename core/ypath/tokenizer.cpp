@@ -18,6 +18,18 @@ TTokenizer::TTokenizer(const TYPath& path)
     LiteralValue_.reserve(Path_.length());
 }
 
+void TTokenizer::Reset(TYPath path)
+{
+    Path_ = std::move(path);
+    Type_ = ETokenType::StartOfStream;
+    PreviousType_ = ETokenType::StartOfStream;
+    Token_ = TStringBuf();
+    Input_ = Path_;
+
+    LiteralValue_.clear();
+    LiteralValue_.reserve(Path_.length());
+}
+
 ETokenType TTokenizer::Advance()
 {
     // Replace Input_ with suffix.
@@ -172,11 +184,14 @@ void TTokenizer::Expect(ETokenType expectedType)
     }
 }
 
-void TTokenizer::Skip(ETokenType expectedType)
+bool TTokenizer::Skip(ETokenType expectedType)
 {
     if (Type_ == expectedType) {
         Advance();
+        return true;
     }
+
+    return false;
 }
 
 void TTokenizer::ThrowUnexpected()

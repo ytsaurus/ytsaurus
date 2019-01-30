@@ -477,7 +477,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             {
                 auto indexToken = ExtractListIndex(token);
                 int index = ParseListIndex(indexToken);
-                AdjustChildIndex(index);
+                AdjustChildIndexOrThrow(index);
 
                 tokenizer.Advance();
                 tokenizer.Expect(NYPath::ETokenType::EndOfStream);
@@ -485,11 +485,19 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
                 return IYPathService::TResolveResultHere{"/" + path};
             } else {
                 int index = ParseListIndex(token);
-                int adjustedIndex = AdjustChildIndex(index);
-                auto child = FindChild(adjustedIndex);
-                const auto& method = context->GetMethod();
-                if (!child && method == "Exists") {
-                    return IYPathService::TResolveResultHere{"/" + path};
+                INodePtr child;
+                auto adjustedIndex = TryAdjustChildIndex(index, GetChildCount());
+                if (adjustedIndex) {
+                    child = FindChild(*adjustedIndex);
+                }
+
+                if (!child) {
+                    const auto& method = context->GetMethod();
+                    if (method == "Exists") {
+                        return IYPathService::TResolveResultHere{"/" + path};
+                    } else {
+                        ThrowNoSuchChildIndex(this, adjustedIndex.value_or(index));
+                    }
                 }
 
                 return IYPathService::TResolveResultThere{std::move(child), TYPath(tokenizer.GetSuffix())};
@@ -533,7 +541,7 @@ void TListNodeMixin::SetChild(
     } else if (token.StartsWith(ListBeforeToken) || token.StartsWith(ListAfterToken)) {
         auto indexToken = ExtractListIndex(token);
         int index = ParseListIndex(indexToken);
-        beforeIndex = AdjustChildIndex(index);
+        beforeIndex = AdjustChildIndexOrThrow(index);
         if (token.StartsWith(ListAfterToken)) {
             ++beforeIndex;
         }

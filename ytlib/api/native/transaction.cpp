@@ -7,6 +7,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/tablet_client/helpers.h>
+#include <yt/ytlib/table_client/helpers.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
@@ -563,6 +564,9 @@ private:
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
 
+            const auto& primarySchemaWithTabletIndex = tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex];
+            const auto& primaryWithTabletIndexIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::PrimaryWithTabletIndex);
+
             const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
             const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
 
@@ -572,6 +576,9 @@ private:
             const auto& deleteSchema = tableInfo->Schemas[ETableSchemaKind::Delete];
             const auto& deleteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Delete);
 
+            const auto& modificationSchema = !tableInfo->IsReplicated() && !tableInfo->IsSorted() ? primarySchema : primarySchemaWithTabletIndex;
+            const auto& modificationIdMapping = !tableInfo->IsReplicated() && !tableInfo->IsSorted() ? primaryIdMapping : primaryWithTabletIndexIdMapping;
+
             const auto& rowBuffer = Transaction_->RowBuffer_;
 
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
@@ -579,7 +586,7 @@ private:
 
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
-            std::vector<bool> columnPresenceBuffer(primarySchema.GetColumnCount());
+            std::vector<bool> columnPresenceBuffer(modificationSchema.GetColumnCount());
 
             for (const auto& modification : Modifications_) {
                 switch (modification.Type) {
@@ -620,17 +627,30 @@ private:
                             NameTable_);
                         break;
 
+                    case ERowModificationType::ReadLockWrite:
+                        if (!tableInfo->IsSorted()) {
+                            THROW_ERROR_EXCEPTION("Cannot perform lock in a non-sorted table %v",
+                                tableInfo->Path);
+                        }
+                        ValidateClientKey(
+                            TUnversionedRow(modification.Row),
+                            deleteSchema,
+                            deleteIdMapping,
+                            NameTable_);
+                        break;
+
                     default:
                         Y_UNREACHABLE();
                 }
 
                 switch (modification.Type) {
                     case ERowModificationType::Write:
-                    case ERowModificationType::Delete: {
+                    case ERowModificationType::Delete:
+                    case ERowModificationType::ReadLockWrite: {
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
                             TUnversionedRow(modification.Row),
-                            primarySchema,
-                            primaryIdMapping,
+                            modificationSchema,
+                            modificationIdMapping,
                             modification.Type == ERowModificationType::Write ? &columnPresenceBuffer : nullptr);
                         TTabletInfoPtr tabletInfo;
                         if (tableInfo->IsSorted()) {
@@ -648,7 +668,7 @@ private:
                         }
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modification.Type);
-                        session->SubmitRow(command, capturedRow);
+                        session->SubmitRow(command, capturedRow, modification.ReadLocks);
                         break;
                     }
 
@@ -663,8 +683,7 @@ private:
                         }
                         auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                        auto command = GetCommand(modification.Type);
-                        session->SubmitRow(command, capturedRow);
+                        session->SubmitRow(capturedRow);
                         break;
                     }
 
@@ -699,6 +718,9 @@ private:
 
                 case ERowModificationType::Delete:
                     return EWireProtocolCommand::DeleteRow;
+
+                case ERowModificationType::ReadLockWrite:
+                    return EWireProtocolCommand::ReadLockWriteRow;
 
                 default:
                     Y_UNREACHABLE();
@@ -805,21 +827,19 @@ private:
 
         void SubmitRow(
             EWireProtocolCommand command,
-            TUnversionedRow row)
+            TUnversionedRow row,
+            ui32 readLockMask)
         {
             UnversionedSubmittedRows_.push_back({
                 command,
                 row,
+                readLockMask,
                 static_cast<int>(UnversionedSubmittedRows_.size())});
         }
 
-        void SubmitRow(
-            EWireProtocolCommand command,
-            TVersionedRow row)
+        void SubmitRow(TVersionedRow row)
         {
-            VersionedSubmittedRows_.push_back({
-                command,
-                row});
+            VersionedSubmittedRows_.push_back(row);
         }
 
         int Prepare()
@@ -887,18 +907,13 @@ private:
         int TotalBatchedRowCount_ = 0;
         std::vector<std::unique_ptr<TBatch>> Batches_;
 
-        struct TVersionedSubmittedRow
-        {
-            EWireProtocolCommand Command;
-            TVersionedRow Row;
-        };
-
-        std::vector<TVersionedSubmittedRow> VersionedSubmittedRows_;
+        std::vector<TVersionedRow> VersionedSubmittedRows_;
 
         struct TUnversionedSubmittedRow
         {
             EWireProtocolCommand Command;
             TUnversionedRow Row;
+            ui32 ReadLocks;
             int SequentialId;
         };
 
@@ -928,53 +943,89 @@ private:
                 KeyColumnCount_,
                 ColumnEvaluator_);
 
-            auto addPartialRow = [&] (const TUnversionedSubmittedRow& submittedRow) {
-                switch (submittedRow.Command) {
-                    case EWireProtocolCommand::DeleteRow:
-                        merger.DeletePartialRow(submittedRow.Row);
-                        break;
+            for (auto it = UnversionedSubmittedRows_.begin(); it != UnversionedSubmittedRows_.end();) {
+                auto startIt = it;
+                merger.InitPartialRow(startIt->Row);
 
-                    case EWireProtocolCommand::WriteRow:
-                        merger.AddPartialRow(submittedRow.Row);
-                        break;
+                ui32 readLocksMask = 0;
+                EWireProtocolCommand resultCommand;
 
-                    default:
-                        Y_UNREACHABLE();
-                }
-            };
+                do {
+                    switch (it->Command) {
+                        case EWireProtocolCommand::DeleteRow:
+                            merger.DeletePartialRow(it->Row);
+                            break;
 
-            int index = 0;
-            while (index < UnversionedSubmittedRows_.size()) {
-                if (index < UnversionedSubmittedRows_.size() - 1 &&
-                    CompareRows(UnversionedSubmittedRows_[index].Row, UnversionedSubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
-                {
-                    addPartialRow(UnversionedSubmittedRows_[index]);
-                    while (index < UnversionedSubmittedRows_.size() - 1 &&
-                           CompareRows(UnversionedSubmittedRows_[index].Row, UnversionedSubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
-                    {
-                        ++index;
-                        addPartialRow(UnversionedSubmittedRows_[index]);
+                        case EWireProtocolCommand::WriteRow:
+                            merger.AddPartialRow(it->Row);
+                            break;
+
+                        case EWireProtocolCommand::ReadLockWriteRow:
+                            merger.AddPartialRow(it->Row);
+                            readLocksMask |= it->ReadLocks;
+                            break;
+
+                        default:
+                            Y_UNREACHABLE();
                     }
-                    UnversionedSubmittedRows_[index].Row = merger.BuildMergedRow();
+                    resultCommand = it->Command;
+                    ++it;
+                } while (it != UnversionedSubmittedRows_.end() &&
+                    CompareRows(it->Row, startIt->Row, KeyColumnCount_) == 0);
+
+                TUnversionedRow mergedRow;
+                if (resultCommand == EWireProtocolCommand::DeleteRow) {
+                    mergedRow = merger.BuildDeleteRow();
+                } else {
+                    if (readLocksMask) {
+                        resultCommand = EWireProtocolCommand::ReadLockWriteRow;
+                    }
+                    mergedRow = merger.BuildMergedRow();
                 }
-                unversionedMergedRows.push_back(UnversionedSubmittedRows_[index]);
-                ++index;
+
+                unversionedMergedRows.push_back({resultCommand, mergedRow, readLocksMask});
             }
 
-            WriteRows(unversionedMergedRows);
+            for (const auto& submittedRow : unversionedMergedRows) {
+                WriteRow(submittedRow);
+            }
 
-            WriteRows(VersionedSubmittedRows_);
+            for (const auto& row : VersionedSubmittedRows_) {
+
+                IncrementAndCheckRowCount();
+
+                auto* batch = EnsureBatch();
+                auto& writer = batch->Writer;
+                ++batch->RowCount;
+                batch->DataWeight += GetDataWeight(row);
+
+                writer.WriteCommand(EWireProtocolCommand::VersionedWriteRow);
+                writer.WriteVersionedRow(row);
+            }
+        }
+
+        void WriteRow(const TUnversionedSubmittedRow& submittedRow)
+        {
+            IncrementAndCheckRowCount();
+
+            auto* batch = EnsureBatch();
+            auto& writer = batch->Writer;
+            ++batch->RowCount;
+            batch->DataWeight += GetDataWeight(submittedRow.Row);
+
+
+            writer.WriteCommand(submittedRow.Command);
+
+            if (submittedRow.Command == EWireProtocolCommand::ReadLockWriteRow) {
+                writer.WriteLocks(submittedRow.ReadLocks);
+            }
+
+            writer.WriteUnversionedRow(submittedRow.Row);
         }
 
         void PrepareOrderedBatches()
         {
-            WriteRows(UnversionedSubmittedRows_);
-        }
-
-        template <class TRow>
-        void WriteRows(const std::vector<TRow>& rows)
-        {
-            for (const auto& submittedRow : rows) {
+            for (const auto& submittedRow : UnversionedSubmittedRows_) {
                 WriteRow(submittedRow);
             }
         }
@@ -1004,8 +1055,7 @@ private:
             return Batches_.back().get();
         }
 
-        template <typename TRow>
-        void WriteRow(const TRow& submittedRow)
+        void IncrementAndCheckRowCount()
         {
             ++TotalBatchedRowCount_;
             if (UserName_ != NSecurityClient::ReplicatorUserName &&
@@ -1014,23 +1064,6 @@ private:
                 THROW_ERROR_EXCEPTION("Transaction affects too many rows")
                     << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
             }
-
-            auto* batch = EnsureBatch();
-            auto& writer = batch->Writer;
-            writer.WriteCommand(submittedRow.Command);
-            WriteRowToWriter(writer, submittedRow.Row);
-            ++batch->RowCount;
-            batch->DataWeight += GetDataWeight(submittedRow.Row);
-        }
-
-        static void WriteRowToWriter(TWireProtocolWriter& writer, TVersionedRow row)
-        {
-            writer.WriteVersionedRow(row);
-        }
-
-        static void WriteRowToWriter(TWireProtocolWriter& writer, TUnversionedRow row)
-        {
-            writer.WriteUnversionedRow(row);
         }
 
         void InvokeNextBatch()

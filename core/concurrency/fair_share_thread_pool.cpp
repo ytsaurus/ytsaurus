@@ -42,6 +42,11 @@ struct TBucket
 
     virtual void Invoke(TClosure callback) override;
 
+    virtual TDuration GetAverageWaitTime() const override
+    {
+        return CpuDurationToDuration(WaitTime);
+    }
+
     void Drain()
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -69,6 +74,7 @@ struct TBucket
     TSpinLock SpinLock;
     size_t Size = 0;
     THeapItem* HeapIterator = nullptr;
+    i64 WaitTime = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBucket)
@@ -263,6 +269,11 @@ public:
         Profiler_.Update(
             WaitTimeCounter_,
             CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
+
+        {
+            TGuard<TSpinLock> guard(bucket->SpinLock);
+            bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
+        }
 
         // Move callback to the stack frame to ensure that we hold it as long as it runs.
         auto callback = std::move(action->Callback);

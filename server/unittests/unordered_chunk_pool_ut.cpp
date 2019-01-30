@@ -6,9 +6,13 @@
 #include <yt/server/controller_agent/job_size_constraints.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/client/table_client/row_buffer.h>
+
+#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>

@@ -2,11 +2,11 @@
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
 #include "public.h"
-#include "config.h"
-#include "profiler.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
+
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -19,6 +19,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
+#include <yt/core/profiling/metrics_accumulator.h>
 
 namespace NYT::NScheduler {
 
@@ -40,25 +41,27 @@ public:
     TFairShareStrategy(
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host,
+        IInvokerPtr controlInvoker,
         const std::vector<IInvokerPtr>& feasibleInvokers)
         : Config(config)
         , Host(host)
+        , ControlInvoker(controlInvoker)
         , FeasibleInvokers(feasibleInvokers)
         , Logger(SchedulerLogger)
         , LastProfilingTime_(TInstant::Zero())
     {
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
-            GetCurrentInvoker(),
+            ControlInvoker,
             BIND(&TFairShareStrategy::OnFairShareUpdate, MakeWeak(this)),
             Config->FairShareUpdatePeriod);
 
         FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
-            GetCurrentInvoker(),
+            ControlInvoker,
             BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
             Config->FairShareLogPeriod);
 
         MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
-            GetCurrentInvoker(),
+            ControlInvoker,
             BIND(&TFairShareStrategy::OnMinNeededJobResourcesUpdate, MakeWeak(this)),
             Config->MinNeededResourcesUpdatePeriod);
     }
@@ -815,6 +818,7 @@ private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
 
+    const IInvokerPtr ControlInvoker;
     const std::vector<IInvokerPtr> FeasibleInvokers;
 
     mutable NLogging::TLogger Logger;
@@ -1230,9 +1234,10 @@ private:
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host,
+    const IInvokerPtr& controlInvoker,
     const std::vector<IInvokerPtr>& feasibleInvokers)
 {
-    return New<TFairShareStrategy>(config, host, feasibleInvokers);
+    return New<TFairShareStrategy>(config, host, controlInvoker, feasibleInvokers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -86,17 +86,12 @@ void CodegenForEachRow(
 // Expressions
 //
 
-void CheckNaN(TCGBaseContext& builder, Value* lhsValue, Value* rhsValue)
+void ThrowNaNException(TCGBaseContext& builder)
 {
-    CodegenIf<TCGBaseContext>(
-        builder,
-        builder->CreateFCmpUNO(lhsValue, rhsValue),
-        [&] (TCGBaseContext& builder) {
-            builder->CreateCall(
-                builder.Module->GetRoutine("ThrowQueryException"),
-                {
-                    builder->CreateGlobalStringPtr("Comparison with NaN")
-                });
+    builder->CreateCall(
+        builder.Module->GetRoutine("ThrowQueryException"),
+        {
+            builder->CreateGlobalStringPtr("Comparison with NaN")
         });
 }
 
@@ -380,7 +375,10 @@ TValueTypeLabels CodegenLessComparerBody(
         Value* rhsData = rhsValue.GetTypedData(builder);
 
         if (type == EValueType::Double) {
-            CheckNaN(builder, lhsData, rhsData);
+            CodegenIf<TCGBaseContext>(
+                builder,
+                builder->CreateFCmpUNO(lhsData, rhsData),
+                ThrowNaNException);
         }
 
         resultPhi->addIncoming(cmpLess(builder, lhsData, rhsData), builder->GetInsertBlock());
@@ -1383,7 +1381,6 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                     }
                     break;
                 case EValueType::Double:
-                    CheckNaN(builder, lhsData, rhsData);
                     switch (opcode) {
                         CMP_OP(Equal, FCmpUEQ)
                         CMP_OP(NotEqual, FCmpUNE)
@@ -1400,6 +1397,15 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
             }
 
             Value* anyNull = builder->CreateOr(lhsIsNull, rhsIsNull);
+
+            if (operandType == EValueType::Double) {
+                CodegenIf<TCGBaseContext>(
+                    builder,
+                    builder->CreateAnd(
+                        builder->CreateFCmpUNO(lhsData, rhsData),
+                        builder->CreateNot(anyNull)),
+                    ThrowNaNException);
+            }
 
             return TCGValue::CreateFromValue(
                 builder,

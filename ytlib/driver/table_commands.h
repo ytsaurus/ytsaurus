@@ -293,6 +293,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLockRowsCommand
+    : public TTypedCommand<TLockRowsOptions>
+{
+public:
+    TLockRowsCommand();
+
+private:
+    NYTree::INodePtr TableWriter;
+    NYPath::TRichYPath Path;
+    std::vector<TString> Locks;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTrimRowsCommand
     : public TTypedCommand<NApi::TTrimTableOptions>
 {

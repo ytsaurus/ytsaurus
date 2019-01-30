@@ -4,10 +4,13 @@
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/job_size_constraints.h>
-#include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/input_chunk_mapping.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/sorted_chunk_pool.h>
+
+#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/client/table_client/row_buffer.h>
 

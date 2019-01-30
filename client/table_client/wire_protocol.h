@@ -70,6 +70,17 @@ DEFINE_ENUM(EWireProtocolCommand,
     //   * Versioned row
     // Output:
     //   None
+
+    // Other commands:
+
+    ((ReadLockWriteRow)(103))
+    // Take primary read lock and optionally modify row
+    //
+    // Input:
+    //   * Key
+    // Output:
+    //   None
+
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +97,8 @@ public:
     size_t GetByteSize() const;
 
     void WriteCommand(EWireProtocolCommand command);
+
+    void WriteLocks(ui32 lockMask);
 
     void WriteTableSchema(const NTableClient::TTableSchema& schema);
 
@@ -173,6 +186,7 @@ public:
     TSharedRef Slice(TIterator begin, TIterator end);
 
     EWireProtocolCommand ReadCommand();
+    ui32 ReadLocks();
 
     NTableClient::TTableSchema ReadTableSchema();
 

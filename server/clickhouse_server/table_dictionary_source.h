@@ -1,0 +1,15 @@
+#pragma once
+
+#include <yt/server/clickhouse_server/public.h>
+
+namespace NYT::NClickHouseServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RegisterTableDictionarySource(
+    IStoragePtr storage,
+    IAuthorizationTokenPtr authToken);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NClickHouseServer

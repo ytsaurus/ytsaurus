@@ -1,17 +1,19 @@
 #include "node_shard.h"
-#include "config.h"
-#include "helpers.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "operation_controller.h"
 #include "controller_agent.h"
 #include "bootstrap.h"
+#include "helpers.h"
 
-#include <yt/server/exec_agent/public.h>
+#include <yt/server/lib/exec_agent/public.h>
 
-#include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/helpers.h>
 
-#include <yt/server/shell/config.h>
+#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
+#include <yt/server/lib/shell/config.h>
 
 #include <yt/ytlib/job_proxy/public.h>
 
@@ -55,8 +57,6 @@ using NScheduler::NProto::TSchedulerJobResultExt;
 
 using NYT::FromProto;
 using NYT::ToProto;
-
-using ENodeMasterState = NNodeTrackerServer::ENodeState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -445,16 +445,19 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         node->SetJobReporterQueueIsTooLarge(newValue);
     }
 
-    // NB: Resource limits and usage of node should be updated even if
-    // node is offline to avoid getting incorrect total limits when node becomes online.
-    UpdateNodeResources(node,
-        request->resource_limits(),
-        request->resource_usage(),
-        request->disk_info());
+    if (node->GetSchedulerState() == ENodeState::Online) {
+        // NB: Resource limits and usage of node should be updated even if
+        // node is offline at master to avoid getting incorrect total limits
+        // when node becomes online.
+        UpdateNodeResources(node,
+            request->resource_limits(),
+            request->resource_usage(),
+            request->disk_info());
+    }
 
     TLeaseManager::RenewLease(node->GetLease());
 
-    if (node->GetMasterState() != ENodeMasterState::Online) {
+    if (node->GetMasterState() != NNodeTrackerClient::ENodeState::Online || node->GetSchedulerState() != ENodeState::Online) {
         auto error = TError("Node is not online");
         if (!node->GetRegistrationError().IsOK()) {
             error = error << node->GetRegistrationError();
@@ -597,7 +600,7 @@ void TNodeShard::UpdateExecNodeDescriptors()
         if (node->GetLastSeenTime() + Config_->MaxOfflineNodeAge > now) {
             YCHECK(result->emplace(node->GetId(), node->BuildExecDescriptor()).second);
         } else {
-            if (node->GetMasterState() == ENodeMasterState::Offline && node->GetSchedulerState() == ENodeState::Offline) {
+            if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Offline && node->GetSchedulerState() == ENodeState::Offline) {
                 TLeaseManager::CloseLease(node->GetLease());
                 nodeIdsToRemove.push_back(nodeId);
             }
@@ -614,7 +617,11 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 }
 
-void TNodeShard::UpdateNodeState(const TExecNodePtr& node, ENodeMasterState newMasterState, ENodeState newSchedulerState, TError error)
+void TNodeShard::UpdateNodeState(
+    const TExecNodePtr& node,
+    NNodeTrackerClient::ENodeState newMasterState,
+    ENodeState newSchedulerState,
+    const TError& error)
 {
     auto oldMasterState = node->GetMasterState();
     node->SetMasterState(newMasterState);
@@ -656,7 +663,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         const auto& attributes = nodeMap.second->Attributes();
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
-        auto newState = attributes.Get<ENodeMasterState>("state");
+        auto newState = attributes.Get<NNodeTrackerClient::ENodeState>("state");
         auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
 
         YT_LOG_DEBUG("Handling node attributes (NodeId: %v, NodeAddress: %v, ObjectId: %v, NewState: %v)",
@@ -669,7 +676,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         auto nodeIt = IdToNode_.find(nodeId);
         if (nodeIt == IdToNode_.end()) {
-            if (newState != ENodeMasterState::Offline) {
+            if (newState != NNodeTrackerClient::ENodeState::Offline) {
                 RegisterNode(nodeId, TNodeDescriptor(address), ENodeState::Offline);
             } else {
                 // Skip nodes that offline both at master and at scheduler.
@@ -679,7 +686,10 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         auto execNode = IdToNode_[nodeId];
 
-        if (execNode->GetSchedulerState() == ENodeState::Offline && newState == ENodeMasterState::Online) {
+        if (execNode->GetSchedulerState() == ENodeState::Offline &&
+            newState == NNodeTrackerClient::ENodeState::Online &&
+            execNode->GetRegistrationError().IsOK())
+        {
             YT_LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
                 nodeId,
                 address);
@@ -690,7 +700,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto oldState = execNode->GetMasterState();
         auto tags = attributes.Get<THashSet<TString>>("tags");
 
-        if (oldState == ENodeMasterState::Online && newState != ENodeMasterState::Online) {
+        if (oldState == NNodeTrackerClient::ENodeState::Online && newState != NNodeTrackerClient::ENodeState::Online) {
             // NOTE: Tags will be validated when node become online, no need in additional check here.
             execNode->Tags() = tags;
             SubtractNodeResources(execNode);
@@ -700,7 +710,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             continue;
         }
 
-        if ((oldState != ENodeMasterState::Online && newState == ENodeMasterState::Online) || execNode->Tags() != tags) {
+        if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags) {
             auto updateResult = WaitFor(Host_->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
                 auto error = TError("Node tags update failed")
@@ -711,13 +721,13 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                 YT_LOG_WARNING(error);
                 errors.push_back(error);
 
-                if (oldState == ENodeMasterState::Online && execNode->GetSchedulerState() == ENodeState::Online) {
+                if (oldState == NNodeTrackerClient::ENodeState::Online && execNode->GetSchedulerState() == ENodeState::Online) {
                     SubtractNodeResources(execNode);
                     AbortAllJobsAtNode(execNode);
                 }
                 UpdateNodeState(execNode, newState, ENodeState::Offline, error);
             } else {
-                if (oldState != ENodeMasterState::Online && newState == ENodeMasterState::Online) {
+                if (oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) {
                     AddNodeResources(execNode);
                 }
                 execNode->Tags() = tags;
@@ -1129,7 +1139,7 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
 
     for (const auto& pair : *descriptors) {
         const auto& descriptor = pair.second;
-        if (descriptor.CanSchedule(filter)) {
+        if (descriptor.Online && descriptor.CanSchedule(filter)) {
             statistics.Usage += descriptor.ResourceUsage;
             statistics.Limits += descriptor.ResourceLimits;
         }
@@ -1288,9 +1298,14 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
     }
 
     auto node = it->second;
+
     // Update the current descriptor and state, just in case.
     node->NodeDescriptor() = descriptor;
-    node->SetSchedulerState(state);
+
+    // Update state to online only if node has no registration errors.
+    if (state != ENodeState::Online || node->GetRegistrationError().IsOK()) {
+        node->SetSchedulerState(state);
+    }
 
     return node;
 }
@@ -1342,7 +1357,7 @@ void TNodeShard::UnregisterNode(const TExecNodePtr& node)
 
 void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 {
-    if (node->GetMasterState() == ENodeMasterState::Online && node->GetSchedulerState() == ENodeState::Online) {
+    if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online && node->GetSchedulerState() == ENodeState::Online) {
         SubtractNodeResources(node);
     }
 
@@ -1357,8 +1372,6 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
     if (node->GetJobReporterQueueIsTooLarge()) {
         --JobReporterQueueIsTooLargeNodeCount_;
     }
-
-    //YCHECK(IdToNode_.erase(node->GetId()) == 1);
 
     node->SetSchedulerState(ENodeState::Offline);
 
@@ -1814,21 +1827,21 @@ void TNodeShard::UpdateNodeResources(
     YCHECK(node->GetSchedulerState() == ENodeState::Online);
 
     if (limits.GetUserSlots() > 0) {
-        if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == ENodeMasterState::Online) {
+        if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ += 1;
         }
         node->SetResourceLimits(limits);
         node->SetResourceUsage(usage);
         node->SetDiskInfo(diskInfo);
     } else {
-        if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == ENodeMasterState::Online) {
+        if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ -= 1;
         }
         node->SetResourceLimits(ZeroJobResources());
         node->SetResourceUsage(ZeroJobResources());
     }
 
-    if (node->GetMasterState() == ENodeMasterState::Online) {
+    if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
         TWriterGuard guard(ResourcesLock_);
 
         // Clear cache if node has come with non-zero usage.

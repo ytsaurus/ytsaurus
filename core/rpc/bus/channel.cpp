@@ -627,6 +627,7 @@ private:
             busOptions.ChecksummedPartCount = options.GenerateAttachmentChecksums
                 ? NBus::TSendOptions::AllParts
                 : 2; // RPC header + request body
+            busOptions.UseUndumpableMemoryZone = options.UseUndumpableMemoryZone;
             bus->Send(requestMessage, busOptions).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),

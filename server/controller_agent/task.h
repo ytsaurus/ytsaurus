@@ -8,10 +8,8 @@
 #include "data_flow_graph.h"
 #include "input_chunk_mapping.h"
 
-#include <yt/server/scheduler/job.h>
-
-#include <yt/server/chunk_pools/chunk_stripe_key.h>
-#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/public.h>
@@ -91,7 +89,7 @@ public:
         const TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
         bool treeIsTentative,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
     virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);

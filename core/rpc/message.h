@@ -24,6 +24,10 @@ TSharedRefArray CreateRequestMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments);
 
+TSharedRefArray CreateRequestMessage(
+    const NProto::TRequestHeader& header,
+    const TSharedRefArray& data);
+
 TSharedRefArray CreateRequestCancelationMessage(
     const NProto::TRequestCancelationHeader& header);
 

@@ -3,7 +3,6 @@
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_info.h"
-#include "job_memory.h"
 #include "job_size_constraints.h"
 #include "private.h"
 #include "operation_controller_detail.h"
@@ -11,12 +10,15 @@
 #include "operation.h"
 #include "config.h"
 
-#include <yt/server/chunk_pools/unordered_chunk_pool.h>
-#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/job_memory.h>
+
+#include <yt/server/controller_agent/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
 #include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/schema.h>
@@ -32,7 +34,6 @@ namespace NYT::NControllerAgent {
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
-using namespace NChunkServer;
 using namespace NJobProxy;
 using namespace NChunkClient;
 using namespace NChunkPools;

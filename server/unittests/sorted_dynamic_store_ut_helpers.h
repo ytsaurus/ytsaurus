@@ -91,7 +91,7 @@ protected:
 
     const TLockDescriptor& GetLock(
         TSortedDynamicRow row,
-        int index = TSortedDynamicRow::PrimaryLockIndex)
+        int index = PrimaryLockIndex)
     {
         return row.BeginLocks(Tablet_->PhysicalSchema().GetKeyColumnCount())[index];
     }

@@ -4,8 +4,9 @@
 #include "chunk_reader_statistics.h"
 #include "io_engine.h"
 
-#include <yt/core/misc/fs.h>
 #include <yt/core/misc/checksum.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/memory_zone.h>
 
 #include <yt/client/misc/workload.h>
 
@@ -207,7 +208,8 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    TRefCountedBlocksExtPtr blocksExt)
+    TRefCountedBlocksExtPtr blocksExt,
+    std::shared_ptr<TFileHandle> dataFile)
 {
     if (!blocksExt && BlocksExtCache_) {
         blocksExt = BlocksExtCache_->Find();
@@ -221,8 +223,20 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
                 if (BlocksExtCache_) {
                     BlocksExtCache_->Put(meta, loadedBlocksExt);
                 }
-                return DoReadBlocks(options, firstBlockIndex, blockCount, loadedBlocksExt);
+                return DoReadBlocks(options, firstBlockIndex, blockCount, loadedBlocksExt, dataFile);
             }));
+    }
+
+    if (!dataFile) {
+        auto asyncDataFile = OpenDataFile();
+        auto optionalDataFileOrError = asyncDataFile.TryGet();
+        if (!optionalDataFileOrError || !optionalDataFileOrError->IsOK()) {
+            return asyncDataFile
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& dataFile) {
+                    return DoReadBlocks(options, firstBlockIndex, blockCount, blocksExt, dataFile);
+                }));
+        }
+        dataFile = optionalDataFileOrError->Value();
     }
 
     int chunkBlockCount = blocksExt->blocks_size();
@@ -241,9 +255,12 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
     const auto& lastBlockInfo = blocksExt->blocks(lastBlockIndex);
     i64 totalSize = lastBlockInfo.offset() + lastBlockInfo.size() - firstBlockInfo.offset();
 
-    const auto& file = GetDataFile();
-
-    return IOEngine_->Pread(file, totalSize, firstBlockInfo.offset(), options.WorkloadDescriptor.GetPriority())
+    TMemoryZoneGuard guard(EMemoryZone::Undumpable);
+    return IOEngine_->Pread(
+         dataFile,
+        totalSize,
+        firstBlockInfo.offset(),
+        options.WorkloadDescriptor.GetPriority())
         .Apply(BIND(&TFileReader::OnDataBlock, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
 }
 
@@ -331,20 +348,14 @@ TFuture<TRefCountedChunkMetaPtr> TFileReader::DoReadMeta(
         .Apply(BIND(&TFileReader::OnMetaDataBlock, MakeStrong(this), metaFileName, chunkReaderStatistics));
 }
 
-const std::shared_ptr<TFileHandle>& TFileReader::GetDataFile()
+TFuture<std::shared_ptr<TFileHandle>> TFileReader::OpenDataFile()
 {
-    if (!HasCachedDataFile_) {
-        TGuard<TMutex> guard(Mutex_);
-        if (!CachedDataFile_) {
-            CachedDataFile_ = IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec).ToUncancelable();
-            HasCachedDataFile_ = true;
-        }
+    auto guard = Guard(DataFileLock_);
+    if (!AsyncDataFile_) {
+        AsyncDataFile_ = IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec)
+            .ToUncancelable();
     }
-    // TODO(aozeritsky) move this check to WaitFor
-    if (!CachedDataFile_.IsSet()) {
-        Y_UNUSED(WaitFor(CachedDataFile_));
-    }
-    return CachedDataFile_.Get().ValueOrThrow();
+    return AsyncDataFile_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,8 +1,7 @@
 #include "user_job_write_controller.h"
-#include "config.h"
 #include "job.h"
 
-#include <yt/server/misc/job_table_schema.h>
+#include <yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 

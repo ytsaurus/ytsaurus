@@ -788,6 +788,17 @@ bool Unify(TTypeSet* genericAssignments, const TTypeSet& types)
     }
 }
 
+EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf source)
+{
+    auto result = typeSet.GetFront();
+    if (result == EValueType::Null) {
+        THROW_ERROR_EXCEPTION("Type inference failed")
+            << TErrorAttribute("actual_type", EValueType::Null)
+            << TErrorAttribute("source", source);
+    }
+    return result;
+}
+
 TTypeSet InferFunctionTypes(
     const TFunctionTypeInferrer* inferrer,
     const std::vector<TTypeSet>& effectiveTypes,
@@ -861,7 +872,8 @@ std::vector<EValueType> RefineFunctionTypes(
     const TFunctionTypeInferrer* inferrer,
     EValueType resultType,
     size_t argumentCount,
-    std::vector<TTypeSet>* genericAssignments)
+    std::vector<TTypeSet>* genericAssignments,
+    TStringBuf source)
 {
     std::vector<TTypeSet> typeConstraints;
     std::vector<size_t> formalArguments;
@@ -875,8 +887,7 @@ std::vector<EValueType> RefineFunctionTypes(
 
     std::vector<EValueType> genericAssignmentsMin;
     for (auto& constraint : *genericAssignments) {
-        YCHECK(!constraint.IsEmpty());
-        genericAssignmentsMin.push_back(constraint.GetFront());
+        genericAssignmentsMin.push_back(GetFrontWithCheck(constraint, source));
     }
 
     std::vector<EValueType> effectiveTypes;
@@ -1064,16 +1075,17 @@ std::pair<EValueType, EValueType> RefineBinaryExprTypes(
     const TTypeSet& rhsTypes,
     TTypeSet* genericAssignments,
     TStringBuf lhsSource,
-    TStringBuf rhsSource)
+    TStringBuf rhsSource,
+    TStringBuf source)
 {
     if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
         // Empty intersection (Any, alpha) || (alpha, Any), where alpha = {bool, int, uint, double, string}
         if (lhsTypes.Get(EValueType::Any)) {
-            return std::make_pair(EValueType::Any, rhsTypes.GetFront());
+            return std::make_pair(EValueType::Any, GetFrontWithCheck(rhsTypes, rhsSource));
         }
 
         if (rhsTypes.Get(EValueType::Any)) {
-            return std::make_pair(lhsTypes.GetFront(), EValueType::Any);
+            return std::make_pair(GetFrontWithCheck(lhsTypes, lhsSource), EValueType::Any);
         }
 
         THROW_ERROR_EXCEPTION("Type mismatch in expression")
@@ -1085,8 +1097,7 @@ std::pair<EValueType, EValueType> RefineBinaryExprTypes(
 
     EValueType argType;
     if (binaryOperators[opCode].ResultType) {
-        YCHECK(!genericAssignments->IsEmpty());
-        argType = genericAssignments->GetFront();
+        argType = GetFrontWithCheck(*genericAssignments, source);
     } else {
         YCHECK(genericAssignments->Get(resultType));
         argType = resultType;
@@ -1126,31 +1137,20 @@ TTypeSet InferUnaryExprTypes(
 EValueType RefineUnaryExprTypes(
     EUnaryOp opCode,
     EValueType resultType,
-    TTypeSet* genericAssignments)
+    TTypeSet* genericAssignments,
+    TStringBuf opSource)
 {
     const auto& unaryOperators = GetUnaryOperatorTypers();
 
     EValueType argType;
     if (unaryOperators[opCode].ResultType) {
-        YCHECK(!genericAssignments->IsEmpty());
-        argType = genericAssignments->GetFront();
+        argType = GetFrontWithCheck(*genericAssignments, opSource);
     } else {
         YCHECK(genericAssignments->Get(resultType));
         argType = resultType;
     }
 
     return argType;
-}
-
-EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf source)
-{
-    auto result = typeSet.GetFront();
-    if (result == EValueType::Null) {
-        THROW_ERROR_EXCEPTION("Type inference failed")
-            << TErrorAttribute("actual_type", EValueType::Null)
-            << TErrorAttribute("source", source);
-    }
-    return result;
 }
 
 struct TTypedExpressionBuilder
@@ -1380,13 +1380,16 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedFunctionExpression(
             functionName,
             regularFunction,
             operandTypers,
-            genericAssignments] (EValueType type) mutable
+            genericAssignments,
+            source = functionExpr->GetSource(Source)]
+        (EValueType type) mutable
         {
             auto effectiveTypes = RefineFunctionTypes(
                 regularFunction,
                 type,
                 operandTypers.size(),
-                &genericAssignments);
+                &genericAssignments,
+                source);
 
             std::vector<TConstExpressionPtr> typedOperands;
             for (size_t index = 0; index < effectiveTypes.size(); ++index) {
@@ -1438,9 +1441,14 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedUnaryExpression(
     TExpressionGenerator generator = [
         op = unaryExpr->Opcode,
         untypedOperand,
-        genericAssignments
+        genericAssignments,
+        opSource = unaryExpr->Operand.front()->GetSource(Source)
     ] (EValueType type) mutable {
-        auto argType = RefineUnaryExprTypes(op, type, &genericAssignments);
+        auto argType = RefineUnaryExprTypes(
+            op,
+            type,
+            &genericAssignments,
+            opSource);
         return New<TUnaryOpExpression>(type, op, untypedOperand.Generator(argType));
     };
     return TUntypedExpression{resultTypes, std::move(generator), false};
@@ -1485,7 +1493,8 @@ TUntypedExpression TTypedExpressionBuilder::MakeBinaryExpr(
         rhs,
         genericAssignments,
         lhsSource,
-        rhsSource
+        rhsSource,
+        source = binaryExpr->GetSource(Source)
     ] (EValueType type) mutable {
         auto argTypes = RefineBinaryExprTypes(
             op,
@@ -1494,7 +1503,8 @@ TUntypedExpression TTypedExpressionBuilder::MakeBinaryExpr(
             rhs.FeasibleTypes,
             &genericAssignments,
             lhsSource,
-            rhsSource);
+            rhsSource,
+            source);
 
         return New<TBinaryOpExpression>(
             type,
@@ -2098,7 +2108,7 @@ public:
             EValueType argType;
             if (resultType) {
                 YCHECK(!genericAssignments.IsEmpty());
-                argType = genericAssignments.GetFront();
+                argType = GetFrontWithCheck(genericAssignments, argument->GetSource(builder.Source));
             } else {
                 argType = type;
             }

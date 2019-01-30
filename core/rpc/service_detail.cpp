@@ -12,6 +12,7 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -20,6 +21,7 @@
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/tls_cache.h>
+#include <yt/core/misc/memory_zone.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
@@ -70,6 +72,8 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     : Descriptor(descriptor)
     , TagIds(tagIds)
     , QueueSizeCounter("/request_queue_size", tagIds)
+    , LoggingSuppressionFailedRequestThrottler(
+        CreateReconfigurableThroughputThrottler(TMethodConfig::DefaultLoggingSuppressionFailedRequestThrottler))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -368,6 +372,9 @@ private:
         busOptions.ChecksummedPartCount = RuntimeInfo_->Descriptor.GenerateAttachmentChecksums
             ? NBus::TSendOptions::AllParts
             : 2; // RPC header + response body
+        if (FromProto<EMemoryZone>(RequestHeader_->response_memory_zone()) == EMemoryZone::Undumpable) {
+            busOptions.UseUndumpableMemoryZone = true;
+        }
         ReplyBus_->Send(responseMessage, busOptions);
 
         ReplyInstant_ = GetCpuInstant();
@@ -406,8 +413,14 @@ private:
             timeout = FromProto<TDuration>(RequestHeader_->logging_suppression_timeout());
         }
 
-        if (TotalTime_ >= timeout ||
-            (!Error_.IsOK() && RequestHeader_->disable_logging_suppression_if_request_failed()))
+        if (TotalTime_ >= timeout) {
+            return;
+
+        }
+
+        if (!Error_.IsOK() &&
+            (RequestHeader_->disable_logging_suppression_if_request_failed() ||
+            RuntimeInfo_->LoggingSuppressionFailedRequestThrottler->TryAcquire(1)))
         {
             return;
         }
@@ -501,7 +514,7 @@ TServiceBase::TServiceBase(
     , Authenticator_(std::move(authenticator))
     , ServiceId_(descriptor.GetFullServiceName(), realmId)
     , ProtocolVersion_(descriptor.ProtocolVersion)
-    , ServiceTagId_ (NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName))
+    , ServiceTagId_(NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName))
     , AuthenticationQueueSizeCounter_("/authentication_queue_size", {ServiceTagId_})
     , AuthenticationTimeCounter_("/authentication_time", {ServiceTagId_})
 {
@@ -985,6 +998,9 @@ void TServiceBase::Configure(INodePtr configNode)
             descriptor.SetMaxConcurrency(methodConfig->MaxConcurrency);
             descriptor.SetLogLevel(methodConfig->LogLevel);
             descriptor.SetLoggingSuppressionTimeout(methodConfig->LoggingSuppressionTimeout);
+
+            runtimeInfo->LoggingSuppressionFailedRequestThrottler->Reconfigure(
+                methodConfig->LoggingSuppressionFailedRequestThrottler);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
@@ -1089,6 +1105,25 @@ TString TServiceBase::FormatRequestInfo(
         GetMessageBodySize(message),
         GetTotalMessageAttachmentSize(message),
         GetMessageAttachmentCount(message));
+
+    if (header.has_request_codecs()) {
+        const auto& requestCodecs = header.request_codecs();
+        auto optionalCodecCast = [] (int intCodecId) -> std::optional<NCompression::ECodec> {
+            NCompression::ECodec codecId;
+            if (!TryEnumCast<NCompression::ECodec>(intCodecId, &codecId)) {
+                return std::nullopt;
+            }
+            return codecId;
+        };
+        delimitedBuilder->AppendFormat("RequestCodec: %v",
+            optionalCodecCast(requestCodecs.request_codec()));
+        delimitedBuilder->AppendFormat("RequestAttachmentCodec: %v",
+            optionalCodecCast(requestCodecs.request_attachment_codec()));
+        delimitedBuilder->AppendFormat("ResponseCodec: %v",
+            optionalCodecCast(requestCodecs.response_codec()));
+        delimitedBuilder->AppendFormat("ResponseAttachmentCodec: %v",
+            optionalCodecCast(requestCodecs.response_attachment_codec()));
+    }
 
     return builder.Flush();
 }

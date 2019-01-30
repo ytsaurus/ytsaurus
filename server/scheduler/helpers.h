@@ -24,17 +24,12 @@ void BuildExecNodeAttributes(TExecNodePtr node, NYTree::TFluentMap fluent);
 ////////////////////////////////////////////////////////////////////////////////
 
 EAbortReason GetAbortReason(const TError& resultError);
+TJobStatus JobStatusFromError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TString MakeOperationCodicilString(TOperationId operationId);
 TCodicilGuard MakeOperationCodicilGuard(TOperationId operationId);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobStatus JobStatusFromError(const TError& error);
-TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
-NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,16 +43,6 @@ struct TListOperationsResult
 
 TListOperationsResult ListOperations(
     TCallback<NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateOperationAccess(
-    const TString& user,
-    TOperationId operationId,
-    EAccessType accessType,
-    const NYTree::INodePtr& acl,
-    const NApi::NNative::IClientPtr& client,
-    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

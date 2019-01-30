@@ -3,6 +3,8 @@ from yt_commands import *
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
 from yt.wrapper.common import simplify_structure
 
+from yt.yson import YsonUint64
+
 from distutils.spawn import find_executable
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
@@ -14,7 +16,7 @@ import subprocess
 import random
 
 @require_ytserver_root_privileges
-class TestClickhouse(YTEnvSetup):
+class ClickhouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -70,7 +72,7 @@ class TestClickhouse(YTEnvSetup):
     def _read_local_config_file(self, name):
         return open(os.path.join(TEST_DIR, "test_clickhouse", name)).read()
 
-    def setup(self):
+    def _setup(self):
         self._clickhouse_client_binary = find_executable("clickhouse")
         self._ytserver_clickhouse_binary = find_executable("ytserver-clickhouse")
 
@@ -119,6 +121,11 @@ class TestClickhouse(YTEnvSetup):
             raise YtError("Clickhouse query failed\n" + output)
 
         return json.loads(stdout)
+
+
+class TestClickhouseCommon(ClickhouseTestBase):
+    def setup(self):
+        self._setup()
 
     def test_readonly(self):
         clique = self._start_clique(1)
@@ -181,3 +188,147 @@ class TestClickhouse(YTEnvSetup):
         result = self._make_query(clique, "select * from system.settings where name = 'max_temporary_non_const_columns'")
         assert result["data"][0]["value"] == "1234"
         assert result["data"][0]["changed"] == 1
+
+    def test_schema_caching(self):
+        clique = self._start_clique(1)
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        old_description = self._make_query(clique, 'describe "//tmp/t"')
+        assert old_description["data"][0]["name"] == "a"
+        remove("//tmp/t")
+        create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
+        write_table("//tmp/t", [{"b": 1}])
+        new_description = self._make_query(clique, 'describe "//tmp/t"')
+        assert new_description["data"][0]["name"] == "b"
+
+
+class TestCompositeTypes(ClickhouseTestBase):
+    def setup(self):
+        self._setup()
+        self.clique = self._start_clique(1)
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}, {"name": "v", "type": "any"}]})
+        write_table("//tmp/t", [
+            {
+                "i": 0,
+                "v": {
+                    "i64": -42,
+                    "ui64": YsonUint64(23),
+                    "bool": True,
+                    "dbl": 3.14,
+                    "str": "xyz",
+                    "subnode": {
+                        "i64": 123,
+                    },
+                    "arr_i64": [-1, 0, 1],
+                    "arr_ui64": [1, 1, 2, 3, 5],
+                    "arr_dbl": [-1.1, 2.71],
+                    "arr_bool": [False, True, False],
+                },
+            },
+            {
+                "i": 1,
+                "v": {
+                    "i64": "xyz",  # Wrong type.
+                },
+            },
+            {
+                "i": 2,
+                "v": {
+                    "i64": YsonUint64(2**63 + 42),  # Out of range for getting value as i64.
+                },
+            },
+            {
+                "i": 3,
+                "v": {},  # Key i64 is missing.
+            },
+            {
+                "i": 4,
+                "v": {
+                    "i64": 57,
+                },
+            }
+        ])
+
+    def teardown(self):
+        if self.clique.get_state() == "running":
+            self.clique.abort()
+        else:
+            self.clique.track()
+
+    def test_read_int64_strict(self):
+        for i in xrange(4):
+            query = "select YPathInt64Strict(v, '/i64') from \"//tmp/t\" where i = {}".format(i)
+            if i != 0:
+                with pytest.raises(YtError):
+                    self._make_query(self.clique, query)
+            else:
+                result = self._make_query(self.clique, query)
+                assert result["data"][0].popitem()[1] == -42
+
+    def test_read_uint64_strict(self):
+        result = self._make_query(self.clique, "select YPathUInt64Strict(v, '/i64') from \"//tmp/t\" where i = 4")
+        assert result["data"][0].popitem()[1] == 57
+
+    def test_read_from_subnode(self):
+        result = self._make_query(self.clique, "select YPathUInt64Strict(v, '/subnode/i64') from \"//tmp/t\" where i = 0")
+        assert result["data"][0].popitem()[1] == 123
+
+    def test_read_int64_non_strict(self):
+        query = "select YPathInt64(v, '/i64') from \"//tmp/t\""
+        result = self._make_query(self.clique, query)
+        for i, item in enumerate(result["data"]):
+            if i == 0:
+                assert item.popitem()[1] == -42
+            elif i == 4:
+                assert item.popitem()[1] == 57
+            else:
+                assert item.popitem()[1] == 0
+
+    def test_read_all_types_strict(self):
+        query = "select YPathInt64Strict(v, '/i64') as i64, YPathUInt64Strict(v, '/ui64') as ui64, " \
+                "YPathDoubleStrict(v, '/dbl') as dbl, YPathBooleanStrict(v, '/bool') as bool, " \
+                "YPathStringStrict(v, '/str') as str, YPathArrayInt64Strict(v, '/arr_i64') as arr_i64, " \
+                "YPathArrayUInt64Strict(v, '/arr_ui64') as arr_ui64, YPathArrayDoubleStrict(v, '/arr_dbl') as arr_dbl, " \
+                "YPathArrayBooleanStrict(v, '/arr_bool') as arr_bool from \"//tmp/t\" where i = 0"
+        result = self._make_query(self.clique, query)
+        assert result["data"] == [{
+            "i64": -42,
+            "ui64": 23,
+            "bool": True,
+            "dbl": 3.14,
+            "str": "xyz",
+            "arr_i64": [-1, 0, 1],
+            "arr_ui64": [1, 1, 2, 3, 5],
+            "arr_dbl": [-1.1, 2.71],
+            "arr_bool": [False, True, False],
+        }]
+
+    def test_read_all_types_non_strict(self):
+        query = "select YPathInt64(v, '/i64') as i64, YPathUInt64(v, '/ui64') as ui64, " \
+                "YPathDouble(v, '/dbl') as dbl, YPathBoolean(v, '/bool') as bool, " \
+                "YPathString(v, '/str') as str, YPathArrayInt64(v, '/arr_i64') as arr_i64, " \
+                "YPathArrayUInt64(v, '/arr_ui64') as arr_ui64, YPathArrayDouble(v, '/arr_dbl') as arr_dbl, " \
+                "YPathArrayBoolean(v, '/arr_bool') as arr_bool from \"//tmp/t\" where i = 3"
+        result = self._make_query(self.clique, query)
+        assert result["data"] == [{
+            "i64": 0,
+            "ui64": 0,
+            "bool": False,
+            "dbl": 0.0,
+            "str": "",
+            "arr_i64": [],
+            "arr_ui64": [],
+            "arr_dbl": [],
+            "arr_bool": [],
+        }]
+
+    def test_const_args(self):
+        result = self._make_query(self.clique, "select YPathString('{a=[1;2;{b=xyz}]}', '/a/2/b') as str")
+        assert result["data"] == [{"str": "xyz"}]
+
+    def test_nulls(self):
+        result = self._make_query(self.clique, "select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, "
+                                               "YPathString('{a=1}', NULL) as c")
+        assert result["data"] == [{"a": None, "b": None, "c": None}]

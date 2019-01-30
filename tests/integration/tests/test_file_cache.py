@@ -37,6 +37,7 @@ class TestFileCache(YTEnvSetup):
         assert get_file_from_cache("invalid_md5", cache_path) == ""
         assert get_file_from_cache("", cache_path) == ""
 
+
     def test_put_file_to_cache(self):
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
@@ -93,18 +94,39 @@ class TestFileCache(YTEnvSetup):
         set("//tmp/cache2/@acl/end", make_ace("allow", "u", "write"))
         put_file_to_cache("//tmp/file", hashlib.md5("aba").hexdigest(), cache_path="//tmp/cache2", authenticated_user="u")
 
+
+    def test_put_file_to_cache_no_overwriting(self):
+        content = "abacaba"
+        content_md5 = hashlib.md5(content).hexdigest()
+
+        create("map_node", "//tmp/cache")
+        create("file", "//tmp/file1")
+        write_file("//tmp/file1", content, compute_md5=True)
+        create("file", "//tmp/file2")
+        write_file("//tmp/file2", content, compute_md5=True)
+
+        path1 = put_file_to_cache("//tmp/file1", content_md5, cache_path="//tmp/cache")
+        id1 = get(path1 + "/@id")
+        path2 = put_file_to_cache("//tmp/file2", content_md5, cache_path="//tmp/cache")
+        id2 = get(path2 + "/@id")
+        assert id1 == id2
+
+
     def test_file_cache(self):
+        content = "abacaba"
+        content_md5 = hashlib.md5("abacaba").hexdigest()
+
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
-        write_file("//tmp/file", "abacaba", compute_md5=True)
-        path = put_file_to_cache("//tmp/file", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache")
-        path2 = get_file_from_cache(hashlib.md5("abacaba").hexdigest(), "//tmp/cache")
+        write_file("//tmp/file", content, compute_md5=True)
+        path = put_file_to_cache("//tmp/file", content_md5, cache_path="//tmp/cache")
+        path2 = get_file_from_cache(content_md5, "//tmp/cache")
         assert path == path2
-        assert read_file(path) == "abacaba"
+        assert read_file(path) == content
 
         modification_time = date_string_to_datetime(get(path + "/@modification_time"))
-        path3 = get_file_from_cache(hashlib.md5("abacaba").hexdigest(), "//tmp/cache")
+        path3 = get_file_from_cache(content_md5, "//tmp/cache")
         assert path2 == path3
-        assert read_file(path) == "abacaba"
+        assert read_file(path) == content
         assert date_string_to_datetime(get(path + "/@modification_time")) > modification_time
 

@@ -488,7 +488,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
                         continue;
                     }
 
-                    if (builtinAttributeProvider->GetBuiltinAttribute(descriptor.InternedKey, &attributeValueConsumer)) {
+                    if (GuardedGetBuiltinAttribute(descriptor.InternedKey, &attributeValueConsumer)) {
                         continue;
                     }
 
@@ -1094,6 +1094,19 @@ IAttributeDictionary* TSupportsAttributes::GetCustomAttributes()
 ISystemAttributeProvider* TSupportsAttributes::GetBuiltinAttributeProvider()
 {
     return nullptr;
+}
+
+bool TSupportsAttributes::GuardedGetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer)
+{
+    auto* provider = GetBuiltinAttributeProvider();
+
+    try {
+        return provider->GetBuiltinAttribute(key, consumer);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error getting builtin attribute %Qv",
+            ToYPathLiteral(GetUninternedAttributeKey(key)))
+            << ex;
+    }
 }
 
 bool TSupportsAttributes::GuardedSetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& yson)

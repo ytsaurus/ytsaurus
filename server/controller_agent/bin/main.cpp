@@ -1,7 +1,7 @@
 #include <yt/server/controller_agent/bootstrap.h>
 #include <yt/server/controller_agent/config.h>
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>

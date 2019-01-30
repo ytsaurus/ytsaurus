@@ -9,7 +9,7 @@ class TestMasterCellsSync(YTEnvSetup):
     START_SECONDARY_MASTER_CELLS = True
     ENABLE_SECONDARY_CELLS_CLEANUP = False
     NUM_SECONDARY_MASTER_CELLS = 2
-    NUM_NODES = 0
+    NUM_NODES = 2
 
     @classmethod
     def setup_class(cls, delayed_secondary_cells_start=False):
@@ -150,10 +150,19 @@ class TestMasterCellsSync(YTEnvSetup):
 
     def test_tablet_cell_sync(self):
         create_tablet_cell_bundle("b")
+        set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
         cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "b"})
 
+        wait_for_cells()
+        peer = get("#{0}/@peers/0/address".format(cell_id))
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(peer), True)
+        wait(lambda: get("#{0}/@config_version".format(cell_id)) == 2)
+        remove("#{0}".format(cell_id))
+
         def check(driver):
-            return get("//sys/tablet_cells/{0}/@tablet_cell_bundle".format(cell_id), driver=driver) == "b"
+            return get("//sys/tablet_cells/{0}/@tablet_cell_bundle".format(cell_id), driver=driver) == "b" and \
+                get("#{0}/@config_version".format(cell_id), driver=driver) == 2 and \
+                get("#{0}/@tablet_cell_life_stage".format(cell_id), driver=driver) == "decommissioned"
 
         self._check_true_for_secondary(lambda driver: check(driver))
 

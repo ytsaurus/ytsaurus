@@ -5,9 +5,9 @@
 #include "user_job_synchronizer.h"
 #include "private.h"
 
-#include <yt/server/exec_agent/public.h>
+#include <yt/server/lib/exec_agent/public.h>
 
-#include <yt/server/shell/shell_manager.h>
+#include <yt/server/lib/shell/shell_manager.h>
 
 #include <yt/core/bus/tcp/config.h>
 #include <yt/core/bus/tcp/server.h>

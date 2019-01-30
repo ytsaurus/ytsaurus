@@ -1,7 +1,7 @@
 import pytest
 import __builtin__
 
-from test_dynamic_tables import TestDynamicTablesBase
+from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import wait, skip_if_rpc_driver_backend, parametrize_external
 from yt_commands import *
@@ -14,7 +14,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestSortedDynamicTablesBase(TestDynamicTablesBase):
+class TestSortedDynamicTablesBase(DynamicTablesBase):
     def _create_simple_table(self, path, **attributes):
         if "schema" not in attributes:
             attributes.update({"schema": [
@@ -1003,6 +1003,62 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
 
+    def test_transaction_locks(self):
+        sync_create_cells(1)
+
+        attributes = {"schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "a", "type": "int64", "lock": "a"},
+                {"name": "b", "type": "int64", "lock": "b"},
+                {"name": "c", "type": "int64", "lock": "c"}]
+            }
+        create_dynamic_table("//tmp/t", **attributes)
+        sync_mount_table("//tmp/t")
+
+        tx1 = start_transaction(type="tablet", sticky=True)
+        tx2 = start_transaction(type="tablet", sticky=True)
+
+        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, tx=tx1)
+        lock_rows("//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1)
+        insert_rows("//tmp/t", [{"key": 1, "b": 2}], update=True, tx=tx2)
+
+        commit_transaction(tx1, sticky=True)
+        commit_transaction(tx2, sticky=True)
+
+        assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a", "b"]) == [{"key": 1, "a": 1, "b": 2}]
+
+
+        tx1 = start_transaction(type="tablet", sticky=True)
+        tx2 = start_transaction(type="tablet", sticky=True)
+        tx3 = start_transaction(type="tablet", sticky=True)
+
+        insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, tx=tx1)
+        lock_rows("//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1)
+
+        insert_rows("//tmp/t", [{"key": 2, "b": 2}], update=True, tx=tx2)
+        lock_rows("//tmp/t", [{"key": 2}], locks=["c"], tx=tx2)
+
+        lock_rows("//tmp/t", [{"key": 2}], locks=["a"], tx=tx3)
+
+        commit_transaction(tx1, sticky=True)
+        commit_transaction(tx2, sticky=True)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx3, sticky=True)
+
+        assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
+
+        tx1 = start_transaction(type="tablet", sticky=True)
+        tx2 = start_transaction(type="tablet", sticky=True)
+
+        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1)
+        insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
+
+        commit_transaction(tx2, sticky=True)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx1, sticky=True)
+
     def test_reshard_data(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for="scan")
@@ -1621,6 +1677,58 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 expected = lookup_rows("//tmp/expected", keys, versioned=versioned, timestamp=ts)
                 actual = lookup_rows("//tmp/actual", keys, versioned=versioned, timestamp=ts)
                 assert expected == actual
+
+    def test_versioned_lookup_dynamic_store(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@enable_store_rotation", False)
+        sync_mount_table("//tmp/t")
+
+        timestamps = [generate_timestamp()]
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]]
+        timestamps += [generate_timestamp()]
+
+        delete_rows("//tmp/t", [{"key": 1}])
+        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["delete_timestamps"][0]]
+        timestamps += [generate_timestamp()]
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "b"}])
+        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]]
+        timestamps += [generate_timestamp()]
+
+        delete_rows("//tmp/t", [{"key": 1}])
+        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["delete_timestamps"][0]]
+        timestamps += [generate_timestamp()]
+
+        assert timestamps == sorted(timestamps)
+
+        # Check one lookup explicitly.
+        result = lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=timestamps[6])[0]
+        assert result.attributes["write_timestamps"] == [timestamps[5], timestamps[1]]
+        assert result.attributes["delete_timestamps"] == [timestamps[3]]
+        value = result["value"]
+        assert len(value) == 2
+        assert value[0].attributes["timestamp"] == timestamps[5]
+        assert str(value[0]) == "b"
+        assert value[1].attributes["timestamp"] == timestamps[1]
+        assert str(value[1]) == "a"
+
+        # Check all lookups against chunk stores.
+        actual = [
+            lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts)
+            for ts in timestamps]
+
+        set("//tmp/t/@enable_store_rotation", True)
+        remount_table("//tmp/t")
+        sync_freeze_table("//tmp/t")
+
+        expected = [
+            lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts)
+            for ts in timestamps]
+
+        assert expected == actual
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @skip_if_rpc_driver_backend

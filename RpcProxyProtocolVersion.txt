@@ -1,4 +1,4 @@
-# Update major version when protocol changed significally, i.e.:
+# Update major version when protocol changed significantly, i.e.:
 # 1. Some messages are removed, renamed or redesigned.
 # 2. Some fields in messages change their meaning.
 SET(YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR 1)
@@ -13,6 +13,6 @@ SET(YT_RPC_PROXY_PROTOCOL_VERSION "${YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR}.${YT_R
 
 
 # RPC python client has protocol version plus some patch version
-SET(YT_RPC_PYTHON_BINDINGS_PATCH_VERSION 6)
+SET(YT_RPC_PYTHON_BINDINGS_PATCH_VERSION 7)
 
 SET(YT_RPC_PYTHON_BINDINGS_VERSION "${YT_RPC_PROXY_PROTOCOL_VERSION}.${YT_RPC_PYTHON_BINDINGS_PATCH_VERSION}")

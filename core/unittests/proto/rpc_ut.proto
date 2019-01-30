@@ -22,6 +22,18 @@ message TRspPassCall
 message TReqRegularAttachments { }
 message TRspRegularAttachments { }
 
+message TReqCompression
+{
+    required int32 request_codec = 1;
+    required int32 request_attachment_codec = 2;
+    required string message = 3;
+}
+
+message TRspCompression
+{
+    required string message = 1;
+}
+
 message TReqNullAndEmptyAttachments { }
 message TRspNullAndEmptyAttachments { }
 

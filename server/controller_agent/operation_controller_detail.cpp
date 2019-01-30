@@ -9,12 +9,9 @@
 #include "scheduling_context.h"
 #include "config.h"
 
-#include <yt/server/scheduler/helpers.h>
-#include <yt/server/scheduler/job.h>
+#include <yt/server/lib/misc/job_table_schema.h>
 
-#include <yt/server/misc/job_table_schema.h>
-
-#include <yt/server/chunk_pools/helpers.h>
+#include <yt/server/controller_agent/chunk_pools/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
@@ -73,6 +70,7 @@
 #include <yt/core/misc/chunked_input_stream.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>
@@ -195,8 +193,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableContext(New<TCancelableContext>())
     , InvokerPool(CreateFairShareInvokerPool(
         CreateMemoryTaggingInvoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()), operation->GetMemoryTag()),
-        TEnumTraits<EOperationControllerQueue>::GetDomainSize()
-    ))
+        TEnumTraits<EOperationControllerQueue>::GetDomainSize()))
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,
@@ -538,11 +535,15 @@ void TOperationControllerBase::InitializeStructures()
             TUserFile file;
             file.Path = path;
             file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
-            file.IsLayer = false;
+            file.Layer = false;
             files.emplace_back(std::move(file));
         }
 
         auto layerPaths = userJobSpec->LayerPaths;
+        if (Config->DefaultLayerPath && layerPaths.empty()) {
+            // If no layers were specified, we insert the default one.
+            layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
+        }
         if (Config->SystemLayerPath && !layerPaths.empty()) {
             // This must be the top layer, so insert in the beginning.
             layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
@@ -551,7 +552,7 @@ void TOperationControllerBase::InitializeStructures()
             TUserFile file;
             file.Path = path;
             file.TransactionId = path.GetTransactionId().value_or(InputTransaction->GetId());
-            file.IsLayer = true;
+            file.Layer = true;
             files.emplace_back(std::move(file));
         }
     }
@@ -842,7 +843,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
-        auto wrappedError = TError("Materialization failed") << ex;
+        auto wrappedError = TError(EErrorCode::MaterializationFailed, "Materialization failed")
+            << ex;
         YT_LOG_INFO(wrappedError);
         OnOperationFailed(wrappedError);
         return result;
@@ -1148,7 +1150,7 @@ void TOperationControllerBase::InitChunkListPools()
         OutputChunkListPool_ = New<TChunkListPool>(
             Config,
             OutputClient,
-            CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+            CancelableInvokerPool,
             OperationId,
             OutputTransaction->GetId());
 
@@ -1163,7 +1165,7 @@ void TOperationControllerBase::InitChunkListPools()
     DebugChunkListPool_ = New<TChunkListPool>(
         Config,
         OutputClient,
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        CancelableInvokerPool,
         OperationId,
         DebugTransaction->GetId());
 
@@ -1913,7 +1915,7 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
 
 void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
     auto jobId = jobSummary->Id;
     auto abandoned = jobSummary->Abandoned;
@@ -1991,6 +1993,11 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary, joblet);
+        if (jobSummary->InterruptReason == EInterruptReason::JobSplit) {
+            // If we interrupted job on our own decision, (from JobSpliter), we should at least try to split it into 2 pieces.
+            // Otherwise, the whole splitting thing makes to sense.
+            jobSummary->SplitJobCount = std::max(2, jobSummary->SplitJobCount);
+        }
         YT_LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
             jobSummary->Id,
             jobSummary->InterruptReason,
@@ -2770,27 +2777,58 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     if (AvailableExecNodesObserved_ && now < LastAvailableExecNodesCheckTime_ + Config->BannedExecNodesCheckPeriod) {
         return;
     }
+    LastAvailableExecNodesCheckTime_ = now;
 
+    TExecNodeDescriptor observedExecNode;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
     for (const auto& nodePair : GetExecNodeDescriptors()) {
         const auto& descriptor = nodePair.second;
+
+        bool hasSuitableTree = false;
         for (const auto& treePair : PoolTreeToSchedulingTagFilter_) {
             const auto& filter = treePair.second;
             if (descriptor.CanSchedule(filter)) {
-                foundMatching = true;
-                if (BannedNodeIds_.find(descriptor.Id) == BannedNodeIds_.end()) {
-                    foundMatchingNotBanned = true;
-                }
+                hasSuitableTree = true;
+                break;
             }
         }
-        // foundMatchingNotBanned also implies foundMatching, hence we interrupt.
-        if (foundMatchingNotBanned) {
+        if (!hasSuitableTree) {
+            continue;
+        }
+
+        bool hasNonTrivialTasks = false;
+        bool hasEnoughResources = false;
+        for (const auto& task : Tasks) {
+            if (task->GetPendingJobCount() == 0) {
+                continue;
+            }
+            hasNonTrivialTasks = true;
+
+            const auto& neededResources = task->GetMinNeededResources();
+            if (Dominates(descriptor.ResourceLimits, neededResources.ToJobResources())) {
+                hasEnoughResources = true;
+                break;
+            }
+        }
+        if (hasNonTrivialTasks && !hasEnoughResources) {
+            continue;
+        }
+
+        observedExecNode = descriptor;
+        foundMatching = true;
+        if (BannedNodeIds_.find(descriptor.Id) == BannedNodeIds_.end()) {
+            foundMatchingNotBanned = true;
+            // foundMatchingNotBanned also implies foundMatching, hence we interrupt.
             break;
         }
     }
 
-    if (!AvailableExecNodesObserved_ && !foundMatching) {
+    if (foundMatching) {
+        AvailableExecNodesObserved_ = true;
+    }
+
+    if (!AvailableExecNodesObserved_) {
         OnOperationFailed(TError(
             EErrorCode::NoOnlineNodeToScheduleJob,
             "No online nodes match operation scheduling tag filter %Qv in trees %v",
@@ -2806,10 +2844,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         return;
     }
 
-    YT_LOG_DEBUG("Available nodes were observed");
-
-    AvailableExecNodesObserved_ = true;
-    LastAvailableExecNodesCheckTime_ = now;
+    YT_LOG_DEBUG("Available exec nodes check succeeded (ObservedNodeAddress: %v)",
+        observedExecNode.Address);
 }
 
 void TOperationControllerBase::AnalyzeTmpfsUsage()
@@ -3134,7 +3170,7 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
 
 void TOperationControllerBase::AnalyzeOperationProgress()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     AnalyzeTmpfsUsage();
     AnalyzeInputStatistics();
@@ -3255,7 +3291,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     schedulerJobSpecExt->set_acl(BuildYsonStringFluently()
         .BeginList()
-            .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, std::vector<EPermission>({EPermission::Read}), _1))
+            .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, EPermission::Read, _1))
         .EndList()
         .GetData()
     );
@@ -3417,7 +3453,7 @@ void TOperationControllerBase::DoScheduleJob(
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
 
     if (!IsRunning()) {
         YT_LOG_TRACE("Operation is not running, scheduling request ignored");
@@ -3855,7 +3891,8 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
 
 void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
     Y_UNUSED(interrupted);
 
     // This can happen if operation failed during completion in derived class (e.g. SortController).
@@ -3874,7 +3911,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
 {
-    VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
     if (State == EControllerState::Finished) {
@@ -3895,7 +3932,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
 void TOperationControllerBase::OnOperationAborted(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     // Cf. OnOperationFailed.
     if (State == EControllerState::Finished) {
@@ -4202,7 +4239,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             "create_intermediate",
             BuildYsonStringFluently()
                 .BeginList()
-                    .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, std::vector<EPermission>({EPermission::Read}), _1))
+                    .Do(std::bind(&BuildOperationAce, Owners, AuthenticatedUser, EPermission::Read, _1))
                     .DoFor(Spec_->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
                     })
@@ -4896,7 +4933,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                     [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
                         req->set_fetch_all_meta_extensions(false);
                         req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                        if (file.IsDynamic || IsBoundaryKeysFetchEnabled()) {
+                        if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
                             req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
                         }
                         // NB: we always fetch parity replicas since
@@ -5109,13 +5146,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
     for (const auto& files : GetValues(UserJobFiles_)) {
         for (const auto& file : files) {
             const auto& path = file.Path.GetPath();
-            if (!file.IsLayer && file.Type != EObjectType::Table && file.Type != EObjectType::File) {
+            if (!file.Layer && file.Type != EObjectType::Table && file.Type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("User file %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
                     path,
                     EObjectType::Table,
                     EObjectType::File,
                     file.Type);
-            } else if (file.IsLayer && file.Type != EObjectType::File) {
+            } else if (file.Layer && file.Type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv , actual %Qlv",
                     path,
                     EObjectType::File,
@@ -5228,7 +5265,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             break;
 
                         case EObjectType::Table:
-                            file.IsDynamic = attributes.Get<bool>("dynamic");
+                            file.Dynamic = attributes.Get<bool>("dynamic");
                             file.Schema = attributes.Get<TTableSchema>("schema");
                             file.Format = attributes.FindYson("format");
                             if (!file.Format) {
@@ -5245,7 +5282,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     file.Path) << ex;
                             }
                             // Validate that timestamp is correct.
-                            ValidateDynamicTableTimestamp(file.Path, file.IsDynamic, file.Schema, attributes);
+                            ValidateDynamicTableTimestamp(file.Path, file.Dynamic, file.Schema, attributes);
 
                             break;
 
@@ -5269,22 +5306,25 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         file.FileName);
                 }
 
-                if (!file.IsLayer) {
-                    // TODO(babenko): more sanity checks?
-                    auto path = file.Path.GetPath();
+                if (!file.Layer) {
+                    const auto& path = file.Path.GetPath();
                     const auto& fileName = file.FileName;
 
                     if (fileName.empty()) {
-                        THROW_ERROR_EXCEPTION("Empty user file name for %v", path);
+                        THROW_ERROR_EXCEPTION("Empty user file name for %v",
+                            path);
                     }
 
-                    if (!NFS::CheckPathIsRelativeAndGoesInside(fileName)) {
-                        THROW_ERROR_EXCEPTION("User file name cannot reference outside of sandbox directory")
-                            << TErrorAttribute("file_name", fileName);
+                    if (!NFS::IsPathRelativeAndInvolvesNoTraversal(fileName)) {
+                        THROW_ERROR_EXCEPTION("User file name %Qv for %v does not point inside the sandbox directory",
+                            fileName,
+                            path);
                     }
 
                     if (!userFileNames.insert(fileName).second) {
-                        THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v", fileName, path);
+                        THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
+                            fileName,
+                            path);
                     }
                 }
             }
@@ -6878,7 +6918,7 @@ i64 TOperationControllerBase::GetUnavailableInputChunkCount() const
 
 int TOperationControllerBase::GetTotalJobCount() const
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     // Avoid accessing the state while not prepared.
     if (!IsPrepared()) {

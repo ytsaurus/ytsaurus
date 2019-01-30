@@ -21,7 +21,7 @@ public:
     TChunkListPool(
         TControllerAgentConfigPtr config,
         NApi::NNative::IClientPtr clientPtr,
-        IInvokerPtr controlInvoker,
+        IInvokerPoolPtr controllerInvokerPool,
         TOperationId operationId,
         NTransactionClient::TTransactionId transactionId);
 
@@ -33,7 +33,7 @@ public:
 private:
     const TControllerAgentConfigPtr Config_;
     const NApi::NNative::IClientPtr Client_;
-    const IInvokerPtr ControllerInvoker_;
+    const IInvokerPoolPtr ControllerInvokerPool_;
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;
 

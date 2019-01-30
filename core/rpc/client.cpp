@@ -5,7 +5,9 @@
 
 #include <yt/core/net/local_address.h>
 
+#include <yt/core/misc/cast.h>
 #include <yt/core/misc/checksum.h>
+#include <yt/core/misc/memory_zone.h>
 
 #include <iterator>
 
@@ -57,11 +59,15 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , Timeout_(other.Timeout_)
     , RequestAck_(other.RequestAck_)
     , Heavy_(other.Heavy_)
-    , Codec_(other.Codec_)
+    , RequestCodec_(other.RequestCodec_)
+    , RequestAttachmentCodec_(other.RequestAttachmentCodec_)
+    , ResponseCodec_(other.ResponseCodec_)
+    , ResponseAttachmentCodec_(other.ResponseAttachmentCodec_)
     , GenerateAttachmentChecksums_(other.GenerateAttachmentChecksums_)
+    , UseUndumpableMemoryZone_(other.UseUndumpableMemoryZone_)
     , Channel_(other.Channel_)
     , Header_(other.Header_)
-    , SerializedBody_(other.SerializedBody_)
+    , SerializedData_(other.SerializedData_)
     , Hash_(other.Hash_)
     , MultiplexingBand_(other.MultiplexingBand_)
     , FirstTimeSerialization_(other.FirstTimeSerialization_)
@@ -69,15 +75,16 @@ TClientRequest::TClientRequest(const TClientRequest& other)
 
 TSharedRefArray TClientRequest::Serialize()
 {
-    if (!FirstTimeSerialization_) {
+    if (FirstTimeSerialization_) {
+        SetCodecsInHeader();
+    } else {
         Header_.set_retry(true);
     }
     FirstTimeSerialization_ = false;
 
     return CreateRequestMessage(
         Header_,
-        GetSerializedBody(),
-        Attachments_);
+        GetSerializedData());
 }
 
 IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
@@ -86,6 +93,7 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
     options.Timeout = Timeout_;
     options.RequestAck = RequestAck_;
     options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
+    options.UseUndumpableMemoryZone = UseUndumpableMemoryZone_;
     options.MultiplexingBand = MultiplexingBand_;
     return Channel_->Send(
         this,
@@ -177,9 +185,9 @@ size_t TClientRequest::GetHash() const
 {
     if (!Hash_) {
         size_t hash = 0;
-        HashCombine(hash, GetChecksum(GetSerializedBody()));
-        for (const auto& attachment : Attachments_) {
-            HashCombine(hash, GetChecksum(attachment));
+        auto serializedData = GetSerializedData();
+        for (auto ref : serializedData) {
+            HashCombine(hash, GetChecksum(ref));
         }
         Hash_ = hash;
     }
@@ -235,12 +243,28 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
         NNet::GetLocalHostName());
 }
 
-const TSharedRef& TClientRequest::GetSerializedBody() const
+void TClientRequest::SetCodecsInHeader()
 {
-    if (!SerializedBody_) {
-        SerializedBody_ = SerializeBody();
+    if (RequestAttachmentCodec_ || ResponseCodec_ || ResponseAttachmentCodec_) {
+        auto requestCodecId = RequestCodec_.value_or(NCompression::ECodec::None);
+        auto requestAttachmentCodecId = RequestAttachmentCodec_.value_or(requestCodecId);
+        auto responseCodecId = ResponseCodec_.value_or(NCompression::ECodec::None);
+        auto responseAttachmentCodecId = ResponseAttachmentCodec_.value_or(responseCodecId);
+
+        auto requestCodecs = Header_.mutable_request_codecs();
+        requestCodecs->set_request_codec(static_cast<int>(requestCodecId));
+        requestCodecs->set_request_attachment_codec(static_cast<int>(requestAttachmentCodecId));
+        requestCodecs->set_response_codec(static_cast<int>(responseCodecId));
+        requestCodecs->set_response_attachment_codec(static_cast<int>(responseAttachmentCodecId));
     }
-    return SerializedBody_;
+}
+
+const TSharedRefArray& TClientRequest::GetSerializedData() const
+{
+    if (!SerializedData_) {
+        SerializedData_ = SerializeData();
+    }
+    return SerializedData_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,6 +321,11 @@ TClientResponse::TClientResponse(TClientContextPtr clientContext)
     : TClientResponseBase(std::move(clientContext))
 { }
 
+const NProto::TResponseHeader& TClientResponse::Header() const
+{
+    return Header_;
+}
+
 TSharedRefArray TClientResponse::GetResponseMessage() const
 {
     Y_ASSERT(ResponseMessage_);
@@ -324,13 +353,34 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
     Y_ASSERT(ResponseMessage_.Size() >= 2);
 
-    DeserializeBody(ResponseMessage_[1]);
+    YCHECK(ParseResponseHeader(ResponseMessage_, &Header_));
 
+    // COMPAT(kiselyovp)
+    bool compatibilityMode = !Header_.has_response_codecs();
+
+    std::optional<NCompression::ECodec> responseCodecId;
+    if (!compatibilityMode) {
+        responseCodecId = CheckedEnumCast<NCompression::ECodec>(Header_.response_codecs().response_codec());
+    }
+    DeserializeBody(ResponseMessage_[1], responseCodecId);
+
+    auto responseAttachmentCodecId = compatibilityMode
+        ? NCompression::ECodec::None
+        : CheckedEnumCast<NCompression::ECodec>(Header_.response_codecs().response_attachment_codec());
+    auto* responseAttachmentCodec = NCompression::GetCodec(responseAttachmentCodecId);
     Attachments_.clear();
-    Attachments_.insert(
-        Attachments_.begin(),
-        ResponseMessage_.Begin() + 2,
-        ResponseMessage_.End());
+    Attachments_.reserve(ResponseMessage_.Size() - 2);
+    for (auto attachmentIt = ResponseMessage_.Begin() + 2;
+        attachmentIt != ResponseMessage_.End();
+        ++attachmentIt)
+    {
+        TSharedRef decompressedAttachment;
+        {
+            TMemoryZoneGuard guard(FromProto<EMemoryZone>(Header_.response_memory_zone()));
+            decompressedAttachment = responseAttachmentCodec->Decompress(*attachmentIt);
+        }
+        Attachments_.push_back(std::move(decompressedAttachment));
+    }
 }
 
 void TClientResponse::HandleAcknowledgement()

@@ -3,7 +3,7 @@
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/optional.h>
 
-#include <yt/server/misc/release_queue.h>
+#include <yt/server/lib/misc/release_queue.h>
 
 namespace NYT {
 namespace {

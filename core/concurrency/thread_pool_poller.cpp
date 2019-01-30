@@ -389,6 +389,11 @@ private:
             WakeupHandle_.Raise();
         }
 
+        virtual TDuration GetAverageWaitTime() const override
+        {
+            Y_UNREACHABLE();
+        }
+
         EBeginExecuteResult ExecuteCallbacks()
         {
             TCurrentInvokerGuard guard(this);

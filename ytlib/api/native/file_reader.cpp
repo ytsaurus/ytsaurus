@@ -221,6 +221,7 @@ private:
             New<TMultiChunkReaderOptions>(),
             Client_,
             TNodeDescriptor(),
+            std::nullopt,
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
             BlockReadOptions_,

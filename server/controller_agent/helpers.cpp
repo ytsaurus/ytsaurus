@@ -4,7 +4,7 @@
 #include "serialize.h"
 #include "table.h"
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -82,9 +82,9 @@ void TUserFile::Persist(const TPersistenceContext& context)
     Persist(context, Executable);
     Persist(context, Format);
     Persist(context, Schema);
-    Persist(context, IsDynamic);
+    Persist(context, Dynamic);
     if (context.GetVersion() >= 202000) {
-        Persist(context, IsLayer);
+        Persist(context, Layer);
     }
 }
 
@@ -119,13 +119,13 @@ TBoundaryKeys BuildBoundaryKeysFromOutputResult(
 void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector<TUserFile>& files)
 {
     for (const auto& file : files) {
-        auto* descriptor = file.IsLayer
+        auto* descriptor = file.Layer
             ? jobSpec->add_layers()
             : jobSpec->add_files();
 
         ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
 
-        if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
+        if (file.Type == EObjectType::Table && file.Dynamic && file.Schema.IsSorted()) {
             auto dataSource = MakeVersionedDataSource(
                 file.GetPath(),
                 file.Schema,
@@ -146,7 +146,7 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
             ToProto(descriptor->mutable_data_source(), dataSource);
         }
 
-        if (!file.IsLayer) {
+        if (!file.Layer) {
             descriptor->set_file_name(file.FileName);
             switch (file.Type) {
                 case EObjectType::File:
@@ -203,35 +203,6 @@ void SetDataSourceDirectory(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec, c
     NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
     ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
     SetProtoExtension(jobSpec->mutable_extensions(), dataSourceDirectoryExt);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-NNative::IConnectionPtr FindRemoteConnection(
-    const NNative::IConnectionPtr& connection,
-    TCellTag cellTag)
-{
-    if (cellTag == connection->GetCellTag()) {
-        return connection;
-    }
-
-    auto remoteConnection = connection->GetClusterDirectory()->FindConnection(cellTag);
-    if (!remoteConnection) {
-        return nullptr;
-    }
-
-    return dynamic_cast<NNative::IConnection*>(remoteConnection.Get());
-}
-
-NNative::IConnectionPtr GetRemoteConnectionOrThrow(
-    const NNative::IConnectionPtr& connection,
-    TCellTag cellTag)
-{
-    auto remoteConnection = FindRemoteConnection(connection, cellTag);
-    if (!remoteConnection) {
-        THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
-    }
-    return remoteConnection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,36 +15,88 @@ using namespace NYson;
 
 namespace NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TString GetSetStringRepresentation(const THashSet<T>& set)
+{
+    TStringBuilder result;
+    result.AppendString("{");
+    bool first = true;
+    for (const auto& element : set) {
+        if (!first) {
+            result.AppendString(", ");
+        }
+        result.AppendFormat("%Qlv", element);
+        first = false;
+    }
+    result.AppendString("}");
+    return result.Flush();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<ENodeType> TScalarTypeTraits<TString>::GetValueSupportedTypes = {
+    ENodeType::String,
+};
+
+THashSet<ENodeType> TScalarTypeTraits<TString>::SetValueSupportedTypes = {
+    ENodeType::String,
+};
+
+TString TScalarTypeTraits<TString>::GetValueSupportedTypesStringRepresentation =
+    GetSetStringRepresentation(TScalarTypeTraits<TString>::GetValueSupportedTypes);
+
+TString TScalarTypeTraits<TString>::SetValueSupportedTypesStringRepresentation =
+    GetSetStringRepresentation(TScalarTypeTraits<TString>::SetValueSupportedTypes);
+
 const TString& TScalarTypeTraits<TString>::GetValue(const IConstNodePtr& node)
 {
+    ValidateNodeType(node, GetValueSupportedTypes, GetValueSupportedTypesStringRepresentation);
     return node->AsString()->GetValue();
 }
 
 void TScalarTypeTraits<TString>::SetValue(const INodePtr& node, const TString& value)
 {
+    ValidateNodeType(node, SetValueSupportedTypes, SetValueSupportedTypesStringRepresentation);
     node->AsString()->SetValue(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<ENodeType> TScalarTypeTraits<i64>::GetValueSupportedTypes = {
+    ENodeType::Int64,
+    ENodeType::Uint64,
+};
+
+THashSet<ENodeType> TScalarTypeTraits<i64>::SetValueSupportedTypes = {
+    ENodeType::Int64,
+    ENodeType::Uint64,
+    ENodeType::Double,
+};
+
+TString TScalarTypeTraits<i64>::GetValueSupportedTypesStringRepresentation =
+    GetSetStringRepresentation(TScalarTypeTraits<i64>::GetValueSupportedTypes);
+
+TString TScalarTypeTraits<i64>::SetValueSupportedTypesStringRepresentation =
+    GetSetStringRepresentation(TScalarTypeTraits<i64>::SetValueSupportedTypes);
+
 i64 TScalarTypeTraits<i64>::GetValue(const IConstNodePtr& node)
 {
+    ValidateNodeType(node, GetValueSupportedTypes, GetValueSupportedTypesStringRepresentation);
     switch (node->GetType()) {
         case ENodeType::Int64:
             return node->AsInt64()->GetValue();
         case ENodeType::Uint64:
             return CheckedIntegralCast<i64>(node->AsUint64()->GetValue());
         default:
-            ThrowInvalidNodeType(node, ENodeType::Int64, node->GetType());
             Y_UNREACHABLE();
     }
 }
 
 void TScalarTypeTraits<i64>::SetValue(const INodePtr& node, i64 value)
 {
+    ValidateNodeType(node, SetValueSupportedTypes, SetValueSupportedTypesStringRepresentation);
     switch (node->GetType()) {
         case ENodeType::Int64:
             node->AsInt64()->SetValue(value);
@@ -56,27 +108,45 @@ void TScalarTypeTraits<i64>::SetValue(const INodePtr& node, i64 value)
             node->AsDouble()->SetValue(static_cast<double>(value));
             break;
         default:
-            ThrowInvalidNodeType(node, ENodeType::Int64, node->GetType());
+            Y_UNREACHABLE();
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<ENodeType> TScalarTypeTraits<ui64>::GetValueSupportedTypes = {
+    ENodeType::Int64,
+    ENodeType::Uint64,
+};
+
+THashSet<ENodeType> TScalarTypeTraits<ui64>::SetValueSupportedTypes = {
+    ENodeType::Int64,
+    ENodeType::Uint64,
+    ENodeType::Double,
+};
+
+TString TScalarTypeTraits<ui64>::GetValueSupportedTypesStringRepresentation =
+    GetSetStringRepresentation(TScalarTypeTraits<ui64>::GetValueSupportedTypes);
+
+TString TScalarTypeTraits<ui64>::SetValueSupportedTypesStringRepresentation =
+    GetSetStringRepresentation(TScalarTypeTraits<ui64>::SetValueSupportedTypes);
+
 ui64 TScalarTypeTraits<ui64>::GetValue(const IConstNodePtr& node)
 {
+    ValidateNodeType(node, GetValueSupportedTypes, GetValueSupportedTypesStringRepresentation);
     switch (node->GetType()) {
         case ENodeType::Uint64:
             return node->AsUint64()->GetValue();
         case ENodeType::Int64:
             return CheckedIntegralCast<ui64>(node->AsInt64()->GetValue());
         default:
-            ThrowInvalidNodeType(node, ENodeType::Uint64, node->GetType());
             Y_UNREACHABLE();
     }
 }
 
 void TScalarTypeTraits<ui64>::SetValue(const INodePtr& node, ui64 value)
 {
+    ValidateNodeType(node, SetValueSupportedTypes, SetValueSupportedTypesStringRepresentation);
     switch (node->GetType()) {
         case ENodeType::Uint64:
             node->AsUint64()->SetValue(value);
@@ -88,14 +158,31 @@ void TScalarTypeTraits<ui64>::SetValue(const INodePtr& node, ui64 value)
             node->AsDouble()->SetValue(static_cast<double>(value));
             break;
         default:
-            ThrowInvalidNodeType(node, ENodeType::Uint64, node->GetType());
+            Y_UNREACHABLE();
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<ENodeType> TScalarTypeTraits<double>::GetValueSupportedTypes = {
+    ENodeType::Double,
+    ENodeType::Int64,
+    ENodeType::Uint64,
+};
+
+THashSet<ENodeType> TScalarTypeTraits<double>::SetValueSupportedTypes = {
+    ENodeType::Double,
+};
+
+TString TScalarTypeTraits<double>::GetValueSupportedTypesStringRepresentation =
+    GetSetStringRepresentation(TScalarTypeTraits<double>::GetValueSupportedTypes);
+
+TString TScalarTypeTraits<double>::SetValueSupportedTypesStringRepresentation =
+    GetSetStringRepresentation(TScalarTypeTraits<double>::SetValueSupportedTypes);
+
 double TScalarTypeTraits<double>::GetValue(const IConstNodePtr& node)
 {
+    ValidateNodeType(node, GetValueSupportedTypes, GetValueSupportedTypesStringRepresentation);
     switch (node->GetType()) {
         case ENodeType::Double:
             return node->AsDouble()->GetValue();
@@ -104,17 +191,25 @@ double TScalarTypeTraits<double>::GetValue(const IConstNodePtr& node)
         case ENodeType::Uint64:
             return static_cast<double>(node->AsUint64()->GetValue());
         default:
-            ThrowInvalidNodeType(node, ENodeType::Double, node->GetType());
             Y_UNREACHABLE();
     }
 }
 
 void TScalarTypeTraits<double>::SetValue(const INodePtr& node, double value)
 {
+    ValidateNodeType(node, SetValueSupportedTypes, SetValueSupportedTypesStringRepresentation);
     node->AsDouble()->SetValue(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+THashSet<ENodeType> TScalarTypeTraits<bool>::GetValueSupportedTypes = {
+    ENodeType::Boolean,
+};
+
+THashSet<ENodeType> TScalarTypeTraits<bool>::SetValueSupportedTypes = {
+    ENodeType::Boolean,
+};
 
 bool TScalarTypeTraits<bool>::GetValue(const IConstNodePtr& node)
 {
@@ -170,11 +265,20 @@ int IListNode::GetChildIndexOrThrow(const IConstNodePtr& child)
     return *optionalIndex;
 }
 
-int IListNode::AdjustChildIndex(int index) const
+int IListNode::AdjustChildIndexOrThrow(int index) const
 {
-    int adjustedIndex = index >= 0 ? index : index + GetChildCount();
-    if (adjustedIndex < 0 || adjustedIndex >= GetChildCount()) {
+    auto adjustedIndex = TryAdjustChildIndex(index, GetChildCount());
+    if (!adjustedIndex) {
         ThrowNoSuchChildIndex(this, index);
+    }
+    return *adjustedIndex;
+}
+
+std::optional<int> TryAdjustChildIndex(int index, int childCount)
+{
+    int adjustedIndex = index >= 0 ? index : index + childCount;
+    if (adjustedIndex < 0 || adjustedIndex >= childCount) {
+        return std::nullopt;
     }
     return adjustedIndex;
 }

@@ -5,7 +5,6 @@
 #include "auto_merge_director.h"
 #include "chunk_list_pool.h"
 #include "tentative_tree_eligibility.h"
-#include "job_memory.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
 #include "serialize.h"
@@ -13,17 +12,17 @@
 #include "master_connector.h"
 #include "task_host.h"
 
-#include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/event_log.h>
+#include <yt/server/controller_agent/job_memory.h>
 
-#include <yt/server/chunk_pools/chunk_pool.h>
-#include <yt/server/chunk_pools/public.h>
-#include <yt/server/chunk_pools/chunk_stripe_key.h>
-#include <yt/server/chunk_pools/input_stream.h>
+#include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/event_log.h>
 
-#include <yt/server/chunk_server/public.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/public.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/controller_agent/chunk_pools/input_stream.h>
 
-#include <yt/server/misc/release_queue.h>
+#include <yt/server/lib/misc/release_queue.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
@@ -117,7 +116,7 @@ class TOperationControllerBase
 public: \
     virtual returnType method signature final \
     { \
-        VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default)); \
+        VERIFY_INVOKER_POOL_AFFINITY(InvokerPool); \
         TSafeAssertionsGuard guard( \
             Host->GetCoreDumper(), \
             Host->GetCoreSemaphore(), \
@@ -153,7 +152,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, Complete, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(
-        TScheduleJobResultPtr,
+        NScheduler::TScheduleJobResultPtr,
         ScheduleJob,
         (ISchedulingContext* context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
         (context, jobLimits, treeId),
@@ -184,6 +183,8 @@ private: \
 
     //! Called by task's ScheduleJob to wrap the job spec proto building routine with safe environmnet.
     IMPLEMENT_SAFE_METHOD(TSharedRef, BuildJobSpecProto, (const TJobletPtr& joblet), (joblet), true)
+
+#undef IMPLEMENT_SAFE_METHOD
 
 public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
@@ -511,19 +512,19 @@ protected:
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleLocalJob(
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
 
     TJobletPtr FindJoblet(TJobId jobId) const;

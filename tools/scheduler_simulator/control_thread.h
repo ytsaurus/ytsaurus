@@ -44,6 +44,7 @@ public:
     TSimulatorControlThread(
         const std::vector<NScheduler::TExecNodePtr>* execNodes,
         IOutputStream* eventLogOutputStream,
+        IOperationStatisticsOutput* operationStatisticsOutput,
         const TSchedulerSimulatorConfigPtr& config,
         const NScheduler::TSchedulerConfigPtr& schedulerConfig,
         const std::vector<TOperationDescription>& operations,
@@ -73,7 +74,6 @@ private:
     TSharedEventQueue NodeShardEventQueue_;
 
     TSharedOperationStatistics OperationStatistics_;
-    TSharedOperationStatisticsOutput OperationStatisticsOutput_;
     TSharedRunningOperationsMap RunningOperationsMap_;
     TSharedJobAndOperationCounter JobAndOperationCounter_;
 

@@ -38,6 +38,7 @@ struct TSendOptions
     std::optional<TDuration> Timeout;
     bool RequestAck = true;
     bool GenerateAttachmentChecksums = true;
+    bool UseUndumpableMemoryZone = false;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;
 };
 

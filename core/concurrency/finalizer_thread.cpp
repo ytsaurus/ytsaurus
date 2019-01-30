@@ -40,6 +40,11 @@ private:
             }));
         }
 
+        TDuration GetAverageWaitTime() const
+        {
+            Y_UNREACHABLE();
+        }
+
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         virtual NConcurrency::TThreadId GetThreadId() const override
         {

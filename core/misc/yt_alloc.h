@@ -10,6 +10,8 @@ void* Allocate(size_t size);
 
 void Free(void* ptr);
 
+size_t GetAllocationSize(void* ptr);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTAlloc

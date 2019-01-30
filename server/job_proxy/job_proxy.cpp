@@ -1,5 +1,4 @@
 #include "job_proxy.h"
-#include "config.h"
 #include "cpu_monitor.h"
 #include "job_prober_service.h"
 #include "merge_job.h"
@@ -13,10 +12,11 @@
 #include "user_job_synchronizer.h"
 #include "job_throttler.h"
 
-#include <yt/server/containers/public.h>
+#include <yt/server/lib/containers/public.h>
 
-#include <yt/server/exec_agent/config.h>
-#include <yt/server/exec_agent/supervisor_service.pb.h>
+#include <yt/server/lib/exec_agent/config.h>
+
+#include <yt/server/lib/exec_agent/proto/supervisor_service.pb.h>
 
 #include <yt/client/api/client.h>
 

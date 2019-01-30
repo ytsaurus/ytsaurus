@@ -110,7 +110,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     }
 
     @clear_everything_after_test
-    def test_wow_block_so_hot_such_much_requests(self):
+    def DISABLED_test_wow_block_so_hot_such_much_requests(self):
         with ProfileMetric.at_node(self.seed, "data_node/block_cache/compressed_data/hit") as ps, \
             ProfileMetric.at_node(self.non_seeds[0], "data_node/block_cache/compressed_data/hit") as pns0, \
             ProfileMetric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit") as pns1, \

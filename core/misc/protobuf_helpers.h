@@ -170,19 +170,43 @@ TString SerializeProtoToStringWithEnvelope(
     NCompression::ECodec codecId = NCompression::ECodec::None,
     bool partial = true);
 
-//! Unwraps a chunk of memory obtained from #TrySerializeProtoToRefWithEnvelope
+//! Unwraps a chunk of memory obtained from #SerializeProtoToRefWithEnvelope
 //! and deserializes it into a protobuf message.
 //! Returns |true| iff everything went well.
 bool TryDeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     TRef data);
 
-//! Unwraps a chunk of memory obtained from #TrySerializeProtoToRefWithEnvelope
+//! Unwraps a chunk of memory obtained from #SerializeProtoToRefWithEnvelope
 //! and deserializes it into a protobuf message.
 //! Fails on error.
 void DeserializeProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     TRef data);
+
+//! Serializes a given protobuf message.
+//! Optionally compresses the serialized message.
+//! Fails on error.
+TSharedRef SerializeProtoToRefWithCompression(
+    const google::protobuf::MessageLite& message,
+    NCompression::ECodec codecId = NCompression::ECodec::None,
+    bool partial = true);
+
+//! Unwraps a chunk of memory obtained from #SerializeProtoToRefWithCompression,
+//! decompresses it with a given codec and deserializes it into a protobuf message.
+//! Returns |true| iff everything went well.
+bool TryDeserializeProtoWithCompression(
+    google::protobuf::MessageLite* message,
+    TRef data,
+    NCompression::ECodec codecId = NCompression::ECodec::None);
+
+//! Unwraps a chunk of memory obtained from #SerializeProtoToRefWithCompression,
+//! decompresses it with a given codec and deserializes it into a protobuf message.
+//! Fails on error.
+void DeserializeProtoWithCompression(
+    google::protobuf::MessageLite* message,
+    TRef data,
+    NCompression::ECodec codecId = NCompression::ECodec::None);
 
 TSharedRef PushEnvelope(const TSharedRef& data);
 TSharedRef PopEnvelope(const TSharedRef& data);

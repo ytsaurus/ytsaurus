@@ -59,7 +59,7 @@ private:
             int endPos);
         DECLARE_NEW_FRIEND();
 
-        virtual TSharedRef SerializeBody() const override;
+        virtual TSharedRefArray SerializeData() const override;
 
         // A template method that uses the virtual function below in its
         // implementation.
@@ -262,7 +262,7 @@ public:
         void SetEmpty();
 
         virtual void SetPromise(const TError& error) override;
-        virtual void DeserializeBody(TRef data) override;
+        virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) override;
 
         void Append(const TRspExecuteBatchPtr& subbatchResponse);
     };

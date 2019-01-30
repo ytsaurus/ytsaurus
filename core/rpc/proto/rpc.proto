@@ -10,6 +10,15 @@ import "yt/core/misc/proto/error.proto";
 
 message TRequestHeader
 {
+    message TRequestCodecs
+    {
+        // ECompressionCodec
+        required int32 request_codec = 1;
+        required int32 request_attachment_codec = 2;
+        required int32 response_codec = 3;
+        required int32 response_attachment_codec = 4;
+    }
+
     optional NYT.NProto.TGuid request_id = 1;
     required string service = 2;
     required string method = 3;
@@ -37,6 +46,10 @@ message TRequestHeader
 
     optional int64 logging_suppression_timeout = 20 [default = 0];
     optional bool disable_logging_suppression_if_request_failed = 21 [default = false];
+
+    optional TRequestCodecs request_codecs = 22;
+
+    optional int32 response_memory_zone = 32 [default = 0]; // EMemoryZone
 
     extensions 100 to max;
 }
@@ -82,12 +95,23 @@ message TCredentialsExt
 
 message TResponseHeader
 {
+    message TResponseCodecs
+    {
+        // ECompressionCodec
+        required int32 response_codec = 1;
+        required int32 response_attachment_codec = 2;
+    }
+
     optional NYT.NProto.TGuid request_id = 1;
 
     // If omitted then OK is assumed.
     optional NYT.NProto.TError error = 2;
 
     optional int32 response_format = 3;
+
+    optional TResponseCodecs response_codecs = 4;
+
+    optional int32 response_memory_zone = 5 [default = 0]; // EMemoryZone
 }
 
 ////////////////////////////////////////////////////////////////////////////////

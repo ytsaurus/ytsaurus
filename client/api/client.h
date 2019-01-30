@@ -522,10 +522,12 @@ struct TCopyNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool IgnoreExisting = false;
     bool Force = false;
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
     bool PreserveCreationTime = false;
+    bool PessimisticQuotaCheck = true;
 };
 
 struct TMoveNodeOptions
@@ -538,6 +540,7 @@ struct TMoveNodeOptions
     bool Force = false;
     bool PreserveAccount = false;
     bool PreserveExpirationTime = false;
+    bool PessimisticQuotaCheck = true;
 };
 
 struct TLinkNodeOptions
@@ -960,7 +963,6 @@ struct IClientBase
     : public virtual TRefCounted
 {
     virtual IConnectionPtr GetConnection() = 0;
-
 
     // Transactions
     virtual TFuture<ITransactionPtr> StartTransaction(

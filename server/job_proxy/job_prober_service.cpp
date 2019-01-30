@@ -3,9 +3,7 @@
 #include "job_proxy.h"
 #include "user_job.h"
 
-#include <yt/server/shell/shell_manager.h>
-
-#include <yt/server/exec_agent/public.h>
+#include <yt/server/lib/shell/shell_manager.h>
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 

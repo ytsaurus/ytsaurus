@@ -4,7 +4,7 @@
 #include "private.h"
 #include "clickhouse_proxy.h"
 
-#include <yt/server/admin_server/admin_service.h>
+#include <yt/server/lib/admin/admin_service.h>
 
 #include <yt/ytlib/program/build_attributes.h>
 

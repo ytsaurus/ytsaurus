@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/scheduler/scheduling_tag.h>
+#include <yt/server/lib/scheduler/scheduling_tag.h>
 
 #include <yt/client/api/public.h>
 
-#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
+#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -45,20 +45,3 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(
-    NControllerAgent::NProto::TOperationDescriptor::TPoolTreeSchedulingTagFilters* protoTreeFilters,
-    const NScheduler::TPoolTreeToSchedulingTagFilter& treeFilters);
-
-void FromProto(
-    NScheduler::TPoolTreeToSchedulingTagFilter* treeFilters,
-    const NControllerAgent::NProto::TOperationDescriptor::TPoolTreeSchedulingTagFilters protoTreeFilters);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
-

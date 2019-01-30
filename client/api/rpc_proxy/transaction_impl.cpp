@@ -5,6 +5,7 @@
 #include "private.h"
 
 #include <yt/client/tablet_client/helpers.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -105,6 +106,18 @@ EDurability TTransaction::GetDurability() const
 TDuration TTransaction::GetTimeout() const
 {
     return Timeout_;
+}
+
+TApiServiceProxy TTransaction::CreateApiServiceProxy()
+{
+    TApiServiceProxy proxy(Channel_);
+    auto config = Connection_->GetConfig();
+    proxy.SetDefaultRequestCodec(config->RequestCodec);
+    proxy.SetDefaultRequestAttachmentCodec(config->RequestAttachmentCodec);
+    proxy.SetDefaultResponseCodec(config->ResponseCodec);
+    proxy.SetDefaultResponseAttachmentCodec(config->ResponseAttachmentCodec);
+
+    return proxy;
 }
 
 TFuture<void> TTransaction::Ping(const NApi::TTransactionPingOptions& /*options*/)
@@ -231,7 +244,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
             const auto& config = Connection_->GetConfig();
 
-            TApiServiceProxy proxy(Channel_);
+            auto proxy = CreateApiServiceProxy();
 
             auto req = proxy.CommitTransaction();
             req->SetTimeout(config->RpcTimeout);
@@ -283,12 +296,13 @@ void TTransaction::ModifyRows(
         // TODO(sandello): handle versioned rows
         YCHECK(
             modification.Type == ERowModificationType::Write ||
-            modification.Type == ERowModificationType::Delete);
+            modification.Type == ERowModificationType::Delete ||
+            modification.Type == ERowModificationType::ReadLockWrite);
     }
 
     const auto& config = Connection_->GetConfig();
 
-    TApiServiceProxy proxy(Channel_);
+    auto proxy = CreateApiServiceProxy();
     auto req = proxy.ModifyRows();
     req->SetTimeout(config->RpcTimeout);
 
@@ -327,6 +341,7 @@ void TTransaction::ModifyRows(
     for (const auto& modification : modifications) {
         rows.emplace_back(modification.Row);
         req->add_row_modification_types(static_cast<NProto::ERowModificationType>(modification.Type));
+        req->add_row_read_locks(modification.ReadLocks);
     }
 
     req->Attachments() = SerializeRowset(
@@ -679,7 +694,7 @@ TFuture<void> TTransaction::SendAbort()
 
     const auto& config = Connection_->GetConfig();
 
-    TApiServiceProxy proxy(Channel_);
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AbortTransaction();
     req->SetTimeout(config->RpcTimeout);
@@ -714,7 +729,7 @@ TFuture<void> TTransaction::SendPing()
 
     const auto& config = Connection_->GetConfig();
 
-    TApiServiceProxy proxy(Channel_);
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.PingTransaction();
     req->SetTimeout(config->RpcTimeout);

@@ -17,11 +17,11 @@ TTcpBusServerConfig::TTcpBusServerConfig()
     RegisterParameter("networks", Networks)
         .Default({});
     RegisterParameter("default_network", DefaultNetwork)
-        .Default();
+        .Default(DefaultNetworkName);
 
     RegisterPreprocessor([&] {
-        if (DefaultNetwork && !Networks.contains(*DefaultNetwork)) {
-            THROW_ERROR_EXCEPTION("Default network is not present in network list");
+        if (DefaultNetwork && !Networks.contains(*DefaultNetwork) && *DefaultNetwork != DefaultNetworkName) {
+            THROW_ERROR_EXCEPTION("Default network %Qv is not present in network list", DefaultNetwork);
         }
     });
 }

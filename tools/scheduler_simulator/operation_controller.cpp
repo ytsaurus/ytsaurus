@@ -3,8 +3,6 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/server/controller_agent/scheduling_context.h>
-
 namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////

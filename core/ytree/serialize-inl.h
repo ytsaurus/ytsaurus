@@ -310,7 +310,18 @@ void Serialize(
     NYson::IYsonConsumer* consumer,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
-    consumer->OnStringScalar(FormatEnum(value));
+    if constexpr (TEnumTraits<T>::IsBitEnum) {
+        consumer->OnBeginList();
+        for (auto scalarValue : TEnumTraits<T>::GetDomainValues()) {
+            if (Any(value & scalarValue)) {
+                consumer->OnListItem();
+                consumer->OnStringScalar(FormatEnum(scalarValue));
+            }
+        }
+        consumer->OnEndList();
+    } else {
+        consumer->OnStringScalar(FormatEnum(value));
+    }
 }
 
 // std::optional
@@ -454,8 +465,24 @@ void Deserialize(
     INodePtr node,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
-    auto stringValue = node->AsString()->GetValue();
-    value = ParseEnum<T>(stringValue);
+    if constexpr (TEnumTraits<T>::IsBitEnum) {
+        switch (node->GetType()) {
+            case ENodeType::List:
+                value = T();
+                for (const auto& item : node->AsList()->GetChildren()) {
+                    value |= ParseEnum<T>(item->GetValue<TString>());
+                }
+                break;
+            case ENodeType::String:
+                value = ParseEnum<T>(node->GetValue<TString>());
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Cannot deserialize bit enum from %Qlv node",
+                    node->GetType());
+        }
+    } else {
+        value = ParseEnum<T>(node->GetValue<TString>());
+    }
 }
 
 // std::optional

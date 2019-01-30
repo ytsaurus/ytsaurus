@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "message_queue.h"
 
-#include <yt/server/controller_agent/public.h>
+#include <yt/server/lib/scheduler/message_queue.h>
+
+#include <yt/server/lib/controller_agent/public.h>
 
 #include <yt/client/api/public.h>
 

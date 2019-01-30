@@ -596,6 +596,18 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TRefineKeyRangeTest, Empty)
+{
+    auto expr = PrepareExpression("false", GetSampleTableSchema());
+
+    auto result = RefineKeyRange(
+        GetSampleKeyColumns(),
+        std::make_pair(YsonToKey("1"), YsonToKey("100")),
+        expr);
+
+    ExpectIsEmpty(result);
+}
+
 TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
     auto expr = PrepareExpression("k >= 90 and k < 10", GetSampleTableSchema());
