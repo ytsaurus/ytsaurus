@@ -1,0 +1,18 @@
+#include "public.h"
+
+namespace NYT::NExecAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TEnumIndexedVector<TString, ESandboxKind> SandboxDirectoryNames{
+    "sandbox",
+    "udf",
+    "home",
+    "pipes",
+    "tmp"
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecAgent
+

@@ -803,8 +803,8 @@ void TContext::Finalize()
         }
     }
 
-    if (!Error_.IsOK() && dumpErrorIntoResponse) {
-        auto result = WaitFor(Response_->Write(DumpError(Error_)));
+    if (!Error_.IsOK() && dumpErrorIntoResponse && DriverRequest_.OutputStream) {
+        auto result = WaitFor(DriverRequest_.OutputStream->Write(DumpError(Error_)));
         (void)result;
     }
 

@@ -36,9 +36,30 @@ TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TRespo
 }
 
 template <class TRequestMessage, class TResponse>
-TSharedRef TTypedClientRequest<TRequestMessage, TResponse>::SerializeBody() const
+TSharedRefArray TTypedClientRequest<TRequestMessage, TResponse>::SerializeData() const
 {
-    return SerializeProtoToRefWithEnvelope(*this, Codec_, false);
+    // COMPAT(kiselyovp)
+    bool compatibilityMode = !RequestAttachmentCodec_ && !ResponseCodec_ && !ResponseAttachmentCodec_;
+    std::vector<TSharedRef> data;
+    data.reserve(Attachments().size() + 1);
+
+    auto requestCodecId = RequestCodec_.value_or(NCompression::ECodec::None);
+    auto serializedBody = compatibilityMode
+        ? SerializeProtoToRefWithEnvelope(*this, requestCodecId, false)
+        : SerializeProtoToRefWithCompression(*this, requestCodecId, false);
+    data.emplace_back(std::move(serializedBody));
+
+    auto requestAttachmentCodecId = compatibilityMode
+        ? NCompression::ECodec::None
+        : RequestAttachmentCodec_.value_or(requestCodecId);
+    auto* requestAttachmentCodec = NCompression::GetCodec(requestAttachmentCodecId);
+
+    for (const auto& attachment: Attachments()) {
+        auto compressedAttachment = requestAttachmentCodec->Compress(attachment);
+        data.emplace_back(std::move(compressedAttachment));
+    }
+
+    return TSharedRefArray(std::move(data));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,9 +87,14 @@ void TTypedClientResponse<TResponseMessage>::SetPromise(const TError& error)
 }
 
 template <class TResponseMessage>
-void TTypedClientResponse<TResponseMessage>::DeserializeBody(TRef data)
+void TTypedClientResponse<TResponseMessage>::DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId)
 {
-    DeserializeProtoWithEnvelope(this, data);
+    if (codecId) {
+        DeserializeProtoWithCompression(this, data, *codecId);
+    } else {
+        // COMPAT(kiselyovp) old compression
+        DeserializeProtoWithEnvelope(this, data);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,6 +109,10 @@ TIntrusivePtr<T> TProxyBase::CreateRequest(const TMethodDescriptor& methodDescri
         ServiceDescriptor_.ProtocolVersion);
     request->SetTimeout(DefaultTimeout_);
     request->SetRequestAck(DefaultRequestAck_);
+    request->SetRequestCodec(DefaultRequestCodec_);
+    request->SetRequestAttachmentCodec(DefaultRequestAttachmentCodec_);
+    request->SetResponseCodec(DefaultResponseCodec_);
+    request->SetResponseAttachmentCodec(DefaultResponseAttachmentCodec_);
     request->SetMultiplexingBand(methodDescriptor.MultiplexingBand);
     return request;
 }

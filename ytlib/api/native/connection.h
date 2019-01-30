@@ -72,5 +72,15 @@ IConnectionPtr CreateConnection(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IConnectionPtr FindRemoteConnection(
+    const NApi::NNative::IConnectionPtr& connection,
+    NObjectClient::TCellTag cellTag);
+
+IConnectionPtr GetRemoteConnectionOrThrow(
+    const NApi::NNative::IConnectionPtr& connection,
+    NObjectClient::TCellTag cellTag);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative
 

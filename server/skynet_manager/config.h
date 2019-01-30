@@ -6,7 +6,7 @@
 
 #include <yt/client/api/rpc_proxy/config.h>
 
-#include <yt/server/misc/config.h>
+#include <yt/server/lib/misc/config.h>
 
 #include <yt/core/http/config.h>
 

@@ -70,6 +70,22 @@ TSharedRefArray CreateRequestMessage(
     return TSharedRefArray(std::move(parts));
 }
 
+TSharedRefArray CreateRequestMessage(
+    const NProto::TRequestHeader& header,
+    const TSharedRefArray& data)
+{
+    std::vector<TSharedRef> parts;
+    parts.reserve(1 + data.Size());
+
+    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header));
+
+    for (const auto& part : data) {
+        parts.push_back(part);
+    }
+
+    return TSharedRefArray(std::move(parts));
+}
+
 TSharedRefArray CreateRequestCancelationMessage(
     const TRequestCancelationHeader& header)
 {

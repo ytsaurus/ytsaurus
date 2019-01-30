@@ -263,6 +263,8 @@ TCopyCommand::TCopyCommand()
     RegisterParameter("destination_path", DestinationPath);
     RegisterParameter("recursive", Options.Recursive)
         .Optional();
+    RegisterParameter("ignore_existing", Options.IgnoreExisting)
+        .Optional();
     RegisterParameter("force", Options.Force)
         .Optional();
     RegisterParameter("preserve_account", Options.PreserveAccount)
@@ -270,6 +272,8 @@ TCopyCommand::TCopyCommand()
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();
     RegisterParameter("preserve_creation_time", Options.PreserveCreationTime)
+        .Optional();
+    RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
 }
 
@@ -298,6 +302,8 @@ TMoveCommand::TMoveCommand()
     RegisterParameter("preserve_account", Options.PreserveAccount)
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
+        .Optional();
+    RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
 }
 

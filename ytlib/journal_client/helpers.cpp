@@ -120,6 +120,9 @@ private:
             proxy.SetDefaultTimeout(Timeout_);
 
             auto req = proxy.FinishChunk();
+
+            // COMPAT(shakurov)
+            // Medium index is not used by nodes. Remove it from the protocol once nodes are up to date.
             ToProto(req->mutable_session_id(), TSessionId(ChunkId_, replica.MediumIndex));
             req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), replica)
                 .Via(GetCurrentInvoker()));
@@ -214,7 +217,7 @@ private:
 
             auto req = proxy.GetChunkMeta();
             ToProto(req->mutable_chunk_id(), ChunkId_);
-            req->set_medium_index(replica.MediumIndex);
+            req->set_medium_index(AllMediaIndex);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
             ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
             asyncResults.push_back(req->Invoke().Apply(
@@ -237,9 +240,8 @@ private:
 
             Infos_.push_back(miscExt);
 
-            YT_LOG_INFO("Received info for journal chunk (Address: %v, MediumIndex: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            YT_LOG_INFO("Received info for journal chunk (Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
                 replica.NodeDescriptor.GetDefaultAddress(),
-                replica.MediumIndex,
                 miscExt.row_count(),
                 miscExt.uncompressed_data_size(),
                 miscExt.compressed_data_size());

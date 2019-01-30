@@ -5,7 +5,7 @@
 #include "serialize.h"
 #include "data_flow_graph.h"
 
-#include <yt/server/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
@@ -50,8 +50,8 @@ struct TUserFile
     bool Executable = false;
     NYson::TYsonString Format;
     NTableClient::TTableSchema Schema;
-    bool IsDynamic = false;
-    bool IsLayer = false;
+    bool Dynamic = false;
+    bool Layer = false;
     // This field is used only during file size validation only for table chunks with column selectors.
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
 
@@ -95,18 +95,6 @@ public:
 private:
     std::optional<T> CalcAvg();
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(ignat): move to ytlib.
-NApi::NNative::IConnectionPtr FindRemoteConnection(
-    const NApi::NNative::IConnectionPtr& connection,
-    NObjectClient::TCellTag cellTag);
-
-// TODO(ignat): move to ytlib.
-NApi::NNative::IConnectionPtr GetRemoteConnectionOrThrow(
-    const NApi::NNative::IConnectionPtr& connection,
-    NObjectClient::TCellTag cellTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -268,7 +268,8 @@ private:
 
         auto compressedBlock = blockCache->Find(blockId, EBlockType::CompressedData);
         if (compressedBlock) {
-            auto codecId = NCompression::ECodec(chunkMeta->Misc().compression_codec());
+            NCompression::ECodec codecId;
+            YCHECK(TryEnumCast(chunkMeta->Misc().compression_codec(), &codecId));
             auto* codec = NCompression::GetCodec(codecId);
 
             NProfiling::TCpuTimer timer;

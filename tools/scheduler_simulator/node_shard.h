@@ -22,7 +22,7 @@ public:
         TSharedEventQueue* events,
         TSharedSchedulerStrategy* schedulingStrategy,
         TSharedOperationStatistics* operationStatistics,
-        TSharedOperationStatisticsOutput* operationStatisticsOutput,
+        IOperationStatisticsOutput* operationStatisticsOutput,
         TSharedRunningOperationsMap* runningOperationsMap,
         TSharedJobAndOperationCounter* jobAndOperationCounter,
         const TSchedulerSimulatorConfigPtr& config,
@@ -43,7 +43,7 @@ private:
     TSharedEventQueue* Events_;
     TSharedSchedulerStrategy* SchedulingStrategy_;
     TSharedOperationStatistics* OperationStatistics_;
-    TSharedOperationStatisticsOutput* OperationStatisticsOutput_;
+    IOperationStatisticsOutput* OperationStatisticsOutput_;
     TSharedRunningOperationsMap* RunningOperationsMap_;
     TSharedJobAndOperationCounter* JobAndOperationCounter_;
 

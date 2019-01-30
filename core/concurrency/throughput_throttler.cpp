@@ -436,9 +436,9 @@ private:
 };
 
 IThroughputThrottlerPtr CreateCombinedThrottler(
-    const std::vector<IThroughputThrottlerPtr>& throttler)
+    const std::vector<IThroughputThrottlerPtr>& throttlers)
 {
-    return New<TCombinedThroughtputThrottler>(throttler);
+    return New<TCombinedThroughtputThrottler>(throttlers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/concurrency/config.h>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +73,9 @@ public:
     static const TDuration DefaultLoggingSuppressionTimeout;
     TDuration LoggingSuppressionTimeout;
 
+    static const NConcurrency::TThroughputThrottlerConfigPtr DefaultLoggingSuppressionFailedRequestThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr LoggingSuppressionFailedRequestThrottler;
+
     TMethodConfig()
     {
         RegisterParameter("heavy", Heavy)
@@ -85,6 +90,8 @@ public:
             .Default(DefaultLogLevel);
         RegisterParameter("logging_suppression_timeout", LoggingSuppressionTimeout)
             .Default(DefaultLoggingSuppressionTimeout);
+        RegisterParameter("logging_suppression_failed_request_throttler", LoggingSuppressionFailedRequestThrottler)
+            .Default(DefaultLoggingSuppressionFailedRequestThrottler);
     }
 };
 

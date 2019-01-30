@@ -1,9 +1,9 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/server/admin_server/admin_service.h>
+#include <yt/server/lib/admin/admin_service.h>
 
-#include <yt/server/misc/address_helpers.h>
+#include <yt/server/lib/misc/address_helpers.h>
 
 #include <yt/server/rpc_proxy/api_service.h>
 #include <yt/server/rpc_proxy/discovery_service.h>

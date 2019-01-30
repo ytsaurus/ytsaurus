@@ -29,27 +29,27 @@ protected:
         Store_->PrepareRow(transaction, row);
     }
 
-    void CommitRow(TTransaction* transaction, TSortedDynamicRow row)
+    void CommitRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask = 0)
     {
-        Store_->CommitRow(transaction, row);
+        Store_->CommitRow(transaction, row, readLockMask);
     }
 
-    void AbortRow(TTransaction* transaction, TSortedDynamicRow row)
+    void AbortRow(TTransaction* transaction, TSortedDynamicRow row, ui32 readLockMask = 0)
     {
-        Store_->AbortRow(transaction, row);
+        Store_->AbortRow(transaction, row, readLockMask);
     }
 
-
+    // TODO: Infer lock mask from row
     TSortedDynamicRow WriteRow(
         TTransaction* transaction,
         const TUnversionedOwningRow& row,
         bool prelock,
-        ui32 lockMask = TSortedDynamicRow::PrimaryLockMask)
+        ui32 lockMask = PrimaryLockMask)
     {
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
-        auto dynamicRow = Store_->ModifyRow(row, lockMask, ERowModificationType::Write, &context);
+        auto dynamicRow = Store_->ModifyRow(row, 0, lockMask, ERowModificationType::Write, &context);
         if (!dynamicRow) {
             return TSortedDynamicRow();
         }
@@ -59,7 +59,7 @@ protected:
 
     TTimestamp WriteRow(
         const TUnversionedOwningRow& row,
-        ui32 lockMask = TSortedDynamicRow::PrimaryLockMask)
+        ui32 lockMask = PrimaryLockMask)
     {
         auto transaction = StartTransaction();
         auto dynamicRow = WriteRow(transaction.get(), row, true, lockMask);
@@ -73,12 +73,52 @@ protected:
         return ts;
     }
 
+    TSortedDynamicRow LockRow(
+        TTransaction* transaction,
+        const TUnversionedOwningRow& row,
+        bool prelock,
+        ui32 lockMask = PrimaryLockMask)
+    {
+        TWriteContext context;
+        context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
+        context.Transaction = transaction;
+        auto dynamicRow = Store_->ModifyRow(row, lockMask, 0, ERowModificationType::ReadLockWrite, &context);
+        if (!dynamicRow) {
+            return TSortedDynamicRow();
+        }
+        LockRow(transaction, prelock, dynamicRow);
+        return dynamicRow;
+    }
+
+    TSortedDynamicRow ModifyRow(
+        TTransaction* transaction,
+        const TUnversionedOwningRow& row,
+        bool prelock,
+        ui32 readLockMask = PrimaryLockMask,
+        ui32 writeLockMask = PrimaryLockMask)
+    {
+        TWriteContext context;
+        context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
+        context.Transaction = transaction;
+        auto dynamicRow = Store_->ModifyRow(
+            row,
+            readLockMask,
+            writeLockMask,
+            ERowModificationType::ReadLockWrite,
+            &context);
+        if (!dynamicRow) {
+            return TSortedDynamicRow();
+        }
+        LockRow(transaction, prelock, dynamicRow);
+        return dynamicRow;
+    }
+
     TSortedDynamicRow WriteRowNonAtomic(const TUnversionedOwningRow& row, TTimestamp timestamp)
     {
         TWriteContext context;
         context.Phase = EWritePhase::Commit;
         context.CommitTimestamp = timestamp;
-        return Store_->ModifyRow(row, 0, ERowModificationType::Write, &context);
+        return Store_->ModifyRow(row, 0, 0, ERowModificationType::Write, &context);
     }
 
     TSortedDynamicRow DeleteRow(
@@ -89,7 +129,7 @@ protected:
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
-        auto dynamicRow = Store_->ModifyRow(key, TSortedDynamicRow::PrimaryLockMask, ERowModificationType::Delete, &context);
+        auto dynamicRow = Store_->ModifyRow(key, PrimaryLockMask, ERowModificationType::Delete, &context);
         LockRow(transaction, prelock, dynamicRow);
         return dynamicRow;
     }
@@ -113,7 +153,7 @@ protected:
         TWriteContext context;
         context.Phase = EWritePhase::Commit;
         context.CommitTimestamp = timestamp;
-        return Store_->ModifyRow(key, TSortedDynamicRow::PrimaryLockMask, ERowModificationType::Delete, &context);
+        return Store_->ModifyRow(key, PrimaryLockMask, ERowModificationType::Delete, &context);
     }
 
     TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
@@ -126,12 +166,14 @@ protected:
         return Store_->FindRow(key);
     }
 
-    TTimestamp GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex = TSortedDynamicRow::PrimaryLockIndex)
+    TTimestamp GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex = PrimaryLockIndex)
     {
-        return Store_->GetLastCommitTimestamp(row, lockIndex);
+        return std::max(
+            Store_->GetLastCommitTimestamp(row, 0),
+            Store_->GetLastCommitTimestamp(row, lockIndex));
     }
 
-    TTimestamp GetLastCommitTimestamp(const TOwningKey& key, int lockIndex = TSortedDynamicRow::PrimaryLockIndex)
+    TTimestamp GetLastCommitTimestamp(const TOwningKey& key, int lockIndex = PrimaryLockIndex)
     {
         auto row = LookupDynamicRow(key);
         EXPECT_TRUE(row);
@@ -162,7 +204,7 @@ protected:
                      list;
                      list = list.GetSuccessor())
                 {
-                    EXPECT_FALSE(list.HasUncommitted());
+                    //EXPECT_FALSE(list.HasUncommitted());
                     for (int j = 0; j < list.GetSize(); ++j) {
                         const auto& dynamicValue = list[j];
                         TVersionedValue versionedValue;
@@ -177,7 +219,7 @@ protected:
             auto dumpTimestamps = [&] (TRevisionList list) {
                 builder.AppendChar('[');
                 while (list) {
-                    EXPECT_FALSE(list.HasUncommitted());
+                    //EXPECT_FALSE(list.HasUncommitted());
                     for (int i = list.GetSize() - 1; i >= 0; --i) {
                         auto timestamp = Store_->TimestampFromRevision(list[i]);
                         builder.AppendFormat(" %v", timestamp);
@@ -271,7 +313,7 @@ public:
 
     TSortedDynamicRow BuildDynamicRow(
         const TUnversionedOwningRow& row,
-        ui32 lockMask = TSortedDynamicRow::PrimaryLockMask)
+        ui32 lockMask = PrimaryLockMask)
     {
         auto transaction = StartTransaction();
         auto dynamicRow = WriteRow(transaction.get(), row, false, lockMask);
@@ -627,7 +669,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockWriteAndCommit)
     auto row = WriteRow(transaction.get(), BuildRow(rowString), true);
     ASSERT_FALSE(row.GetDeleteLockFlag());
     const auto& lock = GetLock(row);
-    ASSERT_EQ(transaction.get(), lock.Transaction);
+    ASSERT_EQ(transaction.get(), lock.WriteTransaction);
     ASSERT_TRUE(transaction->LockedRows().empty());
 
     ConfirmRow(transaction.get(), row);
@@ -643,7 +685,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockWriteAndCommit)
     CommitRow(transaction.get(), row);
 
     ASSERT_FALSE(row.GetDeleteLockFlag());
-    ASSERT_EQ(nullptr, lock.Transaction);
+    ASSERT_EQ(nullptr, lock.WriteTransaction);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), rowString));
@@ -666,7 +708,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockDeleteAndCommit)
     auto row = DeleteRow(transaction.get(), key, true);
     ASSERT_TRUE(row.GetDeleteLockFlag());
     const auto& lock = GetLock(row);
-    ASSERT_EQ(transaction.get(), lock.Transaction);
+    ASSERT_EQ(transaction.get(), lock.WriteTransaction);
     ASSERT_TRUE(transaction->LockedRows().empty());
 
     ConfirmRow(transaction.get(), row);
@@ -682,7 +724,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockDeleteAndCommit)
     CommitRow(transaction.get(), row);
 
     ASSERT_FALSE(row.GetDeleteLockFlag());
-    ASSERT_EQ(nullptr, lock.Transaction);
+    ASSERT_EQ(nullptr, lock.WriteTransaction);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), nullptr));
@@ -751,7 +793,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, WriteAndAbort)
     AbortTransaction(transaction.get());
     AbortRow(transaction.get(), row);
 
-    EXPECT_EQ(nullptr, GetLock(row).Transaction);
+    EXPECT_EQ(nullptr, GetLock(row).WriteTransaction);
 }
 
 TEST_F(TSingleLockSortedDynamicStoreTest, Delete)
@@ -960,6 +1002,91 @@ TEST_F(TSingleLockSortedDynamicStoreTest, WriteWriteConflict2)
     EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction2.get(), BuildRow("key=1;a=2"), true));
 }
 
+TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteLocks1)
+{
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+
+    auto lockedRow = ModifyRow(transaction1.get(), BuildRow("key=1;c=x", false), true);
+
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction2.get(), BuildRow("key=1;c=test2"), true));
+
+    AbortTransaction(transaction1.get());
+    AbortRow(transaction1.get(), lockedRow);
+
+    auto ts1 = WriteRow(BuildRow("key=1;c=test3", false));
+
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;c=test3"));
+}
+
+TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteConflict1)
+{
+     auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+
+    auto lockedRow = LockRow(transaction1.get(), BuildRow("key=1", false), true);
+
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction2.get(), BuildRow("key=1;c=test2"), true));
+
+    AbortTransaction(transaction1.get());
+    AbortRow(transaction1.get(), lockedRow, PrimaryLockMask);
+
+    auto ts1 = WriteRow(BuildRow("key=1;c=test3", false));
+
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;c=test3"));
+}
+
+TEST_F(TSingleLockSortedDynamicStoreTest, TwoReadLocks1)
+{
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+    auto transaction3 = StartTransaction();
+
+    auto lockedRow = LockRow(transaction1.get(), BuildRow("key=1", false), true);
+    EXPECT_EQ(lockedRow, LockRow(transaction2.get(), BuildRow("key=1", false), true));
+
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction3.get(), BuildRow("key=1;c=test2"), true));
+
+    AbortTransaction(transaction1.get());
+    AbortRow(transaction1.get(), lockedRow, PrimaryLockMask);
+
+    AbortTransaction(transaction2.get());
+    AbortRow(transaction2.get(), lockedRow, PrimaryLockMask);
+
+    auto ts1 = WriteRow(BuildRow("key=1;c=test3", false));
+
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;c=test3"));
+}
+
+TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteConflict2)
+{
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+    auto lockedRow = LockRow(transaction2.get(), BuildRow("key=1", false), true);
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction1.get(), BuildRow("key=1;c=test2"), true));
+
+    auto transaction3 = StartTransaction();
+
+    PrepareTransaction(transaction2.get());
+    PrepareRow(transaction2.get(), lockedRow);
+    CommitTransaction(transaction2.get());
+    CommitRow(transaction2.get(), lockedRow);
+
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction1.get(), BuildRow("key=1;c=test3"), true));
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction3.get(), BuildRow("key=1;c=test3"), true));
+}
+
 TEST_F(TSingleLockSortedDynamicStoreTest, ReadNotBlocked)
 {
     auto key = BuildKey("1");
@@ -996,7 +1123,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedAbort)
 
     bool blocked = false;
     Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow blockedRow, int lockIndex) {
-        EXPECT_EQ(TSortedDynamicRow::PrimaryLockIndex, lockIndex);
+        EXPECT_EQ(PrimaryLockIndex, lockIndex);
         EXPECT_EQ(blockedRow, row);
         AbortTransaction(transaction.get());
         AbortRow(transaction.get(), row);
@@ -1021,7 +1148,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedCommit)
 
     bool blocked = false;
     Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow blockedRow, int lockIndex) {
-        EXPECT_EQ(TSortedDynamicRow::PrimaryLockIndex, lockIndex);
+        EXPECT_EQ(PrimaryLockIndex, lockIndex);
         EXPECT_EQ(blockedRow, row);
         CommitTransaction(transaction.get());
         CommitRow(transaction.get(), row);
@@ -1073,7 +1200,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, WriteNotBlocked)
     TWriteContext context;
     context.Phase = EWritePhase::Prelock;
     context.Transaction = transaction2.get();
-    EXPECT_EQ(TSortedDynamicRow(), Store_->ModifyRow(row, TSortedDynamicRow::PrimaryLockMask, ERowModificationType::Write, &context));
+    EXPECT_EQ(TSortedDynamicRow(), Store_->ModifyRow(row, PrimaryLockMask, ERowModificationType::Write, &context));
     EXPECT_FALSE(context.Error.IsOK());
 }
 
@@ -1094,7 +1221,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, WriteBlocked)
     TWriteContext context;
     context.Phase = EWritePhase::Prelock;
     context.Transaction = transaction2.get();
-    EXPECT_EQ(TSortedDynamicRow(), Store_->ModifyRow(row, TSortedDynamicRow::PrimaryLockMask, ERowModificationType::Write, &context));
+    EXPECT_EQ(TSortedDynamicRow(), Store_->ModifyRow(row, PrimaryLockMask, ERowModificationType::Write, &context));
     EXPECT_EQ(dynamicRow, context.BlockedRow);
 }
 
@@ -1391,6 +1518,55 @@ protected:
 
 };
 
+TEST_F(TMultiLockSortedDynamicStoreTest, TwoReadLocksWriteConflict)
+{
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+    auto transaction3 = StartTransaction();
+
+    auto lockedRow = LockRow(transaction1.get(), BuildRow("key=1", false), true, LockMask1);
+    EXPECT_EQ(lockedRow, LockRow(transaction2.get(), BuildRow("key=1", false), true, LockMask2));
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction3.get(), BuildRow("key=1;c=test2"), true));
+
+    AbortTransaction(transaction1.get());
+    AbortRow(transaction1.get(), lockedRow, LockMask1);
+
+    AbortTransaction(transaction2.get());
+    AbortRow(transaction2.get(), lockedRow, LockMask2);
+
+    auto ts1 = WriteRow(BuildRow("key=1;c=test3", false));
+
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;c=test3"));
+}
+
+TEST_F(TMultiLockSortedDynamicStoreTest, ReadWriteWriteConflict1)
+{
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+    auto lockedRow = LockRow(transaction2.get(), BuildRow("key=1", false), true, LockMask1);
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction1.get(), BuildRow("key=1;c=test2"), true, LockMask1));
+    auto writtenRow = WriteRow(transaction1.get(), BuildRow("key=1;b=1.0", false), true, LockMask2);
+
+    auto transaction3 = StartTransaction();
+
+    PrepareTransaction(transaction2.get());
+    PrepareRow(transaction2.get(), lockedRow);
+    CommitTransaction(transaction2.get());
+    CommitRow(transaction2.get(), lockedRow, LockMask1);
+
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), writtenRow);
+    CommitTransaction(transaction1.get());
+    CommitRow(transaction1.get(), writtenRow);
+
+    EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction3.get(), BuildRow("key=1;c=test3"), true, LockMask2));
+}
+
 TEST_F(TMultiLockSortedDynamicStoreTest, ConcurrentWrites1)
 {
     auto key = BuildKey("1");
@@ -1514,7 +1690,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, WriteWriteConflict3)
     auto key = BuildKey("1");
 
     auto transaction1 = StartTransaction();
-    WriteRow(transaction1.get(), BuildRow("key=1;c=test", false), true, TSortedDynamicRow::PrimaryLockMask);
+    WriteRow(transaction1.get(), BuildRow("key=1;c=test", false), true, PrimaryLockMask);
 
     auto transaction2 = StartTransaction();
     EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction2.get(), BuildRow("key=1;a=1", false), true, LockMask1));
@@ -1655,7 +1831,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, SerializeSnapshot1)
 
     auto ts1 = DeleteRow(key);
     auto ts2 = WriteRow(BuildRow("key=1;a=1", false), LockMask1);
-    auto ts3 = WriteRow(BuildRow("key=1;c=test", false), TSortedDynamicRow::PrimaryLockMask);
+    auto ts3 = WriteRow(BuildRow("key=1;c=test", false), PrimaryLockMask);
     auto ts4 = WriteRow(BuildRow("key=1;b=3.14", false), LockMask2);
 
     auto check = [&] () {

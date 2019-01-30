@@ -20,6 +20,10 @@ DEFINE_ENUM(ESortOrder,
     (Ascending)
 )
 
+constexpr int PrimaryLockIndex = 0;
+constexpr ui32 PrimaryLockMask = (1 << PrimaryLockIndex);
+constexpr ui32 AllLocksMask = 0xffffffff;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TColumnSchema
@@ -127,6 +131,10 @@ public:
     //! but without |$timestamp| column, if any.
     TTableSchema ToWrite() const;
 
+    //! For sorted tables, return the current schema
+    //! For ordered tables, prepends the current schema with |(tablet_index)| key column
+    TTableSchema WithTabletIndex() const;
+
     //! Only applies to sorted replicated tables.
     //! Returns the current schema as-is.
     TTableSchema ToVersionedWrite() const;
@@ -212,6 +220,19 @@ void ValidateTableSchema(
     bool isTableDynamic = false);
 
 void ValidateColumnUniqueness(const TTableSchema& schema);
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashMap<TString, int> GetLocksMapping(
+    const NTableClient::TTableSchema& schema,
+    bool fullAtomicity,
+    std::vector<int>* columnIndexToLockIndex = nullptr,
+    std::vector<TString>* lockIndexToName = nullptr);
+
+ui32 GetLockMask(
+    const NTableClient::TTableSchema& schema,
+    bool fullAtomicity,
+    const std::vector<TString>& locks);
 
 ////////////////////////////////////////////////////////////////////////////////
 

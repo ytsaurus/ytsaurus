@@ -28,6 +28,11 @@ public:
         callback.Run();
     }
 
+    virtual TDuration GetAverageWaitTime() const override
+    {
+        return TDuration();
+    }
+
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
@@ -54,6 +59,11 @@ class TNullInvoker
 public:
     virtual void Invoke(TClosure /*callback*/) override
     { }
+
+    virtual TDuration GetAverageWaitTime() const override
+    {
+        return TDuration();
+    }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     virtual bool CheckAffinity(const IInvokerPtr& /*invoker*/) const override

@@ -5,6 +5,7 @@
 namespace NYT::NYTree {
 
 using NPython::GetYsonTypeClass;
+using NPython::PyObjectPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,28 +25,24 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const st
     , YsonEntity(GetYsonTypeClass("YsonEntity"), /* owned */ true)
     , AlwaysCreateAttributes_(alwaysCreateAttributes)
     , Encoding_(encoding)
+    , KeyCache_(/* enable */ true, Encoding_)
 { }
-
-TPythonObjectBuilder::PyObjectPtr TPythonObjectBuilder::MakePyObjectPtr(PyObject* obj)
-{
-    return std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>(obj, &Py::_XDECREF);
-}
 
 void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
 {
-    auto bytes = MakePyObjectPtr(PyBytes_FromStringAndSize(value.data(), value.size()));
+    auto bytes = PyObjectPtr(PyBytes_FromStringAndSize(value.data(), value.size()));
     if (!bytes) {
         throw Py::Exception();
     }
 
     if (Encoding_) {
-        auto decodedString = MakePyObjectPtr(
+        auto decodedString = PyObjectPtr(
             PyUnicode_FromEncodedObject(bytes.get(), Encoding_->data(), "strict"));
         if (!decodedString) {
             throw Py::Exception();
         }
 #if PY_MAJOR_VERSION < 3
-        auto utf8String = MakePyObjectPtr(PyUnicode_AsUTF8String(decodedString.get()));
+        auto utf8String = PyObjectPtr(PyUnicode_AsUTF8String(decodedString.get()));
         AddObject(std::move(utf8String), YsonString);
 #else
         AddObject(std::move(decodedString), YsonUnicode);
@@ -57,32 +54,32 @@ void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
 
 void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 {
-    AddObject(MakePyObjectPtr(PyLong_FromLongLong(value)), YsonInt64);
+    AddObject(PyObjectPtr(PyLong_FromLongLong(value)), YsonInt64);
 }
 
 void TPythonObjectBuilder::OnUint64Scalar(ui64 value)
 {
-    AddObject(MakePyObjectPtr(PyLong_FromUnsignedLongLong(value)), YsonUint64, EPythonObjectType::Other, true);
+    AddObject(PyObjectPtr(PyLong_FromUnsignedLongLong(value)), YsonUint64, EPythonObjectType::Other, true);
 }
 
 void TPythonObjectBuilder::OnDoubleScalar(double value)
 {
-    AddObject(MakePyObjectPtr(PyFloat_FromDouble(value)), YsonDouble);
+    AddObject(PyObjectPtr(PyFloat_FromDouble(value)), YsonDouble);
 }
 
 void TPythonObjectBuilder::OnBooleanScalar(bool value)
 {
-    AddObject(MakePyObjectPtr(PyBool_FromLong(value ? 1 : 0)), YsonBoolean);
+    AddObject(PyObjectPtr(PyBool_FromLong(value ? 1 : 0)), YsonBoolean);
 }
 
 void TPythonObjectBuilder::OnEntity()
 {
-    AddObject(MakePyObjectPtr(Py::new_reference_to(Py_None)), YsonEntity);
+    AddObject(PyObjectPtr(Py::new_reference_to(Py_None)), YsonEntity);
 }
 
 void TPythonObjectBuilder::OnBeginList()
 {
-    AddObject(MakePyObjectPtr(PyList_New(0)), YsonList, EPythonObjectType::List);
+    AddObject(PyObjectPtr(PyList_New(0)), YsonList, EPythonObjectType::List);
 }
 
 void TPythonObjectBuilder::OnListItem()
@@ -96,41 +93,12 @@ void TPythonObjectBuilder::OnEndList()
 
 void TPythonObjectBuilder::OnBeginMap()
 {
-    AddObject(MakePyObjectPtr(PyDict_New()), YsonMap, EPythonObjectType::Map);
+    AddObject(PyObjectPtr(PyDict_New()), YsonMap, EPythonObjectType::Map);
 }
 
 void TPythonObjectBuilder::OnKeyedItem(TStringBuf key)
 {
-    PyObject* pyKey = nullptr;
-
-    auto it = KeyCache_.find(key);
-    if (it == KeyCache_.end()) {
-        auto pyKeyPtr = MakePyObjectPtr(PyBytes_FromStringAndSize(key.data(), key.size()));
-        if (!pyKeyPtr) {
-            throw Py::Exception();
-        }
-
-        auto ownedKey = ConvertToStringBuf(Py::Bytes(pyKeyPtr.get()));
-
-        if (Encoding_) {
-            auto originalPyKeyObj = pyKeyPtr.get();
-            OriginalKeyCache_.emplace_back(std::move(pyKeyPtr));
-
-            pyKeyPtr = MakePyObjectPtr(
-                PyUnicode_FromEncodedObject(originalPyKeyObj, Encoding_->data(), "strict"));
-            if (!pyKeyPtr) {
-                throw Py::Exception();
-            }
-        }
-
-        auto res = KeyCache_.emplace(ownedKey, std::move(pyKeyPtr));
-        YCHECK(res.second);
-        pyKey = res.first->second.get();
-    } else {
-        pyKey = it->second.get();
-    }
-
-    Keys_.push(pyKey);
+    Keys_.push(KeyCache_.GetPythonString(key));
 }
 
 void TPythonObjectBuilder::OnEndMap()
@@ -140,7 +108,7 @@ void TPythonObjectBuilder::OnEndMap()
 
 void TPythonObjectBuilder::OnBeginAttributes()
 {
-    Push(MakePyObjectPtr(PyDict_New()), EPythonObjectType::Attributes);
+    Push(PyObjectPtr(PyDict_New()), EPythonObjectType::Attributes);
 }
 
 void TPythonObjectBuilder::OnEndAttributes()
@@ -161,9 +129,9 @@ void TPythonObjectBuilder::AddObject(
     }
 
     if (Attributes_ || forceYsonTypeCreation || AlwaysCreateAttributes_) {
-        auto tuplePtr = MakePyObjectPtr(PyTuple_New(1));
+        auto tuplePtr = PyObjectPtr(PyTuple_New(1));
         PyTuple_SetItem(tuplePtr.get(), 0, Py::new_reference_to(obj.get()));
-        obj = MakePyObjectPtr(PyObject_CallObject(type.ptr(), tuplePtr.get()));
+        obj = PyObjectPtr(PyObject_CallObject(type.ptr(), tuplePtr.get()));
         if (!obj.get()) {
             throw Py::Exception();
         }
@@ -179,7 +147,7 @@ void TPythonObjectBuilder::AddObject(
     } else if (ObjectStack_.top().second == EPythonObjectType::List) {
         PyList_Append(ObjectStack_.top().first.get(), obj.get());
     } else {
-        PyDict_SetItem(ObjectStack_.top().first.get(), Keys_.top(), obj.get());
+        PyDict_SetItem(ObjectStack_.top().first.get(), Keys_.top().get(), obj.get());
         Keys_.pop();
     }
 
@@ -193,7 +161,7 @@ void TPythonObjectBuilder::Push(PyObjectPtr objPtr, EPythonObjectType objectType
     ObjectStack_.emplace(std::move(objPtr), objectType);
 }
 
-TPythonObjectBuilder::PyObjectPtr TPythonObjectBuilder::Pop()
+PyObjectPtr TPythonObjectBuilder::Pop()
 {
     auto obj = std::move(ObjectStack_.top().first);
     ObjectStack_.pop();

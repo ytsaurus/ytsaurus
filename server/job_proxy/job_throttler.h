@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/exec_agent/supervisor_service_proxy.h>
+#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/client/misc/workload.h>
 

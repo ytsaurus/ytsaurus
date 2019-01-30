@@ -20,7 +20,7 @@ namespace {
 TString GetNodePath(IConstNodePtr node)
 {
     auto path = node->GetPath();
-    return path.empty() ? "Node" : Format("Node %v", path);
+    return path.empty() ? "Root node" : Format("Node %v", path);
 }
 
 } // namespace
@@ -33,6 +33,21 @@ void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType 
         GetNodePath(node),
         expectedType,
         actualType);
+}
+
+void ValidateNodeType(
+    const IConstNodePtr& node,
+    const THashSet<ENodeType>& expectedTypes,
+    const TString& expectedTypesStringRepresentation)
+{
+    if (!expectedTypes.contains(node->GetType())) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "%v has invalid type: expected one of %v, actual %Qlv",
+            GetNodePath(node),
+            expectedTypesStringRepresentation,
+            node->GetType());
+    }
 }
 
 void ThrowNoSuchChildKey(IConstNodePtr node, const TString& key)

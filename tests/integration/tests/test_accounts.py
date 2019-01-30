@@ -163,9 +163,8 @@ class TestAccounts(YTEnvSetup):
     def test_file1(self):
         assert get_account_disk_space("tmp") == 0
 
-        content = "some_data"
         create("file", "//tmp/f1")
-        write_file("//tmp/f1", content)
+        write_file("//tmp/f1", "some_data")
 
         self._replicator_sleep()
 
@@ -173,7 +172,7 @@ class TestAccounts(YTEnvSetup):
         assert space > 0
 
         create("file", "//tmp/f2")
-        write_file("//tmp/f2", content)
+        write_file("//tmp/f2", "some_data")
 
         self._replicator_sleep()
 
@@ -192,9 +191,8 @@ class TestAccounts(YTEnvSetup):
         assert get_account_disk_space("tmp") == 0
 
     def test_file2(self):
-        content = "some_data"
         create("file", "//tmp/f")
-        write_file("//tmp/f", content)
+        write_file("//tmp/f", "some_data")
 
         self._replicator_sleep()
         space = get_account_disk_space("tmp")
@@ -217,9 +215,8 @@ class TestAccounts(YTEnvSetup):
 
         assert get_account_disk_space("max") == 0
 
-        content = "some_data"
         create("file", "//tmp/f", attributes={"account": "max"})
-        write_file("//tmp/f", content)
+        write_file("//tmp/f", "some_data")
 
         self._replicator_sleep()
         assert get_account_disk_space("max") > 0
@@ -233,9 +230,8 @@ class TestAccounts(YTEnvSetup):
     def test_file4(self):
         create_account("max")
 
-        content = "some_data"
         create("file", "//tmp/f", attributes={"account": "max"})
-        write_file("//tmp/f", content)
+        write_file("//tmp/f", "some_data")
 
         self._replicator_sleep()
         space = get_account_disk_space("max")
@@ -475,12 +471,12 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
 
-        # Should work 'cause chunk count usage is not checked synchronously.
-        copy("//tmp/t", "//tmp/a/t3")
+        copy("//tmp/t", "//tmp/a/t3", pessimistic_quota_check=False)
         self._replicator_sleep()
         # After a requisition update, max's chunk count usage should've increased.
 
         assert self._get_account_chunk_count("max") == 2
+        create("table", "//tmp/a/t4")
         with pytest.raises(YtError): wait(lambda: write_table("//tmp/a/t4", {"a" : "b"}))
 
     def test_disk_space_limits1(self):
@@ -526,10 +522,8 @@ class TestAccounts(YTEnvSetup):
         create_account("max")
         set_account_disk_space_limit("max", 1000000)
 
-        content = "some_data"
-
         create("file", "//tmp/f1", attributes={"account": "max"})
-        write_file("//tmp/f1", content)
+        write_file("//tmp/f1", "some_data")
 
         self._replicator_sleep()
         assert not self._is_account_disk_space_limit_violated("max")
@@ -538,25 +532,23 @@ class TestAccounts(YTEnvSetup):
         assert self._is_account_disk_space_limit_violated("max")
 
         create("file", "//tmp/f2", attributes={"account": "max"})
-        with pytest.raises(YtError): wait(lambda: write_file("//tmp/f2", content))
+        with pytest.raises(YtError): wait(lambda: write_file("//tmp/f2", "some_data"))
 
         set_account_disk_space_limit("max", get_account_disk_space("max") + 1)
         assert not self._is_account_disk_space_limit_violated("max")
 
         create("file", "//tmp/f3", attributes={"account": "max"})
-        write_file("//tmp/f3", content)
+        write_file("//tmp/f3", "some_data")
 
         self._replicator_sleep()
         assert self._is_account_disk_space_limit_violated("max")
 
     def test_disk_space_limits4(self):
-        content = "some_data"
-
         create("map_node", "//tmp/a")
         create("file", "//tmp/a/f1")
-        write_file("//tmp/a/f1", content)
+        write_file("//tmp/a/f1", "some_data")
         create("file", "//tmp/a/f2")
-        write_file("//tmp/a/f2", content)
+        write_file("//tmp/a/f2", "some_data")
 
         self._replicator_sleep()
         disk_space = get_chunk_owner_disk_space("//tmp/a/f1")
@@ -575,7 +567,7 @@ class TestAccounts(YTEnvSetup):
 
         create("file", "//tmp/b/a/f3")
         # Writing new data should fail...
-        with pytest.raises(YtError): wait(lambda: write_file("//tmp/b/a/f3", content))
+        with pytest.raises(YtError): wait(lambda: write_file("//tmp/b/a/f3", "some_data"))
 
         # Wait for upload tx to abort
         wait(lambda: get("//tmp/b/a/f3/@locks") == [])
@@ -610,12 +602,12 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
 
-        # Should work 'cause disk space usage is not checked synchronously.
-        copy("//tmp/t", "//tmp/a/t3")
+        copy("//tmp/t", "//tmp/a/t3", pessimistic_quota_check=False)
         self._replicator_sleep()
         # After a requisition update, max's disk space usage should've increased.
 
         assert get_account_disk_space("max") == 2 * disk_space
+        create("table", "//tmp/a/t4")
         with pytest.raises(YtError): wait(lambda: write_table("//tmp/a/t4", {"a" : "b"}))
 
     def test_committed_usage(self):
@@ -736,6 +728,8 @@ class TestAccounts(YTEnvSetup):
         create("map_node", "//tmp/a")
         set("//tmp/a/@account", "a")
 
+        with pytest.raises(YtError): copy("//tmp/t1", "//tmp/a/t1")
+        set_account_disk_space_limit("a", 100000, "hdd2")
         copy("//tmp/t1", "//tmp/a/t1")
         self._replicator_sleep()
 
@@ -889,6 +883,8 @@ class TestAccounts(YTEnvSetup):
 
         # 1) Sharing chunks.
 
+        with pytest.raises(YtError): copy("//tmp/t1", "//tmp/a/t1")
+        set_account_disk_space_limit("a", 100000, "hdd4")
         copy("//tmp/t1", "//tmp/a/t1")
         self._replicator_sleep()
 
@@ -1296,12 +1292,15 @@ class TestAccounts(YTEnvSetup):
 
         multicell_sleep()
 
-        resources_equal(get("//sys/accounts/@total_resource_limits"), total_resource_limits)
+        assert resources_equal(get("//sys/accounts/@total_resource_limits"), total_resource_limits)
 
         create("table", "//tmp/t1", attributes={"account": "a1"})
         create("table", "//tmp/t2", attributes={"account": "a2"})
         write_table("//tmp/t1", {"a" : "b"})
         write_table("//tmp/t2", {"c" : "d"})
+
+        wait(lambda: get_account_disk_space("a1") > 0)
+        wait(lambda: get_account_disk_space("a2") > 0)
 
         def totals_match():
             resource_usage1 = get("//sys/accounts/a1/@resource_usage")

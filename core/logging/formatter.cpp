@@ -55,7 +55,7 @@ TLogEvent GetSkippedLogEvent(i64 count, const TString& skippedBy)
     event.Instant = GetCpuInstant();
     event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Info;
-    event.Message = Format("Skipped log records in last second (Count: %d, SkippedBy: %Qv)",
+    event.Message = Format("Skipped log records in last second (Count: %d, SkippedBy: %v)",
         count,
         skippedBy);
     return event;

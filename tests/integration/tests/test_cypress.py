@@ -138,6 +138,16 @@ class TestCypress(YTEnvSetup):
         set("//tmp/list/begin", "very_first")
         assert get("//tmp/list") == ["very_first","first",200,1,777,100,"last"]
 
+        assert exists("//tmp/list/0")
+        assert exists("//tmp/list/6")
+        assert exists("//tmp/list/-1")
+        assert exists("//tmp/list/-7")
+        assert not exists("//tmp/list/42")
+        assert not exists("//tmp/list/-42")
+        with pytest.raises(YtError):
+            get("//tmp/list/42")
+            get("//tmp/list/-42")
+
     def test_list_command(self):
         set("//tmp/map", {"a": 1, "b": 2, "c": 3})
         assert ls("//tmp/map") == ["a", "b", "c"]
@@ -436,6 +446,20 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1/@compression_codec", "zlib_6")
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2/@compression_codec") == "zlib_6"
+
+    def test_copy_ignore_existing(self):
+        create("map_node", "//tmp/a")
+        create("map_node", "//tmp/b/c", recursive=True)
+
+        copy("//tmp/b", "//tmp/a", ignore_existing=True)
+        assert not exists("//tmp/a/c")
+
+        copy("//tmp/b", "//tmp/a", force=True)
+        assert exists("//tmp/a/c")
+
+        with pytest.raises(YtError): copy("//tmp/b", "//tmp/a")
+        # Two options simultaneously are forbidden.
+        with pytest.raises(YtError): copy("//tmp/b", "//tmp/new", ignore_existing=True, force=True)
 
     def test_compression_codec_in_tx(self):
         create("table", "//tmp/t", attributes={"compression_codec": "none"})
@@ -1781,6 +1805,75 @@ class TestCypress(YTEnvSetup):
         assert revision > attributes_revision
         assert revision == content_revision
 
+    def test_user_attribute_removal1_yt_10192(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        create("map_node", "//tmp/test_node")
+        set("//tmp/test_node/@user_attribute", "some_string", tx=tx1)
+
+        remove("//tmp/test_node/@user_attribute", tx=tx2)
+
+        assert not exists("//tmp/test_node/@user_attribute", tx=tx2)
+        assert exists("//tmp/test_node/@user_attribute", tx=tx1)
+
+    def test_user_attribute_removal2_yt_10192(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        create("map_node", "//tmp/test_node")
+        set("//tmp/test_node/@user_attribute", "some_string1", tx=tx1)
+        set("//tmp/test_node/@user_attribute", "some_string2", tx=tx2)
+        remove("//tmp/test_node/@user_attribute", tx=tx2)
+        assert not exists("//tmp/test_node/@user_attribute", tx=tx2)
+
+        copy("//tmp/test_node", "//tmp/copy0")
+        assert not exists("//tmp/copy0/@user_attribute")
+
+        copy("//tmp/test_node", "//tmp/copy1", tx=tx1)
+        assert get("//tmp/copy1/@user_attribute", tx=tx1) == "some_string1"
+
+        copy("//tmp/test_node", "//tmp/copy2", tx=tx2)
+        assert not exists("//tmp/copy0/@user_attribute", tx=tx2)
+
+    def test_user_attribute_removal3_yt_10192(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        tx3 = start_transaction(tx=tx2)
+
+        create("map_node", "//tmp/test_node")
+        set("//tmp/test_node/@user_attribute", "some_string1", tx=tx1)
+        remove("//tmp/test_node/@user_attribute", tx=tx2)
+        with pytest.raises(YtError):
+            remove("//tmp/test_node/@user_attribute", tx=tx3)
+        assert not exists("//tmp/test_node/@user_attribute", tx=tx3)
+
+        copy("//tmp/test_node", "//tmp/copy0")
+        assert not exists("//tmp/copy0/@user_attribute")
+
+        copy("//tmp/test_node", "//tmp/copy1", tx=tx1)
+        assert get("//tmp/copy1/@user_attribute", tx=tx1) == "some_string1"
+
+        copy("//tmp/test_node", "//tmp/copy2", tx=tx2)
+        assert not exists("//tmp/copy0/@user_attribute", tx=tx2)
+
+        copy("//tmp/test_node", "//tmp/copy3", tx=tx3)
+        assert not exists("//tmp/copy0/@user_attribute", tx=tx3)
+
+    def test_user_attribute_removal4_yt_10192(self):
+        tx1 = start_transaction()
+
+        create("map_node", "//tmp/test_node")
+        set("//tmp/test_node/@user_attribute", "some_string1", tx=tx1)
+        remove("//tmp/test_node/@user_attribute", tx=tx1)
+        assert not exists("//tmp/test_node/@user_attribute", tx=tx1)
+
+        copy("//tmp/test_node", "//tmp/copy0")
+        assert not exists("//tmp/copy0/@user_attribute")
+
+        copy("//tmp/test_node", "//tmp/copy2", tx=tx1)
+        assert not exists("//tmp/copy0/@user_attribute", tx=tx1)
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
@@ -1856,7 +1949,7 @@ class TestCypressWithoutSet(YTEnvSetup):
         set("//tmp/doc", 10)
         assert get("//tmp/doc") == 10
 
-    def test_force(self):
+    def test_force_set(self):
         create("int64_node", "//tmp/integer")
         set("//tmp/integer", 20, force=True)
 

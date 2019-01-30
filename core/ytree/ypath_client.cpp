@@ -177,10 +177,8 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
     Attachments_ = std::vector<TSharedRef>(message.Begin() + 2, message.End());
 }
 
-void TYPathResponse::DeserializeBody(TRef data)
-{
-    Y_UNUSED(data);
-}
+void TYPathResponse::DeserializeBody(TRef /*data*/, std::optional<NCompression::ECodec> /*codecId*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,13 +219,7 @@ void ResolveYPath(
 
     int iteration = 0;
     while (true) {
-        if (++iteration > MaxYPathResolveIterations) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::ResolveError,
-                "Path %v exceeds resolve depth limit",
-                path)
-                << TErrorAttribute("limit", MaxYPathResolveIterations);
-        }
+        ValidateYPathResolutionDepth(path, ++iteration);
 
         try {
             auto result = currentService->Resolve(currentPath, context);
@@ -521,10 +513,10 @@ static INodePtr WalkNodeByYPath(
                     auto currentList = currentNode->AsList();
                     const auto& token = tokenizer.GetToken();
                     int index = ParseListIndex(token);
-                    int adjustedIndex = currentList->AdjustChildIndex(index);
-                    currentNode = currentList->FindChild(adjustedIndex);
+                    auto optionalAdjustedIndex = TryAdjustChildIndex(index, currentList->GetChildCount());
+                    currentNode = optionalAdjustedIndex ? currentList->FindChild(*optionalAdjustedIndex) : nullptr;
                     if (!currentNode) {
-                        return handleMissingChildIndex(currentList, adjustedIndex);
+                        return handleMissingChildIndex(currentList, optionalAdjustedIndex.value_or(index));
                     }
                     break;
                 }
@@ -613,7 +605,7 @@ void SetNodeByYPath(
             case ENodeType::List: {
                 auto currentList = currentNode->AsList();
                 int index = ParseListIndex(currentToken);
-                int adjustedIndex = currentList->AdjustChildIndex(index);
+                int adjustedIndex = currentList->AdjustChildIndexOrThrow(index);
                 currentNode = currentList->GetChild(adjustedIndex);
                 break;
             }
@@ -642,7 +634,7 @@ void SetNodeByYPath(
         case ENodeType::List: {
             auto currentList = currentNode->AsList();
             int index = ParseListIndex(currentToken);
-            int adjustedIndex = currentList->AdjustChildIndex(index);
+            int adjustedIndex = currentList->AdjustChildIndexOrThrow(index);
             auto child = currentList->GetChild(adjustedIndex);
             currentList->ReplaceChild(child, value);
             break;
@@ -695,7 +687,7 @@ void ForceYPath(
             case ENodeType::List: {
                 auto currentList = currentNode->AsList();
                 int index = ParseListIndex(currentToken);
-                int adjustedIndex = currentList->AdjustChildIndex(index);
+                int adjustedIndex = currentList->AdjustChildIndexOrThrow(index);
                 child = currentList->GetChild(adjustedIndex);
                 break;
             }

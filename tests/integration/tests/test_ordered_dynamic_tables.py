@@ -1,6 +1,6 @@
 import pytest
 
-from test_dynamic_tables import TestDynamicTablesBase
+from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import YTEnvSetup, wait, skip_if_rpc_driver_backend
 from yt_commands import *
@@ -13,7 +13,7 @@ from time import sleep
 
 ##################################################################
 
-class TestOrderedDynamicTables(TestDynamicTablesBase):
+class TestOrderedDynamicTables(DynamicTablesBase):
     def _create_simple_table(self, path, **attributes):
         if "schema" not in attributes:
             attributes.update({"schema": [

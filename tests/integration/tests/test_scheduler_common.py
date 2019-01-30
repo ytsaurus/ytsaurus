@@ -7,8 +7,6 @@ from yt.common import date_string_to_datetime, date_string_to_timestamp, update
 
 import yt.environment.init_operation_archive as init_operation_archive
 
-from operations_archive import clean_operations
-
 import pytest
 from flaky import flaky
 
@@ -2261,7 +2259,7 @@ class TestSchedulingTags(YTEnvSetup):
             "available_exec_nodes_check_period": 100,
             "max_available_exec_node_resources_update_period": 100,
             "snapshot_period": 500,
-            "safe_scheduler_online_time": 2000
+            "safe_scheduler_online_time": 2000,
         }
     }
 
@@ -2854,6 +2852,32 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
 ##################################################################
 
+class TestCustomControllerQueues(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "schedule_job_controller_queue": "schedule_job",
+            "build_job_spec_controller_queue": "build_job_spec",
+            "job_events_controller_queue": "job_events",
+        }
+    }
+
+    def test_run_operation(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        map(command="sleep 10",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"data_size_per_job": 1, "locality_timeout": 0})
+
+##################################################################
+
 class TestSecureVault(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -3113,11 +3137,14 @@ class TestPoolMetrics(YTEnvSetup):
         # - writes (and syncs) something to disk
         # - works for some time (to ensure that it sends several heartbeats
         # - writes something to stderr because we want to find our jobs in //sys/operations later
-        map_cmd = """for i in $(seq 10) ; do echo 5 > foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
+        map_cmd = """for i in $(seq 10) ; do echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
 
         start_time = time.time()
 
-        start_pool_metrics =  get_pool_metrics("disk_writes", start_time)
+        metric_name = "bytes_written"
+        statistics_name = "user_job.block_io.bytes_written"
+
+        start_pool_metrics = get_pool_metrics(metric_name, start_time)
 
         op11 = map(
             in_="//t_input",
@@ -3139,13 +3166,13 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        wait(lambda: get_pool_metrics("disk_writes", start_time)["parent"] - start_pool_metrics["parent"] > 0)
+        wait(lambda: get_pool_metrics(metric_name, start_time)["parent"] - start_pool_metrics["parent"] > 0)
 
-        pool_metrics = get_pool_metrics("disk_writes", start_time)
+        pool_metrics = get_pool_metrics(metric_name, start_time)
 
-        op11_writes = get_cypress_metrics(op11.id, "user_job.block_io.io_write")
-        op12_writes = get_cypress_metrics(op12.id, "user_job.block_io.io_write")
-        op2_writes = get_cypress_metrics(op2.id, "user_job.block_io.io_write")
+        op11_writes = get_cypress_metrics(op11.id, statistics_name)
+        op12_writes = get_cypress_metrics(op12.id, statistics_name)
+        op2_writes = get_cypress_metrics(op2.id, statistics_name)
 
         assert pool_metrics["child1"] - start_pool_metrics["child1"] == op11_writes + op12_writes > 0
         assert pool_metrics["child2"] - start_pool_metrics["child2"] == op2_writes > 0
@@ -3203,6 +3230,11 @@ class TestPoolMetrics(YTEnvSetup):
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
         wait(lambda: check_metrics(lambda: get_pool_metrics("time_completed", start_time), start_completed_metrics))
         wait(lambda: check_metrics(lambda: get_pool_metrics("time_aborted", start_time), start_aborted_metrics))
+
+@patch_porto_env_only(TestPoolMetrics)
+class TestPoolMetricsPorto(YTEnvSetup):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
 
@@ -3508,8 +3540,18 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
         },
     }
 
@@ -3538,22 +3580,17 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
             for key in ("state", "start_time", "finish_time"):
                 assert key in res_get_operation_archive
 
-        client = self.Env.create_native_client()
-
         op = self._run_op()
-        clean_operations(client)
+        clean_operations()
         assert not exists("//sys/operations/" + op.id)
         assert not exists(op.get_path())
         _check_attributes(op)
 
     def test_get_job_stderr(self):
-        client = self.Env.create_native_client()
-
         op = self._run_op()
         jobs_new = ls(op.get_path() + "/jobs")
         job_id = jobs_new[-1]
-
-        clean_operations(client)
+        clean_operations()
         assert get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n"
 
 ##################################################################

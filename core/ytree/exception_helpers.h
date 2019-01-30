@@ -11,6 +11,10 @@ namespace NYT::NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType);
+void ValidateNodeType(
+    const IConstNodePtr& node,
+    const THashSet<ENodeType>& expectedTypes,
+    const TString& expectedTypesStringRepresentation);
 void ThrowNoSuchChildKey(IConstNodePtr node, const TString& key);
 void ThrowNoSuchChildIndex(IConstNodePtr node, int index);
 void ThrowNoSuchAttribute(const TString& key);

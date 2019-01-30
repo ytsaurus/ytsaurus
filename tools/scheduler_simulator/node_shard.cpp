@@ -48,7 +48,7 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     TSharedEventQueue* events,
     TSharedSchedulerStrategy* schedulingStrategy,
     TSharedOperationStatistics* operationStatistics,
-    TSharedOperationStatisticsOutput* operationStatisticsOutput,
+    IOperationStatisticsOutput* operationStatisticsOutput,
     TSharedRunningOperationsMap* runningOperationsMap,
     TSharedJobAndOperationCounter* jobAndOperationCounter,
     const TSchedulerSimulatorConfigPtr& config,
@@ -315,7 +315,7 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
             id,
             operation->GetStartTime() - EarliestTime_,
             event.Time - EarliestTime_);
-        OperationStatisticsOutput_->PrintEntry(id, stats);
+        OperationStatisticsOutput_->PrintEntry(id, std::move(stats));
     }
 }
 

@@ -1,10 +1,10 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/hydra/changelog.h>
-#include <yt/server/hydra/config.h>
-#include <yt/server/hydra/format.h>
-#include <yt/server/hydra/file_helpers.h>
-#include <yt/server/hydra/sync_file_changelog.h>
+#include <yt/server/lib/hydra/changelog.h>
+#include <yt/server/lib/hydra/config.h>
+#include <yt/server/lib/hydra/format.h>
+#include <yt/server/lib/hydra/file_helpers.h>
+#include <yt/server/lib/hydra/sync_file_changelog.h>
 
 #include <yt/ytlib/chunk_client/io_engine.h>
 #include <yt/ytlib/hydra/hydra_manager.pb.h>

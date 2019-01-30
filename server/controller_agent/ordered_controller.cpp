@@ -3,14 +3,15 @@
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_info.h"
-#include "job_memory.h"
 #include "job_size_constraints.h"
 #include "operation_controller_detail.h"
 #include "operation.h"
 #include "config.h"
 
-#include <yt/server/chunk_pools/chunk_pool.h>
-#include <yt/server/chunk_pools/ordered_chunk_pool.h>
+#include <yt/server/controller_agent/job_memory.h>
+
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/ordered_chunk_pool.h>
 
 #include <yt/client/api/config.h>
 #include <yt/client/api/transaction.h>
@@ -20,6 +21,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
 

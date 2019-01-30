@@ -72,6 +72,11 @@ public:
         WriteUint64(static_cast<unsigned int>(command));
     }
 
+    void WriteLocks(ui32 lockMask)
+    {
+        WriteUint64(lockMask);
+    }
+
     void WriteTableSchema(const TTableSchema& schema)
     {
         WriteMessage(ToProto<NTableClient::NProto::TTableSchemaExt>(schema));
@@ -478,6 +483,11 @@ void TWireProtocolWriter::WriteCommand(EWireProtocolCommand command)
     Impl_->WriteCommand(command);
 }
 
+void TWireProtocolWriter::WriteLocks(ui32 lockMask)
+{
+    Impl_->WriteLocks(lockMask);
+}
+
 void TWireProtocolWriter::WriteTableSchema(const TTableSchema& schema)
 {
     Impl_->WriteTableSchema(schema);
@@ -586,6 +596,11 @@ public:
     EWireProtocolCommand ReadCommand()
     {
         return EWireProtocolCommand(ReadUint64());
+    }
+
+    ui32 ReadLocks()
+    {
+        return ReadUint64();
     }
 
     TTableSchema ReadTableSchema()
@@ -921,6 +936,11 @@ TSharedRef TWireProtocolReader::Slice(TIterator begin, TIterator end)
 EWireProtocolCommand TWireProtocolReader::ReadCommand()
 {
     return Impl_->ReadCommand();
+}
+
+ui32 TWireProtocolReader::ReadLocks()
+{
+    return Impl_->ReadLocks();
 }
 
 TTableSchema TWireProtocolReader::ReadTableSchema()

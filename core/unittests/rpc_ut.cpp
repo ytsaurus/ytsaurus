@@ -53,6 +53,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, PassCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, RegularAttachments);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NullAndEmptyAttachments);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, Compression);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistered);
@@ -109,6 +110,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PassCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegularAttachments));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(NullAndEmptyAttachments));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Compression));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DoNothing));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCall)
@@ -154,6 +156,28 @@ public:
         EXPECT_FALSE(attachments[0]);
         EXPECT_TRUE(attachments[1]);
         EXPECT_TRUE(attachments[1].Empty());
+        response->Attachments() = attachments;
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, Compression)
+    {
+        auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
+        auto serializedRequestBody = SerializeProtoToRefWithCompression(*request, requestCodecId);
+        const auto& compressedRequestBody = context->GetRequestBody();
+        EXPECT_TRUE(TRef::AreBitwiseEqual(serializedRequestBody, compressedRequestBody));
+
+        const auto& attachments = request->Attachments();
+        const auto& compressedAttachments = context->RequestAttachments();
+        EXPECT_TRUE(attachments.size() == compressedAttachments.size());
+        auto requestAttachmentCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_attachment_codec());
+        auto* requestAttachmentCodec = NCompression::GetCodec(requestAttachmentCodecId);
+        for (int i = 0; i < attachments.size(); ++i) {
+            auto compressedAttachment = requestAttachmentCodec->Compress(attachments[i]);
+            EXPECT_TRUE(TRef::AreBitwiseEqual(compressedAttachments[i], compressedAttachment));
+        }
+
+        response->set_message(request->message());
         response->Attachments() = attachments;
         context->Reply();
     }
@@ -641,6 +665,56 @@ TYPED_TEST(TRpcTest, NullAndEmptyAttachments)
     EXPECT_FALSE(attachments[0]);
     EXPECT_TRUE(attachments[1]);
     EXPECT_TRUE(attachments[1].Empty());
+}
+
+TYPED_TEST(TNotGrpcTest, Compression)
+{
+    const auto requestCodecId = NCompression::ECodec::QuickLz;
+    const auto requestAttachmentCodecId = NCompression::ECodec::Lz4;
+    const auto responseCodecId = NCompression::ECodec::Snappy;
+    const auto responseAttachmentCodecId = NCompression::ECodec::Lz4HighCompression;
+
+    TString message("This is a message string.");
+    std::vector<TString> attachmentStrings({
+        "This is an attachment string.",
+        "640K ought to be enough for anybody.",
+        "According to all known laws of aviation, there is no way that a bee should be able to fly."
+    });
+
+    TMyProxy proxy(this->CreateChannel());
+    proxy.SetDefaultRequestCodec(requestCodecId);
+    proxy.SetDefaultRequestAttachmentCodec(requestAttachmentCodecId);
+    proxy.SetDefaultResponseCodec(responseCodecId);
+    proxy.SetDefaultResponseAttachmentCodec(responseAttachmentCodecId);
+
+    auto req = proxy.Compression();
+    req->set_request_codec(static_cast<int>(requestCodecId));
+    req->set_request_attachment_codec(static_cast<int>(requestAttachmentCodecId));
+    req->set_message(message);
+    for (const auto& attachmentString : attachmentStrings) {
+        req->Attachments().push_back(SharedRefFromString(attachmentString));
+    }
+
+    auto rspOrError = req->Invoke().Get();
+    rspOrError.ThrowOnError();
+    EXPECT_TRUE(rspOrError.IsOK());
+    auto rsp = rspOrError.Value();
+
+    EXPECT_TRUE(rsp->message() == message);
+    EXPECT_TRUE(rsp->GetResponseMessage().Size() >= 2);
+    const auto& serializedResponseBody = SerializeProtoToRefWithCompression(*rsp, responseCodecId);
+    const auto& compressedResponseBody = rsp->GetResponseMessage()[1];
+    EXPECT_TRUE(TRef::AreBitwiseEqual(compressedResponseBody, serializedResponseBody));
+
+    const auto& attachments = rsp->Attachments();
+    EXPECT_TRUE(attachments.size() == attachmentStrings.size());
+    EXPECT_TRUE(rsp->GetResponseMessage().Size() == attachments.size() + 2);
+    auto* responseAttachmentCodec = NCompression::GetCodec(responseAttachmentCodecId);
+    for (int i = 0; i < attachments.size(); ++i) {
+        EXPECT_TRUE(StringFromSharedRef(attachments[i]) == attachmentStrings[i]);
+        auto compressedAttachment = responseAttachmentCodec->Compress(attachments[i]);
+        EXPECT_TRUE(TRef::AreBitwiseEqual(rsp->GetResponseMessage()[i + 2], compressedAttachment));
+    }
 }
 
 // Now test different types of errors

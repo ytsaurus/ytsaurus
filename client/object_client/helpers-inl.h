@@ -84,9 +84,17 @@ inline bool IsUserType(EObjectType type)
         type == EObjectType::Table ||
         type == EObjectType::ReplicatedTable ||
         type == EObjectType::TableReplica ||
+        type == EObjectType::TabletAction ||
         type == EObjectType::Journal ||
         type == EObjectType::Link ||
         type == EObjectType::Document;
+}
+
+inline bool IsTableType(EObjectType type)
+{
+    return
+        type == EObjectType::Table ||
+        type == EObjectType::ReplicatedTable;
 }
 
 inline EObjectType TypeFromId(TObjectId id)

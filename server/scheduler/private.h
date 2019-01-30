@@ -47,9 +47,6 @@ DEFINE_ENUM(EJobRevivalPhase,
     (Finished)
 );
 
-extern const TString RootPoolName;
-extern const TString DefaultTreeAttributeName;
-
 extern const NLogging::TLogger SchedulerLogger;
 extern const NProfiling::TProfiler SchedulerProfiler;
 

@@ -95,7 +95,7 @@ void ValidateOperationPermission(
 void BuildOperationAce(
     const std::vector<TString>& owners,
     const TString& authenticatedUser,
-    const std::vector<NYTree::EPermission>& permissions,
+    NYTree::EPermissionSet permissions,
     NYTree::TFluentList fluent);
 
 ////////////////////////////////////////////////////////////////////////////////

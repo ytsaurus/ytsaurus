@@ -2,15 +2,15 @@
 
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/tablet_node/config.h>
-#include <yt/server/tablet_node/sorted_dynamic_store.h>
-#include <yt/server/tablet_node/sorted_store_manager.h>
-#include <yt/server/tablet_node/ordered_dynamic_store.h>
-#include <yt/server/tablet_node/ordered_store_manager.h>
-#include <yt/server/tablet_node/tablet.h>
-#include <yt/server/tablet_node/tablet_manager.h>
-#include <yt/server/tablet_node/transaction.h>
-#include <yt/server/tablet_node/automaton.h>
+#include <yt/server/lib/tablet_node/config.h>
+#include <yt/server/node/tablet_node/sorted_dynamic_store.h>
+#include <yt/server/node/tablet_node/sorted_store_manager.h>
+#include <yt/server/node/tablet_node/ordered_dynamic_store.h>
+#include <yt/server/node/tablet_node/ordered_store_manager.h>
+#include <yt/server/node/tablet_node/tablet.h>
+#include <yt/server/node/tablet_node/tablet_manager.h>
+#include <yt/server/node/tablet_node/transaction.h>
+#include <yt/server/node/tablet_node/automaton.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>

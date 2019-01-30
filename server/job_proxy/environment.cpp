@@ -1,16 +1,16 @@
 #include "environment.h"
 
-#include <yt/server/exec_agent/config.h>
+#include <yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/job_agent/gpu_manager.h>
+#include <yt/server/node/job_agent/gpu_manager.h>
 
 #include <yt/ytlib/job_proxy/private.h>
 
 #ifdef _linux_
-#include <yt/server/containers/porto_executor.h>
-#include <yt/server/containers/instance.h>
+#include <yt/server/lib/containers/porto_executor.h>
+#include <yt/server/lib/containers/instance.h>
 
-#include <yt/server/misc/process.h>
+#include <yt/server/lib/misc/process.h>
 #endif
 
 #include <yt/core/logging/log_manager.h>
@@ -553,7 +553,7 @@ public:
             instance->SetRoot(*RootFS_);
         }
 
-        TGpuManagerPtr manager = New<TGpuManager>();
+        auto manager = New<TGpuManager>();
         std::vector<TDevice> devices;
         for (const auto& device : manager->ListGpuDevices()) {
             if (std::find(GpuDevices_.begin(), GpuDevices_.end(), device) == GpuDevices_.end()) {

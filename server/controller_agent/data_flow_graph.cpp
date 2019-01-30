@@ -1,15 +1,13 @@
 #include "data_flow_graph.h"
-
 #include "input_chunk_mapping.h"
 #include "serialize.h"
+#include "virtual.h"
 
-#include <yt/server/chunk_pools/chunk_pool.h>
-
-#include <yt/server/table_server/virtual.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
@@ -19,7 +17,7 @@ namespace NYT::NControllerAgent {
 using namespace NYTree;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
-using namespace NTableServer;
+using namespace NTableClient;
 using namespace NYson;
 using namespace NNodeTrackerClient;
 

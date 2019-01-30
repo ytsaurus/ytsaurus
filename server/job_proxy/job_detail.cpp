@@ -1,8 +1,7 @@
 #include "job_detail.h"
 #include "private.h"
-#include "config.h"
 
-#include <yt/server/exec_agent/public.h>
+#include <yt/server/node/exec_agent/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>

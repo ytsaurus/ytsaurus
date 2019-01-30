@@ -20,6 +20,7 @@
 
 #include <yt/core/misc/align.h>
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/memory_zone.h>
 
 #include <yt/core/profiling/profiler.h>
 
@@ -200,7 +201,8 @@ public:
         i64 priority) override
     {
         TWallTimer timer;
-        return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), handle, len, offset, timer)
+        auto memoryZone = GetCurrentMemoryZone();
+        return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), handle, len, offset, timer, memoryZone)
             .AsyncVia(CreateFixedPriorityInvoker(ReadInvoker_, priority))
             .Run();
     }
@@ -210,7 +212,8 @@ public:
         i64 priority = std::numeric_limits<i64>::max()) override
     {
         TWallTimer timer;
-        return BIND(&TThreadedIOEngine::DoReadAll, MakeStrong(this), fileName, timer)
+        auto memoryZone = GetCurrentMemoryZone();
+        return BIND(&TThreadedIOEngine::DoReadAll, MakeStrong(this), fileName, timer, memoryZone)
             .AsyncVia(CreateFixedPriorityInvoker(ReadInvoker_, priority))
             .Run();
     }
@@ -344,11 +347,20 @@ private:
         return handle;
     }
 
-    TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& handle, size_t numBytes, i64 offset, TWallTimer timer)
+    TSharedMutableRef DoPread(
+        const std::shared_ptr<TFileHandle>& handle,
+        size_t numBytes,
+        i64 offset,
+        TWallTimer timer,
+        EMemoryZone memoryZone)
     {
         AddReadWaitTimeSample(timer.GetElapsedTime());
 
-        auto data = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(numBytes + UseDirectIO_ * 3 * Alignment_, false);
+        TMemoryZoneGuard guard(memoryZone);
+        auto data = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(
+            numBytes + UseDirectIO_ * 3 * Alignment_,
+            false);
+
         i64 from = offset;
         i64 to = offset + numBytes;
 
@@ -408,14 +420,14 @@ private:
         return data.Slice(delta, delta + Min(result, numBytes));
     }
 
-    TSharedMutableRef DoReadAll(const TString& fileName, TWallTimer timer)
+    TSharedMutableRef DoReadAll(const TString& fileName, TWallTimer timer, EMemoryZone memoryZone)
     {
         AddReadWaitTimeSample(timer.GetElapsedTime());
 
         EOpenMode mode = OpenExisting | RdOnly | Seq | CloseOnExec;
 
         auto file = DoOpen(fileName, mode);
-        auto data = DoPread(file, file->GetLength(), 0, timer);
+        auto data = DoPread(file, file->GetLength(), 0, timer, memoryZone);
         DoClose(file, -1, false);
         return data;
     }
@@ -726,7 +738,10 @@ public:
     }
 
     virtual TFuture<TSharedMutableRef> Pread(
-        const std::shared_ptr<TFileHandle>& handle, size_t len, i64 offset, i64 priority) override
+        const std::shared_ptr<TFileHandle>& handle,
+        size_t len,
+        i64 offset,
+        i64 priority) override
     {
         auto op = New<TAioReadOperation>(handle, len, offset, Alignment_);
         Submit(op);
@@ -779,7 +794,8 @@ public:
 
     virtual TFuture<TSharedMutableRef> ReadAll(const TString& fileName, i64 priority)
     {
-        return BIND(&TAioEngine::DoReadAll, MakeStrong(this), fileName, priority)
+        auto memoryZone = GetCurrentMemoryZone();
+        return BIND(&TAioEngine::DoReadAll, MakeStrong(this), fileName, priority, memoryZone)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
     }
@@ -812,8 +828,9 @@ private:
         return handle;
     }
 
-    TFuture<TSharedMutableRef> DoReadAll(const TString& fileName, i64 priority)
+    TFuture<TSharedMutableRef> DoReadAll(const TString& fileName, i64 priority, EMemoryZone memoryZone)
     {
+        TMemoryZoneGuard guard(memoryZone);
         auto file = DoOpen(fileName, OpenExisting | RdOnly | Seq | CloseOnExec);
         return Pread(file, file->GetLength(), 0, priority);
     }

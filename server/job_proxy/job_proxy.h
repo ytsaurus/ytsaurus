@@ -2,15 +2,11 @@
 
 #include "public.h"
 #include "private.h"
-#include "config.h"
 #include "job.h"
 #include "job_satellite_connection.h"
 #include "environment.h"
 
-#include <yt/server/exec_agent/public.h>
-#include <yt/server/exec_agent/supervisor_service_proxy.h>
-
-#include <yt/server/job_agent/public.h>
+#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/ytlib/api/native/public.h>
 
@@ -52,7 +48,7 @@ public:
     virtual void Interrupt() override;
     virtual void Fail() override;
 
-    virtual NJobAgent::TJobId GetJobId() const override;
+    virtual NJobTrackerClient::TJobId GetJobId() const override;
 
     virtual NRpc::IServerPtr GetRpcServer() const override;
 
@@ -156,7 +152,7 @@ private:
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment() const override;
-    virtual NJobAgent::TOperationId GetOperationId() const override;
+    virtual NJobTrackerClient::TOperationId GetOperationId() const override;
 
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;
 

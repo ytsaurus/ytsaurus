@@ -195,6 +195,8 @@ private:
 
     ETransactionState GetState();
 
+    TApiServiceProxy CreateApiServiceProxy();
+
     TFuture<void> SendPing();
     void RunPeriodicPings();
     bool IsPingableState();

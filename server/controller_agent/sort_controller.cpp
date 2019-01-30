@@ -5,7 +5,6 @@
 #include "data_balancer.h"
 #include "helpers.h"
 #include "job_info.h"
-#include "job_memory.h"
 #include "job_size_constraints.h"
 #include "unordered_controller.h"
 #include "operation_controller_detail.h"
@@ -14,20 +13,20 @@
 #include "scheduling_context.h"
 #include "config.h"
 
-#include <yt/server/chunk_pools/chunk_pool.h>
-#include <yt/server/chunk_pools/ordered_chunk_pool.h>
-#include <yt/server/chunk_pools/shuffle_chunk_pool.h>
-#include <yt/server/chunk_pools/sorted_chunk_pool.h>
-#include <yt/server/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/controller_agent/job_memory.h>
 
-#include <yt/server/scheduler/helpers.h>
-#include <yt/server/scheduler/job.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/ordered_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/shuffle_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/key_set.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/helpers.h>
 
@@ -51,7 +50,6 @@ namespace NYT::NControllerAgent {
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
-using namespace NChunkServer;
 using namespace NChunkPools;
 using namespace NTableClient;
 using namespace NJobProxy;

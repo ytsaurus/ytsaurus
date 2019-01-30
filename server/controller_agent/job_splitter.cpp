@@ -1,10 +1,11 @@
 #include "job_splitter.h"
 #include "private.h"
+#include "operation_controller.h"
 #include "config.h"
 
-#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/controller_agent/chunk_pools/chunk_pool.h>
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 

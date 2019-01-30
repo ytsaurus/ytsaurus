@@ -5,8 +5,6 @@
 #include <yt/server/scheduler/scheduling_context_detail.h>
 #include <yt/server/scheduler/exec_node.h>
 
-#include <yt/server/controller_agent/operation_controller.h>
-
 namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////

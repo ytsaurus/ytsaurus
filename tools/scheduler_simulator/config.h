@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -97,7 +97,7 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("thread_count", ThreadCount)
-            .Default(2)
+            .Default(1)
             .GreaterThan(0);
 
         RegisterParameter("shift_operations_to_start", ShiftOperationsToStart)

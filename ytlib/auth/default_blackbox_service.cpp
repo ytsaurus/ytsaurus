@@ -70,6 +70,7 @@ private:
     NProfiling::TMonotonicCounter BlackboxCalls_{"/blackbox_calls"};
     NProfiling::TMonotonicCounter BlackboxCallErrors_{"/blackbox_call_errors"};
     NProfiling::TMonotonicCounter BlackboxCallFatalErrors_{"/blackbox_call_fatal_errors"};
+    NProfiling::TAggregateGauge BlackboxCallTime_{"/blackbox_call_time", {}, NProfiling::EAggregateMode::All};
 
 private:
     INodePtr DoCall(
@@ -216,6 +217,7 @@ private:
             THROW_ERROR(error);
         };
 
+        NProfiling::TWallTimer timer;
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
 
         YT_LOG_DEBUG("Calling Blackbox (Url: %v, CallId: %v, Attempt: %v, Timeout: %v)",
@@ -257,6 +259,7 @@ private:
             NJson::ParseJson(&stream, builder.get(), Config);
             rootNode = builder->EndTree();
 
+            Profiler_.Update(BlackboxCallTime_, timer.GetElapsedValue());
             YT_LOG_DEBUG("Parsed Blackbox daemon reply (CallId: %v, Attempt: %v)",
                 callId,
                 attempt);

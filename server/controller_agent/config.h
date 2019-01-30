@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/misc/config.h>
+#include <yt/server/lib/misc/config.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 
@@ -675,6 +675,9 @@ public:
     // Is applied on top of user layers if they are used.
     std::optional<TString> SystemLayerPath;
 
+    // Cypress path to a default layer for user jobs, if no layers were specified explicitly.
+    std::optional<TString> DefaultLayerPath;
+
     // Running jobs cached YSON string update period.
     TDuration CachedRunningJobsUpdatePeriod;
 
@@ -692,6 +695,12 @@ public:
     TDuration AlertsUpdatePeriod;
 
     std::optional<i64> TotalControllerMemoryLimit;
+
+    EOperationControllerQueue ScheduleJobControllerQueue;
+    EOperationControllerQueue BuildJobSpecControllerQueue;
+    EOperationControllerQueue JobEventsControllerQueue;
+
+    TDuration ScheduleJobWaitTimeThreshold;
 
     TControllerAgentConfig();
 

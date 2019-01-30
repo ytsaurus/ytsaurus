@@ -55,6 +55,7 @@ struct TSendOptions
 
     EDeliveryTrackingLevel TrackingLevel;
     int ChecksummedPartCount;
+    bool UseUndumpableMemoryZone = false;
 };
 
 //! A bus, i.e. something capable of transmitting messages.

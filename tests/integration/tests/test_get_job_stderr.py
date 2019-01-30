@@ -1,5 +1,3 @@
-from operations_archive import clean_operations
-
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
@@ -36,6 +34,15 @@ class TestGetJobStderr(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
             "enable_job_stderr_reporter": True,
@@ -75,7 +82,7 @@ class TestGetJobStderr(YTEnvSetup):
         res = remove_asan_warning(get_job_stderr(op.id, job_id))
         assert res == "STDERR-OUTPUT\n"
 
-        clean_operations(self.Env.create_native_client())
+        clean_operations()
         time.sleep(1)
 
         res = remove_asan_warning(get_job_stderr(op.id, job_id))
@@ -133,7 +140,7 @@ class TestGetJobStderr(YTEnvSetup):
             # But archive contains old ACL.
             get_job_stderr(op.id, job_id, authenticated_user="other")
 
-            clean_operations(self.Env.create_native_client())
+            clean_operations()
             time.sleep(1)
 
             res = get_job_stderr(op.id, job_id, authenticated_user="u")

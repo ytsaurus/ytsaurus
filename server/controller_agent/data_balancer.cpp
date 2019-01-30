@@ -2,9 +2,9 @@
 
 #include "config.h"
 
-#include <yt/server/scheduler/exec_node.h>
-
 #include <yt/server/controller_agent/job_info.h>
+
+#include <yt/server/lib/scheduler/exec_node_descriptor.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 

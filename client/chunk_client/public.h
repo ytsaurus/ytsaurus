@@ -50,6 +50,7 @@ DEFINE_ENUM(EErrorCode,
     ((ObjectNotReplicated)       (723))
     ((MissingExtension)          (724))
     ((BandwidthThrottlingFailed) (725))
+    ((ReaderTimeout)             (726))
 );
 
 using TChunkId = NObjectClient::TObjectId;
@@ -66,6 +67,10 @@ constexpr int MaxReplicationFactor = 10;
 constexpr int DefaultReplicationFactor = 3;
 
 constexpr int MaxMediumCount = 7;
+
+template <typename T>
+using TPerMediumArray = std::array<T, MaxMediumCount>;
+using TPerMediumIntArray = TPerMediumArray<int>;
 
 //! Used as an expected upper bound in SmallVector.
 /*

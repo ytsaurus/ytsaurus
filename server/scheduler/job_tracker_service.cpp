@@ -10,7 +10,6 @@ namespace NYT::NScheduler {
 using namespace NRpc;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
-using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

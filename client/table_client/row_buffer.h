@@ -38,7 +38,7 @@ public:
         TTag,
         size_t startChunkSize = TChunkedMemoryPool::DefaultStartChunkSize)
         : Pool_(
-            GetRefCountedTypeCookie<TTag>(),
+            TTag(),
             startChunkSize)
     { }
 

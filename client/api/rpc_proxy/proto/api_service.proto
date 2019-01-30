@@ -27,6 +27,7 @@ enum ERowModificationType
 {
     RMT_WRITE = 0;
     RMT_DELETE = 1;
+    RMT_MODIFY = 3;
 }
 
 enum EAtomicity
@@ -345,6 +346,7 @@ message TReqModifyRows
     required NYT.NProto.TGuid transaction_id = 1;
     required string path = 2;
     repeated ERowModificationType row_modification_types = 3;
+    repeated uint32 row_read_locks = 7;
 
     optional bool require_sync_replica = 4;
     optional NYT.NProto.TGuid upstream_replica_id = 5;
@@ -717,6 +719,8 @@ message TReqCopyNode
     optional bool preserve_account = 5 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
     optional bool preserve_creation_time = 7 [default = false];
+    optional bool ignore_existing = 8 [default = false];
+    optional bool pessimistic_quota_check = 9 [default = true];
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
@@ -739,6 +743,7 @@ message TReqMoveNode
     optional bool force = 4 [default = false];
     optional bool preserve_account = 5 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
+    optional bool pessimistic_quota_check = 7 [default = true];
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;

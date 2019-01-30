@@ -19,6 +19,8 @@ class TestRpcProxy(YTEnvSetup):
         tx = start_transaction(timeout=1000)
         wait(lambda: not exists("//sys/transactions/" + tx))
 
+##################################################################
+
 # TODO (kiselyovp) tests for file caching (when read_file is implemented)
 
 class TestRpcProxyBase(YTEnvSetup):
@@ -83,6 +85,8 @@ class TestRpcProxyBase(YTEnvSetup):
     def _remove_simple_tables(self):
         remove("//tmp/t_in", recursive=True)
         remove("//tmp/t_out", recursive=True)
+
+##################################################################
 
 class TestOperationsRpcProxy(TestRpcProxyBase):
     def test_map_reduce_simple(self):
@@ -211,6 +215,8 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         events_on_fs().release_breakpoint()
         op.track()
+
+##################################################################
 
 @require_ytserver_root_privileges
 class TestSchedulerRpcProxy(TestRpcProxyBase):
@@ -456,3 +462,67 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
         assert select_rows("* from [//tmp/t_out]") == [self._sample_line]
         # XXX(kiselyovp) read_file is not implemented in RPC proxy yet
         # check_all_stderrs(op, "stderr\n", 1, substring=True)
+
+##################################################################
+
+class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 16
+    NUM_SCHEDULERS = 0
+
+    REPLICATOR_REACTION_TIME = 3.5
+
+    def _replicator_sleep(self):
+        time.sleep(self.REPLICATOR_REACTION_TIME)
+
+    def _set_account_chunk_count_limit(self, account, value):
+        set("//sys/accounts/{0}/@resource_limits/chunk_count".format(account), value)
+
+    def _set_account_tablet_count_limit(self, account, value):
+        set("//sys/accounts/{0}/@resource_limits/tablet_count".format(account), value)
+
+    def _is_account_disk_space_limit_violated(self, account):
+        return get("//sys/accounts/{0}/@violated_resource_limits/disk_space".format(account))
+
+    def _is_account_chunk_count_limit_violated(self, account):
+        return get("//sys/accounts/{0}/@violated_resource_limits/chunk_count".format(account))
+
+    def test_chunk_count_limits(self):
+        create_account("max")
+        self._set_account_tablet_count_limit("max", 100500)
+
+        self._create_simple_table("//tmp/t", [self._sample_line])
+        create("map_node", "//tmp/a")
+        set("//tmp/a/@account", "max")
+
+        self._set_account_chunk_count_limit("max", 0)
+        self._replicator_sleep()
+        assert not self._is_account_chunk_count_limit_violated("max")
+
+        with pytest.raises(YtError): copy("//tmp/t", "//tmp/a/t")
+        assert not exists("//tmp/a/t")
+        copy("//tmp/t", "//tmp/a/t", pessimistic_quota_check=False)
+        assert exists("//tmp/a/t")
+
+    def test_disk_space_limits(self):
+        create_account("max")
+        self._set_account_tablet_count_limit("max", 100500)
+
+        self._create_simple_table("//tmp/t", [self._sample_line])
+        create("map_node", "//tmp/a")
+        set("//tmp/a/@account", "max")
+
+        set_account_disk_space_limit("max", 0)
+        self._replicator_sleep()
+        assert not self._is_account_disk_space_limit_violated("max")
+
+        with pytest.raises(YtError): copy("//tmp/t", "//tmp/a/t")
+        assert not exists("//tmp/a/t")
+        copy("//tmp/t", "//tmp/a/t", pessimistic_quota_check=False)
+        assert exists("//tmp/a/t")
+
+##################################################################
+
+class TestPessimisticQuotaCheckMulticellRpcProxy(TestPessimisticQuotaCheckRpcProxy):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SCHEDULERS = 1

@@ -52,7 +52,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
         AsyncSemaphore_,
         UnderlyingReader_,
         BlockCache_,
-        ECodec(miscExt.compression_codec()),
+        CheckedEnumCast<ECodec>(miscExt.compression_codec()),
         static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
         BlockReadOptions_);
 

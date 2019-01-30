@@ -277,6 +277,7 @@ private:
     void DoSetAttribute(const TYPath& path, const NYson::TYsonString& newYson);
     void DoRemoveAttribute(const TYPath& path, bool force);
 
+    bool GuardedGetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer);
     bool GuardedSetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value);
     bool GuardedRemoveBuiltinAttribute(TInternedAttributeKey key);
 

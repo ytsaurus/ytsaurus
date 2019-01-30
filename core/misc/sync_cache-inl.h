@@ -388,4 +388,87 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TShard* shard, TItem* item)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TKey, class TValue, class THash>
+TSimpleLruCache<TKey, TValue, THash>::TSimpleLruCache(size_t maxWeight)
+    : MaxWeight_(maxWeight)
+{ }
+
+template <class TKey, class TValue, class THash>
+size_t TSimpleLruCache<TKey, TValue, THash>::GetSize() const
+{
+    return ItemMap_.size();
+}
+
+template <class TKey, class TValue, class THash>
+const TValue& TSimpleLruCache<TKey, TValue, THash>::Get(const TKey& key)
+{
+    auto it = ItemMap_.find(key);
+    YCHECK(it != ItemMap_.end());
+    UpdateLruList(it);
+    return it->second.Value;
+}
+
+template <class TKey, class TValue, class THash>
+TValue* TSimpleLruCache<TKey, TValue, THash>::Find(const TKey& key)
+{
+    auto it = ItemMap_.find(key);
+    if (it == ItemMap_.end()) {
+        return nullptr;
+    }
+    UpdateLruList(it);
+    return &(it->second.Value);
+}
+
+template <class TKey, class TValue, class THash>
+TValue* TSimpleLruCache<TKey, TValue, THash>::Insert(const TKey& key, TValue value, size_t weight)
+{
+    {
+        auto mapIt = ItemMap_.find(key);
+        if (mapIt != ItemMap_.end()) {
+            LruList_.erase(mapIt->second.LruListIterator);
+            CurrentWeight_ -= mapIt->second.Weight;
+            ItemMap_.erase(mapIt);
+        }
+    }
+
+    auto item = TItem(std::move(value), weight);
+    while (GetSize() > 0 && CurrentWeight_ + weight > MaxWeight_) {
+        Pop();
+    }
+    auto insertResult = ItemMap_.emplace(key, std::move(item));
+    YCHECK(insertResult.second);
+    auto mapIt = insertResult.first;
+    LruList_.push_front(mapIt);
+    mapIt->second.LruListIterator = LruList_.begin();
+    CurrentWeight_ += weight;
+
+    return &mapIt->second.Value;
+}
+
+template <class TKey, class TValue, class THash>
+void TSimpleLruCache<TKey, TValue, THash>::Clear()
+{
+    ItemMap_.clear();
+    CurrentWeight_ = 0;
+}
+
+template <class TKey, class TValue, class THash>
+void TSimpleLruCache<TKey, TValue, THash>::Pop()
+{
+    auto mapIt = LruList_.back();
+    CurrentWeight_ -= mapIt->second.Weight;
+    ItemMap_.erase(mapIt);
+    LruList_.pop_back();
+}
+
+template <class TKey, class TValue, class THash>
+void TSimpleLruCache<TKey, TValue, THash>::UpdateLruList(typename TItemMap::iterator mapIt)
+{
+    LruList_.erase(mapIt->second.LruListIterator);
+    LruList_.push_front(mapIt);
+    mapIt->second.LruListIterator = LruList_.begin();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

@@ -146,7 +146,7 @@ ITransactionPtr TClient::AttachTransaction(
     auto client = GetRpcProxyClient();
     auto channel = GetChannel();
 
-    TApiServiceProxy proxy(channel);
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AttachTransaction();
     ToProto(req->mutable_transaction_id(), transactionId);
@@ -185,7 +185,7 @@ TFuture<void> TClient::MountTable(
     const TYPath& path,
     const TMountTableOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.MountTable();
     SetTimeoutOptions(*req, options);
@@ -208,7 +208,7 @@ TFuture<void> TClient::UnmountTable(
     const TYPath& path,
     const TUnmountTableOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.UnmountTable();
     SetTimeoutOptions(*req, options);
@@ -227,7 +227,7 @@ TFuture<void> TClient::RemountTable(
     const TYPath& path,
     const TRemountTableOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.RemountTable();
     SetTimeoutOptions(*req, options);
@@ -244,7 +244,7 @@ TFuture<void> TClient::FreezeTable(
     const TYPath& path,
     const TFreezeTableOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.FreezeTable();
     SetTimeoutOptions(*req, options);
@@ -261,7 +261,7 @@ TFuture<void> TClient::UnfreezeTable(
     const TYPath& path,
     const TUnfreezeTableOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.UnfreezeTable();
     SetTimeoutOptions(*req, options);
@@ -279,7 +279,7 @@ TFuture<void> TClient::ReshardTable(
     const std::vector<NTableClient::TOwningKey>& pivotKeys,
     const TReshardTableOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.ReshardTable();
     SetTimeoutOptions(*req, options);
@@ -306,7 +306,7 @@ TFuture<void> TClient::ReshardTable(
     int tabletCount,
     const TReshardTableOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.ReshardTable();
     SetTimeoutOptions(*req, options);
@@ -347,7 +347,7 @@ TFuture<void> TClient::TrimTable(
     i64 trimmedRowCount,
     const TTrimTableOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.TrimTable();
     SetTimeoutOptions(*req, options);
@@ -363,7 +363,7 @@ TFuture<void> TClient::AlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AlterTable();
     SetTimeoutOptions(*req, options);
@@ -390,7 +390,7 @@ TFuture<void> TClient::AlterTableReplica(
     TTableReplicaId replicaId,
     const TAlterTableReplicaOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AlterTableReplica();
     SetTimeoutOptions(*req, options);
@@ -419,7 +419,7 @@ TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
     const TSharedRange<NTableClient::TKey>& keys,
     const TGetInSyncReplicasOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.GetInSyncReplicas();
     SetTimeoutOptions(*req, options);
@@ -442,7 +442,7 @@ TFuture<std::vector<NApi::TTabletInfo>> TClient::GetTabletInfos(
     const std::vector<int>& tabletIndexes,
     const TGetTabletsInfoOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.GetTabletInfos();
     SetTimeoutOptions(*req, options);
@@ -489,7 +489,7 @@ TFuture<void> TClient::AddMember(
     const TString& member,
     const NApi::TAddMemberOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AddMember();
     SetTimeoutOptions(*req, options);
@@ -506,7 +506,7 @@ TFuture<void> TClient::RemoveMember(
     const TString& member,
     const NApi::TRemoveMemberOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.RemoveMember();
     SetTimeoutOptions(*req, options);
@@ -524,7 +524,7 @@ TFuture<NApi::TCheckPermissionResult> TClient::CheckPermission(
     NYTree::EPermission permission,
     const NApi::TCheckPermissionOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.CheckPermission();
     SetTimeoutOptions(*req, options);
@@ -547,7 +547,7 @@ TFuture<NScheduler::TOperationId> TClient::StartOperation(
     const NYson::TYsonString& spec,
     const NApi::TStartOperationOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.StartOperation();
     SetTimeoutOptions(*req, options);
@@ -567,7 +567,7 @@ TFuture<void> TClient::AbortOperation(
     const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TAbortOperationOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AbortOperation();
     SetTimeoutOptions(*req, options);
@@ -585,7 +585,7 @@ TFuture<void> TClient::SuspendOperation(
     const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TSuspendOperationOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.SuspendOperation();
     SetTimeoutOptions(*req, options);
@@ -600,7 +600,7 @@ TFuture<void> TClient::ResumeOperation(
     const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TResumeOperationOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.ResumeOperation();
     SetTimeoutOptions(*req, options);
@@ -614,7 +614,7 @@ TFuture<void> TClient::CompleteOperation(
     const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TCompleteOperationOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.CompleteOperation();
     SetTimeoutOptions(*req, options);
@@ -629,7 +629,7 @@ TFuture<void> TClient::UpdateOperationParameters(
     const NYson::TYsonString& parameters,
     const NApi::TUpdateOperationParametersOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.UpdateOperationParameters();
     SetTimeoutOptions(*req, options);
@@ -645,7 +645,7 @@ TFuture<NYson::TYsonString> TClient::GetOperation(
     const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
     const NApi::TGetOperationOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.GetOperation();
     SetTimeoutOptions(*req, options);
@@ -670,7 +670,7 @@ TFuture<void> TClient::DumpJobContext(
     const NYPath::TYPath& path,
     const NApi::TDumpJobContextOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.DumpJobContext();
     SetTimeoutOptions(*req, options);
@@ -686,7 +686,7 @@ TFuture<NYson::TYsonString> TClient::GetJob(
     NJobTrackerClient::TJobId jobId,
     const NApi::TGetJobOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.GetJob();
     SetTimeoutOptions(*req, options);
@@ -703,7 +703,7 @@ TFuture<NYson::TYsonString> TClient::StraceJob(
     NJobTrackerClient::TJobId jobId,
     const NApi::TStraceJobOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.StraceJob();
     SetTimeoutOptions(*req, options);
@@ -720,7 +720,7 @@ TFuture<void> TClient::SignalJob(
     const TString& signalName,
     const NApi::TSignalJobOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.SignalJob();
     SetTimeoutOptions(*req, options);
@@ -735,7 +735,7 @@ TFuture<void> TClient::AbandonJob(
     NJobTrackerClient::TJobId jobId,
     const NApi::TAbandonJobOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AbandonJob();
     SetTimeoutOptions(*req, options);
@@ -750,7 +750,7 @@ TFuture<NYson::TYsonString> TClient::PollJobShell(
     const NYson::TYsonString& parameters,
     const NApi::TPollJobShellOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.PollJobShell();
     SetTimeoutOptions(*req, options);
@@ -767,7 +767,7 @@ TFuture<void> TClient::AbortJob(
     NJobTrackerClient::TJobId jobId,
     const NApi::TAbortJobOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AbortJob();
     SetTimeoutOptions(*req, options);
@@ -785,7 +785,7 @@ TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
     const TString& md5,
     const NApi::TGetFileFromCacheOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.GetFileFromCache();
     SetTimeoutOptions(*req, options);
@@ -807,7 +807,7 @@ TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
     const TString& expectedMD5,
     const NApi::TPutFileToCacheOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.PutFileToCache();
     SetTimeoutOptions(*req, options);

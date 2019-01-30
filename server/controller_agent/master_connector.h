@@ -2,8 +2,6 @@
 
 #include "operation_controller.h"
 
-#include <yt/server/scheduler/public.h>
-
 #include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>

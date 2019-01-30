@@ -5,7 +5,8 @@
 #include "config.h"
 #include "scheduler_strategy_host.h"
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/lib/scheduler/config.h>
+
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/operation.h>
 
@@ -151,18 +152,28 @@ private:
     const int TotalOperationCount_;
 };
 
+class IOperationStatisticsOutput
+{
+public:
+    virtual void PrintEntry(NScheduler::TOperationId id, TOperationStatistics stats) = 0;
+
+    virtual ~IOperationStatisticsOutput() = default;
+
+protected:
+    IOperationStatisticsOutput() = default;
+};
 
 class TSharedOperationStatisticsOutput
+    : public IOperationStatisticsOutput
 {
 public:
     explicit TSharedOperationStatisticsOutput(const TString& filename);
 
-    void PrintHeader();
-
-    void PrintEntry(NScheduler::TOperationId id, const TOperationStatistics& stats);
+    virtual void PrintEntry(NScheduler::TOperationId id, TOperationStatistics stats) override;
 
 private:
     std::ofstream OutputStream_;
+    bool HeaderPrinted_ = false;
     TAdaptiveLock Lock_;
 };
 

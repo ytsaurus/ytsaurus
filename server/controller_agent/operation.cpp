@@ -1,17 +1,13 @@
 #include "operation.h"
 
-#include <yt/ytlib/controller_agent/controller_agent_service.pb.h>
-
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
+namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NScheduler;
-
-namespace NControllerAgent {
 
 using NYT::FromProto;
 
@@ -40,30 +36,6 @@ const IOperationControllerPtr& TOperation::GetControllerOrThrow() const
     return Controller_;
 }
 
-} // namespace NControllerAgent
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(
-    NControllerAgent::NProto::TOperationDescriptor::TPoolTreeSchedulingTagFilters* protoTreeFilters,
-    const TPoolTreeToSchedulingTagFilter& treeFilters)
-{
-    for (const auto& pair : treeFilters) {
-        auto* protoTreeFilter = protoTreeFilters->add_tree_filter();
-        protoTreeFilter->set_tree_name(pair.first);
-        ToProto(protoTreeFilter->mutable_filter(), pair.second);
-    }
-}
-
-void FromProto(
-    TPoolTreeToSchedulingTagFilter* treeFilters,
-    const NControllerAgent::NProto::TOperationDescriptor::TPoolTreeSchedulingTagFilters protoTreeFilters)
-{
-    for (const auto& protoTreeFilter : protoTreeFilters.tree_filter()) {
-        treeFilters->insert(std::make_pair(protoTreeFilter.tree_name(), FromProto<TSchedulingTagFilter>(protoTreeFilter.filter())));
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
+} // namespace NYT::NControllerAgent

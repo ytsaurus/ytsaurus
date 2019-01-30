@@ -441,6 +441,10 @@ def insert_rows(path, data, is_raw=False, **kwargs):
     else:
         return execute_command("insert_rows", kwargs, input_stream=StringIO(data))
 
+def lock_rows(path, data, **kwargs):
+    kwargs["path"] = path
+    return execute_command("lock_rows", kwargs, input_stream=_prepare_rows_stream(data))
+
 def delete_rows(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command("delete_rows", kwargs, input_stream=_prepare_rows_stream(data))
@@ -843,6 +847,25 @@ def start_op(op_type, **kwargs):
         operation.track()
 
     return operation
+
+
+def operation_nodes_exist():
+    for entry in ls("//sys/operations"):
+        if len(entry) != 2:
+            return True
+        if ls("//sys/operations/" + entry):
+            return True
+    return False
+
+
+def clean_operations():
+    try:
+        cleaner_path = "//sys/scheduler/config/operations_cleaner"
+        set(cleaner_path + "/enable", True, recursive=True)
+        wait(lambda: not operation_nodes_exist())
+    finally:
+        set(cleaner_path + "/enable", False)
+
 
 def resolve_operation_id_or_alias(command):
     def resolved_command(op_id_or_alias, **kwargs):
@@ -1284,7 +1307,7 @@ def get_cluster_drivers(primary_driver=None):
 
 def wait_for_cells(cell_ids=None, driver=None):
     print >>sys.stderr, "Waiting for tablet cells to become healthy..."
-    
+
     def get_cells(driver):
         cells = ls("//sys/tablet_cells", attributes=["health", "id", "peers"], driver=driver)
         if cell_ids is None:

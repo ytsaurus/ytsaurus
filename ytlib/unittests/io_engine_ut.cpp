@@ -6,7 +6,8 @@
 #include <yt/ytlib/chunk_client/io_engine.h>
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/server/data_node/public.h>
+// TODO(babenko): remove this dependency
+#include <yt/server/node/data_node/public.h>
 
 #include <util/system/fs.h>
 

@@ -216,44 +216,36 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
-    , ValidValues_(size_t(ColumnCount_), false)
+    , ValidValues_(size_t(ColumnCount_) - KeyColumnCount_, false)
 {
-    Cleanup();
+    YCHECK(KeyColumnCount_ <= ColumnCount_);
+    MergedRow_ = TMutableUnversionedRow();
 }
 
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
-    if (!Started_) {
-        MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnCount_);
+    MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnCount_);
 
-        for (int index = 0; index < ColumnCount_; ++index) {
-            if (index < KeyColumnCount_) {
-                ValidValues_[index] = true;
-                MergedRow_[index] = row[index];
-            } else {
-                ValidValues_[index] = false;
-                MergedRow_[index].Id = index;
-                MergedRow_[index].Type = EValueType::Null;
-                MergedRow_[index].Aggregate = ColumnEvaluator_->IsAggregate(index);
-            }
-        }
+    ValidValues_.assign(ColumnCount_ - KeyColumnCount_, false);
+
+    std::copy(row.begin(), row.begin() + KeyColumnCount_, MergedRow_.begin());
+
+    for (int index = KeyColumnCount_; index < ColumnCount_; ++index) {
+        MergedRow_[index].Id = index;
+        MergedRow_[index].Type = EValueType::Null;
+        MergedRow_[index].Aggregate = ColumnEvaluator_->IsAggregate(index);
     }
-
-    Started_ = true;
 }
 
 void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 {
-    if (!row) {
-        return;
-    }
-
-    InitPartialRow(row);
+    YCHECK(row);
 
     for (int partialIndex = KeyColumnCount_; partialIndex < row.GetCount(); ++partialIndex) {
         const auto& partialValue = row[partialIndex];
         int id = partialValue.Id;
-        ValidValues_[id] = true;
+        YCHECK(id >= KeyColumnCount_);
+        ValidValues_[id - KeyColumnCount_] = true;
 
         if (partialValue.Aggregate) {
             YCHECK(ColumnEvaluator_->IsAggregate(id));
@@ -265,38 +257,29 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
             MergedRow_[id] = partialValue;
         }
     }
-
-    Deleted_ = false;
 }
 
 void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow row)
 {
     // NB: Since we don't have delete timestamps here we need to write null into all columns.
 
-    InitPartialRow(row);
-
     for (int index = KeyColumnCount_; index < ColumnCount_; ++index) {
-        ValidValues_[index] = true;
+        ValidValues_[index - KeyColumnCount_] = true;
         MergedRow_[index].Type = EValueType::Null;
         MergedRow_[index].Aggregate = false;
     }
+}
 
-    Deleted_ = true;
+TUnversionedRow TUnversionedRowMerger::BuildDeleteRow()
+{
+    auto mergedRow = MergedRow_;
+    mergedRow.SetCount(KeyColumnCount_);
+    MergedRow_ = TMutableUnversionedRow();
+    return mergedRow;
 }
 
 TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 {
-    if (!Started_) {
-        return TUnversionedRow();
-    }
-
-    if (Deleted_) {
-        auto mergedRow = MergedRow_;
-        mergedRow.SetCount(KeyColumnCount_);
-        Cleanup();
-        return mergedRow;
-    }
-
     bool fullRow = true;
     for (bool validValue : ValidValues_) {
         if (!validValue) {
@@ -311,31 +294,23 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
         mergedRow = MergedRow_;
     } else {
         mergedRow = RowBuffer_->AllocateUnversioned(ColumnCount_);
-        int currentIndex = 0;
-        for (int index = 0; index < MergedRow_.GetCount(); ++index) {
-            if (ValidValues_[index]) {
-                mergedRow[currentIndex] = MergedRow_[index];
-                ++currentIndex;
+
+        TUnversionedValue* it = MergedRow_.begin() + KeyColumnCount_;
+        auto jt = std::copy(MergedRow_.begin(), it, mergedRow.begin());
+
+        YCHECK(MergedRow_.GetCount() == ColumnCount_);
+        for (bool isValid : ValidValues_) {
+            if (isValid) {
+                *jt++ = *it;
             }
+            ++it;
         }
-        mergedRow.SetCount(currentIndex);
+
+        mergedRow.SetCount(jt - mergedRow.begin());
     }
 
-    Cleanup();
+    MergedRow_ = TMutableUnversionedRow();
     return mergedRow;
-}
-
-void TUnversionedRowMerger::Reset()
-{
-    Y_ASSERT(!Started_);
-    RowBuffer_->Clear();
-    MergedRow_ = TMutableUnversionedRow();
-}
-
-void TUnversionedRowMerger::Cleanup()
-{
-    MergedRow_ = TMutableUnversionedRow();
-    Started_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

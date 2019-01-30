@@ -3,7 +3,8 @@
 #include "private.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
-#include "scheduling_tag.h"
+
+#include <yt/server/lib/scheduler/scheduling_tag.h>
 
 #include <yt/client/api/client.h>
 
@@ -156,7 +157,7 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
-    TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(
+    TFuture<TScheduleJobResultPtr> BeginScheduleJob(
         TIncarnationId incarnationId,
         TOperationId operationId,
         TJobId jobId);
@@ -223,7 +224,7 @@ private:
     {
         TOperationId OperationId;
         TIncarnationId IncarnationId;
-        TPromise<NControllerAgent::TScheduleJobResultPtr> Promise;
+        TPromise<TScheduleJobResultPtr> Promise;
         THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator>::iterator OperationIdToJobIdsIterator;
         NProfiling::TCpuInstant StartTime;
     };
@@ -367,7 +368,11 @@ private:
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
 
-    void UpdateNodeState(const TExecNodePtr& execNode, NNodeTrackerServer::ENodeState newState, ENodeState newSchedulerState, TError error = TError());
+    void UpdateNodeState(
+        const TExecNodePtr& execNode,
+        NNodeTrackerClient::ENodeState newState,
+        ENodeState newSchedulerState,
+        const TError& error = TError());
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

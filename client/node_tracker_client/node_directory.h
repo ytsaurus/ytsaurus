@@ -116,7 +116,7 @@ public:
     const TNodeDescriptor& GetDescriptor(TNodeId id) const;
     const TNodeDescriptor& GetDescriptor(NChunkClient::TChunkReplica replica) const;
     std::vector<TNodeDescriptor> GetDescriptors(const NChunkClient::TChunkReplicaList& replicas) const;
-    std::vector<TNodeDescriptor> GetAllDescriptors() const;
+    std::vector<std::pair<NNodeTrackerClient::TNodeId, TNodeDescriptor>> GetAllDescriptors() const;
 
     const TNodeDescriptor* FindDescriptor(const TString& address);
     const TNodeDescriptor& GetDescriptor(const TString& address);

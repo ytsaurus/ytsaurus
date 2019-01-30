@@ -142,7 +142,7 @@ TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
         stats->OperationState = it->second.State;
         stats->InTimeframe = it->second.InTimeframe;
 
-        return *stats;
+        return std::move(*stats);
     }
 }
 
@@ -296,28 +296,29 @@ TSharedOperationStatisticsOutput::TSharedOperationStatisticsOutput(const TString
     : OutputStream_(filename)
 { }
 
-void TSharedOperationStatisticsOutput::PrintHeader()
+void TSharedOperationStatisticsOutput::PrintEntry(TOperationId id, TOperationStatistics stats)
 {
-    auto guard = Guard(Lock_);
-    OutputStream_
-        << "id"
-        << "," << "job_count"
-        << "," << "preempted_job_count"
-        << "," << "start_time"
-        << "," << "finish_time"
-        << "," << "real_duration"
-        << "," << "jobs_total_duration"
-        << "," << "job_max_duration"
-        << "," << "preempted_jobs_total_duration"
-        << "," << "operation_type"
-        << "," << "operation_state"
-        << "," << "in_timeframe"
-        << std::endl;
-}
+    auto outputGuard = Guard(Lock_);
 
-void TSharedOperationStatisticsOutput::PrintEntry(TOperationId id, const TOperationStatistics& stats)
-{
-    auto guard = Guard(Lock_);
+    if (!HeaderPrinted_) {
+        OutputStream_
+            << "id"
+            << "," << "job_count"
+            << "," << "preempted_job_count"
+            << "," << "start_time"
+            << "," << "finish_time"
+            << "," << "real_duration"
+            << "," << "jobs_total_duration"
+            << "," << "job_max_duration"
+            << "," << "preempted_jobs_total_duration"
+            << "," << "operation_type"
+            << "," << "operation_state"
+            << "," << "in_timeframe"
+            << std::endl;
+
+        HeaderPrinted_ = true;
+    }
+
     OutputStream_
         << ToString(id)
         << "," << stats.JobCount

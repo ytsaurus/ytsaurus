@@ -21,6 +21,7 @@
 #include <yt/core/logging/config.h>
 
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <yt/core/tracing/trace_manager.h>
 #include <yt/core/tracing/config.h>
@@ -440,6 +441,7 @@ public:
         add_keyword_method("configure_logging", &TDriverModule::ConfigureLogging, "Configures YT driver logging");
         add_keyword_method("configure_address_resolver", &TDriverModule::ConfigureAddressResolver, "Configures YT address resolver");
         add_keyword_method("configure_tracing", &TDriverModule::ConfigureTracing, "Configures YT driver tracing");
+        add_keyword_method("shutdown", &TDriverModule::Shutdown, "Shutdown YT subsystem");
 
         initialize("Python bindings for YT driver");
 
@@ -489,6 +491,17 @@ public:
         auto config = ConvertTo<NTracing::TTraceManagerConfigPtr>(configNode);
 
         NTracing::TTraceManager::Get()->Configure(config);
+
+        return Py::None();
+    }
+
+    Py::Object Shutdown(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+        ValidateArgumentsEmpty(args, kwargs);
+
+        NYT::Shutdown();
 
         return Py::None();
     }

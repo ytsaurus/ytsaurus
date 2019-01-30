@@ -4,7 +4,7 @@
 
 #include <yt/client/api/config.h>
 
-#include <yt/server/misc/config.h>
+#include <yt/server/lib/misc/config.h>
 
 #include <yt/ytlib/auth/config.h>
 

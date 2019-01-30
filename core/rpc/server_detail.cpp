@@ -143,6 +143,18 @@ TSharedRefArray TServiceContextBase::GetResponseMessage() const
             header.set_response_format(RequestHeader_->response_format());
         }
 
+        if (RequestHeader_->has_request_codecs()) {
+            auto requestCodecs = RequestHeader_->request_codecs();
+            header.mutable_response_codecs()->set_response_codec(
+                requestCodecs.response_codec());
+            header.mutable_response_codecs()->set_response_attachment_codec(
+                requestCodecs.response_attachment_codec());
+        }
+
+        if (RequestHeader_->has_response_memory_zone()) {
+            header.set_response_memory_zone(RequestHeader_->response_memory_zone());
+        }
+
         ResponseMessage_ = Error_.IsOK()
             ? CreateResponseMessage(
                 header,

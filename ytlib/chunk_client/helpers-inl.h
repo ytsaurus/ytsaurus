@@ -54,13 +54,16 @@ void GetUserObjectBasicAttributes(
     NObjectClient::TTransactionId defaultTransactionId,
     const NLogging::TLogger& logger,
     NYTree::EPermission permission,
-    bool suppressAccessTracking = false)
+    bool suppressAccessTracking = false,
+    bool readFromCache = false)
 {
     const auto& Logger = logger;
 
     YT_LOG_INFO("Getting basic attributes of user objects");
 
-    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower);
+    auto channel = client->GetMasterChannelOrThrow(readFromCache
+        ? NApi::EMasterChannelKind::Cache
+        : NApi::EMasterChannelKind::Follower);
     NObjectClient::TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();

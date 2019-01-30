@@ -7,20 +7,11 @@ namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString AllPermissionsName("all");
-
-////////////////////////////////////////////////////////////////////////////////
-
 EPermissionSet ParsePermissions(const std::vector<TString>& items)
 {
     auto result = NonePermissions;
     for (const auto& item : items) {
-        if (item == AllPermissionsName) {
-            return AllPermissions;
-        } else {
-            auto permission = ParseEnum<EPermission>(item);
-            result |= permission;
-        }
+        result |= ParseEnum<EPermission>(item);
     }
     return result;
 }

@@ -1,0 +1,15 @@
+#pragma once
+
+#include <yt/core/http/public.h>
+
+#include <yt/server/node/cell_node/bootstrap.h>
+
+namespace NYT::NDataNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NHttp::IHttpHandlerPtr MakeSkynetHttpHandler(NCellNode::TBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NDataNode

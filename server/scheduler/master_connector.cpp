@@ -1,14 +1,13 @@
 #include "master_connector.h"
-#include "config.h"
 #include "helpers.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
 #include "operations_cleaner.h"
 #include "bootstrap.h"
 
-#include <yt/server/controller_agent/helpers.h>
+#include <yt/server/lib/scheduler/config.h>
 
-#include <yt/server/misc/update_executor.h>
+#include <yt/server/lib/misc/update_executor.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -960,7 +959,14 @@ private:
 
         void FireHandshake()
         {
-            Owner_->MasterHandshake_.Fire(Result_);
+            try {
+                Owner_->MasterHandshake_.Fire(Result_);
+            } catch (const std::exception&) {
+                YT_LOG_WARNING("Master handshake failed, disconnecting scheduler");
+                Owner_->MasterDisconnected_.Fire();
+                throw;
+            }
+
         }
 
         void SubmitOperationsToCleaner()
@@ -1245,7 +1251,7 @@ private:
                     &BuildOperationAce,
                     operation->GetOwners(),
                     operation->GetAuthenticatedUser(),
-                    std::vector<EPermission>({EPermission::Write, EPermission::Read}),
+                    EPermission::Write | EPermission::Read,
                     _1))
             .EndList();
     }

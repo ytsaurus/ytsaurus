@@ -1,25 +1,23 @@
 #include "scheduler.h"
 #include "private.h"
-#include "event_log.h"
 #include "fair_share_strategy.h"
 #include "helpers.h"
 #include "job_prober_service.h"
 #include "master_connector.h"
 #include "node_shard.h"
 #include "scheduler_strategy.h"
-#include "scheduling_tag.h"
-#include "controller_agent_tracker.h"
 #include "controller_agent.h"
 #include "operation_controller.h"
 #include "bootstrap.h"
-#include "config.h"
 #include "operations_cleaner.h"
+#include "controller_agent_tracker.h"
 
-#include <yt/server/controller_agent/helpers.h>
+#include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/server/lib/scheduler/event_log.h>
+#include <yt/server/lib/scheduler/helpers.h>
 
-#include <yt/server/exec_agent/public.h>
-
-#include <yt/server/shell/config.h>
+#include <yt/server/lib/shell/config.h>
 
 #include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
@@ -97,15 +95,9 @@ using namespace NSecurityClient;
 using namespace NShell;
 using namespace NEventLog;
 
-using NControllerAgent::IOperationControllerSchedulerHost;
-using NControllerAgent::TOperationControllerHost;
-using NControllerAgent::TControllerAgentServiceProxy;
-
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerClient::TNodeDirectory;
-
-using NScheduler::NProto::TRspStartOperation;
 
 using std::placeholders::_1;
 
@@ -228,7 +220,8 @@ public:
             for (auto controlQueue : TEnumTraits<EControlQueue>::GetDomainValues()) {
                 feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
             }
-            Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
+
+            Strategy_ = CreateFairShareStrategy(Config_, this, Bootstrap_->GetControlInvoker(EControlQueue::FairShareStrategy), feasibleInvokers);
         }
     }
 
@@ -487,7 +480,7 @@ public:
                     NScheduler::BuildOperationAce(
                         operation->GetOwners(),
                         operation->GetAuthenticatedUser(),
-                        std::vector<EPermission>{EPermission::Read, EPermission::Write},
+                        EPermission::Read | EPermission::Write,
                         fluent);
                 })
                 .Items(OperationsEffectiveAcl_->AsList())
@@ -1616,7 +1609,7 @@ private:
 
             for (const auto& operation : result.Operations) {
                 if (operation->GetMutationId()) {
-                    TRspStartOperation response;
+                    NScheduler::NProto::TRspStartOperation response;
                     ToProto(response.mutable_operation_id(), operation->GetId());
                     auto responseMessage = CreateResponseMessage(response);
                     auto responseKeeper = Bootstrap_->GetResponseKeeper();
@@ -1668,6 +1661,7 @@ private:
                 }
                 operation->Cancel();
             }
+            OperationAliases_.clear();
             IdToOperation_.clear();
             IdToOperationService_.clear();
         }

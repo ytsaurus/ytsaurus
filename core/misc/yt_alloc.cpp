@@ -18,6 +18,11 @@ Y_WEAK void Free(void* ptr)
     ::free(ptr);
 }
 
+Y_WEAK size_t GetAllocationSize(void* /*ptr*/)
+{
+    return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTAlloc

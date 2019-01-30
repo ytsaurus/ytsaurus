@@ -1,14 +1,11 @@
 #include "helpers.h"
 #include "public.h"
 #include "exec_node.h"
-#include "config.h"
 #include "job.h"
 #include "operation.h"
 
-#include <yt/server/controller_agent/helpers.h>
-#include <yt/server/controller_agent/operation_controller.h>
-
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/helpers.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
@@ -16,8 +13,6 @@
 #include <yt/ytlib/core_dump/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
-
-#include <yt/client/object_client/helpers.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -122,6 +117,13 @@ EAbortReason GetAbortReason(const TError& resultError)
     }
 }
 
+TJobStatus JobStatusFromError(const TError& error)
+{
+    auto status = TJobStatus();
+    ToProto(status.mutable_result()->mutable_error(), error);
+    return status;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString MakeOperationCodicilString(TOperationId operationId)
@@ -132,29 +134,6 @@ TString MakeOperationCodicilString(TOperationId operationId)
 TCodicilGuard MakeOperationCodicilGuard(TOperationId operationId)
 {
     return TCodicilGuard(MakeOperationCodicilString(operationId));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobStatus JobStatusFromError(const TError& error)
-{
-    auto status = TJobStatus();
-    ToProto(status.mutable_result()->mutable_error(), error);
-    return status;
-}
-
-TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
-{
-    return MakeId(
-        EObjectType::SchedulerJob,
-        tag,
-        RandomNumber<ui64>(),
-        nodeId);
-}
-
-NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId)
-{
-    return jobId.Parts32[0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,62 +226,6 @@ TListOperationsResult ListOperations(
     }
 
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-
-EPermission GetPermission(EAccessType accessType)
-{
-    // Logic of transforming access type to permissions should not break the existing behavior.
-    switch (accessType) {
-        case EAccessType::Ownership:
-            return EPermission::Write;
-        case EAccessType::IntermediateData:
-            return EPermission::Read;
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
-void ValidateOperationAccess(
-    const TString& user,
-    TOperationId operationId,
-    EAccessType accessType,
-    const INodePtr& acl,
-    const NNative::IClientPtr& client,
-    const TLogger& logger)
-{
-    const auto& Logger = logger;
-    TCheckPermissionByAclOptions options;
-    options.IgnoreMissingSubjects = true;
-    auto asyncResult = client->CheckPermissionByAcl(
-        user,
-        GetPermission(accessType),
-        acl,
-        options);
-    auto result = WaitFor(asyncResult)
-        .ValueOrThrow();
-
-    if (!result.MissingSubjects.empty()) {
-        YT_LOG_DEBUG("Operation has missing subjects in ACL (OperationId: %v, MissingSubjects: %v)",
-            operationId,
-            result.MissingSubjects);
-    }
-
-    if (result.Action == ESecurityAction::Allow) {
-        YT_LOG_DEBUG("Operation access successfully validated (OperationId: %v, User: %v, AccessType: %v)",
-            operationId,
-            user,
-            accessType);
-    } else {
-        THROW_ERROR_EXCEPTION(
-            NSecurityClient::EErrorCode::AuthorizationError,
-            "Access is denied")
-            << TErrorAttribute("user", user)
-            << TErrorAttribute("access_type", accessType)
-            << TErrorAttribute("operation_id", operationId);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

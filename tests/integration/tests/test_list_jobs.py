@@ -5,8 +5,6 @@ from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_datetime
 
-from operations_archive import clean_operations
-
 from time import sleep
 from collections import defaultdict
 from datetime import datetime
@@ -65,6 +63,15 @@ class TestListJobs(YTEnvSetup):
             "enable_job_stderr_reporter": True,
             "enable_job_fail_context_reporter": True,
             "static_orchid_cache_update_period": 100,
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
         },
     }
 
@@ -171,7 +178,7 @@ class TestListJobs(YTEnvSetup):
             "error",
             "statistics",
             "size",
-            "uncompressed_data_size"
+            "uncompressed_data_size",
         ])
 
         completed_jobs = []
@@ -242,6 +249,7 @@ class TestListJobs(YTEnvSetup):
                 assert res["state_counts"][key] == correct
             assert res["cypress_job_count"] == 6
             assert res["scheduler_job_count"] == 0
+            assert res["controller_agent_job_count"] == 0
             assert res["archive_job_count"] == yson.YsonEntity()
 
             res = list_jobs(op.id, job_state="failed", **options)["jobs"]
@@ -293,7 +301,7 @@ class TestListJobs(YTEnvSetup):
         assert len(list_jobs(op.id, with_spec=True, **archive_options)["jobs"]) == 5
 
         # Clean operations to archive.
-        clean_operations(self.Env.create_native_client())
+        clean_operations()
         sleep(1)  # statistics_reporter
 
         manual_options = dict(data_source="manual", include_cypress=False, include_controller_agent=False, include_archive=True)
@@ -307,6 +315,7 @@ class TestListJobs(YTEnvSetup):
             res = list_jobs(op.id, **options)
             assert res["cypress_job_count"] == yson.YsonEntity()
             assert res["scheduler_job_count"] == yson.YsonEntity()
+            assert res["controller_agent_job_count"] == yson.YsonEntity()
             assert res["archive_job_count"] == 6
 
             for key in res["type_counts"]:
@@ -371,7 +380,8 @@ class TestListJobs(YTEnvSetup):
 
             validate_address_filter(op, True, False, False)
 
-    def test_running_jobs_stderr_size(self):
+    @pytest.mark.parametrize("data_source", ["manual", "archive"])
+    def test_running_jobs_stderr_size(self, data_source):
         create("table", "//tmp/input")
         create("table", "//tmp/output")
 
@@ -383,21 +393,25 @@ class TestListJobs(YTEnvSetup):
             out="//tmp/output",
             command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"))
 
+        expected_stderr_size = len("MAPPER-STDERR-OUTPUT\n")
+
         jobs = wait_breakpoint()
         def get_stderr_size():
             return get(op.get_path() + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0]))
-        wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
+        wait(lambda: get_stderr_size() == expected_stderr_size)
 
-        options = dict(data_source="manual", include_cypress=False, include_controller_agent=True, include_archive=False)
+        options = dict(data_source=data_source)
+        if data_source == "manual":
+            options.update(include_cypress=False, include_controller_agent=True, include_archive=False)
 
         res = list_jobs(op.id, **options)
         assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
         for job in res["jobs"]:
-            assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
+            assert job["stderr_size"] == expected_stderr_size
 
         res = list_jobs(op.id, with_stderr=True, **options)
         for job in res["jobs"]:
-            assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
+            assert job["stderr_size"] == expected_stderr_size
         assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
 
         res = list_jobs(op.id, with_stderr=False, **options)
@@ -508,6 +522,6 @@ class TestListJobs(YTEnvSetup):
         except YtError:
             pass
 
-        clean_operations(self.Env.create_native_client())
+        clean_operations()
         jobs = list_jobs(op.id, data_source="archive")["jobs"]
         assert len(jobs) == 1

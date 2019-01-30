@@ -10,8 +10,8 @@ namespace NYT {
 // #Normal - default memory type,
 // #Undumpable - memory is omitted from the core dump.
 DEFINE_ENUM(EMemoryZone,
-    (Normal)
-    (Undumpable)
+    ((Normal)     (0))
+    ((Undumpable) (1))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
