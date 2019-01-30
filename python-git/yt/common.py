@@ -57,6 +57,11 @@ class YtError(Exception):
     def __str__(self):
         return format_error(self)
 
+    def __repr__(self):
+        return "%s(%s)" % (
+            self.__class__.__name__,
+            _pretty_format_messages_flat(self))
+
     @staticmethod
     def _get_fqdn():
         if not hasattr(YtError, "_cached_fqdn"):
@@ -192,99 +197,144 @@ class YtResponseError(YtError):
 
         return matches_regexp_recursive(self.error, pattern)
 
+
 class PrettyPrintableDict(dict):
     pass
 
+
+def _pretty_format_escape(value):
+    def escape(char):
+        if char in string.printable:
+            return char
+        return "\\x{0:02x}".format(ord(char))
+    value = value.replace("\n", "\\n").replace("\t", "\\t")
+    return "".join(imap(escape, value))
+
+
+def _pretty_format_attribute(name, value, attribute_length_limit):
+    name = to_native_str(name)
+    if isinstance(value, PrettyPrintableDict):
+        value = json.dumps(value, indent=2)
+        value = value.replace("\n", "\n" + " " * (15 + 1 + 4))
+    else:
+        if isinstance(value, string_types):
+            value = to_native_str(value)
+        else:
+            value = str(value)
+        value = _pretty_format_escape(value)
+        if attribute_length_limit is not None and len(value) > attribute_length_limit:
+            value = value[:attribute_length_limit] + "...message truncated..."
+    return " " * 4 + "%-15s %s" % (name, value)
+
+
+def _pretty_simplify_error(error):
+    if isinstance(error, YtError):
+        error = error.simplify()
+    elif isinstance(error, (Exception, KeyboardInterrupt)):
+        error = {"code": 1, "message": str(error)}
+    return error
+
+
+def _pretty_extract_messages(error, depth=0):
+    """
+    YtError -> [(depth: int, message: str), ...], in tree order.
+    """
+    error = _pretty_simplify_error(error)
+
+    if not error.get("attributes", {}).get("transparent", False):
+        yield (depth, to_native_str(error["message"]))
+        depth += 1
+
+    for inner_error in error.get("inner_errors", []):
+        for subitem in _pretty_extract_messages(inner_error, depth=depth):
+            yield subitem
+
+
+def _pretty_format_messages_flat(error):
+    prev_depth = 0
+    result = []
+    for depth, message in _pretty_extract_messages(error):
+        if depth > prev_depth:
+            result.append(" ")
+            result.append("(" * (depth - prev_depth))
+        elif prev_depth > depth:
+            result.append(")" * (prev_depth - depth))
+        elif result:
+            result.append(", ")
+        result.append(repr(message))
+        prev_depth = depth
+
+    result.append(")" * prev_depth)
+    return "".join(result)
+
+
+def _pretty_format_messages(error, indent=0, indent_step=4):
+    result = []
+    for depth, message in _pretty_extract_messages(error):
+        result.append("{indent}{message}".format(
+            indent=" " * (indent + depth * indent_step),
+            message=message))
+
+    return "\n".join(result)
+
+
+def _pretty_format_full_errors(error, attribute_length_limit):
+    error = _pretty_simplify_error(error)
+
+    lines = []
+    if "message" in error:
+        lines.append(to_native_str(error["message"]))
+
+    if "code" in error and int(error["code"]) != 1:
+        lines.append(_pretty_format_attribute(
+            "code", error["code"], attribute_length_limit=attribute_length_limit))
+
+    attributes = error.get("attributes", {})
+
+    origin_keys = ["host", "datetime"]
+    origin_cpp_keys = ["pid", "tid", "fid"]
+    if all(key in attributes for key in origin_keys):
+        date = attributes["datetime"]
+        if isinstance(date, datetime):
+            date = date.strftime("%y-%m-%dT%H:%M:%S.%fZ")
+        value = "{0} in {1}".format(attributes["host"], date)
+        if all(key in attributes for key in origin_cpp_keys):
+            value += " (pid %(pid)d, tid %(tid)x, fid %(fid)x)" % attributes
+        lines.append(_pretty_format_attribute(
+            "origin", value, attribute_length_limit=attribute_length_limit))
+
+    location_keys = ["file", "line"]
+    if all(key in attributes for key in location_keys):
+        lines.append(_pretty_format_attribute(
+            "location",
+            "%(file)s:%(line)d" % attributes,
+            attribute_length_limit=attribute_length_limit))
+
+    for key, value in iteritems(attributes):
+        if key in origin_keys or key in location_keys or key in origin_cpp_keys:
+            continue
+        lines.append(_pretty_format_attribute(
+            key, value, attribute_length_limit=attribute_length_limit))
+
+    result = (" " * 4 + "\n").join(lines)
+    if "inner_errors" in error:
+        for inner_error in error["inner_errors"]:
+            result += "\n" + _pretty_format_full_errors(
+                inner_error, attribute_length_limit=attribute_length_limit)
+
+    return result
+
+
 def _pretty_format(error, attribute_length_limit=None):
-    def _escape(value):
-        def escape(c):
-            if c in string.printable:
-                return c
-            return "\\x{0:02x}".format(ord(c))
-        value = value.replace("\n", "\\n").replace("\t", "\\t")
-        return "".join(imap(escape, value))
 
-    def format_attribute(name, value):
-        name = to_native_str(name)
-        if isinstance(value, PrettyPrintableDict):
-            value = json.dumps(value, indent=2)
-            value = value.replace("\n", "\n" + " " * (15 + 1 + 4))
-        else:
-            if isinstance(value, string_types):
-                value = to_native_str(value)
-            else:
-                value = str(value)
-            value = _escape(value)
-            if attribute_length_limit is not None and len(value) > attribute_length_limit:
-                value = value[:attribute_length_limit] + "...message truncated..."
-        return " " * 4 + "%-15s %s" % (name, value)
+    return "{}\n\n***** Details:\n{}\n".format(
+        _pretty_format_messages(error),
+        _pretty_format_full_errors(error, attribute_length_limit=attribute_length_limit))
 
-    def simplify_error(error):
-        if isinstance(error, YtError):
-            error = error.simplify()
-        elif isinstance(error, (Exception, KeyboardInterrupt)):
-            error = {"code": 1, "message": str(error)}
-        return error
-
-    def format_messages(error, indent):
-        error = simplify_error(error)
-
-        result = []
-        if not error.get("attributes", {}).get("transparent", False):
-            result.append(" " * indent + to_native_str(error["message"]))
-            new_indent = indent + 4
-        else:
-            new_indent = indent
-
-        for inner_error in error.get("inner_errors", []):
-            result.append(format_messages(inner_error, indent=new_indent))
-
-        return "\n".join(result)
-
-    def format_full_errors(error):
-        error = simplify_error(error)
-
-        lines = []
-        if "message" in error:
-            lines.append(to_native_str(error["message"]))
-
-        if "code" in error and int(error["code"]) != 1:
-            lines.append(format_attribute("code", error["code"]))
-
-        attributes = error.get("attributes", {})
-
-        origin_keys = ["host", "datetime"]
-        origin_cpp_keys = ["pid", "tid", "fid"]
-        if all(key in attributes for key in origin_keys):
-            date = attributes["datetime"]
-            if isinstance(date, datetime):
-                date = date.strftime("%y-%m-%dT%H:%M:%S.%fZ")
-            value = "{0} in {1}".format(attributes["host"], date)
-            if all(key in attributes for key in origin_cpp_keys):
-                value += " (pid %d, tid %x, fid %x)" % (attributes["pid"],attributes["tid"], attributes["fid"])
-            lines.append(format_attribute("origin", value))
-
-        location_keys = ["file", "line"]
-        if all(key in attributes for key in location_keys):
-            lines.append(format_attribute("location", "%s:%d" % (attributes["file"], attributes["line"])))
-
-        for key, value in iteritems(attributes):
-            if key in origin_keys or key in location_keys or key in origin_cpp_keys:
-                continue
-            lines.append(format_attribute(key, value))
-
-        result = (" " * 4 + "\n").join(lines)
-        if "inner_errors" in error:
-            for inner_error in error["inner_errors"]:
-                result += "\n" + format_full_errors(inner_error)
-
-        return result
-
-    return "{0}\n\n***** Details:\n{1}\n"\
-        .format(format_messages(error, indent=0), format_full_errors(error))
 
 def format_error(error, attribute_length_limit=300):
     return _pretty_format(error, attribute_length_limit)
+
 
 def which(name, flags=os.X_OK):
     """Return list of files in system paths with given name."""
