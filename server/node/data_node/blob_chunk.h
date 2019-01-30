@@ -44,7 +44,6 @@ public:
     virtual void SyncRemove(bool force) override;
 
     NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt();
-    NChunkClient::TRefCountedBlocksExtPtr GetCachedBlocksExt();
 
 protected:
     TBlobChunkBase(
@@ -74,26 +73,23 @@ private:
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
 
-
     NChunkClient::NProto::TChunkInfo Info_;
 
-    NConcurrency::TReaderWriterSpinLock CachedBlocksExtLock_;
-    NChunkClient::TRefCountedBlocksExtPtr CachedBlocksExt_;
-    TPromise<void> CachedBlocksExtPromise_;
-    std::atomic<bool> HasCachedBlocksExt_ = {false};
+    NConcurrency::TReaderWriterSpinLock BlocksExtLock_;
+    TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
+    TFuture<NChunkClient::TRefCountedBlocksExtPtr> AsyncBlocksExt_;
+
 
     //! Returns true if location must be disabled.
-    bool IsFatalError(const TError& error) const;
-
-
-    TFuture<void> ReadBlocksExt(const TBlockReadOptions& options);
-    void SetBlocksExt(const NChunkClient::TRefCountedChunkMetaPtr& meta);
+    static bool IsFatalError(const TError& error);
 
     void DoReadMeta(
         TChunkReadGuard readGuard,
         TCachedChunkMetaCookie cookie,
         const TBlockReadOptions& options);
-    TFuture<void> OnBlocksExtLoaded(const TReadBlockSetSessionPtr& session);
+    TFuture<void> OnBlocksExtLoaded(
+        const TReadBlockSetSessionPtr& session,
+        const NChunkClient::TRefCountedBlocksExtPtr& blocksExt);
     void DoReadBlockSet(
         const TReadBlockSetSessionPtr& session,
         TPendingIOGuard pendingIOGuard);

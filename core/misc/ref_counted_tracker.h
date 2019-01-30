@@ -15,10 +15,12 @@ struct TRefCountedTrackerStatistics
 {
     struct TStatistics
     {
-        size_t ObjectsAlive = 0;
         size_t ObjectsAllocated = 0;
-        size_t BytesAlive = 0;
+        size_t ObjectsFreed = 0;
+        size_t ObjectsAlive = 0;
         size_t BytesAllocated = 0;
+        size_t BytesFreed = 0;
+        size_t BytesAlive = 0;
 
         TStatistics& operator+= (const TStatistics& rhs);
     };
@@ -51,7 +53,7 @@ public:
 
     TRefCountedTypeCookie GetCookie(
         TRefCountedTypeKey typeKey,
-        size_t instanceSize,
+        size_t Objectsize,
         const TSourceLocation& location = TSourceLocation());
 
     void AllocateInstance(TRefCountedTypeCookie cookie);
@@ -67,8 +69,8 @@ public:
     TString GetDebugInfo(int sortByColumn = -1) const;
     TRefCountedTrackerStatistics GetStatistics() const;
 
-    size_t GetInstancesAllocated(TRefCountedTypeKey typeKey) const;
-    size_t GetInstancesAlive(TRefCountedTypeKey typeKey) const;
+    size_t GetObjectsAllocated(TRefCountedTypeKey typeKey) const;
+    size_t GetObjectsAlive(TRefCountedTypeKey typeKey) const;
     size_t GetBytesAllocated(TRefCountedTypeKey typeKey) const;
     size_t GetBytesAlive(TRefCountedTypeKey typeKey) const;
 
@@ -108,10 +110,10 @@ private:
         TAnonymousSlot& operator += (const TAnonymousSlot& other);
 
     protected:
-        std::atomic<size_t> InstancesAllocated_{0};
-        std::atomic<size_t> InstancesFreed_{0};
-        std::atomic<size_t> TagInstancesAllocated_{0};
-        std::atomic<size_t> TagInstancesFreed_{0};
+        std::atomic<size_t> ObjectsAllocated_{0};
+        std::atomic<size_t> ObjectsFreed_{0};
+        std::atomic<size_t> TagObjectsAllocated_{0};
+        std::atomic<size_t> TagObjectsFreed_{0};
         std::atomic<size_t> SpaceSizeAllocated_{0};
         std::atomic<size_t> SpaceSizeFreed_{0};
 
@@ -125,7 +127,7 @@ private:
         : public TAnonymousSlot
     {
     public:
-        TNamedSlot(const TKey& key, size_t instanceSize);
+        TNamedSlot(const TKey& key, size_t Objectsize);
 
         TRefCountedTypeKey GetTypeKey() const;
         const TSourceLocation& GetLocation() const;
@@ -133,17 +135,19 @@ private:
         TString GetTypeName() const;
         TString GetFullName() const;
 
-        size_t GetInstancesAllocated() const;
-        size_t GetInstancesAlive() const;
+        size_t GetObjectsAllocated() const;
+        size_t GetObjectsFreed() const;
+        size_t GetObjectsAlive() const;
 
         size_t GetBytesAllocated() const;
+        size_t GetBytesFreed() const;
         size_t GetBytesAlive() const;
 
         TRefCountedTrackerStatistics::TNamedSlotStatistics GetStatistics() const;
 
     private:
         TKey Key_;
-        size_t InstanceSize_;
+        size_t Objectsize_;
 
         static size_t ClampNonnegative(size_t allocated, size_t freed);
     };
@@ -155,7 +159,7 @@ private:
 
     mutable NConcurrency::TForkAwareSpinLock SpinLock_;
     std::map<TKey, TRefCountedTypeCookie> KeyToCookie_;
-    std::map<TRefCountedTypeKey, size_t> TypeKeyToInstanceSize_;
+    std::map<TRefCountedTypeKey, size_t> TypeKeyToObjectsize_;
     std::vector<TKey> CookieToKey_;
     TAnonymousStatistics GlobalStatistics_;
     THashSet<TStatisticsHolder*> PerThreadHolders_;
@@ -166,7 +170,7 @@ private:
     TNamedStatistics GetSnapshot() const;
     static void SortSnapshot(TNamedStatistics* snapshot, int sortByColumn);
 
-    size_t GetInstanceSize(TRefCountedTypeKey typeKey) const;
+    size_t GetObjectsize(TRefCountedTypeKey typeKey) const;
 
     TNamedSlot GetSlot(TRefCountedTypeKey typeKey) const;
     TAnonymousSlot* GetPerThreadSlot(TRefCountedTypeCookie cookie);

@@ -16,10 +16,12 @@ using namespace NConcurrency;
 TRefCountedTrackerStatistics::TStatistics& TRefCountedTrackerStatistics::TStatistics::operator+= (
     const TRefCountedTrackerStatistics::TStatistics& rhs)
 {
-    ObjectsAlive += rhs.ObjectsAlive;
     ObjectsAllocated += rhs.ObjectsAllocated;
-    BytesAlive += rhs.BytesAlive;
+    ObjectsFreed += rhs.ObjectsFreed;
+    ObjectsAlive += rhs.ObjectsAlive;
     BytesAllocated += rhs.BytesAllocated;
+    BytesFreed += rhs.BytesFreed;
+    BytesAlive += rhs.BytesAlive;
     return *this;
 }
 
@@ -91,20 +93,20 @@ bool TRefCountedTracker::TKey::operator<(const TKey& other) const
 ////////////////////////////////////////////////////////////////////////////////
 
 TRefCountedTracker::TAnonymousSlot::TAnonymousSlot(const TAnonymousSlot& other)
-    : InstancesAllocated_(other.InstancesAllocated_.load())
-    , InstancesFreed_(other.InstancesFreed_.load())
-    , TagInstancesAllocated_(other.TagInstancesAllocated_.load())
-    , TagInstancesFreed_(other.TagInstancesFreed_.load())
+    : ObjectsAllocated_(other.ObjectsAllocated_.load())
+    , ObjectsFreed_(other.ObjectsFreed_.load())
+    , TagObjectsAllocated_(other.TagObjectsAllocated_.load())
+    , TagObjectsFreed_(other.TagObjectsFreed_.load())
     , SpaceSizeAllocated_(other.SpaceSizeAllocated_.load())
     , SpaceSizeFreed_(other.SpaceSizeFreed_.load())
 { }
 
 TRefCountedTracker::TAnonymousSlot& TRefCountedTracker::TAnonymousSlot::operator=(const TAnonymousSlot& other)
 {
-    InstancesAllocated_ = other.InstancesAllocated_.load();
-    InstancesFreed_ = other.InstancesFreed_.load();
-    TagInstancesAllocated_ = other.TagInstancesAllocated_.load();
-    TagInstancesFreed_ = other.TagInstancesFreed_.load();
+    ObjectsAllocated_ = other.ObjectsAllocated_.load();
+    ObjectsFreed_ = other.ObjectsFreed_.load();
+    TagObjectsAllocated_ = other.TagObjectsAllocated_.load();
+    TagObjectsFreed_ = other.TagObjectsFreed_.load();
     SpaceSizeAllocated_ = other.SpaceSizeAllocated_.load();
     SpaceSizeFreed_ = other.SpaceSizeFreed_.load();
     return *this;
@@ -112,10 +114,10 @@ TRefCountedTracker::TAnonymousSlot& TRefCountedTracker::TAnonymousSlot::operator
 
 TRefCountedTracker::TAnonymousSlot& TRefCountedTracker::TAnonymousSlot::operator+=(const TAnonymousSlot& other)
 {
-    IncreaseRelaxed(InstancesAllocated_, other.InstancesAllocated_);
-    IncreaseRelaxed(InstancesFreed_, other.InstancesFreed_);
-    IncreaseRelaxed(TagInstancesAllocated_, other.TagInstancesAllocated_);
-    IncreaseRelaxed(TagInstancesFreed_, other.TagInstancesFreed_);
+    IncreaseRelaxed(ObjectsAllocated_, other.ObjectsAllocated_);
+    IncreaseRelaxed(ObjectsFreed_, other.ObjectsFreed_);
+    IncreaseRelaxed(TagObjectsAllocated_, other.TagObjectsAllocated_);
+    IncreaseRelaxed(TagObjectsFreed_, other.TagObjectsFreed_);
     IncreaseRelaxed(SpaceSizeAllocated_, other.SpaceSizeAllocated_);
     IncreaseRelaxed(SpaceSizeFreed_, other.SpaceSizeFreed_);
     return *this;
@@ -123,9 +125,9 @@ TRefCountedTracker::TAnonymousSlot& TRefCountedTracker::TAnonymousSlot::operator
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedTracker::TNamedSlot::TNamedSlot(const TKey& key, size_t instanceSize)
+TRefCountedTracker::TNamedSlot::TNamedSlot(const TKey& key, size_t Objectsize)
     : Key_(key)
-    , InstanceSize_(instanceSize)
+    , Objectsize_(Objectsize)
 { }
 
 TRefCountedTypeKey TRefCountedTracker::TNamedSlot::GetTypeKey() const
@@ -151,29 +153,41 @@ TString TRefCountedTracker::TNamedSlot::GetFullName() const
         : GetTypeName();
 }
 
-size_t TRefCountedTracker::TNamedSlot::GetInstancesAllocated() const
+size_t TRefCountedTracker::TNamedSlot::GetObjectsAllocated() const
 {
-    return InstancesAllocated_ + TagInstancesAllocated_;
+    return ObjectsAllocated_ + TagObjectsAllocated_;
 }
 
-size_t TRefCountedTracker::TNamedSlot::GetInstancesAlive() const
+size_t TRefCountedTracker::TNamedSlot::GetObjectsFreed() const
+{
+    return ObjectsFreed_ + TagObjectsFreed_;
+}
+
+size_t TRefCountedTracker::TNamedSlot::GetObjectsAlive() const
 {
     return
-        ClampNonnegative(InstancesAllocated_, InstancesFreed_) +
-        ClampNonnegative(TagInstancesAllocated_, TagInstancesFreed_);
+        ClampNonnegative(ObjectsAllocated_, ObjectsFreed_) +
+        ClampNonnegative(TagObjectsAllocated_, TagObjectsFreed_);
 }
 
 size_t TRefCountedTracker::TNamedSlot::GetBytesAllocated() const
 {
     return
-        InstancesAllocated_ * InstanceSize_ +
+        ObjectsAllocated_ * Objectsize_ +
         SpaceSizeAllocated_;
+}
+
+size_t TRefCountedTracker::TNamedSlot::GetBytesFreed() const
+{
+    return
+        ObjectsFreed_ * Objectsize_ +
+        SpaceSizeFreed_;
 }
 
 size_t TRefCountedTracker::TNamedSlot::GetBytesAlive() const
 {
     return
-        ClampNonnegative(InstancesAllocated_, InstancesFreed_) * InstanceSize_ +
+        ClampNonnegative(ObjectsAllocated_, ObjectsFreed_) * Objectsize_ +
         ClampNonnegative(SpaceSizeAllocated_, SpaceSizeFreed_);
 }
 
@@ -181,10 +195,12 @@ TRefCountedTrackerStatistics::TNamedSlotStatistics TRefCountedTracker::TNamedSlo
 {
     TRefCountedTrackerStatistics::TNamedSlotStatistics result;
     result.FullName = GetFullName();
-    result.ObjectsAlive = GetInstancesAlive();
-    result.ObjectsAllocated = GetInstancesAllocated();
-    result.BytesAlive = GetBytesAlive();
+    result.ObjectsAllocated = GetObjectsAllocated();
+    result.ObjectsFreed = GetObjectsFreed();
+    result.ObjectsAlive = GetObjectsAlive();
     result.BytesAllocated = GetBytesAllocated();
+    result.BytesFreed = GetBytesFreed();
+    result.BytesAlive = GetBytesAlive();
     return result;
 }
 
@@ -206,12 +222,12 @@ PER_THREAD int TRefCountedTracker::CurrentThreadStatisticsSize; // = 0
 
 TRefCountedTypeCookie TRefCountedTracker::GetCookie(
     TRefCountedTypeKey typeKey,
-    size_t instanceSize,
+    size_t Objectsize,
     const TSourceLocation& location)
 {
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
 
-    TypeKeyToInstanceSize_.emplace(typeKey, instanceSize);
+    TypeKeyToObjectsize_.emplace(typeKey, Objectsize);
 
     TKey key{typeKey, location};
     auto it = KeyToCookie_.find(key);
@@ -232,7 +248,7 @@ TRefCountedTracker::TNamedStatistics TRefCountedTracker::GetSnapshot() const
 
     TNamedStatistics result;
     for (const auto& key : CookieToKey_) {
-        result.emplace_back(key, GetInstanceSize(key.TypeKey));
+        result.emplace_back(key, GetObjectsize(key.TypeKey));
     }
 
     auto accumulateResult = [&] (const TAnonymousStatistics& statistics) {
@@ -255,13 +271,13 @@ void TRefCountedTracker::SortSnapshot(TNamedStatistics* snapshot, int sortByColu
     switch (sortByColumn) {
         case 0:
             predicate = [] (const TNamedSlot& lhs, const TNamedSlot& rhs) {
-                return lhs.GetInstancesAlive() > rhs.GetInstancesAlive();
+                return lhs.GetObjectsAlive() > rhs.GetObjectsAlive();
             };
             break;
 
         case 1:
             predicate = [] (const TNamedSlot& lhs, const TNamedSlot& rhs) {
-                return lhs.GetInstancesAllocated() > rhs.GetInstancesAllocated();
+                return lhs.GetObjectsAllocated() > rhs.GetObjectsAllocated();
             };
             break;
 
@@ -310,15 +326,15 @@ TString TRefCountedTracker::GetDebugInfo(int sortByColumn) const
     builder.AppendString("-------------------------------------------------------------------------------------------------------------\n");
 
     for (const auto& slot : snapshot) {
-        totalObjectsAlive += slot.GetInstancesAlive();
-        totalObjectsAllocated += slot.GetInstancesAllocated();
+        totalObjectsAlive += slot.GetObjectsAlive();
+        totalObjectsAllocated += slot.GetObjectsAllocated();
         totalBytesAlive += slot.GetBytesAlive();
         totalBytesAllocated += slot.GetBytesAllocated();
 
         builder.AppendFormat(
             "%10" PRISZT " %10" PRISZT " %15" PRISZT " %15" PRISZT " %s\n",
-            slot.GetInstancesAlive(),
-            slot.GetInstancesAllocated(),
+            slot.GetObjectsAlive(),
+            slot.GetObjectsAllocated(),
             slot.GetBytesAlive(),
             slot.GetBytesAllocated(),
             slot.GetFullName().data());
@@ -353,14 +369,14 @@ TRefCountedTrackerStatistics TRefCountedTracker::GetStatistics() const
     return result;
 }
 
-size_t TRefCountedTracker::GetInstancesAllocated(TRefCountedTypeKey typeKey) const
+size_t TRefCountedTracker::GetObjectsAllocated(TRefCountedTypeKey typeKey) const
 {
-    return GetSlot(typeKey).GetInstancesAllocated();
+    return GetSlot(typeKey).GetObjectsAllocated();
 }
 
-size_t TRefCountedTracker::GetInstancesAlive(TRefCountedTypeKey typeKey) const
+size_t TRefCountedTracker::GetObjectsAlive(TRefCountedTypeKey typeKey) const
 {
-    return GetSlot(typeKey).GetInstancesAlive();
+    return GetSlot(typeKey).GetObjectsAlive();
 }
 
 size_t TRefCountedTracker::GetBytesAllocated(TRefCountedTypeKey typeKey) const
@@ -373,10 +389,10 @@ size_t TRefCountedTracker::GetBytesAlive(TRefCountedTypeKey typeKey) const
     return GetSlot(typeKey).GetBytesAlive();
 }
 
-size_t TRefCountedTracker::GetInstanceSize(TRefCountedTypeKey typeKey) const
+size_t TRefCountedTracker::GetObjectsize(TRefCountedTypeKey typeKey) const
 {
-    auto it = TypeKeyToInstanceSize_.find(typeKey);
-    return it == TypeKeyToInstanceSize_.end() ? 0 : it->second;
+    auto it = TypeKeyToObjectsize_.find(typeKey);
+    return it == TypeKeyToObjectsize_.end() ? 0 : it->second;
 }
 
 TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey typeKey) const
@@ -385,7 +401,7 @@ TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey ty
 
     TKey key{typeKey, TSourceLocation()};
 
-    TNamedSlot result(key, GetInstanceSize(typeKey));
+    TNamedSlot result(key, GetObjectsize(typeKey));
     auto accumulateResult = [&] (const TAnonymousStatistics& statistics, TRefCountedTypeCookie cookie) {
         if (cookie < statistics.size()) {
             result += statistics[cookie];

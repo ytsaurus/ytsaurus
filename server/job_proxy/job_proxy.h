@@ -64,7 +64,7 @@ public:
 
     TDuration GetSpentCpuTime() const;
 
-    void SetCpuLimit(double cpuLimit);
+    void SetCpuShare(double cpuShare);
 
 private:
     const TJobProxyConfigPtr Config_;
@@ -95,7 +95,7 @@ private:
 
     std::atomic<i32> NetworkUsage_ = {0};
 
-    std::atomic<double> CpuLimit_ = {0};
+    std::atomic<double> CpuShare_ = {0};
 
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;

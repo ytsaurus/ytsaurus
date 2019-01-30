@@ -25,7 +25,7 @@ using namespace NConcurrency;
 template <class T>
 size_t GetAliveCount()
 {
-    return TRefCountedTracker::Get()->GetInstancesAlive(GetRefCountedTypeKey<T>());
+    return TRefCountedTracker::Get()->GetObjectsAlive(GetRefCountedTypeKey<T>());
 }
 
 template <class T>
@@ -37,7 +37,7 @@ size_t GetAliveBytes()
 template <class T>
 size_t GetAllocatedCount()
 {
-    return TRefCountedTracker::Get()->GetInstancesAllocated(GetRefCountedTypeKey<T>());
+    return TRefCountedTracker::Get()->GetObjectsAllocated(GetRefCountedTypeKey<T>());
 }
 
 template <class T>

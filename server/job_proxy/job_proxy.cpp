@@ -254,7 +254,7 @@ void TJobProxy::RetrieveJobSpec()
         rsp->job_spec().DebugString());
 
     JobProxyMemoryReserve_ = resourceUsage.memory();
-    CpuLimit_ = resourceUsage.cpu();
+    CpuShare_ = resourceUsage.cpu();
     NetworkUsage_ = resourceUsage.network();
 
     // We never report to node less memory usage, than was initially reserved.
@@ -477,7 +477,7 @@ TJobResult TJobProxy::DoRun()
         RetrieveJobSpec();
 
         auto cpuMonitorConfig = ConvertTo<TJobCpuMonitorConfigPtr>(TYsonString(JobSpecHelper_->GetSchedulerJobSpecExt().job_cpu_monitor_config()));
-        CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuLimit_);
+        CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuShare_);
 
         if (Config_->JobThrottler) {
             YT_LOG_DEBUG("Job throttling enabled");
@@ -521,7 +521,12 @@ TJobResult TJobProxy::DoRun()
     RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
 
     if (JobProxyEnvironment_) {
-        JobProxyEnvironment_->SetCpuShare(CpuLimit_);
+        JobProxyEnvironment_->SetCpuShare(CpuShare_);
+        if (schedulerJobSpecExt.has_user_job_spec() &&
+            schedulerJobSpecExt.user_job_spec().set_container_cpu_limit())
+        {
+            JobProxyEnvironment_->SetCpuLimit(CpuShare_);
+        }
     }
 
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
@@ -684,7 +689,7 @@ void TJobProxy::UpdateResourceUsage()
     auto req = SupervisorProxy_->UpdateResourceUsage();
     ToProto(req->mutable_job_id(), JobId_);
     auto* resourceUsage = req->mutable_resource_usage();
-    resourceUsage->set_cpu(CpuLimit_);
+    resourceUsage->set_cpu(CpuShare_);
     resourceUsage->set_network(NetworkUsage_);
     resourceUsage->set_memory(RequestedMemoryReserve_);
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this), RequestedMemoryReserve_.load()));
@@ -834,12 +839,12 @@ void TJobProxy::Exit(EJobProxyExitCode exitCode)
     _exit(static_cast<int>(exitCode));
 }
 
-void TJobProxy::SetCpuLimit(double cpuLimit)
+void TJobProxy::SetCpuShare(double cpuShare)
 {
-    YT_LOG_INFO("Changing CPU limit (OldCpuLimit: %v, NewCpuLimit: %v)",
-        CpuLimit_.load(),
-        cpuLimit);
-    CpuLimit_ = cpuLimit;
+    YT_LOG_INFO("Changing CPU share (OldCpuShare: %v, NewCpuShare: %v)",
+        CpuShare_.load(),
+        cpuShare);
+    CpuShare_ = cpuShare;
     UpdateResourceUsage();
 }
 

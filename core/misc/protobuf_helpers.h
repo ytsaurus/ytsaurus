@@ -289,15 +289,15 @@ void FilterProtoExtensions(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Wrapper that makes proto message ref-counted.
-template <class TProto>
+template <class TProto, bool EnableWeak>
 class TRefCountedProto
-    : public TIntrinsicRefCounted
+    : public TRefCountedImpl<EnableWeak>
     , public TProto
 {
 public:
     TRefCountedProto() = default;
-    TRefCountedProto(const TRefCountedProto<TProto>& other);
-    TRefCountedProto(TRefCountedProto<TProto>&& other);
+    TRefCountedProto(const TRefCountedProto<TProto, EnableWeak>& other);
+    TRefCountedProto(TRefCountedProto<TProto, EnableWeak>&& other);
     explicit TRefCountedProto(const TProto& other);
     explicit TRefCountedProto(TProto&& other);
     ~TRefCountedProto();
@@ -309,34 +309,6 @@ private:
 
     void RegisterExtraSpace();
     void UnregisterExtraSpace();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Protobuf messages are currently not movable.
-//! This simple adapter helps workarounding the issue and could be useful
-//! in, e.g., lambda capture.
-template <class T>
-class TMovableProto
-{
-public:
-    TMovableProto() = default;
-    TMovableProto(TMovableProto<T>&& other);
-    TMovableProto(T&& other);
-    TMovableProto(const TMovableProto<T>& other) = delete;
-
-    TMovableProto<T>& operator = (TMovableProto<T>&& other);
-    TMovableProto<T>& operator = (T&& other);
-    TMovableProto<T>& operator = (const TMovableProto<T>& other) = delete;
-
-    operator T&();
-    operator const T&() const;
-
-    T& Unwrap();
-    const T& Unwrap() const;
-
-private:
-    T Underlying_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

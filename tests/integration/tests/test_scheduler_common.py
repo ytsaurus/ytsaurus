@@ -4185,3 +4185,20 @@ class TestOperationAliasesRpc(TestOperationAliasesBase):
 
     def test_get_operation_latest_archive_version(self):
         self._test_get_operation_latest_archive_version()
+
+
+class TestContainerCpuLimit(YTEnvSetup):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    def test_container_cpu_limit(self):
+        op = vanilla(spec={"tasks": {"main": {"command": "timeout 5s md5sum /dev/zero || true",
+                                              "job_count": 1,
+                                              "set_container_cpu_limit": True,
+                                              "cpu_limit": 0.1,
+                                              }}})
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+        cpu_usage = get_statistics(statistics, "user_job.cpu.user.$.completed.vanilla.max")
+        assert cpu_usage < 2500
