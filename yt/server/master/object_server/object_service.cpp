@@ -227,7 +227,6 @@ public:
 
     bool RunFast()
     {
-        YCHECK(!Finished_);
         try {
             return GuardedRunFast();
         } catch (const std::exception& ex) {
@@ -304,7 +303,7 @@ private:
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
 
-    std::atomic<bool> Replied_ = {false};
+    std::atomic<bool> ReplyScheduled_ = {false};
     std::atomic<int> SubresponseCount_ = {0};
     int LastMutatingSubrequestIndex_ = -1;
 
@@ -439,6 +438,10 @@ private:
 
     bool GuardedRunFast()
     {
+        if (Finished_) {
+            return false;
+        }
+
         HydraManager_->ValidatePeer(EPeerKind::LeaderOrFollower);
 
         if (!EpochAutomatonInvoker_) {
@@ -521,10 +524,7 @@ private:
 
         Owner_->ValidateClusterInitialized();
 
-        while (CurrentSubrequestIndex_ < SubrequestCount_ &&
-            !BackoffAlarmTriggered_ &&
-            !Replied_)
-        {
+        while (CurrentSubrequestIndex_ < SubrequestCount_) {
             if (ScheduleFinishIfCanceled()) {
                 break;
             }
@@ -546,7 +546,15 @@ private:
                     break;
                 }
 
-                if (Replied_) {
+                if (ReplyScheduled_) {
+                    break;
+                }
+
+                if (FinishScheduled_) {
+                    break;
+                }
+
+                if (BackoffAlarmTriggered_) {
                     break;
                 }
 
@@ -698,7 +706,7 @@ private:
         ScheduleFinish();
 
         bool expected = false;
-        if (Replied_.compare_exchange_strong(expected, true)) {
+        if (ReplyScheduled_.compare_exchange_strong(expected, true)) {
             TObjectService::GetRpcInvoker()
                 ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
         }
@@ -789,7 +797,7 @@ private:
     void OnBackoffAlarm()
     {
         YT_LOG_DEBUG("Backoff alarm triggered (RequestId: %v)", RequestId_);
-        BackoffAlarmTriggered_ = true;
+        BackoffAlarmTriggered_.store(true);
         CheckBackoffAlarmTriggered();
     }
 
@@ -801,32 +809,28 @@ private:
             return;
         }
 
-        if (Replied_) {
+        if (ReplyScheduled_) {
             return;
         }
 
-        {
-            TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
-            if (guard.WasAcquired()) {
-                if (SubresponseCount_ > 0 &&
-                    SubresponseCount_ == CurrentSubrequestIndex_)
-                {
-                    YT_LOG_DEBUG("Backing off (RequestId: %v, SubresponseCount: %v, SubrequestCount: %v)",
-                        RequestId_,
-                        SubresponseCount_.load(),
-                        SubrequestCount_);
-                    Reply();
-                } else if (CurrentSubrequestIndex_ == 0) {
-                    YT_LOG_DEBUG("Dropping request since no subrequests have started running (RequestId: %v)",
-                        RequestId_);
-                    ScheduleFinish();
-                }
-                return;
-            }
+        TTryGuard<TSpinLock> guard(CurrentSubrequestLock_);
+        if (!guard.WasAcquired()) {
+            TObjectService::GetRpcInvoker()->Invoke(
+                BIND(&TObjectService::TExecuteSession::CheckBackoffAlarmTriggered, MakeStrong(this)));
+            return;
         }
 
-        TObjectService::GetRpcInvoker()->Invoke(
-            BIND(&TObjectService::TExecuteSession::CheckBackoffAlarmTriggered, MakeStrong(this)));
+        if (SubresponseCount_ > 0 && SubresponseCount_ == CurrentSubrequestIndex_) {
+            YT_LOG_DEBUG("Backing off (RequestId: %v, SubresponseCount: %v, SubrequestCount: %v)",
+                RequestId_,
+                SubresponseCount_.load(),
+                SubrequestCount_);
+            Reply();
+        } else if (CurrentSubrequestIndex_ == 0) {
+            YT_LOG_DEBUG("Dropping request since no subrequests have started running (RequestId: %v)",
+                RequestId_);
+            ScheduleFinish();
+        }
     }
 
     TCodicilGuard MakeCodicilGuard()
