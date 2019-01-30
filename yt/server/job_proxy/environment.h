@@ -54,6 +54,7 @@ struct IJobProxyEnvironment
     : public virtual IResourceTracker
 {
     virtual void SetCpuShare(double share) = 0;
+    virtual void SetCpuLimit(double limit) = 0;
     virtual void EnablePortoMemoryTracking() = 0;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) = 0;
 };

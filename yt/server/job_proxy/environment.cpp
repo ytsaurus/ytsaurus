@@ -252,6 +252,9 @@ public:
         }
     }
 
+    virtual void SetCpuLimit(double share) override
+    { }
+
     virtual void EnablePortoMemoryTracking() override
     { }
 
@@ -537,6 +540,12 @@ public:
     virtual void SetCpuShare(double share) override
     {
         WaitFor(PortoExecutor_->SetProperty(SlotAbsoluteName_, "cpu_guarantee", ToString(share) + "c"))
+            .ThrowOnError();
+    }
+
+    virtual void SetCpuLimit(double share) override
+    {
+        WaitFor(PortoExecutor_->SetProperty(SlotAbsoluteName_, "cpu_limit", ToString(share) + "c"))
             .ThrowOnError();
     }
 
