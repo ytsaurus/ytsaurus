@@ -69,7 +69,11 @@ public:
                     scheduledAllocations->end(),
                     [&] (const auto& allocation) {
                         auto* pod = transaction->GetPod(allocation.pod_id());
-                        return !pod || !pod->DoesExist() || pod->MetaOther().Load().uuid() != allocation.pod_uuid() || pod->Spec().Node().Load()->GetId() != node->GetId();
+                        if (!pod || !pod->DoesExist() || pod->MetaOther().Load().uuid() != allocation.pod_uuid()) {
+                            return true;
+                        }
+                        auto* podNode = pod->Spec().Node().Load();
+                        return !podNode || podNode->GetId() != node->GetId();
                     }),
                 scheduledAllocations->end());
         }
