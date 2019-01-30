@@ -6,9 +6,11 @@
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
-#include <library/getopt/small/last_getopt.h>
+#include <yt/core/misc/ref_counted_tracker_profiler.h>
 
-#include <util/generic/string.h>
+#include <yt/core/alloc/alloc.h>
+
+#include <library/getopt/small/last_getopt.h>
 
 namespace NYT {
 
@@ -34,6 +36,10 @@ private:
         ConfigureUids();
         ConfigureSignals();
         ConfigureCrashHandler();
+        EnableRefCountedTrackerProfiling();
+        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableProfiling();
+        NYTAlloc::EnableStockpile();
 
         if (HandlePdeathsigOptions()) {
             return;

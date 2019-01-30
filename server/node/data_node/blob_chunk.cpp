@@ -51,10 +51,12 @@ TBlobChunkBase::TBlobChunkBase(
     Info_.set_disk_space(descriptor.DiskSpace);
 
     if (meta) {
-        SetBlocksExt(meta);
-
         const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
-        chunkMetaManager->PutCachedMeta(Id_, std::move(meta));
+        chunkMetaManager->PutCachedMeta(Id_, meta);
+
+        auto blocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(meta->extensions()));
+        chunkMetaManager->PutCachedBlocksExt(Id_, blocksExt);
+        WeakBlocksExt_ = blocksExt;
     }
 }
 
@@ -107,62 +109,11 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 
 TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
 {
-    TReaderGuard guard(CachedBlocksExtLock_);
-    return CachedBlocksExt_;
+    TReaderGuard guard(BlocksExtLock_);
+    return WeakBlocksExt_.Lock();
 }
 
-TRefCountedBlocksExtPtr TBlobChunkBase::GetCachedBlocksExt()
-{
-    // NB: No locking is needed.
-    YCHECK(HasCachedBlocksExt_.load(std::memory_order_relaxed));
-    return CachedBlocksExt_;
-}
-
-TFuture<void> TBlobChunkBase::ReadBlocksExt(const TBlockReadOptions& options)
-{
-    // Shortcut.
-    if (HasCachedBlocksExt_.load(std::memory_order_relaxed)) {
-        return std::nullopt;
-    }
-
-    TPromise<void> promise;
-    {
-        TWriterGuard guard(CachedBlocksExtLock_);
-        if (HasCachedBlocksExt_) {
-            return std::nullopt;
-        }
-        if (CachedBlocksExtPromise_) {
-            return CachedBlocksExtPromise_;
-        }
-        promise = CachedBlocksExtPromise_ = NewPromise<void>();
-    }
-
-    ReadMeta(options)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
-            if (result.IsOK()) {
-                SetBlocksExt(result.Value());
-            } else {
-                TWriterGuard guard(CachedBlocksExtLock_);
-                YCHECK(!HasCachedBlocksExt_);
-                CachedBlocksExtPromise_.Reset();
-            }
-            promise.Set(result);
-        }));
-
-    return promise.ToFuture();
-}
-
-void TBlobChunkBase::SetBlocksExt(const TRefCountedChunkMetaPtr& meta)
-{
-    {
-        TWriterGuard guard(CachedBlocksExtLock_);
-        YCHECK(!CachedBlocksExt_);
-        CachedBlocksExt_ = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(meta->extensions()));
-    }
-    HasCachedBlocksExt_.store(true);
-}
-
-bool TBlobChunkBase::IsFatalError(const TError& error) const
+bool TBlobChunkBase::IsFatalError(const TError& error)
 {
     if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange) ||
         error.FindMatching(NYT::EErrorCode::Canceled))
@@ -207,14 +158,13 @@ void TBlobChunkBase::DoReadMeta(
         options.ReadSessionId,
         readTime);
 
-    auto cachedMeta = New<TCachedChunkMeta>(
-        Id_,
-        std::move(meta),
-        Bootstrap_->GetMemoryUsageTracker());
-    cookie.EndInsert(cachedMeta);
+    const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
+    chunkMetaManager->EndInsertCachedMeta(std::move(cookie), Id_, std::move(meta));
 }
 
-TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(const TReadBlockSetSessionPtr& session)
+TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
+    const TReadBlockSetSessionPtr& session,
+    const TRefCountedBlocksExtPtr& blocksExt)
 {
     // Prepare to serve the request: compute pending data size.
     i64 cachedDataSize = 0;
@@ -223,12 +173,9 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(const TReadBlockSetSessionPtr& s
     int pendingBlockCount = 0;
 
     auto config = Bootstrap_->GetConfig()->DataNode;
-    const auto& blocksExt = *GetCachedBlocksExt();
-
     for (int index = 0; index < session->Entries.size(); ++index) {
         const auto& entry = session->Entries[index];
-        auto blockDataSize = blocksExt.blocks(entry.BlockIndex).size();
-
+        auto blockDataSize = blocksExt->blocks(entry.BlockIndex).size();
         if (entry.Cached) {
             cachedDataSize += blockDataSize;
             ++cachedBlockCount;
@@ -442,10 +389,56 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                 return lhs.BlockIndex < rhs.BlockIndex;
             });
 
-        auto asyncBlocksExtResult = ReadBlocksExt(options);
-        asyncResults.push_back(asyncBlocksExtResult
-            ? asyncBlocksExtResult.Apply(BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session))
-            : OnBlocksExtLoaded(session));
+        auto onSyncBlocksExt = [&] (const TRefCountedBlocksExtPtr& blocksExt) {
+            asyncResults.push_back(OnBlocksExtLoaded(session, blocksExt));
+        };
+
+        auto onAsyncBlocksExt = [&] (TFuture<TRefCountedBlocksExtPtr>&& asyncBlocksExt) {
+            asyncResults.push_back(asyncBlocksExt.Apply(BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session)));
+        };
+
+        auto blocksExt = FindCachedBlocksExt();
+        if (blocksExt) {
+            onSyncBlocksExt(blocksExt);
+        } else {
+            TWriterGuard guard(BlocksExtLock_);
+            auto blocksExt = WeakBlocksExt_.Lock();
+            if (blocksExt) {
+                guard.Release();
+                onSyncBlocksExt(blocksExt);
+            } else {
+                if (!AsyncBlocksExt_) {
+                    const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
+                    auto cookie = chunkMetaManager->BeginInsertCachedBlocksExt(Id_);
+                    AsyncBlocksExt_ = cookie.GetValue().Apply(BIND([] (const TCachedBlocksExtPtr& cachedBlocksExt) {
+                        return cachedBlocksExt->GetBlocksExt();
+                    }));
+                    if (cookie.IsActive()) {
+                        ReadMeta(options)
+                            .Subscribe(BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
+                                if (result.IsOK()) {
+                                    auto blocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(result.Value()->extensions()));
+                                    {
+                                        TWriterGuard guard(BlocksExtLock_);
+                                        WeakBlocksExt_ = blocksExt;
+                                        AsyncBlocksExt_.Reset();
+                                    }
+                                    chunkMetaManager->EndInsertCachedBlocksExt(std::move(cookie), Id_, blocksExt);
+                                } else {
+                                    {
+                                        TWriterGuard guard(BlocksExtLock_);
+                                        AsyncBlocksExt_.Reset();
+                                    }
+                                    cookie.Cancel(TError(result));
+                                }
+                            }));
+                    }
+                }
+                auto asyncBlocksExt = AsyncBlocksExt_;
+                guard.Release();
+                onAsyncBlocksExt(std::move(asyncBlocksExt));
+            }
+        }
     }
 
     auto asyncResult = Combine(asyncResults);

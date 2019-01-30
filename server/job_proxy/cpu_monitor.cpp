@@ -59,7 +59,7 @@ void TCpuMonitor::DoCheck()
             *decision);
         SoftLimit_ = *decision;
         if (Config_->EnableCpuReclaim) {
-            JobProxy_->SetCpuLimit(*decision);
+            JobProxy_->SetCpuShare(*decision);
         }
     }
 

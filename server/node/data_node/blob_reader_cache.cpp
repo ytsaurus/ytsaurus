@@ -71,6 +71,7 @@ public:
         const TRefCountedBlocksExtPtr& blocksExt) override
     {
         ChunkMetaManager_->PutCachedMeta(GetChunkId(), chunkMeta);
+        ChunkMetaManager_->PutCachedBlocksExt(GetChunkId(), blocksExt);
     }
 
 private:

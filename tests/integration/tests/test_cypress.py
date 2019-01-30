@@ -1874,6 +1874,86 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/test_node", "//tmp/copy2", tx=tx1)
         assert not exists("//tmp/copy0/@user_attribute", tx=tx1)
 
+    # The four tests below are the same as the four above except the
+    # latter are for attributes and the former are for map children.
+    # The only difference is that map node children cannot be directly
+    # created via the 'set' method.
+
+    def test_map_child_removal1_yt_10192(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        create("map_node", "//tmp/test_node")
+        create("table", "//tmp/test_node/child", tx=tx1)
+
+        remove("//tmp/test_node/child", tx=tx2)
+
+        assert not exists("//tmp/test_node/child", tx=tx2)
+        assert exists("//tmp/test_node/child", tx=tx1)
+
+    def test_map_child_removal2_yt_10192(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        create("map_node", "//tmp/test_node")
+
+        create("table", "//tmp/test_node/child", tx=tx1)
+        # NB: this isn't exactly equivalent to
+        # test_user_attribute_removal2_yt_10192, but since one can't
+        # directly create a map node's child via 'set', this is the
+        # closest we can get.
+        set("//tmp/test_node", {"child": "some_string"}, tx=tx2)
+        remove("//tmp/test_node/child", tx=tx2)
+        assert not exists("//tmp/test_node/child", tx=tx2)
+
+        copy("//tmp/test_node", "//tmp/copy0")
+        assert not exists("//tmp/copy0/child")
+
+        copy("//tmp/test_node", "//tmp/copy1", tx=tx1)
+        assert exists("//tmp/copy1/child", tx=tx1)
+
+        copy("//tmp/test_node", "//tmp/copy2", tx=tx2)
+        assert not exists("//tmp/copy0/child", tx=tx2)
+
+    def test_map_child_removal3_yt_10192(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        tx3 = start_transaction(tx=tx2)
+
+        create("map_node", "//tmp/test_node")
+        create("table", "//tmp/test_node/child", tx=tx1)
+        remove("//tmp/test_node/child", tx=tx2)
+        with pytest.raises(YtError):
+            remove("//tmp/test_node/child", tx=tx3)
+        assert not exists("//tmp/test_node/child", tx=tx3)
+
+        copy("//tmp/test_node", "//tmp/copy0")
+        assert not exists("//tmp/copy0/child")
+
+        copy("//tmp/test_node", "//tmp/copy1", tx=tx1)
+        assert exists("//tmp/copy1/child", tx=tx1)
+
+        copy("//tmp/test_node", "//tmp/copy2", tx=tx2)
+        assert not exists("//tmp/copy0/child", tx=tx2)
+
+        copy("//tmp/test_node", "//tmp/copy3", tx=tx3)
+        assert not exists("//tmp/copy0/child", tx=tx3)
+
+    def test_map_child_removal4_yt_10192(self):
+        tx1 = start_transaction()
+
+        create("map_node", "//tmp/test_node")
+        create("table", "//tmp/test_node/child", tx=tx1)
+        remove("//tmp/test_node/child", tx=tx1)
+        assert not exists("//tmp/test_node/child", tx=tx1)
+
+        copy("//tmp/test_node", "//tmp/copy0")
+        assert not exists("//tmp/copy0/child")
+
+        copy("//tmp/test_node", "//tmp/copy2", tx=tx1)
+        assert not exists("//tmp/copy0/child", tx=tx1)
+
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):

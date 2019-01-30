@@ -6,22 +6,17 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../packaging"))
 
-from os_helpers import copy_content, clean_path, create_if_missing, copy_element
-from pypi import extract_package_versions
+from os_helpers import copy_content, clean_path, create_if_missing, copy_element, find_file_by_prefix, run_captured, run, cwd
+from teamcity_helpers import teamcity_message
 
-from teamcity import teamcity_message
-
-# It is added to sys.path in packaging/os_helpers
-from helpers import (run, run_captured, cwd)
+import pypi
+import debian
 
 import argparse
 import contextlib
-import gzip
 import re
-import requests
 import shutil
 import tempfile
-from cStringIO import StringIO
 
 
 class PackagingContext(object):
@@ -68,44 +63,8 @@ def build_targets(
     enable_dbg,
     upload=False,
 ):
-    def find_library(path, library_name):
-        for root, dirs, files in os.walk(path):
-            for name in files:
-                if name.startswith(library_name):
-                    return os.path.join(root, name)
-
-    def get_package_versions(package_name, repo):
-        arch_output = run_captured(["dpkg-architecture"])
-        arch = filter(lambda line: line.startswith("DEB_BUILD_ARCH="), arch_output.split("\n"))[0].split("=")[1]
-
-        versions = set()
-        for branch in ["unstable", "testing", "prestable", "stable"]:
-            url = "http://dist.yandex.ru/{0}/{1}/{2}/Packages.gz".format(repo, branch, arch)
-            rsp = requests.get(url)
-            # Temporary workaround, remove it when problem with dist will be fixed.
-            if rsp.status_code != 200:
-                teamcity_message("Failed to get packages list from {0}, skipping it".format(url))
-                continue
-            content_gz = rsp.content
-            content = gzip.GzipFile(fileobj=StringIO(content_gz))
-            current_package = None
-            current_version = None
-            for line in content:
-                line = line.strip()
-                if line.startswith("Package: "):
-                    current_package = line.split()[1]
-                if line.startswith("Version: "):
-                    current_version = line.split()[1]
-                if not line:
-                    if current_package == package_name and current_version is not None:
-                        versions.add(current_version)
-                    current_package = None
-                    current_version = None
-
-        return versions
-
     def build_package(package_name, build_dir, python_suffix, build_wheel, debug, is_skynet):
-        library = find_library(ctx.install_directory, "yson_lib.so")
+        library = find_file_by_prefix(ctx.install_directory, "yson_lib.so")
         deb_build_options = ""
         if debug:
             debug_library = os.path.join(os.path.dirname(library), "yson_lib.dbg.so")
@@ -165,7 +124,7 @@ def build_targets(
             if is_skynet:
                 pypi_package_name += "-skynet"
 
-            if build_wheel and package_version not in extract_package_versions(pypi_package_name):
+            if build_wheel and package_version not in pypi.extract_package_versions(pypi_package_name):
                 env = {}
                 python = "python" + python_suffix
                 if is_skynet:
@@ -184,7 +143,7 @@ def build_targets(
 
             repositories_to_upload = []
             for repository in repositories:
-                versions = get_package_versions(package_name, repository)
+                versions = debian.get_package_versions(package_name, repository)
                 if package_version in versions:
                     teamcity_message(
                         "Package {0}={1} is already uploaded to {2}, skipping this repo"

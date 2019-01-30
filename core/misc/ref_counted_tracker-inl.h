@@ -82,22 +82,22 @@ Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::IncreaseRelaxed(std::ato
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::AllocateInstance()
 {
-    IncreaseRelaxed(InstancesAllocated_, 1);
+    IncreaseRelaxed(ObjectsAllocated_, 1);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::FreeInstance()
 {
-    IncreaseRelaxed(InstancesFreed_, 1);
+    IncreaseRelaxed(ObjectsFreed_, 1);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::AllocateTagInstance()
 {
-    IncreaseRelaxed(TagInstancesAllocated_, 1);
+    IncreaseRelaxed(TagObjectsAllocated_, 1);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::FreeTagInstance()
 {
-    IncreaseRelaxed(TagInstancesFreed_, 1);
+    IncreaseRelaxed(TagObjectsFreed_, 1);
 }
 
 Y_FORCE_INLINE void TRefCountedTracker::TAnonymousSlot::AllocateSpace(size_t size)

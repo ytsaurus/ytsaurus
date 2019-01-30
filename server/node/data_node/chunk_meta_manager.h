@@ -43,6 +43,33 @@ using TCachedChunkMetaCookie = TAsyncSlruCacheBase<TChunkId, TCachedChunkMeta>::
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents a cached blocks extension.
+class TCachedBlocksExt
+    : public TAsyncCacheValueBase<TChunkId, TCachedBlocksExt>
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TRefCountedBlocksExtPtr, BlocksExt);
+
+public:
+    TCachedBlocksExt(
+        TChunkId chunkId,
+        NChunkClient::TRefCountedBlocksExtPtr blocksExt,
+        NCellNode::TNodeMemoryTracker* memoryTracker);
+
+    i64 GetSize() const;
+
+private:
+    // NB: Avoid including TMemoryUsageTracker here.
+    std::unique_ptr<NCellNode::TNodeMemoryTrackerGuard> MemoryTrackerGuard_;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachedBlocksExt)
+
+using TCachedBlocksExtCookie = TAsyncSlruCacheBase<TChunkId, TCachedBlocksExt>::TInsertCookie;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Manages (in particular, caches) metas of chunks stored at Data Node.
 /*!
  *  \note
@@ -62,18 +89,35 @@ public:
     NChunkClient::TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId);
 
     //! Puts chunk meta into the cache.
-    /*!
-     *  Typically invoked when chunk session finishes and the meta is ready at hand.
-     */
     void PutCachedMeta(
         TChunkId chunkId,
         NChunkClient::TRefCountedChunkMetaPtr meta);
 
     //! Starts an asynchronous chunk meta load.
-    /*!
-     *  See TAsyncCacheValueBase for more details.
-     */
     TCachedChunkMetaCookie BeginInsertCachedMeta(TChunkId chunkId);
+
+    //! Completes an asynchronous chunk meta load.
+    void EndInsertCachedMeta(
+        TCachedChunkMetaCookie&& cookie,
+        TChunkId chunkId,
+        NChunkClient::TRefCountedChunkMetaPtr meta);
+
+    //! Looks for blocks ext in the cache.
+    NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId);
+
+    //! Puts blocks ext into the cache.
+    void PutCachedBlocksExt(
+        TChunkId chunkId,
+        NChunkClient::TRefCountedBlocksExtPtr blocksExt);
+
+    //! Starts an asynchronous blocks ext load.
+    TCachedBlocksExtCookie BeginInsertCachedBlocksExt(TChunkId chunkId);
+
+    //! Completes an asynchronous blocks ext load.
+    void EndInsertCachedBlocksExt(
+        TCachedBlocksExtCookie&& cookie,
+        TChunkId chunkId,
+        NChunkClient::TRefCountedBlocksExtPtr blocksExt);
 
 private:
     class TImpl;

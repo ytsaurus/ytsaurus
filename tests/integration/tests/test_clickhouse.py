@@ -203,6 +203,24 @@ class TestClickhouseCommon(ClickhouseTestBase):
         assert new_description["data"][0]["name"] == "b"
 
 
+class TestJobInput(ClickhouseTestBase):
+    def setup(self):
+        self._setup()
+        self.clique = self._start_clique(1)
+
+    def _expect_row_count(self, query, row_count):
+        result = self._make_query(self.clique, query)
+        assert result["statistics"]["rows_read"] == row_count
+
+    def test_chunk_filter(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
+        for i in xrange(10):
+            write_table("<append=%true>//tmp/t", [{"i": i}])
+        self._expect_row_count('select * from "//tmp/t" where i >= 3', 7)
+        self._expect_row_count('select * from "//tmp/t" where i < 2', 2)
+        self._expect_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', 4)
+        #self._expect_row_count('select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', 2)
+
 class TestCompositeTypes(ClickhouseTestBase):
     def setup(self):
         self._setup()
