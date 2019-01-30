@@ -7,6 +7,8 @@
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
 
+#include <yt/core/alloc/alloc.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +71,9 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
     EnableRefCountedTrackerProfiling();
+    NYTAlloc::EnableLogging();
+    NYTAlloc::EnableProfiling();
+    NYTAlloc::EnableStockpile();
 
     if (HandlePdeathsigOptions()) {
         return;
