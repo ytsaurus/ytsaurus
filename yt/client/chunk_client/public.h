@@ -2,6 +2,7 @@
 
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/dense_map.h>
 
 #include <yt/client/object_client/public.h>
 
@@ -70,11 +71,11 @@ constexpr int MinReplicationFactor = 1;
 constexpr int MaxReplicationFactor = 10;
 constexpr int DefaultReplicationFactor = 3;
 
-constexpr int MaxMediumCount = 7;
+constexpr int MaxMediumCount = 127;
 
 template <typename T>
-using TPerMediumArray = std::array<T, MaxMediumCount>;
-using TPerMediumIntArray = TPerMediumArray<int>;
+using TMediumMap = SmallDenseMap<int, T>;
+using TMediumIntMap = TMediumMap<int>;
 
 //! Used as an expected upper bound in SmallVector.
 /*
@@ -109,6 +110,9 @@ constexpr int DefaultCacheMediumIndex = 1;
 
 //! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
 constexpr int MediumIndexBound = AllMediaIndex + 1;
+
+class TChunkReplicaWithMedium;
+using TChunkReplicaWithMediumList = SmallVector<TChunkReplicaWithMedium, TypicalReplicaCount>;
 
 class TChunkReplica;
 using TChunkReplicaList = SmallVector<TChunkReplica, TypicalReplicaCount>;

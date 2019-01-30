@@ -26,7 +26,7 @@ public:
     //! Unimplemented.
     virtual const NProto::TDataStatistics& GetDataStatistics() const override;
     //! Unimplemented.
-    virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
+    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override;
     //! Returns #NullChunkId.
     virtual TChunkId GetChunkId() const override;
     virtual NErasure::ECodec GetErasureCodecId() const override;

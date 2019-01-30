@@ -621,7 +621,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     *request->mutable_statistics() = ComputeStatistics();
 
-    TPerMediumIntArray chunkCounts{};
+    TMediumIntMap chunkCounts;
 
     int storedChunkCount = 0;
     int cachedChunkCount = 0;
@@ -655,10 +655,10 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     int mediumIndex = 0;
     for (auto chunkCount : chunkCounts) {
-        if (chunkCount != 0) {
+        if (chunkCount.second != 0) {
             auto* mediumChunkStatistics = request->add_chunk_statistics();
             mediumChunkStatistics->set_medium_index(mediumIndex);
-            mediumChunkStatistics->set_chunk_count(chunkCount);
+            mediumChunkStatistics->set_chunk_count(chunkCount.second);
         }
 
         ++mediumIndex;

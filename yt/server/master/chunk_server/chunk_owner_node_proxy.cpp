@@ -303,7 +303,7 @@ private:
 
         for (auto replica : replicas) {
             NodeDirectoryBuilder_.Add(replica);
-            chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
+            chunkSpec->add_replicas(NYT::ToProto<ui64>(replica));
         }
 
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());

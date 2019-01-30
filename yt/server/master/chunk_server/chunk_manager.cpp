@@ -606,7 +606,7 @@ public:
 
     void ConfirmChunk(
         TChunk* chunk,
-        const NChunkClient::TChunkReplicaList& replicas,
+        const NChunkClient::TChunkReplicaWithMediumList& replicas,
         TChunkInfo* chunkInfo,
         TChunkMeta* chunkMeta)
     {
@@ -1344,7 +1344,7 @@ public:
     }
 
 
-    TPerMediumArray<EChunkStatus> ComputeChunkStatuses(TChunk* chunk)
+    TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk)
     {
         return ChunkReplicator_->ComputeChunkStatuses(chunk);
     }
@@ -1629,10 +1629,12 @@ private:
 
     void OnNodeDisposed(TNode* node)
     {
-        for (const auto& pair : Media()) {
-            const auto* medium = pair.second;
-            auto mediumIndex = medium->GetIndex();
-            for (auto replica : node->Replicas()[mediumIndex]) {
+        for (const auto& [mediumIndex, replicas] : node->Replicas()) {
+            const auto* medium = FindMediumByIndex(mediumIndex);
+            if (!medium) {
+                continue;
+            }
+            for (auto replica : replicas) {
                 RemoveChunkReplica(medium, node, replica, ERemoveReplicaReason::NodeDisposed);
             }
         }
@@ -1691,7 +1693,7 @@ private:
         NNodeTrackerServer::NProto::TReqFullHeartbeat* request)
     {
         for (const auto& mediumReplicas : node->Replicas()) {
-            YCHECK(mediumReplicas.empty());
+            YCHECK(mediumReplicas.second.empty());
         }
 
         for (const auto& stats : request->chunk_statistics()) {
@@ -2254,7 +2256,10 @@ private:
         TRspExecuteBatch::TConfirmChunkSubresponse* subresponse)
     {
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
-        auto replicas = FromProto<TChunkReplicaList>(subrequest->replicas());
+        // COMPAT(aozeritsky)
+        auto replicas = subrequest->replicas().empty()
+            ? FromProto<TChunkReplicaWithMediumList>(subrequest->replicas_old())
+            : FromProto<TChunkReplicaWithMediumList>(subrequest->replicas());
 
         auto* chunk = GetChunkOrThrow(chunkId);
 
@@ -3641,7 +3646,7 @@ int TChunkManager::GetTotalReplicaCount()
     return Impl_->GetTotalReplicaCount();
 }
 
-TPerMediumArray<EChunkStatus> TChunkManager::ComputeChunkStatuses(TChunk* chunk)
+TMediumMap<EChunkStatus> TChunkManager::ComputeChunkStatuses(TChunk* chunk)
 {
     return Impl_->ComputeChunkStatuses(chunk);
 }

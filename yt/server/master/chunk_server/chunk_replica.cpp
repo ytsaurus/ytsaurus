@@ -51,12 +51,20 @@ TString ToString(TChunkPtrWithIndexes value)
     }
 }
 
+void ToProto(ui64* protoValue, TNodePtrWithIndexes value)
+{
+    NChunkClient::TChunkReplicaWithMedium clientReplica(
+        value.GetPtr()->GetId(),
+        value.GetReplicaIndex(),
+        value.GetMediumIndex());
+    NChunkClient::ToProto(protoValue, clientReplica);
+}
+
 void ToProto(ui32* protoValue, TNodePtrWithIndexes value)
 {
     NChunkClient::TChunkReplica clientReplica(
         value.GetPtr()->GetId(),
-        value.GetReplicaIndex(),
-        value.GetMediumIndex());
+        value.GetReplicaIndex());
     NChunkClient::ToProto(protoValue, clientReplica);
 }
 

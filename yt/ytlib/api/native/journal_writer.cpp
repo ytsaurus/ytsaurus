@@ -588,7 +588,7 @@ private:
             YT_LOG_INFO("Chunk created (SessionId: %v)",
                 session->Id);
 
-            TChunkReplicaList replicas;
+            TChunkReplicaWithMediumList replicas;
             {
                 TTimingGuard timingGuard(&Profiler, "/time/allocate_write_targets");
 
