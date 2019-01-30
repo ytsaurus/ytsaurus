@@ -295,8 +295,8 @@ class YtStuff(object):
                                                         .format(self.version, server_dir, binary))
                 os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
         else:
-            programs = [('master', 'cell_master/bin'),
-                        ('node', 'cell_node/bin'),
+            programs = [('master', 'master/bin'),
+                        ('node', 'node/bin'),
                         ('job-proxy', 'job_proxy/bin'),
                         ('exec', 'bin/exec'),
                         ('proxy', 'rpc_proxy/bin'),
