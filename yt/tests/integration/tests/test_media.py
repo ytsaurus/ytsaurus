@@ -128,21 +128,22 @@ class TestMedia(YTEnvSetup):
         assert get("//sys/media/cache/@index") == 1
 
     def test_create(self):
-        assert get("//sys/media/hdd3/@name") == "hdd3"
-        assert get("//sys/media/hdd3/@index") > 0
+        assert get("//sys/media/hdd4/@name") == "hdd4"
+        assert get("//sys/media/hdd4/@index") > 0
 
     def test_create_too_many_fails(self):
         with pytest.raises(YtError) :
             create_medium("excess_medium")
 
     def test_rename(self):
-        hdd3_index = get("//sys/media/hdd3/@index")
+        hdd4_index = get("//sys/media/hdd4/@index")
 
-        set("//sys/media/hdd3/@name", "hdd33")
-        assert exists("//sys/media/hdd33")
-        assert get("//sys/media/hdd33/@name") == "hdd33"
-        assert get("//sys/media/hdd33/@index") == hdd3_index
-        assert not exists("//sys/media/hdd3")
+        set("//sys/media/hdd4/@name", "hdd44")
+        assert exists("//sys/media/hdd44")
+        assert get("//sys/media/hdd44/@name") == "hdd44"
+        assert get("//sys/media/hdd44/@index") == hdd4_index
+        assert not exists("//sys/media/hdd4")
+        set("//sys/media/hdd44/@name", "hdd4")
 
     def test_rename_duplicate_name_fails(self):
         with pytest.raises(YtError): set("//sys/media/hdd4/@name", "hdd5")
