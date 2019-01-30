@@ -25,12 +25,24 @@ public:
 
     virtual EObjectType GetType() const override;
 
+    class TSpec
+    {
+    public:
+        explicit TSpec(TReplicaSet* replicaSet);
+
+        static const TManyToOneAttributeSchema<TReplicaSet, TAccount> AccountSchema;
+        using TAccountAttribute = TManyToOneAttribute<TReplicaSet, TAccount>;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
+
+        using TOther = NProto::TReplicaSetSpecOther;
+        static const TScalarAttributeSchema<TReplicaSet, TOther> OtherSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TOther>, Other);
+    };
+
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
+
     using TResourceCacheAttribute = TChildrenAttribute<TResourceCache>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TResourceCacheAttribute, ResourceCache);
-
-    using TSpec = NYP::NClient::NApi::NProto::TReplicaSetSpec;
-    static const TScalarAttributeSchema<TReplicaSet, TSpec> SpecSchema;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
 
     using TStatus = NYP::NClient::NApi::NProto::TReplicaSetStatus;
     static const TScalarAttributeSchema<TReplicaSet, TStatus> StatusSchema;

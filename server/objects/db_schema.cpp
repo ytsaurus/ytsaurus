@@ -29,6 +29,7 @@ const TInternetAddressesTable InternetAddressesTable;
 const TAccountsTable AccountsTable;
 const TAccountParentToChildrenTable AccountParentToChildrenTable;
 const TAccountToPodSetsTable AccountToPodSetsTable;
+const TAccountToReplicaSetsTable AccountToReplicaSetsTable;
 const TAccountToPodsTable AccountToPodsTable;
 const TDnsRecordSetsTable DnsRecordSetsTable;
 const TResourceCachesTable ResourceCachesTable;

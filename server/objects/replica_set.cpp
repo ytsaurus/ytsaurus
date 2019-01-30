@@ -1,4 +1,5 @@
 #include "replica_set.h"
+#include "account.h"
 #include "resource_cache.h"
 #include "db_schema.h"
 
@@ -6,10 +7,23 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TScalarAttributeSchema<TReplicaSet, TReplicaSet::TSpec> TReplicaSet::SpecSchema{
-    &ReplicaSetsTable.Fields.Spec,
-    [] (TReplicaSet* rs) { return &rs->Spec(); }
+const TManyToOneAttributeSchema<TReplicaSet, TAccount> TReplicaSet::TSpec::AccountSchema{
+    &ReplicaSetsTable.Fields.Spec_AccountId,
+    [] (TReplicaSet* replicaSet) { return &replicaSet->Spec().Account(); },
+    [] (TAccount* account) { return &account->ReplicaSets(); }
 };
+
+const TScalarAttributeSchema<TReplicaSet, TReplicaSet::TSpec::TOther> TReplicaSet::TSpec::OtherSchema{
+    &ReplicaSetsTable.Fields.Spec_Other,
+    [] (TReplicaSet* replicaSet) { return &replicaSet->Spec().Other(); }
+};
+
+TReplicaSet::TSpec::TSpec(TReplicaSet* replicaSet)
+    : Account_(replicaSet, &AccountSchema)
+    , Other_(replicaSet, &OtherSchema)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
 
 const TScalarAttributeSchema<TReplicaSet, TReplicaSet::TStatus> TReplicaSet::StatusSchema{
     &ReplicaSetsTable.Fields.Status,
@@ -21,8 +35,8 @@ TReplicaSet::TReplicaSet(
     IObjectTypeHandler* typeHandler,
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
+    , Spec_(this)
     , ResourceCache_(this)
-    , Spec_(this, &SpecSchema)
     , Status_(this, &StatusSchema)
 { }
 

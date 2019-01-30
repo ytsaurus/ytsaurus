@@ -1,9 +1,19 @@
 #include "replica_set_type_handler.h"
+#include "account.h"
 #include "type_handler_detail.h"
 #include "replica_set.h"
 #include "db_schema.h"
 
+#include <yp/server/master/bootstrap.h>
+
+#include <yp/server/access_control/access_control_manager.h>
+
 namespace NYP::NServer::NObjects {
+
+using namespace NAccessControl;
+
+using std::placeholders::_1;
+using std::placeholders::_2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,7 +25,16 @@ public:
         : TObjectTypeHandlerBase(bootstrap, EObjectType::ReplicaSet)
     {
         SpecAttributeSchema_
-            ->SetAttribute(TReplicaSet::SpecSchema);
+            ->AddChildren({
+                MakeAttributeSchema("account_id")
+                    ->SetAttribute(TReplicaSet::TSpec::AccountSchema
+                        .SetNullable(false))
+                    ->SetUpdatable()
+                    ->SetValidator<TReplicaSet>(std::bind(&TReplicaSetTypeHandler::ValidateAccount, this, _1, _2)),
+
+                MakeFallbackAttributeSchema()
+                    ->SetAttribute(TReplicaSet::TSpec::OtherSchema)
+                });
 
         StatusAttributeSchema_
             ->SetAttribute(TReplicaSet::StatusSchema)
@@ -44,6 +63,13 @@ public:
     {
         YCHECK(!parentId);
         return std::unique_ptr<TObject>(new TReplicaSet(id, this, session));
+    }
+
+    void ValidateAccount(TTransaction* /*transaction*/, TReplicaSet* replicaSet)
+    {
+        auto* account = replicaSet->Spec().Account().Load();
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
     }
 };
 

@@ -3,6 +3,7 @@
 #include "account.h"
 #include "pod.h"
 #include "pod_set.h"
+#include "replica_set.h"
 #include "db_schema.h"
 #include "transaction.h"
 

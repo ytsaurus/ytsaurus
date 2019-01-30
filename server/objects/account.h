@@ -59,6 +59,10 @@ public:
     using TPods = TOneToManyAttribute<TAccount, TPod>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPods, Pods);
 
+    static const TOneToManyAttributeSchema<TAccount, TReplicaSet> ReplicaSetsSchema;
+    using TReplicaSets = TOneToManyAttribute<TAccount, TReplicaSet>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReplicaSets, ReplicaSets);
+
     virtual bool IsBuiltin() const override;
 };
 

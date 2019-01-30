@@ -236,7 +236,8 @@ extern const struct TReplicaSetsTable
     struct TFields
         : public TObjectTableBase::TFields
     {
-        TDBField Spec{"spec"};
+        TDBField Spec_AccountId{"spec.account_id"};
+        TDBField Spec_Other{"spec.other"};
         TDBField Status{"status"};
     } Fields;
 } ReplicaSetsTable;
@@ -551,6 +552,25 @@ extern const struct TAccountToPodSetsTable
         TDBField PodSetId{"pod_set_id"};
     } Fields;
 } AccountToPodSetsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TAccountToReplicaSetsTable
+    : public TDBTable
+{
+    TAccountToReplicaSetsTable()
+        : TDBTable("account_to_replica_sets")
+    {
+        Key = {&Fields.AccountId, &Fields.ReplicaSetId};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField AccountId{"account_id"};
+        TDBField ReplicaSetId{"replica_set_id"};
+    } Fields;
+} AccountToReplicaSetsTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 
