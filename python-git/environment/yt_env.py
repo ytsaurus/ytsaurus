@@ -180,8 +180,13 @@ class YTInstance(object):
         if add_binaries_to_path:
             _add_binaries_to_path()
 
-        self._subprocess_module = PortoSubprocess if use_porto_for_servers and porto_avaliable() else subprocess
+        if use_porto_for_servers and not porto_avaliable():
+            raise YtError("Option use_porto_for_servers is specified but porto is not available")
+
         self._use_porto_for_servers = use_porto_for_servers
+        self._use_cgroup_for_servers = not use_porto_for_servers and _has_cgroups()
+
+        self._subprocess_module = PortoSubprocess if use_porto_for_servers else subprocess
 
         self._binaries = _which_yt_binaries()
         if ("ytserver-master" in self._binaries and
@@ -308,7 +313,7 @@ class YTInstance(object):
         return _get_cgroup_path(cgroup_type, "yt", self._uuid, *args)
 
     def _prepare_cgroups(self):
-        if not self._use_porto_for_servers and _has_cgroups():
+        if self._use_cgroup_for_servers:
             for cgroup_type in CGROUP_TYPES:
                 cgroup_path = self._get_cgroup_path(cgroup_type)
                 makedirp(cgroup_path)
@@ -577,11 +582,9 @@ class YTInstance(object):
         return addresses[0]["address"]
 
     def kill_cgroups(self):
-        if self._use_porto_for_servers or not _has_cgroups():
-            return
-
-        with self._lock:
-            self.kill_cgroups_impl()
+        if self._use_cgroup_for_servers:
+            with self._lock:
+                self.kill_cgroups_impl()
 
     def kill_cgroups_impl(self):
         freezer_cgroups = []
@@ -745,7 +748,7 @@ class YTInstance(object):
 
             stdout = open(os.devnull, "w")
             stderr = None
-            if self._capture_stderr_to_file:
+            if self._capture_stderr_to_file or isinstance(self._subprocess_module, PortoSubprocess):
                 stderr = open(stderr_path, "w")
 
             def preexec():
@@ -786,7 +789,7 @@ class YTInstance(object):
                 raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
             args.extend(["--config", self.config_paths[name][i]])
             cgroup_paths = None
-            if not self._use_porto_for_servers and _has_cgroups():
+            if self._use_cgroup_for_servers:
                 cgroup_paths = []
                 for cgroup_type in CGROUP_TYPES:
                     cgroup_path = self._get_cgroup_path(cgroup_type, "{0}-{1}".format(name, i))

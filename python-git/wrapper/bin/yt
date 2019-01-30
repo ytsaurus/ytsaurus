@@ -875,9 +875,13 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--host-ytserver-clickhouse-path") 
     parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config") 
     parser.add_argument("--cpu-limit", default=clickhouse.DEFAULT_CPU_LIMIT, type=int) 
-    parser.add_argument("--memory-limit", default=clickhouse.DEFAULT_MEMORY_LIMIT, type=int) 
+    parser.add_argument("--memory-limit", default=clickhouse.DEFAULT_MEMORY_LIMIT, type=int)
+    parser.add_argument("--enable-monitoring", action="store_true", default=False,
+                        help="(only for development use) bind monitoring port to 10142")
+    parser.add_argument("--enable-query-log", action="store_true", default=False,
+                        help="enable ClickHouse query log")
     add_structured_argument(parser, "--spec") 
-    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch") 
+    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
 def add_map_reduce_parser(add_parser):
     MAP_REDUCE_EPILOG = '''Options --mapper, --reducer, --combiner specify bash commands to run.
