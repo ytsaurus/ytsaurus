@@ -522,6 +522,11 @@ TJobResult TJobProxy::DoRun()
 
     if (JobProxyEnvironment_) {
         JobProxyEnvironment_->SetCpuShare(CpuShare_);
+        if (schedulerJobSpecExt.has_user_job_spec() &&
+            schedulerJobSpecExt.user_job_spec().set_container_cpu_limit())
+        {
+            JobProxyEnvironment_->SetCpuLimit(CpuShare_);
+        }
     }
 
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();

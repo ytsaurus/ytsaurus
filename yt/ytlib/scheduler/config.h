@@ -541,6 +541,10 @@ public:
     //! Makes sense only with porto environment.
     bool UsePortoMemoryTracking;
 
+    //! This flag currently makes sense only for porto environment. It forces restriction on cpu limit with the
+    //! container means. This option should normally be useful only for experiments and benchmarks.
+    bool SetContainerCpuLimit;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

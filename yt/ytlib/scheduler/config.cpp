@@ -448,6 +448,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("use_porto_memory_tracking", UsePortoMemoryTracking)
         .Default(false);
+    RegisterParameter("set_container_cpu_limit", SetContainerCpuLimit)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (TmpfsSize && *TmpfsSize > MemoryLimit) {
@@ -475,7 +477,6 @@ TUserJobSpec::TUserJobSpec()
         for (auto& path : FilePaths) {
             path = path.Normalize();
         }
-
     });
 }
 
