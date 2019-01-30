@@ -1,7 +1,7 @@
 import os
 import shutil
 
-from .teamcity_helpers.helpers import rmtree, mkdirp, run, run_captured, cwd
+from teamcity_helpers.helpers import rmtree, mkdirp, run, run_captured, cwd  # noqa
 
 def copy_element(src, dst, elem):
     source = os.path.join(src, elem)

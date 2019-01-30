@@ -1,5 +1,5 @@
-from .os_helpers import run_captured
-from .teamcity_helpers import teamcity_message
+from os_helpers import run_captured
+from teamcity_helpers import teamcity_message
 
 import requests
 
