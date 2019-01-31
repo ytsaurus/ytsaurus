@@ -268,11 +268,7 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
         .Default(1);
 
     RegisterParameter("min_agent_available_memory", MinAgentAvailableMemory)
-        .Default(1_GB);
-
-    RegisterParameter("min_agent_available_memory_fraction", MinAgentAvailableMemoryFraction)
-        .InRange(0.0, 1.0)
-        .Default(0.05);
+        .Default(10_GB);
 
     RegisterParameter("memory_balanced_pick_strategy_score_power", MemoryBalancedPickStrategyScorePower)
         .Default(1.0);
