@@ -12,9 +12,8 @@ type ValueWithAttrs struct {
 func AttrsOf(value interface{}) map[string]interface{} {
 	if v, ok := value.(*ValueWithAttrs); ok {
 		return v.Attrs
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // ValueOf is a helper function for working with ValueWithAttrs.
@@ -23,9 +22,8 @@ func AttrsOf(value interface{}) map[string]interface{} {
 func ValueOf(value interface{}) interface{} {
 	if v, ok := value.(*ValueWithAttrs); ok {
 		return v.Value
-	} else {
-		return value
 	}
+	return value
 }
 
 func decodeGeneric(r *Reader, v *interface{}) error {

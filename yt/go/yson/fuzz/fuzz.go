@@ -1,8 +1,9 @@
 package fuzz
 
 import (
-	"a.yandex-team.ru/yt/go/yson"
 	"bytes"
+
+	"a.yandex-team.ru/yt/go/yson"
 )
 
 func Fuzz(data []byte) int {
@@ -77,40 +78,40 @@ type complexAttr struct {
 	I1 int16 `yson:",attr"`
 	I2 int32 `yson:",attr"`
 	I3 int64 `yson:",attr"`
-	I4 int `yson:",attr"`
+	I4 int   `yson:",attr"`
 
 	I5 *int16 `yson:",attr"`
 	I6 *int32 `yson:",attr"`
 	I7 *int64 `yson:",attr"`
-	I8 *int `yson:",attr"`
+	I8 *int   `yson:",attr"`
 
 	U1 uint16 `yson:",attr"`
 	U2 uint32 `yson:",attr"`
 	U3 uint64 `yson:",attr"`
-	U4 uint `yson:",attr"`
+	U4 uint   `yson:",attr"`
 
 	U5 *uint16 `yson:",attr"`
 	U6 *uint32 `yson:",attr"`
 	U7 *uint64 `yson:",attr"`
-	U8 *uint `yson:",attr"`
+	U8 *uint   `yson:",attr"`
 
-	F1 float32 `yson:",attr"`
-	F2 float64 `yson:",attr"`
+	F1 float32  `yson:",attr"`
+	F2 float64  `yson:",attr"`
 	F3 *float32 `yson:",attr"`
 	F4 *float64 `yson:",attr"`
 
-	B1 bool `yson:",attr"`
+	B1 bool  `yson:",attr"`
 	B2 *bool `yson:",attr"`
 
-	S1 string `yson:",attr"`
+	S1 string  `yson:",attr"`
 	S2 *string `yson:",attr"`
-	S3 []byte `yson:",attr"`
+	S3 []byte  `yson:",attr"`
 	S4 *[]byte `yson:",attr"`
 
 	R1 complexType `yson:",value"`
 }
 
-func FuzzMarshal(data []byte) int {
+func Marshal(data []byte) int {
 	var val complexAttr
 	err := yson.Unmarshal(data, &val)
 

@@ -2,11 +2,12 @@ package yson
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"math"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testRoundtrip(t *testing.T, value interface{}) {
@@ -55,7 +56,7 @@ func TestRoundtripBasicTypes(t *testing.T) {
 	testRoundtrip(t, "")
 	testRoundtrip(t, []byte(nil))
 
-	testRoundtrip(t, "foo")
+	testRoundtrip(t, "foo0")
 	testRoundtrip(t, []byte{0x01, 0x02, 0x03})
 
 	testRoundtrip(t, true)
@@ -69,7 +70,7 @@ func TestRoundtripBasicTypes(t *testing.T) {
 
 func TestMarhalStruct(t *testing.T) {
 	var simple simpleStruct
-	simple.String = "foo"
+	simple.String = "bar0"
 	simple.Int = 10
 
 	testRoundtrip(t, simple)

@@ -5,9 +5,9 @@ import "unicode/utf8"
 func hexDigit(value int) byte {
 	if value < 10 {
 		return '0' + byte(value)
-	} else {
-		return 'A' + byte(value) - 10
 	}
+
+	return 'A' + byte(value) - 10
 }
 
 func octDigit(value int) byte {
@@ -220,8 +220,7 @@ func unescapeC(b []byte) (unescaped []byte) {
 
 		case 'x':
 			if i+2 < len(b) && allHex(b[i+1:i+3]) {
-				var c byte
-				c = fromHex(b[i+1])
+				c := fromHex(b[i+1])
 				c = c<<4 + fromHex(b[i+2])
 				i += 2
 				unescaped = append(unescaped, c)
@@ -235,8 +234,7 @@ func unescapeC(b []byte) (unescaped []byte) {
 				max = 3
 			}
 
-			var c byte
-			c = fromOct(b[i])
+			c := fromOct(b[i])
 
 			for j := 2; j <= max && i+1 < len(b); j++ {
 				if !isOctDigit(b[i+1]) {

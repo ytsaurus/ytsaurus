@@ -36,10 +36,10 @@ func (v *streamValidator) depth() int {
 	}
 
 	if (*v)[0] == streamListFragment || (*v)[0] == streamMapFragment {
-		return len(*v)-2
+		return len(*v) - 2
 	}
 
-	return len(*v)-1
+	return len(*v) - 1
 }
 
 func (v *streamValidator) eof() error {
@@ -60,12 +60,12 @@ func (v *streamValidator) eof() error {
 		}
 	}
 
-	return InvalidNestingError
+	return ErrInvalidNesting
 }
 
-func (v *streamValidator) pushEvent(event YsonEvent) (semicolon bool, err error) {
+func (v *streamValidator) pushEvent(event Event) (semicolon bool, err error) {
 	if len(*v) == 0 {
-		err = InvalidNestingError
+		err = ErrInvalidNesting
 		return
 	}
 
@@ -99,7 +99,7 @@ func (v *streamValidator) pushEvent(event YsonEvent) (semicolon bool, err error)
 	switch event {
 	case EventBeginAttrs:
 		if top != streamExpectValue {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
@@ -108,7 +108,7 @@ func (v *streamValidator) pushEvent(event YsonEvent) (semicolon bool, err error)
 
 	case EventBeginList:
 		if top != streamExpectValue && top != streamExpectValueNoAttrs {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
@@ -117,7 +117,7 @@ func (v *streamValidator) pushEvent(event YsonEvent) (semicolon bool, err error)
 
 	case EventBeginMap:
 		if top != streamExpectValue && top != streamExpectValueNoAttrs {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
@@ -126,7 +126,7 @@ func (v *streamValidator) pushEvent(event YsonEvent) (semicolon bool, err error)
 
 	case EventKey:
 		if top != streamExpectKey {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
@@ -134,7 +134,7 @@ func (v *streamValidator) pushEvent(event YsonEvent) (semicolon bool, err error)
 
 	case EventLiteral:
 		if top != streamExpectValue && top != streamExpectValueNoAttrs {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
@@ -142,30 +142,30 @@ func (v *streamValidator) pushEvent(event YsonEvent) (semicolon bool, err error)
 
 	case EventEndAttrs:
 		if top != streamExpectKey {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
 		if len(*v) == 1 {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
 		pop()
 		if (*v)[len(*v)-1] != streamOpenAttrs {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 		become(streamExpectValueNoAttrs)
 
 	case EventEndList:
 		if top != streamExpectValue {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
 		if len(*v) < 2 {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
@@ -174,12 +174,12 @@ func (v *streamValidator) pushEvent(event YsonEvent) (semicolon bool, err error)
 
 	case EventEndMap:
 		if top != streamExpectKey {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 
 		if len(*v) < 2 {
-			err = InvalidNestingError
+			err = ErrInvalidNesting
 			return
 		}
 

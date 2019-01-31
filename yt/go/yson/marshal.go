@@ -284,9 +284,9 @@ func encodeReflect(w *Writer, value reflect.Value) error {
 		if value.IsNil() {
 			w.Entity()
 			return w.Err()
-		} else {
-			return encodeAny(w, value.Elem().Interface())
 		}
+
+		return encodeAny(w, value.Elem().Interface())
 	case reflect.Map:
 		return encodeReflectMap(w, value)
 	}
@@ -311,7 +311,6 @@ func encodeReflectMap(w *Writer, value reflect.Value) (err error) {
 	w.EndMap()
 	return w.Err()
 }
-
 
 func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {

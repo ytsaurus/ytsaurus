@@ -10,10 +10,10 @@ import (
 	"unsafe"
 )
 
-type YsonEvent int
+type Event int
 
 const (
-	EventBeginList YsonEvent = iota
+	EventBeginList Event = iota
 	EventEndList
 	EventBeginAttrs
 	EventEndAttrs
@@ -74,8 +74,8 @@ type Reader struct {
 	pos  int // next byte to scan
 	end  int // end of data inside buf
 
-	undo bool
-	undoEvent YsonEvent
+	undo      bool
+	undoEvent Event
 
 	currentType   Type
 	currentString []byte
@@ -212,13 +212,13 @@ func (r *Reader) decodeLastLiteral() (err error) {
 // Undo last call to Next.
 //
 // It is not possible to undo call Next(true).
-func (r *Reader) Undo(event YsonEvent) {
+func (r *Reader) Undo(event Event) {
 	r.undo = true
 	r.undoEvent = event
 }
 
 // Next returns next event from yson stream.
-func (r *Reader) Next(skipAttributes bool) (YsonEvent, error) {
+func (r *Reader) Next(skipAttributes bool) (Event, error) {
 	if r.undo {
 		r.undo = false
 		if r.undoEvent == EventBeginAttrs && skipAttributes {
@@ -236,7 +236,7 @@ func (r *Reader) Next(skipAttributes bool) (YsonEvent, error) {
 
 	r.redo()
 	if op == scanBeginAttrs && skipAttributes {
-		op, err = r.scanUntilDepth(len(r.s.parseState) - 1)
+		_, err = r.scanUntilDepth(len(r.s.parseState) - 1)
 		if err != nil {
 			return 0, err
 		}
@@ -252,7 +252,7 @@ func (r *Reader) Next(skipAttributes bool) (YsonEvent, error) {
 
 	switch op {
 	case scanBeginLiteral, scanBeginKey:
-		var event YsonEvent
+		var event Event
 		if op == scanBeginLiteral {
 			event = EventLiteral
 		} else {
@@ -260,7 +260,7 @@ func (r *Reader) Next(skipAttributes bool) (YsonEvent, error) {
 		}
 
 		r.keep = r.pos - 1
-		op, err = r.scanWhile(scanContinue)
+		_, err = r.scanWhile(scanContinue)
 		if err != nil {
 			return 0, err
 		}
@@ -320,7 +320,7 @@ func (r *Reader) NextKey() (ok bool, err error) {
 
 	r.keep = r.pos
 	r.redo()
-	op, err = r.scanWhile(scanContinue)
+	_, err = r.scanWhile(scanContinue)
 	if err != nil {
 		return false, err
 	}
@@ -345,7 +345,7 @@ func (r *Reader) NextRawValue() ([]byte, error) {
 
 	r.keep = r.pos
 	if op == scanBeginAttrs {
-		op, err = r.scanUntilDepth(len(r.s.parseState) - 1)
+		_, err = r.scanUntilDepth(len(r.s.parseState) - 1)
 		if err != nil {
 			return nil, err
 		}
@@ -359,12 +359,12 @@ func (r *Reader) NextRawValue() ([]byte, error) {
 
 	r.redo()
 	if op == scanBeginLiteral {
-		op, err = r.scanWhile(scanContinue)
+		_, err = r.scanWhile(scanContinue)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		op, err = r.scanUntilDepth(len(r.s.parseState) - 1)
+		_, err = r.scanUntilDepth(len(r.s.parseState) - 1)
 		if err != nil {
 			return nil, err
 		}
@@ -395,9 +395,9 @@ func (r *Reader) readMore() error {
 		n, err := r.r.Read(r.buf[r.end:])
 		r.end += n
 		return err
-	} else {
-		return io.EOF
 	}
+
+	return io.EOF
 }
 
 // CheckFinish consumes the rest of input.

@@ -2,9 +2,10 @@ package yson
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTextWriter(t *testing.T) {
@@ -175,7 +176,7 @@ func TestPrettyWriter(t *testing.T) {
 		testCase.fn(w)
 
 		assert.Nil(t, w.Finish())
-		assert.Equal(t, string(testCase.output), string(buf.Bytes()))
+		assert.Equal(t, string(testCase.output), buf.String())
 	}
 }
 
@@ -212,7 +213,7 @@ func TestListFragmentWriter(t *testing.T) {
 		testCase.fn(w)
 
 		assert.Nil(t, w.Finish())
-		assert.Equal(t, testCase.output, string(buf.Bytes()))
+		assert.Equal(t, testCase.output, buf.String())
 	}
 }
 
@@ -258,6 +259,6 @@ func TestMapFragmentWriter(t *testing.T) {
 		testCase.fn(w)
 
 		assert.Nil(t, w.Finish())
-		assert.Equal(t, testCase.output, string(buf.Bytes()))
+		assert.Equal(t, testCase.output, buf.String())
 	}
 }

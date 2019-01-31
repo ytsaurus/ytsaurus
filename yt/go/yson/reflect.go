@@ -149,11 +149,9 @@ func decodeReflectSlice(d *Reader, v reflect.Value) error {
 	}
 
 	for i := 0; true; i++ {
-		ok, err := d.NextListItem()
-		if err != nil {
-
-		}
-		if !ok {
+		if ok, err := d.NextListItem(); err != nil {
+			return err
+		} else if !ok {
 			break
 		}
 
@@ -277,7 +275,7 @@ func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]field) erro
 func decodeReflectStruct(r *Reader, v reflect.Value) error {
 	structType := getStructType(v)
 
-	var e YsonEvent
+	var e Event
 	var err error
 	if structType.attributes != nil {
 		e, err = r.Next(false)
