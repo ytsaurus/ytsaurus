@@ -108,12 +108,7 @@ class DynamicTablesBase(YTEnvSetup):
             addr = x["address"]
             addresses.append(addr)
             set_node_decommissioned(addr, True)
-        clear_metadata_caches()
         return addresses
-
-    def _set_nodes_decommission(self, addresses, decomission):
-        for addr in addresses:
-            set_node_decommissioned(addr, decomission)
 
     def _get_profiling(self, table, filter=None, filter_table=False):
         tablets = get(table + "/@tablets")
@@ -186,6 +181,20 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
+    def _check_cell_good_after_peer_decommission(self, cell_id):
+        if get("#{0}/@health".format(cell_id)) != "good":
+            return False
+
+        peers = get("#{0}/@peers".format(cell_id))
+        for peer in peers:
+            if "address" not in peer:
+                continue
+            address = peer["address"]
+            if get("//sys/nodes/{0}/@decommissioned".format(address)):
+                return False
+
+        return True
+
     def test_follower_catchup(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -197,10 +206,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(follower_address, True)
-        sleep(3.0)
-        clear_metadata_caches()
+        wait(lambda: self._check_cell_good_after_peer_decommission(cell_id))
 
-        assert get("#" + cell_id + "/@health") == "good"
         for i in xrange(0, 100):
             rows = [{"key": i, "value": "test"}]
             keys = [{"key": i}]
@@ -223,8 +230,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(leader_address, True)
-        sleep(3.0)
-        clear_metadata_caches()
+        wait(lambda: self._check_cell_good_after_peer_decommission(cell_id))
 
         assert get("#" + cell_id + "/@health") == "good"
         peers = get("#" + cell_id + "/@peers")
@@ -245,10 +251,10 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         insert_rows("//tmp/t", rows)
 
         cell_id = ls("//sys/tablet_cells")[0]
-        self._decommission_all_peers(cell_id)
-        sleep(3.0)
 
-        assert get("#" + cell_id + "/@health") == "good"
+        self._decommission_all_peers(cell_id)
+        wait(lambda: self._check_cell_good_after_peer_decommission(cell_id))
+
         assert lookup_rows("//tmp/t", keys) == rows
 
     def test_tablet_cell_health_statistics(self):
