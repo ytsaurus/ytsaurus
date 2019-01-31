@@ -824,7 +824,7 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1
             })
         with pytest.raises(YtError):
-            op.track();
+            op.track()
 
     def test_join_reduce_on_dynamic_table(self):
         sync_create_cells(1)

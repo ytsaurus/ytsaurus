@@ -5,6 +5,8 @@ from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_datetime
 
+from test_rpc_proxy import create_input_table
+
 from time import sleep
 from collections import defaultdict
 from datetime import datetime
@@ -95,10 +97,12 @@ class TestListJobs(YTEnvSetup):
 
     @add_failed_operation_stderrs_to_error_message
     def test_list_jobs(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
+        create_input_table("//tmp/t1",
+            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
+            [{"name": "foo", "type": "string"}],
+            driver_backend=self.DRIVER_BACKEND)
 
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        create("table", "//tmp/t2")
 
         # Fake operation to check filtration by operation.
         map(in_="//tmp/t1", out="//tmp/t2", command="cat")
@@ -382,10 +386,12 @@ class TestListJobs(YTEnvSetup):
 
     @pytest.mark.parametrize("data_source", ["manual", "archive"])
     def test_running_jobs_stderr_size(self, data_source):
-        create("table", "//tmp/input")
-        create("table", "//tmp/output")
+        create_input_table("//tmp/input",
+            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
+            [{"name": "foo", "type": "string"}],
+            driver_backend=self.DRIVER_BACKEND)
 
-        write_table("//tmp/input", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        create("table", "//tmp/output")
 
         op = map(
             dont_track=True,
@@ -421,10 +427,12 @@ class TestListJobs(YTEnvSetup):
         op.track()
 
     def test_aborted_jobs(self):
-        create("table", "//tmp/input")
-        create("table", "//tmp/output")
+        create_input_table("//tmp/input",
+            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
+            [{"name": "foo", "type": "string"}],
+            driver_backend=self.DRIVER_BACKEND)
 
-        write_table("//tmp/input", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        create("table", "//tmp/output")
 
         now = datetime.utcnow()
 
@@ -451,10 +459,11 @@ class TestListJobs(YTEnvSetup):
         assert all((date_string_to_datetime(job["finish_time"]) >= date_string_to_datetime(job["start_time"])) for job in res)
 
     def test_running_aborted_jobs(self):
-        create("table", "//tmp/input")
+        create_input_table("//tmp/input",
+            [{"foo": "bar"}],
+            [{"name": "foo", "type": "string"}],
+            driver_backend=self.DRIVER_BACKEND)
         create("table", "//tmp/output")
-
-        write_table("//tmp/input", [{"foo": "bar"}])
 
         op = map(
             dont_track=True,
@@ -487,10 +496,11 @@ class TestListJobs(YTEnvSetup):
         wait(check)
 
     def test_stderrs_and_hash_buckets_storage(self):
-        create("table", "//tmp/input")
+        create_input_table("//tmp/input",
+            [{"foo": "bar"}],
+            [{"name": "foo", "type": "string"}],
+            driver_backend=self.DRIVER_BACKEND)
         create("table", "//tmp/output")
-
-        write_table("//tmp/input", [{"foo": "bar"}])
 
         op = map(
             dont_track=True,
@@ -525,3 +535,11 @@ class TestListJobs(YTEnvSetup):
         clean_operations()
         jobs = list_jobs(op.id, data_source="archive")["jobs"]
         assert len(jobs) == 1
+
+##################################################################
+
+class TestListJobsRpcProxy(TestListJobs):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+

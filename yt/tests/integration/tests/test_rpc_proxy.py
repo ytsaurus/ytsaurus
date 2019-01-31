@@ -7,9 +7,27 @@ from yt_commands import *
 from copy import deepcopy
 from random import shuffle
 
-from test_get_operation import _get_operation_from_cypress
+from test_get_job_input import wait_for_data_in_job_archive
 
 import yt.environment.init_operation_archive as init_operation_archive
+
+# for launching other tests with RPC backend
+def create_input_table(path, data, dynamic_schema, driver_backend, authenticated_user=None):
+    if driver_backend == "rpc":
+        create("table", path,
+            authenticated_user=authenticated_user,
+            attributes={
+                "schema": dynamic_schema,
+                "dynamic": True
+            })
+        sync_mount_table(path)
+        insert_rows(path, data, authenticated_user=authenticated_user)
+        sync_unmount_table(path)
+    else:
+        create("table", path, authenticated_user=authenticated_user)
+        write_table(path, data, authenticated_user=authenticated_user)
+
+##################################################################
 
 class TestRpcProxy(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
@@ -21,7 +39,7 @@ class TestRpcProxy(YTEnvSetup):
 
 ##################################################################
 
-# TODO (kiselyovp) tests for file caching (when read_file is implemented)
+# TODO(kiselyovp) tests for file caching (when read_file is implemented)
 
 class TestRpcProxyBase(YTEnvSetup):
     NUM_MASTERS = 3
@@ -190,20 +208,6 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         assert op.get_state() == "completed"
         # XXX(kiselyovp) a test with abort_running_jobs=False?
 
-    def test_get_operation(self):
-        op = self._start_simple_operation_with_breakpoint()
-        events_on_fs().wait_breakpoint()
-
-        wait(lambda: exists(op.get_path()))
-        wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
-
-        self._check_get_operation(op)
-
-        events_on_fs().release_breakpoint()
-        op.track()
-
-        self._check_get_operation(op)
-
     def test_update_op_params_check_perms(self):
         op = self._start_simple_operation_with_breakpoint()
         wait(lambda: op.get_state() == "running")
@@ -222,14 +226,11 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 class TestSchedulerRpcProxy(TestRpcProxyBase):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": [
-                        "cpuacct",
-                        "blkio",
-                        "cpu"],
-                },
+            "statistics_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
             }
         }
     }
@@ -239,6 +240,13 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
             "enable_job_stderr_reporter": True,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # Force snapshot never happen
+            "snapshot_period": 10**9,
         }
     }
 
@@ -254,31 +262,6 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
 
     def _get_first_job_id(self, op):
         return self._get_job_ids(op)[0]
-
-    def test_get_job(self):
-        op = self._start_simple_operation_with_breakpoint()
-        events_on_fs().wait_breakpoint()
-
-        wait(lambda: exists(op.get_path()))
-        wait(lambda: get(op.get_path() + "/@brief_progress/jobs/running") == 1)
-
-        get_result = op.get_running_jobs()
-        job_id = get_result.keys()[0]
-        get_result = get_result[job_id]
-        get_result["type"] = get_result["job_type"]
-
-        get_job_result = retry(lambda: get_job(op.id, job_id))
-        assert get_job_result["job_id"] == job_id
-
-        JOB_ATTRIBUTES = ["type",
-                          "state",
-                          "address"]
-        for attr in JOB_ATTRIBUTES:
-            assert get_job_result[attr] == get_result[attr]
-        assert get_job_result["type"] == "map"
-
-        events_on_fs().release_breakpoint()
-        op.track()
 
     def test_abandon_job(self):
         def check_result_length(cmd_with_breakpoint, func, length):
@@ -463,6 +446,49 @@ class TestSchedulerRpcProxy(TestRpcProxyBase):
         # XXX(kiselyovp) read_file is not implemented in RPC proxy yet
         # check_all_stderrs(op, "stderr\n", 1, substring=True)
 
+    def test_map_input_paths(self):
+        tmpdir = create_tmpdir("inputs")
+        self._create_simple_table(
+            "//tmp/in1",
+            [{"index": i+j, "str": "foo"} for i in xrange(0, 5, 2) for j in xrange(2)],
+            sorted=False)
+
+        self._create_simple_table(
+            "//tmp/in2",
+            [{"index": (i+j) / 4, "str": "bar"} for i in xrange(3, 24, 2) for j in xrange(2)],
+            sorted=True)
+
+        create("table", "//tmp/out")
+        in2 = '//tmp/in2[1:4,5:6]'
+        op = map(
+            dont_track=True,
+            in_=["//tmp/in1", in2],
+            out="//tmp/out",
+            command="cat > {0}/$YT_JOB_ID && exit 1".format(tmpdir),
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "job_count": 1,
+                "max_failed_job_count": 1
+            })
+        with pytest.raises(YtError):
+            op.track()
+
+        job_ids = os.listdir(tmpdir)
+        assert job_ids
+        wait_for_data_in_job_archive(op.id, job_ids)
+
+        assert len(job_ids) == 1
+        expected = yson.loads("""[
+            <ranges=[{lower_limit={row_index=0};upper_limit={row_index=6}}]>"//tmp/in1";
+            <ranges=[
+                {lower_limit={key=[1]};upper_limit={key=[4]}};
+                {lower_limit={key=[5]};upper_limit={key=[6]}}
+            ]>"//tmp/in2"]""")
+        actual = yson.loads(get_job_input_paths(job_ids[0]))
+        assert expected == actual
+
 ##################################################################
 
 class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
@@ -526,3 +552,14 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
 class TestPessimisticQuotaCheckMulticellRpcProxy(TestPessimisticQuotaCheckRpcProxy):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
+
+##################################################################
+
+class TestAclsRpcProxy(TestRpcProxyBase):
+    def test_check_permission_by_acl(self):
+        create_user("u1")
+        create_user("u2")
+        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u1"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
+        assert check_permission_by_acl("u1", "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "deny"
+        assert check_permission_by_acl(None, "remove", [{"subjects": ["u2"], "permissions": ["remove"], "action": "allow"}])["action"] == "allow"
+

@@ -8,7 +8,7 @@ namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TAccountId = NObjectClient::TObjectId ;
+using TAccountId = NObjectClient::TObjectId;
 using TSubjectId = NObjectClient::TObjectId;
 using TUserId = NObjectClient::TObjectId;
 using TGroupId = NObjectClient::TObjectId;

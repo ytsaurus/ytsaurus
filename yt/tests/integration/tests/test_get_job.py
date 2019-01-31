@@ -1,6 +1,8 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from test_rpc_proxy import create_input_table
+
 import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.common import date_string_to_datetime
@@ -42,9 +44,12 @@ class TestGetJob(YTEnvSetup):
         remove("//sys/operations_archive")
 
     def test_get_job(self):
-        create("table", "//tmp/t1")
+        create_input_table("//tmp/t1",
+            [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}],
+            [{"name": "foo", "type": "string"}],
+            driver_backend=self.DRIVER_BACKEND)
+
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         job_id_file = os.path.join(self._tmpdir, "jobids")
         before_start_time = datetime.datetime.utcnow()
@@ -73,3 +78,12 @@ class TestGetJob(YTEnvSetup):
         attributes = ["job_id", "state", "start_time"]
         job_info = retry(lambda: get_job(op.id, job_id, attributes=attributes))
         assert __builtin__.set(job_info.keys()) == __builtin__.set(attributes)
+
+##################################################################
+
+class TestGetJobRpcProxy(TestGetJob):
+    USE_DYNAMIC_TABLES = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
+

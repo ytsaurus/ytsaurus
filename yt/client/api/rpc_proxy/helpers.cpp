@@ -167,20 +167,18 @@ void ToProto(
     NProto::TCheckPermissionResult* proto,
     const NApi::TCheckPermissionResult& result)
 {
+    proto->Clear();
+
     proto->set_action(static_cast<NProto::ESecurityAction>(result.Action));
 
     ToProto(proto->mutable_object_id(), result.ObjectId);
     if (result.ObjectName) {
         proto->set_object_name(*result.ObjectName);
-    } else {
-        proto->clear_object_name();
     }
 
     ToProto(proto->mutable_subject_id(), result.SubjectId);
     if (result.SubjectName) {
         proto->set_subject_name(*result.SubjectName);
-    } else {
-        proto->clear_subject_name();
     }
 }
 
@@ -204,6 +202,194 @@ void FromProto(
         result->SubjectName.reset();
     }
 }
+
+void ToProto(
+    NProto::TCheckPermissionByAclResult* proto,
+    const NApi::TCheckPermissionByAclResult& result)
+{
+    proto->Clear();
+
+    proto->set_action(static_cast<NProto::ESecurityAction>(result.Action));
+
+    ToProto(proto->mutable_subject_id(), result.SubjectId);
+    if (result.SubjectName) {
+        proto->set_subject_name(*result.SubjectName);
+    }
+
+    NYT::ToProto(proto->mutable_missing_subjects(), result.MissingSubjects);
+}
+
+void FromProto(
+    NApi::TCheckPermissionByAclResult* result,
+    const NProto::TCheckPermissionByAclResult& proto)
+{
+    result->Action = static_cast<NSecurityClient::ESecurityAction>(proto.action());
+
+    FromProto(&result->SubjectId, proto.subject_id());
+    if (proto.has_subject_name()) {
+        result->SubjectName = proto.subject_name();
+    } else {
+        result->SubjectName.reset();
+    }
+
+    NYT::FromProto(&result->MissingSubjects, proto.missing_subjects());
+}
+
+void ToProto(
+    NProto::TListOperationsResult* proto,
+    const NApi::TListOperationsResult& result)
+{
+    proto->Clear();
+    NYT::ToProto(proto->mutable_operations(), result.Operations);
+
+    if (result.PoolCounts) {
+        for (const auto& entry: *result.PoolCounts) {
+            auto* newPoolCount = proto->mutable_pool_counts()->add_entries();
+            newPoolCount->set_pool(entry.first);
+            newPoolCount->set_count(entry.second);
+        }
+    }
+    if (result.UserCounts) {
+        for (const auto& entry: *result.UserCounts) {
+            auto* newUserCount = proto->mutable_user_counts()->add_entries();
+            newUserCount->set_user(entry.first);
+            newUserCount->set_count(entry.second);
+        }
+    }
+
+    if (result.StateCounts) {
+        for (const auto& state: TEnumTraits<NScheduler::EOperationState>::GetDomainValues()) {
+            if ((*result.StateCounts)[state] != 0) {
+                auto* newStateCount = proto->mutable_state_counts()->add_entries();
+                newStateCount->set_state(ConvertOperationStateToProto(state));
+                newStateCount->set_count((*result.StateCounts)[state]);
+            }
+        }
+    }
+    if (result.TypeCounts) {
+        for (const auto& type: TEnumTraits<NScheduler::EOperationType>::GetDomainValues()) {
+            if ((*result.TypeCounts)[type] != 0) {
+                auto* newTypeCount = proto->mutable_type_counts()->add_entries();
+                newTypeCount->set_type(ConvertOperationTypeToProto(type));
+                newTypeCount->set_count((*result.TypeCounts)[type]);
+            }
+        }
+    }
+
+    if (result.FailedJobsCount) {
+        proto->set_failed_jobs_count(*result.FailedJobsCount);
+    }
+    proto->set_incomplete(result.Incomplete);
+}
+
+void FromProto(
+    NApi::TListOperationsResult* result,
+    const NProto::TListOperationsResult& proto)
+{
+    NYT::FromProto(&result->Operations, proto.operations());
+
+    if (proto.has_pool_counts()) {
+        result->PoolCounts.emplace();
+        for (const auto& poolCount: proto.pool_counts().entries()) {
+            auto pool = poolCount.pool();
+            YCHECK((*result->PoolCounts)[pool] == 0);
+            (*result->PoolCounts)[pool] = poolCount.count();
+        }
+    } else {
+        result->PoolCounts.reset();
+    }
+    if (proto.has_user_counts()) {
+        result->UserCounts.emplace();
+        for (const auto& userCount: proto.user_counts().entries()) {
+            auto user = userCount.user();
+            YCHECK((*result->UserCounts)[user] == 0);
+            (*result->UserCounts)[user] = userCount.count();
+        }
+    } else {
+        result->UserCounts.reset();
+    }
+
+    if (proto.has_state_counts()) {
+        result->StateCounts.emplace();
+        std::fill(result->StateCounts->begin(), result->StateCounts->end(), 0);
+        for (const auto &stateCount: proto.state_counts().entries()) {
+            auto state = ConvertOperationStateFromProto(stateCount.state());
+            YCHECK(result->StateCounts->IsDomainValue(state));
+            YCHECK((*result->StateCounts)[state] == 0);
+            (*result->StateCounts)[state] = stateCount.count();
+        }
+    } else {
+        result->StateCounts.reset();
+    }
+    if (proto.has_type_counts()) {
+        result->TypeCounts.emplace();
+        std::fill(result->TypeCounts->begin(), result->TypeCounts->end(), 0);
+        for (const auto &typeCount: proto.type_counts().entries()) {
+            auto type = ConvertOperationTypeFromProto(typeCount.type());
+            YCHECK(result->TypeCounts->IsDomainValue(type));
+            YCHECK((*result->TypeCounts)[type] == 0);
+            (*result->TypeCounts)[type] = typeCount.count();
+        }
+    } else {
+        result->TypeCounts.reset();
+    }
+
+    if (proto.has_failed_jobs_count()) {
+        result->FailedJobsCount = proto.failed_jobs_count();
+    } else {
+        result->FailedJobsCount.reset();
+    }
+    result->Incomplete = proto.incomplete();
+}
+
+void ToProto(
+    NProto::TListJobsResult* proto,
+    const NApi::TListJobsResult& result)
+{
+    proto->Clear();
+    NYT::ToProto(proto->mutable_jobs(), result.Jobs);
+
+    if (result.CypressJobCount) {
+        proto->set_cypress_job_count(*result.CypressJobCount);
+    }
+    if (result.ControllerAgentJobCount) {
+        proto->set_controller_agent_job_count(*result.ControllerAgentJobCount);
+    }
+    if (result.ArchiveJobCount) {
+        proto->set_archive_job_count(*result.ArchiveJobCount);
+    }
+
+    ToProto(proto->mutable_statistics(), result.Statistics);
+}
+
+void FromProto(
+    NApi::TListJobsResult* result,
+    const NProto::TListJobsResult& proto)
+{
+    NYT::FromProto(&result->Jobs, proto.jobs());
+
+    if (proto.has_cypress_job_count()) {
+        result->CypressJobCount = proto.cypress_job_count();
+    } else {
+        result->CypressJobCount.reset();
+    }
+    if (proto.has_controller_agent_job_count()) {
+        result->ControllerAgentJobCount = proto.controller_agent_job_count();
+    } else {
+        result->ControllerAgentJobCount.reset();
+    }
+    if (proto.has_archive_job_count()) {
+        result->ArchiveJobCount = proto.archive_job_count();
+    } else {
+        result->ArchiveJobCount.reset();
+    }
+
+    FromProto(&result->Statistics, proto.statistics());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// MISC
+////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSchema& schema)
 {
@@ -308,9 +494,7 @@ void ToProto(
     protoStatistics->set_incomplete_input(statistics.IncompleteInput);
     protoStatistics->set_incomplete_output(statistics.IncompleteOutput);
 
-    for (const auto& innerStatistics : statistics.InnerStatistics) {
-        ToProto(protoStatistics->add_inner_statistics(), innerStatistics);
-    }
+    NYT::ToProto(protoStatistics->mutable_inner_statistics(), statistics.InnerStatistics);
 }
 
 void FromProto(
@@ -330,20 +514,394 @@ void FromProto(
     statistics->IncompleteInput = protoStatistics.incomplete_input();
     statistics->IncompleteOutput = protoStatistics.incomplete_output();
 
-    statistics->InnerStatistics.resize(protoStatistics.inner_statistics_size());
-    for (auto i = 0; i < protoStatistics.inner_statistics_size(); ++i) {
-        FromProto(&statistics->InnerStatistics[i], protoStatistics.inner_statistics(i));
+    NYT::FromProto(&statistics->InnerStatistics, protoStatistics.inner_statistics());
+}
+
+void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operation)
+{
+    protoOperation->Clear();
+
+    if (operation.Id) {
+        ToProto(protoOperation->mutable_id(), *operation.Id);
+    }
+    if (operation.Type) {
+        protoOperation->set_type(ConvertOperationTypeToProto(*operation.Type));
+    }
+    if (operation.State) {
+        protoOperation->set_state(ConvertOperationStateToProto(*operation.State));
+    }
+
+    if (operation.StartTime) {
+        protoOperation->set_start_time(NYT::ToProto<i64>(*operation.StartTime));
+    }
+    if (operation.FinishTime) {
+        protoOperation->set_finish_time(NYT::ToProto<i64>(*operation.FinishTime));
+    }
+
+    if (operation.AuthenticatedUser) {
+        protoOperation->set_authenticated_user(*operation.AuthenticatedUser);
+    }
+    if (operation.Owners) {
+        NYT::ToProto(protoOperation->mutable_owners()->mutable_data(), *operation.Owners);
+    }
+
+    if (operation.Pools) {
+        NYT::ToProto(protoOperation->mutable_pools()->mutable_data(), *operation.Pools);
+    }
+
+    if (operation.BriefSpec) {
+        protoOperation->set_brief_spec(operation.BriefSpec.GetData());
+    }
+    if (operation.Spec) {
+        protoOperation->set_spec(operation.Spec.GetData());
+    }
+    if (operation.FullSpec) {
+        protoOperation->set_full_spec(operation.FullSpec.GetData());
+    }
+    if (operation.UnrecognizedSpec) {
+        protoOperation->set_unrecognized_spec(operation.UnrecognizedSpec.GetData());
+    }
+    if (operation.Annotations) {
+        protoOperation->set_annotations(operation.Annotations.GetData());
+    }
+
+    if (operation.BriefProgress) {
+        protoOperation->set_brief_progress(operation.BriefProgress.GetData());
+    }
+    if (operation.Progress) {
+        protoOperation->set_progress(operation.Progress.GetData());
+    }
+
+    if (operation.RuntimeParameters) {
+        protoOperation->set_runtime_parameters(operation.RuntimeParameters.GetData());
+    }
+
+    if (operation.Suspended) {
+        protoOperation->set_suspended(*operation.Suspended);
+    }
+
+    if (operation.Events) {
+        protoOperation->set_events(operation.Events.GetData());
+    }
+    if (operation.Result) {
+        protoOperation->set_result(operation.Result.GetData());
+    }
+
+    if (operation.SlotIndexPerPoolTree) {
+        protoOperation->set_slot_index_per_pool_tree(operation.SlotIndexPerPoolTree.GetData());
     }
 }
+
+void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOperation)
+{
+    if (protoOperation.has_id()) {
+        operation->Id = NYT::FromProto<NScheduler::TOperationId>(protoOperation.id());
+    } else {
+        operation->Id.reset();
+    }
+    if (protoOperation.has_type()) {
+        operation->Type = ConvertOperationTypeFromProto(protoOperation.type());
+    } else {
+        operation->Type.reset();
+    }
+    if (protoOperation.has_state()) {
+        operation->State = ConvertOperationStateFromProto(protoOperation.state());
+    } else {
+        operation->State.reset();
+    }
+
+    if (protoOperation.has_start_time()) {
+        operation->StartTime = TInstant::FromValue(protoOperation.start_time());
+    } else {
+        operation->StartTime.reset();
+    }
+    if (protoOperation.has_finish_time()) {
+        operation->FinishTime = TInstant::FromValue(protoOperation.finish_time());
+    } else {
+        operation->FinishTime.reset();
+    }
+
+    if (protoOperation.has_authenticated_user()) {
+        operation->AuthenticatedUser = protoOperation.authenticated_user();
+    } else {
+        operation->AuthenticatedUser.reset();
+    }
+    if (protoOperation.has_owners()) {
+        operation->Owners = NYT::FromProto<std::vector<TString>>(protoOperation.owners().data());
+    } else {
+        operation->Owners.reset();
+    }
+
+    if (protoOperation.has_pools()) {
+        operation->Pools = NYT::FromProto<std::vector<TString>>(protoOperation.pools().data());
+    } else {
+        operation->Pools.reset();
+    }
+
+    if (protoOperation.has_brief_spec()) {
+        operation->BriefSpec = NYson::TYsonString(protoOperation.brief_spec());
+    } else {
+        operation->BriefSpec = NYson::TYsonString();
+    }
+    if (protoOperation.has_spec()) {
+        operation->Spec = NYson::TYsonString(protoOperation.spec());
+    } else {
+        operation->Spec = NYson::TYsonString();
+    }
+    if (protoOperation.has_full_spec()) {
+        operation->FullSpec = NYson::TYsonString(protoOperation.full_spec());
+    } else {
+        operation->FullSpec = NYson::TYsonString();
+    }
+    if (protoOperation.has_unrecognized_spec()) {
+        operation->UnrecognizedSpec = NYson::TYsonString(protoOperation.unrecognized_spec());
+    } else {
+        operation->UnrecognizedSpec = NYson::TYsonString();
+    }
+    if (protoOperation.has_annotations()) {
+        operation->Annotations = NYson::TYsonString(protoOperation.annotations());
+    } else {
+        operation->Annotations = NYson::TYsonString();
+    }
+
+    if (protoOperation.has_brief_progress()) {
+        operation->BriefProgress = NYson::TYsonString(protoOperation.brief_progress());
+    } else {
+        operation->BriefProgress = NYson::TYsonString();
+    }
+    if (protoOperation.has_progress()) {
+        operation->Progress = NYson::TYsonString(protoOperation.progress());
+    } else {
+        operation->Progress = NYson::TYsonString();
+    }
+
+    if (protoOperation.has_runtime_parameters()) {
+        operation->RuntimeParameters = NYson::TYsonString(protoOperation.runtime_parameters());
+    } else {
+        operation->RuntimeParameters = NYson::TYsonString();
+    }
+
+    if (protoOperation.has_suspended()) {
+        operation->Suspended = protoOperation.suspended();
+    } else {
+        operation->Suspended.reset();
+    }
+
+    if (protoOperation.has_events()) {
+        operation->Events = NYson::TYsonString(protoOperation.events());
+    } else {
+        operation->Events = NYson::TYsonString();
+    }
+    if (protoOperation.has_result()) {
+        operation->Result = NYson::TYsonString(protoOperation.result());
+    } else {
+        operation->Result = NYson::TYsonString();
+    }
+
+    if (protoOperation.has_slot_index_per_pool_tree()) {
+        operation->SlotIndexPerPoolTree = NYson::TYsonString(protoOperation.slot_index_per_pool_tree());
+    } else {
+        operation->SlotIndexPerPoolTree = NYson::TYsonString();
+    }
+}
+
+void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
+{
+    protoJob->Clear();
+
+    ToProto(protoJob->mutable_id(), job.Id);
+    protoJob->set_type(ConvertJobTypeToProto(job.Type));
+    protoJob->set_state(ConvertJobStateToProto(job.State));
+
+    protoJob->set_start_time(NYT::ToProto<i64>(job.StartTime));
+    if (job.FinishTime) {
+        protoJob->set_finish_time(NYT::ToProto<i64>(*job.FinishTime));
+    }
+
+    protoJob->set_address(job.Address);
+    if (job.Progress) {
+        protoJob->set_progress(*job.Progress);
+    }
+    if (job.StderrSize) {
+        protoJob->set_stderr_size(*job.StderrSize);
+    }
+    if (job.FailContextSize) {
+        protoJob->set_fail_context_size(*job.FailContextSize);
+    }
+    if (job.HasSpec) {
+        protoJob->set_has_spec(*job.HasSpec);
+    }
+
+    if (job.Error) {
+        protoJob->set_error(job.Error.GetData());
+    }
+    if (job.BriefStatistics) {
+        protoJob->set_brief_statistics(job.BriefStatistics.GetData());
+    }
+    if (job.InputPaths) {
+        protoJob->set_input_paths(job.InputPaths.GetData());
+    }
+    if (job.CoreInfos) {
+        protoJob->set_core_infos(job.CoreInfos.GetData());
+    }
+}
+
+void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
+{
+    FromProto(&job->Id, protoJob.id());
+    job->Type = ConvertJobTypeFromProto(protoJob.type());
+    job->State = ConvertJobStateFromProto(protoJob.state());
+
+    job->StartTime = TInstant::FromValue(protoJob.start_time());
+    if (protoJob.has_finish_time()) {
+        job->FinishTime = TInstant::FromValue(protoJob.finish_time());
+    } else {
+        job->FinishTime.reset();
+    }
+
+    job->Address = protoJob.address();
+    if (protoJob.has_progress()) {
+        job->Progress = protoJob.progress();
+    } else {
+        job->Progress.reset();
+    }
+    if (protoJob.has_stderr_size()) {
+        job->StderrSize = protoJob.stderr_size();
+    } else {
+        job->StderrSize.reset();
+    }
+    if (protoJob.has_fail_context_size()) {
+        job->FailContextSize = protoJob.fail_context_size();
+    } else {
+        job->FailContextSize.reset();
+    }
+    if (protoJob.has_has_spec()) {
+        job->HasSpec = protoJob.has_spec();
+    } else {
+        job->HasSpec.reset();
+    }
+
+    if (protoJob.has_error()) {
+        job->Error = NYson::TYsonString(protoJob.error());
+    } else {
+        job->Error = NYson::TYsonString();
+    }
+    if (protoJob.has_brief_statistics()) {
+        job->BriefStatistics = NYson::TYsonString(protoJob.brief_statistics());
+    } else {
+        job->BriefStatistics = NYson::TYsonString();
+    }
+    if (protoJob.has_input_paths()) {
+        job->InputPaths = NYson::TYsonString(protoJob.input_paths());
+    } else {
+        job->InputPaths = NYson::TYsonString();
+    }
+    if (protoJob.has_core_infos()) {
+        job->CoreInfos = NYson::TYsonString(protoJob.core_infos());
+    } else {
+        job->CoreInfos = NYson::TYsonString();
+    }
+}
+
+void ToProto(
+    NProto::TListJobsStatistics* protoStatistics,
+    const NApi::TListJobsStatistics& statistics)
+{
+    protoStatistics->mutable_state_counts()->clear_entries();
+    for (const auto& state: TEnumTraits<NJobTrackerClient::EJobState>::GetDomainValues()) {
+        if (statistics.StateCounts[state] != 0) {
+            auto* newStateCount = protoStatistics->mutable_state_counts()->add_entries();
+            newStateCount->set_state(ConvertJobStateToProto(state));
+            newStateCount->set_count(statistics.StateCounts[state]);
+        }
+    }
+
+    protoStatistics->mutable_type_counts()->clear_entries();
+    for (const auto& type: TEnumTraits<NJobTrackerClient::EJobType>::GetDomainValues()) {
+        if (statistics.TypeCounts[type] != 0) {
+            auto* newTypeCount = protoStatistics->mutable_type_counts()->add_entries();
+            newTypeCount->set_type(ConvertJobTypeToProto(type));
+            newTypeCount->set_count(statistics.TypeCounts[type]);
+        }
+    }
+}
+
+void FromProto(
+    NApi::TListJobsStatistics* statistics,
+    const NProto::TListJobsStatistics& protoStatistics)
+{
+    std::fill(statistics->StateCounts.begin(), statistics->StateCounts.end(), 0);
+    for (const auto& stateCount: protoStatistics.state_counts().entries()) {
+        auto state = ConvertJobStateFromProto(stateCount.state());
+        YCHECK(statistics->StateCounts.IsDomainValue(state));
+        YCHECK(statistics->StateCounts[state] == 0);
+        statistics->StateCounts[state] = stateCount.count();
+    }
+
+    std::fill(statistics->TypeCounts.begin(), statistics->TypeCounts.end(), 0);
+    for (const auto& typeCount: protoStatistics.type_counts().entries()) {
+        auto type = ConvertJobTypeFromProto(typeCount.type());
+        YCHECK(statistics->TypeCounts.IsDomainValue(type));
+        YCHECK(statistics->TypeCounts[type] == 0);
+        statistics->TypeCounts[type] = typeCount.count();
+    }
+}
+
+void ToProto(
+    NProto::TColumnarStatistics* protoStatistics,
+    const NTableClient::TColumnarStatistics& statistics)
+{
+    protoStatistics->Clear();
+
+    NYT::ToProto(protoStatistics->mutable_column_data_weights(), statistics.ColumnDataWeights);
+    if (statistics.TimestampTotalWeight) {
+        protoStatistics->set_timestamp_total_weight(*statistics.TimestampTotalWeight);
+    }
+    protoStatistics->set_legacy_chunk_data_weight(statistics.LegacyChunkDataWeight);
+}
+
+void FromProto(
+    NTableClient::TColumnarStatistics* statistics,
+    const NProto::TColumnarStatistics& protoStatistics)
+{
+    NYT::FromProto(&statistics->ColumnDataWeights, protoStatistics.column_data_weights());
+    if (protoStatistics.has_timestamp_total_weight()) {
+        statistics->TimestampTotalWeight = protoStatistics.timestamp_total_weight();
+    } else {
+        statistics->TimestampTotalWeight.reset();
+    }
+    statistics->LegacyChunkDataWeight = protoStatistics.legacy_chunk_data_weight();
+}
+
+template <class TStringContainer>
+void ToProto(
+    NRpcProxy::NProto::TAttributeKeys* protoAttributes,
+    const std::optional<TStringContainer>& attributes)
+{
+    if (attributes) {
+        protoAttributes->set_all(false);
+        NYT::ToProto(protoAttributes->mutable_columns(), *attributes);
+    } else {
+        protoAttributes->set_all(true);
+    }
+}
+
+// Instantiate templates.
+template void ToProto(
+    NRpcProxy::NProto::TAttributeKeys* protoAttributes,
+    const std::optional<std::vector<TString>>& attributes);
+template void ToProto(
+    NRpcProxy::NProto::TAttributeKeys* protoAttributes,
+    const std::optional<THashSet<TString>>& attributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 // ENUMS
 ////////////////////////////////////////////////////////////////////////////////
 
 NProto::EOperationType ConvertOperationTypeToProto(
-    const NScheduler::EOperationType& operation_type)
+    const NScheduler::EOperationType& operationType)
 {
-    switch (operation_type) {
+    switch (operationType) {
         case NScheduler::EOperationType::Map:
             return NProto::EOperationType::OT_MAP;
         case NScheduler::EOperationType::Merge:
@@ -389,6 +947,244 @@ NScheduler::EOperationType ConvertOperationTypeFromProto(
             return NScheduler::EOperationType::JoinReduce;
         case NProto::EOperationType::OT_VANILLA:
             return NScheduler::EOperationType::Vanilla;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+NProto::EOperationState ConvertOperationStateToProto(
+    const NScheduler::EOperationState& operationState)
+{
+    switch (operationState) {
+        case NScheduler::EOperationState::None:
+            return NProto::EOperationState::OS_NONE;
+        case NScheduler::EOperationState::Starting:
+            return NProto::EOperationState::OS_STARTING;
+        case NScheduler::EOperationState::Orphaned:
+            return NProto::EOperationState::OS_ORPHANED;
+        case NScheduler::EOperationState::WaitingForAgent:
+            return NProto::EOperationState::OS_WAITING_FOR_AGENT;
+        case NScheduler::EOperationState::Initializing:
+            return NProto::EOperationState::OS_INITIALIZING;
+        case NScheduler::EOperationState::Preparing:
+            return NProto::EOperationState::OS_PREPARING;
+        case NScheduler::EOperationState::Materializing:
+            return NProto::EOperationState::OS_MATERIALIZING;
+        case NScheduler::EOperationState::Reviving:
+            return NProto::EOperationState::OS_REVIVING;
+        case NScheduler::EOperationState::RevivingJobs:
+            return NProto::EOperationState::OS_REVIVING_JOBS;
+        case NScheduler::EOperationState::Pending:
+            return NProto::EOperationState::OS_PENDING;
+        case NScheduler::EOperationState::Running:
+            return NProto::EOperationState::OS_RUNNING;
+        case NScheduler::EOperationState::Completing:
+            return NProto::EOperationState::OS_COMPLETING;
+        case NScheduler::EOperationState::Completed:
+            return NProto::EOperationState::OS_COMPLETED;
+        case NScheduler::EOperationState::Aborting:
+            return NProto::EOperationState::OS_ABORTING;
+        case NScheduler::EOperationState::Aborted:
+            return NProto::EOperationState::OS_ABORTED;
+        case NScheduler::EOperationState::Failing:
+            return NProto::EOperationState::OS_FAILING;
+        case NScheduler::EOperationState::Failed:
+            return NProto::EOperationState::OS_FAILED;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+NScheduler::EOperationState ConvertOperationStateFromProto(
+    const NProto::EOperationState& proto)
+{
+    switch (proto) {
+        case NProto::EOperationState::OS_NONE:
+            return NScheduler::EOperationState::None;
+        case NProto::EOperationState::OS_STARTING:
+            return NScheduler::EOperationState::Starting;
+        case NProto::EOperationState::OS_ORPHANED:
+            return NScheduler::EOperationState::Orphaned;
+        case NProto::EOperationState::OS_WAITING_FOR_AGENT:
+            return NScheduler::EOperationState::WaitingForAgent;
+        case NProto::EOperationState::OS_INITIALIZING:
+            return NScheduler::EOperationState::Initializing;
+        case NProto::EOperationState::OS_PREPARING:
+            return NScheduler::EOperationState::Preparing;
+        case NProto::EOperationState::OS_MATERIALIZING:
+            return NScheduler::EOperationState::Materializing;
+        case NProto::EOperationState::OS_REVIVING:
+            return NScheduler::EOperationState::Reviving;
+        case NProto::EOperationState::OS_REVIVING_JOBS:
+            return NScheduler::EOperationState::RevivingJobs;
+        case NProto::EOperationState::OS_PENDING:
+            return NScheduler::EOperationState::Pending;
+        case NProto::EOperationState::OS_RUNNING:
+            return NScheduler::EOperationState::Running;
+        case NProto::EOperationState::OS_COMPLETING:
+            return NScheduler::EOperationState::Completing;
+        case NProto::EOperationState::OS_COMPLETED:
+            return NScheduler::EOperationState::Completed;
+        case NProto::EOperationState::OS_ABORTING:
+            return NScheduler::EOperationState::Aborting;
+        case NProto::EOperationState::OS_ABORTED:
+            return NScheduler::EOperationState::Aborted;
+        case NProto::EOperationState::OS_FAILING:
+            return NScheduler::EOperationState::Failing;
+        case NProto::EOperationState::OS_FAILED:
+            return NScheduler::EOperationState::Failed;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+NProto::EJobType ConvertJobTypeToProto(
+    const NJobTrackerClient::EJobType& jobType)
+{
+    switch (jobType) {
+        case NJobTrackerClient::EJobType::Map:
+            return NProto::EJobType::JT_MAP;
+        case NJobTrackerClient::EJobType::PartitionMap:
+            return NProto::EJobType::JT_PARTITION_MAP;
+        case NJobTrackerClient::EJobType::SortedMerge:
+            return NProto::EJobType::JT_SORTED_MERGE;
+        case NJobTrackerClient::EJobType::OrderedMerge:
+            return NProto::EJobType::JT_ORDERED_MERGE;
+        case NJobTrackerClient::EJobType::UnorderedMerge:
+            return NProto::EJobType::JT_UNORDERED_MERGE;
+        case NJobTrackerClient::EJobType::Partition:
+            return NProto::EJobType::JT_PARTITION;
+        case NJobTrackerClient::EJobType::SimpleSort:
+            return NProto::EJobType::JT_SIMPLE_SORT;
+        case NJobTrackerClient::EJobType::FinalSort:
+            return NProto::EJobType::JT_FINAL_SORT;
+        case NJobTrackerClient::EJobType::SortedReduce:
+            return NProto::EJobType::JT_SORTED_REDUCE;
+        case NJobTrackerClient::EJobType::PartitionReduce:
+            return NProto::EJobType::JT_PARTITION_REDUCE;
+        case NJobTrackerClient::EJobType::ReduceCombiner:
+            return NProto::EJobType::JT_REDUCE_COMBINER;
+        case NJobTrackerClient::EJobType::RemoteCopy:
+            return NProto::EJobType::JT_REMOTE_COPY;
+        case NJobTrackerClient::EJobType::IntermediateSort:
+            return NProto::EJobType::JT_INTERMEDIATE_SORT;
+        case NJobTrackerClient::EJobType::OrderedMap:
+            return NProto::EJobType::JT_ORDERED_MAP;
+        case NJobTrackerClient::EJobType::JoinReduce:
+            return NProto::EJobType::JT_JOIN_REDUCE;
+        case NJobTrackerClient::EJobType::Vanilla:
+            return NProto::EJobType::JT_VANILLA;
+        case NJobTrackerClient::EJobType::SchedulerUnknown:
+            return NProto::EJobType::JT_SCHEDULER_UNKNOWN;
+        case NJobTrackerClient::EJobType::ReplicateChunk:
+            return NProto::EJobType::JT_REPLICATE_CHUNK;
+        case NJobTrackerClient::EJobType::RemoveChunk:
+            return NProto::EJobType::JT_REMOVE_CHUNK;
+        case NJobTrackerClient::EJobType::RepairChunk:
+            return NProto::EJobType::JT_REPAIR_CHUNK;
+        case NJobTrackerClient::EJobType::SealChunk:
+            return NProto::EJobType::JT_SEAL_CHUNK;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+NJobTrackerClient::EJobType ConvertJobTypeFromProto(
+    const NProto::EJobType& proto)
+{
+    switch (proto) {
+        case NProto::EJobType::JT_MAP:
+            return NJobTrackerClient::EJobType::Map;
+        case NProto::EJobType::JT_PARTITION_MAP:
+            return NJobTrackerClient::EJobType::PartitionMap;
+        case NProto::EJobType::JT_SORTED_MERGE:
+            return NJobTrackerClient::EJobType::SortedMerge;
+        case NProto::EJobType::JT_ORDERED_MERGE:
+            return NJobTrackerClient::EJobType::OrderedMerge;
+        case NProto::EJobType::JT_UNORDERED_MERGE:
+            return NJobTrackerClient::EJobType::UnorderedMerge;
+        case NProto::EJobType::JT_PARTITION:
+            return NJobTrackerClient::EJobType::Partition;
+        case NProto::EJobType::JT_SIMPLE_SORT:
+            return NJobTrackerClient::EJobType::SimpleSort;
+        case NProto::EJobType::JT_FINAL_SORT:
+            return NJobTrackerClient::EJobType::FinalSort;
+        case NProto::EJobType::JT_SORTED_REDUCE:
+            return NJobTrackerClient::EJobType::SortedReduce;
+        case NProto::EJobType::JT_PARTITION_REDUCE:
+            return NJobTrackerClient::EJobType::PartitionReduce;
+        case NProto::EJobType::JT_REDUCE_COMBINER:
+            return NJobTrackerClient::EJobType::ReduceCombiner;
+        case NProto::EJobType::JT_REMOTE_COPY:
+            return NJobTrackerClient::EJobType::RemoteCopy;
+        case NProto::EJobType::JT_INTERMEDIATE_SORT:
+            return NJobTrackerClient::EJobType::IntermediateSort;
+        case NProto::EJobType::JT_ORDERED_MAP:
+            return NJobTrackerClient::EJobType::OrderedMap;
+        case NProto::EJobType::JT_JOIN_REDUCE:
+            return NJobTrackerClient::EJobType::JoinReduce;
+        case NProto::EJobType::JT_VANILLA:
+            return NJobTrackerClient::EJobType::Vanilla;
+        case NProto::EJobType::JT_SCHEDULER_UNKNOWN:
+            return NJobTrackerClient::EJobType::SchedulerUnknown;
+        case NProto::EJobType::JT_REPLICATE_CHUNK:
+            return NJobTrackerClient::EJobType::ReplicateChunk;
+        case NProto::EJobType::JT_REMOVE_CHUNK:
+            return NJobTrackerClient::EJobType::RemoveChunk;
+        case NProto::EJobType::JT_REPAIR_CHUNK:
+            return NJobTrackerClient::EJobType::RepairChunk;
+        case NProto::EJobType::JT_SEAL_CHUNK:
+            return NJobTrackerClient::EJobType::SealChunk;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+NProto::EJobState ConvertJobStateToProto(
+    const NJobTrackerClient::EJobState& jobState)
+{
+    switch (jobState) {
+        case NJobTrackerClient::EJobState::Waiting:
+            return NProto::EJobState::JS_WAITING;
+        case NJobTrackerClient::EJobState::Running:
+            return NProto::EJobState::JS_RUNNING;
+        case NJobTrackerClient::EJobState::Aborting:
+            return NProto::EJobState::JS_ABORTING;
+        case NJobTrackerClient::EJobState::Completed:
+            return NProto::EJobState::JS_COMPLETED;
+        case NJobTrackerClient::EJobState::Failed:
+            return NProto::EJobState::JS_FAILED;
+        case NJobTrackerClient::EJobState::Aborted:
+            return NProto::EJobState::JS_ABORTED;
+        case NJobTrackerClient::EJobState::Lost:
+            return NProto::EJobState::JS_LOST;
+        case NJobTrackerClient::EJobState::None:
+            return NProto::EJobState::JS_NONE;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+NJobTrackerClient::EJobState ConvertJobStateFromProto(
+    const NProto::EJobState& proto)
+{
+    switch (proto) {
+        case NProto::EJobState::JS_WAITING:
+            return NJobTrackerClient::EJobState::Waiting;
+        case NProto::EJobState::JS_RUNNING:
+            return NJobTrackerClient::EJobState::Running;
+        case NProto::EJobState::JS_ABORTING:
+            return NJobTrackerClient::EJobState::Aborting;
+        case NProto::EJobState::JS_COMPLETED:
+            return NJobTrackerClient::EJobState::Completed;
+        case NProto::EJobState::JS_FAILED:
+            return NJobTrackerClient::EJobState::Failed;
+        case NProto::EJobState::JS_ABORTED:
+            return NJobTrackerClient::EJobState::Aborted;
+        case NProto::EJobState::JS_LOST:
+            return NJobTrackerClient::EJobState::Lost;
+        case NProto::EJobState::JS_NONE:
+            return NJobTrackerClient::EJobState::None;
         default:
             Y_UNREACHABLE();
     }
@@ -484,7 +1280,7 @@ std::vector<TSharedRef> SerializeRowset(
     return writer.Finish();
 }
 
-// Instatiate templates.
+// Instantiate templates.
 template std::vector<TSharedRef> SerializeRowset(
     const TTableSchema& schema,
     TRange<TUnversionedRow> rows,
