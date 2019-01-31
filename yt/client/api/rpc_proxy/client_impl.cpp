@@ -30,6 +30,8 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/client/ypath/rich.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,7 +326,7 @@ TFuture<std::vector<TTabletActionId>> TClient::ReshardTableAutomatic(
     const TYPath& path,
     const TReshardTableAutomaticOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.ReshardTableAutomatic();
     SetTimeoutOptions(*req, options);
@@ -469,7 +471,7 @@ TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
     const std::vector<NYPath::TYPath>& movableTables,
     const NApi::TBalanceTabletCellsOptions& options)
 {
-    TApiServiceProxy proxy(GetChannel());
+    auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.BalanceTabletCells();
     SetTimeoutOptions(*req, options);
@@ -539,6 +541,33 @@ TFuture<NApi::TCheckPermissionResult> TClient::CheckPermission(
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCheckPermissionPtr& rsp) {
         return FromProto<NApi::TCheckPermissionResult>(rsp->result());
+    }));
+}
+
+TFuture<NApi::TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
+    const std::optional<TString>& user,
+    NYTree::EPermission permission,
+    NYTree::INodePtr acl,
+    const NApi::TCheckPermissionByAclOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.CheckPermissionByAcl();
+    SetTimeoutOptions(*req, options);
+
+    if (user) {
+        req->set_user(*user);
+    }
+    req->set_permission(static_cast<int>(permission));
+    req->set_acl(ConvertToYsonString(acl).GetData());
+
+    req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
+
+    ToProto(req->mutable_master_read_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCheckPermissionByAclPtr& rsp) {
+        return FromProto<NApi::TCheckPermissionByAclResult>(rsp->result());
     }));
 }
 
@@ -654,9 +683,7 @@ TFuture<NYson::TYsonString> TClient::GetOperation(
 
     ToProto(req->mutable_master_read_options(), options);
     if (options.Attributes) {
-        for (const auto& attribute : *options.Attributes) {
-            req->add_attributes(attribute);
-        }
+        NYT::ToProto(req->mutable_attributes(), *options.Attributes);
     }
     req->set_include_runtime(options.IncludeRuntime);
 
@@ -681,6 +708,166 @@ TFuture<void> TClient::DumpJobContext(
     return req->Invoke().As<void>();
 }
 
+TFuture<NYson::TYsonString> TClient::GetJobInputPaths(
+    NJobTrackerClient::TJobId jobId,
+    const NApi::TGetJobInputPathsOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetJobInputPaths();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_job_id(), jobId);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobInputPathsPtr& rsp) {
+        return NYson::TYsonString(rsp->paths());
+    }));
+}
+
+TFuture<TSharedRef> TClient::GetJobStderr(
+    NJobTrackerClient::TOperationId operationId,
+    NJobTrackerClient::TJobId jobId,
+    const NApi::TGetJobStderrOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetJobStderr();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+    ToProto(req->mutable_job_id(), jobId);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobStderrPtr& rsp) {
+        YCHECK(rsp->Attachments().size() == 1);
+        return rsp->Attachments().front();
+    }));
+}
+
+TFuture<TSharedRef> TClient::GetJobFailContext(
+    NJobTrackerClient::TOperationId operationId,
+    NJobTrackerClient::TJobId jobId,
+    const NApi::TGetJobFailContextOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetJobFailContext();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+    ToProto(req->mutable_job_id(), jobId);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobFailContextPtr& rsp) {
+        YCHECK(rsp->Attachments().size() == 1);
+        return rsp->Attachments().front();
+    }));
+}
+
+TFuture<NApi::TListOperationsResult> TClient::ListOperations(
+    const NApi::TListOperationsOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.ListOperations();
+    SetTimeoutOptions(*req, options);
+
+    if (options.FromTime) {
+        req->set_from_time(NYT::ToProto<i64>(*options.FromTime));
+    }
+    if (options.ToTime) {
+        req->set_to_time(NYT::ToProto<i64>(*options.ToTime));
+    }
+    if (options.CursorTime) {
+        req->set_cursor_time(NYT::ToProto<i64>(*options.CursorTime));
+    }
+    req->set_cursor_direction(static_cast<NProto::EOperationSortDirection>(options.CursorDirection));
+    if (options.UserFilter) {
+        req->set_user_filter(*options.UserFilter);
+    }
+
+    if (options.OwnedBy) {
+        req->set_owned_by(*options.OwnedBy);
+    }
+
+    if (options.StateFilter) {
+        req->set_state_filter(NProto::ConvertOperationStateToProto(*options.StateFilter));
+    }
+    if (options.TypeFilter) {
+        req->set_type_filter(NProto::ConvertOperationTypeToProto(*options.TypeFilter));
+    }
+    if (options.SubstrFilter) {
+        req->set_substr_filter(*options.SubstrFilter);
+    }
+    if (options.Pool) {
+        req->set_pool(*options.Pool);
+    }
+    if (options.WithFailedJobs) {
+        req->set_with_failed_jobs(*options.WithFailedJobs);
+    }
+    req->set_include_archive(options.IncludeArchive);
+    req->set_include_counters(options.IncludeCounters);
+    req->set_limit(options.Limit);
+
+    ToProto(req->mutable_attributes(), options.Attributes);
+
+    req->set_enable_ui_mode(options.EnableUIMode);
+
+    ToProto(req->mutable_master_read_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspListOperationsPtr& rsp) {
+        return FromProto<NApi::TListOperationsResult>(rsp->result());
+    }));
+}
+
+TFuture<NApi::TListJobsResult> TClient::ListJobs(
+    NJobTrackerClient::TOperationId operationId,
+    const NApi::TListJobsOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.ListJobs();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_operation_id(), operationId);
+
+    if (options.Type) {
+        req->set_type(NProto::ConvertJobTypeToProto(*options.Type));
+    }
+    if (options.State) {
+        req->set_state(NProto::ConvertJobStateToProto(*options.State));
+    }
+    if (options.Address) {
+        req->set_address(*options.Address);
+    }
+    if (options.WithStderr) {
+        req->set_with_stderr(*options.WithStderr);
+    }
+    if (options.WithFailContext) {
+        req->set_with_fail_context(*options.WithFailContext);
+    }
+    if (options.WithSpec) {
+        req->set_with_spec(*options.WithSpec);
+    }
+
+    req->set_sort_field(static_cast<NProto::EJobSortField>(options.SortField));
+    req->set_sort_order(static_cast<NProto::EJobSortDirection>(options.SortOrder));
+
+    req->set_limit(options.Limit);
+    req->set_offset(options.Offset);
+
+    req->set_include_cypress(options.IncludeCypress);
+    req->set_include_controller_agent(options.IncludeControllerAgent);
+    req->set_include_archive(options.IncludeArchive);
+
+    req->set_data_source(static_cast<NProto::EDataSource>(options.DataSource));
+    req->set_running_jobs_lookbehind_period(NYT::ToProto<i64>(options.RunningJobsLookbehindPeriod));
+
+    ToProto(req->mutable_master_read_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspListJobsPtr& rsp) {
+        return FromProto<NApi::TListJobsResult>(rsp->result());
+    }));
+}
+
 TFuture<NYson::TYsonString> TClient::GetJob(
     NJobTrackerClient::TOperationId operationId,
     NJobTrackerClient::TJobId jobId,
@@ -693,6 +880,8 @@ TFuture<NYson::TYsonString> TClient::GetJob(
 
     ToProto(req->mutable_operation_id(), operationId);
     ToProto(req->mutable_job_id(), jobId);
+
+    ToProto(req->mutable_attributes(), options.Attributes);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobPtr& rsp) {
         return NYson::TYsonString(rsp->info());
@@ -779,7 +968,6 @@ TFuture<void> TClient::AbortJob(
 
     return req->Invoke().As<void>();
 }
-////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
     const TString& md5,
@@ -799,8 +987,6 @@ TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
         return FromProto<NApi::TGetFileFromCacheResult>(rsp->result());
     }));
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
     const NYPath::TYPath& path,
@@ -822,6 +1008,34 @@ TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPutFileToCachePtr& rsp) {
         return FromProto<NApi::TPutFileToCacheResult>(rsp->result());
+    }));
+}
+
+TFuture<std::vector<NTableClient::TColumnarStatistics>> TClient::GetColumnarStatistics(
+    const std::vector<NYPath::TRichYPath>& path,
+    const NApi::TGetColumnarStatisticsOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetColumnarStatistics();
+    SetTimeoutOptions(*req, options);
+
+    for (const auto& subPath: path) {
+        req->add_path(ConvertToYsonString(subPath).GetData());
+    }
+
+    req->mutable_fetch_chunk_spec()->set_max_chunk_per_fetch(
+        options.FetchChunkSpecConfig->MaxChunksPerFetch);
+    req->mutable_fetch_chunk_spec()->set_max_chunk_per_locate_request(
+        options.FetchChunkSpecConfig->MaxChunksPerLocateRequest);
+
+    req->mutable_fetcher()->set_node_rpc_timeout(
+        NYT::ToProto<i64>(options.FetcherConfig->NodeRpcTimeout));
+
+    ToProto(req->mutable_transactional_options(), options);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetColumnarStatisticsPtr& rsp) {
+        return NYT::FromProto<std::vector<NTableClient::TColumnarStatistics>>(rsp->statistics());
     }));
 }
 

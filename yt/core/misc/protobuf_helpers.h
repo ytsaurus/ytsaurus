@@ -79,12 +79,17 @@ void ToProto(
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    TRange<TOriginal> originalArray);
+    const THashSet<TOriginal>& originalArray);
+
+template <class TSerialized, class TOriginal>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const THashSet<TOriginal>& originalArray);
 
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const THashSet<TOriginal>& originalArray);
+    TRange<TOriginal> originalArray);
 
 template <class TSerialized, class TOriginal>
 void ToProto(
@@ -101,14 +106,24 @@ void FromProto(
     TOriginalArray* originalArray,
     const ::google::protobuf::RepeatedField<TSerialized>& serializedArray);
 
-template <class TSerialized, class T, class E, E Min, E Max>
-void ToProto(
-    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const TEnumIndexedVector<T, E, Min, Max>& originalArray);
+template <class TOriginal, class TSerialized>
+void CheckedHashSetFromProto(
+    THashSet<TOriginal>* originalHashSet,
+    const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedHashSet);
+
+template <class TOriginal, class TSerialized>
+void CheckedHashSetFromProto(
+    THashSet<TOriginal>* originalHashSet,
+    const ::google::protobuf::RepeatedField<TSerialized>& serializedHashSet);
 
 template <class TSerialized, class T, class E, E Min, E Max>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const TEnumIndexedVector<T, E, Min, Max>& originalArray);
+
+template <class TSerialized, class T, class E, E Min, E Max>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     const TEnumIndexedVector<T, E, Min, Max>& originalArray);
 
 ////////////////////////////////////////////////////////////////////////////////

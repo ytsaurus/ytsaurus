@@ -169,15 +169,7 @@ TFuture<TYsonString> TClientBase::GetNode(
 
     req->set_path(path);
 
-    auto* protoAttributes = req->mutable_attributes();
-    if (options.Attributes) {
-        protoAttributes->set_all(false);
-        for (const auto& attribute : *options.Attributes) {
-            protoAttributes->add_columns(attribute);
-        }
-    } else {
-        protoAttributes->set_all(true);
-    }
+    ToProto(req->mutable_attributes(), options.Attributes);
     if (options.MaxSize) {
         req->set_max_size(*options.MaxSize);
     }
@@ -203,15 +195,7 @@ TFuture<TYsonString> TClientBase::ListNode(
 
     req->set_path(path);
 
-    auto* protoAttributes = req->mutable_attributes();
-    if (!options.Attributes) {
-        protoAttributes->set_all(true);
-    } else {
-        protoAttributes->set_all(false);
-        for (const auto& attribute : *options.Attributes) {
-            protoAttributes->add_columns(attribute);
-        }
-    }
+    ToProto(req->mutable_attributes(), options.Attributes);
     if (options.MaxSize) {
         req->set_max_size(*options.MaxSize);
     }
@@ -240,12 +224,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::CreateNode(
     req->set_type(static_cast<int>(type));
 
     if (options.Attributes) {
-        auto* protoItem = req->mutable_attributes();
-        for (const auto& key : options.Attributes->List()) {
-            auto* protoAttribute = protoItem->add_attributes();
-            protoAttribute->set_key(key);
-            protoAttribute->set_value(options.Attributes->GetYson(key).GetData());
-        }
+        ToProto(req->mutable_attributes(), *options.Attributes);
     }
     req->set_recursive(options.Recursive);
     req->set_force(options.Force);

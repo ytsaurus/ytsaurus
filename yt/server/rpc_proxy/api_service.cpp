@@ -19,6 +19,8 @@
 #include <yt/client/api/rpc_proxy/api_service_proxy.h>
 #include <yt/client/api/rpc_proxy/helpers.h>
 
+#include <yt/client/chunk_client/config.h>
+
 #include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/scheduler/operation_id_or_alias.h>
@@ -31,6 +33,8 @@
 #include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/client/ypath/rich.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -347,6 +351,29 @@ void FromProto(
     }
 }
 
+void FromProto(
+    std::optional<std::vector<TString>>* attributes,
+    const NApi::NRpcProxy::NProto::TAttributeKeys& protoAttributes)
+{
+    if (protoAttributes.all()) {
+        attributes->reset();
+    } else {
+        *attributes = NYT::FromProto<std::vector<TString>>(protoAttributes.columns());
+    }
+}
+
+void FromProto(
+    std::optional<THashSet<TString>>* attributes,
+    const NApi::NRpcProxy::NProto::TAttributeKeys& protoAttributes)
+{
+    if (protoAttributes.all()) {
+        attributes->reset();
+    } else {
+        attributes->emplace();
+        NYT::CheckedHashSetFromProto(&(**attributes), protoAttributes.columns());
+    }
+}
+
 const TServiceDescriptor& GetDescriptor()
 {
     static const auto descriptor = TServiceDescriptor(NApi::NRpcProxy::ApiServiceName)
@@ -414,8 +441,13 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListOperations));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListJobs));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobStderr));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobFailContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StraceJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
@@ -440,9 +472,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMember));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMember));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermission));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
 
         if (!Bootstrap_->GetConfig()->RequireAuthentication) {
             GetOrCreateClient(NSecurityClient::RootUserName);
@@ -956,17 +991,7 @@ private:
         TGetNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
         if (request->has_attributes()) {
-            const auto& protoAttributes = request->attributes();
-            if (protoAttributes.all()) {
-                options.Attributes.reset();
-            } else {
-                options.Attributes = std::vector<TString>();
-                options.Attributes->reserve(protoAttributes.columns_size());
-                for (int index = 0; index < protoAttributes.columns_size(); ++index) {
-                    const auto& protoItem = protoAttributes.columns(index);
-                    options.Attributes->push_back(protoItem);
-                }
-            }
+            FromProto(&options.Attributes, request->attributes());
         }
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
@@ -1008,17 +1033,7 @@ private:
         TListNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
         if (request->has_attributes()) {
-            const auto& protoAttributes = request->attributes();
-            if (protoAttributes.all()) {
-                options.Attributes.reset();
-            } else {
-                options.Attributes = std::vector<TString>();
-                options.Attributes->reserve(protoAttributes.columns_size());
-                for (int index = 0; index < protoAttributes.columns_size(); ++index) {
-                    const auto& protoItem = protoAttributes.columns(index);
-                    options.Attributes->push_back(protoItem);
-                }
-            }
+            FromProto(&options.Attributes, request->attributes());
         }
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
@@ -1061,13 +1076,7 @@ private:
         TCreateNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
         if (request->has_attributes()) {
-            const auto& protoAttributes = request->attributes();
-            auto attributes = std::shared_ptr<IAttributeDictionary>(CreateEphemeralAttributes());
-            for (int index = 0; index < protoAttributes.attributes_size(); ++index) {
-                const auto& protoItem = protoAttributes.attributes(index);
-                attributes->SetYson(protoItem.key(), TYsonString(protoItem.value()));
-            }
-            options.Attributes = std::move(attributes);
+            options.Attributes = NYTree::FromProto(request->attributes());
         }
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
@@ -1953,12 +1962,7 @@ private:
         }
         if (request->attributes_size() != 0) {
             options.Attributes.emplace();
-            for (auto attribute_index = 0;
-                attribute_index < request->attributes_size();
-                ++attribute_index)
-            {
-                options.Attributes->insert(request->attributes(attribute_index));
-            }
+            NYT::CheckedHashSetFromProto(&(*options.Attributes), request->attributes());
         }
         options.IncludeRuntime = request->include_runtime();
 
@@ -1975,9 +1979,168 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListOperations)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        TListOperationsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+
+        if (request->has_from_time()) {
+            options.FromTime = FromProto<TInstant>(request->from_time());
+        }
+        if (request->has_to_time()) {
+            options.ToTime = FromProto<TInstant>(request->to_time());
+        }
+        if (request->has_cursor_time()) {
+            options.CursorTime = FromProto<TInstant>(request->cursor_time());
+        }
+        options.CursorDirection = static_cast<EOperationSortDirection>(request->cursor_direction());
+        if (request->has_user_filter()) {
+            options.UserFilter = request->user_filter();
+        }
+
+        if (request->has_owned_by()) {
+            options.OwnedBy = request->owned_by();
+        }
+
+        if (request->has_state_filter()) {
+            options.StateFilter = NYT::NApi::NRpcProxy::NProto::ConvertOperationStateFromProto(
+                request->state_filter());
+        }
+        if (request->has_type_filter()) {
+            options.TypeFilter = NYT::NApi::NRpcProxy::NProto::ConvertOperationTypeFromProto(
+                request->type_filter());
+        }
+        if (request->has_substr_filter()) {
+            options.SubstrFilter = request->substr_filter();
+        }
+        if (request->has_pool()) {
+            options.Pool = request->pool();
+        }
+        if (request->has_with_failed_jobs()) {
+            options.WithFailedJobs = request->with_failed_jobs();
+        }
+        options.IncludeArchive = request->include_archive();
+        options.IncludeCounters = request->include_counters();
+        options.Limit = request->limit();
+
+        if (request->has_attributes()) {
+            FromProto(&options.Attributes, request->attributes());
+        }
+
+        options.EnableUIMode = request->enable_ui_mode();
+
+        context->SetRequestInfo("IncludeArchive: %v, FromTime: %v, ToTime: %v, CursorTime: %v, UserFilter: %v, "
+            "OwnedBy: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v",
+            options.IncludeArchive,
+            options.FromTime,
+            options.ToTime,
+            options.CursorTime,
+            options.UserFilter,
+            options.OwnedBy,
+            options.StateFilter,
+            options.TypeFilter,
+            options.SubstrFilter);
+
+        CompleteCallWith(
+            context,
+            client->ListOperations(options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_result(), result);
+
+                context->SetResponseInfo("OperationsCount: %v, FailedJobsCount: %v, Incomplete: %v",
+                    result.Operations.size(),
+                    result.FailedJobsCount,
+                    result.Incomplete);
+            });
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // JOBS
     ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListJobs)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+
+        TListJobsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+
+        if (request->has_type()) {
+            options.Type = NYT::NApi::NRpcProxy::NProto::ConvertJobTypeFromProto(request->type());
+        }
+        if (request->has_state()) {
+            options.State = ConvertJobStateFromProto(request->state());
+        }
+        if (request->has_address()) {
+            options.Address = request->address();
+        }
+        if (request->has_with_stderr()) {
+            options.WithStderr = request->with_stderr();
+        }
+        if (request->has_with_fail_context()) {
+            options.WithFailContext = request->with_fail_context();
+        }
+        if (request->has_with_spec()) {
+            options.WithSpec = request->with_spec();
+        }
+
+        options.SortField = static_cast<EJobSortField>(request->sort_field());
+        options.SortOrder = static_cast<EJobSortDirection>(request->sort_order());
+
+        options.Limit = request->limit();
+        options.Offset = request->offset();
+
+        options.IncludeCypress = request->include_cypress();
+        options.IncludeControllerAgent = request->include_controller_agent();
+        options.IncludeArchive = request->include_archive();
+
+        options.DataSource = static_cast<EDataSource>(request->data_source());
+        options.RunningJobsLookbehindPeriod = FromProto<TDuration>(request->running_jobs_lookbehind_period());
+
+        context->SetRequestInfo(
+            "OperationId: %v, Type: %v, State: %v, Address: %v, "
+            "IncludeCypress: %v, IncludeControllerAgent: %v, IncludeArchive: %v",
+            operationId,
+            options.Type,
+            options.State,
+            options.Address,
+            options.IncludeCypress,
+            options.IncludeControllerAgent,
+            options.IncludeArchive);
+
+        CompleteCallWith(
+            context,
+            client->ListJobs(operationId, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_result(), result);
+
+                context->SetResponseInfo(
+                    "CypressJobCount: %v, ControllerAgentJobCount: %v, ArchiveJobCount: %v",
+                    result.CypressJobCount,
+                    result.ControllerAgentJobCount,
+                    result.ArchiveJobCount);
+            });
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DumpJobContext)
     {
@@ -2001,6 +2164,81 @@ private:
             client->DumpJobContext(jobId, path, options));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobInputPaths)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        TGetJobInputPathsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        CompleteCallWith(
+            context,
+            client->GetJobInputPaths(jobId, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_paths(result.GetData());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobStderr)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        TGetJobStderrOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("OperationId: %v, JobId: %v",
+            operationId,
+            jobId);
+
+        CompleteCallWith(
+            context,
+            client->GetJobStderr(operationId, jobId, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->Attachments().push_back(std::move(result));
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobFailContext)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        TGetJobFailContextOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("OperationId: %v, JobId: %v",
+            operationId,
+            jobId);
+
+        CompleteCallWith(
+            context,
+            client->GetJobFailContext(operationId, jobId, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->Attachments().push_back(std::move(result));
+            });
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJob)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context, request);
@@ -2013,6 +2251,10 @@ private:
 
         TGetJobOptions options;
         SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_attributes()) {
+            FromProto(&options.Attributes, request->attributes());
+        }
 
         context->SetRequestInfo("OperationId: %v, JobId: %v",
             operationId,
@@ -2659,6 +2901,44 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckPermissionByAcl)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        std::optional<TString> user;
+        if (request->has_user()) {
+            user = request->user();
+        }
+        auto permission = static_cast<EPermission>(request->permission());
+        auto acl = ConvertToNode(TYsonString(request->acl()));
+
+        TCheckPermissionByAclOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+
+        options.IgnoreMissingSubjects = request->ignore_missing_subjects();
+
+        context->SetRequestInfo("User: %v, Permission: %v",
+            user,
+            FormatPermissions(permission));
+
+        CompleteCallWith(
+            context,
+            client->CheckPermissionByAcl(user, permission, acl, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_result(), result);
+            });
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // FILE CACHING
     ////////////////////////////////////////////////////////////////////////////////
@@ -2734,6 +3014,47 @@ private:
 
                 context->SetResponseInfo("Path: %v",
                     result.Path);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        std::vector<NYPath::TRichYPath> path;
+        for (const auto& protoSubPath: request->path()) {
+            path.emplace_back(ConvertTo<NYPath::TRichYPath>(TYsonString(protoSubPath)));
+        }
+
+        TGetColumnarStatisticsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.FetchChunkSpecConfig = New<NChunkClient::TFetchChunkSpecConfig>();
+        options.FetchChunkSpecConfig->MaxChunksPerFetch =
+            request->fetch_chunk_spec().max_chunk_per_fetch();
+        options.FetchChunkSpecConfig->MaxChunksPerLocateRequest =
+            request->fetch_chunk_spec().max_chunk_per_locate_request();
+
+        options.FetcherConfig = New<NChunkClient::TFetcherConfig>();
+        options.FetcherConfig->NodeRpcTimeout = FromProto<TDuration>(request->fetcher().node_rpc_timeout());
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo("Path: %v", path);
+
+        CompleteCallWith(
+            context,
+            client->GetColumnarStatistics(path, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                NYT::ToProto(response->mutable_statistics(), result);
+
+                context->SetResponseInfo("StatisticsCount: %v", result.size());
             });
     }
 };
