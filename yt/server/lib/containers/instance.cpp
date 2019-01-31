@@ -191,6 +191,12 @@ public:
         Destroyed_ = true;
     }
 
+    virtual void Stop() override
+    {
+        WaitFor(Executor_->Stop(Name_))
+            .ThrowOnError();
+    }
+
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
     {
         std::vector<TString> properties;

@@ -1226,6 +1226,13 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
                 uncertaintyRatio = 1.0;
             }
             child->SetFairShareRatio(value * uncertaintyRatio);
+            if (uncertaintyRatio < 0.99 && !IsRoot()) {
+                YT_LOG_DEBUG("Detected situation with parent/child fair share ratio disagreement "
+                    "(Child: %v, Parent: %v, UncertaintyRatio: %v)",
+                    child->GetId(),
+                    child->GetParent()->GetId(),
+                    uncertaintyRatio);
+            }
         },
         Attributes_.FairShareRatio);
 

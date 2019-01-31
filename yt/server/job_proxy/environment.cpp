@@ -307,12 +307,23 @@ public:
         auto error = CheckErrors(ResourceUsage_,
             EStatField::CpuUsageSystem,
             EStatField::CpuUsageUser);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get cpu statistics");
-        TCpuStatistics cpuStatistic;
+
+        if (!error.IsOK()) {
+            if (CpuStatistics_) {
+                YT_LOG_WARNING(error, "Unable to get cpu statistics, using last one");
+                return *CpuStatistics_;
+            } else {
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get cpu statistics");
+            }
+        }
+
         // porto returns nanosecond
-        cpuStatistic.SystemTime = TDuration().MicroSeconds(ResourceUsage_[EStatField::CpuUsageSystem].Value() / 1000);
-        cpuStatistic.UserTime = TDuration().MicroSeconds(ResourceUsage_[EStatField::CpuUsageUser].Value() / 1000);
-        return cpuStatistic;
+        TCpuStatistics cpuStatistics;
+        cpuStatistics.SystemTime = TDuration().MicroSeconds(ResourceUsage_[EStatField::CpuUsageSystem].Value() / 1000);
+        cpuStatistics.UserTime = TDuration().MicroSeconds(ResourceUsage_[EStatField::CpuUsageUser].Value() / 1000);
+
+        CpuStatistics_= cpuStatistics;
+        return cpuStatistics;
     }
 
     virtual TBlockIOStatistics GetBlockIOStatistics() const override
@@ -324,11 +335,22 @@ public:
             EStatField::IOReadByte,
             EStatField::IOWriteByte,
             EStatField::IOOperations);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get io statistics");
+
+        if (!error.IsOK()) {
+            if (BlockIOStatistics_) {
+                YT_LOG_WARNING(error, "Unable to get io statistics, using last one");
+                return *BlockIOStatistics_;
+            } else {
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get io statistics");
+            }
+        }
+
         TBlockIOStatistics blockIOStatistics;
         blockIOStatistics.BytesRead = ResourceUsage_[EStatField::IOReadByte].Value();
         blockIOStatistics.BytesWritten = ResourceUsage_[EStatField::IOWriteByte].Value();
         blockIOStatistics.IOTotal = ResourceUsage_[EStatField::IOOperations].Value();
+
+        BlockIOStatistics_ = blockIOStatistics;
         return blockIOStatistics;
     }
 
@@ -342,13 +364,21 @@ public:
             EStatField::MappedFiles,
             EStatField::MajorFaults);
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get memory statistics");
+        if (!error.IsOK()) {
+            if (MemoryStatistics_) {
+                YT_LOG_WARNING(error, "Unable to get memory statistics, using last one");
+                return *MemoryStatistics_;
+            } else {
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get memory statistics");
+            }
+        }
 
         TMemoryStatistics memoryStatistics;
         memoryStatistics.Rss = ResourceUsage_[EStatField::Rss].Value();
         memoryStatistics.MappedFile = ResourceUsage_[EStatField::MappedFiles].Value();
         memoryStatistics.MajorPageFaults = ResourceUsage_[EStatField::MajorFaults].Value();
 
+        MemoryStatistics_ = memoryStatistics;
         return memoryStatistics;
     }
 
@@ -359,6 +389,10 @@ private:
     TSpinLock SpinLock_;
     mutable TInstant LastUpdateTime_ = TInstant::Zero();
     mutable TUsage ResourceUsage_;
+
+    mutable std::optional<TCpuStatistics> CpuStatistics_;
+    mutable std::optional<TMemoryStatistics> MemoryStatistics_;
+    mutable std::optional<TBlockIOStatistics> BlockIOStatistics_;
 
     void UpdateResourceUsage() const
     {
@@ -423,7 +457,11 @@ public:
 
     virtual void CleanProcesses() override
     {
-        Instance_->Kill(SIGKILL);
+        try {
+            Instance_->Stop();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to stop user container");
+        }
     }
 
     virtual void SetIOThrottle(i64 operations) override
