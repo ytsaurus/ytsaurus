@@ -65,7 +65,7 @@ TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
             if (entry->Promise.IsSet() && entry->IsExpired(now)) {
                 NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
                 Map_.erase(it);
-                OnErase(it->first);
+                OnErase(key);
             } else {
                 Profiler_.Increment(HitCounter_);
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
@@ -128,7 +128,7 @@ TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiri
                 if (entry->Promise.IsSet() && entry->IsExpired(now)) {
                     NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
                     Map_.erase(it);
-                    OnErase(it->first);
+                    OnErase(key);
                 } else {
                     Profiler_.Increment(HitCounter_);
                     results[index] = entry->Promise;
@@ -169,7 +169,7 @@ void TAsyncExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
     if (it != Map_.end() && it->second->Promise.IsSet()) {
         NConcurrency::TDelayedExecutor::CancelAndClear(it->second->ProbationCookie);
         Map_.erase(it);
-        OnErase(it->first);
+        OnErase(key);
     }
 }
 
@@ -206,8 +206,8 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEn
     }
 
     if (now > entry->AccessDeadline) {
-        Map_.erase(key);
-        OnErase(it->first);
+        Map_.erase(it);
+        OnErase(key);
         return;
     }
 
