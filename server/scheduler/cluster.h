@@ -24,6 +24,10 @@ public:
     TPod* FindPod(const TObjectId& id);
     TPod* GetPodOrThrow(const TObjectId& id);
 
+    std::vector<TResource*> GetResources();
+    TResource* FindResource(const TObjectId& id);
+    TResource* GetResourceOrThrow(const TObjectId& id);
+
     std::vector<TNodeSegment*> GetNodeSegments();
     TNodeSegment* FindNodeSegment(const TObjectId& id);
     TNodeSegment* GetNodeSegmentOrThrow(const TObjectId& id);

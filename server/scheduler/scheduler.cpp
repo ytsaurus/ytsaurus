@@ -2,6 +2,7 @@
 #include "config.h"
 #include "cluster.h"
 #include "pod.h"
+#include "resource.h"
 #include "node.h"
 #include "schedule_queue.h"
 #include "allocation_plan.h"
@@ -212,8 +213,26 @@ private:
 
         void RemoveOrphanedAllocations()
         {
-            auto nodes = Owner_->Cluster_->GetNodes();
-            for (auto* node : nodes) {
+            std::vector<TNode*> changedNodes;
+            for (auto* resource : Owner_->Cluster_->GetResources()) {
+                auto* node = resource->GetNode();
+                for (const auto& allocation : resource->ScheduledAllocations()) {
+                    auto* pod = Owner_->Cluster_->FindPod(allocation.pod_id());
+                    if (!pod || pod->MetaOther().uuid() != allocation.pod_uuid()) {
+                        changedNodes.push_back(node);
+                        break;
+                    } else if (pod) {
+                        auto* podNode = pod->GetNode();
+                        if (!podNode || podNode->GetId() != node->GetId()) {
+                            changedNodes.push_back(node);
+                            break;
+                        }
+                    }
+                }
+            }
+            std::sort(changedNodes.begin(), changedNodes.end());
+            changedNodes.erase(std::unique(changedNodes.begin(), changedNodes.end()), changedNodes.end());
+            for (auto* node : changedNodes) {
                 YT_LOG_DEBUG("Removing orphaned allocations from node (NodeId: %v)",
                     node->GetId());
                 AllocationPlan_.RemoveOrphanedAllocations(node);

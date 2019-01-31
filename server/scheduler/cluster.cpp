@@ -2,6 +2,7 @@
 #include "node.h"
 #include "pod.h"
 #include "pod_set.h"
+#include "resource.h"
 #include "internet_address.h"
 #include "network_module.h"
 #include "topology_zone.h"
@@ -92,6 +93,7 @@ public:
     IMPLEMENT_ACCESSORS(InternetAddress, InternetAddresses)
     IMPLEMENT_ACCESSORS(Account, Accounts)
     IMPLEMENT_ACCESSORS(NetworkModule, NetworkModules)
+    IMPLEMENT_ACCESSORS(Resource, Resources)
 
     #undef IMPLEMENT_ACCESSORS
 
@@ -296,10 +298,10 @@ private:
     THashMap<TObjectId, std::unique_ptr<TAccount>> AccountMap_;
     THashMap<TObjectId, std::unique_ptr<TInternetAddress>> InternetAddressMap_;
     THashMap<TObjectId, std::unique_ptr<TNetworkModule>> NetworkModuleMap_;
+    THashMap<TObjectId, std::unique_ptr<TResource>> ResourceMap_;
 
     THashMap<std::pair<TString, TString>, std::unique_ptr<TTopologyZone>> TopologyZoneMap_;
     THashMultiMap<TString, TTopologyZone*> TopologyKeyZoneMap_;
-
 
     void InitializeNodePods()
     {
@@ -364,13 +366,14 @@ private:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            "[%v], [%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
             ResourcesTable.Fields.Meta_Id.Name,
             ResourcesTable.Fields.Meta_NodeId.Name,
             ResourcesTable.Fields.Meta_Kind.Name,
             ResourcesTable.Fields.Spec.Name,
             ResourcesTable.Fields.Status_ScheduledAllocations.Name,
             ResourcesTable.Fields.Status_ActualAllocations.Name,
+            ResourcesTable.Fields.Labels.Name,
             ytConnector->GetTablePath(&ResourcesTable),
             ObjectsTable.Fields.Meta_RemovalTime.Name);
     }
@@ -380,6 +383,7 @@ private:
         TObjectId resourceId;
         TObjectId nodeId;
         EResourceKind kind;
+        TYsonString labels;
         NClient::NApi::NProto::TResourceSpec spec;
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> scheduledAllocations;
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> actualAllocations;
@@ -390,7 +394,8 @@ private:
             &kind,
             &spec,
             &scheduledAllocations,
-            &actualAllocations);
+            &actualAllocations,
+            &labels);
 
         auto* node = FindNode(nodeId);
         if (!node) {
@@ -400,7 +405,16 @@ private:
             return;
         }
 
-        auto totalCapacities = GetResourceCapacities(spec);
+        auto resource = std::make_unique<TResource>(
+            resourceId,
+            std::move(labels),
+            node,
+            kind,
+            std::move(spec),
+            std::move(scheduledAllocations),
+            std::move(actualAllocations));
+
+        auto totalCapacities = GetResourceCapacities(resource->Spec());
 
         auto aggregateAllocations = [&] (const auto& allocations) {
             THashMap<TStringBuf, TAllocationStatistics> podIdToStatistics;
@@ -413,9 +427,9 @@ private:
             return podIdToStatistics;
         };
 
-        auto podIdToScheduledStatistics = aggregateAllocations(scheduledAllocations);
-        auto podIdToActualStatistics = aggregateAllocations(actualAllocations);
-        
+        auto podIdToScheduledStatistics = aggregateAllocations(resource->ScheduledAllocations());
+        auto podIdToActualStatistics = aggregateAllocations(resource->ActualAllocations());
+
         auto podIdToMaxStatistics = podIdToScheduledStatistics;
         for (const auto& [podId, scheduledStatistics] : podIdToActualStatistics) {
             auto& current = podIdToMaxStatistics[podId];
@@ -436,11 +450,11 @@ private:
                 break;
             case EResourceKind::Disk: {
                 TDiskVolumePolicyList supportedPolicies;
-                for (auto policy : spec.disk().supported_policies()) {
+                for (auto policy : resource->Spec().disk().supported_policies()) {
                     supportedPolicies.push_back(static_cast<NClient::NApi::NProto::EDiskVolumePolicy>(policy));
                 }
                 node->DiskResources().emplace_back(
-                    spec.disk().storage_class(),
+                    resource->Spec().disk().storage_class(),
                     supportedPolicies,
                     totalCapacities,
                     allocatedStatistics.Used,
@@ -451,8 +465,8 @@ private:
             default:
                 Y_UNREACHABLE();
         }
+        YCHECK(ResourceMap_.emplace(resourceId, std::move(resource)).second);
     }
-
 
     TTopologyZone* GetOrCreateTopologyZone(const TString& key, const TString& value)
     {
@@ -849,6 +863,7 @@ private:
         TopologyZoneMap_.clear();
         TopologyKeyZoneMap_.clear();
         NodeSegmentMap_.clear();
+        ResourceMap_.clear();
         AllNodeSegmentsLabelFilterCache_.reset();
         SchedulableNodeSegmentsLabelFilterCache_.reset();
         Timestamp_ = NullTimestamp;
@@ -874,6 +889,21 @@ TNode* TCluster::FindNode(const TObjectId& id)
 TNode* TCluster::GetNodeOrThrow(const TObjectId& id)
 {
     return Impl_->GetNodeOrThrow(id);
+}
+
+std::vector<TResource*> TCluster::GetResources()
+{
+    return Impl_->GetResources();
+}
+
+TResource* TCluster::FindResource(const TObjectId& id)
+{
+    return Impl_->FindResource(id);
+}
+
+TResource* TCluster::GetResourceOrThrow(const TObjectId& id)
+{
+    return Impl_->GetResourceOrThrow(id);
 }
 
 std::vector<TPod*> TCluster::GetPods()

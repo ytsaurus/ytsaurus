@@ -22,6 +22,7 @@ class TNodeSegment;
 class TInternetAddress;
 class TAccount;
 class TNetworkModule;
+class TResource;
 
 template <class T>
 class TLabelFilterCache;
