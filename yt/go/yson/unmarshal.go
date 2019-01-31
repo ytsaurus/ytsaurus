@@ -1,0 +1,233 @@
+// Package yson implements encoding and decoding of YSON.
+//
+// See https://wiki.yandex-team.ru/yt/userdoc/yson/ for introduction to YSON.
+//
+// Package provides interface similar to encoding/json package.
+//
+//     type myValue struct {
+//          A int    `yson:"a"`
+//          B string `yson:"b"`
+//     }
+//
+//     func Example() error {
+//         var v myValue
+//         b := []byte("{a=1;b=c;}")
+//
+//         if err := yson.Unmarshal(b, &v); err != nil {
+//             return err
+//         }
+//
+//         if err, b = yson.Marshal(v); err != nil {
+//             return err
+//         }
+//
+//         return nil
+//     }
+package yson
+
+import (
+	"errors"
+	"math"
+	"reflect"
+	"strconv"
+)
+
+// Unmarshaler is an interface implemented by types that can unmarshal themselves from YSON.
+// Input can be assumed to be a valid YSON value.
+type Unmarshaler interface {
+	UnmarshalYSON([]byte) error
+}
+
+// StreamUnmarhsaler is an interface implemented by types that can unmarhsal themselves from YSON reader.
+type StreamUnmarhsaler interface {
+	UnmarshalYSON(*Reader) error
+}
+
+func nextLiteral(r *Reader) error {
+	event, err := r.Next(true)
+	if err != nil {
+		return err
+	}
+
+	// Type error is checked in callee.
+	if event == EventBeginMap {
+		r.currentType = TypeMap
+	} else if event == EventBeginList {
+		r.currentType = TypeList
+	}
+
+	return nil
+}
+
+var IntegerOverflowError = errors.New("yson: integer overflow")
+
+func decodeInt(r *Reader, bits int) (i int64, err error) {
+	if err = nextLiteral(r); err != nil {
+		return
+	}
+
+	if r.currentType != TypeInt64 {
+		return 0, &TypeError{UserType: reflect.TypeOf(i), YSONType: r.currentType}
+	}
+
+	switch bits {
+	case 16:
+		if r.currentInt > math.MaxInt16 || r.currentInt < math.MinInt16 {
+			return 0, IntegerOverflowError
+		}
+	case 32:
+		if r.currentInt > math.MaxInt32 || r.currentInt < math.MinInt32 {
+			return 0, IntegerOverflowError
+		}
+	}
+
+	i = r.currentInt
+	return
+}
+
+func decodeUint(r *Reader, bits int) (u uint64, err error) {
+	if err = nextLiteral(r); err != nil {
+		return
+	}
+
+	if r.currentType != TypeUint64 {
+		return 0, &TypeError{UserType: reflect.TypeOf(u), YSONType: r.currentType}
+	}
+
+	switch bits {
+	case 16:
+		if r.currentInt > math.MaxUint16 {
+			return 0, IntegerOverflowError
+		}
+	case 32:
+		if r.currentInt > math.MaxUint32 {
+			return 0, IntegerOverflowError
+		}
+	}
+
+	u = r.currentUint
+	return
+}
+
+func decodeBool(r *Reader) (b bool, err error) {
+	if err = nextLiteral(r); err != nil {
+		return
+	}
+
+	if r.currentType != TypeBool {
+		err = &TypeError{UserType: reflect.TypeOf(b), YSONType: r.currentType}
+		return
+	}
+
+	b = r.currentBool
+	return
+}
+
+func decodeFloat(r *Reader) (f float64, err error) {
+	if err = nextLiteral(r); err != nil {
+		return
+	}
+
+	if r.currentType != TypeFloat64 {
+		err = &TypeError{UserType: reflect.TypeOf(f), YSONType: r.currentType}
+		return
+	}
+
+	f = r.currentFloat
+	return
+}
+
+func decodeString(r *Reader) (b []byte, err error) {
+	if err = nextLiteral(r); err != nil {
+		return
+	}
+
+	if r.currentType != TypeString {
+		err = &TypeError{UserType: reflect.TypeOf(b), YSONType: r.currentType}
+		return
+	}
+
+	b = r.currentString
+	return
+}
+
+func decodeAny(r *Reader, v interface{}) (err error) {
+	var i int64
+	var u uint64
+	var f float64
+
+	if v == nil {
+		return &UnsupportedTypeError{}
+	}
+
+	switch vv := v.(type) {
+	case *int:
+		i, err = decodeInt(r, strconv.IntSize)
+		*vv = int(i)
+	case *int16:
+		i, err = decodeInt(r, 16)
+		*vv = int16(i)
+	case *int32:
+		i, err = decodeInt(r, 32)
+		*vv = int32(i)
+	case *int64:
+		*vv, err = decodeInt(r, 64)
+	case *uint:
+		u, err = decodeUint(r, strconv.IntSize)
+		*vv = uint(u)
+	case *uint16:
+		u, err = decodeUint(r, 16)
+		*vv = uint16(u)
+	case *uint32:
+		u, err = decodeUint(r, 32)
+		*vv = uint32(u)
+	case *uint64:
+		*vv, err = decodeUint(r, 64)
+	case *bool:
+		*vv, err = decodeBool(r)
+	case *float32:
+		f, err = decodeFloat(r)
+		*vv = float32(f)
+	case *float64:
+		*vv, err = decodeFloat(r)
+	case *string:
+		var b []byte
+		b, err = decodeString(r)
+		*vv = string(b)
+	case *[]byte:
+		*vv, err = decodeString(r)
+	case *RawValue:
+		var raw []byte
+		raw, err = r.NextRawValue()
+		*vv = make([]byte, len(raw))
+		copy(*vv, raw)
+	case StreamUnmarhsaler:
+		err = vv.UnmarshalYSON(r)
+	case Unmarshaler:
+		var raw []byte
+		raw, err = r.NextRawValue()
+		if err != nil {
+			err = vv.UnmarshalYSON(raw)
+		}
+	case *interface{}:
+		err = decodeGeneric(r, vv)
+	default:
+		err = decodeReflect(r, reflect.ValueOf(v))
+	}
+
+	return
+}
+
+// Unmarshal parses YSON-encoded data and stores result in the value pointed by v. If v is nil or not a pointer, Unmarshal
+// returns UnsupportedTypeError.
+//
+// Unmarshal works similar to encoding/json package.
+//
+// Mapping between YSON types and go objects is the same as in Marshal().
+func Unmarshal(data []byte, v interface{}) error {
+	d := NewDecoderFromBytes(data)
+	if err := d.Decode(v); err != nil {
+		return err
+	}
+	return d.CheckFinish()
+}
