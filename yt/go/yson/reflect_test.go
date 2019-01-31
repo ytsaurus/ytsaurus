@@ -1,9 +1,10 @@
 package yson
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type simpleStruct struct {
@@ -91,17 +92,17 @@ func TestDecodeStructWithAttributes(t *testing.T) {
 }
 
 type structWithSingleValue struct {
-	Value  string `yson:",value"`
+	Value string `yson:",value"`
 }
 
 func TestDecodeStructWithSingleValue(t *testing.T) {
 	var s structWithSingleValue
-	s.Value = "bar"
+	s.Value = "bar1"
 
 	runTests(t, []testCase{
-		{"<a=1;b=foo>bar", s},
-		{"<>bar", s},
-		{"bar", s},
+		{"<a=1;b=foo>bar1", s},
+		{"<>bar1", s},
+		{"bar1", s},
 	})
 }
 

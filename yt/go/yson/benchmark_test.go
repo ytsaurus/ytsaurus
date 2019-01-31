@@ -37,13 +37,13 @@ func RunBenchmark(b *testing.B, do func(input []byte, typ Type) error) {
 
 				w.BeginList()
 				w.BeginMap()
-				for i := 0; input.Len() < 10 * 1024 * 1024; i++ {
-					if i % 10 == 0 {
+				for i := 0; input.Len() < 10*1024*1024; i++ {
+					if i%10 == 0 {
 						w.EndMap()
 						w.BeginMap()
 					}
 
-					w.MapKeyString(fmt.Sprintf("K%d", i % 10))
+					w.MapKeyString(fmt.Sprintf("K%d", i%10))
 					switch typ {
 					case TypeString:
 						w.String(strings.Repeat(" ", 1000))

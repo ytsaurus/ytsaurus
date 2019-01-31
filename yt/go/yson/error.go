@@ -6,7 +6,7 @@ import (
 	"reflect"
 )
 
-var InvalidNestingError = errors.New("invalid YSON nesting")
+var ErrInvalidNesting = errors.New("invalid YSON nesting")
 
 type UnsupportedTypeError struct {
 	UserType reflect.Type

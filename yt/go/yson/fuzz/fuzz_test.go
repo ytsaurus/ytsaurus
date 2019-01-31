@@ -1,11 +1,12 @@
 package fuzz
 
 import (
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestFullCrashers(t *testing.T) {
@@ -26,7 +27,7 @@ func TestFullCrashers(t *testing.T) {
 
 			Fuzz(data)
 
-			FuzzMarshal(data)
+			Marshal(data)
 		})
 	}
 }

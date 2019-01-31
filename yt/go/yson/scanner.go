@@ -10,18 +10,18 @@ type opcode byte
 
 const (
 	scanContinue     opcode = 'c' // uninteresting byte
-	scanBeginLiteral        = 'o' // begin value literal
-	scanBeginKey            = 'k' // begin key of attributes or map
-	scanBeginAttrs          = '<' // begin attributes
-	scanEndAttrs            = '>' // end attributes
-	scanBeginMap            = '{' // begin map
-	scanEndMap              = '}' // end map
-	scanBeginList           = '[' // begin list
-	scanEndList             = ']' // end list
-	scanSkipSpace           = 's' // space byte
+	scanBeginLiteral opcode = 'o' // begin value literal
+	scanBeginKey     opcode = 'k' // begin key of attributes or map
+	scanBeginAttrs   opcode = '<' // begin attributes
+	scanEndAttrs     opcode = '>' // end attributes
+	scanBeginMap     opcode = '{' // begin map
+	scanEndMap       opcode = '}' // end map
+	scanBeginList    opcode = '[' // begin list
+	scanEndList      opcode = ']' // end list
+	scanSkipSpace    opcode = 's' // space byte
 
-	scanEnd   = 'e'
-	scanError = 'x'
+	scanEnd   opcode = 'e'
+	scanError opcode = 'x'
 )
 
 type parseState int
@@ -38,28 +38,28 @@ type literalKind byte
 
 const (
 	literalEntity     literalKind = '#'
-	literalInt                    = 'i'
-	literalUint                   = 'u'
-	literalBool                   = 'b'
-	literalFloat                  = 'f'
-	literalIdentifier             = 'a'
-	literalString                 = '"'
+	literalInt        literalKind = 'i'
+	literalUint       literalKind = 'u'
+	literalBool       literalKind = 'b'
+	literalFloat      literalKind = 'f'
+	literalIdentifier literalKind = 'a'
+	literalString     literalKind = '"'
 
-	literalBinaryString = '1'
-	literalBinaryInt    = '2'
-	literalBinaryUint   = '6'
-	literalBinaryFalse  = '4'
-	literalBinaryTrue   = '5'
-	literalBinaryFloat  = '3'
+	literalBinaryString literalKind = '1'
+	literalBinaryInt    literalKind = '2'
+	literalBinaryUint   literalKind = '6'
+	literalBinaryFalse  literalKind = '4'
+	literalBinaryTrue   literalKind = '5'
+	literalBinaryFloat  literalKind = '3'
 )
 
 const (
 	binaryString byte = 1
-	binaryInt         = 2
-	binaryFloat       = 3
-	binaryFalse       = 4
-	binaryTrue        = 5
-	binaryUint        = 6
+	binaryInt    byte = 2
+	binaryFloat  byte = 3
+	binaryFalse  byte = 4
+	binaryTrue   byte = 5
+	binaryUint   byte = 6
 )
 
 // scanner is a state machine capable of parsing YSON input.
@@ -145,7 +145,7 @@ func (s *scanner) undo(scanCode opcode) {
 	s.redo = true
 }
 
-func (s *scanner) error(c byte, where string) opcode {
+func (s *scanner) error(_ byte, where string) opcode {
 	s.err = &SyntaxError{where}
 	s.step = stateError
 	return scanError

@@ -59,7 +59,7 @@ func nextLiteral(r *Reader) error {
 	return nil
 }
 
-var IntegerOverflowError = errors.New("yson: integer overflow")
+var ErrIntegerOverflow = errors.New("yson: integer overflow")
 
 func decodeInt(r *Reader, bits int) (i int64, err error) {
 	if err = nextLiteral(r); err != nil {
@@ -73,11 +73,11 @@ func decodeInt(r *Reader, bits int) (i int64, err error) {
 	switch bits {
 	case 16:
 		if r.currentInt > math.MaxInt16 || r.currentInt < math.MinInt16 {
-			return 0, IntegerOverflowError
+			return 0, ErrIntegerOverflow
 		}
 	case 32:
 		if r.currentInt > math.MaxInt32 || r.currentInt < math.MinInt32 {
-			return 0, IntegerOverflowError
+			return 0, ErrIntegerOverflow
 		}
 	}
 
@@ -97,11 +97,11 @@ func decodeUint(r *Reader, bits int) (u uint64, err error) {
 	switch bits {
 	case 16:
 		if r.currentInt > math.MaxUint16 {
-			return 0, IntegerOverflowError
+			return 0, ErrIntegerOverflow
 		}
 	case 32:
 		if r.currentInt > math.MaxUint32 {
-			return 0, IntegerOverflowError
+			return 0, ErrIntegerOverflow
 		}
 	}
 
