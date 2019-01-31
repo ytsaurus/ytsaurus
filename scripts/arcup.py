@@ -697,9 +697,8 @@ def do_complete():
     try:
         logger.info("performing cleanup")
         do_cleanup(clean_working_copy=False)
-    except:
-        import traceback
-        traceback.print_exc()
+    except Exception as e:
+        logger.exception(e)
         raise ArcupError(
             "Svn update was successful but exception was raised during cleanup.\n"
             "Everything is probably ok, though cleanup should be completed manualy.\n"
