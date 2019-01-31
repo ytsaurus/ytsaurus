@@ -1733,6 +1733,7 @@ class TestTabletActions(DynamicTablesBase):
             sync_freeze_table("//tmp/t")
 
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True, recursive=True)
+        sleep(1)
         e = "frozen" if freeze else "mounted"
         wait_for_tablet_state("//tmp/t", e)
         tablets = self._get_tablets("//tmp/t")
@@ -2001,7 +2002,11 @@ class TestTabletActions(DynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
-        wait(lambda: get("//tmp/t/@tablet_count") == 1 if enable else 2)
+        if enable:
+            wait(lambda: get("//tmp/t/@tablet_count") == 1)
+        else:
+            sleep(1)
+            assert get("//tmp/t/@tablet_count") == 2
 
     def test_tablet_balancer_schedule_formulas(self):
         self._configure_bundle("default")
@@ -2016,6 +2021,7 @@ class TestTabletActions(DynamicTablesBase):
                 wait(lambda: get("//tmp/t/@tablet_count") == 1)
                 wait_for_tablet_state("//tmp/t", "mounted")
             else:
+                sleep(1)
                 wait(lambda: get("//tmp/t/@tablet_count") == 2)
             sync_unmount_table("//tmp/t")
 
@@ -2040,12 +2046,14 @@ class TestTabletActions(DynamicTablesBase):
 
         set(local_config, "")
         set(global_config, "0")
+        sleep(1)
         check_balancer_is_active(False)
 
         set(global_config, "1")
         check_balancer_is_active(True)
 
         set(global_config, "1/0")
+        sleep(1)
         check_balancer_is_active(False)
 
     def test_tablet_merge(self):
@@ -2109,7 +2117,8 @@ class TestTabletActions(DynamicTablesBase):
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
-        wait(get("//tmp/t/@tablet_count") == 2)
+        sleep(1)
+        assert get("//tmp/t/@tablet_count") == 2
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
         remove("//tmp/t/@tablet_balancer_config/enable_auto_reshard")
         sleep(1)
@@ -2287,8 +2296,9 @@ class TestTabletActions(DynamicTablesBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(2)])
         sync_flush_table("//tmp/t")
 
-        wait(lambda: get("//tmp/t/@tablet_count") == 2)
-        wait(lambda: all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
+        sleep(1)
+        assert get("//tmp/t/@tablet_count") == 2
+        assert all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets"))
 
         set("//tmp/t/@tablet_balancer_config/enable_auto_tablet_move", True)
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
