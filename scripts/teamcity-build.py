@@ -147,9 +147,6 @@ def get_lib_dir_for_python(options, python_version):
         "pyshared-" + python_version.replace(".", "-"))
 
 def iter_enabled_python_versions(options, enable_skynet=False):
-    if options.build_enable_python_2_6:
-        yield "2.6"
-
     if options.build_enable_python_2_7:
         yield "2.7"
 
@@ -217,7 +214,6 @@ def prepare(options, build_context):
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
 
-    options.build_enable_python_2_6 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_6", "YES"))
     options.build_enable_python_2_7 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
     options.build_enable_python_3_4 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_3_4", "YES"))
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
@@ -242,12 +238,10 @@ def prepare(options, build_context):
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
 
-    if codename not in ["lucid", "precise", "trusty"]:
+    if codename not in ["precise", "trusty"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
 
-    if codename == "lucid":
-        options.build_enable_python = options.build_enable_python_2_6
-    elif codename in ["precise", "trusty"]:
+    if codename in ["precise", "trusty"]:
         options.build_enable_python = options.build_enable_python_2_7
 
     options.codename = codename
@@ -332,7 +326,6 @@ def configure(options, build_context):
                 "-DYT_BUILD_NUMBER={0}".format(options.build_number),
                 "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:10]),
                 "-DYT_BUILD_USERNAME=",  # Empty string is used intentionally to suppress username in version identifier.
-                "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6)),
                 "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
                 "-DYT_BUILD_ENABLE_PYTHON_3_4={0}".format(format_yes_no(options.build_enable_python_3_4)),
                 "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet)),
@@ -777,20 +770,48 @@ def package_yson_bindings(options, build_context):
         teamcity_message("Skipping packaging yson_bindings")
         return
 
-    package_py = os.path.join(options.checkout_directory, "yt/python/yson-debian/package.py")
+    yson_packages_path = os.path.join(options.checkout_directory, "yt/python/yson-debian")
     args = [
-        package_py,
+        os.path.join(options.checkout_directory, "yt/python/yson-debian/package.py"),
         "--working-directory", options.working_directory,
-        "--enable-dbg",
-        "--repositories", ",".join(options.yson_bindings_repositories),
+        "--debian-repositories", ",".join(options.yson_bindings_repositories),
+        "--changelog-path", os.path.join(yson_packages_path, "debian/changelog"),
+        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_yson_bindings"),
     ]
 
-    for python_version in iter_enabled_python_versions(options, enable_skynet=True):
-        args += ["yt-python-{version}-yson:{working_directory}/lib/pyshared-{version}/yson_lib.so".format(
-            working_directory=options.working_directory,
-            version=python_version.replace(".", "-")
-        )]
-    run(args, cwd=options.working_directory)
+    configurations = [
+        # build_type, python_type, library_path, package_path, package_name
+
+        # Pypi packages.
+        ("pypi", "2", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
+        ("pypi", "3", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
+        ("pypi", "skynet", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-skynet-yson"),
+
+        # Python-friendly debian packages.
+        ("debian", "2", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python-yson"),
+        ("debian", "3", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-yson", "yandex-yt-python3-yson"),
+
+        # Non-python-friendly debian packages.
+        ("debian", "2", "lib/pyshared-2-7/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-2-7-yson"),
+        ("debian", "3", "lib/pyshared-3-4/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-3-4-yson"),
+        ("debian", "skynet", "lib/pyshared-skynet/yson_lib.so", "yandex-yt-python-any-yson", "yandex-yt-python-skynet-yson"),
+    ]
+
+    for build_type, python_type, library_path, package_path, package_name in configurations:
+        if python_type == "2" and not options.build_enable_python_2_7:
+            continue
+        if python_type == "3" and not options.build_enable_python_3_4:
+            continue
+        # NB: skynet enabled by default.
+
+        run_args = args + [
+            "--build-type", build_type,
+            "--python-type", python_type,
+            "--library-path", os.path.join(options.working_directory, library_path),
+            "--package-path", os.path.join(yson_packages_path, package_path),
+            "--package-name", package_name,
+        ]
+        run(run_args, cwd=options.working_directory)
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):

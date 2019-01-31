@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 
 from teamcity_helpers import helpers
@@ -44,3 +45,6 @@ def find_file_by_prefix(root, prefix):
         for name in files:
             if name.startswith(prefix):
                 return os.path.join(root, name)
+
+def get_ubuntu_codename():
+    return re.sub(r"^Codename:\s*", "", run_captured(["lsb_release", "-c"]))
