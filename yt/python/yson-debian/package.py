@@ -124,7 +124,7 @@ def build_targets(
             if is_skynet:
                 pypi_package_name += "-skynet"
 
-            if build_wheel and package_version not in pypi.extract_package_versions(pypi_package_name):
+            if build_wheel and package_version not in pypi.get_package_versions(pypi_package_name):
                 env = {}
                 python = "python" + python_suffix
                 if is_skynet:
