@@ -307,8 +307,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert self._find_tablet_orchid(address, tablet_id) is not None
 
         remove("//tmp/t")
-        sleep(1)
-        assert self._find_tablet_orchid(address, tablet_id) is None
+        wait(lambda: self._find_tablet_orchid(address, tablet_id) is None)
 
     def test_no_copy_mounted(self):
         sync_create_cells(1)
@@ -1153,9 +1152,10 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
     }
 
     def _verify_resource_usage(self, account, resource, expected):
-        sleep(0.5)
-        assert get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource)) == expected
-        assert get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource)) == expected
+        def resource_usage_matches():
+            return (get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource)) == expected and
+                    get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource)) == expected)
+        wait(resource_usage_matches)
 
     def _multicell_set(self, path, value):
         set(path, value)
@@ -1279,7 +1279,6 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._create_sorted_table("//tmp/t", account="test_account")
         self._verify_resource_usage("test_account", "tablet_count", 1)
         remove("//tmp/t")
-        sleep(1)
         self._verify_resource_usage("test_account", "tablet_count", 0)
 
     def test_tablet_count_set_account(self):
@@ -1330,23 +1329,22 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
             mount_table("//tmp/t")
 
         def _verify():
-            sleep(0.5)
             data_size = get("//tmp/t/@{0}_data_size".format(mode))
             resource_usage = get("//sys/accounts/test_account/@resource_usage")
             committed_resource_usage = get("//sys/accounts/test_account/@committed_resource_usage")
-            assert resource_usage["tablet_static_memory"] == data_size
-            assert resource_usage == committed_resource_usage
-            assert get("//tmp/t/@resource_usage/tablet_count") == 1
-            assert get("//tmp/t/@resource_usage/tablet_static_memory") == data_size
-            assert get("//tmp/@recursive_resource_usage/tablet_count") == 1
-            assert get("//tmp/@recursive_resource_usage/tablet_static_memory") == data_size
+            return (resource_usage["tablet_static_memory"] == data_size and
+                    resource_usage == committed_resource_usage and
+                    get("//tmp/t/@resource_usage/tablet_count") == 1 and
+                    get("//tmp/t/@resource_usage/tablet_static_memory") == data_size and
+                    get("//tmp/@recursive_resource_usage/tablet_count") == 1 and
+                    get("//tmp/@recursive_resource_usage/tablet_static_memory") == data_size)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 1000)
         sync_mount_table("//tmp/t")
-        _verify()
+        wait(_verify)
 
         sync_compact_table("//tmp/t")
-        _verify();
+        wait(_verify)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 0)
         with pytest.raises(YtError):
@@ -1356,7 +1354,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
 
         sync_compact_table("//tmp/t")
-        _verify();
+        wait(_verify)
 
         sync_unmount_table("//tmp/t")
         self._verify_resource_usage("test_account", "tablet_static_memory", 0)
@@ -1735,7 +1733,6 @@ class TestTabletActions(DynamicTablesBase):
             sync_freeze_table("//tmp/t")
 
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True, recursive=True)
-        sleep(1)
         e = "frozen" if freeze else "mounted"
         wait_for_tablet_state("//tmp/t", e)
         tablets = self._get_tablets("//tmp/t")
@@ -2004,11 +2001,7 @@ class TestTabletActions(DynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
-        if enable:
-            wait(lambda: get("//tmp/t/@tablet_count") == 1)
-        else:
-            sleep(1)
-            assert get("//tmp/t/@tablet_count") == 2
+        wait(lambda: get("//tmp/t/@tablet_count") == 1 if enable else 2)
 
     def test_tablet_balancer_schedule_formulas(self):
         self._configure_bundle("default")
@@ -2023,8 +2016,7 @@ class TestTabletActions(DynamicTablesBase):
                 wait(lambda: get("//tmp/t/@tablet_count") == 1)
                 wait_for_tablet_state("//tmp/t", "mounted")
             else:
-                sleep(1)
-                assert get("//tmp/t/@tablet_count") == 2
+                wait(lambda: get("//tmp/t/@tablet_count") == 2)
             sync_unmount_table("//tmp/t")
 
         global_config = "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule"
@@ -2048,14 +2040,12 @@ class TestTabletActions(DynamicTablesBase):
 
         set(local_config, "")
         set(global_config, "0")
-        sleep(1)
         check_balancer_is_active(False)
 
         set(global_config, "1")
         check_balancer_is_active(True)
 
         set(global_config, "1/0")
-        sleep(1)
         check_balancer_is_active(False)
 
     def test_tablet_merge(self):
@@ -2119,8 +2109,7 @@ class TestTabletActions(DynamicTablesBase):
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
-        sleep(1)
-        assert get("//tmp/t/@tablet_count") == 2
+        wait(get("//tmp/t/@tablet_count") == 2)
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
         remove("//tmp/t/@tablet_balancer_config/enable_auto_reshard")
         sleep(1)
@@ -2243,28 +2232,27 @@ class TestTabletActions(DynamicTablesBase):
             wait(lambda: get("#{0}/@cell_id".format(tablet_id)) == dst)
             expected = "frozen" if freeze else "mounted"
             wait(lambda: get("#{0}/@state".format(tablet_id)) == expected)
-            multicell_sleep()
 
         set("//tmp/t/@in_memory_mode", "compressed")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
-        multicell_sleep()
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") >= get("//tmp/t/@compressed_data_size"))
+
         size = get("//sys/accounts/test_account/@resource_usage/tablet_static_memory")
-        assert size >= get("//tmp/t/@compressed_data_size")
 
         move(cells[1])
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size)
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "none")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         move(cells[1])
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == 0
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == 0)
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "compressed")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         move(cells[1])
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size)
 
     def test_tablet_cell_decomission(self):
         cells = sync_create_cells(2)
@@ -2299,9 +2287,8 @@ class TestTabletActions(DynamicTablesBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(2)])
         sync_flush_table("//tmp/t")
 
-        sleep(1)
-        assert get("//tmp/t/@tablet_count") == 2
-        assert all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets"))
+        wait(lambda: get("//tmp/t/@tablet_count") == 2)
+        wait(lambda: all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
         set("//tmp/t/@tablet_balancer_config/enable_auto_tablet_move", True)
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
