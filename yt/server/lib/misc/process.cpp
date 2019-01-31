@@ -79,14 +79,24 @@ void TPortoProcess::DoSpawn()
         ContainerInstance_->GetName());
 
     YCHECK(execFuture);
-    execFuture.Apply(BIND([=, this_ = MakeStrong(this)](int exitCode) {
-        YT_LOG_DEBUG("Process inside porto exited (ExitCode: %v, ExternalPid: %v, Container: %v)",
-            exitCode,
-            ProcessId_,
-            ContainerInstance_->GetName());
-
+    execFuture.Subscribe(BIND([=, this_ = MakeStrong(this)](TErrorOr<int> exitCodeOrError) {
         Finished_ = true;
-        FinishedPromise_.Set(StatusToError(exitCode));
+        if (exitCodeOrError.IsOK()) {
+            auto& exitCode = exitCodeOrError.ValueOrThrow();
+            YT_LOG_DEBUG("Process inside porto exited (ExitCode: %v, ExternalPid: %v, Container: %v)",
+                exitCode,
+                ProcessId_,
+                ContainerInstance_->GetName());
+
+            FinishedPromise_.Set(StatusToError(exitCode));
+        } else {
+            YT_LOG_DEBUG("Process inside porto exited with container error (Error: %v, ExternalPid: %v, Container: %v)",
+                exitCodeOrError,
+                ProcessId_,
+                ContainerInstance_->GetName());
+
+            FinishedPromise_.Set(exitCodeOrError);
+        }
     }));
 }
 
