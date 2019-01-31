@@ -667,7 +667,10 @@ public:
                 std::vector<TControllerAgentPtr> agents;
                 for (const auto& agent : registeredAgents) {
                     auto memoryStatistics = agent->GetMemoryStatistics();
-                    if (memoryStatistics && memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
+                    auto minAgentAvailableMemory = std::max(
+                        Config_->MinAgentAvailableMemory,
+                        static_cast<i64>(Config_->MinAgentAvailableMemoryFraction * memoryStatistics->Limit));
+                    if (memoryStatistics && memoryStatistics->Usage + minAgentAvailableMemory >= memoryStatistics->Limit) {
                         continue;
                     }
                     agents.push_back(agent);
@@ -680,13 +683,16 @@ public:
                 double scoreSum = 0.0;
                 for (const auto& agent : registeredAgents) {
                     auto memoryStatistics = agent->GetMemoryStatistics();
+                    auto minAgentAvailableMemory = std::max(
+                        Config_->MinAgentAvailableMemory,
+                        static_cast<i64>(Config_->MinAgentAvailableMemoryFraction * memoryStatistics->Limit));
                     if (!memoryStatistics) {
                         YT_LOG_WARNING("Controller agent skipped since it did not report memory information "
                             "and memory usage balanced pick strategy used (AgentId: %v)",
                             agent->GetId());
                         continue;
                     }
-                    if (memoryStatistics->Usage + Config_->MinAgentAvailableMemory >= memoryStatistics->Limit) {
+                    if (memoryStatistics->Usage + minAgentAvailableMemory >= memoryStatistics->Limit) {
                         continue;
                     }
 
