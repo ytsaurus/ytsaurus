@@ -309,9 +309,6 @@ public:
     // Agent must have at least #MinAgentAvailableMemory free memory to serve new operation.
     i64 MinAgentAvailableMemory;
 
-    // Agent must have at least #MinAgentAvailableMemoryFraction of free memory to serve new operation.
-    double MinAgentAvailableMemoryFraction;
-
     // Must be at least #MinAgentCount controller agent for successful assignment agent to waiting operation.
     int MinAgentCount;
 
