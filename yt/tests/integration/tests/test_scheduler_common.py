@@ -3682,6 +3682,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
             "controller_agent_tracker": {
                 "agent_pick_strategy": "memory_usage_balanced",
                 "min_agent_available_memory": 0,
+                "min_agent_available_memory_fraction": 0.0,
             }
         }
     }
