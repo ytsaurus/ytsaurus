@@ -281,34 +281,42 @@ int TTableSchema::GetColumnIndexOrThrow(TStringBuf name) const
     return GetColumnIndex(GetColumnOrThrow(name));
 }
 
-TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
+TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter, bool discardSortOrder) const
 {
-    if (columnFilter.IsUniversal()) {
-        return *this;
-    }
-
     int newKeyColumnCount = 0;
-    bool inKeyColumns = true;
     std::vector<TColumnSchema> columns;
-    for (int id : columnFilter.GetIndexes()) {
-        if (id < 0 || id >= Columns_.size()) {
-            THROW_ERROR_EXCEPTION("Invalid column id in filter: excepted in range [0, %v], got %v",
-                Columns_.size() - 1,
-                id);
+
+    if (columnFilter.IsUniversal()) {
+        if (!discardSortOrder) {
+            return *this;
+        } else {
+            columns = Columns_;
+            for (auto& column : columns) {
+                column.SetSortOrder(std::nullopt);
+            }
         }
+    } else {
+        bool inKeyColumns = !discardSortOrder;
+        for (int id : columnFilter.GetIndexes()) {
+            if (id < 0 || id >= Columns_.size()) {
+                THROW_ERROR_EXCEPTION("Invalid column id in filter: excepted in range [0, %v], got %v",
+                    Columns_.size() - 1,
+                    id);
+            }
 
-        if (id != columns.size() || !Columns_[id].SortOrder()) {
-            inKeyColumns = false;
-        }
+            if (id != columns.size() || !Columns_[id].SortOrder()) {
+                inKeyColumns = false;
+            }
 
-        columns.push_back(Columns_[id]);
+            columns.push_back(Columns_[id]);
 
-        if (!inKeyColumns) {
-            columns.back().SetSortOrder(std::nullopt);
-        }
+            if (!inKeyColumns) {
+                columns.back().SetSortOrder(std::nullopt);
+            }
 
-        if (columns.back().SortOrder()) {
-            ++newKeyColumnCount;
+            if (columns.back().SortOrder()) {
+                ++newKeyColumnCount;
+            }
         }
     }
 
@@ -318,7 +326,7 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         UniqueKeys_ && (newKeyColumnCount == GetKeyColumnCount()));
 }
 
-TTableSchema TTableSchema::Filter(const THashSet<TString>& columns) const
+TTableSchema TTableSchema::Filter(const THashSet<TString>& columns, bool discardSortOrder) const
 {
     TColumnFilter::TIndexes indexes;
     for (const auto& column : Columns()) {
@@ -326,16 +334,16 @@ TTableSchema TTableSchema::Filter(const THashSet<TString>& columns) const
             indexes.push_back(GetColumnIndex(column));
         }
     }
-    return Filter(TColumnFilter(std::move(indexes)));
+    return Filter(TColumnFilter(std::move(indexes)), discardSortOrder);
 }
 
-TTableSchema TTableSchema::Filter(const std::optional<std::vector<TString>>& columns) const
+TTableSchema TTableSchema::Filter(const std::optional<std::vector<TString>>& columns, bool discardSortOrder) const
 {
     if (!columns) {
-        return *this;
+        return Filter(TColumnFilter(), discardSortOrder);
     }
 
-    return Filter(THashSet<TString>(columns->begin(), columns->end()));
+    return Filter(THashSet<TString>(columns->begin(), columns->end()), discardSortOrder);
 }
 
 bool TTableSchema::HasComputedColumns() const
