@@ -308,7 +308,7 @@ class LocalSvn(object):
         )
         m = re.search(r"https://a[.]yandex-team[.]ru/review/(\d+)", stderr)
         if m is None:
-            raise ArcadiaSyncError(failed_to_create_review_msg)
+            raise ArcadiaSyncError(failed_to_update_review_msg)
         assert int(m.group(1)) == review_id
 
     def merge_review(self, review_id, path_list):
@@ -317,7 +317,7 @@ class LocalSvn(object):
             "REVIEW_MERGE:{review_id}\n"
             .format(review_id=review_id)
         )
-        retcode, stderr = self._svn_ci(commit_message)
+        retcode, stderr = self._svn_ci(commit_message, path_list)
         error_msg = (
             "svn commit stderr:\n"
             "{stderr}\n"
