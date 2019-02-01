@@ -264,20 +264,18 @@ class LocalSvn(object):
     def revert(self, path):
         subprocess.check_call([self.ya, "svn", "revert", "--recursive", self.abspath(path)])
 
-    def _svn_ci(self, msg):
+    def _svn_ci(self, msg, path_list):
         with tempfile.NamedTemporaryFile() as tmpf:
-            retcode = subprocess.call(
-                [self.ya, "svn", "ci", "-m", msg],
-                stderr=tmpf,
-                cwd=self.root,
-            )
+            cmd = [self.ya, "svn", "ci", "-m", msg]
+            cmd += path_list
+            retcode = subprocess.call(cmd, stderr=tmpf, cwd=self.root)
             tmpf.seek(0)
             stderr = tmpf.read()
             return retcode, stderr
 
-    def create_review(self, msg):
+    def create_review(self, msg, path_list):
         msg += "REVIEW:NEW"
-        retcode, stderr = self._svn_ci(msg)
+        retcode, stderr = self._svn_ci(msg, path_list)
         assert retcode != 0, "Ooops, looks like commit was successful please revert it :("
 
         failed_to_create_review_msg = (
@@ -292,13 +290,13 @@ class LocalSvn(object):
             raise ArcadiaSyncError(failed_to_create_review_msg)
         return int(m.group(1))
 
-    def update_review(self, review_id):
+    def update_review(self, review_id, path_list):
         commit_message = (
             "__BYPASS_CHECKS__\n"
             "REVIEW_UPLOAD:{review_id}\n"
             .format(review_id=review_id)
         )
-        retcode, stderr = self._svn_ci(commit_message)
+        retcode, stderr = self._svn_ci(commit_message, path_list)
         assert retcode != 0, "Ooops, looks like commit was successful please revert it :("
 
         failed_to_update_review_msg = (
@@ -313,7 +311,7 @@ class LocalSvn(object):
             raise ArcadiaSyncError(failed_to_create_review_msg)
         assert int(m.group(1)) == review_id
 
-    def merge_review(self, review_id):
+    def merge_review(self, review_id, path_list):
         commit_message = (
             "__BYPASS_CHECKS__\n"
             "REVIEW_MERGE:{review_id}\n"
@@ -824,6 +822,7 @@ class PushState(object):
     project_list = _data_accessor_property("project_list")
     commit = _data_accessor_property("commit")
     review_id = _data_accessor_property("review_id")
+    review_path_list = _data_accessor_property("review_path_list")
 
     def save(self):
         file_name = self._get_file_name(self._arcadia_dir)
@@ -1236,7 +1235,7 @@ class ArcadiaPush(object):
         self.push_state.save()
 
     
-    def create_review(self):
+    def create_review(self, projects_only):
         head = self.common_git.resolve_ref("HEAD")
         commit_message = (
             "Push {svn_path_list} to arcadia\n"
@@ -1250,16 +1249,24 @@ class ArcadiaPush(object):
         for project in self.push_state.project_list:
             commit_message += "yt:arcadia-sync:project:{project}\n".format(project=project)
 
-        review_id = self.local_svn.create_review(commit_message)
+        path_list = []
+        if projects_only:
+            for ctx in self.ctx_list:
+                path_list.append(ctx.svn_relpath)
+        else:
+            path_list.append(".")
+
+        review_id = self.local_svn.create_review(commit_message, path_list=path_list)
         self.push_state.review_id = review_id
         self.push_state.commit = head
+        self.push_state.review_path_list = path_list
         self.push_state.save()
 
     def update_review(self):
-        self.local_svn.update_review(self.push_state.review_id)
+        self.local_svn.update_review(self.push_state.review_id, self.push_state.review_path_list)
 
     def merge_review(self):
-        self.local_svn.merge_review(self.push_state.review_id)
+        self.local_svn.merge_review(self.push_state.review_id, self.push_state.review_path_list)
         self.push_state.drop()
 
     def get_arcadia_abspath(self, relpath):
@@ -1298,7 +1305,7 @@ def action_create_review(args):
         check_svn_is_clean=False,
         check_head_matches_push_state=False
     )
-    arcadia_push.create_review()
+    arcadia_push.create_review(args.projects_only)
 
     print >>sys.stderr, (
         "Review is created: {url}\n"
@@ -1542,6 +1549,8 @@ def main():
     add_arcadia_argument(create_review_parser)
     add_ignore_unmerged_svn_commits_argument(create_review_parser)
     add_ignore_not_pushed_head_argument(create_review_parser)
+    create_review_parser.add_argument("--projects-only", default=False, action="store_true",
+                                          help="send to review only directories with selected projects (otherwise all arcadia is sent)")
     create_review_parser.set_defaults(action=action_create_review)
 
     print_active_review_parser = add_no_projects_parser("print-active-review", help="print link to the active review request")
