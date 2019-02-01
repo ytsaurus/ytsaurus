@@ -11,6 +11,8 @@
 #include <yp/server/master/config.h>
 #include <yp/server/master/bootstrap.h>
 
+#include <yp/server/scheduler/helpers.h>
+
 #include <yp/client/nodes/node_tracker_service_proxy.h>
 #include <yp/client/nodes/agent_service_proxy.h>
 
@@ -560,21 +562,23 @@ public:
         {
             for (auto* resource : Node_->Resources().Load()) {
                 const auto& scheduledAllocations = resource->Status().ScheduledAllocations().Load();
-                auto* actualAllocations = resource->Status().ActualAllocations().Get();
+                const auto& oldActualAllocations = resource->Status().ActualAllocations().Load();
+
+                auto newActualAllocations = oldActualAllocations;
 
                 // Drop actual allocations for unknown pods and also for up-to-date pods (these allocations
                 // will be copied from scheduled ones).
-                actualAllocations->erase(
+                newActualAllocations.erase(
                     std::remove_if(
-                        actualAllocations->begin(),
-                        actualAllocations->end(),
+                        newActualAllocations.begin(),
+                        newActualAllocations.end(),
                         [&] (const auto& allocation) {
                             auto podId = FromProto<TObjectId>(allocation.pod_id());
                             return
                                 ReportedPodIds_.find(podId) == ReportedPodIds_.end() ||
                                 UpToDatePodIds_.find(podId) != UpToDatePodIds_.end();
                         }),
-                    actualAllocations->end());
+                    newActualAllocations.end());
 
                 // Copy scheduled allocations for the up-to-date pods to the actual ones.
                 for (const auto& scheduledAllocation : scheduledAllocations) {
@@ -582,8 +586,11 @@ public:
                     if (UpToDatePodIds_.find(podId) == UpToDatePodIds_.end()) {
                         continue;
                     }
-                    actualAllocations->emplace_back();
-                    actualAllocations->back().MergeFrom(scheduledAllocation);
+                    newActualAllocations.emplace_back().MergeFrom(scheduledAllocation);
+                }
+
+                if (newActualAllocations != oldActualAllocations) {
+                    resource->Status().ActualAllocations() = std::move(newActualAllocations);
                 }
             }
         }

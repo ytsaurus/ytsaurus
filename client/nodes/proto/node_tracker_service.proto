@@ -88,7 +88,7 @@ message TPodSpec
 
     // Contains (raw, unencrypted) secrets to be injected into the pod.
     // These are obtained via TVM magic from secret descriptors provided in /pod/spec/secrets.
-    repeated NYP.NClient.NApi.NProto.TSecret secrets = 12;
+    repeated NYP.NClient.NApi.NProto.TSecret secrets = 11;
 }
 
 message TReqHeartbeat

@@ -4,6 +4,56 @@
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/resource.h>
 
+
+namespace NYP::NClient::NApi::NProto {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator==(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TAllocation& rhs)
+{
+    if (lhs.pod_id() != rhs.pod_id() ||
+        lhs.pod_uuid() != rhs.pod_uuid())
+    {
+        return false;
+    }
+
+    if (lhs.has_cpu() != rhs.has_cpu()) {
+        return false;
+    }
+    if (lhs.has_cpu() && lhs.cpu().capacity() != rhs.cpu().capacity()) {
+        return false;
+    }
+
+    if (lhs.has_memory() != rhs.has_memory()) {
+        return false;
+    }
+    if (lhs.has_memory() && lhs.memory().capacity() != rhs.memory().capacity()) {
+        return false;
+    }
+
+    if (lhs.has_disk() != rhs.has_disk()) {
+        return false;
+    }
+    if (lhs.has_disk() &&
+        (lhs.disk().capacity() != rhs.disk().capacity() ||
+         lhs.disk().exclusive() != rhs.disk().exclusive() ||
+         lhs.disk().volume_id() != rhs.disk().volume_id()))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool operator!=(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TAllocation& rhs)
+{
+    return !(lhs == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYP::NClient::NApi::NProto
+
 namespace NYP::NServer::NScheduler {
 
 using namespace NServer::NObjects;

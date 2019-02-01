@@ -7,6 +7,17 @@
 
 #include <yp/client/api/proto/data_model.pb.h>
 
+namespace NYP::NClient::NApi::NProto {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator==(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TAllocation& rhs);
+bool operator!=(const TResourceStatus_TAllocation& lhs, const TResourceStatus_TAllocation& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYP::NClient::NApi::NProto
+
 namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
