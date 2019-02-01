@@ -77,7 +77,6 @@ private:
 
     NConcurrency::TReaderWriterSpinLock BlocksExtLock_;
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
-    TFuture<NChunkClient::TRefCountedBlocksExtPtr> AsyncBlocksExt_;
 
 
     //! Returns true if location must be disabled.
