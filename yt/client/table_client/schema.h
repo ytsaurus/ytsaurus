@@ -104,9 +104,15 @@ public:
     int GetColumnIndex(TStringBuf name) const;
     int GetColumnIndexOrThrow(TStringBuf name) const;
 
-    TTableSchema Filter(const TColumnFilter& columnFilter) const;
-    TTableSchema Filter(const THashSet<TString>& columns) const;
-    TTableSchema Filter(const std::optional<std::vector<TString>>& columns) const;
+    TTableSchema Filter(
+        const TColumnFilter& columnFilter,
+        bool discardSortOrder = false) const;
+    TTableSchema Filter(
+        const THashSet<TString>& columns,
+        bool discardSortOrder = false) const;
+    TTableSchema Filter(
+        const std::optional<std::vector<TString>>& columns,
+        bool discardSortOrder = false) const;
 
     bool HasComputedColumns() const;
     bool IsSorted() const;
