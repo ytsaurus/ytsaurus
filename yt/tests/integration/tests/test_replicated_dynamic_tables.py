@@ -729,30 +729,19 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id)
         with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 1, "value2": 456}])
 
-    # XXX(babenko): ordered tables may currently return stale data  
-    @pytest.mark.parametrize("schema,wait_for_sync_replica", [
-        (SIMPLE_SCHEMA_SORTED, False),
-        (SIMPLE_SCHEMA_ORDERED, True)
-    ])
-    def test_wait_for_sync(self, schema, wait_for_sync_replica):
+    def test_wait_for_sync_sorted(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema)
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED)
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
-        self._create_replica_table("//tmp/r1", replica_id1, schema)
-        self._create_replica_table("//tmp/r2", replica_id2, schema)
+        self._create_replica_table("//tmp/r1", replica_id1, SIMPLE_SCHEMA_SORTED)
+        self._create_replica_table("//tmp/r2", replica_id2, SIMPLE_SCHEMA_SORTED)
 
         sync_enable_table_replica(replica_id1)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
 
-        def _maybe_add_system_fields(dict, row_index):
-            if schema is self.SIMPLE_SCHEMA_ORDERED:
-                dict['$tablet_index'] = 0
-                dict['$row_index'] = row_index
-            return dict
-
-        assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [_maybe_add_system_fields({"key": 1, "value1": "test", "value2": 123}, 0)]
+        assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}]
         assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == []
 
         alter_table_replica(replica_id1, mode="async")
@@ -776,15 +765,48 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 return False
         wait(lambda: check_writable())
 
-        def check_sync_replica():
-            return select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1)
+        assert select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == {"key": 1, "value1": "test2", "value2": 456}
+        wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {"key": 1, "value1": "test2", "value2": 456})
 
-        if wait_for_sync_replica:
-            wait(check_sync_replica)
-        else:
-            assert check_sync_replica()
+    # XXX(babenko): ordered tables may currently return stale data  
+    def test_wait_for_sync_ordered(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_ORDERED)
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r1", replica_id1, SIMPLE_SCHEMA_ORDERED)
+        self._create_replica_table("//tmp/r2", replica_id2, SIMPLE_SCHEMA_ORDERED)
 
-        wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1))
+        sync_enable_table_replica(replica_id1)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
+
+        wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver) == [{"$tablet_index": 0, "$row_index": 0, "key": 1, "value1": "test", "value2": 123}])
+        assert select_rows("* from [//tmp/r2]", driver=self.replica_driver) == []
+
+        alter_table_replica(replica_id1, mode="async")
+        alter_table_replica(replica_id2, mode="sync")
+
+        def check_not_writable():
+            try:
+                insert_rows("//tmp/t", [{"key": 1, "value1": "test2", "value2": 777}])
+                return False
+            except YtError:
+                return True
+        wait(check_not_writable)
+
+        sync_enable_table_replica(replica_id2)
+
+        def check_writable():
+            try:
+                insert_rows("//tmp/t", [{"key": 1, "value1": "test2", "value2": 456}])
+                return True
+            except YtError:
+                return False
+        wait(check_writable)
+
+        wait(lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == {"$tablet_index": 0, "$row_index": 1, "key": 1, "value1": "test2", "value2": 456})
+        wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {"$tablet_index": 0, "$row_index": 1, "key": 1, "value1": "test2", "value2": 456})
 
     def test_disable_propagates_replication_row_index(self):
         self._create_cells()
