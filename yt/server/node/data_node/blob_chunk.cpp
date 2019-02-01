@@ -395,6 +395,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         } else {
             const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
             auto cookie = chunkMetaManager->BeginInsertCachedBlocksExt(Id_);
+            auto asyncCachedBlocksExt = cookie.GetValue();
 
             if (cookie.IsActive()) {
                 ReadMeta(options)
@@ -412,7 +413,6 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                     }));
             }
 
-            auto asyncCachedBlocksExt = cookie.GetValue();
             asyncResults.push_back(asyncCachedBlocksExt.Apply(BIND([=, this_ = MakeStrong(this)] (const TCachedBlocksExtPtr& cachedBlocksExt) {
                 OnBlocksExtLoaded(session, cachedBlocksExt->GetBlocksExt());
             })));
