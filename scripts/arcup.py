@@ -675,7 +675,7 @@ def do_continue():
     print >>sys.stderr, (
         "All dependencies are checkouted.\n"
         "Now you can use:\n"
-        " $ {argv0} complete --confirm\n"
+        " $ {argv0} complete\n"
         "to push arcadia-dependency submodules and commit changes to main git repo.\n".format(argv0=ARGV0))
 
 
