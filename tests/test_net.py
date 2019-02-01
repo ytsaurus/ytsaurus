@@ -6,6 +6,41 @@ from yt.yson import YsonEntity
 
 import pytest
 
+def ipv6_to_ptr_record(address):
+    octets = []
+    if address.find("::") == -1:
+        octets = address.split(":")
+    else:
+        parts = address.split("::")
+        for i in xrange(len(parts)):
+            parts[i] = parts[i].split(":")
+        octets = parts[0] + [""] * (8 - len(parts[0]) - len(parts[1])) + parts[1]
+    for i in xrange(len(octets)):
+         octets[i] = "0" * (4 - len(octets[i])) + octets[i]
+
+    address = "".join(octets)
+    address = reversed(address) # reverse address
+    address = ".".join([x for x in address])
+    return address + ".ip6.arpa."
+
+def check_dns_record_set(yp_client, key, type, data):
+    filtered_records = yp_client.get_object("dns_record_set", key, selectors=["/spec"])
+    assert len(filtered_records) == 1
+    dns_record_set = filtered_records[0]
+    assert len(dns_record_set["records"]) == len(data)
+    records_data = []
+
+    for i in xrange(len(dns_record_set["records"])):
+        assert dns_record_set["records"][i]["type"] == type
+        assert dns_record_set["records"][i]["class"] == "IN"
+        records_data.append(dns_record_set["records"][i]["data"])
+
+    assert sorted(records_data) == sorted(data)
+
+def check_dns_allocation(yp_client, persistent_fqdn, transient_fqdn, address):
+    check_dns_record_set(yp_client, persistent_fqdn, "AAAA", [address])
+    check_dns_record_set(yp_client, transient_fqdn, "AAAA", [address])
+    check_dns_record_set(yp_client, ipv6_to_ptr_record(address), "PTR", [persistent_fqdn])
 
 @pytest.mark.usefixtures("yp_env")
 class TestNet(object):
@@ -154,45 +189,95 @@ class TestNet(object):
         assert allocations[1]["transient_fqdn"] == "{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
         assert allocations[2]["persistent_fqdn"] == "abc.{}.test.yp-c.yandex.net".format(pod_id)
         assert allocations[2]["transient_fqdn"] == "abc.{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
-        # TODO(babenko): the rest is temporarily disabled
-        return
-        
+
         assert len(yp_client.select_objects("dns_record_set", selectors=["/meta"])) == 6
 
-        def ipv6_to_ptr_record(address):
-            octets = []
-            if address.find('::') == -1:
-                octets = address.split(':')
-            else:
-                parts = address.split('::')
-                for i in range(len(parts)):
-                    parts[i] = parts[i].split(':')
-                octets = parts[0] + [''] * (8 - len(parts[0]) - len(parts[1])) + parts[1]
-            for i in range(len(octets)):
-                 octets[i] = '0' * (4 - len(octets[i])) + octets[i]
+        check_dns_allocation(yp_client, allocations[1]["persistent_fqdn"], allocations[1]["transient_fqdn"], allocations[1]["address"])
+        check_dns_allocation(yp_client, allocations[2]["persistent_fqdn"], allocations[2]["transient_fqdn"], allocations[2]["address"])
 
-            address = ''.join(octets)
-            address = address[::-1] # reverse address
-            address = '.'.join([x for x in address])
-            return address + '.ip6.arpa.'
+        yp_client.update_object("pod", pod_id, set_updates=[{
+            "path": "/spec/ip6_address_requests",
+            "value": [
+                {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": True, "dns_prefix": "xyz"}
+            ]
+        }])
 
-        def check_dns_record_set(key, type, data):
-            filtered_records = yp_client.get_object("dns_record_set", key, selectors=["/spec"])
-            assert len(filtered_records) == 1
-            dns_record_set = filtered_records[0]
-            assert len(dns_record_set["records"]) == 1
-            resource_record = dns_record_set["records"][0]
-            assert resource_record["type"] == type
-            assert resource_record["class"] == "IN"
-            assert resource_record["data"] == data
+        allocations = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_address_allocations"])[0]
+        assert len(allocations) == 1
+        assert allocations[0]["persistent_fqdn"] == "xyz.{}.test.yp-c.yandex.net".format(pod_id)
+        assert allocations[0]["transient_fqdn"] == "xyz.{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
 
-        def check_dns_allocation(persistent_fqdn, transient_fqdn, address):
-            check_dns_record_set(persistent_fqdn, "AAAA", address)
-            check_dns_record_set(transient_fqdn, "AAAA", address)
-            check_dns_record_set(ipv6_to_ptr_record(address), "PTR", persistent_fqdn)
+        assert len(yp_client.select_objects("dns_record_set", selectors=["/meta"])) == 3
+        check_dns_allocation(yp_client, allocations[0]["persistent_fqdn"], allocations[0]["transient_fqdn"], allocations[0]["address"])
 
-        check_dns_allocation(allocations[1]["persistent_fqdn"], allocations[1]["transient_fqdn"], allocations[1]["address"])
-        check_dns_allocation(allocations[2]["persistent_fqdn"], allocations[2]["transient_fqdn"], allocations[2]["address"])
+        yp_client.remove_object("pod", pod_id)
+        assert len(yp_client.select_objects("dns_record_set", selectors=["/meta"])) == 0
+
+    def test_multiple_dns_records_with_same_prefix(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("network_project", attributes={
+            "meta": {
+                "id": "somenet"
+            },
+            "spec": {
+                "project_id": 123
+            }})
+
+        pod_set_id = yp_client.create_object("pod_set")
+
+        pod_id = yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+            "spec": {
+                "resource_requests": ZERO_RESOURCE_REQUESTS,
+                "ip6_address_requests": [
+                    {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": True, "dns_prefix": "abc"},
+                    {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": True, "dns_prefix": "abc"}
+                ]
+            }})
+
+        node_id = yp_client.create_object("node", attributes={
+                "meta": {
+                    "id": "test"
+                },
+                "spec": {
+                    "ip6_subnets": [
+                        {"vlan_id": "somevlan", "subnet": "1:2:3:4::/64"}
+                    ]
+                }
+            })
+
+        yp_client.update_object("pod", pod_id,  set_updates=[{"path": "/spec/node_id", "value": node_id}])
+        allocations = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_address_allocations"])[0]
+        assert len(allocations) == 2
+        assert allocations[0]["persistent_fqdn"] == "abc.{}.test.yp-c.yandex.net".format(pod_id)
+        assert allocations[0]["transient_fqdn"] == "abc.{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
+        assert allocations[1]["persistent_fqdn"] == "abc.{}.test.yp-c.yandex.net".format(pod_id)
+        assert allocations[1]["transient_fqdn"] == "abc.{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
+
+        assert len(yp_client.select_objects("dns_record_set", selectors=["/meta"])) == 4 # two AAAA records and two PTR records
+
+        check_dns_record_set(yp_client, allocations[0]["persistent_fqdn"], "AAAA", [allocations[0]["address"], allocations[1]["address"]])
+        check_dns_record_set(yp_client, allocations[0]["transient_fqdn"], "AAAA", [allocations[0]["address"], allocations[1]["address"]])
+        check_dns_record_set(yp_client, ipv6_to_ptr_record(allocations[0]["address"]), "PTR", [allocations[0]["persistent_fqdn"]])
+        check_dns_record_set(yp_client, ipv6_to_ptr_record(allocations[1]["address"]), "PTR", [allocations[1]["persistent_fqdn"]])
+
+        yp_client.update_object("pod", pod_id, set_updates=[{
+            "path": "/spec/ip6_address_requests",
+            "value": [
+                {"vlan_id": "somevlan", "network_id": "somenet", "enable_dns": True, "dns_prefix": "abc"}
+            ]
+        }])
+
+        allocations = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_address_allocations"])[0]
+        assert len(allocations) == 1
+        assert allocations[0]["persistent_fqdn"] == "abc.{}.test.yp-c.yandex.net".format(pod_id)
+        assert allocations[0]["transient_fqdn"] == "abc.{}-1.{}.test.yp-c.yandex.net".format(node_id, pod_id)
+
+        assert len(yp_client.select_objects("dns_record_set", selectors=["/meta"])) == 3
+        check_dns_allocation(yp_client, allocations[0]["persistent_fqdn"], allocations[0]["transient_fqdn"], allocations[0]["address"])
 
         yp_client.remove_object("pod", pod_id)
         assert len(yp_client.select_objects("dns_record_set", selectors=["/meta"])) == 0
