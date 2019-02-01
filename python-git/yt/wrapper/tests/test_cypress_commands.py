@@ -328,7 +328,7 @@ class TestCypressCommands(object):
         assert yt.exists(table)
         assert yt.exists(other_table)
 
-        yt.write_table(table, [{'a': 'b'}])
+        yt.write_table(table, [{"a": "b"}])
         with pytest.raises(yt.YtError):
             yt.copy(table, other_table)
         yt.copy(table, other_table, ignore_existing=True)
@@ -371,8 +371,6 @@ class TestCypressCommands(object):
 
         assert yt.get(TEST_DIR + "/ttt/@expiration_time") == yt.get(TEST_DIR + "/ttt_copied/@expiration_time")
         assert yt.get(TEST_DIR + "/ttt/@creation_time") == yt.get(TEST_DIR + "/ttt_copied/@creation_time")
-
-
 
     @flaky(max_runs=5)
     def test_transactions(self):

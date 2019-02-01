@@ -537,7 +537,7 @@ def add_link_parser(add_parser):
     add_ypath_argument(parser, "target_path", help="address of original node to link, path must exist", hybrid=True)
     add_ypath_argument(parser, "link_path", help="address of resulting link, path must not exist", hybrid=True)
 
-    parser.add_argument("-r", "--recursive", action="store_true", help="remove nodes and their subnodes recursively")
+    parser.add_argument("-r", "--recursive", action="store_true", help="create parent nodes recursively")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
     parser.add_argument("-f", "--force", action="store_true", help="force create link even if destination already exists "
                                                                    "(supported only on cluster with 19+ version)")
@@ -875,9 +875,13 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--host-ytserver-clickhouse-path") 
     parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config") 
     parser.add_argument("--cpu-limit", default=clickhouse.DEFAULT_CPU_LIMIT, type=int) 
-    parser.add_argument("--memory-limit", default=clickhouse.DEFAULT_MEMORY_LIMIT, type=int) 
+    parser.add_argument("--memory-limit", default=clickhouse.DEFAULT_MEMORY_LIMIT, type=int)
+    parser.add_argument("--enable-monitoring", action="store_true", default=False,
+                        help="(only for development use) bind monitoring port to 10142")
+    parser.add_argument("--enable-query-log", action="store_true", default=False,
+                        help="enable ClickHouse query log")
     add_structured_argument(parser, "--spec") 
-    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch") 
+    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
 def add_map_reduce_parser(add_parser):
     MAP_REDUCE_EPILOG = '''Options --mapper, --reducer, --combiner specify bash commands to run.

@@ -10,9 +10,10 @@ from .yson import dumps
 from tempfile import NamedTemporaryFile
 
 DEFAULT_CPU_LIMIT = 8
-DEFAULT_MEMORY_LIMIT = 15 * 2**30
-MEMORY_FOOTPRINT = 2 * 2**30
+DEFAULT_MEMORY_LIMIT = 15 * 2 ** 30
+MEMORY_FOOTPRINT = 2 * 2 ** 30
 DEFAULT_CYPRESS_BASE_CONFIG_PATH = "//sys/clickhouse/config"
+
 
 def get_clickhouse_clique_spec_builder(instance_count,
                                        cypress_ytserver_clickhouse_path=None,
@@ -21,6 +22,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        max_failed_job_count=None,
                                        cpu_limit=None,
                                        memory_limit=None,
+                                       enable_monitoring=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -32,6 +34,8 @@ def get_clickhouse_clique_spec_builder(instance_count,
     :type host_ytserver_clickhouse_path: str
     :param max_failed_job_count: maximum number of failed jobs that is allowed for the underlying vanilla operation.
     :type max_failed_job_count: int
+    :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
+    :type enable_monitoring: bool
     :param spec: other spec options.
     :type spec: dict
 
@@ -43,6 +47,9 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     if memory_limit is None:
         memory_limit = DEFAULT_MEMORY_LIMIT
+
+    if enable_monitoring is None:
+        enable_monitoring = False
 
     require(cypress_config_path is not None,
             lambda: YtError("Cypress config.yson path should be specified; consider using "
@@ -68,25 +75,29 @@ def get_clickhouse_clique_spec_builder(instance_count,
     if "expose" not in spec["annotations"]:
         spec["annotations"]["expose"] = True
 
+    monitoring_port = "10142" if enable_monitoring else "$YT_PORT_1"
+
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("clickhouse_servers") \
-                .job_count(instance_count) \
-                .file_paths(file_paths) \
-                .command('{} --config config.yson --instance-id $YT_JOB_ID '
-                         '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port $YT_PORT_1 '
-                         '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3'
-                         .format(executable_path)) \
-                .memory_limit(memory_limit + MEMORY_FOOTPRINT) \
-                .cpu_limit(cpu_limit) \
-                .port_count(4) \
+            .job_count(instance_count) \
+            .file_paths(file_paths) \
+            .command('{} --config config.yson --instance-id $YT_JOB_ID '
+                     '--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} '
+                     '--tcp-port $YT_PORT_2 --http-port $YT_PORT_3'
+                     .format(executable_path, monitoring_port)) \
+            .memory_limit(memory_limit + MEMORY_FOOTPRINT) \
+            .cpu_limit(cpu_limit) \
+            .port_count(4) \
             .end_task() \
             .max_failed_job_count(max_failed_job_count) \
             .spec(spec)
 
     return spec_builder
 
-def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=None, cpu_limit=None, memory_limit=None, client=None):
+
+def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=None, cpu_limit=None, memory_limit=None,
+                              enable_query_log=None, client=None):
     """Merges a document pointed by `config_template_cypress_path` and `config` and uploads the
     result as a config.yson file suitable for specifying as a config file for clickhouse clique.
 
@@ -94,7 +105,10 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
     :type cypress_base_config_path: str or None
     :param clickhouse_config: configuration patch to be applied onto the base config; if None, nothing happens
     :type clickhouse_config: dict or None
-    :return: path to the resulting file in Cypress.
+    :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
+    :type enable_monitoring: bool or None
+    :param enable_query_log: enable clickhouse query log.
+    :type enable_query_log: bool or None
     """
 
     if cpu_limit is None:
@@ -115,10 +129,14 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
     clickhouse_config["engine"] = clickhouse_config.get("engine", {})
     clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
     clickhouse_config["engine"]["settings"]["max_threads"] = cpu_limit
+    clickhouse_config["engine"]["settings"]["max_distributed_connections"] = cpu_limit
 
     clickhouse_config["engine"] = clickhouse_config.get("engine", {})
     clickhouse_config["engine"]["settings"] = clickhouse_config["engine"].get("settings", {})
     clickhouse_config["engine"]["settings"]["max_memory_usage_for_all_queries"] = memory_limit
+
+    if enable_query_log:
+        clickhouse_config["engine"]["settings"]["log_queries"] = 1
 
     base_config = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else {}
     resulting_config = update(base_config, clickhouse_config)
@@ -126,15 +144,18 @@ def prepare_clickhouse_config(cypress_base_config_path=None, clickhouse_config=N
     with NamedTemporaryFile() as temp:
         temp.write(dumps(resulting_config, yson_format="pretty"))
         temp.flush()
-        result = smart_upload_file(temp.name)
+        result = smart_upload_file(temp.name, client=client)
 
     return str(result)
+
 
 def start_clickhouse_clique(instance_count,
                             cypress_base_config_path=None,
                             clickhouse_config=None,
                             cpu_limit=None,
                             memory_limit=None,
+                            enable_monitoring=None,
+                            enable_query_log=None,
                             client=None,
                             **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
@@ -147,6 +168,10 @@ def start_clickhouse_clique(instance_count,
     :type cpu_limit: int
     :param memory_limit: amount of memory that will be available to each instance
     :type memory_limit: int
+    :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
+    :type enable_monitoring: bool
+    :param enable_query_log: enable clickhouse query log.
+    :type enable_query_log: bool
     .. seealso::  :ref:`operation_parameters`.
     """
 
@@ -154,12 +179,14 @@ def start_clickhouse_clique(instance_count,
                                                     clickhouse_config=clickhouse_config,
                                                     cpu_limit=cpu_limit,
                                                     memory_limit=memory_limit,
+                                                    enable_query_log=enable_query_log,
                                                     client=client)
 
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,
                                                           cypress_config_path=cypress_config_path,
                                                           cpu_limit=cpu_limit,
                                                           memory_limit=memory_limit,
+                                                          enable_monitoring=enable_monitoring,
                                                           **kwargs),
                        client=client,
                        sync=False)
@@ -173,4 +200,3 @@ def start_clickhouse_clique(instance_count,
             process_operation_unsuccesful_finish_state(op, state)
         else:
             op.printer(state)
-
