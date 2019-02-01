@@ -414,7 +414,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             }
 
             asyncResults.push_back(asyncCachedBlocksExt.Apply(BIND([=, this_ = MakeStrong(this)] (const TCachedBlocksExtPtr& cachedBlocksExt) {
-                OnBlocksExtLoaded(session, cachedBlocksExt->GetBlocksExt());
+                return OnBlocksExtLoaded(session, cachedBlocksExt->GetBlocksExt());
             })));
         }
     }
