@@ -70,6 +70,8 @@ MB = 1024 * KB
 GB = 1024 * MB
 TB = 1024 * GB
 
+PACKAGING_TIMEOUT = 30 * 60
+
 INTEGRATION_TESTS_PARALLELISM = {"debug": 4, "release": 10}
 PYTHON_TESTS_PARALLELISM = 6
 YP_TESTS_PARALLELISM = 6
@@ -579,7 +581,7 @@ def package(options, build_context):
                         env=ya_make_env(options),
                     ))
                     package_names.append(package_name)
-                run_parallel(tasks, parallelism=len(tasks), timeout=10 * 60)
+                run_parallel(tasks, parallelism=len(tasks), timeout=PACKAGING_TIMEOUT)
                 for package_name in package_names:
                     expected_tar = "{}.{}.tar.gz".format(
                         package_name,
