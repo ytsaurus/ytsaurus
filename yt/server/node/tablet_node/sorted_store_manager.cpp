@@ -587,7 +587,7 @@ bool TSortedStoreManager::SplitPartition(
 
     // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
     // a partition stuck in splitting state forever.
-    partition->CheckedSetState(EPartitionState::Splitting, EPartitionState::Normal);
+    partition->SetState(EPartitionState::Normal);
 
     if (Tablet_->PartitionList().size() >= Tablet_->GetConfig()->MaxPartitionCount) {
         return false;
@@ -610,7 +610,7 @@ void TSortedStoreManager::MergePartitions(
         // See SplitPartition.
         // Currently this code is redundant since there's no escape path below,
         // but we prefer to keep it to make things look symmetric.
-        partition->CheckedSetState(EPartitionState::Merging, EPartitionState::Normal);
+        partition->SetState(EPartitionState::Normal);
     }
 
     DoMergePartitions(firstPartitionIndex, lastPartitionIndex);
