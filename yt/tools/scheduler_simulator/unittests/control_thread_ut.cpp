@@ -230,7 +230,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TControlThreadTest, DISABLED_TestSingleOperation)
+TEST_F(TControlThreadTest, TestSingleOperation)
 {
     const auto earliestTime = TInstant::ParseIso8601("2019-01-01T12:00:00+00:00");
     auto simulatorConfig = New<TSchedulerSimulatorConfig>();
@@ -266,7 +266,7 @@ TEST_F(TControlThreadTest, DISABLED_TestSingleOperation)
     statisticsOutput.ExpectNoPreemption(operations[0]);
 }
 
-TEST_F(TControlThreadTest, DISABLED_TestTwoComplementaryOperations)
+TEST_F(TControlThreadTest, TestTwoComplementaryOperations)
 {
     const auto earliestTime = TInstant::ParseIso8601("2019-01-01T12:00:00+00:00");
     auto simulatorConfig = New<TSchedulerSimulatorConfig>();
@@ -309,7 +309,7 @@ TEST_F(TControlThreadTest, DISABLED_TestTwoComplementaryOperations)
     statisticsOutput.ExpectNoPreemption(operations[1]);
 }
 
-TEST_F(TControlThreadTest, DISABLED_TestNormalPreemption)
+TEST_F(TControlThreadTest, TestNormalPreemption)
 {
     const auto earliestTime = TInstant::ParseIso8601("2019-01-01T12:00:00+00:00");
     auto simulatorConfig = New<TSchedulerSimulatorConfig>();
