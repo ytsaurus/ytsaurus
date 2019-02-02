@@ -649,7 +649,7 @@ TJobResources TSchedulerElement::ComputeResourceLimitsBase(const TResourceLimits
     auto connectionTime = InstantToCpuInstant(Host_->GetConnectionTime());
     auto delay = DurationToCpuDuration(TreeConfig_->TotalResourceLimitsConsiderDelay);
     auto maxShareLimits = connectionTime + delay < GetCpuInstant()
-        ? GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * GetMaxShareRatio()
+        ? GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShareRatio()
         : InfiniteJobResources();
     auto perTypeLimits = ToJobResources(resourceLimitsConfig, InfiniteJobResources());
     return Min(maxShareLimits, perTypeLimits);
