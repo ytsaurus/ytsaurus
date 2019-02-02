@@ -1471,6 +1471,22 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
+    def test_non_trivial_error_code(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                job_count=10,
+                command="exit 22",
+                spec={
+                    "max_failed_job_count": 1,
+                })
+
 ##################################################################
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):

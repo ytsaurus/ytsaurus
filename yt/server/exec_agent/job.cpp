@@ -937,7 +937,7 @@ private:
         YT_LOG_INFO("Job proxy finished");
 
         if (!error.IsOK()) {
-            DoSetResult(TError("Job proxy failed")
+            DoSetResult(TError(EErrorCode::JobProxyFailed, "Job proxy failed")
                 << BuildJobProxyError(error));
         }
 
@@ -1300,7 +1300,8 @@ private:
             return TError();
         }
 
-        auto jobProxyError = TError("Job proxy failed") << spawnError;
+        auto jobProxyError = TError(EErrorCode::JobProxyFailed, "Job proxy failed")
+            << spawnError;
 
         if (spawnError.GetCode() == EProcessErrorCode::NonZeroExitCode) {
             // Try to translate the numeric exit code into some human readable reason.
@@ -1380,20 +1381,22 @@ private:
             return EAbortReason::Other;
         }
 
-        if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode))
-        {
-            auto exitCode = NExecAgent::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
-            if (exitCode == EJobProxyExitCode::HeartbeatFailed ||
-                exitCode == EJobProxyExitCode::ResultReportFailed ||
-                exitCode == EJobProxyExitCode::ResourcesUpdateFailed ||
-                exitCode == EJobProxyExitCode::GetJobSpecFailed ||
-                exitCode == EJobProxyExitCode::InvalidSpecVersion ||
-                exitCode == EJobProxyExitCode::PortoManagmentFailed)
+        if (auto jobProxyFailedError = resultError.FindMatching(NExecAgent::EErrorCode::JobProxyFailed)) {
+            if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode))
             {
-                return EAbortReason::Other;
-            }
-            if (exitCode == EJobProxyExitCode::ResourceOverdraft) {
-                return EAbortReason::ResourceOverdraft;
+                auto exitCode = NExecAgent::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
+                if (exitCode == EJobProxyExitCode::HeartbeatFailed ||
+                    exitCode == EJobProxyExitCode::ResultReportFailed ||
+                    exitCode == EJobProxyExitCode::ResourcesUpdateFailed ||
+                    exitCode == EJobProxyExitCode::GetJobSpecFailed ||
+                    exitCode == EJobProxyExitCode::InvalidSpecVersion ||
+                    exitCode == EJobProxyExitCode::PortoManagmentFailed)
+                {
+                    return EAbortReason::Other;
+                }
+                if (exitCode == EJobProxyExitCode::ResourceOverdraft) {
+                    return EAbortReason::ResourceOverdraft;
+                }
             }
         }
 

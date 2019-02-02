@@ -47,6 +47,7 @@ DEFINE_ENUM(EErrorCode,
     ((RootVolumePreparationFailed)   (1111))
     ((NotEnoughDiskSpace)            (1112))
     ((ArtifactDownloadFailed)        (1113))
+    ((JobProxyFailed)                (1120))
 );
 
 DEFINE_ENUM(ESandboxKind,
