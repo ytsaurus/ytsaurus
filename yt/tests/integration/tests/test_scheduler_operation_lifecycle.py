@@ -28,7 +28,7 @@ class PrepareTables(object):
 ##################################################################
 
 class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
@@ -671,7 +671,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 ##################################################################
 
 class SchedulerReviveBase(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -944,7 +944,7 @@ class TestSchedulerReviveVanilla(SchedulerReviveBase):
         return vanilla(spec=spec, **kwargs)
 
 class TestControllerAgent(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 

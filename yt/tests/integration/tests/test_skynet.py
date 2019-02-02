@@ -55,7 +55,7 @@ FILES_TABLE_SCHEMA = make_schema([
 ##################################################################
 
 class TestSkynetIntegration(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -318,7 +318,7 @@ class TestSkynetIntegration(YTEnvSetup):
 ##################################################################
 
 class TestSkynetManager(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     ENABLE_PROXY = True
     ENABLE_RPC_PROXY = True

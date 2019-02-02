@@ -32,7 +32,7 @@ def check_memory_limit(op):
         assert "Memory limit exceeded" in inner_errors[0]["message"]
 
 class TestSchedulerMemoryLimits(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -103,7 +103,7 @@ class TestSchedulerMemoryLimitsPorto(YTEnvSetup):
     USE_PORTO_FOR_SERVERS = True
 
 class TestMemoryReserveFactor(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 

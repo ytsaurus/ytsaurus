@@ -9,7 +9,7 @@ import pytest
 ##################################################################
 
 class TestFileCache(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
 
     def test_get_file_from_cache(self):

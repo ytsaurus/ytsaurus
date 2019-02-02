@@ -8,7 +8,7 @@ from io import TextIOBase, UnsupportedOperation
 ##################################################################
 
 class TestJournals(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
 
     DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]

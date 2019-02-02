@@ -11,7 +11,7 @@ from yt.environment.helpers import assert_items_equal
 ##################################################################
 
 class TestTabletTransactions(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
     USE_DYNAMIC_TABLES = True
