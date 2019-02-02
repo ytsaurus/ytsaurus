@@ -80,7 +80,7 @@ YA_CACHE_YT_STORE_PROXY = "freud"
 YA_CACHE_YT_DIR = "//home/yt-teamcity-build/cache"
 
 YA_CACHE_YT_MAX_STORE_SIZE = 2 * TB
-YA_CACHE_YT_STORE_TTL = 24 # hours
+YA_CACHE_YT_STORE_TTL = 24  # hours
 YA_CACHE_YT_STORE_CODEC = "zstd08_1"
 
 try:
@@ -97,7 +97,8 @@ def comma_separated_set(s):
     return set(el for el in s.split(",") if el)
 
 def process_core_dumps(options, suite_name, suite_path):
-    sandbox_archive = os.path.join(options.failed_tests_path,
+    sandbox_archive = os.path.join(
+        options.failed_tests_path,
         "__".join([options.btid, options.build_number, suite_name]))
 
     return archive_core_dumps_if_any(
@@ -266,7 +267,7 @@ def prepare(options, build_context):
         if not options.cxx:
             raise RuntimeError("Failed to locate CXX compiler")
 
-    options.use_thinlto = False # (options.type != "Debug")
+    options.use_thinlto = False  # (options.type != "Debug")
     options.use_lto = False
 
     options.ya_build_type = {
@@ -330,7 +331,7 @@ def configure(options, build_context):
                 "-DYT_BUILD_BRANCH={0}".format(options.branch),
                 "-DYT_BUILD_NUMBER={0}".format(options.build_number),
                 "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:10]),
-                "-DYT_BUILD_USERNAME=", # Empty string is used intentionally to suppress username in version identifier.
+                "-DYT_BUILD_USERNAME=",  # Empty string is used intentionally to suppress username in version identifier.
                 "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6)),
                 "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
                 "-DYT_BUILD_ENABLE_PYTHON_3_4={0}".format(format_yes_no(options.build_enable_python_3_4)),
@@ -385,7 +386,11 @@ def build(options, build_context):
 
 @build_step
 def gather_build_info(options, build_context):
-    build_context["yt_version"] = run_captured([os.path.join(get_bin_dir(options), "ytserver-master"), "--version"]).strip()
+    build_context["yt_version"] = run_captured(
+        [
+            os.path.join(get_bin_dir(options), "ytserver-master"),
+            "--version"
+        ]).strip()
     build_context["build_time"] = datetime.now().isoformat()
 
 
@@ -474,11 +479,11 @@ def share_packages(options, build_context):
             else:
                 torrent_id = sky_share(os.path.basename(path), os.path.dirname(path))
                 sandbox_ctx = {
-                    "created_resource_name" : os.path.basename(path),
-                    "resource_type" : "YT_PACKAGE",
-                    "remote_file_name" : torrent_id,
-                    "store_forever" : True,
-                    "remote_file_protocol" : "skynet"}
+                    "created_resource_name": os.path.basename(path),
+                    "resource_type": "YT_PACKAGE",
+                    "remote_file_name": torrent_id,
+                    "store_forever": True,
+                    "remote_file_protocol": "skynet"}
 
                 task_description = """
                     Build id: {0}
@@ -496,12 +501,12 @@ def share_packages(options, build_context):
                 task_id = cli.create_task("YT_REMOTE_COPY_RESOURCE", "YT_ROBOT", task_description, sandbox_ctx)
                 teamcity_message("Created sandbox upload task: package: {0}, task_id: {1}, torrent_id: {2}".format(pkg, task_id, torrent_id))
                 rows.append({
-                    "package" : pkg,
-                    "version" : version,
-                    "ubuntu_codename" : options.codename,
-                    "torrent_id" : torrent_id,
-                    "task_id" : task_id,
-                    "build_time" : build_time})
+                    "package": pkg,
+                    "version": version,
+                    "ubuntu_codename": options.codename,
+                    "torrent_id": torrent_id,
+                    "task_id": task_id,
+                    "build_time": build_time})
 
         # Add to locke.
         yt_wrapper = build_context["yt.wrapper"]
@@ -684,8 +689,8 @@ def run_sandbox_upload(options, build_context):
         os.symlink(paths[0], destination_path)
 
     rbtorrent = sky_share(
-            os.path.basename(binary_distribution_folder),
-            os.path.dirname(binary_distribution_folder))
+        os.path.basename(binary_distribution_folder),
+        os.path.dirname(binary_distribution_folder))
     sandbox_ctx["upload_urls"]["yt_binaries"] = rbtorrent
 
     sandbox_ctx["git_commit"] = options.build_vcs_number
@@ -818,7 +823,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
         env = {}
 
     env["PATH"] = "{0}:/usr/sbin:{1}".format(get_bin_dir(options), os.environ.get("PATH", ""))
-    env["PYTHONPATH"] = "{0}/python:{0}/yp/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
+    env["PYTHONPATH"] = "{0}/python:{0}/yp/python:{1}".format(
+        options.checkout_directory, os.environ.get("PYTHONPATH", ""))
     env["TESTS_SANDBOX"] = sandbox_current
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
@@ -848,7 +854,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
                 cwd=suite_path,
                 env=env)
         except ChildHasNonZeroExitCode as err:
-            teamcity_interact("buildProblem", description="Pytest '{}' failed, exit code {}".format(suite_name, err.return_code))
+            teamcity_interact("buildProblem", description="Pytest '{}' failed, exit code {}".format(
+                suite_name, err.return_code))
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
 
@@ -930,9 +937,12 @@ def run_yp_integration_tests(options, build_context):
     for python_version in iter_enabled_python_versions(options):
         if python_version not in {"2.7", "3.4"}:
             continue
-        run_pytest(options, "yp_integration", "{0}/yp/tests".format(options.checkout_directory),
-           python_version=python_version,
-           pytest_args=pytest_args)
+        run_pytest(
+            options,
+            "yp_integration",
+            "{0}/yp/tests".format(options.checkout_directory),
+            python_version=python_version,
+            pytest_args=pytest_args)
 
 @build_step
 @only_for_projects("yt")
@@ -948,12 +958,14 @@ def run_python_libraries_tests(options, build_context):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", str(PYTHON_TESTS_PARALLELISM)])
 
-    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
+    run_pytest(options,
+               "python_libraries",
+               "{0}/python".format(options.checkout_directory),
                pytest_args=pytest_args,
                env={
                    "TESTS_JOB_CONTROL": "1",
                    "YT_ENABLE_REQUEST_LOGGING": "1",
-                })
+               })
 
 @build_step
 @only_for_projects("yt")
@@ -973,41 +985,41 @@ def run_perl_tests(options, build_context):
 def log_sandbox_upload(options, build_context, task_id):
     client = requests.Session()
     client.headers.update({
-        "Authorization" : "OAuth {0}".format(os.environ["TEAMCITY_SANDBOX_TOKEN"]),
-        "Accept" : "application/json; charset=utf-8",
-        "Content-type" : "application/json",
+        "Authorization": "OAuth {0}".format(os.environ["TEAMCITY_SANDBOX_TOKEN"]),
+        "Accept": "application/json; charset=utf-8",
+        "Content-type": "application/json",
     })
     resp = client.get("https://sandbox.yandex-team.ru/api/v1.0/task/{0}/resources".format(task_id))
     api_data = resp.json()
 
     resources = {}
     resource_rows = []
-    for resource in api_data["items"]:
-        if resource["type"] == "TASK_LOGS":
+    for resource_item in api_data["items"]:
+        if resource_item["type"] == "TASK_LOGS":
             continue
         resources.update({
-            resource["type"] : resource["id"],
+            resource_item["type"]: resource_item["id"],
         })
         resource_rows.append({
-            "id" : resource["id"],
-            "task_id" : task_id,
-            "type" : resource["type"],
-            "build_number" : int(options.build_number),
-            "version" : build_context["yt_version"],
+            "id": resource_item["id"],
+            "task_id": task_id,
+            "type": resource_item["type"],
+            "build_number": int(options.build_number),
+            "version": build_context["yt_version"],
         })
 
     build_log_record = {
-        "version" : build_context["yt_version"],
-        "build_number" : int(options.build_number),
-        "task_id" : task_id,
-        "git_branch" : options.git_branch,
-        "git_commit" : options.build_vcs_number,
-        "build_time" : build_context["build_time"],
-        "build_type" : options.type,
-        "build_host" : socket.getfqdn(),
-        "build_btid" : options.btid,
-        "ubuntu_codename" : options.codename,
-        "resources" : resources,
+        "version": build_context["yt_version"],
+        "build_number": int(options.build_number),
+        "task_id": task_id,
+        "git_branch": options.git_branch,
+        "git_commit": options.build_vcs_number,
+        "build_time": build_context["build_time"],
+        "build_type": options.type,
+        "build_host": socket.getfqdn(),
+        "build_btid": options.btid,
+        "ubuntu_codename": options.codename,
+        "resources": resources,
     }
 
     # Add to locke.
