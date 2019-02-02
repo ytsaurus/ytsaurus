@@ -280,3 +280,8 @@ class TestConcatenate(YTEnvSetup):
         concatenate([], "//tmp/union")
         assert get("//tmp/union/@schema_mode") == "weak"
         assert get("//tmp/union/@schema") == orig_schema
+
+##################################################################
+
+class TestConcatenateMulticell(TestConcatenate):
+    NUM_SECONDARY_MASTER_CELLS = 2
