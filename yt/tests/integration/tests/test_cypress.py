@@ -1978,7 +1978,7 @@ class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
 ##################################################################
 
 class TestCypressWithoutSet(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 0
 
     DELTA_MASTER_CONFIG = {
@@ -2036,7 +2036,7 @@ class TestCypressWithoutSet(YTEnvSetup):
 ##################################################################
 
 class TestCypressApiVersion4(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 0
 
     @classmethod

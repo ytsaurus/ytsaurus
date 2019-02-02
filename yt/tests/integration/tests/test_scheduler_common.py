@@ -81,7 +81,7 @@ class PrepareTables(object):
 ##################################################################
 
 class TestEventLog(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -186,7 +186,7 @@ class TestEventLogPorto(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -231,7 +231,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
 
 @unix_only
 class TestJobStderr(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
@@ -449,7 +449,7 @@ class TestJobStderrPorto(YTEnvSetup):
 ##################################################################
 
 class TestUserFiles(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
@@ -710,7 +710,7 @@ class TestUserFilesPorto(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerOperationNodeFlush(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -753,7 +753,7 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
 
 @require_ytserver_root_privileges
 class TestSchedulerCommon(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
@@ -2069,7 +2069,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
 ##################################################################
 
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 2
 
@@ -2132,7 +2132,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
 ##################################################################
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -2181,7 +2181,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -2237,7 +2237,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 ##################################################################
 
 class TestSchedulingTags(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
@@ -2401,7 +2401,7 @@ class TestSchedulingTags(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerConfig(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
@@ -2554,7 +2554,7 @@ class TestSchedulerConfig(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerSnapshots(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 

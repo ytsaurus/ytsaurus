@@ -7,7 +7,7 @@ from yt_commands import *
 ##################################################################
 
 class TestFiles(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
 
     def test_invalid_type(self):

@@ -31,7 +31,7 @@ class PrepareTables(object):
 ##################################################################
 
 class TestResourceUsage(YTEnvSetup, PrepareTables):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -427,7 +427,7 @@ class TestStrategies(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerOperationLimits(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
@@ -1265,7 +1265,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerPools(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 

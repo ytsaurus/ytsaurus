@@ -258,7 +258,7 @@ pools_config = yson.to_yson_type(
 
 
 class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 

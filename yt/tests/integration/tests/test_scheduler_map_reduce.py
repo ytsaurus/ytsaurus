@@ -11,7 +11,7 @@ import datetime
 ##################################################################
 
 class TestSchedulerMapReduceCommands(YTEnvSetup):
-    NUM_MASTERS = 3
+    NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
