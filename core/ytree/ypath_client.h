@@ -31,8 +31,8 @@ public:
     virtual const TString& GetMethod() const override;
     virtual const TString& GetService() const override;
 
-    virtual const TString& GetUser() const;
-    virtual void SetUser(const TString& user);
+    virtual const TString& GetUser() const override;
+    virtual void SetUser(const TString& user) override;
 
     virtual void SetUserAgent(const TString& userAgent) override;
 
