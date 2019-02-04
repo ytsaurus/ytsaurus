@@ -203,11 +203,16 @@ private:
 
     static ESecretVaultErrorCode ParseErrorCode(TStringBuf codeString)
     {
-        ESecretVaultErrorCode code;
-        if (!TEnumTraits<ESecretVaultErrorCode>::FindValueByLiteral(codeString, &code)) {
-            code = ESecretVaultErrorCode::UnknownError;
+        // TODO(babenko): add link to doc
+        if (codeString == "nonexistennt_entity_error") {
+            return ESecretVauleErrorCode::NonexistentEntityError;
+        } else if (codeString == "delegation_access_error") {
+            return ESecretVauleErrorCode::DelegationAccessError;
+        } else if (codeString == "delegation_token_revoked") {
+            return ESecretVauleErrorCode::DelegationTokenRevoked;
+        } else {
+            return ESecretVauleErrorCode::UnknownError;
         }
-        return code;
     }
 
     static TError GetErrorFromResponse(const IMapNodePtr& node)
