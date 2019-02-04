@@ -120,6 +120,8 @@ public final class ExamplesUtil {
             client = new YtClient(connector, "hahn", getCredentials());
             client.waitProxies().join();
             consumer.accept(client);
+        } catch (Throwable e) {
+            e.printStackTrace();
         } finally {
             if (client != null) {
                 client.close();
