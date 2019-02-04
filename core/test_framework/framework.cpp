@@ -127,7 +127,7 @@ void PrintTo(const TString& string, ::std::ostream* os)
 
 void PrintTo(TStringBuf string, ::std::ostream* os)
 {
-    ::testing::internal::PrintTo(string.c_str(), os);
+    ::testing::internal::PrintTo(TString(string).c_str(), os);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
