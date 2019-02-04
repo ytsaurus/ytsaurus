@@ -1823,6 +1823,18 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
     ProfileSchedulerElement(accumulator, element, "/pools", {tag, TreeIdProfilingTag});
 
     accumulator.Add(
+        "/pools/running_operation_count",
+        element->RunningOperationCount(),
+        EMetricType::Gauge,
+        {tag, TreeIdProfilingTag});
+    accumulator.Add(
+        "/pools/total_operation_count",
+        element->OperationCount(),
+        EMetricType::Gauge,
+        {tag, TreeIdProfilingTag});
+
+    // Deprecated.
+    accumulator.Add(
         "/running_operation_count",
         element->RunningOperationCount(),
         EMetricType::Gauge,
