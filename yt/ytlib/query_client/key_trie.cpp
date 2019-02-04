@@ -1,6 +1,8 @@
 #include "key_trie.h"
 #include "query_helpers.h"
 
+#include <yt/core/misc/algorithm_helpers.h>
+
 #include <deque>
 #include <tuple>
 
@@ -285,18 +287,19 @@ TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 
 bool Covers(const std::vector<TBound>& bounds, const TValue& point)
 {
-    auto found = std::lower_bound(
-        bounds.begin(),
-        bounds.end(),
-        point,
-        [] (const TBound& bound, const TValue& point) {
-            return bound.Value < point;
+    YCHECK(!(bounds.size() & 1));
+
+    auto index = LowerBound(
+        0,
+        bounds.size() / 2,
+        [&] (int index) -> bool {
+            const auto& bound = bounds[index * 2 + 1];
+            return bound.Value == point ? !bound.Included : bound.Value < point;
         });
 
-    bool isClose = (found - bounds.begin()) & 1;
-    if (found != bounds.end()) {
-        return ((found->Value > point) && isClose) ||
-            (found->Value == point && found->Included);
+    if (index < bounds.size() / 2) {
+        const auto& bound = bounds[index * 2];
+        return bound.Value == point ? bound.Included : bound.Value < point;
     } else {
         return false;
     }
