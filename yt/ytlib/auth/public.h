@@ -52,8 +52,8 @@ DEFINE_ENUM(EBlackboxStatus,
     ((Invalid)  (5))
 );
 
-// NB: Enum item names cannot be changed.
-DEFINE_ENUM(EBlackboxException,
+// See https://doc.yandex-team.ru/blackbox/concepts/blackboxErrors.xml
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EBlackboxException, i64,
     ((Ok)                (0))
     ((Unknown)           (1))
     ((InvalidParameters) (2))
@@ -66,7 +66,7 @@ DEFINE_ENUM(EBlackboxException,
 DEFINE_ENUM(ESecretVaultErrorCode,
     ((UnknownError)           (18000))
     ((MalformedResponse)      (18001))
-    ((NonExistentEntityError) (18002))
+    ((NonexistentEntityError) (18002))
     ((DelegationAccessError)  (18003))
     ((DelegationTokenRevoked) (18004))
 );
