@@ -62,7 +62,6 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EBlackboxException, i64,
     ((AccessDenied)     (21))
 );
 
-// NB: Enum item names cannot be changed.
 DEFINE_ENUM(ESecretVaultErrorCode,
     ((UnknownError)           (18000))
     ((MalformedResponse)      (18001))
