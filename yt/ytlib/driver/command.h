@@ -30,6 +30,7 @@ struct ICommandContext
     virtual const TDriverConfigPtr& GetConfig() = 0;
     virtual const NApi::IClientPtr& GetClient() = 0;
     virtual const IDriverPtr& GetDriver() = 0;
+    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
 
     virtual const TDriverRequest& Request() = 0;
     virtual TDriverRequest& MutableRequest() = 0;
