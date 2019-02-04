@@ -5,31 +5,7 @@
 #include "helpers.h"
 #include "functions_builder.h"
 
-#ifdef YT_IN_ARCADIA
 #include <library/resource/resource.h>
-#else
-#include "udf/is_prefix.h" // Y_IGNORE
-#include "udf/avg.h" // Y_IGNORE
-#include "udf/farm_hash.h" // Y_IGNORE
-#include "udf/bigb_hash.h" // Y_IGNORE
-#include "udf/make_map.h" // Y_IGNORE
-#include "udf/first.h" // Y_IGNORE
-#include "udf/format_guid.h" // Y_IGNORE
-#include "udf/hyperloglog.h" // Y_IGNORE
-#include "udf/is_substr.h" // Y_IGNORE
-#include "udf/lower.h" // Y_IGNORE
-#include "udf/concat.h" // Y_IGNORE
-#include "udf/max.h" // Y_IGNORE
-#include "udf/min.h" // Y_IGNORE
-#include "udf/regex.h" // Y_IGNORE
-#include "udf/sleep.h" // Y_IGNORE
-#include "udf/sum.h" // Y_IGNORE
-#include "udf/dates.h" // Y_IGNORE
-#include "udf/ypath_get.h" // Y_IGNORE
-#include "udf/to_any.h" // Y_IGNORE
-#include "udf/list_contains.h" // Y_IGNORE
-#include "udf/any_to_yson_string.h" // Y_IGNORE
-#endif
 
 namespace NYT::NQueryClient {
 namespace NBuiltins {

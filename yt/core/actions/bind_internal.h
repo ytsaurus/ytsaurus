@@ -248,8 +248,6 @@ private:
     R (T::*Method)(TArgs...) const;
 };
 
-#ifdef YT_IN_ARCADIA
-
 // Noexcept Bound Method Adapter
 template <class R, class T, class... TArgs>
 class TRunnableAdapter<R(T::*)(TArgs...) noexcept>
@@ -295,8 +293,6 @@ public:
 private:
     R (T::*Method)(TArgs...) const noexcept;
 };
-#endif
-
 
 // Callback Adapter
 template <class S1, class S2>

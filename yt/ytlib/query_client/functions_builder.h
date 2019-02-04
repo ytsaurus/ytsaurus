@@ -6,11 +6,7 @@
 
 #include <yt/core/misc/ref.h>
 
-#ifdef YT_IN_ARCADIA
 #define UDF_BC(name) TSharedRef::FromString(::NResource::Find(TString("/llvm_bc/") + #name))
-#else
-#define UDF_BC(name) TSharedRef(name ## _bc, name ## _bc_len, nullptr)
-#endif
 
 namespace NYT::NQueryClient {
 
