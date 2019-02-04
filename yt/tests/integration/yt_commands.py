@@ -336,7 +336,7 @@ def remove(path, **kwargs):
 
 def get(path, is_raw=False, **kwargs):
     kwargs["path"] = path
-    if "default" in kwargs and not "verbose_error" in kwargs:
+    if "default" in kwargs and "verbose_error" not in kwargs:
         kwargs["verbose_error"] = False
     try:
         result = execute_command("get", kwargs)
