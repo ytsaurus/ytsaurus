@@ -737,9 +737,10 @@ public:
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options) override
+        const TTableReaderOptions& options,
+        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory) override
     {
-        return NNative::CreateTableReader(this, path, options, New<TNameTable>());
+        return NNative::CreateTableReader(this, path, options, New<TNameTable>(), nodeDirectory);
     }
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
