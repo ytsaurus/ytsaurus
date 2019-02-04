@@ -551,7 +551,13 @@ INSTANTIATE_TEST_CASE_P(
             "[k;l]",
             "k in ((0),(2)) or k in ((4),(6))",
             "k in ((0),(2)) or k in ((4),(6))",
-            std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_, "6;6", "6;6;" _MAX_})
+            std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_, "6;6", "6;6;" _MAX_}),
+        std::make_tuple(
+            "[{name=k;type=int64;sort_order=ascending;}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in (20, 123, 15)",
+            "l in (20, 15)",
+            std::vector<const char*>{"0;10", "0;20", "0;20", "0;30"})
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
