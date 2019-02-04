@@ -204,7 +204,7 @@ private:
     static ESecretVaultErrorCode ParseErrorCode(TStringBuf codeString)
     {
         // TODO(babenko): add link to doc
-        if (codeString == "nonexistennt_entity_error") {
+        if (codeString == "nonexistent_entity_error") {
             return ESecretVaultErrorCode::NonexistentEntityError;
         } else if (codeString == "delegation_access_error") {
             return ESecretVaultErrorCode::DelegationAccessError;
