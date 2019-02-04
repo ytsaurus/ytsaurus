@@ -205,13 +205,13 @@ private:
     {
         // TODO(babenko): add link to doc
         if (codeString == "nonexistennt_entity_error") {
-            return ESecretVauleErrorCode::NonexistentEntityError;
+            return ESecretVaultErrorCode::NonexistentEntityError;
         } else if (codeString == "delegation_access_error") {
-            return ESecretVauleErrorCode::DelegationAccessError;
+            return ESecretVaultErrorCode::DelegationAccessError;
         } else if (codeString == "delegation_token_revoked") {
-            return ESecretVauleErrorCode::DelegationTokenRevoked;
+            return ESecretVaultErrorCode::DelegationTokenRevoked;
         } else {
-            return ESecretVauleErrorCode::UnknownError;
+            return ESecretVaultErrorCode::UnknownError;
         }
     }
 
