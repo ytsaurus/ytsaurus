@@ -1960,9 +1960,7 @@ void TOperationElement::Disable()
         YT_LOG_ERROR("Found inconsistency in operation resource usage (OperationId: %v, ResourceUsageDifference: %v)",
             OperationId_,
             FormatResources(difference));
-        if (TreeConfig_->CrashOnOperationResourceUsageInconsistency) {
-            YCHECK(false);
-        }
+        YCHECK(!TreeConfig_->CrashOnOperationResourceUsageInconsistency);
     }
     IncreaseLocalResourceUsage(-delta);
 }
