@@ -94,23 +94,13 @@ typename TTrait::TValue& GetGloballyCachedValue(U&&... u)
 template <typename TTrait, typename... U>
 typename TTrait::TValue& GetLocallyCachedValue(U&&... u)
 {
-#if YT_IN_ARCADIA
     return FastTlsSingleton<NDetail::TCache<TTrait>>()->Find(std::forward<U>(u)...);
-#else
-    static thread_local NDetail::TCache<TTrait> cache;
-    return cache.Find(std::forward<U>(u)...);
-#endif
 }
 
 template <typename TTrait, typename... U>
 typename TTrait::TValue& GetLocallyGloballyCachedValue(U&&... u)
 {
-#if YT_IN_ARCADIA
     return *FastTlsSingleton<NDetail::TSingletonCache<TTrait>>()->Find(std::forward<U>(u)...);
-#else
-    static thread_local NDetail::TSingletonCache<TTrait> cache;
-    return *cache.Find(std::forward<U>(u)...);
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

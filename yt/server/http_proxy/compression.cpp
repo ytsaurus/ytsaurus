@@ -6,10 +6,8 @@
 #include <library/streams/lz/lz.h>
 #include <library/streams/brotli/brotli.h>
 
-#ifdef YT_IN_ARCADIA
 #include <library/blockcodecs/codecs.h>
 #include <library/blockcodecs/stream.h>
-#endif
 
 #include <util/stream/zlib.h>
 
@@ -102,7 +100,6 @@ private:
             return;
         }
 
-#ifdef YT_IN_ARCADIA
         if (ContentEncoding_.StartsWith("z-")) {
             Compressor_.reset(new NBlockCodecs::TCodedOutput(
                 this,
@@ -110,7 +107,6 @@ private:
                 DefaultStreamBufferSize));
             return;
         }
-#endif
 
         if (ContentEncoding_ == "gzip") {
             Compressor_.reset(new TZLibCompress(this, ZLib::GZip, 4, DefaultStreamBufferSize));
@@ -233,14 +229,12 @@ private:
             return;
         }
 
-#ifdef YT_IN_ARCADIA
         if (ContentEncoding_.StartsWith("z-")) {
             Decompressor_.reset(new NBlockCodecs::TDecodedInput(
                 this,
                 NBlockCodecs::Codec(ContentEncoding_.substr(2))));
             return;
         }
-#endif
 
         if (ContentEncoding_ == "gzip" || ContentEncoding_ == "deflate") {
             Decompressor_.reset(new TZLibDecompress(this));
@@ -296,16 +290,14 @@ static const std::vector<TContentEncoding> SupportedCompressions = {
 
 bool IsCompressionSupported(const TContentEncoding& contentEncoding)
 {
-#ifdef YT_IN_ARCADIA
     if (contentEncoding.StartsWith("z-")) {
         try {
             NBlockCodecs::Codec(contentEncoding.substr(2));
             return true;
-        } catch (const NBlockCodecs::TNotFound& ) {
+        } catch (const NBlockCodecs::TNotFound&) {
             return false;
         }
     }
-#endif
 
     for (const auto& supported : SupportedCompressions) {
         if (supported == contentEncoding) {
@@ -338,14 +330,12 @@ TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEn
         checkCandidate(candidate, position);
     }
 
-#ifdef YT_IN_ARCADIA
     for (const auto& blockcodec : NBlockCodecs::ListAllCodecs()) {
         auto candidate = TString{"z-"} + blockcodec;
 
         auto position = clientAcceptEncodingHeader.find(candidate);
         checkCandidate(candidate, position);
     }
-#endif
 
     if (!bestEncoding.empty()) {
         return bestEncoding;
