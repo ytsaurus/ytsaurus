@@ -394,6 +394,8 @@ message TStopPolicy {
     oneof Policy {
         TUtilityContainer Stop = 1;
         THttpGet HttpStop = 2;
+        TUtilityContainer Container = 4;
+        THttpGet HttpGet = 5;
     }
 
     // Количестно попыток выполнить gracefully stop перед тем, как убить процесс
@@ -409,6 +411,8 @@ message TDestroyPolicy {
     oneof Policy {
         TUtilityContainer Destroy = 1;
         THttpGet HttpDestroy = 2;
+        TUtilityContainer Container = 4;
+        THttpGet HttpGet = 5;
     }
 
     // Количестно попыток выполнить gracefully destroy перед тем, как убить процесс
@@ -461,6 +465,7 @@ message TReadinessCheck {
         TUtilityContainer Container = 2;
         TTcpCheck TcpCheck = 3;
         THttpGet HttpCheck = 4;
+        THttpGet HttpGet = 5;
     }
 }
 
@@ -469,6 +474,7 @@ message TLivenessCheck {
         TUtilityContainer Container = 1;
         TTcpCheck TcpCheck = 2;
         THttpGet HttpCheck = 3;
+        THttpGet HttpGet = 4;
     }
 }
 
