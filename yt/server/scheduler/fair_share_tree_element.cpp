@@ -1955,6 +1955,15 @@ void TOperationElement::Disable()
     YT_LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
 
     auto delta = SharedState_->Disable();
+    auto difference = delta - GetLocalResourceUsage();
+    if (difference != ZeroJobResources()) {
+        YT_LOG_ERROR("Found inconsistency in operation resource usage (OperationId: %v, ResourceUsageDifference: %v)",
+            OperationId_,
+            FormatResources(difference));
+        if (TreeConfig_->CrashOnOperationResourceUsageInconsistency) {
+            YCHECK(false);
+        }
+    }
     IncreaseLocalResourceUsage(-delta);
 }
 

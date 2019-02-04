@@ -127,6 +127,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .Default()
         .GreaterThanOrEqual(1.0);
 
+    RegisterParameter("crash_on_operation_resource_usage_inconsistency", CrashOnOperationResourceUsageInconsistency)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
