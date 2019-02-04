@@ -237,7 +237,6 @@ public:
 
     void RunSlow()
     {
-        YCHECK(!Finished_);
         auto codicilGuard = MakeCodicilGuard();
         try {
             GuardedRunSlow();
