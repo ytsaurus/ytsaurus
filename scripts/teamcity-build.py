@@ -4,7 +4,7 @@ import sys
 # TODO(asaitgalin): Maybe replace it with PYTHONPATH=... in teamcity command?
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "python"))
 
-from teamcity import (
+from teamcity.teamcity import (
     build_step,
     cleanup_step,
     teamcity_main,
@@ -13,7 +13,7 @@ from teamcity import (
     StepFailedWithNonCriticalError,
 )
 
-from helpers import (
+from teamcity.helpers import (
     ChildHasNonZeroExitCode,
     cleanup_cgroups,
     clear_system_tmp,
@@ -31,7 +31,7 @@ from helpers import (
     sudo_rmtree,
 )
 
-from pytest_helpers import (
+from teamcity.pytest_helpers import (
     archive_core_dumps_if_any,
     get_sandbox_dirs,
     save_failed_test,
@@ -772,7 +772,7 @@ def package_yson_bindings(options, build_context):
 
     yson_packages_path = os.path.join(options.checkout_directory, "yt/python/yson-debian")
     args = [
-        os.path.join(options.checkout_directory, "yt/python/yson-debian/package.py"),
+        os.path.join(options.checkout_directory, "yt/python/packaging/package.py"),
         "--working-directory", options.working_directory,
         "--debian-repositories", ",".join(options.yson_bindings_repositories),
         "--changelog-path", os.path.join(yson_packages_path, "debian/changelog"),

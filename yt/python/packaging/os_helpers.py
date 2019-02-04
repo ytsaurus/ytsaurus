@@ -2,13 +2,10 @@ import os
 import re
 import shutil
 
-from teamcity_helpers import helpers
+# Used to teamcity to import paths.
+import teamcity_helpers  # noqa
 
-rmtree = helpers.rmtree
-mkdirp = helpers.mkdirp
-run = helpers.run
-run_captured = helpers.run_captured
-cwd = helpers.cwd
+from teamcity.helpers import rmtree, mkdirp, run, run_captured, cwd
 
 def copy_element(src, dst, elem):
     source = os.path.join(src, elem)

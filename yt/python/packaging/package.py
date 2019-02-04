@@ -2,9 +2,6 @@
 # -*- encoding: utf-8 -*-
 
 import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../packaging"))
 
 from os_helpers import copy_content, clean_path, run_captured, run, cwd, mkdirp
 from teamcity_helpers import teamcity_message
@@ -200,7 +197,6 @@ def build_package(
     debug,
     upload
 ):
-    # TODO: add all parameters to this message
     teamcity_message("Preparing package {} with python to build "
                      "(working_directory: {}, checkout_directory: {}, build_type: {}, "
                      "python_type: {}, library_path: {}, changelog_path: {}, "
