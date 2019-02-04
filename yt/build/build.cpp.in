@@ -37,11 +37,6 @@ const char* GetBuildHost()
     return buildHost.data();
 }
 
-const char* GetBuildMachine()
-{
-    return "unknown";
-}
-
 const char* GetBuildTime()
 {
     static auto buildDate = GetYaBuildDate();
