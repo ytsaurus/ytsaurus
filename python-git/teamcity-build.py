@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "python"))
 
-from teamcity import (
+from teamcity.teamcity import (
     build_step,
     cleanup_step,
     teamcity_main,
@@ -13,12 +13,12 @@ from teamcity import (
     teamcity_interact,
     StepFailedWithNonCriticalError)
 
-from helpers import (mkdirp, run, run_captured, cwd, rm_content,
+from teamcity.helpers import (mkdirp, run, run_captured, cwd, rm_content,
                      rmtree, parse_yes_no_bool, ChildHasNonZeroExitCode,
                      postprocess_junit_xml, sudo_rmtree, kill_by_name,
                      set_yt_binaries_suid_bit)
 
-from pytest_helpers import (
+from teamcity.pytest_helpers import (
     copy_artifacts,
     find_core_dumps_with_report,
     copy_failed_tests_and_report_stderrs,
