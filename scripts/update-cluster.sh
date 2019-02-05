@@ -148,6 +148,7 @@ update $PROXIES "sudo sv ${command} yt_http_proxy"
 update $CONTROLLERAGENTS "sudo sv ${command} yt_controller_agent"
 update $NODES "sudo sv ${command} yt_node"
 update $RPCPROXIES "sudo sv ${command} yt_proxy"
+update $SCHEDULERS "sudo sv start yt_scheduler"
 
 #update $SCHEDULERS "sudo sv start yt_scheduler"
 
