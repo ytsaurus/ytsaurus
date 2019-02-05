@@ -3110,6 +3110,12 @@ class TestPoolMetrics(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "job_metrics_report_period": 100,
+            "custom_job_metrics": [
+                {
+                    "statistics_path": "/user_job/block_io/bytes_written",
+                    "profiling_name": "my_metric"
+                }
+            ]
         }
     }
 
@@ -3157,7 +3163,8 @@ class TestPoolMetrics(YTEnvSetup):
 
         start_time = time.time()
 
-        metric_name = "bytes_written"
+        metric_name = "user_job_bytes_written"
+        alternative_metric_name = "my_metric"
         statistics_name = "user_job.block_io.bytes_written"
 
         start_pool_metrics = get_pool_metrics(metric_name, start_time)
@@ -3182,17 +3189,18 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        wait(lambda: get_pool_metrics(metric_name, start_time)["parent"] - start_pool_metrics["parent"] > 0)
+        for current_metric_name in (metric_name, alternative_metric_name):
+            wait(lambda: get_pool_metrics(current_metric_name, start_time)["parent"] - start_pool_metrics["parent"] > 0)
 
-        pool_metrics = get_pool_metrics(metric_name, start_time)
+            pool_metrics = get_pool_metrics(current_metric_name, start_time)
 
-        op11_writes = get_cypress_metrics(op11.id, statistics_name)
-        op12_writes = get_cypress_metrics(op12.id, statistics_name)
-        op2_writes = get_cypress_metrics(op2.id, statistics_name)
+            op11_writes = get_cypress_metrics(op11.id, statistics_name)
+            op12_writes = get_cypress_metrics(op12.id, statistics_name)
+            op2_writes = get_cypress_metrics(op2.id, statistics_name)
 
-        assert pool_metrics["child1"] - start_pool_metrics["child1"] == op11_writes + op12_writes > 0
-        assert pool_metrics["child2"] - start_pool_metrics["child2"] == op2_writes > 0
-        assert pool_metrics["parent"] - start_pool_metrics["parent"] == op11_writes + op12_writes + op2_writes > 0
+            assert pool_metrics["child1"] - start_pool_metrics["child1"] == op11_writes + op12_writes > 0
+            assert pool_metrics["child2"] - start_pool_metrics["child2"] == op2_writes > 0
+            assert pool_metrics["parent"] - start_pool_metrics["parent"] == op11_writes + op12_writes + op2_writes > 0
 
         jobs_11 = ls(op11.get_path() + "/jobs")
         assert len(jobs_11) >= 2
@@ -3211,8 +3219,8 @@ class TestPoolMetrics(YTEnvSetup):
 
         start_time = time.time()
 
-        start_completed_metrics =  get_pool_metrics("time_completed", start_time)
-        start_aborted_metrics =  get_pool_metrics("time_aborted", start_time)
+        start_completed_metrics =  get_pool_metrics("total_time_completed", start_time)
+        start_aborted_metrics =  get_pool_metrics("total_time_aborted", start_time)
 
         op = map(
             command=with_breakpoint("cat; BREAKPOINT"),
@@ -3234,7 +3242,7 @@ class TestPoolMetrics(YTEnvSetup):
         abort_job(running_jobs[0])
 
         # Wait for metrics update.
-        wait(lambda: get_pool_metrics("time_completed", start_time)["child"] > 0)
+        wait(lambda: get_pool_metrics("total_time_completed", start_time)["child"] > 0)
 
         def check_metrics(get_metrics, start_metrics):
             metrics = get_metrics()
@@ -3244,8 +3252,8 @@ class TestPoolMetrics(YTEnvSetup):
             return metrics["parent"] - start_metrics["parent"] == metrics["child"] - start_metrics["child"]
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
-        wait(lambda: check_metrics(lambda: get_pool_metrics("time_completed", start_time), start_completed_metrics))
-        wait(lambda: check_metrics(lambda: get_pool_metrics("time_aborted", start_time), start_aborted_metrics))
+        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_completed", start_time), start_completed_metrics))
+        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_aborted", start_time), start_aborted_metrics))
 
 @patch_porto_env_only(TestPoolMetrics)
 class TestPoolMetricsPorto(YTEnvSetup):
