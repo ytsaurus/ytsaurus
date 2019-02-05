@@ -6958,6 +6958,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_copy_files(config->CopyFiles);
     jobSpec->set_file_account(fileAccount);
     jobSpec->set_set_container_cpu_limit(config->SetContainerCpuLimit);
+    jobSpec->set_force_core_dump(config->ForceCoreDump);
 
     jobSpec->set_port_count(config->PortCount);
     jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);

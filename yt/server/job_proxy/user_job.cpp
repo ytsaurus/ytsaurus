@@ -489,7 +489,7 @@ private:
         Process_->AddArguments({"--job-id", ToString(JobSatelliteConnection_.GetJobId())});
         Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
 
-        if (UserJobSpec_.has_core_table_spec()) {
+        if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
             Process_->AddArgument("--enable-core-dump");
         }
 
