@@ -8,7 +8,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import ru.yandex.bolts.collection.Tuple2;
+import ru.yandex.bolts.collection.Tuple3;
+import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
@@ -23,7 +24,7 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetric
 public class BalancingResponseHandler implements RpcClientResponseHandler {
     private final BalancingResponseHandlerMetricsHolder metricsHolder;
 
-    private final CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f;
+    private final CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f;
     private List<RpcClient> clients;
     private final RpcClientRequest request;
     private int step;
@@ -40,7 +41,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         RpcFailoverPolicy failoverPolicy,
         Duration globalTimeout,
         Duration failoverTimeout,
-        CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f,
+        CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f,
         RpcClientRequest request,
         List<RpcClient> clients)
     {
@@ -53,7 +54,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
             RpcFailoverPolicy failoverPolicy,
             Duration globalTimeout,
             Duration failoverTimeout,
-            CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f,
+            CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f,
             RpcClientRequest request,
             List<RpcClient> clients,
             BalancingResponseHandlerMetricsHolder metricsHolder)
@@ -138,10 +139,10 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     public void onAcknowledgement(RpcClient sender) { }
 
     @Override
-    public void onResponse(RpcClient sender, List<byte[]> attachments) {
+    public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
         synchronized (f) {
             if (!f.isDone()) {
-                f.complete(new Tuple2<>(sender, attachments));
+                f.complete(new Tuple3<>(sender, header, attachments));
             }
         }
     }

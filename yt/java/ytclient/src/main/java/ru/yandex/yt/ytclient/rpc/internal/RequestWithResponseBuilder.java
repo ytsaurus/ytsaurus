@@ -8,6 +8,7 @@ import com.google.protobuf.MessageLite;
 
 import ru.yandex.bolts.collection.Option;
 import ru.yandex.yt.rpc.TRequestHeader;
+import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
@@ -35,13 +36,14 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
             }
 
             @Override
-            public void onResponse(RpcClient sender, List<byte[]> attachments) {
+            public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
                 if (!result.isDone()) {
                     if (attachments.size() < 1 || attachments.get(0) == null) {
                         throw new IllegalStateException("Received response without a body");
                     }
                     result.complete(new LazyResponse<>(parser, attachments.get(0),
-                            new ArrayList<>(attachments.subList(1, attachments.size())), sender));
+                            new ArrayList<>(attachments.subList(1, attachments.size())), sender,
+                            header.hasResponseCodecs() ? Option.of(header.getResponseCodecs()) : Option.empty()));
                 }
             }
 
