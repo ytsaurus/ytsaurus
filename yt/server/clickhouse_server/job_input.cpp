@@ -434,7 +434,9 @@ NChunkPools::TChunkStripeListPtr BuildJobs(
             }
         }
         auto stat = currentStripe->GetStatistics();
-        AddStripeToList(currentStripe, stat.DataWeight, stat.RowCount, result);
+        if (!currentStripe->DataSlices.empty()) {
+            AddStripeToList(currentStripe, stat.DataWeight, stat.RowCount, result);
+        }
     }
 
     YCHECK(currentDataSliceIndex == static_cast<int>(dataSlices.size()));
@@ -476,6 +478,8 @@ TTablePartList SerializeAsTablePartList(
                 miscExt.set_uncompressed_data_size(chunk->GetTotalUncompressedDataSize());
                 miscExt.set_data_weight(chunk->GetTotalDataWeight());
                 miscExt.set_compressed_data_size(chunk->GetCompressedDataSize());
+                chunkSpec.mutable_chunk_meta()->set_version(static_cast<int>(chunk->GetTableChunkFormat()));
+                chunkSpec.mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
                 SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
             }
         }
