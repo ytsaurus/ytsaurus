@@ -10,6 +10,22 @@ import yt.wrapper as yt
 from yt.packages.six.moves import xrange
 
 import pytest
+
+from copy import deepcopy
+
+class NonCopyable:
+    def __init__(self, fun):
+        self._fun = fun
+
+    def __call__(self, *args, **kw):
+        return self._fun(*args, **kw)
+
+    def __deepcopy__(self, _memo):
+        raise TypeError("not copyable")
+
+    def __copy__(self):
+        raise TypeError("not copyable")
+
 @pytest.mark.usefixtures("yt_env")
 class TestSpecBuilders(object):
     def setup(self):
@@ -278,3 +294,48 @@ class TestSpecBuilders(object):
                 assert attributes["spec"]["mapper"]["environment"]["var1"] == "1"
                 assert attributes["spec"]["mapper"]["environment"]["var2"] == "5"
                 assert attributes["spec"]["mapper"]["environment"]["var3"] == "6"
+
+    def test_spec_deepcopy(self):
+        def mapper(row):
+            yield {"x": row["x"] + 5, "tag": row["tag"]}
+        mapper = NonCopyable(mapper)
+
+        def reducer(key, rows):
+            total = sum(row["x"] for row in rows)
+            yield {"total": total, "tag": key["tag"]}
+        reducer = NonCopyable(reducer)
+
+        with pytest.raises(TypeError):
+            deepcopy(mapper)
+        with pytest.raises(TypeError):
+            deepcopy(reducer)
+
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(input_table, [
+            {"x": 3, "tag": "Paris"},
+            {"x": 2, "tag": "Paris"},
+            {"x": 4, "tag": "London"},
+            {"x": 8, "tag": "London"},
+        ])
+
+        spec_builder = MapReduceSpecBuilder() \
+            .begin_mapper() \
+                .command(mapper) \
+            .end_mapper() \
+            .begin_reducer() \
+                .command(reducer) \
+            .end_reducer() \
+            .reduce_by("tag") \
+            .input_table_paths(input_table) \
+            .output_table_paths(output_table)
+
+        yt.run_operation(spec_builder)
+        check([
+                {"tag": "Paris", "total": 15},
+                {"tag": "London", "total": 22},
+            ],
+            list(yt.read_table(output_table)),
+            ordered=False
+        )
+
