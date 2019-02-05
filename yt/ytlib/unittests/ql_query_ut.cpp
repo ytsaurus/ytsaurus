@@ -2670,7 +2670,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinLimit)
+TEST_F(TQueryEvaluateTest, TestJoinRowLimit)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2721,7 +2721,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinLimit2)
+TEST_F(TQueryEvaluateTest, TestJoinRowLimit2)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2769,7 +2769,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit2)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinLimit3)
+TEST_F(TQueryEvaluateTest, TestJoinWithLimit)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2833,7 +2833,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinLimit4)
+TEST_F(TQueryEvaluateTest, TestJoinWithLimit2)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2887,7 +2887,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
     for (size_t limit = 1; limit <= 6; ++limit) {
         std::vector<TOwningRow> currentResult(result.begin(), result.begin() + limit);
         Evaluate(
-            Format("a.ut, b.c, a.b, b.b FROM [//left] a join [//right] b on a.b=b.b limit %v", limit),
+            Format("a.ut, b.c, a.b, b.b FROM [//left] a join [//right] b on a.b = b.b limit %v", limit),
             splits,
             sources,
             ResultMatcher(currentResult));
@@ -2896,7 +2896,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinLimit5)
+TEST_F(TQueryEvaluateTest, TestJoinWithLimit3)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -4757,7 +4757,7 @@ TEST_F(TQueryEvaluateTest, TestRegexParseError)
         "x=%false",
     }, resultSplit);
 
-    EvaluateExpectingError("regex_full_match(\"hel[a-z)\", a) as x FROM [//t]", split, source, EFailureLocation::Execution, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    EvaluateExpectingError("regex_full_match(\"hel[a-z)\", a) as x FROM [//t]", split, source, EFailureLocation::Execution);
 }
 
 TEST_F(TQueryEvaluateTest, TestRegexFullMatch)

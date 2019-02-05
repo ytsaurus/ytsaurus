@@ -2073,6 +2073,7 @@ private:
         queryOptions.UseMultijoin = options.UseMultijoin;
         queryOptions.AllowFullScan = options.AllowFullScan;
         queryOptions.ReadSessionId = TReadSessionId::Create();
+        queryOptions.MemoryLimitPerNode = options.MemoryLimitPerNode;
         queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
 
         TClientBlockReadOptions blockReadOptions;
