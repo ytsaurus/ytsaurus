@@ -1405,6 +1405,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t2", [{"key": 2, "value": "2"}])
 
+    @flaky(max_runs=5)
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
     def test_changelog_resource_limits(self, resource):
         create_account("test_account")
