@@ -16,7 +16,8 @@ import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.bolts.collection.Tuple2;
+import ru.yandex.bolts.collection.Tuple3;
+import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.BalancingDestination;
 import ru.yandex.yt.ytclient.proxy.internal.BalancingResponseHandler;
@@ -204,7 +205,7 @@ public class BalancingRpcClient implements RpcClient {
     public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
         List<RpcClient> destinations = Manifold.selectDestinations(dataCenters, 3, localDataCenter != null, rnd, ! failoverPolicy.randomizeDcs());
 
-        CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f = new CompletableFuture<>();
+        CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f = new CompletableFuture<>();
 
         BalancingResponseHandler h = new BalancingResponseHandler(
             executorService,
@@ -219,7 +220,7 @@ public class BalancingRpcClient implements RpcClient {
         f.whenComplete((result, error) -> {
             h.cancel();
             if (error == null) {
-                handler.onResponse(result.get1(), result.get2());
+                handler.onResponse(result.get1(), result.get2(), result.get3());
             } else {
                 handler.onError(error);
             }

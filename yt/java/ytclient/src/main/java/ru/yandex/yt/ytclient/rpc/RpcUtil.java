@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.rpc;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -14,6 +15,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
@@ -27,6 +29,8 @@ import ru.yandex.yt.TSerializedMessageEnvelope;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
+import ru.yandex.yt.ytclient.rpc.internal.Codec;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 public class RpcUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;
@@ -46,10 +50,22 @@ public class RpcUtil {
         return data;
     }
 
-    public static byte[] createMessageBodyWithEnvelope(MessageLite body, int codecId) {
-        if (codecId != 0) {
-            throw new IllegalArgumentException("Compression codecs are not supported");
+    public static byte[] createMessageBodyWithCompression(MessageLite body, Compression codecId) {
+        Codec codec = Codec.codecFor(codecId);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        CodedOutputStream output = CodedOutputStream.newInstance(baos);
+        try {
+            body.writeTo(output);
+            output.flush();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
+
+        return codec.compress(baos.toByteArray());
+    }
+
+
+    public static byte[] createMessageBodyWithEnvelope(MessageLite body) {
         TSerializedMessageEnvelope header = TSerializedMessageEnvelope.getDefaultInstance();
         int headerSize = header.getSerializedSize();
         int bodySize = body.getSerializedSize();
@@ -66,7 +82,30 @@ public class RpcUtil {
         return data;
     }
 
-    public static <T> T parseMessageBodyWithEnvelope(byte[] data, RpcMessageParser<T> parser) {
+
+    public static <T> T parseMessageBodyWithCompression(
+            byte[] data,
+            RpcMessageParser<T> parser,
+            TResponseHeader.TResponseCodecs codecs)
+    {
+        if (data == null || data.length < 8) {
+            throw new IllegalStateException("Missing fixed envelope header");
+        }
+        try {
+            CodedInputStream input;
+            Codec codec = Codec.codecFor(Compression.fromValue(codecs.getResponseCodec()));
+            byte[] decompressed = codec.decompress(data);
+            input = CodedInputStream.newInstance(decompressed, 0, decompressed.length);
+            return parser.parse(input);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public static <T> T parseMessageBodyWithEnvelope(
+            byte[] data,
+            RpcMessageParser<T> parser)
+    {
         if (data == null || data.length < 8) {
             throw new IllegalStateException("Missing fixed envelope header");
         }
@@ -90,13 +129,27 @@ public class RpcUtil {
         }
     }
 
+    private static List<byte[]> createCompressedAttachments(List<byte[]> attachments, Compression codecId) {
+        if (codecId == Compression.None) {
+            return attachments;
+        } else {
+            Codec codec = Codec.codecFor(codecId);
+            return attachments.stream().map(codec::compress).collect(Collectors.toList());
+        }
+    }
+
     public static List<byte[]> createRequestMessage(TRequestHeader header, MessageLite body,
             List<byte[]> attachments)
     {
+        Compression attachmentsCodec = header.hasRequestCodecs() ?
+                Compression.fromValue(header.getRequestCodecs().getRequestAttachmentCodec()) :
+                Compression.fromValue(0);
         List<byte[]> message = new ArrayList<>(2 + attachments.size());
         message.add(createMessageHeader(RpcMessageType.REQUEST, header));
-        message.add(createMessageBodyWithEnvelope(body, 0));
-        message.addAll(attachments);
+        message.add(header.hasRequestCodecs()
+                ? createMessageBodyWithCompression(body, Compression.fromValue(header.getRequestCodecs().getRequestCodec()))
+                : createMessageBodyWithEnvelope(body));
+        message.addAll(createCompressedAttachments(attachments, attachmentsCodec));
         return message;
     }
 

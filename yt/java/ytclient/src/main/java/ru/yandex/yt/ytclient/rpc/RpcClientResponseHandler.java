@@ -2,6 +2,8 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.util.List;
 
+import ru.yandex.yt.rpc.TResponseHeader;
+
 /**
  * Интерфейс для низкоуровневой обработки жизненного цикла запроса
  * <p>
@@ -18,7 +20,7 @@ public interface RpcClientResponseHandler {
     /**
      * Вызывается при получении сырого успешного ответа
      */
-    void onResponse(RpcClient sender, List<byte[]> attachments);
+    void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments);
 
     /**
      * Вызывается в случае ошибок

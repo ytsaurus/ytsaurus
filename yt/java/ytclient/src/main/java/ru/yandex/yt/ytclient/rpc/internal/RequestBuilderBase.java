@@ -7,8 +7,9 @@ import java.util.concurrent.CompletableFuture;
 import com.google.protobuf.MessageLite;
 
 import ru.yandex.bolts.collection.Option;
-import ru.yandex.bolts.collection.Tuple2;
+import ru.yandex.bolts.collection.Tuple3;
 import ru.yandex.yt.rpc.TRequestHeader;
+import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.proxy.internal.BalancingResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
@@ -97,7 +98,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
 
     private RpcClientRequestControl sendVia(RpcClientResponseHandler handler, List<RpcClient> clients)
     {
-        CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f = new CompletableFuture<>();
+        CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f = new CompletableFuture<>();
 
         try {
             if (clients.isEmpty()) {
@@ -117,7 +118,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
             f.whenComplete((result, error) -> {
                 h.cancel();
                 if (error == null) {
-                    handler.onResponse(result.get1(), result.get2());
+                    handler.onResponse(result.get1(), result.get2(), result.get3());
                 } else {
                     handler.onError(error);
                 }

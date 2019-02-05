@@ -146,7 +146,7 @@ public class DefaultRpcBusClient implements RpcClient {
                         return;
                     }
 
-                    request.response(message.subList(1, message.size()));
+                    request.response(header, message.subList(1, message.size()));
                     break;
                 default:
                     throw new IllegalStateException("Unexpected " + type + " message in a client connection");
@@ -389,7 +389,7 @@ public class DefaultRpcBusClient implements RpcClient {
         /**
          * Вызывается при получении ответа за запрос
          */
-        public void response(List<byte[]> attachments) {
+        public void response(TResponseHeader header, List<byte[]> attachments) {
             Duration elapsed = Duration.between(started, Instant.now());
             stat.updateResponse(elapsed.toMillis());
             logger.debug("({}) request `{}` finished in {} ms", session, request, elapsed.toMillis());
@@ -412,7 +412,7 @@ public class DefaultRpcBusClient implements RpcClient {
             }
             try {
                 try {
-                    handler.onResponse(sender, attachments);
+                    handler.onResponse(sender, header, attachments);
                 } catch (Throwable e) {
                     handler.onError(e);
                 }

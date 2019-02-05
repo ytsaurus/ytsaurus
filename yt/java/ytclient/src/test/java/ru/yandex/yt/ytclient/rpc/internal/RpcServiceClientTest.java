@@ -10,6 +10,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import ru.yandex.yt.rpc.TReqDiscover;
+import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TRspDiscover;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
@@ -46,7 +47,7 @@ public class RpcServiceClientTest {
         @Override
         public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
             request.serialize();
-            handler.onResponse(this, attachments);
+            handler.onResponse(this, TResponseHeader.newBuilder().build(), attachments);
             return () -> false;
         }
 
@@ -122,7 +123,7 @@ public class RpcServiceClientTest {
                 .addSuggestedAddresses("hello")
                 .addSuggestedAddresses("world")
                 .build();
-        RpcClient rpcClient = new RespondingClient(RpcUtil.createMessageBodyWithEnvelope(expectedResponse, 0));
+        RpcClient rpcClient = new RespondingClient(RpcUtil.createMessageBodyWithEnvelope(expectedResponse));
         MyServiceClient serviceClient = new MyServiceClient(rpcClient);
         TRspDiscover response = serviceClient.discover(TReqDiscover.newBuilder().build());
         assertThat(response, is(expectedResponse));
