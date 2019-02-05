@@ -800,7 +800,7 @@ void ValidateColumnSchema(
                     name);
             }
             if (columnSchema.GetPhysicalType() != it->second) {
-                THROW_ERROR_EXCEPTION("Invalid type of column name %Qv: expected %Qlv, got %Qlv",
+                THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv, got %Qlv",
                     name,
                     it->second,
                     columnSchema.GetPhysicalType());
