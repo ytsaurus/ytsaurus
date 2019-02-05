@@ -1,0 +1,17 @@
+#pragma once 
+
+#include <yt/core/misc/guid.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGuid GenerateChunkId();
+TGuid GenerateChunkListId();
+TGuid GenerateTabletCellId();
+TGuid GenerateTabletCellBundleId();
+TGuid GenerateClusterNodeId();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

@@ -84,15 +84,14 @@ void TNodeHolder::InsertCell(std::pair<const TTabletCell*, int> pair)
     ++CellCount_[pair.first->GetCellBundle()];
 }
 
-void TNodeHolder::RemoveCell(const TTabletCell* cell)
+std::pair<const TTabletCell*, int> TNodeHolder::RemoveCell(const TTabletCell* cell)
 {
     for (int cellIndex = 0; cellIndex < Slots_.size(); ++cellIndex) {
         if (Slots_[cellIndex].first == cell) {
-            ExtractCell(cellIndex);
-            return;
+            return ExtractCell(cellIndex);
         }
     }
-    Y_ASSERT(false);
+    Y_UNREACHABLE();
 }
 
 int TNodeHolder::GetCellCount(const TTabletCellBundle* bundle) const
@@ -472,10 +471,9 @@ private:
 
     void RebalanceBundle(const TTabletCellBundle* bundle)
     {
-        const auto& tagFilter = bundle->NodeTagFilter();
         std::vector<TNodeHolder*> nodes;
         for (auto& node : Nodes_) {
-            if (tagFilter.IsSatisfiedBy(node.GetNode()->Tags())) {
+            if (Provider_->IsPossibleHost(node.GetNode(), bundle)) {
                 nodes.push_back(&node);
             }
         }
