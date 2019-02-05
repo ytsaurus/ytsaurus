@@ -104,6 +104,7 @@ message TUserJobSpec
     optional TTableBlobSpec stderr_table_spec = 29;
 
     optional TTableBlobSpec core_table_spec = 30;
+    optional bool force_core_dump = 40 [default = false];
 
     optional int64 disk_space_limit = 31;
     optional int64 inode_limit = 32;

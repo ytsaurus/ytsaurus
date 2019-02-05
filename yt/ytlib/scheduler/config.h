@@ -545,6 +545,10 @@ public:
     //! container means. This option should normally be useful only for experiments and benchmarks.
     bool SetContainerCpuLimit;
 
+    //! Forcefully run job with proper ulimit -c in order to enable core dump collection.
+    //! This option should not be used outside tests.
+    bool ForceCoreDump;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

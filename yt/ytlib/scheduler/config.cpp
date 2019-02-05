@@ -450,6 +450,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("set_container_cpu_limit", SetContainerCpuLimit)
         .Default(false);
+    RegisterParameter("force_core_dump", ForceCoreDump)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (TmpfsSize && *TmpfsSize > MemoryLimit) {
