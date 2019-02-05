@@ -16,6 +16,15 @@ public class LookupRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(LookupRowsExample.class);
 
     public static void main(String[] args) {
+        try {
+            mainUnsafe(args);
+        } catch (Throwable e) {
+            System.err.println(e);
+            System.exit(-1);
+        }
+    }
+
+    public static void mainUnsafe(String[] args) {
         TableSchema schema = new TableSchema.Builder()
                 .addKey("timestamp", ColumnValueType.INT64)
                 .addKey("host", ColumnValueType.STRING)
