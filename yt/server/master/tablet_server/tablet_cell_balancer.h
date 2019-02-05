@@ -42,7 +42,7 @@ public:
     const TTabletCellSet& GetSlots() const;
     std::pair<const TTabletCell*, int> ExtractCell(int cellIndex);
     void InsertCell(std::pair<const TTabletCell*, int> pair);
-    void RemoveCell(const TTabletCell* cell);
+    std::pair<const TTabletCell*, int> RemoveCell(const TTabletCell* cell);
     int GetCellCount(const TTabletCellBundle* bundle) const;
 
 private:
