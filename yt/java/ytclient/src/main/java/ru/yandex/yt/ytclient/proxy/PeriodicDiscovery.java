@@ -34,6 +34,7 @@ import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
@@ -53,6 +54,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     private final Option<String> clusterUrl;
     private final String discoverProxiesUrl;
     private final RpcCredentials credentials;
+    private final RpcCompression compression;
     private final Option<PeriodicDiscoveryListener> listenerOpt;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final AsyncHttpClient httpClient;
@@ -65,6 +67,7 @@ public class PeriodicDiscovery implements AutoCloseable {
             BusConnector connector,
             RpcOptions options,
             RpcCredentials credentials,
+            RpcCompression compression,
             PeriodicDiscoveryListener listener)
     {
         this.connector = Objects.requireNonNull(connector);
@@ -77,6 +80,7 @@ public class PeriodicDiscovery implements AutoCloseable {
         this.clusterUrl = Option.ofNullable(clusterUrl);
         this.proxies = new HashMap<>();
         this.credentials = Objects.requireNonNull(credentials);
+        this.compression = Objects.requireNonNull(compression);
         this.listenerOpt = Option.ofNullable(listener);
         this.httpClient = asyncHttpClient(
                 new DefaultAsyncHttpClientConfig.Builder()
@@ -168,6 +172,9 @@ public class PeriodicDiscovery implements AutoCloseable {
                 new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), datacenterName);
         if (!credentials.isEmpty()) {
             rpcClient = rpcClient.withTokenAuthentication(credentials);
+        }
+        if (!compression.isEmpty()) {
+            rpcClient = rpcClient.withCompression(compression);
         }
 
         return new DiscoveryServiceClient(rpcClient, options);

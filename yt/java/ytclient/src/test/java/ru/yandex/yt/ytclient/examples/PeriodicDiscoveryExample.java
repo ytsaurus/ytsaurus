@@ -7,6 +7,7 @@ import java.util.List;
 
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.PeriodicDiscovery;
+import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
@@ -21,7 +22,7 @@ public class PeriodicDiscoveryExample {
             PeriodicDiscovery pd = new PeriodicDiscovery("unknown", initialHosts, null,null, connector,
                     new RpcOptions()
                             .setProxyUpdateTimeout(interval)
-                            .setDefaultTimeout(interval.dividedBy(2)), new RpcCredentials(), null);
+                            .setDefaultTimeout(interval.dividedBy(2)), new RpcCredentials(), new RpcCompression(), null);
             while (true) {
                 System.out.printf("current list: %s\n", pd.getAddresses().toString());
                 Thread.sleep(interval.toMillis());
