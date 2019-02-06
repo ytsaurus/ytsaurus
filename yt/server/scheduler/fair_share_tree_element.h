@@ -764,7 +764,6 @@ public:
     bool TryIncreaseHierarchicalResourceUsagePrecommit(
         const TJobResources& delta,
         const TFairShareContext& context,
-        bool checkDemand,
         TJobResources* availableResourceLimitsOutput);
 
     void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);

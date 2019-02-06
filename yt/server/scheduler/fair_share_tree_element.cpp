@@ -2028,11 +2028,14 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
         return EDeactivationReason::ResourceLimitsExceeded;
     }
 
+    if (!CheckDemand(minNeededResources, context)) {
+        return EDeactivationReason::ResourceLimitsExceeded;
+    }
+
     TJobResources availableResourceLimits;
     if (!TryIncreaseHierarchicalResourceUsagePrecommit(
             minNeededResources,
             context,
-            /* checkDemand */ true,
             &availableResourceLimits)) {
         return EDeactivationReason::ResourceLimitsExceeded;
     }
@@ -2670,7 +2673,6 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
         bool successfullyPrecommitted = TryIncreaseHierarchicalResourceUsagePrecommit(
             resourceDelta,
             *context,
-            /* checkDemand */ false,
             /* availableResourceLimitsOutput */ nullptr);
         if (successfullyPrecommitted) {
             *precommittedResources += resourceDelta;
@@ -2757,15 +2759,10 @@ void TOperationElement::UpdatePreemptableJobsList()
 bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta,
     const TFairShareContext& context,
-    bool checkDemand,
     TJobResources* availableResourceLimitsOutput)
 {
     auto availableResourceLimits = InfiniteJobResources();
     TSchedulerElement* failedParent = nullptr;
-
-    if (checkDemand && !CheckDemand(delta, context)) {
-        return false;
-    }
 
     TSchedulerElement* currentElement = this;
     while (currentElement) {
