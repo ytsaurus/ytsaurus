@@ -7,21 +7,31 @@ class YsonType(object):
             return self.__dict__[attribute]
         raise AttributeError('Attribute "{0}" not found'.format(attribute))
 
+    def has_attributes(self):
+        try:
+            return "attributes" in self.__dict__ and self.attributes is not None and self.attributes != {}
+        except:
+            return False
+
     def __eq__(self, other):
-        if hasattr(other, "attributes"):
+        try:
+            has_attributes = other.has_attributes()
+        except AttributeError:
+            has_attributes = False
+        if has_attributes:
             return self.attributes == other.attributes
-        return not self.attributes
+        return not self.has_attributes()
 
     def __ne__(self, other):
         return not (self == other)
 
     def to_str(self, base_type, str_func):
-        if self.attributes:
+        if self.has_attributes():
             return str_func({"value": base_type(self), "attributes": self.attributes})
         return str_func(base_type(self))
 
     def base_hash(self, type_):
-        if self.attributes:
+        if self.has_attributes():
             raise TypeError("unhashable type: YSON has non-trivial attributes")
         return hash(type_(self))
 
