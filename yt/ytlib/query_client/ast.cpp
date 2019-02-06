@@ -200,8 +200,26 @@ bool operator != (const TJoin& lhs, const TJoin& rhs)
 bool operator == (const TQuery& lhs, const TQuery& rhs)
 {
     return
-        std::tie(lhs.Table, lhs.Joins, lhs.SelectExprs, lhs.WherePredicate, lhs.GroupExprs, lhs.HavingPredicate, lhs.OrderExpressions, lhs.Limit) ==
-        std::tie(rhs.Table, rhs.Joins, rhs.SelectExprs, rhs.WherePredicate, rhs.GroupExprs, rhs.HavingPredicate, rhs.OrderExpressions, rhs.Limit);
+        std::tie(
+            lhs.Table,
+            lhs.Joins,
+            lhs.SelectExprs,
+            lhs.WherePredicate,
+            lhs.GroupExprs,
+            lhs.HavingPredicate,
+            lhs.OrderExpressions,
+            lhs.Offset,
+            lhs.Limit) ==
+        std::tie(
+            rhs.Table,
+            rhs.Joins,
+            rhs.SelectExprs,
+            rhs.WherePredicate,
+            rhs.GroupExprs,
+            rhs.HavingPredicate,
+            rhs.OrderExpressions,
+            lhs.Offset,
+            rhs.Limit);
 }
 
 bool operator != (const TQuery& lhs, const TQuery& rhs)
@@ -521,6 +539,10 @@ void FormatQuery(TStringBuilder* builder, const TQuery& query)
                     builder->AppendString(" DESC");
                 }
             });
+    }
+
+    if (query.Offset) {
+        builder->AppendFormat(" OFFSET %v", *query.Offset);
     }
 
     if (query.Limit) {

@@ -259,6 +259,7 @@ public:
                 executionContext.OutputRowLimit = options.OutputRowLimit;
                 executionContext.GroupRowLimit = options.OutputRowLimit;
                 executionContext.JoinRowLimit = options.OutputRowLimit;
+                executionContext.Offset = query->Offset;
                 executionContext.Limit = query->Limit;
                 executionContext.IsOrdered = query->IsOrdered();
                 executionContext.MemoryChunkProvider = memoryChunkProvider;

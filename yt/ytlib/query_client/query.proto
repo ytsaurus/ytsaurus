@@ -181,6 +181,7 @@ message TQuery
     required int64 input_row_limit = 2;
     required int64 output_row_limit = 3;
 
+    optional int64 offset = 16 [default = 0];
     required int64 limit = 4;
 
     required NYT.NTableClient.NProto.TTableSchemaExt original_schema = 5;

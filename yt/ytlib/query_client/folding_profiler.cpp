@@ -1059,7 +1059,7 @@ void TQueryProfiler::Profile(
             size_t joinBatchSize = std::numeric_limits<size_t>::max();
 
             if (query->IsOrdered()) {
-                joinBatchSize = query->Limit;
+                joinBatchSize = query->Offset + query->Limit;
             }
 
             TMultiJoinParameters joinParameters;
@@ -1247,7 +1247,7 @@ void TQueryProfiler::Profile(
             size_t joinBatchSize = std::numeric_limits<size_t>::max();
 
             if (query->IsOrdered()) {
-                joinBatchSize = query->Limit;
+                joinBatchSize = query->Offset + query->Limit;
             }
 
             TJoinParameters joinParameters;

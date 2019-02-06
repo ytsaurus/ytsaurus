@@ -140,6 +140,8 @@ TEST_F(TAstFormatTest, Query)
     TestQuery("* from t group by a with totals");
     TestQuery("* from t group by a with totals having b > 0");
     TestQuery("* from t group by a having b > 0 with totals");
+    TestQuery("* from t order by key offset 100");
+    TestQuery("* from t order by key offset 100 limit 100");
     TestQuery("* from t limit 100");
     TestQuery("* from t t_alias");
     TestQuery("* from t as t_alias");

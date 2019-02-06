@@ -443,6 +443,7 @@ struct TBaseQuery
         , HavingClause(other.HavingClause)
         , OrderClause(other.OrderClause)
         , ProjectClause(other.ProjectClause)
+        , Offset(other.Offset)
         , Limit(other.Limit)
         , UseDisjointGroupBy(other.UseDisjointGroupBy)
         , InferRanges(other.InferRanges)
@@ -458,6 +459,8 @@ struct TBaseQuery
     TConstOrderClausePtr OrderClause;
 
     TConstProjectClausePtr ProjectClause;
+
+    i64 Offset = 0;
 
     // TODO: Update protocol and fix it
     // If Limit == std::numeric_limits<i64>::max() - 1, then do ordered read with prefetch
