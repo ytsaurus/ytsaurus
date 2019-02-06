@@ -119,7 +119,7 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("retry_attempts", RetryAttempts)
             .GreaterThanOrEqual(1)
-            .Default(100);
+            .Default(10);
         RegisterParameter("retry_timeout", RetryTimeout)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
