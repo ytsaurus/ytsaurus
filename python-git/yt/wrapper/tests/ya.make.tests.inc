@@ -14,6 +14,7 @@ SET(YT_TEST_SRCS
     test_config.py
     test_cypress_commands.py
     test_driver.py
+    test_dynamic_table_commands.py
     test_errors.py
     test_file_commands.py
     test_formats.py
