@@ -4,10 +4,15 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.function.Supplier;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
+
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4FastDecompressor;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.bolts.collection.MapF;
@@ -15,7 +20,7 @@ import ru.yandex.misc.ExceptionUtils;
 import ru.yandex.misc.io.IoUtils;
 
 class NoneCodec extends Codec {
-    public static Codec instance = new NoneCodec();
+    static Codec instance = new NoneCodec();
 
     private NoneCodec() { }
 
@@ -30,10 +35,60 @@ class NoneCodec extends Codec {
     }
 }
 
+class Lz4Codec extends Codec {
+    private final boolean hc;
+
+    private final LZ4Factory factory = LZ4Factory.fastestInstance();
+
+    Lz4Codec(boolean hc) {
+        this.hc = hc;
+    }
+
+    @Override
+    public byte[] compress(byte[] src) {
+        LZ4Compressor compressor = hc
+                ? factory.highCompressor()
+                : factory.fastCompressor();
+
+        int uncompressedSize = src.length;
+
+        int maxCompressedLength = compressor.maxCompressedLength(uncompressedSize);
+        byte[] compressed = new byte[maxCompressedLength+8];
+
+        ByteBuffer.wrap(compressed, 0, 8).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt((1 << 30) + 1)
+                .putInt(uncompressedSize);
+
+        int compressedLength = compressor.compress(src, 0, uncompressedSize, compressed, 8, maxCompressedLength);
+
+        return Arrays.copyOf(compressed, compressedLength + 8);
+    }
+
+    @Override
+    public byte[] decompress(byte[] src) {
+
+        ByteBuffer bb = ByteBuffer.wrap(src, 0, 8).order(ByteOrder.LITTLE_ENDIAN);
+        int signature = bb.getInt();
+        int uncompressedSize = bb.getInt();
+        if (signature != ((1 << 30) + 1)) {
+            throw new IllegalArgumentException("unknown signature");
+        }
+
+        LZ4FastDecompressor decompressor = factory.fastDecompressor();
+        byte[] output = new byte[uncompressedSize];
+        int compressedLen = decompressor.decompress(src, 8, output, 0, uncompressedSize);
+        if (compressedLen != src.length - 8) {
+            throw new IllegalArgumentException("broken stream");
+        }
+
+        return output;
+    }
+}
+
 class ZlibCodec extends Codec {
     private final int level;
 
-    public ZlibCodec(int level) {
+    ZlibCodec(int level) {
         this.level = level;
     }
 
