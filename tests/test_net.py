@@ -12,10 +12,10 @@ def ipv6_to_ptr_record(address):
         octets = address.split(":")
     else:
         parts = address.split("::")
-        for i in xrange(len(parts)):
+        for i in range(len(parts)):
             parts[i] = parts[i].split(":")
         octets = parts[0] + [""] * (8 - len(parts[0]) - len(parts[1])) + parts[1]
-    for i in xrange(len(octets)):
+    for i in range(len(octets)):
          octets[i] = "0" * (4 - len(octets[i])) + octets[i]
 
     address = "".join(octets)
@@ -30,7 +30,7 @@ def check_dns_record_set(yp_client, key, type, data):
     assert len(dns_record_set["records"]) == len(data)
     records_data = []
 
-    for i in xrange(len(dns_record_set["records"])):
+    for i in range(len(dns_record_set["records"])):
         assert dns_record_set["records"][i]["type"] == type
         assert dns_record_set["records"][i]["class"] == "IN"
         records_data.append(dns_record_set["records"][i]["data"])
