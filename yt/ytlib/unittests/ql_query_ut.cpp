@@ -3660,6 +3660,9 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     limitedResult.assign(result.begin(), result.begin() + 100);
     Evaluate("* FROM [//t] order by a * a limit 100", split, source, ResultMatcher(limitedResult));
 
+    limitedResult.assign(result.begin() + 100, result.begin() + 200);
+    Evaluate("* FROM [//t] order by a * a offset 100 limit 100", split, source, ResultMatcher(limitedResult));
+
     std::reverse(result.begin(), result.end());
     limitedResult.assign(result.begin(), result.begin() + 100);
     Evaluate("* FROM [//t] order by a * 3 - 1 desc limit 100", split, source, ResultMatcher(limitedResult));

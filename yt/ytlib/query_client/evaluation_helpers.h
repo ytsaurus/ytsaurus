@@ -253,6 +253,8 @@ struct TExecutionContext
     i64 GroupRowLimit;
     i64 JoinRowLimit;
 
+    i64 Offset;
+
     // Limit from LIMIT clause.
     i64 Limit;
 

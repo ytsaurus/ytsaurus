@@ -1220,7 +1220,7 @@ void OrderOpHelper(
         YT_LOG_DEBUG("Finalizing order helper");
     });
 
-    auto limit = context->Limit;
+    auto limit = context->Offset + context->Limit;
 
     TTopCollector topCollector(limit, comparer, rowSize, context->MemoryChunkProvider);
     collectRows(collectRowsClosure, &topCollector);
@@ -1231,7 +1231,7 @@ void OrderOpHelper(
     TYielder yielder;
     size_t processedRows = 0;
 
-    for (size_t index = 0; index < rows.size(); index += RowsetProcessingSize) {
+    for (size_t index = context->Offset; index < rows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, rows.size() - index);
         processedRows += size;
         consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data() + index, size);

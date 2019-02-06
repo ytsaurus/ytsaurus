@@ -133,6 +133,10 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues)
         clauses.push_back(TString("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
     }
 
+    if (query->Offset > 0) {
+        clauses.push_back(TString("OFFSET ") + ToString(query->Offset));
+    }
+
     if (query->Limit < std::numeric_limits<i64>::max()) {
         clauses.push_back(TString("LIMIT ") + ToString(query->Limit));
     }
@@ -665,6 +669,7 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
 {
     ToProto(serialized->mutable_id(), original->Id);
 
+    serialized->set_offset(original->Offset);
     serialized->set_limit(original->Limit);
     serialized->set_use_disjoint_group_by(original->UseDisjointGroupBy);
     serialized->set_infer_ranges(original->InferRanges);
@@ -700,6 +705,7 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 {
     auto result = New<TQuery>(FromProto<TGuid>(serialized.id()));
 
+    result->Offset = serialized.offset();
     result->Limit = serialized.limit();
     result->UseDisjointGroupBy = serialized.use_disjoint_group_by();
     result->InferRanges = serialized.infer_ranges();
