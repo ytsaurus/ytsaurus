@@ -247,7 +247,7 @@ def prepare(options, build_context):
     options.codename = codename
     extra_repositories = filter(lambda x: x != "", map(str.strip, os.environ.get("EXTRA_REPOSITORIES", "").split(",")))
     options.repositories = ["yt-" + codename] + extra_repositories
-    options.yson_bindings_repositories = ["yt-" + codename, "yandex-" + codename]
+    options.yson_bindings_repositories = ["yt-common", "common"]
     options.ya_target_platform = os.environ.get("YA_TARGET_PLATFORM", None)  # None is for default
 
     if options.build_system != "ya":
