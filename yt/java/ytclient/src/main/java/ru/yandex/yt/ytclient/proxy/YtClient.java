@@ -57,6 +57,18 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
             RpcCredentials credentials,
             RpcOptions options)
     {
+        this(connector, clusters, localDataCenterName, proxyRole, credentials, new RpcCompression(), options);
+    }
+
+    public YtClient(
+            BusConnector connector,
+            List<YtCluster> clusters,
+            String localDataCenterName,
+            String proxyRole,
+            RpcCredentials credentials,
+            RpcCompression compression,
+            RpcOptions options)
+    {
         super(options);
         discovery = new ArrayList<>();
 
@@ -110,7 +122,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
                             connector,
                             options,
                             credentials,
-                            new RpcCompression(),
+                            compression,
                             listener));
         }
 
