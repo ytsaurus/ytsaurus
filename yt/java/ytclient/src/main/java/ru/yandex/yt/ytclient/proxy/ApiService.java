@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import ru.yandex.yt.rpcproxy.TReqAbandonJob;
+import ru.yandex.yt.rpcproxy.TReqAbortJob;
 import ru.yandex.yt.rpcproxy.TReqAbortOperation;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
@@ -10,12 +12,14 @@ import ru.yandex.yt.rpcproxy.TReqCompleteOperation;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TReqCopyNode;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
+import ru.yandex.yt.rpcproxy.TReqDumpJobContext;
 import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGCCollect;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
+import ru.yandex.yt.rpcproxy.TReqGetJob;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
 import ru.yandex.yt.rpcproxy.TReqGetTableMountInfo;
@@ -28,6 +32,7 @@ import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
 import ru.yandex.yt.rpcproxy.TReqMoveNode;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
+import ru.yandex.yt.rpcproxy.TReqPollJobShell;
 import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
@@ -36,14 +41,18 @@ import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TReqResumeOperation;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
 import ru.yandex.yt.rpcproxy.TReqSetNode;
+import ru.yandex.yt.rpcproxy.TReqSignalJob;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
+import ru.yandex.yt.rpcproxy.TReqStraceJob;
 import ru.yandex.yt.rpcproxy.TReqSuspendOperation;
 import ru.yandex.yt.rpcproxy.TReqTrimTable;
 import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
+import ru.yandex.yt.rpcproxy.TRspAbandonJob;
+import ru.yandex.yt.rpcproxy.TRspAbortJob;
 import ru.yandex.yt.rpcproxy.TRspAbortOperation;
 import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
@@ -54,12 +63,14 @@ import ru.yandex.yt.rpcproxy.TRspCompleteOperation;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TRspCopyNode;
 import ru.yandex.yt.rpcproxy.TRspCreateNode;
+import ru.yandex.yt.rpcproxy.TRspDumpJobContext;
 import ru.yandex.yt.rpcproxy.TRspExistsNode;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGCCollect;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
+import ru.yandex.yt.rpcproxy.TRspGetJob;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
 import ru.yandex.yt.rpcproxy.TRspGetOperation;
 import ru.yandex.yt.rpcproxy.TRspGetTableMountInfo;
@@ -72,6 +83,7 @@ import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspMountTable;
 import ru.yandex.yt.rpcproxy.TRspMoveNode;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
+import ru.yandex.yt.rpcproxy.TRspPollJobShell;
 import ru.yandex.yt.rpcproxy.TRspPutFileToCache;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
 import ru.yandex.yt.rpcproxy.TRspRemoveNode;
@@ -80,8 +92,10 @@ import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TRspResumeOperation;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
 import ru.yandex.yt.rpcproxy.TRspSetNode;
+import ru.yandex.yt.rpcproxy.TRspSignalJob;
 import ru.yandex.yt.rpcproxy.TRspStartOperation;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
+import ru.yandex.yt.rpcproxy.TRspStraceJob;
 import ru.yandex.yt.rpcproxy.TRspSuspendOperation;
 import ru.yandex.yt.rpcproxy.TRspTrimTable;
 import ru.yandex.yt.rpcproxy.TRspUnfreezeTable;
@@ -190,6 +204,20 @@ public interface ApiService extends DiscoverableRpcService {
         updateOperationParameters();
 
     RpcClientRequestBuilder<TReqGetOperation.Builder, RpcClientResponse<TRspGetOperation>> getOperation();
+    /* */
+    /* Jobs */
+    RpcClientRequestBuilder<TReqGetJob.Builder, RpcClientResponse<TRspGetJob>> getJob();
 
+    RpcClientRequestBuilder<TReqStraceJob.Builder, RpcClientResponse<TRspStraceJob>> straceJob();
+
+    RpcClientRequestBuilder<TReqDumpJobContext.Builder, RpcClientResponse<TRspDumpJobContext>> dumpJobContext();
+
+    RpcClientRequestBuilder<TReqSignalJob.Builder, RpcClientResponse<TRspSignalJob>> signalJob();
+
+    RpcClientRequestBuilder<TReqAbandonJob.Builder, RpcClientResponse<TRspAbandonJob>> abandonJob();
+
+    RpcClientRequestBuilder<TReqPollJobShell.Builder, RpcClientResponse<TRspPollJobShell>> pollJobShell();
+
+    RpcClientRequestBuilder<TReqAbortJob.Builder, RpcClientResponse<TRspAbortJob>> abortJob();
     /* */
 }
