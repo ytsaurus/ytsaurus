@@ -63,7 +63,8 @@ void SerializeField(
             break;
         }
         case NSkiff::EWireType::String32: {
-            auto value = ConvertToStringBuf(EncodeStringObject(object, encoding));
+            auto encodedString = EncodeStringObject(object, encoding);
+            auto value = ConvertToStringBuf(encodedString);
             skiffWriter->WriteString32(value);
             break;
         }
