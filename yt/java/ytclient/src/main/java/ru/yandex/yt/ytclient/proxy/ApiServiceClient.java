@@ -21,6 +21,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
+import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -28,9 +29,11 @@ import ru.yandex.yt.rpcproxy.TReqAbandonJob;
 import ru.yandex.yt.rpcproxy.TReqAbortJob;
 import ru.yandex.yt.rpcproxy.TReqAbortOperation;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
+import ru.yandex.yt.rpcproxy.TReqAddMember;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
+import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
 import ru.yandex.yt.rpcproxy.TReqCompleteOperation;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
@@ -59,6 +62,7 @@ import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqPollJobShell;
 import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
+import ru.yandex.yt.rpcproxy.TReqRemoveMember;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
@@ -79,9 +83,11 @@ import ru.yandex.yt.rpcproxy.TRspAbandonJob;
 import ru.yandex.yt.rpcproxy.TRspAbortJob;
 import ru.yandex.yt.rpcproxy.TRspAbortOperation;
 import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
+import ru.yandex.yt.rpcproxy.TRspAddMember;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TRspBuildSnapshot;
+import ru.yandex.yt.rpcproxy.TRspCheckPermission;
 import ru.yandex.yt.rpcproxy.TRspCommitTransaction;
 import ru.yandex.yt.rpcproxy.TRspCompleteOperation;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
@@ -110,6 +116,7 @@ import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspPollJobShell;
 import ru.yandex.yt.rpcproxy.TRspPutFileToCache;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
+import ru.yandex.yt.rpcproxy.TRspRemoveMember;
 import ru.yandex.yt.rpcproxy.TRspRemoveNode;
 import ru.yandex.yt.rpcproxy.TRspReshardTable;
 import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
@@ -128,6 +135,7 @@ import ru.yandex.yt.rpcproxy.TRspUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
+import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
@@ -991,6 +999,41 @@ public class ApiServiceClient implements TransactionalClient {
                 .setInterruptTimeout(ApiServiceUtil.durationToYtMicros(timeout));
 
         return RpcUtil.apply(invoke(builder), response -> null);
+    }
+
+    /* */
+
+    CompletableFuture<Void> addMember(String group, String member, MutatingOptions mo) {
+        RpcClientRequestBuilder<TReqAddMember.Builder, RpcClientResponse<TRspAddMember>>
+            builder = service.addMember();
+
+        builder.body()
+                .setGroup(group)
+                .setMember(member)
+                .setMutatingOptions(mo.writeTo(TMutatingOptions.newBuilder()));
+
+        return RpcUtil.apply(invoke(builder), response -> null);
+    }
+
+    CompletableFuture<Void> removeMember(String group, String member, MutatingOptions mo) {
+        RpcClientRequestBuilder<TReqRemoveMember.Builder, RpcClientResponse<TRspRemoveMember>>
+            builder = service.removeMember();
+
+        builder.body()
+                .setGroup(group)
+                .setMember(member)
+                .setMutatingOptions(mo.writeTo(TMutatingOptions.newBuilder()));
+
+        return RpcUtil.apply(invoke(builder), response -> null);
+    }
+
+    CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
+        RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>>
+            builder = service.checkPermission();
+
+        req.writeTo(builder.body());
+
+        return RpcUtil.apply(invoke(builder), response -> response.body().getResult());
     }
 
     /* */

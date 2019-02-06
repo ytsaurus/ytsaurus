@@ -4,9 +4,11 @@ import ru.yandex.yt.rpcproxy.TReqAbandonJob;
 import ru.yandex.yt.rpcproxy.TReqAbortJob;
 import ru.yandex.yt.rpcproxy.TReqAbortOperation;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
+import ru.yandex.yt.rpcproxy.TReqAddMember;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
+import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
 import ru.yandex.yt.rpcproxy.TReqCompleteOperation;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
@@ -35,6 +37,7 @@ import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqPollJobShell;
 import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
+import ru.yandex.yt.rpcproxy.TReqRemoveMember;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
@@ -55,9 +58,11 @@ import ru.yandex.yt.rpcproxy.TRspAbandonJob;
 import ru.yandex.yt.rpcproxy.TRspAbortJob;
 import ru.yandex.yt.rpcproxy.TRspAbortOperation;
 import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
+import ru.yandex.yt.rpcproxy.TRspAddMember;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TRspBuildSnapshot;
+import ru.yandex.yt.rpcproxy.TRspCheckPermission;
 import ru.yandex.yt.rpcproxy.TRspCommitTransaction;
 import ru.yandex.yt.rpcproxy.TRspCompleteOperation;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
@@ -86,6 +91,7 @@ import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspPollJobShell;
 import ru.yandex.yt.rpcproxy.TRspPutFileToCache;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
+import ru.yandex.yt.rpcproxy.TRspRemoveMember;
 import ru.yandex.yt.rpcproxy.TRspRemoveNode;
 import ru.yandex.yt.rpcproxy.TRspReshardTable;
 import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
@@ -219,5 +225,11 @@ public interface ApiService extends DiscoverableRpcService {
     RpcClientRequestBuilder<TReqPollJobShell.Builder, RpcClientResponse<TRspPollJobShell>> pollJobShell();
 
     RpcClientRequestBuilder<TReqAbortJob.Builder, RpcClientResponse<TRspAbortJob>> abortJob();
+    /* */
+    RpcClientRequestBuilder<TReqAddMember.Builder, RpcClientResponse<TRspAddMember>> addMember();
+
+    RpcClientRequestBuilder<TReqRemoveMember.Builder, RpcClientResponse<TRspRemoveMember>> removeMember();
+
+    RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>> checkPermission();
     /* */
 }

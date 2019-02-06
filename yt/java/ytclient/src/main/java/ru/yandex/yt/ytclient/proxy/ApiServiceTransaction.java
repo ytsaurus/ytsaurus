@@ -11,7 +11,9 @@ import java.util.concurrent.TimeUnit;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
+import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
@@ -356,5 +358,9 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
 
     public CompletableFuture<GUID> startOperation(StartOperation req) {
         return client.startOperation(req.setTransactionOptions(transactionalOptions));
+    }
+
+    CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
+        return client.checkPermission(req.setTransactionalOptions(transactionalOptions));
     }
 }
