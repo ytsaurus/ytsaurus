@@ -140,6 +140,7 @@ TTabletTrackerImpl::TTabletTrackerImpl(
     , Bootstrap_(bootstrap)
     , StartTime_(startTime)
     , TTabletCellBalancerProvider_(New<TTabletCellBalancerProvider>(Bootstrap_))
+    , Profiler("/tablet_server/tablet_tracker")
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);
@@ -165,6 +166,7 @@ void TTabletTrackerImpl::ScanCells()
     }
 
     auto moveDescriptors = balancer->GetTabletCellMoveDescriptors();
+    ProfleCellMovement(moveDescriptors);
 
     TReqReassignPeers request;
 
@@ -213,6 +215,23 @@ void TTabletTrackerImpl::ScanCells()
 
     CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
+}
+
+void TTabletTrackerImpl::ProfleCellMovement(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors)
+{
+    THashMap<const TTabletCellBundle*, int> moveCounts;
+
+    for (const auto& moveDescriptor : moveDescriptors) {
+        moveCounts[moveDescriptor.Cell->GetCellBundle()]++;
+    }
+
+    for (const auto& pair : moveCounts) {
+        Profiler.Enqueue(
+            "/tablet_cell_moves",
+            pair.second,
+            NProfiling::EMetricType::Gauge,
+            {pair.first->GetProfilingTag()});
+    }
 }
 
 void TTabletTrackerImpl::ScheduleLeaderReassignment(TTabletCell* cell)
