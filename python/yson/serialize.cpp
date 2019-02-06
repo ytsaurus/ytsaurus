@@ -172,6 +172,15 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     }
 }
 
+bool HasAttributes(const Py::Object& obj)
+{
+    const char* attributesStr = "attributes";
+    const char* hasAttributesStr = "has_attributes";
+    if (obj.hasAttr(hasAttributesStr)) {
+        return Py::Boolean(Py::Callable(GetAttr(obj, hasAttributesStr)).apply(Py::Tuple(), Py::Dict()));
+    }
+    return obj.hasAttr(attributesStr);
+}
 
 void Serialize(
     const Py::Object& obj,
@@ -191,7 +200,7 @@ void Serialize(
     }
 
     const char* attributesStr = "attributes";
-    if ((!ignoreInnerAttributes || depth == 0) && obj.hasAttr(attributesStr)) {
+    if ((!ignoreInnerAttributes || depth == 0) && HasAttributes(obj)) {
         auto attributeObject = obj.getAttr(attributesStr);
         if ((!attributeObject.isMapping() && !attributeObject.isNone()) || attributeObject.isSequence())  {
             throw CreateYsonError("Invalid field 'attributes', it is neither mapping nor None", context);
