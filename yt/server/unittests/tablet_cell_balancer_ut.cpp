@@ -96,6 +96,8 @@ public:
                 UnassignedPeers_.emplace_back(cell, peer);
             }
         }
+
+        InitialDistribution_ = GetDistribution();
     }
 
     const TTabletCellSet& GetUnassignedPeers()
@@ -128,6 +130,7 @@ public:
             ValidateSmoothness();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(ex)
+                << TErrorAttribute("initial_distribution", InitialDistribution_)
                 << TErrorAttribute("resulting_distribution", GetDistribution());
         }
     }
@@ -192,6 +195,8 @@ private:
     THashMap<const TTabletCell*, int> CellToIndex_;
 
     TTabletCellSet UnassignedPeers_;
+
+    TString InitialDistribution_;
 
     TTabletCellBundle* GetBundle(const TString& name, bool create = true)
     {
@@ -390,7 +395,7 @@ TEST_P(TTabletCellBalancerTest, TestBalancer)
         "{node_name: [cell_index; ...]; ...}"
 */
 INSTANTIATE_TEST_CASE_P(
-    SettingParametrized,
+    TabletCellBalancer,
     TTabletCellBalancerTest,
     ::testing::Values(
         std::make_tuple(
@@ -398,7 +403,25 @@ INSTANTIATE_TEST_CASE_P(
             "{a=[1;2;3;4]; b=[5;6;7;8]}",
             "{n1=[a;b]; n2=[a;b]; n3=[a;b]}",
             10,
-            "{n1=[1;2]; n2=[3;4]; n3=[5;6]}")
+            "{n1=[1;2]; n2=[3;4]; n3=[5;6]}"),
+        std::make_tuple(
+            "{a=2;}",
+            "{a=[1;2;3;4]; b=[5;6;7;8]}",
+            "{n1=[a;b]; n2=[a;b]; n3=[a;b]}",
+            10,
+            "{n1=[1;2]; n2=[3;4]; n3=[5;6]}"),
+        std::make_tuple(
+            "{a=2;}",
+            "{a=[1;2;3]}",
+            "{n1=[a]; n2=[a]; n3=[a]}",
+            2,
+            "{n1=[]; n2=[]; n3=[]}"),
+        std::make_tuple(
+            "{a=2;}",
+            "{a=[1;2;3;4;5;6;7;8;9;10]}",
+            "{n1=[a]; n2=[a]; n3=[a]}",
+            10,
+            "{n1=[1;2;3;4;5;6;7;8;9;10]; n2=[1;2;3;4]; n3=[5;6;7;8;9;10]}")
     ));
 
 

@@ -5,6 +5,8 @@
 
 #include <yt/server/master/node_tracker_server/node.h>
 
+#include <yt/ytlib/tablet_client/config.h>
+
 #include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT::NTabletServer {
@@ -84,14 +86,19 @@ void TNodeHolder::InsertCell(std::pair<const TTabletCell*, int> pair)
     ++CellCount_[pair.first->GetCellBundle()];
 }
 
-std::pair<const TTabletCell*, int> TNodeHolder::RemoveCell(const TTabletCell* cell)
+std::optional<int> TNodeHolder::FindCell(const TTabletCell* cell)
 {
     for (int cellIndex = 0; cellIndex < Slots_.size(); ++cellIndex) {
         if (Slots_[cellIndex].first == cell) {
-            return ExtractCell(cellIndex);
+            return cellIndex;
         }
     }
-    Y_UNREACHABLE();
+    return std::nullopt;
+}
+
+std::pair<const TTabletCell*, int> TNodeHolder::RemoveCell(const TTabletCell* cell)
+{
+    return ExtractCell(*FindCell(cell));
 }
 
 int TNodeHolder::GetCellCount(const TTabletCellBundle* bundle) const
@@ -297,6 +304,7 @@ private:
     TPeerTracker PeerTracker_;
     TPeerTracker BannedPeerTracker_;
     THashMap<const TTabletCellBundle*, std::vector<int>> FreeNodes_;
+    THashMap<const TTabletCellBundle*, std::vector<int>> FilledNodes_;
 
     std::vector<TTabletCellMoveDescriptor> TabletCellMoveDescriptors_;
 
@@ -372,12 +380,16 @@ private:
 
     TNodeHolder* TryAllocateNode(const TTabletCell* cell)
     {
-        auto it = FreeNodes_.find(cell->GetCellBundle());
+        auto* bundle = cell->GetCellBundle();
+
+        auto it = FreeNodes_.find(bundle);
         if (it == FreeNodes_.end()) {
             return nullptr;
         }
 
+        std::optional<int> peerNodeIndex;
         auto& queue = it->second;
+
         for (int index = 0; index < queue.size(); ++index) {
             auto nodeIndex = queue[index];
             YCHECK(nodeIndex < Nodes_.size());
@@ -385,12 +397,65 @@ private:
             if (node->GetTotalSlots() == node->GetSlots().size()) {
                 std::swap(queue[index], queue.back());
                 queue.pop_back();
+                FilledNodes_[bundle].push_back(nodeIndex);
             } else if (!NodeInPeers(cell, node)) {
                 return node;
+            } else {
+                peerNodeIndex = nodeIndex;
+            }
+        }
+
+        if (peerNodeIndex) {
+            return TryAllocateMultipeerNode(cell, *peerNodeIndex);
+        }
+
+        return nullptr;
+    }
+
+    TNodeHolder* TryAllocateMultipeerNode(const TTabletCell* cell, int peerNodeIndex)
+    {
+        auto* peerNode = &Nodes_[peerNodeIndex];
+
+        auto it = FilledNodes_.find(cell->GetCellBundle());
+        if (it == FilledNodes_.end()) {
+            return nullptr;
+        }
+
+        for (auto nodeIndex : it->second) {
+            YCHECK(nodeIndex < Nodes_.size());
+            YCHECK(nodeIndex != peerNodeIndex);
+            auto* node = &Nodes_[nodeIndex];
+            if (NodeInPeers(cell, node)) {
+                continue;
+            }
+
+            if (TryExchangeCell(cell, peerNode, node)) {
+                return peerNode;
             }
         }
 
         return nullptr;
+    }
+
+    bool TryExchangeCell(const TTabletCell* cell, TNodeHolder* srcNode, TNodeHolder* dstNode)
+    {
+        int srcIndex = *srcNode->FindCell(cell);
+
+        int dstIndex = 0;
+        for (const auto& pair : dstNode->GetSlots()) {
+            const auto* dstCell = pair.first;
+            if (NodeInPeers(dstCell, srcNode) ||
+                !Provider_->IsPossibleHost(srcNode->GetNode(), dstCell->GetCellBundle()))
+            {
+                ++dstIndex;
+                continue;
+            }
+
+            ExchangeCells(srcNode, srcIndex, dstNode, dstIndex);
+            return true;
+        }
+
+        return false;
     }
 
     void AddCell(TNodeHolder* dstNode, const TTabletCell* cell, int peerId)
@@ -505,8 +570,9 @@ private:
             }
         };
 
-        auto ceil = DivCeil<i64>(bundle->TabletCells().size(), nodes.size());
-        auto floor = bundle->TabletCells().size() / nodes.size();
+        auto slotCount = bundle->TabletCells().size() * bundle->GetOptions()->PeerCount;
+        auto ceil = DivCeil<i64>(slotCount, nodes.size());
+        auto floor = slotCount / nodes.size();
 
         auto aboveCeil = std::count_if(nodes.begin(), nodes.end(), [&] (const auto* node) {
             return node->GetCellCount(bundle) > ceil;
