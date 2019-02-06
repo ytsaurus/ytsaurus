@@ -86,7 +86,6 @@ def main(args):
     config = json.loads(subprocess.check_output([config_generator]))
     yt_version = config["yt_version"]
     yt_rpc_proxy_protocol_version = config["yt_rpc_proxy_protocol_version"]
-    yt_rpc_python_bindings_version = config["yt_rpc_python_bindings_version"]
     source_directory = os.path.realpath(args.source_dir)
     output_directory = os.path.realpath(args.output_dir)
     work_directory = os.path.realpath(args.work_dir)
@@ -118,15 +117,8 @@ def main(args):
                 message="Proto package release.",
                 create_package="yandex-yt-python-proto")
 
-        with cwd(os.path.join(python_src_copy, "yandex-yt-python-driver-rpc")):
-            reset_debian_changelog()
-            dch(version=yt_rpc_python_bindings_version,
-                message="Rpc driver release",
-                create_package="yandex-yt-python-driver-rpc")
-
         with symlinked(driver_lib_file, os.path.join(python_src_copy, "yt_driver_bindings")), \
                 symlinked(yson_lib_file, os.path.join(python_src_copy, "yt_yson_bindings")):
-            subprocess.check_call(["./build_driver.sh"], cwd=python_src_copy)
             subprocess.check_call(["./build_proto.sh"], cwd=python_src_copy)
 
         package_list = glob.glob("yandex-yt-python*")

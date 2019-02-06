@@ -6,8 +6,8 @@ import os
 from os_helpers import copy_content, clean_path, run_captured, run, cwd, mkdirp
 from teamcity_helpers import teamcity_message
 
-import pypi
-import debian
+import pypi_helpers as pypi
+import debian_helpers as debian
 
 import argparse
 import contextlib
@@ -122,7 +122,8 @@ def build_pypi_package(python_type, python_suffix, upload, build_dir):
     if python_type == "3":
         python_api_version = "cp34"
 
-    if package_version in pypi.get_package_versions(pypi_package_name, tag_filter_string=python_api_version):
+    version_part_count = len(package_version.replace("-", ".").split("."))
+    if package_version in pypi.get_package_versions(pypi_package_name, tag_filter_string=python_api_version, version_part_count=version_part_count):
         return
 
     #  Also we should change get_abi_version in python to return the same version as MacOS python.

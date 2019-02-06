@@ -1,6 +1,10 @@
 from os_helpers import run_captured
 from teamcity_helpers import teamcity_message
 
+# Used to teamcity to import paths.
+import teamcity_helpers  # noqa
+from teamcity.helpers import dch  # noqa
+
 import requests
 
 import gzip
