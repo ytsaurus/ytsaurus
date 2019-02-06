@@ -778,7 +778,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
 private:
-    TOperationElementSharedStatePtr SharedState_;
+    TOperationElementSharedStatePtr OperationElementSharedState_;
     TFairShareStrategyOperationControllerPtr Controller_;
 
     TSchedulingTagFilter SchedulingTagFilter_;
