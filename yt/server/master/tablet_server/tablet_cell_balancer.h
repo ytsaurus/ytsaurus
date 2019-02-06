@@ -40,6 +40,7 @@ public:
     const NNodeTrackerServer::TNode* GetNode() const;
     int GetTotalSlots() const;
     const TTabletCellSet& GetSlots() const;
+    std::optional<int> FindCell(const TTabletCell* cell);
     std::pair<const TTabletCell*, int> ExtractCell(int cellIndex);
     void InsertCell(std::pair<const TTabletCell*, int> pair);
     std::pair<const TTabletCell*, int> RemoveCell(const TTabletCell* cell);
