@@ -1,3 +1,4 @@
+#include "config.h"
 #include "private.h"
 #include "tablet_cell.h"
 #include "tablet_cell_balancer.h"
@@ -183,7 +184,9 @@ public:
         }
 
         for (const auto& pair : Provider_->TabletCellBundles()) {
-            RebalanceBundle(pair.second);
+            if (pair.second->TabletBalancerConfig()->EnableTabletCellSmoothing) {
+                RebalanceBundle(pair.second);
+            }
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
