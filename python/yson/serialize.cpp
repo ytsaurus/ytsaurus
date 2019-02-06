@@ -55,7 +55,9 @@ void SerializeLazyMapFragment(
             throw Py::RuntimeError(Format("Map key should be string, found '%s'", Py::Repr(key)));
         }
 
-        auto mapKey = ConvertToStringBuf(EncodeStringObject(key, encoding, context));
+
+        auto encodedKey = EncodeStringObject(key, encoding, context);
+        auto mapKey = ConvertToStringBuf(encodedKey);
         consumer->OnKeyedItem(mapKey);
         context->Push(mapKey);
 
@@ -218,7 +220,8 @@ void Serialize(
     }
 
     if (PyBytes_Check(obj.ptr()) || PyUnicode_Check(obj.ptr())) {
-        consumer->OnStringScalar(ConvertToStringBuf(EncodeStringObject(obj, encoding, context)));
+        auto encodedObj = EncodeStringObject(obj, encoding, context);
+        consumer->OnStringScalar(ConvertToStringBuf(encodedObj));
 #if PY_MAJOR_VERSION < 3
     // Fast check for simple integers (python 3 has only long integers)
     } else if (PyInt_CheckExact(obj.ptr())) {
