@@ -11,7 +11,7 @@ except ImportError:
     has_test_module = False
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
-from yt.wrapper.common import parse_bool
+from yt.wrapper.common import parse_bool, get_disk_size
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
@@ -279,7 +279,7 @@ class TestOperations(object):
             assert remove_asan_warning(r["data"]) == "map\n"
 
     @add_failed_operation_stderrs_to_error_message
-    def test_run_join_operation(self, yt_env):
+    def test_run_join_operation(self):
         table1 = TEST_DIR + "/first"
         yt.write_table("<sorted_by=[x]>" + table1, [{"x": 1}])
         table2 = TEST_DIR + "/second"
@@ -328,7 +328,7 @@ class TestOperations(object):
             yt.run_reduce("cat", [table1, table2], table, join_by=["x"])
 
     @add_failed_operation_stderrs_to_error_message
-    def test_vanilla_operation(self, yt_env):
+    def test_vanilla_operation(self):
         def check(op):
             stderrs = op.get_stderrs()
             assert len(stderrs) == 1
@@ -349,7 +349,7 @@ class TestOperations(object):
         check(op)
 
     @add_failed_operation_stderrs_to_error_message
-    def test_python_operations_common(self, yt_env):
+    def test_python_operations_common(self):
         def change_x(rec):
             if "x" in rec:
                 rec["x"] = int(rec["x"]) + 1
@@ -388,7 +388,7 @@ class TestOperations(object):
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         yt.run_map(change_x, table, table)
-        check(yt.read_table(table),  [{"x": 2}, {"y": 2}])
+        check(yt.read_table(table), [{"x": 2}, {"y": 2}])
 
         yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
         yt.run_sort(table, sort_by=["x"])
@@ -559,7 +559,7 @@ class TestOperations(object):
         finally:
             yt.config["detached"] = 1
 
-    def test_attached_mode_op_aborted(self, yt_env):
+    def test_attached_mode_op_aborted(self, yt_env_with_rpc):
         script = """
 from __future__ import print_function
 
@@ -573,7 +573,7 @@ yt.config["detached"] = False
 op = yt.run_map("sleep 1000", input, output, format="json", sync=False)
 print(op.id)
 """
-        dir_ = yt_env.env.path
+        dir_ = yt_env_with_rpc.env.path
         with tempfile.NamedTemporaryFile(mode="w", dir=dir_, prefix="mapper", delete=False) as file:
             file.write(script)
 
@@ -1023,12 +1023,17 @@ print(op.id)
             logger.LOGGER.setLevel(old_level)
 
     @add_failed_operation_stderrs_to_error_message
-    def test_mount_tmpfs_in_sandbox(self, yt_env):
+    def test_mount_tmpfs_in_sandbox(self, yt_env_with_rpc):
         if not ENABLE_JOB_CONTROL:
             pytest.skip()
 
         def foo(rec):
-            yield rec
+            size = 0
+            for path, dirnames, filenames in os.walk("."):
+                for file_name in filenames:
+                    file_path = os.path.join(path, file_name)
+                    size += get_disk_size(file_path)
+            yield {"size": size}
 
         def get_spec_option(id, name):
             return yt.get("{}/@spec/{}".format(get_operation_path(id), name))
@@ -1038,19 +1043,23 @@ print(op.id)
             file = TEST_DIR + "/test_file"
             table_file = TEST_DIR + "/test_table_file"
 
-            dir_ = yt_env.env.path
+            dir_ = yt_env_with_rpc.env.path
             with tempfile.NamedTemporaryFile(dir=dir_, prefix="local_file", delete=False) as local_file:
-                local_file.write(b"bbbbb")
+                local_file.write(b"a" * 42000000)
             yt.write_table(table, [{"x": 1}, {"y": 2}])
             yt.write_table(table_file, [{"x": 1}, {"y": 2}])
-            yt.write_file(file, b"aaaaa")
+            yt.write_file(file, b"a" * 10000000)
             table_file_object = yt.FilePath(table_file, attributes={"format": "json", "disk_size": 1000})
             op = yt.run_map(foo, table, table, local_files=[local_file.name], yt_files=[file, table_file_object], format=None)
-            check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+            disk_size = next(yt.read_table(table))["size"]
 
             tmpfs_size = get_spec_option(op.id, "mapper/tmpfs_size")
             memory_limit = get_spec_option(op.id, "mapper/memory_limit")
+            diff = disk_size - tmpfs_size
+            if diff < 0:
+                diff = -diff
             assert tmpfs_size > 8 * 1024
+            assert diff < 5 * 1024 * 1024  # TMPFS_ADDEND + TMPFS_MULTIPLIER * archive_size + {rounded up file sizes}
             assert memory_limit - tmpfs_size == 512 * 1024 * 1024
             assert get_spec_option(op.id, "mapper/tmpfs_path") == "."
 
@@ -1140,7 +1149,7 @@ print(op.id)
             assert False, "Process did not terminate after {0:.2f} seconds".format(timeout)
 
     @add_failed_operation_stderrs_to_error_message
-    def test_sandbox_file_name_specification(self, yt_env):
+    def test_sandbox_file_name_specification(self, yt_env_with_rpc):
         def mapper(row):
             with open("cool_name.dat") as f:
                 yield {"k": f.read().strip()}
@@ -1148,7 +1157,7 @@ print(op.id)
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
 
-        dir_ = yt_env.env.path
+        dir_ = yt_env_with_rpc.env.path
         with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
             f.write("etwas")
 
