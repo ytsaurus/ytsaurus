@@ -23,6 +23,9 @@ import os
 import shutil
 from copy import deepcopy
 
+TMPFS_SIZE_MULTIPLIER = 1.01
+TMPFS_SIZE_ADDEND = 1024 * 1024
+
 def _check_columns(columns, type):
     if len(columns) == 1 and "," in columns:
         logger.info('Comma found in column name "%s". '
@@ -452,7 +455,7 @@ class UserJobSpecBuilder(object):
         if "local_files" in spec:
             del spec["local_files"]
 
-        return spec, tmpfs_size, file_uploader.disk_size
+        return spec, tmpfs_size #, file_uploader.disk_size
 
     def _prepare_memory_limit(self, spec, client=None):
         memory_limit = get_value(spec.get("memory_limit"), get_config(client)["memory_limit"])
@@ -484,7 +487,8 @@ class UserJobSpecBuilder(object):
             spec["environment"]["LD_LIBRARY_PATH"] = os.pathsep.join(paths)
         return spec
 
-    def _prepare_tmpfs(self, spec, tmpfs_size, disk_size, client=None):
+    def _prepare_tmpfs(self, spec, tmpfs_size, client=None):
+        disk_size = 0
         mount_sandbox_in_tmpfs = get_config(client)["mount_sandbox_in_tmpfs"]
         if isinstance(mount_sandbox_in_tmpfs, bool):  # COMPAT
             enable_mount_sandbox_in_tmpfs = mount_sandbox_in_tmpfs
@@ -495,7 +499,6 @@ class UserJobSpecBuilder(object):
 
         if enable_mount_sandbox_in_tmpfs:
             for file in spec.get("file_paths", []):
-                file_disk_size = None
                 if hasattr(file, "attributes") and "disk_size" in file.attributes:
                     file_disk_size = file.attributes["disk_size"]
                 else:
@@ -554,14 +557,14 @@ class UserJobSpecBuilder(object):
             input_format, output_format = None, None
 
         spec = self._prepare_ld_library_path(spec, client)
-        spec, tmpfs_size, disk_size = self._prepare_job_files(
+        spec, tmpfs_size = self._prepare_job_files(
             spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
             input_format, output_format, len(input_tables), len(output_tables), client)
         spec.setdefault("use_yamr_descriptors",
                         get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"])
         spec.setdefault("check_input_fully_consumed",
                         get_config(client)["yamr_mode"]["check_input_fully_consumed"])
-        spec = self._prepare_tmpfs(spec, tmpfs_size, disk_size, client)
+        spec = self._prepare_tmpfs(spec, tmpfs_size, client)
         spec = self._prepare_memory_limit(spec, client)
         return spec
 
