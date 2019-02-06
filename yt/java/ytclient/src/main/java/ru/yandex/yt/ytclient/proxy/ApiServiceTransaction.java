@@ -26,6 +26,7 @@ import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
+import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -351,5 +352,9 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
 
     public CompletableFuture<Void> concatenateNodes(String [] from, String to) {
         return concatenateNodes(new ConcatenateNodes(from, to));
+    }
+
+    public CompletableFuture<GUID> startOperation(StartOperation req) {
+        return client.startOperation(req.setTransactionOptions(transactionalOptions));
     }
 }
