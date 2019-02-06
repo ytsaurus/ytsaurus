@@ -409,7 +409,7 @@ def simplify_structure(obj):
     with their YSON representations suitable for passing to the driver or to the HTTP request"""
     attributes = None
     is_yson_type = isinstance(obj, yson.YsonType)
-    if is_yson_type and obj.attributes:
+    if is_yson_type and obj.has_attributes():
         attributes = simplify_structure(obj.attributes)
 
     if isinstance(obj, list):

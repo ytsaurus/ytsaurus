@@ -141,10 +141,15 @@ class Dumper(object):
         else:
             self._level = -2  # Stream elements are one level deep, but need not be indented
 
+    def _has_attributes(self, obj):
+        if hasattr(obj, "has_attributes"):
+            return obj.has_attributes()
+        return hasattr(obj, "attributes")
+
     def dumps(self, obj, context):
         self._level += 1
         attributes = b""
-        if hasattr(obj, "attributes") and obj.attributes is not None:
+        if self._has_attributes(obj):
             if not isinstance(obj.attributes, dict):
                 _raise_error_with_context('Invalid field "attributes": it must be string or None', context)
             if obj.attributes:
