@@ -39,76 +39,6 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
 
     final private LinkedList<CompletableFuture<Void>> waiting = new LinkedList<>();
 
-    @Deprecated
-    public YtClient(
-           BusConnector connector,
-           Map<String, List<String>> initialAddresses,
-           String localDataCenterName,
-           RpcCredentials credentials,
-           RpcOptions options)
-    {
-        super(options);
-        discovery = new ArrayList<>();
-
-        this.dataCenters = new DataCenter[initialAddresses.size()];
-        this.executorService = connector.eventLoopGroup();
-        this.options = options;
-
-        int dataCenterIndex = 0;
-
-        DataCenter localDataCenter = null;
-
-        for (Map.Entry<String, List<String>> entry : initialAddresses.entrySet()) {
-            final String dataCenterName = entry.getKey();
-
-            final DataCenter dc = new DataCenter(
-                    dataCenterName,
-                    new BalancingDestination[0],
-                    -1.0,
-                    options);
-
-            dataCenters[dataCenterIndex++] = dc;
-
-            if (dataCenterName.equals(localDataCenterName)) {
-                localDataCenter = dc;
-            }
-
-            final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
-                @Override
-                public void onProxiesAdded(Set<RpcClient> proxies) {
-                    dc.addProxies(proxies);
-                    wakeUp();
-                }
-
-                @Override
-                public void onError(Throwable e) {
-                    wakeUp(e);
-                }
-
-                @Override
-                public void onProxiesRemoved(Set<RpcClient> proxies) {
-                    dc.removeProxies(proxies);
-                }
-            };
-
-            discovery.add(
-                    new PeriodicDiscovery(
-                            dataCenterName,
-                            entry.getValue(),
-                            null,
-                            null,
-                            connector,
-                            options,
-                            credentials,
-                            new RpcCompression(),
-                            listener));
-        }
-
-        this.localDataCenter = localDataCenter;
-
-        schedulePing();
-    }
-
     public YtClient(
             BusConnector connector,
             List<YtCluster> clusters,
@@ -213,16 +143,6 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
             RpcCredentials credentials)
     {
         this(connector, clusterName, credentials, new RpcOptions());
-    }
-
-    @Deprecated
-    public YtClient(
-            BusConnector connector,
-            List<String> addresses,
-            RpcCredentials credentials,
-            RpcOptions options)
-    {
-        this(connector, Cf.map("unknown", addresses), "unknown", credentials, options);
     }
 
     private void wakeUp()
