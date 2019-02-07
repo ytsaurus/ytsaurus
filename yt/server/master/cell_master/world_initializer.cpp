@@ -99,7 +99,6 @@ public:
 
     bool HasProvisionLock()
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto sysNode = cypressManager->ResolvePathToNodeProxy("//sys");
         return sysNode->Attributes().Get<bool>("provision_lock", false);
@@ -157,18 +156,16 @@ private:
             auto transactionId = StartTransaction();
 
             // Level 1
-            if (Bootstrap_->IsPrimaryMaster()) {
-                ScheduleCreateNode(
-                    "//sys",
-                    transactionId,
-                    EObjectType::SysNode,
-                    BuildYsonStringFluently()
-                        .BeginMap()
-                            .DoIf(Config_->EnableProvisionLock, [&] (TFluentMap fluent) {
-                                fluent.Item("provision_lock").Value(true);
-                            })
-                        .EndMap());
-            }
+            ScheduleCreateNode(
+                "//sys",
+                transactionId,
+                EObjectType::SysNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .DoIf(Config_->EnableProvisionLock, [&] (TFluentMap fluent) {
+                            fluent.Item("provision_lock").Value(true);
+                        })
+                    .EndMap());
 
             ScheduleCreateNode(
                 "//tmp",
