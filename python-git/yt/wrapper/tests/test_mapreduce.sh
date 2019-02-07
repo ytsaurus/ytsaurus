@@ -790,7 +790,7 @@ test_create_tables_under_transaction_option()
     gen_data()
     {
         stdbuf -o 0 echo -e "a\tb"
-        sleep 4
+        sleep 10
         echo -e "x\ty"
     }
 
@@ -803,14 +803,14 @@ test_create_tables_under_transaction_option()
     }
 
     run "ignat/xxx_some_table" &
-    sleep 2
+    sleep 5
     check "true" "`$MAPREDUCE_YT -exists "ignat/xxx_some_table"`"
-    sleep 4
+    sleep 7
 
     YT_CREATE_TABLES_UNDER_TRANSACTION=1 run "ignat/xxx_some_table2" &
-    sleep 2
+    sleep 5
     check "false" "`$MAPREDUCE_YT -exists "ignat/xxx_some_table2"`"
-    sleep 4
+    sleep 7
 }
 
 prepare_table_files
