@@ -84,6 +84,34 @@ SSH_OPTS = [
     "-o", "CheckHostIP=no",
 ]
 
+CLUSTER_MAP = {
+    2: "socrates",
+    6: "seneca-sas",
+    8: "locke",
+    10: "flux",
+    11: "pythia",
+    12: "freud",
+    14: "vanga",
+    22: "hahn",
+    23: "hume",
+    27: "ofd",
+    28: "perelman",
+    29: "markov",
+    30: "ofd-myt",
+    31: "seneca-man",
+    33: "zeno",
+    34: "yp-sas",
+    35: "yp-man",
+    36: "yp-vla",
+    39: "bohr",
+    40: "yp-sas-test",
+    41: "arnold",
+    42: "seneca-vla",
+    43: "landau",
+    44: "yp-man-pre",
+    45: "yp-msk",
+}
+
 
 def list_known_services():
     return [service.name for service in SERVICE_TABLE]
@@ -127,13 +155,26 @@ def guid_type_name(guid_type):
     }[guid_type]
 
 
+def is_guid_selector(selector):
+    return selector.startswith("#") or GUID_RE.match(selector)
+
+
+def extract_guid(selector):
+    if selector.startswith("#"):
+        n = selector.strip("#")
+        if not GUID_RE.match(n):
+            raise LogrepError("Bad guid selector: {}".format(selector))
+        selector = n
+    return selector
+
+
 def cell_id_from_guid(guid):
     assert GUID_RE.match(guid)
     part = int(guid.split("-")[2], 16)
     return part >> 16
 
 
-def is_primary_cell_id(cell_id):
+def is_primary_master_cell_id(cell_id):
     return cell_id / 100 == 10
 
 
@@ -511,23 +552,66 @@ def parse_time(time_str):
 Instance = collections.namedtuple("Instance", ["address", "application", "attributes"])
 
 
+def resolve_cluster(guid):
+    cell_tag = cell_id_from_guid(guid)
+    cluster_index = cell_tag % 100
+    cluster = CLUSTER_MAP.get(cluster_index)
+    if not cluster:
+        raise LogrepError("Unknown cluster index {} (cell tag {})".format(cluster_index, cell_tag))
+    return cluster
+
+
 def resolve_instance(instance_str):
     from yt.wrapper import YtClient
 
+    def _raise(msg=None):
+        if msg:
+            raise LogrepError("Cannot resolve instance `{}': {}".format(instance_str, msg))
+        else:
+            raise LogrepError("Cannot resolve instance `{}'".format(instance_str))
+
     if re.match(r"^(/[^/]+)+$", instance_str):
         components = instance_str.strip("/").split("/")
-        if len(components) < 2:
-            raise LogrepError(
-                "Cannot resolve instance `{}': instance must start with /<cluster>/<service>".format(instance_str)
-            )
-        cluster, service = components[:2]
+
+        def _is_service(component):
+            return component in SERVICE_MAP
+        def _is_cluster(component):
+            return component in CLUSTER_MAP.values()
+
+        cluster = None
+        service = None
+
+        while components:
+            if _is_cluster(components[0]):
+                if cluster:
+                    _raise("/<cluster> must be specified at most once")
+                cluster = components[0]
+            elif _is_service(components[0]):
+                if service:
+                    _raise("/<service> must be specified exactly once")
+                service = components[0]
+            else:
+                break
+            components.pop(0)
+
+        if not cluster:
+            guids = [extract_guid(c) for c in components if is_guid_selector(c)]
+            if guids:
+                clusters = set(resolve_cluster(guid) for guid in guids)
+                if len(clusters) != 1:
+                    _raise("Guids belong to different clusters: ".format(", ".join(clusters)))
+                [cluster] = clusters
+
+        if not service or not cluster:
+            _raise("instance must start with /<cluster>/<service> or with /<service> and contain a guid")
+
         client = YtClient(cluster)
-        return resolve_service(client, service, components[2:])
+        return resolve_service(client, service, components)
     elif instance_str.count("@") == 1:
         application, address = instance_str.split("@")
         return [Instance(address, application, [])]
     else:
-        raise LogrepError("Cannot resolve instance `{}'".format(instance_str))
+        _raise()
 
 
 def resolve_service(client, service_name, selector_list):
@@ -558,13 +642,8 @@ def resolve_service(client, service_name, selector_list):
         if selector.startswith("@"):
             def filter_func(x):
                 return instance_match_attribute(x, selector[1:])
-        elif selector.startswith("#") or GUID_RE.match(selector):
-            if selector.startswith("#"):
-                n = selector.strip("#")
-                if not GUID_RE.match(n):
-                    raise LogrepError("Bad guid selector: {}".format(selector))
-                selector = n
-            guid = selector
+        elif is_guid_selector(selector):
+            guid = extract_guid(selector)
             guid_type = object_type_from_uuid(guid)
 
             if guid_type == OPERATION_GUID_TYPE:
@@ -585,7 +664,7 @@ def resolve_service(client, service_name, selector_list):
 
             elif guid_type in [CHUNK_GUID_TYPE, ERASURE_CHUNK_GUID_TYPE]:
                 if application == "ytserver-master":
-                    attribute = ("primary" if is_primary_cell_id(cell_id_from_guid(guid))
+                    attribute = ("primary" if is_primary_master_cell_id(cell_id_from_guid(guid))
                         else "secondary:{cell:x}".format(cell=cell_id_from_guid(guid)))
 
                     def filter_func(x):
@@ -599,7 +678,7 @@ def resolve_service(client, service_name, selector_list):
 
             elif guid_type == TABLET_GUID_TYPE:
                 if application == "ytserver-master":
-                    attribute = ("primary" if is_primary_cell_id(cell_id_from_guid(guid))
+                    attribute = ("primary" if is_primary_master_cell_id(cell_id_from_guid(guid))
                         else "secondary:{cell:x}".format(cell=cell_id_from_guid(guid)))
 
                     def filter_func(x):
@@ -1037,7 +1116,8 @@ def subcommand_ssh(instance_list, _args):
 
 EPILOG = """\
 INSTANCE SELECTORS
- Instance selector must start with /<cluster>/<service>. Check RECOGNIZED SERVICES for the list of accepted services.
+ Instance selector must start with /<cluster>/<service> or /<service>. In the latter case a guid selector
+ must be present and the cluster will be detected. Check RECOGNIZED SERVICES for the list of accepted services.
  
  /@<attr-filter>
  Select instances that have attribute that match <attr-filter> (substring matching is used).
