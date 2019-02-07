@@ -991,7 +991,15 @@ def subcommand_list(instance_list, args):
             )
 
 
-def verify_instance_is_single(instance_list):
+def verify_at_least_one_instance(instance_list, exactly):
+    if len(instance_list) == 0:
+        raise LogrepError(
+            "You must select {} one instance. Currently selected no instances.".format(
+                "exactly" if exactly else "at least")
+        )
+
+
+def verify_exactly_one_instance(instance_list):
     if len(instance_list) > 1:
         instance_list_str = indented_lines((instance.address for instance in instance_list[:10]), indent=2)
         if len(instance_list) > 10:
@@ -1000,10 +1008,16 @@ def verify_instance_is_single(instance_list):
             "You must select exactly one instance. Currently you selected:\n"
             + instance_list_str
         )
-    if len(instance_list) == 0:
-        raise LogrepError(
-            "You must select exactly one instance. Currently selected no instance."
-        )
+    verify_at_least_one_instance(instance_list, exactly=True)
+
+
+def get_instance_for_subcommand(instance_list, args):
+    if args.any:
+        verify_at_least_one_instance(instance_list, exactly=False)
+    else:
+        verify_exactly_one_instance(instance_list)
+
+    return instance_list[0]
 
 
 def args_get_time_interval(args):
@@ -1022,8 +1036,7 @@ def args_get_time_interval(args):
 def subcommand_grep(instance_list, args):
     start_time, end_time = args_get_time_interval(args)
 
-    verify_instance_is_single(instance_list)
-    instance, = instance_list
+    instance = get_instance_for_subcommand(instance_list, args)
 
     host = parse_address(instance.address).host
     task = GrepTask(
@@ -1038,8 +1051,7 @@ def subcommand_grep(instance_list, args):
 
 
 def subcommand_pgrep(instance_list, args):
-    if not instance_list:
-        LogrepError("No no instance is selected")
+    verify_at_least_one_instance(instance_list)
 
     if args.instance_limit and len(instance_list) > args.instance_limit:
         raise LogrepError(
@@ -1102,9 +1114,8 @@ def subcommand_pgrep(instance_list, args):
         logging.info("Successfully grepped {} instances".format(len(completed_list)))
 
 
-def subcommand_ssh(instance_list, _args):
-    verify_instance_is_single(instance_list)
-    instance, = instance_list
+def subcommand_ssh(instance_list, args):
+    instance = get_instance_for_subcommand(instance_list, args)
     host = parse_address(instance.address).host
     for fd, name in enumerate(["stdin", "stdout", "stderr"]):
         if not os.isatty(fd):
@@ -1191,7 +1202,7 @@ def main():
 
     action_group.add_argument(
         "--ssh",
-        help="ssh to selected instance (single instance must be selected)",
+        help="ssh to selected instance (single instance must be selected or `--any' flag used)",
         action="store_const",
         dest="subcommand",
         const=subcommand_ssh
@@ -1208,7 +1219,7 @@ def main():
 
     action_group.add_argument(
         "--grep",
-        help="grep logs on selected instance (single instance must be selected)",
+        help="grep logs on selected instance (single instance must be selected or `--any' flag used)",
         action=GrepAction,
         subcommand=subcommand_grep,
     )
@@ -1220,7 +1231,7 @@ def main():
         subcommand=subcommand_pgrep,
     )
     
-    list_group = parser.add_argument_group("list instances arguments:")
+    list_group = parser.add_argument_group("list instances arguments")
 
     list_group.add_argument(
         "--short",
@@ -1229,7 +1240,7 @@ def main():
         default=False,
     )
 
-    grep_pgrep_group = parser.add_argument_group("grep / pgrep arguments:")
+    grep_pgrep_group = parser.add_argument_group("grep / pgrep arguments")
 
     grep_pgrep_group.add_argument(
         "-t", "--time", "--start-time",
@@ -1241,7 +1252,7 @@ def main():
         help="end of time interval to grep, equals start interval by default (check TIME FORMATS below)"
     )
 
-    pgrep_group = parser.add_argument_group("pgrep only arguments:")
+    pgrep_group = parser.add_argument_group("pgrep only arguments")
     pgrep_group.add_argument(
         "--instance-limit",
         type=int,
@@ -1251,6 +1262,8 @@ def main():
             "(pgrep will fail if number of selected instance exeeds this limit, default limit: 10)"
         )
     )
+
+    parser.add_argument("--any", action="store_true", default=False, help="select arbitrary instance")
 
     args = parser.parse_args()
 
