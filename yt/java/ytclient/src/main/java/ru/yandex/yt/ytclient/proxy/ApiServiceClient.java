@@ -738,7 +738,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> response.body().getResult().getPath());
     }
 
-    public CompletableFuture<String> putFilesToCache(
+    public CompletableFuture<String> putFileToCache(
             String path,
             String md5,
             String cachePath,
