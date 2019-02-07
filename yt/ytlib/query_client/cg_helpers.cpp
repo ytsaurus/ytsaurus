@@ -7,7 +7,7 @@ namespace NYT::NQueryClient {
 
 StringRef ToStringRef(TStringBuf stringBuf)
 {
-    return StringRef(stringBuf.c_str(), stringBuf.length());
+    return StringRef(stringBuf.data(), stringBuf.length());
 }
 
 StringRef ToStringRef(TRef ref)

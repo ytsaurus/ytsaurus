@@ -43,11 +43,11 @@ void TSafeUrlBuilder::AppendParam(TStringBuf key, TStringBuf value)
 
     char* realBegin = RealUrl_.Preallocate(size);
     char* realIt = realBegin;
-    memcpy(realIt, key.c_str(), key.length());
+    memcpy(realIt, key.data(), key.length());
     realIt += key.length();
     *realIt = '=';
     realIt += 1;
-    auto realEnd = CGIEscape(realIt, value.c_str(), value.length());
+    auto realEnd = CGIEscape(realIt, value.data(), value.length());
     RealUrl_.Advance(realEnd - realBegin);
 
     char* safeBegin = SafeUrl_.Preallocate(size);

@@ -194,7 +194,7 @@ void TJsonWriter::EndList()
 
 void TJsonWriter::Write(TStringBuf value)
 {
-    CheckYajlCode(yajl_gen_string(Handle, (const unsigned char*) value.c_str(), value.size()));
+    CheckYajlCode(yajl_gen_string(Handle, (const unsigned char*) value.data(), value.size()));
 }
 
 void TJsonWriter::Write(const char* value)
