@@ -633,7 +633,7 @@ void Umount(const TString& path, bool detach)
 struct stat Stat(TStringBuf path)
 {
     struct stat statInfo;
-    int result = ::stat(path.c_str(), &statInfo);
+    int result = ::stat(path.data(), &statInfo);
     if (result != 0) {
         THROW_ERROR_EXCEPTION("Failed to execute ::stat for %v", path)
             << TError::FromSystem();

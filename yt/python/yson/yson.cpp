@@ -338,10 +338,16 @@ public:
             skipUnknownFields = Py::Boolean(arg);
         }
 
+        auto ysonFormat = NYson::EYsonFormat::Binary;
+        if (HasArgument(args, kwargs, "yson_format")) {
+            auto arg = ExtractArgument(args, kwargs, "yson_format");
+            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertStringObjectToString(arg));
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            return DumpsProtoImpl(protoObject, skipUnknownFields);
+            return DumpsProtoImpl(protoObject, skipUnknownFields, ysonFormat);
         } CATCH_AND_CREATE_YSON_ERROR("Yson dumps_proto failed");
     }
 
@@ -597,7 +603,7 @@ private:
         YCHECK(result);
     }
 
-    Py::Object DumpsProtoImpl(Py::Object protoObject, std::optional<bool> skipUnknownFields)
+    Py::Object DumpsProtoImpl(Py::Object protoObject, std::optional<bool> skipUnknownFields, NYson::EYsonFormat ysonFormat)
     {
         auto serializeToString = Py::Callable(GetAttr(protoObject, "SerializeToString"));
         auto serializedProto = Py::Bytes(serializeToString.apply(Py::Tuple(), Py::Dict()));
@@ -614,7 +620,7 @@ private:
 
         TString result;
         TStringOutput outputStream(result);
-        TYsonWriter writer(&outputStream);
+        TYsonWriter writer(&outputStream, ysonFormat);
 
         TProtobufParserOptions options;
         if (skipUnknownFields) {
