@@ -272,10 +272,10 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
     // The remote side shouldn't backoff until there's at least one subresponse.
     YCHECK(rsp->GetSize() > 0 || GetTotalSubrequestCount() == 0);
 
-    FullResponse()->Append(rsp);
+    GetFullResponse()->Append(rsp);
 
     if (GetTotalSubresponseCount() == GetTotalSubrequestCount()) {
-        FullResponse()->SetPromise({});
+        GetFullResponse()->SetPromise({});
         return;
     }
 
@@ -292,7 +292,7 @@ int TObjectServiceProxy::TReqExecuteBatch::GetTotalSubresponseCount() const
     return FullResponse_ ? FullResponse_->GetSize() : 0;
 }
 
-TObjectServiceProxy::TRspExecuteBatchPtr& TObjectServiceProxy::TReqExecuteBatch::FullResponse()
+TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::GetFullResponse()
 {
     if (!FullResponse_) {
         // Make sure the full response uses the promise we've returned to the caller.

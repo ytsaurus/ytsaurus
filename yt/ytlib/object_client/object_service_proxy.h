@@ -174,7 +174,7 @@ public:
         int GetTotalSubrequestCount() const;
         int GetTotalSubresponseCount() const;
 
-        TRspExecuteBatchPtr& FullResponse();
+        TRspExecuteBatchPtr GetFullResponse();
 
         friend class TReqExecuteSubbatch;
     };
