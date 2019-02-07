@@ -6,7 +6,6 @@ option java_outer_classname = "Pod";
 package NInfra.NPodAgent.API;
 
 import "google/protobuf/timestamp.proto";
-import "yp/client/api/proto/secrets.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 
 option (NYT.NYson.NProto.derive_underscore_case_names) = true;
@@ -58,20 +57,6 @@ message TPodAgentResourceCacheSpec {
     repeated TCacheResource StaticResources = 2;
 }
 
-// Конфигурация Пода, содержащая секреты
-// NOTE: В будущем Pod-agent будет принимать только это сообщение, сейчас он все еще принимает TPodAgentSpec отдельно для обратной совместимости
-// NOTE: Валидация - все alias секретов различны
-message TPodAgentRequest {
-    // Конфигурация Пода
-    TPodAgentSpec Spec = 1;
-
-    // Секреты (raw, unencrypted)
-    repeated NYP.NClient.NApi.NProto.TSecret Secrets = 2;
-
-    // Кэш ресурсы для пода
-    TPodAgentResourceCacheSpec ResourceCacheSpec = 3;
-}
-
 // Текущее состояние Пода, возвращаемое из Pod-agent
 message TPodAgentStatus {
     //последняя известная pod revision
@@ -106,29 +91,6 @@ message TPodAgentStatus {
     TCondition InProgress = 9;
 
     TResourceGangStatus ResourceCache = 10;
-}
-
-// Спека для получения расширенного debug состояния pod_agent
-message TPodAgentDebugSpec {
-    repeated string WorkloadIds = 1;
-    repeated string LayerIds = 2;
-    repeated string VolumeIds = 3;
-    repeated string BoxIds = 4;
-    repeated string StaticResourceIds = 5;
-}
-
-// Расширенный debug status возвращаемый Pod-agent
-message TPodAgentDebugStatus {
-    // Состояние behavior tree для workloads в dot формате
-    map<string, string> WorkloadTreeDots = 1 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для layers в dot формате
-    map<string, string> LayerTreeDots = 2 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для volumes в dot формате
-    map<string, string> VolumeTreeDots = 3 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для boxes в dot формате
-    map<string, string> BoxTreeDots = 4 [(NYT.NYson.NProto.yson_map) = true];
-    // Состояние behavior tree для layers в dot формате
-    map<string, string> StaticResourcesTreeDots = 5 [(NYT.NYson.NProto.yson_map) = true];
 }
 
 //============================== SPEC ==========================
