@@ -1,6 +1,5 @@
 from .helpers import TEST_DIR
 
-from yt.wrapper.common import parse_bool
 from yt.wrapper.batch_helpers import create_batch_client
 from yt.wrapper.batch_response import apply_function_to_result
 from yt.wrapper.batch_execution import YtBatchRequestFailedError
@@ -94,7 +93,7 @@ class TestBatchExecution(object):
         client.create("map_node", map_node)
         client.commit_batch()
 
-        assert not parse_bool(yt.get_attribute(link + "&", "broken"))
+        assert not yt.get_attribute(link + "&", "broken")
         assert yt.get_attribute(link + "&", "target_path") == table
 
         table_type = client.get_type(table)

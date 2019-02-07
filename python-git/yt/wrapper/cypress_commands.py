@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option, get_command_param
-from .common import parse_bool, flatten, get_value, YtError, set_param
+from .common import flatten, get_value, YtError, set_param
 from .errors import YtResponseError
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
@@ -286,13 +286,11 @@ def exists(path, read_from=None, client=None):
     """
     params = {"path": YPath(path, client=client)}
     set_param(params, "read_from", read_from)
-    return apply_function_to_result(
-        parse_bool,
-        _make_formatted_transactional_request(
-            "exists",
-            params,
-            format=None,
-            client=client))
+    return _make_formatted_transactional_request(
+        "exists",
+        params,
+        format=None,
+        client=client)
 
 def remove(path, recursive=False, force=False, client=None):
     """Removes Cypress node.

@@ -5,7 +5,7 @@ from __future__ import print_function
 from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
-from yt.wrapper.common import parse_bool, chunk_iter_stream, update, get_value, MB, \
+from yt.wrapper.common import chunk_iter_stream, update, get_value, MB, \
                               DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
                               chunk_iter_rows
 from yt.wrapper.cli_helpers import write_silently, run_main
@@ -293,7 +293,7 @@ def list(**args):
             print("WARNING! Attributes are ignored if format is not specified.", file=sys.stderr)
         for elem in list:
             formatted_print(elem, yt.ypath_join(args["path"], yt.escape_ypath_literal(elem)), args["long_format"])
-        if parse_bool(list.attributes.get("incomplete", "false")):
+        if list.attributes.get("incomplete", False):
             print("WARNING: list is incomplete, check --max-size option", file=sys.stderr)
     else:
         sys.stdout.write(list)
