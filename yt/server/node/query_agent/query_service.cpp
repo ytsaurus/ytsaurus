@@ -120,7 +120,7 @@ private:
 
         YT_LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "ReadSesisonId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
+            "ReadSesisonId: %v, DataRangeCount: %v)",
             query->Id,
             options.InputRowLimit,
             options.OutputRowLimit,
@@ -129,7 +129,6 @@ private:
             options.EnableCodeCache,
             options.WorkloadDescriptor,
             options.ReadSessionId,
-            options.MemoryLimitPerNode,
             dataSources.size());
 
         const auto& user = context->GetUser();

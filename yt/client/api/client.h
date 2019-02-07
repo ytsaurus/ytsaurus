@@ -427,8 +427,6 @@ struct TSelectRowsOptions
     bool AllowJoinWithoutIndex = false;
     //! Path in Cypress with UDFs.
     std::optional<TString> UdfRegistryPath;
-    //! Memory limit per execution node
-    size_t MemoryLimitPerNode = 2_GB;
 };
 
 struct TGetNodeOptions

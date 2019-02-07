@@ -560,8 +560,6 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("udf_registry_path", Options.UdfRegistryPath)
         .Default();
-    RegisterParameter("memory_limit_per_node", Options.MemoryLimitPerNode)
-        .Optional();
 }
 
 void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
