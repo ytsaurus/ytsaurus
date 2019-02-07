@@ -1,6 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/query_client/parser.hpp>
+#include "ast.h"
+
+#include <yt/ytlib/query_client/parser.h>
 
 namespace NYT::NQueryClient::NAst {
 
