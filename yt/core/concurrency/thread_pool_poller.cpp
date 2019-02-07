@@ -364,7 +364,6 @@ private:
 
     TSpinLock SpinLock_;
     THashMap<IPollablePtr, TPollableEntryPtr> Pollables_;
-    std::vector<TPollableEntryPtr> ShutdownUnregisterEntries_;
 
     class TInvoker
         : public IInvoker
