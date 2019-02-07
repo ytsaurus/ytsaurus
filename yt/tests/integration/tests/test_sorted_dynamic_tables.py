@@ -1759,6 +1759,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         def check(expected, actual):
+            assert len(expected) == len(actual)
             for row in actual:
                 key = row["key"]
                 if row.attributes["write_timestamps"]:
@@ -1794,6 +1795,46 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         expected[3] = {"v1": 3, "v2": 4}
         actual = lookup_rows("//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0))
         check(expected, actual)
+
+    def test_versioned_lookup_early_timestamp(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@enable_store_rotation", False)
+        sync_mount_table("//tmp/t")
+
+        ts = generate_timestamp()
+        insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+
+        assert lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts) == []
+
+        set("//tmp/t/@enable_store_rotation", True)
+        remount_table("//tmp/t")
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts) == []
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_versioned_lookup_early_timestamp_after_alter(self, optimize_for):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        create("table", "//tmp/t", attributes={
+            "schema": make_schema(schema, strict=True, unique_keys=True),
+            "optimize_for": optimize_for})
+
+        ts0 = generate_timestamp()
+        write_table("//tmp/t", [{"key": 1, "value": "a"}])
+        ts1 = generate_timestamp()
+
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts0) == []
+        assert len(lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts1)) == 1
 
     def test_rff_requires_async_last_committed(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
