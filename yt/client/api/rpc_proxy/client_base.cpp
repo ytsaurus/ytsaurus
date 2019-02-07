@@ -551,7 +551,6 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     if (options.UdfRegistryPath) {
         req->set_udf_registry_path(*options.UdfRegistryPath);
     }
-    req->set_memory_limit_per_node(options.MemoryLimitPerNode);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
