@@ -11,7 +11,7 @@ except ImportError:
     has_test_module = False
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
-from yt.wrapper.common import parse_bool, get_disk_size
+from yt.wrapper.common import get_disk_size
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
@@ -110,12 +110,12 @@ class TestOperations(object):
         check([{"x": 1}, {"y": 2}], yt.read_table(res_table), ordered=False)
 
         yt.run_merge(tableX, res_table)
-        assert not parse_bool(yt.get_attribute(res_table, "sorted"))
+        assert not yt.get_attribute(res_table, "sorted")
         check([{"x": 1}], yt.read_table(res_table))
 
         yt.run_sort(tableX, sort_by="x")
         yt.run_merge(tableX, res_table)
-        assert parse_bool(yt.get_attribute(res_table, "sorted"))
+        assert yt.get_attribute(res_table, "sorted")
         check([{"x": 1}], yt.read_table(res_table))
 
         # Test mode="auto"
@@ -707,8 +707,8 @@ print(op.id)
             op = yt.run_map("sleep 1; cat", table, table, sync=False)
             spec = yt.get_attribute(get_operation_path(op.id), "spec")
             assert spec["mapper"]["memory_limit"] == 123
-            assert parse_bool(spec["mapper"]["check_input_fully_consumed"]) != check_input_fully_consumed
-            assert parse_bool(spec["mapper"]["use_yamr_descriptors"]) != use_yamr_descriptors
+            assert spec["mapper"]["check_input_fully_consumed"] != check_input_fully_consumed
+            assert spec["mapper"]["use_yamr_descriptors"] != use_yamr_descriptors
             assert spec["job_io"]["table_writer"]["max_row_weight"] == 8 * 1024 * 1024
         finally:
             yt.config["memory_limit"] = memory_limit

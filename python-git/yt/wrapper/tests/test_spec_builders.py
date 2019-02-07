@@ -1,6 +1,5 @@
 from .helpers import TEST_DIR, check, get_test_file_path, set_config_option
 
-from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
                                       MapReduceSpecBuilder, MapSpecBuilder)
@@ -66,7 +65,7 @@ class TestSpecBuilders(object):
             .input_table_paths(tableX) \
             .output_table_path(res_table)
         yt.run_operation(spec_builder)
-        assert not parse_bool(yt.get_attribute(res_table, "sorted"))
+        assert not yt.get_attribute(res_table, "sorted")
         check([{"x": 1}], yt.read_table(res_table))
 
         spec_builder = SortSpecBuilder() \
@@ -79,7 +78,7 @@ class TestSpecBuilders(object):
             .output_table_path(res_table) \
             .mode("sorted")
         yt.run_operation(spec_builder)
-        assert parse_bool(yt.get_attribute(res_table, "sorted"))
+        assert yt.get_attribute(res_table, "sorted")
         check([{"x": 1}], yt.read_table(res_table))
 
     def test_run_operation(self):

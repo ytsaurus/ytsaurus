@@ -23,10 +23,15 @@ class TestAclCommands(object):
         assert yt.check_permission("root", "administer", "//home")["action"] == "allow"
         assert yt.check_permission("root", "use", "//home")["action"] == "allow"
         permissions = ["read", "write", "administer", "remove"]
-        yt.create("map_node", "//home/tester", attributes={"inherit_acl": "false",
-            "acl": [{"action": "allow",
-                     "subjects": ["tester"],
-                     "permissions": permissions}]})
+        yt.create("map_node", "//home/tester", attributes={
+            "inherit_acl": False,
+            "acl": [
+                {
+                    "action": "allow",
+                    "subjects": ["tester"],
+                    "permissions": permissions
+                }
+            ]})
         try:
             for permission in permissions:
                 assert yt.check_permission("tester", permission, "//home/tester")["action"] == "allow"

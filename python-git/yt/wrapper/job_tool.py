@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from yt.common import makedirp
-from yt.wrapper.common import parse_bool, DoNotReplaceAction, chunk_iter_stream, MB
+from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB
 from yt.wrapper.job_runner import make_run_script, get_output_descriptor_list
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
 import yt.logger as logger
@@ -234,7 +234,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         else:
             raise yt.YtError("Unknown format of job file node: {0}".format(node_type))
 
-        if parse_bool(file_.attributes.get("executable", False)):
+        if file_.attributes.get("executable", False):
             os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
 
         logger.info("Done")
@@ -252,7 +252,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
     logger.info("Command was written to %s", command_path)
 
     output_table_count = len(op_spec["output_table_paths"])
-    use_yamr_descriptors = parse_bool(op_spec[job_spec_section].get("use_yamr_descriptors", False))
+    use_yamr_descriptors = op_spec[job_spec_section].get("use_yamr_descriptors", False)
 
     output_path = os.path.join(job_path, "output")
     run_config = {

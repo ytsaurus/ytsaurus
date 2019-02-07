@@ -4,7 +4,6 @@ from __future__ import print_function
 
 from .helpers import TEST_DIR, set_config_option
 
-from yt.wrapper.common import parse_bool
 import yt.json_wrapper as json
 import yt.yson as yson
 
@@ -264,7 +263,7 @@ class TestCypressCommands(object):
         link = TEST_DIR + "/table_link"
         yt.create("table", table)
         yt.link(table, link)
-        assert not parse_bool(yt.get_attribute(link + "&", "broken"))
+        assert not yt.get_attribute(link + "&", "broken")
         assert yt.get_attribute(link + "&", "target_path") == table
 
         with pytest.raises(yt.YtError):
