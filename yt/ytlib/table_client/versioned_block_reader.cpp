@@ -188,6 +188,10 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* m
         deleteTimestampIndex = LowerBound(0, DeleteTimestampCount_, [&] (int index) {
             return ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + index) > Timestamp_;
         });
+
+        if (writeTimestampIndex == WriteTimestampCount_ && deleteTimestampIndex == DeleteTimestampCount_) {
+            return {};
+        }
     }
 
     // Produce output row.
