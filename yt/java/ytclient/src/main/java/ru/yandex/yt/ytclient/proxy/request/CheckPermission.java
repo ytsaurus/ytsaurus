@@ -1,6 +1,5 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
