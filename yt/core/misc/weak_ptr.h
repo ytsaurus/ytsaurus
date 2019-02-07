@@ -187,7 +187,7 @@ public:
     //! Acquire a strong reference to the pointee and return a strong pointer.
     TIntrusivePtr<T> Lock() const noexcept
     {
-        return  RefCounter_ && RefCounter_->TryRef()
+        return RefCounter_ && RefCounter_->TryRef()
             ? TIntrusivePtr<T>(T_, false)
             : TIntrusivePtr<T>();
     }
