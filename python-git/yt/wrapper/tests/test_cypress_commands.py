@@ -410,9 +410,10 @@ class TestCypressCommands(object):
         assert read_table() == [{"x": 3}]
         assert read_table(new_client) == [{"x": 3}]
 
-        with yt.Transaction(timeout=1000):
-            yt.write_table(table, [{"x": 4}])
-            time.sleep(3)
+        with set_config_option("ping_failed_mode", "pass"):
+            with yt.Transaction(timeout=1000):
+                yt.write_table(table, [{"x": 4}])
+                time.sleep(3)
 
         assert read_table() == [{"x": 4}]
 
