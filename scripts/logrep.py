@@ -25,6 +25,8 @@ FQDN = socket.getfqdn()
 
 CHUNK_GUID_TYPE = 100
 ERASURE_CHUNK_GUID_TYPE = 102
+TABLET_CELL_GUID_TYPE = 700
+TABLET_GUID_TYPE = 702
 JOB_GUID_TYPE = 900
 OPERATION_GUID_TYPE = 1000
 
@@ -118,6 +120,8 @@ def guid_type_name(guid_type):
     return {
         OPERATION_GUID_TYPE: "OperationId",
         JOB_GUID_TYPE: "JobId",
+        TABLET_CELL_GUID_TYPE: "TabletCellId",
+        TABLET_GUID_TYPE: "TabletId",
         CHUNK_GUID_TYPE: "ChunkId",
         ERASURE_CHUNK_GUID_TYPE: "ErasureChunkId"
     }[guid_type]
@@ -127,6 +131,10 @@ def cell_id_from_guid(guid):
     assert GUID_RE.match(guid)
     part = int(guid.split("-")[2], 16)
     return part >> 16
+
+
+def is_primary_cell_id(cell_id):
+    return cell_id / 100 == 10
 
 
 def shell_quote(s):
@@ -558,8 +566,7 @@ def resolve_service(client, service_name, selector_list):
                 selector = n
             guid = selector
             guid_type = object_type_from_uuid(guid)
-            if guid_type not in [OPERATION_GUID_TYPE, JOB_GUID_TYPE, CHUNK_GUID_TYPE, ERASURE_CHUNK_GUID_TYPE]:
-                raise LogrepError("Don't know what to do with guid of unknown type: {}".format(guid_type))
+
             if guid_type == OPERATION_GUID_TYPE:
                 if application == "ytserver-scheduler":
                     def filter_func(x):
@@ -568,20 +575,41 @@ def resolve_service(client, service_name, selector_list):
                     filter_func = AddressInSet({get_controller_agent_for_operation(client, guid)})
                 elif application == "ytserver-node":
                     filter_func = node_job_id_selector.get_operation_id_filter(guid)
+
             elif guid_type == JOB_GUID_TYPE:
                 if application == "ytserver-scheduler":
                     def filter_func(x):
                         return instance_match_attribute(x, "active")
                 elif application == "ytserver-node":
                     filter_func = node_job_id_selector.get_job_id_filter(guid)
+
             elif guid_type in [CHUNK_GUID_TYPE, ERASURE_CHUNK_GUID_TYPE]:
                 if application == "ytserver-master":
-                    attribute = "secondary:{cell:x}".format(cell=cell_id_from_guid(guid))
+                    attribute = ("primary" if is_primary_cell_id(cell_id_from_guid(guid))
+                        else "secondary:{cell:x}".format(cell=cell_id_from_guid(guid)))
 
                     def filter_func(x):
                         return instance_match_attribute(instance, attribute)
                 elif application == "ytserver-node":
                     filter_func = NodeChunkIdFilter(client, guid)
+
+            elif guid_type == TABLET_CELL_GUID_TYPE:
+                if application == "ytserver-node":
+                    filter_func = NodeTabletCellIdFilter(client, guid)
+
+            elif guid_type == TABLET_GUID_TYPE:
+                if application == "ytserver-master":
+                    attribute = ("primary" if is_primary_cell_id(cell_id_from_guid(guid))
+                        else "secondary:{cell:x}".format(cell=cell_id_from_guid(guid)))
+
+                    def filter_func(x):
+                        return instance_match_attribute(instance, attribute)
+                elif application == "ytserver-node":
+                    filter_func = NodeTabletIdFilter(client, guid)
+
+            else:
+                raise LogrepError("Don't know what to do with guid of unknown type: {}".format(guid_type))
+
             if filter_func is None:
                 def filter_func(_x):
                     return True
@@ -632,6 +660,44 @@ class NodeChunkIdFilter(object):
             instance.attributes.append("{}:last-seen".format(self.chunk_id))
             ok = True
         return ok
+
+
+class NodeTabletCellIdFilter(object):
+    def __init__(self, client, cell_id):
+        self.cell_id = cell_id
+        peers = client.get("#{}/@peers".format(self.cell_id))
+        self.peers = {p["address"]: p["state"] for p in peers}
+
+    def __call__(self, instance):
+        if instance.application != "ytserver-node":
+            return instance
+
+        state = self.peers.get(instance.address)
+        if state is not None:
+            instance.attributes.append("{}:cell-state:{}".format(self.cell_id, state))
+            return True
+
+        return False
+
+
+class NodeTabletIdFilter(object):
+    def __init__(self, client, tablet_id):
+        info = client.get("#{}/@".format(tablet_id), attributes=["cell_id"])
+        self.tablet_id = tablet_id
+        cell_id = info.get("cell_id")
+        if cell_id:
+            self.tablet_cell_id_filter = NodeTabletCellIdFilter(client, cell_id)
+        else:
+            self.tablet_cell_id_filter = None
+
+    def __call__(self, instance):
+        if instance.application != "ytserver-node":
+            return instance
+
+        if self.tablet_cell_id_filter:
+            return self.tablet_cell_id_filter(instance)
+        else:
+            return False
 
 
 class NodeJobIdSelector(object):
@@ -718,7 +784,7 @@ def get_secondary_master_list(client):
     result = []
     for address, state in rsp_map.iteritems():
         master_type = "secondary:{:x}".format(master_to_cell_id[address])
-        result.append(Instance(address, "ytserver-master", [state, master_type]))
+        result.append(Instance(address, "ytserver-master", [master_type, state]))
     return result
 
 
@@ -990,14 +1056,29 @@ INSTANCE SELECTORS
    Select node responsible for this job id.
 
    /<chunk-id> master
-   Select secondary master respobsible for this chunk.
+   Select master responsible for this chunk.
 
    /<chunk-id> node
-   Select nodes respobsible for this chunk.
+   Select nodes responsible for this chunk.
    This selector also adds attributes
      - <chunk-id>:last-seen
      - <chunk-id>:stored:<medium>
    for selected logs.
+
+   /<tablet-id> master
+   Select master responsible for this tablet.
+
+   /<tablet-id> node
+   Select nodes responsible for this tablet cell.
+   This selector also adds attribute
+     - <tablet-cell-id>:cell-state:<peer-state>
+   for selected instances.
+
+   /<tablet-cell-id> node
+   Select nodes responsible for this tablet cell.
+   This selector also adds attribute
+     - <tablet-cell-id>:cell-state:<peer-state>
+   for selected instances.
 
  /!<selector>
  Invert selector.
