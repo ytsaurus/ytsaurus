@@ -1518,7 +1518,7 @@ template <typename StringType>
 void CopyString(TExpressionContext* context, TUnversionedValue* result, const StringType& str)
 {
     char* data = AllocateBytes(context, str.size());
-    memcpy(data, str.c_str(), str.size());
+    memcpy(data, str.data(), str.size());
     result->Type = EValueType::String;
     result->Length = str.size();
     result->Data.String = data;

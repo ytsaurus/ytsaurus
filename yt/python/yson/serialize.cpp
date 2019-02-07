@@ -55,7 +55,9 @@ void SerializeLazyMapFragment(
             throw Py::RuntimeError(Format("Map key should be string, found '%s'", Py::Repr(key)));
         }
 
-        auto mapKey = ConvertToStringBuf(EncodeStringObject(key, encoding, context));
+
+        auto encodedKey = EncodeStringObject(key, encoding, context);
+        auto mapKey = ConvertToStringBuf(encodedKey);
         consumer->OnKeyedItem(mapKey);
         context->Push(mapKey);
 
@@ -172,6 +174,15 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     }
 }
 
+bool HasAttributes(const Py::Object& obj)
+{
+    const char* attributesStr = "attributes";
+    const char* hasAttributesStr = "has_attributes";
+    if (obj.hasAttr(hasAttributesStr)) {
+        return Py::Boolean(Py::Callable(GetAttr(obj, hasAttributesStr)).apply(Py::Tuple(), Py::Dict()));
+    }
+    return obj.hasAttr(attributesStr);
+}
 
 void Serialize(
     const Py::Object& obj,
@@ -191,7 +202,7 @@ void Serialize(
     }
 
     const char* attributesStr = "attributes";
-    if ((!ignoreInnerAttributes || depth == 0) && obj.hasAttr(attributesStr)) {
+    if ((!ignoreInnerAttributes || depth == 0) && HasAttributes(obj)) {
         auto attributeObject = obj.getAttr(attributesStr);
         if ((!attributeObject.isMapping() && !attributeObject.isNone()) || attributeObject.isSequence())  {
             throw CreateYsonError("Invalid field 'attributes', it is neither mapping nor None", context);
@@ -209,7 +220,8 @@ void Serialize(
     }
 
     if (PyBytes_Check(obj.ptr()) || PyUnicode_Check(obj.ptr())) {
-        consumer->OnStringScalar(ConvertToStringBuf(EncodeStringObject(obj, encoding, context)));
+        auto encodedObj = EncodeStringObject(obj, encoding, context);
+        consumer->OnStringScalar(ConvertToStringBuf(encodedObj));
 #if PY_MAJOR_VERSION < 3
     // Fast check for simple integers (python 3 has only long integers)
     } else if (PyInt_CheckExact(obj.ptr())) {
