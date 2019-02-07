@@ -222,7 +222,7 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
             randomVictim = RandomNumber(Slots_.size());
         }
 
-        if (replaced.empty()) {
+        if (replaced.empty() && randomVictim >= 0 && randomVictim < Slots_.size()) {
             Slots_[randomVictim] = New<TChannelSlot>();
             replaced.push_back(Slots_[randomVictim]);
         }
