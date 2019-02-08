@@ -32,6 +32,7 @@ TEST(TProcessTest, Basic)
     EXPECT_TRUE(p->IsFinished());
 }
 
+#ifndef YT_IN_ARCADIA
 TEST(TProcessTest, RunFromPathEnv)
 {
     auto p = New<TSimpleProcess>("ls", false);
@@ -43,6 +44,7 @@ TEST(TProcessTest, RunFromPathEnv)
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
 }
+#endif
 
 TEST(TProcessTest, InvalidPath)
 {
