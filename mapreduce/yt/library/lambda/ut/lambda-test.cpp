@@ -3,6 +3,7 @@
 
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 #include <library/unittest/registar.h>
+#include <library/unittest/utmain.h> // UNITTEST_WITH_CUSTOM_ENTRY_POINT
 
 using namespace NYT;
 using namespace NYT::NTesting;
@@ -52,6 +53,26 @@ TVector<TNode> ExpectedOutputNF = {
     TNode()("key", "third")("count", 1u)("sum", 300.)("sum_squared", 90000.),
 };
 
+struct TManuallyRegisteredSettings : ISerializableForJob {
+    TString Stuff = "Bar";
+    Y_SAVELOAD_JOB(Stuff);
+};
+
+TManuallyRegisteredSettings ManuallyRegisteredSettings;
+
+struct TSomeUselessSettings {
+    TString Foo = "Bar";
+    Y_SAVELOAD_DEFINE(Foo);
+};
+
+TSaveable<TSomeUselessSettings> UselessSettings;
+
+struct TSomeGlobalSettings {
+    ui64 Limit = 0;
+};
+
+TSaveablePOD<TSomeGlobalSettings> GlobalSettings;
+
 Y_UNIT_TEST_SUITE(Lambda) {
     Y_UNIT_TEST(CopyIf) {
         // Note that constants need not to be captured
@@ -72,16 +93,17 @@ Y_UNIT_TEST_SUITE(Lambda) {
     }
 
     Y_UNIT_TEST(TransformCopyIf) {
-        static constexpr ui64 LIMIT = 1000;
+        GlobalSettings.Limit = 1000;
+        ManuallyRegisteredSettings.Stuff = "Stuff";
         auto client = CreateTestClient();
         CreateTable(client, "//testing/input", InputTableData);
 
         TransformCopyIf<TNode, TNode>(client, "//testing/input",  "//testing/output",
             [](auto& src, auto& dst) {
-                if (src["Val"].AsUint64() >= LIMIT)
+                if (src["Val"].AsUint64() >= GlobalSettings.Limit)
                     return false;
                 dst["Key1"] = src["Key"];
-                dst["Key2"] = src["Key"].AsString() + "Stuff";
+                dst["Key2"] = src["Key"].AsString() + ManuallyRegisteredSettings.Stuff;
                 dst["Val"] = src["Val"];
                 return true;
             });
@@ -360,4 +382,12 @@ Y_UNIT_TEST_SUITE(Lambda) {
 
         CompareTable(client, "//testing/output", ExpectedOutputNF);
     }
+}
+
+int main(int argc, const char** argv)
+{
+    NYT::TConfig::Get()->LogLevel = "debug";
+    RegisterGlobalSaveable(ManuallyRegisteredSettings);
+    NYT::Initialize(argc, argv, NYT::TInitializeOptions().CleanupOnTermination(true));
+    return NUnitTest::RunMain(argc, const_cast<char**>(argv));
 }

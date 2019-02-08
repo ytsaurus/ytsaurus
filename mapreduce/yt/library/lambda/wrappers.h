@@ -1,6 +1,7 @@
 #pragma once
 
 #include "field_copier.h"
+#include "global_saveable.h"
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/library/table_schema/protobuf.h>
@@ -19,10 +20,13 @@ public:
     void Save(IOutputStream& stream) const override {
         // Note that this does not work with any lambda,
         // actually Func is a function pointer for now.
+        // Scary raw pointer I/O will be removed when C++20 comes.
         SavePodType(&stream, Func);
+        TSaveablesRegistry::Get()->SaveAll(stream);
     }
     void Load(IInputStream& stream) override {
         LoadPodType(&stream, Func);
+        TSaveablesRegistry::Get()->LoadAll(stream);
     }
 
 protected:
