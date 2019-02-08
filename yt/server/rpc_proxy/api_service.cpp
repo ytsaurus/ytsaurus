@@ -2566,6 +2566,9 @@ private:
         if (request->has_udf_registry_path()) {
             options.UdfRegistryPath = request->udf_registry_path();
         }
+        if (request->has_memory_limit_per_node()) {
+            options.MemoryLimitPerNode = request->memory_limit_per_node();
+        }
 
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,

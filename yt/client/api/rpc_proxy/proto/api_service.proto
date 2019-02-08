@@ -388,6 +388,7 @@ message TReqSelectRows
     optional bool allow_full_scan = 11;
     optional bool allow_join_without_index = 12;
     optional string udf_registry_path = 13;
+    optional uint64 memory_limit_per_node = 14;
 }
 
 message TRspSelectRows
